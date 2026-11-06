@@ -87,7 +87,7 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
         poll();
         ShardTaskRun run = awaitStarted(1);
         ShardTaskDoc running = read(unassigned).doc();
-        assertThat(running.status(), equalTo(ShardTaskStatus.RUNNING));
+        assertThat(running.status(), equalTo(ShardTaskStatus.DOWNSAMPLING));
         assertThat(running.assignedNode(), equalTo(nodeId()));
         assertThat(running.epoch(), equalTo(unassigned.doc().epoch() + 1));
         assertThat(running.runId(), equalTo(run.runId()));
@@ -240,13 +240,13 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
         poll();
         awaitStarted(2);
         assertThat(poller.activeRuns(), equalTo(2));
-        assertThat("one task waits for a free slot", count(tasks, ShardTaskStatus.UNASSIGNED), equalTo(1L));
+        assertThat("one task waits for a free slot", count(tasks, ShardTaskStatus.WAITING), equalTo(1L));
 
         completeRun(0, l -> l.onResponse(null));
         // the finished run frees a slot and makes the poller look again right away
         awaitStarted(3);
         assertBusy(() -> assertThat(poller.activeRuns(), equalTo(2)));
-        assertThat(count(tasks, ShardTaskStatus.UNASSIGNED), equalTo(0L));
+        assertThat(count(tasks, ShardTaskStatus.WAITING), equalTo(0L));
     }
 
     /**
@@ -278,7 +278,7 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
         poll();
         ShardTaskRun run = awaitStarted(1);
         assertThat(run.docId(), equalTo(older.doc().id()));
-        assertThat(read(newer).doc().status(), equalTo(ShardTaskStatus.UNASSIGNED));
+        assertThat(read(newer).doc().status(), equalTo(ShardTaskStatus.WAITING));
     }
 
     /**
@@ -313,7 +313,7 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
         ShardTaskRun run = awaitStarted(1);
         assertThat(run.docId(), equalTo(wasRunning.doc().id()));
         assertThat(run.epoch(), equalTo(wasRunning.doc().epoch()));
-        assertThat(read(unassigned).doc().status(), equalTo(ShardTaskStatus.UNASSIGNED));
+        assertThat(read(unassigned).doc().status(), equalTo(ShardTaskStatus.WAITING));
     }
 
     /**
@@ -323,7 +323,7 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
         Versioned<ShardTaskDoc> elsewhere = createUnassigned(new ShardId(new Index("source-elsewhere", randomUUID()), 0), 1);
         poll();
         assertThat(started, empty());
-        assertThat(read(elsewhere).doc().status(), equalTo(ShardTaskStatus.UNASSIGNED));
+        assertThat(read(elsewhere).doc().status(), equalTo(ShardTaskStatus.WAITING));
     }
 
     // ---- helpers ----

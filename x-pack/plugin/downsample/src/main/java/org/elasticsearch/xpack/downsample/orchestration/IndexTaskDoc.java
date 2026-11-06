@@ -174,7 +174,7 @@ public record IndexTaskDoc(
      * Records the uuid of the newly created target index and moves on to running the shard tasks, in one write.
      */
     public IndexTaskDoc targetCreated(String uuid) {
-        return copy(Objects.requireNonNull(uuid), IndexTaskPhase.RUN_SHARDS, 0, 0L, lastError, errorHistory);
+        return copy(Objects.requireNonNull(uuid), IndexTaskPhase.DOWNSAMPLING_SHARDS, 0, 0L, lastError, errorHistory);
     }
 
     /**

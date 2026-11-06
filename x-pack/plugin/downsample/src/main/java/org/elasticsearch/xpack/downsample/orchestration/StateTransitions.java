@@ -23,10 +23,10 @@ import java.util.Objects;
  *     <li>The master owns the index task document and all its phase transitions.</li>
  *     <li>The master creates shard task documents, and releases, retries or fails them; each of these increments the
  *     epoch, which fences the node that held the task. The master never gives a task to a node.</li>
- *     <li>A node may claim an {@code UNASSIGNED} shard task for itself only, which moves it to {@code RUNNING} at the next
+ *     <li>A node may claim a {@code WAITING} shard task for itself only, which moves it to {@code DOWNSAMPLING} at the next
  *     epoch. Whether the node is eligible (holds a copy of the source shard, is not shutting down) is checked by the store
  *     against the cluster state, since it is not part of the document.</li>
- *     <li>A node may only write a shard task document it owns at the epoch it holds, may only move it to {@code RUNNING},
+ *     <li>A node may only write a shard task document it owns at the epoch it holds, may only move it to {@code DOWNSAMPLING},
  *     {@code COMPLETED} or {@code FAILED}, and may not change its identity, owner, epoch or attempt.</li>
  * </ul>
  */
@@ -74,7 +74,7 @@ public final class StateTransitions {
      */
     public static void validateMasterShardTaskWrite(@Nullable ShardTaskDoc current, ShardTaskDoc next) {
         if (current == null) {
-            check(next.status() == ShardTaskStatus.UNASSIGNED, "a new shard task must be [UNASSIGNED], got [%s]", next.status());
+            check(next.status() == ShardTaskStatus.WAITING, "a new shard task must be [WAITING], got [%s]", next.status());
             check(next.assignedNode() == null, "a new shard task cannot be assigned");
             check(next.epoch() == 0 && next.attempt() == 0, "a new shard task must start at epoch 0 with no attempts");
             return;
@@ -93,9 +93,9 @@ public final class StateTransitions {
         );
         check(next.attempt() >= current.attempt(), "the attempt count cannot decrease");
         switch (next.status()) {
-            case UNASSIGNED -> check(next.assignedNode() == null, "an unassigned shard task cannot have a node");
+            case WAITING -> check(next.assignedNode() == null, "an unassigned shard task cannot have a node");
             case FAILED -> check(next.retriable() == false, "the master can only fail a shard task for good");
-            case RUNNING, COMPLETED -> throw new IllegalStateException(
+            case DOWNSAMPLING, COMPLETED -> throw new IllegalStateException(
                 "only the owning node can move a shard task to [" + next.status() + "]"
             );
         }
@@ -109,14 +109,14 @@ public final class StateTransitions {
     public static void validateNodeClaim(String nodeId, ShardTaskDoc current, ShardTaskDoc next) {
         Objects.requireNonNull(current, "a node cannot create a shard task");
         check(
-            current.status() == ShardTaskStatus.UNASSIGNED,
+            current.status() == ShardTaskStatus.WAITING,
             "shard task [%s] is [%s], only an unassigned shard task can be claimed",
             current.id(),
             current.status()
         );
         checkSameTask(current, next);
         check(nodeId.equals(next.assignedNode()), "node [%s] can only claim shard task [%s] for itself", nodeId, current.id());
-        check(next.status() == ShardTaskStatus.RUNNING, "a claimed shard task must be [RUNNING], got [%s]", next.status());
+        check(next.status() == ShardTaskStatus.DOWNSAMPLING, "a claimed shard task must be [DOWNSAMPLING], got [%s]", next.status());
         check(next.runId() != null, "a running shard task needs a run id");
         check(next.epoch() == current.epoch() + 1, "a claim must increment the epoch, from [%s] got [%s]", current.epoch(), next.epoch());
         check(current.attempt() == next.attempt(), "a node cannot change the attempt count");
@@ -144,11 +144,11 @@ public final class StateTransitions {
         check(current.epoch() == next.epoch(), "a node cannot change the epoch");
         check(current.attempt() == next.attempt(), "a node cannot change the attempt count");
         switch (next.status()) {
-            case RUNNING -> check(next.runId() != null, "a running shard task needs a run id");
+            case DOWNSAMPLING -> check(next.runId() != null, "a running shard task needs a run id");
             // a node owns only running tasks (it claims a task by marking it running), so it completes or fails from there
             case COMPLETED, FAILED -> {
             }
-            case UNASSIGNED -> throw new IllegalStateException("only the master can move a shard task to [" + next.status() + "]");
+            case WAITING -> throw new IllegalStateException("only the master can move a shard task to [" + next.status() + "]");
         }
     }
 

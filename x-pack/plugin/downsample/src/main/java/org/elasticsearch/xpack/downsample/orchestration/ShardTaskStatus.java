@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.downsample.orchestration;
 
 /**
- * The status of the downsampling of one source shard. {@code UNASSIGNED} is set by the master and means any eligible node may
- * claim the task, {@code RUNNING} is set by the node that claims it, {@code COMPLETED} only by that node, and {@code FAILED} by
- * either.
+ * The status of the downsampling of one source shard. {@code WAITING} is set by the master and means any eligible node may
+ * claim the task, {@code DOWNSAMPLING} is set by the node that claims it, {@code COMPLETED} only by that node, and {@code FAILED}
+ * by either.
  */
 public enum ShardTaskStatus {
-    UNASSIGNED,
-    RUNNING,
+    WAITING,
+    DOWNSAMPLING,
     COMPLETED,
     FAILED;
 
@@ -23,8 +23,8 @@ public enum ShardTaskStatus {
      */
     public boolean isOwnedByNode() {
         return switch (this) {
-            case RUNNING -> true;
-            case UNASSIGNED, COMPLETED, FAILED -> false;
+            case DOWNSAMPLING -> true;
+            case WAITING, COMPLETED, FAILED -> false;
         };
     }
 }

@@ -149,7 +149,7 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
     public void testInvalidIndexTaskTransitionIsNotWritten() {
         Versioned<IndexTaskDoc> v1 = createIndexTask(newIndexTask(project, "target"));
         PlainActionFuture<Versioned<IndexTaskDoc>> invalid = new PlainActionFuture<>();
-        store.forMaster().updateIndexTask(v1, v1.doc().withPhase(IndexTaskPhase.RUN_SHARDS), invalid);
+        store.forMaster().updateIndexTask(v1, v1.doc().withPhase(IndexTaskPhase.DOWNSAMPLING_SHARDS), invalid);
         assertRejected(invalid, "requires the target index uuid");
         assertThat(getIndexTask("target").orElseThrow(), equalTo(v1));
     }
@@ -209,7 +209,7 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
         List<Versioned<ShardTaskDoc>> claimable = findClaimableShardTasks(10);
         assertThat(claimable, hasSize(1));
         Versioned<ShardTaskDoc> running = claim(claimable.get(0));
-        assertThat(running.doc().status(), equalTo(ShardTaskStatus.RUNNING));
+        assertThat(running.doc().status(), equalTo(ShardTaskStatus.DOWNSAMPLING));
         assertThat(running.doc().assignedNode(), equalTo(localNode));
         long heldEpoch = running.doc().epoch();
         assertThat(heldEpoch, equalTo(1L));

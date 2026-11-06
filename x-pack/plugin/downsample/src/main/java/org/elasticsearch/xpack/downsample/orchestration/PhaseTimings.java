@@ -44,7 +44,7 @@ final class PhaseTimings {
     }
 
     /**
-     * For example {@code CREATE_TARGET [150ms], RUN_SHARDS [11.2s], FINALIZE_SETTINGS [40ms]}.
+     * For example {@code CREATE_TARGET [150ms], DOWNSAMPLING_SHARDS [11.2s], FINALIZE_SETTINGS [40ms]}.
      */
     synchronized String summary() {
         String phases = durations.entrySet()

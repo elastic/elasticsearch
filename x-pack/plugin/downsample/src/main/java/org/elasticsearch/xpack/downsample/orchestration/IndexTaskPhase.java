@@ -13,7 +13,7 @@ package org.elasticsearch.xpack.downsample.orchestration;
  */
 public enum IndexTaskPhase {
     CREATE_TARGET,
-    RUN_SHARDS,
+    DOWNSAMPLING_SHARDS,
     FINALIZE_SETTINGS,
     REFRESH,
     MARK_SUCCESS,
@@ -24,7 +24,7 @@ public enum IndexTaskPhase {
     public boolean isTerminal() {
         return switch (this) {
             case DONE, FAILED -> true;
-            case CREATE_TARGET, RUN_SHARDS, FINALIZE_SETTINGS, REFRESH, MARK_SUCCESS, FLUSH -> false;
+            case CREATE_TARGET, DOWNSAMPLING_SHARDS, FINALIZE_SETTINGS, REFRESH, MARK_SUCCESS, FLUSH -> false;
         };
     }
 }

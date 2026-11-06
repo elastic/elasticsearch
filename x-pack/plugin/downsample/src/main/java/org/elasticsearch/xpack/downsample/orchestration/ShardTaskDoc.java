@@ -140,7 +140,7 @@ public record ShardTaskDoc(
             targetIndexUuid,
             params,
             createdAt,
-            ShardTaskStatus.UNASSIGNED,
+            ShardTaskStatus.WAITING,
             null,
             0L,
             0,
@@ -174,14 +174,14 @@ public record ShardTaskDoc(
      * shard task survives any number of node restarts.
      */
     public ShardTaskDoc unassign() {
-        return copy(ShardTaskStatus.UNASSIGNED, null, epoch + 1, attempt, lastError, false, null, null);
+        return copy(ShardTaskStatus.WAITING, null, epoch + 1, attempt, lastError, false, null, null);
     }
 
     /**
      * Makes a task that failed with a retriable error claimable again, counting an attempt.
      */
     public ShardTaskDoc retry() {
-        return copy(ShardTaskStatus.UNASSIGNED, null, epoch + 1, attempt + 1, lastError, false, null, null);
+        return copy(ShardTaskStatus.WAITING, null, epoch + 1, attempt + 1, lastError, false, null, null);
     }
 
     /**
@@ -198,7 +198,7 @@ public record ShardTaskDoc(
      */
     public ShardTaskDoc claimBy(String nodeId, String newRunId, Map<String, Object> newProgress) {
         return copy(
-            ShardTaskStatus.RUNNING,
+            ShardTaskStatus.DOWNSAMPLING,
             Objects.requireNonNull(nodeId),
             epoch + 1,
             attempt,
@@ -214,7 +214,7 @@ public record ShardTaskDoc(
      */
     public ShardTaskDoc running(String newRunId, Map<String, Object> newProgress) {
         return copy(
-            ShardTaskStatus.RUNNING,
+            ShardTaskStatus.DOWNSAMPLING,
             assignedNode,
             epoch,
             attempt,

@@ -21,24 +21,33 @@ public class PhaseTimingsTests extends ESTestCase {
         IndexTaskDoc requested = newIndexTask("target");
         long t0 = requested.createdAt();
         PhaseTimings timings = new PhaseTimings(requested, t0 + 5);
-        timings.transition(IndexTaskPhase.RUN_SHARDS, t0 + 100);
+        timings.transition(IndexTaskPhase.DOWNSAMPLING_SHARDS, t0 + 100);
         // a retry within a phase does not end it
-        timings.transition(IndexTaskPhase.RUN_SHARDS, t0 + 500);
+        timings.transition(IndexTaskPhase.DOWNSAMPLING_SHARDS, t0 + 500);
         timings.transition(IndexTaskPhase.FINALIZE_SETTINGS, t0 + 1_100);
         timings.transition(IndexTaskPhase.DONE, t0 + 1_150);
 
         assertThat(
             timings.durations(),
-            equalTo(Map.of(IndexTaskPhase.CREATE_TARGET, 100L, IndexTaskPhase.RUN_SHARDS, 1_000L, IndexTaskPhase.FINALIZE_SETTINGS, 50L))
+            equalTo(
+                Map.of(
+                    IndexTaskPhase.CREATE_TARGET,
+                    100L,
+                    IndexTaskPhase.DOWNSAMPLING_SHARDS,
+                    1_000L,
+                    IndexTaskPhase.FINALIZE_SETTINGS,
+                    50L
+                )
+            )
         );
-        assertThat(timings.summary(), equalTo("CREATE_TARGET [100ms], RUN_SHARDS [1s], FINALIZE_SETTINGS [50ms]"));
+        assertThat(timings.summary(), equalTo("CREATE_TARGET [100ms], DOWNSAMPLING_SHARDS [1s], FINALIZE_SETTINGS [50ms]"));
     }
 
     public void testClockOfAnotherNodeAheadOfThisOne() {
         IndexTaskDoc requested = newIndexTask("target");
         // the operation was requested on a node whose clock is ahead of this master's
         PhaseTimings timings = new PhaseTimings(requested, requested.createdAt() - 50);
-        timings.transition(IndexTaskPhase.RUN_SHARDS, requested.createdAt() - 10);
+        timings.transition(IndexTaskPhase.DOWNSAMPLING_SHARDS, requested.createdAt() - 10);
         assertThat(timings.durations(), equalTo(Map.of(IndexTaskPhase.CREATE_TARGET, 0L)));
         assertThat(timings.summary(), equalTo("CREATE_TARGET [0s]"));
     }
@@ -49,7 +58,7 @@ public class PhaseTimingsTests extends ESTestCase {
         PhaseTimings timings = new PhaseTimings(running, now);
         timings.transition(IndexTaskPhase.FINALIZE_SETTINGS, now + 300);
 
-        assertThat(timings.durations(), equalTo(Map.of(IndexTaskPhase.RUN_SHARDS, 300L)));
-        assertThat(timings.summary(), startsWith("earlier phases not seen by this master, RUN_SHARDS [300ms]"));
+        assertThat(timings.durations(), equalTo(Map.of(IndexTaskPhase.DOWNSAMPLING_SHARDS, 300L)));
+        assertThat(timings.summary(), startsWith("earlier phases not seen by this master, DOWNSAMPLING_SHARDS [300ms]"));
     }
 }

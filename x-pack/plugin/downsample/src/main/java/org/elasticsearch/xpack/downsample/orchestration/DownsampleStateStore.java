@@ -284,7 +284,7 @@ public class DownsampleStateStore {
             BoolQueryBuilder query = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(DOC_TYPE_FIELD, SHARD_TASK_DOC_TYPE))
                 .filter(QueryBuilders.termQuery(ShardTaskDoc.ASSIGNED_NODE.getPreferredName(), nodeId))
-                .filter(QueryBuilders.termQuery(ShardTaskDoc.STATUS.getPreferredName(), ShardTaskStatus.RUNNING.name()));
+                .filter(QueryBuilders.termQuery(ShardTaskDoc.STATUS.getPreferredName(), ShardTaskStatus.DOWNSAMPLING.name()));
             search(projectId, query, ShardTaskDoc::fromXContent, listener);
         }
 
@@ -307,7 +307,7 @@ public class DownsampleStateStore {
             }
             BoolQueryBuilder query = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(DOC_TYPE_FIELD, SHARD_TASK_DOC_TYPE))
-                .filter(QueryBuilders.termQuery(ShardTaskDoc.STATUS.getPreferredName(), ShardTaskStatus.UNASSIGNED.name()))
+                .filter(QueryBuilders.termQuery(ShardTaskDoc.STATUS.getPreferredName(), ShardTaskStatus.WAITING.name()))
                 .filter(QueryBuilders.termsQuery(IndexTaskDoc.SOURCE_INDEX_UUID.getPreferredName(), sourceIndexUuids));
             search(
                 projectId,

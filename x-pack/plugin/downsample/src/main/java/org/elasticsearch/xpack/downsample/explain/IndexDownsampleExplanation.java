@@ -53,7 +53,8 @@ public record IndexDownsampleExplanation(
 ) implements ToXContentObject {
 
     /**
-     * The counters of the shard progress that add up to the progress of the whole index.
+     * The document counters of the shard progress: they add up to the progress of the whole index, and they are all that is shown
+     * of a completed shard.
      */
     static final List<String> SUMMED_COUNTERS = List.of(
         "total_shard_doc_count",
@@ -91,7 +92,7 @@ public record IndexDownsampleExplanation(
             return switch (operation.phase()) {
                 case DONE -> "completed";
                 case FAILED -> "failed";
-                case CREATE_TARGET, RUN_SHARDS, FINALIZE_SETTINGS, REFRESH, MARK_SUCCESS, FLUSH -> "in_progress";
+                case CREATE_TARGET, DOWNSAMPLING_SHARDS, FINALIZE_SETTINGS, REFRESH, MARK_SUCCESS, FLUSH -> "in_progress";
             };
         }
         return switch (downsampleStatus) {
@@ -137,13 +138,12 @@ public record IndexDownsampleExplanation(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("index", index);
+        builder.field("index_name", index);
         builder.field("index_uuid", indexUuid);
         builder.field("state", state());
         builder.field("downsample_status", downsampleStatus.toString());
-        builder.field("orchestration", operation == null ? "persistent_task" : "system_index");
         if (sourceIndex != null) {
-            builder.field("source_index", sourceIndex);
+            builder.field("source_index_name", sourceIndex);
         }
         if (interval != null) {
             builder.field("interval", interval);
@@ -192,24 +192,46 @@ public record IndexDownsampleExplanation(
             builder.startObject();
             builder.field("shard", shard.shard());
             builder.field("status", shard.status().name().toLowerCase(Locale.ROOT));
-            if (shard.assignedNode() != null) {
-                builder.field("node", shard.assignedNode());
-            }
-            builder.field("epoch", shard.epoch());
-            builder.field("attempt", shard.attempt());
-            if (shard.runId() != null) {
-                builder.field("run_id", shard.runId());
-            }
-            if (shard.lastError() != null) {
-                builder.field("last_error", shard.lastError());
-                builder.field("retriable", shard.retriable());
-            }
-            if (shard.progress() != null) {
-                builder.field("progress", shard.progress());
+            switch (shard.status()) {
+                // a completed shard is only interesting for what it did
+                case COMPLETED -> builder.field("progress", docCounts(shard));
+                case WAITING, DOWNSAMPLING, FAILED -> {
+                    if (shard.assignedNode() != null) {
+                        builder.field("node", shard.assignedNode());
+                    }
+                    builder.field("epoch", shard.epoch());
+                    builder.field("attempt", shard.attempt());
+                    if (shard.runId() != null) {
+                        builder.field("run_id", shard.runId());
+                    }
+                    if (shard.lastError() != null) {
+                        builder.field("last_error", shard.lastError());
+                        builder.field("retriable", shard.retriable());
+                    }
+                    if (shard.progress() != null) {
+                        builder.field("progress", shard.progress());
+                    }
+                }
             }
             builder.endObject();
         }
         builder.endArray();
+    }
+
+    /**
+     * The document counters of a shard, without its timestamps and indexer details.
+     */
+    private static Map<String, Object> docCounts(ShardTaskDoc shard) {
+        Map<String, Object> counts = new LinkedHashMap<>();
+        if (shard.progress() != null) {
+            for (String counter : SUMMED_COUNTERS) {
+                Object value = shard.progress().get(counter);
+                if (value != null) {
+                    counts.put(counter, value);
+                }
+            }
+        }
+        return counts;
     }
 
     /**

@@ -50,20 +50,26 @@ public class StateTransitionsTests extends ESTestCase {
         validateMasterIndexTaskWrite(running, running.withPhase(IndexTaskPhase.FINALIZE_SETTINGS));
         validateMasterIndexTaskWrite(running, running.withRetry("boom", 1));
         IndexTaskDoc finalizing = running.withPhase(IndexTaskPhase.FINALIZE_SETTINGS);
-        rejected(() -> validateMasterIndexTaskWrite(finalizing, finalizing.withPhase(IndexTaskPhase.RUN_SHARDS)), "only move forward");
+        rejected(
+            () -> validateMasterIndexTaskWrite(finalizing, finalizing.withPhase(IndexTaskPhase.DOWNSAMPLING_SHARDS)),
+            "only move forward"
+        );
     }
 
     public void testAnyActiveIndexTaskCanFail() {
         IndexTaskDoc doc = newIndexTask("target");
         if (randomBoolean()) {
-            doc = doc.targetCreated(randomUUID()).withPhase(randomFrom(IndexTaskPhase.RUN_SHARDS, IndexTaskPhase.REFRESH));
+            doc = doc.targetCreated(randomUUID()).withPhase(randomFrom(IndexTaskPhase.DOWNSAMPLING_SHARDS, IndexTaskPhase.REFRESH));
         }
         validateMasterIndexTaskWrite(doc, doc.failed("boom"));
     }
 
     public void testIndexTaskNeedsTargetUuidAfterCreation() {
         IndexTaskDoc doc = newIndexTask("target");
-        rejected(() -> validateMasterIndexTaskWrite(doc, doc.withPhase(IndexTaskPhase.RUN_SHARDS)), "requires the target index uuid");
+        rejected(
+            () -> validateMasterIndexTaskWrite(doc, doc.withPhase(IndexTaskPhase.DOWNSAMPLING_SHARDS)),
+            "requires the target index uuid"
+        );
     }
 
     public void testIndexTaskTargetUuidIsImmutable() {
@@ -152,7 +158,7 @@ public class StateTransitionsTests extends ESTestCase {
     public void testNewShardTask() {
         ShardTaskDoc doc = newShardTask("target", randomUUID());
         validateMasterShardTaskWrite(null, doc);
-        rejected(() -> validateMasterShardTaskWrite(null, doc.claimBy(NODE, randomUUID(), Map.of())), "must be [UNASSIGNED]");
+        rejected(() -> validateMasterShardTaskWrite(null, doc.claimBy(NODE, randomUUID(), Map.of())), "must be [WAITING]");
     }
 
     public void testMasterReleasesRetriesAndFails() {
@@ -162,14 +168,14 @@ public class StateTransitionsTests extends ESTestCase {
         ShardTaskDoc retriable = running.failedOnNode("boom", true, Map.of());
         ShardTaskDoc retried = retriable.retry();
         validateMasterShardTaskWrite(retriable, retried);
-        assertThat(retried.status(), equalTo(ShardTaskStatus.UNASSIGNED));
+        assertThat(retried.status(), equalTo(ShardTaskStatus.WAITING));
         assertThat(retried.attempt(), equalTo(retriable.attempt() + 1));
         assertThat(retried.assignedNode(), nullValue());
     }
 
     public void testMasterCannotGiveATaskToANode() {
         ShardTaskDoc doc = newShardTask("target", randomUUID());
-        ShardTaskDoc given = withOwnership(doc, ShardTaskStatus.UNASSIGNED, NODE, doc.epoch() + 1, doc.attempt(), null);
+        ShardTaskDoc given = withOwnership(doc, ShardTaskStatus.WAITING, NODE, doc.epoch() + 1, doc.attempt(), null);
         rejected(() -> validateMasterShardTaskWrite(doc, given), "cannot have a node");
     }
 
@@ -185,7 +191,7 @@ public class StateTransitionsTests extends ESTestCase {
         // a doc that only differs by status and an incremented epoch, so the status is the only reason to reject
         ShardTaskDoc completed = withOwnership(
             doc,
-            randomFrom(ShardTaskStatus.RUNNING, ShardTaskStatus.COMPLETED),
+            randomFrom(ShardTaskStatus.DOWNSAMPLING, ShardTaskStatus.COMPLETED),
             NODE,
             doc.epoch() + 1,
             doc.attempt(),
@@ -210,7 +216,7 @@ public class StateTransitionsTests extends ESTestCase {
             randomUUID(),
             running.params(),
             running.createdAt(),
-            ShardTaskStatus.UNASSIGNED,
+            ShardTaskStatus.WAITING,
             null,
             running.epoch() + 1,
             running.attempt(),
@@ -226,7 +232,7 @@ public class StateTransitionsTests extends ESTestCase {
             running.targetIndexUuid(),
             running.params(),
             running.createdAt() + 1,
-            ShardTaskStatus.UNASSIGNED,
+            ShardTaskStatus.WAITING,
             null,
             running.epoch() + 1,
             running.attempt(),
@@ -244,7 +250,7 @@ public class StateTransitionsTests extends ESTestCase {
         ShardTaskDoc doc = randomBoolean() ? newShardTask("target", randomUUID()) : claimed(OTHER_NODE).unassign();
         ShardTaskDoc running = doc.claimBy(NODE, randomUUID(), Map.of());
         validateNodeClaim(NODE, doc, running);
-        assertThat(running.status(), equalTo(ShardTaskStatus.RUNNING));
+        assertThat(running.status(), equalTo(ShardTaskStatus.DOWNSAMPLING));
         assertThat(running.epoch(), equalTo(doc.epoch() + 1));
         assertThat(running.attempt(), equalTo(doc.attempt()));
     }
@@ -262,13 +268,20 @@ public class StateTransitionsTests extends ESTestCase {
 
     public void testClaimMustIncrementEpochAndKeepAttempts() {
         ShardTaskDoc doc = newShardTask("target", randomUUID());
-        ShardTaskDoc sameEpoch = withOwnership(doc, ShardTaskStatus.RUNNING, NODE, doc.epoch(), doc.attempt(), randomUUID());
+        ShardTaskDoc sameEpoch = withOwnership(doc, ShardTaskStatus.DOWNSAMPLING, NODE, doc.epoch(), doc.attempt(), randomUUID());
         rejected(() -> validateNodeClaim(NODE, doc, sameEpoch), "must increment the epoch");
-        ShardTaskDoc moreAttempts = withOwnership(doc, ShardTaskStatus.RUNNING, NODE, doc.epoch() + 1, doc.attempt() + 1, randomUUID());
+        ShardTaskDoc moreAttempts = withOwnership(
+            doc,
+            ShardTaskStatus.DOWNSAMPLING,
+            NODE,
+            doc.epoch() + 1,
+            doc.attempt() + 1,
+            randomUUID()
+        );
         rejected(() -> validateNodeClaim(NODE, doc, moreAttempts), "cannot change the attempt");
         ShardTaskDoc completed = withOwnership(doc, ShardTaskStatus.COMPLETED, NODE, doc.epoch() + 1, doc.attempt(), randomUUID());
-        rejected(() -> validateNodeClaim(NODE, doc, completed), "must be [RUNNING]");
-        ShardTaskDoc noRunId = withOwnership(doc, ShardTaskStatus.RUNNING, NODE, doc.epoch() + 1, doc.attempt(), null);
+        rejected(() -> validateNodeClaim(NODE, doc, completed), "must be [DOWNSAMPLING]");
+        ShardTaskDoc noRunId = withOwnership(doc, ShardTaskStatus.DOWNSAMPLING, NODE, doc.epoch() + 1, doc.attempt(), null);
         rejected(() -> validateNodeClaim(NODE, doc, noRunId), "needs a run id");
     }
 
@@ -318,19 +331,19 @@ public class StateTransitionsTests extends ESTestCase {
         ShardTaskDoc running = claimed(NODE);
         long epoch = running.epoch();
         rejected(() -> validateNodeShardTaskWrite(NODE, epoch, running, running.unassign()), "cannot change the assigned");
-        ShardTaskDoc handedOver = withOwnership(running, ShardTaskStatus.RUNNING, OTHER_NODE, epoch, running.attempt(), randomUUID());
+        ShardTaskDoc handedOver = withOwnership(running, ShardTaskStatus.DOWNSAMPLING, OTHER_NODE, epoch, running.attempt(), randomUUID());
         rejected(() -> validateNodeShardTaskWrite(NODE, epoch, running, handedOver), "cannot change the assigned");
-        ShardTaskDoc bumped = withOwnership(running, ShardTaskStatus.RUNNING, NODE, epoch + 1, running.attempt(), randomUUID());
+        ShardTaskDoc bumped = withOwnership(running, ShardTaskStatus.DOWNSAMPLING, NODE, epoch + 1, running.attempt(), randomUUID());
         rejected(() -> validateNodeShardTaskWrite(NODE, epoch, running, bumped), "cannot change the epoch");
-        ShardTaskDoc moreAttempts = withOwnership(running, ShardTaskStatus.RUNNING, NODE, epoch, running.attempt() + 1, randomUUID());
+        ShardTaskDoc moreAttempts = withOwnership(running, ShardTaskStatus.DOWNSAMPLING, NODE, epoch, running.attempt() + 1, randomUUID());
         rejected(() -> validateNodeShardTaskWrite(NODE, epoch, running, moreAttempts), "cannot change the attempt");
-        ShardTaskDoc unassigned = withOwnership(running, ShardTaskStatus.UNASSIGNED, NODE, epoch, running.attempt(), null);
+        ShardTaskDoc unassigned = withOwnership(running, ShardTaskStatus.WAITING, NODE, epoch, running.attempt(), null);
         rejected(() -> validateNodeShardTaskWrite(NODE, epoch, running, unassigned), "only the master");
     }
 
     public void testRunningNeedsRunId() {
         ShardTaskDoc running = claimed(NODE);
-        ShardTaskDoc noRunId = withOwnership(running, ShardTaskStatus.RUNNING, NODE, running.epoch(), running.attempt(), null);
+        ShardTaskDoc noRunId = withOwnership(running, ShardTaskStatus.DOWNSAMPLING, NODE, running.epoch(), running.attempt(), null);
         rejected(() -> validateNodeShardTaskWrite(NODE, running.epoch(), running, noRunId), "needs a run id");
     }
 

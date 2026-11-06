@@ -31,8 +31,8 @@ import java.util.function.UnaryOperator;
  * One local run of a shard task on the node that owns it. It is the {@link ShardTaskReporter} of the indexer, and it is the
  * only writer of the shard task document on this node while it runs:
  * <ol>
- *     <li>it claims the unassigned task, or resumes a task this node already owns (e.g. after a restart), by marking it
- *     {@code RUNNING} with a new run id, then starts the indexer. A claim that loses the race to another node ends the run;</li>
+ *     <li>it claims the waiting task, or resumes a task this node already owns (e.g. after a restart), by marking it
+ *     {@code DOWNSAMPLING} with a new run id, then starts the indexer. A claim that loses the race to another node ends the run;</li>
  *     <li>after every bulk of the indexer it writes the progress, coalesced: at most one write in flight, the newest counters
  *     are written next;</li>
  *     <li>when the indexer is done it writes {@code COMPLETED} or {@code FAILED} with the final counters.</li>
@@ -40,7 +40,7 @@ import java.util.function.UnaryOperator;
  * The writes are serialized, each one a compare-and-set on the version of the previous one. On a version conflict the run
  * re-reads the document: if the task is still owned by this node at the same epoch (a benign concurrent write) it retries,
  * otherwise the task was taken away (fenced) and the run cancels itself without writing. A run that cannot write its final
- * state is simply dropped: the task stays {@code RUNNING} on this node, so the poller starts it again.
+ * state is simply dropped: the task stays {@code DOWNSAMPLING} on this node, so the poller starts it again.
  */
 final class ShardTaskRun implements ShardTaskReporter {
 
@@ -70,7 +70,7 @@ final class ShardTaskRun implements ShardTaskReporter {
     private record PendingWrite(UnaryOperator<ShardTaskDoc> change, ActionListener<Void> listener) {}
 
     /**
-     * @param seen   the shard task as found by the poller: unassigned, to claim, or running on this node, to resume
+     * @param seen   the shard task as found by the poller: waiting, to claim, or downsampling on this node, to resume
      * @param onDone called once when the run is over, whatever the outcome
      */
     ShardTaskRun(DownsampleStateStore.NodeView store, Versioned<ShardTaskDoc> seen, Consumer<ShardTaskRun> onDone) {
@@ -78,8 +78,8 @@ final class ShardTaskRun implements ShardTaskReporter {
         this.projectId = seen.doc().projectId();
         this.docId = seen.doc().id();
         this.claim = switch (seen.doc().status()) {
-            case UNASSIGNED -> true;
-            case RUNNING -> false;
+            case WAITING -> true;
+            case DOWNSAMPLING -> false;
             case COMPLETED, FAILED -> throw new IllegalArgumentException(
                 "shard task [" + docId + "] is [" + seen.doc().status() + "], there is nothing to run"
             );

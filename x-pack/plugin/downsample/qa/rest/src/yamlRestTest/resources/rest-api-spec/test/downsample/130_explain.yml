@@ -62,19 +62,18 @@ setup:
       indices.explain_downsample:
         index: source-downsample
 
-  - match: { indices.source-downsample.index: source-downsample }
+  - match: { indices.source-downsample.index_name: source-downsample }
   - match: { indices.source-downsample.state: completed }
   - match: { indices.source-downsample.phase: done }
   - match: { indices.source-downsample.downsample_status: success }
-  - match: { indices.source-downsample.orchestration: system_index }
-  - match: { indices.source-downsample.source_index: source }
+  - match: { indices.source-downsample.source_index_name: source }
   - match: { indices.source-downsample.interval: 1h }
   - match: { indices.source-downsample.config.fixed_interval: 1h }
   - is_true: indices.source-downsample.created_at_millis
   - match: { indices.source-downsample.attempt: 0 }
   - match: { indices.source-downsample.shards_summary.total: 2 }
   - match: { indices.source-downsample.shards_summary.completed: 2 }
-  - match: { indices.source-downsample.shards_summary.running: 0 }
+  - match: { indices.source-downsample.shards_summary.downsampling: 0 }
   - match: { indices.source-downsample.progress.in_num_docs_received: 3 }
   - match: { indices.source-downsample.progress.out_num_docs_indexed: 2 }
   - length: { indices.source-downsample.shards: 2 }
@@ -82,8 +81,13 @@ setup:
   - match: { indices.source-downsample.shards.0.status: completed }
   - match: { indices.source-downsample.shards.1.shard: 1 }
   - match: { indices.source-downsample.shards.1.status: completed }
-  - is_true: indices.source-downsample.shards.0.node
-  - is_true: indices.source-downsample.shards.0.progress
+  # a completed shard only shows its document counts
+  - is_false: indices.source-downsample.shards.0.node
+  - is_false: indices.source-downsample.shards.0.epoch
+  - is_false: indices.source-downsample.shards.0.run_id
+  - is_true: indices.source-downsample.shards.0.progress.total_shard_doc_count
+  - is_false: indices.source-downsample.shards.0.progress.start_time
+  - is_false: indices.source-downsample.shards.0.progress.rollup_shard_indexer_status
 
 ---
 "Explain all indices leaves out the ones that are not downsampled":
@@ -171,9 +175,9 @@ setup:
         source_index: source
 
   - length: { indices: 2 }
-  - match: { indices.source-1h.source_index: source }
+  - match: { indices.source-1h.source_index_name: source }
   - match: { indices.source-1h.interval: 1h }
-  - match: { indices.source-1d.source_index: source }
+  - match: { indices.source-1d.source_index_name: source }
   - match: { indices.source-1d.interval: 1d }
 
   - do:

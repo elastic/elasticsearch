@@ -391,7 +391,7 @@ public class DownsampleOrchestrator implements ClusterStateListener {
             logger.debug("downsample [{}]: running phase [{}]", doc.targetIndex(), doc.phase());
             switch (doc.phase()) {
                 case CREATE_TARGET -> createTarget(doc, l);
-                case RUN_SHARDS -> runShards(doc, l);
+                case DOWNSAMPLING_SHARDS -> runShards(doc, l);
                 case FINALIZE_SETTINGS -> finalizeSettings(doc, l);
                 case REFRESH -> refresh(doc, l);
                 case MARK_SUCCESS -> markSuccess(doc, l);

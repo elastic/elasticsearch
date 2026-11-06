@@ -41,7 +41,7 @@ final class ShardTaskPlanner {
     @Nullable
     static ShardTaskDoc plan(ShardTaskDoc doc, Set<String> clusterNodeIds, int maxAttempts) {
         return switch (doc.status()) {
-            case COMPLETED, UNASSIGNED -> null;
+            case COMPLETED, WAITING -> null;
             case FAILED -> {
                 if (doc.retriable() == false) {
                     yield null;
@@ -53,7 +53,7 @@ final class ShardTaskPlanner {
                 }
                 yield doc.retry();
             }
-            case RUNNING -> {
+            case DOWNSAMPLING -> {
                 if (clusterNodeIds.contains(doc.assignedNode())) {
                     yield null;
                 }

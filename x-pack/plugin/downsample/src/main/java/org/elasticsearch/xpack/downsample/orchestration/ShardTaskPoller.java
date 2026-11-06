@@ -47,7 +47,7 @@ import java.util.function.BiConsumer;
  * Claims and runs shard tasks on a data node. Every {@link #POLL_INTERVAL_SETTING}, and as soon as a slot frees up, it goes
  * through the state index of every project that has one:
  * <ol>
- *     <li>it reconciles the tasks this node owns with its local runs: a task {@code RUNNING} on this node without a local run is
+ *     <li>it reconciles the tasks this node owns with its local runs: a task {@code DOWNSAMPLING} on this node without a local run is
  *     resumed (e.g. after this node restarted), a local run whose task is no longer owned by this node at the same epoch is
  *     cancelled. The search is near real time, so a run is only cancelled after a real time read confirms it, never on a missing
  *     search hit alone;</li>

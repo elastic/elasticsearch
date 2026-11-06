@@ -79,7 +79,7 @@ import static org.hamcrest.Matchers.not;
  * calling the downsample API again, and produces a complete target index.
  * <p>
  * To interrupt a shard task deterministically, {@link ParkingPlugin} parks the shard work ({@link DelegatingAction}) on chosen
- * nodes: the shard task is then {@code RUNNING} on that node but its indexer has not started.
+ * nodes: the shard task is then {@code DOWNSAMPLING} on that node but its indexer has not started.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase {
@@ -133,8 +133,8 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
 
         ActionFuture<AcknowledgedResponse> downsample = requestDownsample(randomFrom(dataNodes));
         assertBusy(() -> assertThat(ParkingPlugin.parked, hasSize(shards)));
-        assertThat(indexTask().phase(), equalTo(IndexTaskPhase.RUN_SHARDS));
-        assertThat(shardTasks(shards).stream().map(t -> t.doc().status()).toList(), everyItem(equalTo(ShardTaskStatus.RUNNING)));
+        assertThat(indexTask().phase(), equalTo(IndexTaskPhase.DOWNSAMPLING_SHARDS));
+        assertThat(shardTasks(shards).stream().map(t -> t.doc().status()).toList(), everyItem(equalTo(ShardTaskStatus.DOWNSAMPLING)));
 
         String oldMaster = internalCluster().getMasterName();
         internalCluster().stopCurrentMasterNode();
@@ -159,7 +159,7 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
         ActionFuture<AcknowledgedResponse> downsample = requestDownsample(master);
         assertBusy(() -> assertThat(ParkingPlugin.parked, hasSize(1)));
         ShardTaskDoc running = shardTasks(1).get(0).doc();
-        assertThat(running.status(), equalTo(ShardTaskStatus.RUNNING));
+        assertThat(running.status(), equalTo(ShardTaskStatus.DOWNSAMPLING));
         String taskNode = nodeName(running.assignedNode());
         String otherNode = dataNodes.stream().filter(n -> n.equals(taskNode) == false).findFirst().orElseThrow();
 
@@ -222,7 +222,7 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
     /**
      * The only data node, which holds the source, the target and the state index, restarts while its shard task runs. While it is
      * down the master cannot move the task (no other copy of the source) nor write the state index (its shard is on that node),
-     * so after the restart the task is still {@code RUNNING} on the node, which has no local run any more: the poller resumes it with a
+     * so after the restart the task is still {@code DOWNSAMPLING} on the node, which has no local run any more: the poller resumes it with a
      * new run, and the operation completes.
      */
     public void testDataNodeRestartWhileShardTaskRuns() throws Exception {
@@ -234,7 +234,7 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
         ActionFuture<AcknowledgedResponse> downsample = requestDownsample(master);
         assertBusy(() -> assertThat(ParkingPlugin.parked, hasSize(1)));
         ShardTaskDoc running = shardTasks(1).get(0).doc();
-        assertThat(running.status(), equalTo(ShardTaskStatus.RUNNING));
+        assertThat(running.status(), equalTo(ShardTaskStatus.DOWNSAMPLING));
 
         internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
             @Override

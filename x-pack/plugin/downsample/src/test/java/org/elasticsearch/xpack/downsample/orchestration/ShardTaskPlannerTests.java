@@ -36,7 +36,7 @@ public class ShardTaskPlannerTests extends ESTestCase {
     public void testReleasesTaskOfDepartedNodeWithoutCountingAnAttempt() {
         ShardTaskDoc task = running("node-gone");
         ShardTaskDoc next = ShardTaskPlanner.plan(task, NODES, MAX_ATTEMPTS);
-        assertThat(next.status(), equalTo(ShardTaskStatus.UNASSIGNED));
+        assertThat(next.status(), equalTo(ShardTaskStatus.WAITING));
         assertThat(next.assignedNode(), nullValue());
         assertThat(next.epoch(), equalTo(task.epoch() + 1));
         assertThat(next.attempt(), equalTo(task.attempt()));
@@ -46,7 +46,7 @@ public class ShardTaskPlannerTests extends ESTestCase {
     public void testRetriesRetriableFailure() {
         ShardTaskDoc failed = running("node-1").failedOnNode("bulk failure", true, Map.of());
         ShardTaskDoc next = ShardTaskPlanner.plan(failed, NODES, MAX_ATTEMPTS);
-        assertThat(next.status(), equalTo(ShardTaskStatus.UNASSIGNED));
+        assertThat(next.status(), equalTo(ShardTaskStatus.WAITING));
         assertThat(next.assignedNode(), nullValue());
         assertThat(next.attempt(), equalTo(1));
         StateTransitions.validateMasterShardTaskWrite(failed, next);

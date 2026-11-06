@@ -13,9 +13,11 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -24,7 +26,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
@@ -305,13 +306,12 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
         // a third doc with no value for either field
         w.addDocument(new Document());
         try (DirectoryReader reader = DirectoryReader.open(w)) {
+            LeafReader leaf = getOnlyLeafReader(reader);
+
             // single-valued
-            UnsignedLongFieldType f1 = new UnsignedLongFieldType("unsigned_long1");
-            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
-                .build(null, null);
-            assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.LONG);
-            LeafNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
-            SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
+            assertEquals(IndexNumericFieldData.NumericType.LONG, unsignedLongFieldData("unsigned_long1").getNumericType());
+            SortedNumericDoubleValues values = doubleValues(leaf, "unsigned_long1");
+            assertNotNull(values.docIdIterator());
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(10), values.nextValue(), 0);
@@ -321,10 +321,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
             assertFalse(values.advanceExact(2));
 
             // multi-valued
-            UnsignedLongFieldType f2 = new UnsignedLongFieldType("unsigned_long2");
-            fielddata = (IndexNumericFieldData) f2.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test")).build(null, null);
-            leafFieldData = fielddata.load(reader.leaves().get(0));
-            values = leafFieldData.getDoubleValues();
+            values = doubleValues(leaf, "unsigned_long2");
             assertTrue(values.advanceExact(0));
             assertEquals(2, values.docValueCount());
             assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(5), values.nextValue(), 0);
@@ -333,6 +330,74 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
             assertFalse(values.advanceExact(2));
         }
         IOUtils.close(w, dir);
+    }
+
+    /**
+     * The {@link SortedNumericDoubleValues#docIdIterator()} must be the one that backs the values, so that positioning it
+     * with {@code advance} makes {@code nextValue()} return that doc's value. This checks that for both the
+     * single-valued path (which reads straight off the unwrapped singleton) and the multi-valued path, using sparse fields.
+     */
+    public void testFieldDataDocIdIteratorIsInSyncWithValues() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            // docs 0, 2 and 4 have values; docs 1 and 3 have none, which keeps the fields sparse
+            for (int doc = 0; doc < 5; doc++) {
+                Document document = new Document();
+                if (doc % 2 == 0) {
+                    document.add(new SortedNumericDocValuesField("unsigned_long1", 10L * (doc + 1)));
+                    document.add(new SortedNumericDocValuesField("unsigned_long2", 5L * (doc + 1)));
+                    document.add(new SortedNumericDocValuesField("unsigned_long2", 12L * (doc + 1)));
+                }
+                w.addDocument(document);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+
+                // single-valued
+                SortedNumericDoubleValues values = doubleValues(leaf, "unsigned_long1");
+                assertNotNull(SortedNumericDoubleValues.unwrapSingleton(values));
+                DocIdSetIterator iterator = values.docIdIterator();
+                assertNotNull(iterator);
+                assertSame("the same iterator instance is returned on every call", iterator, values.docIdIterator());
+
+                assertEquals(0, iterator.nextDoc());
+                assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(10), values.nextValue(), 0);
+                assertEquals(2, iterator.advance(1));
+                assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(30), values.nextValue(), 0);
+                assertTrue(values.advanceExact(4));
+                assertEquals(4, iterator.docID());
+                assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(50), values.nextValue(), 0);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
+
+                // multi-valued
+                values = doubleValues(leaf, "unsigned_long2");
+                assertNull(SortedNumericDoubleValues.unwrapSingleton(values));
+                iterator = values.docIdIterator();
+                assertNotNull(iterator);
+
+                assertEquals(0, iterator.nextDoc());
+                assertEquals(2, values.docValueCount());
+                assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(5), values.nextValue(), 0);
+                assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(12), values.nextValue(), 0);
+                assertEquals(2, iterator.advance(1));
+                assertEquals(2, values.docValueCount());
+                assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(15), values.nextValue(), 0);
+                assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(36), values.nextValue(), 0);
+                assertTrue(values.advanceExact(4));
+                assertEquals(4, iterator.docID());
+                assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(25), values.nextValue(), 0);
+                assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(60), values.nextValue(), 0);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
+            }
+        }
+    }
+
+    private static IndexNumericFieldData unsignedLongFieldData(String field) {
+        return (IndexNumericFieldData) new UnsignedLongFieldType(field).fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
+            .build(null, null);
+    }
+
+    private static SortedNumericDoubleValues doubleValues(LeafReader leaf, String field) {
+        return unsignedLongFieldData(field).load(leaf.getContext()).getDoubleValues();
     }
 
     public void testFetchSourceValue() throws IOException {

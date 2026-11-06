@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.request.embeddings;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModelTests;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -30,7 +30,6 @@ import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRe
 import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.MODEL_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaEmbeddingsRequestTests extends ESTestCase {
@@ -48,22 +47,22 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
     private static final String INPUT_TYPE_NVIDIA_DEFAULT_VALUE = "query";
     private static final String TRUNCATE_NVIDIA_VALUE = "start";
 
-    public void testCreateRequest_InputTypeFromTaskSettings_Success() throws IOException {
+    public void testCreateRequest_InputTypeFromTaskSettings_Success() throws IOException, URISyntaxException {
         var request = createRequest(URL_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE, TRUNCATE_ELASTIC_VALUE, null);
-        assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
+        assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE + "/");
     }
 
-    public void testCreateRequest_InputTypeFromRequest_Success() throws IOException {
+    public void testCreateRequest_InputTypeFromRequest_Success() throws IOException, URISyntaxException {
         var request = createRequest(URL_VALUE, null, TRUNCATE_ELASTIC_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE);
-        assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
+        assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE + "/");
     }
 
-    public void testCreateRequest_InputTypeFromRequestPrioritized_Success() throws IOException {
+    public void testCreateRequest_InputTypeFromRequestPrioritized_Success() throws IOException, URISyntaxException {
         var request = createRequest(URL_VALUE, INPUT_TYPE_ELASTIC_IGNORED_VALUE, TRUNCATE_ELASTIC_VALUE, INPUT_TYPE_ELASTIC_INITIAL_VALUE);
-        assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
+        assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE + "/");
     }
 
-    public void testCreateRequest_OnlyMandatoryAndDefaultFields_Success() throws IOException {
+    public void testCreateRequest_OnlyMandatoryAndDefaultFields_Success() throws IOException, URISyntaxException {
         var request = createRequest(null, null, null, null);
         assertCreateHttpRequest(request, INPUT_TYPE_NVIDIA_DEFAULT_VALUE, null, URL_DEFAULT_VALUE);
     }
@@ -73,11 +72,11 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         String expectedInputType,
         String expectedTruncation,
         String expectedUrl
-    ) throws IOException {
+    ) throws IOException, URISyntaxException {
         var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest, expectedUrl);
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         int size = 3;
         assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE)));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
@@ -95,10 +94,9 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         var truncatedRequest = request.truncate();
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE.substring(0, INPUT_VALUE.length() / 2))));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
@@ -113,11 +111,10 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         assertThat(truncatedRequest.getTruncationInfo()[0], is(true));
     }
 
-    private HttpPost validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) {
-        assertThat(request.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) request.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), is(expectedUrl));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+    private SimpleHttpRequest validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) throws URISyntaxException {
+        var httpPost = request.httpRequest();
+        assertThat(httpPost.getUri().toString(), is(expectedUrl));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         return httpPost;
     }
 

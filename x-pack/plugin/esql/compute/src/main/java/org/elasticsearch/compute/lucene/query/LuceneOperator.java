@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
@@ -45,6 +46,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +89,11 @@ public abstract class LuceneOperator extends SourceOperator {
     private final LuceneSliceQueue sliceQueue;
 
     private final Set<String> processedQueries = new TreeSet<>();
+    /**
+     * The queries already rendered into {@link #processedQueries}, by identity. One weight, so one query, serves every leaf of
+     * a shard, and rendering a large query can cost more than scoring a small leaf, so each query is rendered once.
+     */
+    private final Set<Query> renderedQueries = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<String> processedShards = new TreeSet<>();
 
     protected LuceneSlice currentSlice;
@@ -309,7 +316,9 @@ public abstract class LuceneOperator extends SourceOperator {
                     || currentScorer.weight != currentSlice.weight() // Moved to a new query
                 ) {
                     final Weight weight = currentSlice.weight();
-                    processedQueries.add(Status.queryString(weight.getQuery()));
+                    if (renderedQueries.add(weight.getQuery())) {
+                        processedQueries.add(Status.queryString(weight.getQuery()));
+                    }
                     releaseCurrentScorer();
                     currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
                     sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
@@ -554,6 +563,26 @@ public abstract class LuceneOperator extends SourceOperator {
             "lucene_source",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder, params)
+        )
+            .required("processed_slices", ProfileSchema.integer())
+            .required("processed_queries", ProfileSchema.array(ProfileSchema.string()))
+            .required("processed_shards", ProfileSchema.array(ProfileSchema.string()))
+            .required("process_nanos", ProfileSchema.integer())
+            .optional("process_time", ProfileSchema.string())
+            .required("slice_index", ProfileSchema.integer())
+            .required("total_slices", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("slice_min", ProfileSchema.integer())
+            .required("slice_max", ProfileSchema.integer())
+            .required("current", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("bytes_read", ProfileSchema.integer())
+            .required("partitioning_strategies", ProfileSchema.dynamicObject(ProfileSchema.string()))
+            .optional("min_competitive", MinCompetitiveQuery.Status.PROFILE_SCHEMA.schema())
+            .build();
 
         private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
         private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName(
@@ -591,7 +620,7 @@ public abstract class LuceneOperator extends SourceOperator {
                     + queryString.hashCode()
                     + "])";
             }
-            return query.toString();
+            return queryString;
         }
 
         protected Status(LuceneOperator operator) {
@@ -783,6 +812,10 @@ public abstract class LuceneOperator extends SourceOperator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private XContentBuilder writeProfile(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentFields(builder, params);
             return builder.endObject();

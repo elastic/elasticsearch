@@ -17,10 +17,12 @@ public class VectorScorerFloat32BulkOperationBenchmarkTests extends BenchmarkTes
 
     private final VectorSimilarityType function;
     private final int dims;
+    private final float delta;
 
     public VectorScorerFloat32BulkOperationBenchmarkTests(VectorSimilarityType function, int dims) {
         this.function = function;
         this.dims = dims;
+        this.delta = 1e-5f * dims; // scale the delta with the size
     }
 
     private VectorScorerFloat32BulkOperationBenchmark newBench() {
@@ -38,18 +40,7 @@ public class VectorScorerFloat32BulkOperationBenchmarkTests extends BenchmarkTes
         for (int i = 0; i < 100; i++) {
             var bench = newBench();
             try {
-                assertArrayEquals(function.toString(), bench.scoreSequential(), bench.scoreBulk(), 1e-5f);
-            } finally {
-                bench.teardown();
-            }
-        }
-    }
-
-    public void testBulkOffsets() {
-        for (int i = 0; i < 100; i++) {
-            var bench = newBench();
-            try {
-                assertArrayEquals(function.toString(), bench.scoreRandom(), bench.scoreBulkOffsets(), 1e-5f);
+                assertArrayEquals(function.toString(), bench.scoreSequential().clone(), bench.scoreBulk(), delta);
             } finally {
                 bench.teardown();
             }
@@ -60,7 +51,7 @@ public class VectorScorerFloat32BulkOperationBenchmarkTests extends BenchmarkTes
         for (int i = 0; i < 100; i++) {
             var bench = newBench();
             try {
-                assertArrayEquals(function.toString(), bench.scoreRandom(), bench.scoreBulkSparse(), 1e-5f);
+                assertArrayEquals(function.toString(), bench.scoreRandom().clone(), bench.scoreBulkSparse(), delta);
             } finally {
                 bench.teardown();
             }

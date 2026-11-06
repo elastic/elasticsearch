@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.painless.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -15,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.painless.action.PainlessExecuteAction.Request.ContextSetup;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
@@ -29,10 +32,17 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase<PainlessExecuteAction.Request> {
+
+    private static final List<ScriptContext<?>> NON_DEFAULT_CONTEXTS = PainlessExecuteAction.Request.SUPPORTED_CONTEXTS.values()
+        .stream()
+        .filter(context -> context != PainlessTestScript.CONTEXT)
+        .toList();
 
     // Testing XContent serialization manually here, because the xContentType field in ContextSetup determines
     // how the request needs to parse and the xcontent serialization framework randomizes that. The XContentType
@@ -92,6 +102,63 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
         Exception e = request.validate();
         assertNotNull(e);
         assertEquals("Validation Failed: 1: only inline scripts are supported;", e.getMessage());
+    }
+
+    public void testValidateWithoutContextSetup() {
+        for (ScriptContext<?> context : NON_DEFAULT_CONTEXTS) {
+            ActionRequestValidationException e = requestWithContext(context, null).validate();
+            assertNotNull("context [" + context.name + "] without context_setup must fail validation", e);
+            assertThat(e.validationErrors(), contains("context_setup is a required parameter for current context"));
+        }
+    }
+
+    public void testValidateWithoutIndex() {
+        for (ScriptContext<?> context : NON_DEFAULT_CONTEXTS) {
+            ActionRequestValidationException e = requestWithContext(context, new ContextSetup(null, new BytesArray("{}"), null)).validate();
+            assertNotNull("context [" + context.name + "] without index must fail validation", e);
+            assertThat(e.validationErrors(), contains("index is a required parameter for current context"));
+        }
+    }
+
+    public void testValidateWithoutDocument() {
+        for (ScriptContext<?> context : NON_DEFAULT_CONTEXTS) {
+            ActionRequestValidationException e = requestWithContext(context, new ContextSetup(randomAlphaOfLength(4), null, null))
+                .validate();
+            assertNotNull("context [" + context.name + "] without document must fail validation", e);
+            assertThat(e.validationErrors(), contains("document is a required parameter for current context"));
+        }
+    }
+
+    public void testValidateWithoutIndexAndDocument() {
+        for (ScriptContext<?> context : NON_DEFAULT_CONTEXTS) {
+            ActionRequestValidationException e = requestWithContext(context, new ContextSetup(null, null, null)).validate();
+            assertNotNull("context [" + context.name + "] without index and document must fail validation", e);
+            assertThat(
+                e.validationErrors(),
+                contains("index is a required parameter for current context", "document is a required parameter for current context")
+            );
+        }
+    }
+
+    public void testValidateWithIndexAndDocument() {
+        for (ScriptContext<?> context : NON_DEFAULT_CONTEXTS) {
+            ContextSetup contextSetup = new ContextSetup(randomAlphaOfLength(4), new BytesArray("{}"), null);
+            assertNull(
+                "context [" + context.name + "] with index and document must be valid",
+                requestWithContext(context, contextSetup).validate()
+            );
+        }
+    }
+
+    public void testValidateDefaultContextNeedsNoContextSetup() {
+        // The default painless_test context needs neither a context_setup, nor an index or a document in it
+        assertNull(requestWithContext(null, null).validate());
+        assertNull(requestWithContext(PainlessTestScript.CONTEXT, null).validate());
+        assertNull(requestWithContext(PainlessTestScript.CONTEXT, new ContextSetup(null, null, null)).validate());
+    }
+
+    private static PainlessExecuteAction.Request requestWithContext(ScriptContext<?> context, ContextSetup contextSetup) {
+        return new PainlessExecuteAction.Request(new Script(randomAlphaOfLength(10)), context != null ? context.name : null, contextSetup);
     }
 
     private static ContextSetup randomContextSetup() {

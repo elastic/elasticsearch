@@ -236,7 +236,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Whether the sort column's own parquet annotation makes decode scale relative to the raw statistics
      * (TIMESTAMP/TIME(MICROS), DATE, DECIMAL) even when the ES|QL type is a plain LONG — e.g. a declared {@code long}
-     * over a TIMESTAMP(MICROS) column, or an inferred TIME(MICROS). Without this the raw stat would be compared
+     * over a TIMESTAMP(MICROS) column, or over a TIME(MICROS) one. Without this the raw stat would be compared
      * against a decoded-unit bound and skip the wrong groups. Consulted alongside the declared relation; this is the
      * same authority the pushdown side uses ({@code ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats}).
      */
@@ -1484,11 +1484,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
                 // A plain long sort column has no relation and its raw value is its decoded value. A rescaled temporal
                 // one must be mapped into the decoded domain the threshold bound lives in, or the comparison skips the
-                // wrong groups. A null relation on a temporal column (TIME/DECIMAL/unsigned) declines the skip — safe.
+                // wrong groups. A null relation on a temporal column (DECIMAL/unsigned, or TIME under a declared
+                // type the relation does not cover) declines the skip — safe.
                 if (sortDecodeRelation == null) {
                     // Decline the skip when decode scales relative to the raw stats but no exact relation was
-                    // resolved: a temporal column with no relation (TIME/DECIMAL/unsigned), OR a plain LONG whose
-                    // annotation still scales (declared long over TIMESTAMP(MICROS), inferred TIME(MICROS)) — the
+                    // resolved: a temporal column with no relation (DECIMAL/unsigned, or TIME where the declared
+                    // type is not date_nanos), OR a plain LONG whose annotation still scales (declared long over
+                    // TIMESTAMP(MICROS) or over TIME(MICROS); an INFERRED TIME(MICROS) is date_nanos now, not a
+                    // long, and resolves a ScaleUp relation rather than arriving here) — the
                     // comparison would otherwise skip the wrong groups. Only a genuinely non-scaling long passes its
                     // raw value through.
                     yield (sortColumnIsTemporal || sortColumnAnnotationScales) ? null : raw;

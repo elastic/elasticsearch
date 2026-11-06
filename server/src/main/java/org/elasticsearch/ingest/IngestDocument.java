@@ -30,7 +30,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
@@ -53,7 +52,7 @@ public final class IngestDocument {
 
     public static final String INGEST_KEY = "_ingest";
     public static final String SOURCE_KEY = SourceFieldMapper.NAME; // "_source"
-    private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
+    private static final String INGEST_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
     private static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
@@ -218,73 +217,6 @@ public final class IngestDocument {
             throw new IllegalArgumentException(
                 Objects.requireNonNullElseGet(result.errorMessage, () -> Errors.notPresent(path, result.missingFields))
             );
-        }
-    }
-
-    /**
-     * Returns the value contained in the document for the provided path as a byte array.
-     * If the path value is a string, a base64 decode operation will happen.
-     * If the path value is a byte array, it is just returned
-     * @param path The path within the document in dot-notation
-     * @return the byte array for the provided path if existing
-     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
-     * or if the field that is found at the provided path is not of the expected type.
-     */
-    public byte[] getFieldValueAsBytes(String path) {
-        return getFieldValueAsBytes(path, false);
-    }
-
-    /**
-     * Returns the value contained in the document for the provided path as a byte array.
-     * If the path value is a string, a base64 decode operation will happen.
-     * If the path value is a byte array, it is just returned
-     * @param path The path within the document in dot-notation
-     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
-     * @return the byte array for the provided path if existing
-     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
-     * or if the field that is found at the provided path is not of the expected type.
-     */
-    public byte[] getFieldValueAsBytes(String path, boolean ignoreMissing) {
-        Object object = getFieldValue(path, Object.class, ignoreMissing);
-        return getFieldValueAsBytes(path, object);
-    }
-
-    /**
-     * Returns the value contained in the field value as a byte array.
-     * If the field value is a string, a base64 decode operation will happen.
-     * If the field value is a byte array, it is just returned
-     * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
-     * @return the byte array of the field value
-     * @throws IllegalArgumentException if the field value is not of the expected type.
-     */
-    public byte[] getFieldValueAsBytes(String path, Object fieldValue) {
-        if (fieldValue == null) {
-            return null;
-        } else if (fieldValue instanceof byte[] bytes) {
-            return bytes;
-        } else if (fieldValue instanceof String string) {
-            return Base64.getDecoder().decode(string);
-        } else {
-            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, fieldValue));
-        }
-    }
-
-    /**
-     * Returns the raw in-memory size in bytes of a value that {@link #getFieldValueAsBytes(String, Object)} accepts, before any decoding.
-     * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
-     * @param fieldValue the resolved field value
-     * @return size in bytes, an integer (because the underlying format can be a byte array or a string)
-     * @throws IllegalArgumentException if the field value is not of the expected type.
-     */
-    public int getFieldValueRawBytesLength(String path, Object fieldValue) {
-        if (fieldValue == null) {
-            return 0;
-        } else if (fieldValue instanceof byte[] bytes) {
-            return bytes.length;
-        } else if (fieldValue instanceof String string) {
-            return string.length(); // one base64 character is assumed to be one byte
-        } else {
-            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, fieldValue));
         }
     }
 
@@ -1045,22 +977,15 @@ public final class IngestDocument {
         return template.newInstance(templateModel).execute();
     }
 
-    /**
-     * Get source and metadata map
-     */
-    public Map<String, Object> getSourceAndMetadata() {
-        return ctxMap;
-    }
-
     /*
-     * This returns the same information as getSourceAndMetadata(), but in an unmodifiable map that is safe to send into a script that is
+     * This returns the same information as getCtxMap(), but in an unmodifiable map that is safe to send into a script that is
      * not supposed to be modifying the data. If an attempt is made to modify this Map, or a Map, List, or Set nested within it, an
      * UnsupportedOperationException is thrown. If an attempt is made to modify a byte[] within this Map, the attempt succeeds, but the
      * results are not reflected on this IngestDocument. If a user has put any other mutable Object into the IngestDocument, this method
      * makes no attempt to make it immutable. This method just protects users against accidentally modifying the most common types of
      * Objects found in IngestDocuments.
      */
-    public Map<String, Object> getUnmodifiableSourceAndMetadata() {
+    public Map<String, Object> getUnmodifiableCtxMap() {
         return new UnmodifiableIngestData(ctxMap);
     }
 
@@ -1303,15 +1228,8 @@ public final class IngestDocument {
 
     private static final class FieldPath {
 
-        /**
-         * A compound cache key for tracking previously parsed field paths
-         * @param path The field path as given by the caller
-         * @param accessPattern The access pattern used to parse the field path
-         */
-        private record CacheKey(String path, IngestPipelineFieldAccessPattern accessPattern) {}
-
         private static final int MAX_SIZE = 512;
-        private static final Map<CacheKey, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
         // constructing a new FieldPath requires that we parse a String (e.g. "foo.bar.baz") into an array
         // of path elements (e.g. ["foo", "bar", "baz"]). Calling String#split results in the allocation
@@ -1319,33 +1237,36 @@ public final class IngestDocument {
         // then finally a String[] is allocated to hold the actual result -- in addition to all that, we
         // do some processing ourselves on the path and path elements to validate and prepare them.
         // the above CACHE and the below 'FieldPath.of' method allow us to almost always avoid this work.
+        //
+        // note that parsing is independent of the access pattern: the only thing that depends on the access pattern is whether
+        // the parsed path is valid, and that is checked (cheaply) on every call to 'of' rather than being baked into the cache.
 
         static FieldPath of(String path, IngestPipelineFieldAccessPattern accessPattern) {
             if (Strings.isEmpty(path)) {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
-            CacheKey cacheKey = new CacheKey(path, accessPattern);
-            FieldPath res = CACHE.get(cacheKey);
-            if (res != null) {
-                return res;
+            FieldPath res = CACHE.get(path);
+            if (res == null) {
+                res = new FieldPath(path);
+                if (CACHE.size() > MAX_SIZE) {
+                    CACHE.clear();
+                }
+                CACHE.put(path, res);
             }
-            res = new FieldPath(path, accessPattern);
-            if (CACHE.size() > MAX_SIZE) {
-                CACHE.clear();
-            }
-            CACHE.put(cacheKey, res);
+            res.validate(path, accessPattern);
             return res;
         }
 
         private final String[] pathElements;
         private final boolean useIngestContext;
+        private final boolean containsBrackets;
 
         // you shouldn't call this directly, use the FieldPath.of method above instead!
-        private FieldPath(String path, IngestPipelineFieldAccessPattern accessPattern) {
+        private FieldPath(String path) {
             String newPath;
-            if (path.startsWith(INGEST_KEY_PREFIX)) {
+            if (path.startsWith(INGEST_PREFIX)) {
                 useIngestContext = true;
-                newPath = path.substring(INGEST_KEY_PREFIX.length());
+                newPath = path.substring(INGEST_PREFIX.length());
             } else {
                 useIngestContext = false;
                 if (path.startsWith(SOURCE_PREFIX)) {
@@ -1355,46 +1276,42 @@ public final class IngestDocument {
                 }
             }
             String[] pathParts = newPath.split("\\.");
-            this.pathElements = processPathParts(path, pathParts, accessPattern);
-        }
-
-        private static String[] processPathParts(String fullPath, String[] pathParts, IngestPipelineFieldAccessPattern accessPattern) {
-            return switch (accessPattern) {
-                case CLASSIC -> validateClassicFields(fullPath, pathParts);
-                case FLEXIBLE -> parseFlexibleFields(fullPath, pathParts);
-            };
-        }
-
-        /**
-         * Parses path syntax that is specific to the {@link IngestPipelineFieldAccessPattern#CLASSIC} ingest doc access pattern. Supports
-         * syntax like context aware array access.
-         * @param fullPath The un-split path to use for error messages
-         * @param pathParts The tokenized field path to parse
-         * @return An array of Strings
-         */
-        private static String[] validateClassicFields(String fullPath, String[] pathParts) {
+            if (pathParts.length == 0) {
+                // String#split drops trailing empty strings, so a path made up of nothing but separators (e.g. "." or "_source..")
+                // yields no elements at all, which is just as invalid as an empty element in the beginning or middle of a path
+                throw new IllegalArgumentException("path [" + path + "] is not valid");
+            }
+            boolean brackets = false;
             for (String pathPart : pathParts) {
+                // empty path elements are not valid in any access pattern
                 if (pathPart.isEmpty()) {
-                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                    throw new IllegalArgumentException("path [" + path + "] is not valid");
                 }
+                brackets |= pathPart.contains("[") || pathPart.contains("]");
             }
-            return pathParts;
+            this.pathElements = pathParts;
+            this.containsBrackets = brackets;
         }
 
         /**
-         * Parses path syntax that is specific to the {@link IngestPipelineFieldAccessPattern#FLEXIBLE} ingest doc access pattern. Supports
-         * syntax like square bracket array access, which is the only way to index arrays in flexible mode.
+         * Checks the access pattern specific rules for a parsed path. The {@link IngestPipelineFieldAccessPattern#CLASSIC} pattern
+         * supports syntax like context aware array access, so it has no further restrictions. The
+         * {@link IngestPipelineFieldAccessPattern#FLEXIBLE} pattern reserves square brackets for (future) array access syntax, so
+         * path elements containing them are rejected.
          * @param fullPath The un-split path to use for error messages
-         * @param pathParts The tokenized field path to parse
-         * @return An array of Strings
+         * @param accessPattern The access pattern to validate against
+         * @throws IllegalArgumentException if this path is not valid for the access pattern
          */
-        private static String[] parseFlexibleFields(String fullPath, String[] pathParts) {
-            for (String pathPart : pathParts) {
-                if (pathPart.isEmpty() || pathPart.contains("[") || pathPart.contains("]")) {
-                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+        private void validate(String fullPath, IngestPipelineFieldAccessPattern accessPattern) {
+            switch (accessPattern) {
+                case CLASSIC -> {
+                }
+                case FLEXIBLE -> {
+                    if (containsBrackets) {
+                        throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                    }
                 }
             }
-            return pathParts;
         }
 
         public Object initialContext(IngestDocument document) {
@@ -1559,10 +1476,6 @@ public final class IngestDocument {
 
         private static String notPresent(String path, String key) {
             return "field [" + key + "] not present as part of path [" + path + "]";
-        }
-
-        private static String notStringOrByteArray(String path, Object value) {
-            return "Content field [" + path + "] of unknown type [" + value.getClass().getName() + "], must be string or byte array";
         }
 
         private static String invalidPath(String fullPath) {

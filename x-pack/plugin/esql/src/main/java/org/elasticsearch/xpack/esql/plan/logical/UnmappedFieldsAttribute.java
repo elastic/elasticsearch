@@ -26,23 +26,27 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * The synthetic {@code $$unmapped_fields} column produced when {@code SET unmapped_fields="LOAD_ALL"}
- * is in effect.
+ * The {@code _unmapped_fields} column produced when {@code SET unmapped_fields="LOAD_ALL"} is in effect.
  *
  * <p>Added to {@link EsRelation#output()} by {@code DetermineUnmappedFieldsToKeep} in the
  * Finish Analysis batch, when the carried {@link UnmappedFieldsPattern} can match an unmapped field. The value of the
- * column is a JSON object of the unmapped fields of a document that the pattern includes, which the shard reads.
+ * column is a JSON object of the unmapped fields of a document that the pattern includes, which the shard reads. That value
+ * is {@code _source}-shaped, so the column is typed {@link DataType#SOURCE}.
  *
- * <p>Note that {@link #synthetic()} stays {@code false} despite the synthetic name:
- * {@code Analyzer.planWithoutSyntheticAttributes} projects away every attribute for which it returns
- * {@code true}, and it runs after {@code DetermineUnmappedFieldsToKeep}, so the column would be gone
- * before it is returned. The {@code $$} name is what keeps the column
- * unreachable from a query — user field names cannot start with it.
+ * <p>The column is named like the output column it becomes, but a query cannot refer to it: it is added after every
+ * reference has been resolved, and {@code ResolvingProject} keeps it out of the {@code KEEP}/{@code DROP}/{@code RENAME}
+ * patterns. Several places still find it by name (union and fork branches line their columns up by name, {@code EVAL}
+ * shadows by name), so {@code DetermineUnmappedFieldsToKeep} does not add it to a query that has a column of that name of
+ * its own: the query's column wins.
+ *
+ * <p>{@link #synthetic()} stays {@code false}: {@code Analyzer.planWithoutSyntheticAttributes} projects away every attribute
+ * for which it returns {@code true}, and it runs after {@code DetermineUnmappedFieldsToKeep}, so the column would be gone
+ * before it is returned.
  *
  * <p>The column is returned as {@code _unmapped_fields}, with the values the data nodes loaded.
  */
 public final class UnmappedFieldsAttribute extends TypedAttribute {
-    public static final String ATTRIBUTE_NAME = Attribute.rawTemporaryName("unmapped_fields");
+    public static final String ATTRIBUTE_NAME = "_unmapped_fields";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -63,7 +67,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
     private final UnmappedFieldsPattern pattern;
 
     public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern) {
-        super(source, ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.TRUE, null, false);
+        super(source, ATTRIBUTE_NAME, DataType.SOURCE, Nullability.TRUE, null, false);
         this.pattern = pattern;
     }
 
@@ -90,7 +94,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             out.writeString(name());
             dataType().writeTo(out);
             out.writeOptionalString(null); // qualifier, no longer used
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
             out.writeNamedWriteable(pattern);
@@ -100,10 +104,10 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
     public static UnmappedFieldsAttribute readFrom(StreamInput in) throws IOException {
         return ((PlanStreamInput) in).readAttributeWithCache(stream -> {
             Source source = Source.readFrom((PlanStreamInput) stream);
-            stream.readString(); // attribute name, always ATTRIBUTE_NAME
+            stream.readString(); // attribute name, ignored in favor of ATTRIBUTE_NAME; older nodes write $$unmapped_fields
             DataType dataType = DataType.readFrom(stream);
             stream.readOptionalString(); // qualifier, no longer used
-            Nullability nullability = stream.readEnum(Nullability.class);
+            Nullability nullability = Nullability.readFrom(stream);
             NameId id = NameId.readFrom((PlanStreamInput) stream);
             boolean synthetic = stream.readBoolean();
             UnmappedFieldsPattern pattern = stream.readNamedWriteable(UnmappedFieldsPattern.class);
@@ -129,6 +133,11 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
     @Override
     public boolean isMetric() {
         return false;
+    }
+
+    @Override
+    public boolean isInternal() {
+        return true;
     }
 
     @Override

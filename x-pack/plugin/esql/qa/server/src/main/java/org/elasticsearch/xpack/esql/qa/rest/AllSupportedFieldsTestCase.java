@@ -21,12 +21,13 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
@@ -945,6 +946,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return false;
     }
 
+    /**
+     * Must match the {@code dense_vector} mapper's default: strict columnar modes leave it unindexed unless they're search optimized.
+     */
+    private static boolean denseVectorIndexedByDefault(IndexMode mode) {
+        return mode.isStrictColumnar() == false || mode.isSearchOptimizedColumnar();
+    }
+
     private static String fieldName(DataType type) {
         return type == DataType.DATETIME ? "@timestamp" : "f_" + type.esType();
     }
@@ -962,6 +970,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 config.field("type", type.esType());
                 if (indexMode.isTsdb()) {
                     config.field("time_series_dimension", true);
+                }
+            }
+            case DENSE_VECTOR -> {
+                config.field("type", type.esType());
+                if (denseVectorIndexedByDefault(indexMode)) {
+                    // On stateless nodes the default index type is bbq_disk, and snapshot builds store it in an ESNext format with
+                    // no on-disk compatibility across builds, so in a mixed cluster one version can't open segments the other wrote.
+                    // int8_hnsw is the stateful default for these dims.
+                    config.startObject("index_options").field("type", "int8_hnsw").endObject();
                 }
             }
             default -> config.field("type", type.esType());
@@ -1594,8 +1611,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     /**
      * The loader a string field gets, which follows the binary layout the index writes its doc values in: the in-order column, or
-     * the ColumNAR codec's payload. Read off the index rather than assumed, since the setting's default has moved and it is not
-     * registered at all on a build where the feature flag is off.
+     * the ColumNAR codec's payload, which every strict-columnar index created from {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG}
+     * uses. Read off the index rather than assumed, since an index can be created at an older version.
      */
     private String columnarStringLoader() throws IOException {
         return usesColumnarCodec() ? "column_at_a_time:BytesRefsFromColumnarPayload" : "column_at_a_time:BlockDocValuesReader.Bytes";
@@ -1607,21 +1624,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         if (usesColumnarCodec == null) {
             // Every index this run reads, since they are named after the mode and, where a run has one per node, after the node too.
             // Only the single-node run asserts the loaders, so there is one answer to find.
-            Request request = new Request("GET", "/" + indexName(indexMode, null) + "*/_settings/index.columnar_codec.enabled");
+            Request request = new Request("GET", "/" + indexName(indexMode, null) + "*/_settings/index.version.created");
             request.addParameter("flat_settings", "true");
-            request.addParameter("include_defaults", "true");
             Map<?, ?> response = entityAsMap(client().performRequest(request));
-            assertThat("no index to read the codec setting off", response.keySet(), not(empty()));
+            assertThat("no index to read the version off", response.keySet(), not(empty()));
             usesColumnarCodec = false;
             for (Object forIndex : response.values()) {
-                for (String section : new String[] { "settings", "defaults" }) {
-                    Map<?, ?> settings = (Map<?, ?>) ((Map<?, ?>) forIndex).get(section);
-                    Object enabled = settings == null ? null : settings.get("index.columnar_codec.enabled");
-                    if (enabled != null) {
-                        usesColumnarCodec |= Booleans.parseBoolean(enabled.toString());
-                        break;
-                    }
-                }
+                Map<?, ?> settings = (Map<?, ?>) ((Map<?, ?>) forIndex).get("settings");
+                IndexVersion created = IndexVersion.fromId(Integer.parseInt(settings.get("index.version.created").toString()));
+                usesColumnarCodec |= created.onOrAfter(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
             }
         }
         return usesColumnarCodec;
@@ -1642,7 +1653,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 : matchesList().item("column_at_a_time:");
             // vectordb_columnar keeps dense_vector indexed, so it loads from the normalized vector values like non-columnar
             // modes; the other strict-columnar modes store the vector as binary doc values.
-            case DENSE_VECTOR -> indexMode.isStrictColumnar() && indexMode.isSearchOptimizedColumnar() == false
+            case DENSE_VECTOR -> denseVectorIndexedByDefault(indexMode) == false
                 ? matchesList().item("column_at_a_time:FloatDenseVectorFromBinary.Bytes")
                 : matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false

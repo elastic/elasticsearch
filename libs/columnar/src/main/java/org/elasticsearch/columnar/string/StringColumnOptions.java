@@ -26,13 +26,16 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  * @param singleValued whether each document's blob is its value's own bytes rather than a
  *                     {@link StringBinaryPayload}. Unlike the other options it cannot change for a field: a merge
  *                     decodes a source that is not a ColumNAR column with the target's framing
+ * @param enableSkipIndex whether a dictionary column without escapes writes the smallest and largest ordinal of
+ *                     each interval of documents, which a range query uses to skip intervals
  */
 public record StringColumnOptions(
     DictionaryPolicy dictionary,
     SummaryPolicy summary,
     ChunkCodec chunkCodec,
     Sizes sizes,
-    boolean singleValued
+    boolean singleValued,
+    boolean enableSkipIndex
 ) {
 
     /**
@@ -195,12 +198,15 @@ public record StringColumnOptions(
      */
     public static final boolean DEFAULT_SINGLE_VALUED = false;
 
+    public static final boolean DEFAULT_ENABLE_SKIP_INDEX = true;
+
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(
         DEFAULT_DICTIONARY,
         DEFAULT_SUMMARY,
         ChunkCodec.ZSTD,
         DEFAULT_SIZES,
-        DEFAULT_SINGLE_VALUED
+        DEFAULT_SINGLE_VALUED,
+        DEFAULT_ENABLE_SKIP_INDEX
     );
 
     /**
@@ -224,7 +230,8 @@ public record StringColumnOptions(
             DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
             DEFAULT_LENGTH_BLOCK_SIZE
         ),
-        DEFAULT_SINGLE_VALUED
+        DEFAULT_SINGLE_VALUED,
+        DEFAULT_ENABLE_SKIP_INDEX
     );
 
     public StringColumnOptions {
@@ -248,16 +255,21 @@ public record StringColumnOptions(
      * so twice rather than setting one and inheriting the other.
      */
     public StringColumnOptions withPolicies(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
-        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes, singleValued);
+        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes, singleValued, enableSkipIndex);
     }
 
     /** These options with different sizes, for a field whose shape is not what the defaults were measured on. */
     public StringColumnOptions withSizes(Sizes other) {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, other, singleValued);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, other, singleValued, enableSkipIndex);
     }
 
     /** These options for a field whose documents each hold exactly one value, handed over as its own bytes. */
     public StringColumnOptions withSingleValued(boolean singleValued) {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, enableSkipIndex);
+    }
+
+    /** These options for a field whose ordinals should not be indexed. */
+    public StringColumnOptions withoutSkipIndex() {
+        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, false);
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -47,9 +48,14 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolveTestCase {
 
-    /** Enables the implicit flattened {@code _unmapped} sink, which makes the resolved root dynamic FLATTENED. */
-    private static Settings unmappedSinkEnabled() {
-        return Settings.builder().put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true).build();
+    /** A mapping whose root sets {@code dynamic: flattened}, so unmapped leaves are absorbed by the {@code _unmapped} sink. */
+    private static XContentBuilder dynamicFlattened(CheckedConsumer<XContentBuilder, IOException> properties) throws IOException {
+        return topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties");
+            properties.accept(b);
+            b.endObject();
+        });
     }
 
     public void testHappyPath() throws IOException {
@@ -102,6 +108,29 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         Settings settings = columnarStoredSettings(false);
         MapperService ms = columnarMapperService(settings, mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
         assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), columnarIndexSettings(settings)));
+    }
+
+    /**
+     * An object with {@code synthetic_source_keep: all} is copied whole into {@code _ignored_source} by the sequential path, whatever
+     * its leaves' own mappers do, so a leaf beneath it, however deep, has to fall back. A sibling object without it stays batched.
+     */
+    public void testLeafUnderKeepAllObjectFallsBack() throws IOException {
+        final MapperService ms = tsdbMapperService(Settings.EMPTY, mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("kept").field("type", "object").field("synthetic_source_keep", "all");
+            b.startObject("properties").startObject("f").field("type", "long").endObject();
+            b.startObject("inner").field("type", "object").startObject("properties");
+            b.startObject("g").field("type", "long").endObject();
+            b.endObject().endObject().endObject().endObject();
+            b.startObject("plain").field("type", "object").startObject("properties");
+            b.startObject("f").field("type", "long").endObject();
+            b.endObject().endObject();
+        }));
+        final IndexSettings tsdbSettings = ms.getIndexSettings();
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("kept.f"), ms.mappingLookup(), tsdbSettings));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("kept.inner.g"), ms.mappingLookup(), tsdbSettings));
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("plain.f"), ms.mappingLookup(), tsdbSettings));
     }
 
     public void testNumberMapperIsSupported() throws IOException {
@@ -802,22 +831,13 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     /**
-     * With the implicit {@code _unmapped} sink present and no explicit root dynamic, the resolved root dynamic is
-     * {@link org.elasticsearch.index.mapper.ObjectMapper.Dynamic#FLATTENED} rather than {@code TRUE}, so an unmapped
-     * leaf is absorbed by the sink instead of forcing a fallback.
+     * With root {@code dynamic: flattened}, an unmapped leaf is absorbed by the {@code _unmapped} sink instead of forcing a fallback.
      */
     public void testUnmappedLeafIsAbsorbedByTheSink() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(
-            unmappedSinkEnabled(),
-            mapping(b -> b.startObject("host").field("type", "keyword").endObject())
-        );
+        MapperService ms = columnarMapperService(dynamicFlattened(b -> b.startObject("host").field("type", "keyword").endObject()));
         SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            schema,
-            ms.mappingLookup(),
-            columnarIndexSettings(unmappedSinkEnabled())
-        );
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
         assertNotNull("an unmapped leaf should be sunk, not force a fallback", resolution);
 
         assertThat(resolution.columnMappers()[schema.findLeaf("host", 0)], instanceOf(KeywordFieldMapper.class));
@@ -829,25 +849,44 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     /**
-     * The sink is keyed by the leaf's <em>full</em> dotted path, matching {@code DynamicFieldsBuilder.FlattenedSink},
+     * The sink is keyed by the leaf's <em>full</em> dotted path, matching {@code UnmappedSinkFieldMapper.absorb},
      * which calls {@code indexValueAtPath(context, context.path().pathAsText(name))}. This differs from a real
      * flattened field, whose relative keys have the owner prefix stripped.
      */
     public void testSinkKeysUnmappedLeafByFullDottedPath() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(
-            unmappedSinkEnabled(),
-            mapping(b -> b.startObject("host").field("type", "keyword").endObject())
-        );
+        MapperService ms = columnarMapperService(dynamicFlattened(b -> b.startObject("host").field("type", "keyword").endObject()));
         SourceSchema schema = schemaOfJson("{\"a\":{\"b\":\"x\"}}");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            schema,
-            ms.mappingLookup(),
-            columnarIndexSettings(unmappedSinkEnabled())
-        );
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
         assertNotNull(resolution);
         assertEquals(1, resolution.columnGroups().length);
         assertArrayEquals(new String[] { "a.b" }, resolution.columnGroups()[0].relativeKeys());
+    }
+
+    /**
+     * The sink is a metadata field, so a document key under {@code _unmapped} must reach the sequential parser, which rejects it. Both
+     * {@code {"_unmapped":{"a":..}}} and the dotted {@code {"_unmapped.a":..}} become the batch leaf {@code _unmapped.a}, and neither may
+     * be silently written into the sink as key {@code a}.
+     */
+    public void testLeafUnderSinkNameFallsBack() throws IOException {
+        assumeUnmappedSinkAvailable();
+        MapperService ms = columnarMapperService(dynamicFlattened(b -> {}));
+        String key = randomAlphaOfLength(5);
+        String json = randomBoolean() ? "{\"_unmapped\":{\"" + key + "\":\"x\"}}" : "{\"_unmapped." + key + "\":\"x\"}";
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), indexSettings));
+    }
+
+    /**
+     * A document key {@code _unmapped} holding a value resolves to the sink itself rather than to a leaf under it. The sink never maps a
+     * column of its own, so the batch must fall back at resolve time and let the sequential parser reject the key, instead of assigning the
+     * sink to the column and failing later inside {@code mapColumnBatch}.
+     */
+    public void testSinkNameAsLeafFallsBack() throws IOException {
+        assumeUnmappedSinkAvailable();
+        MapperService ms = columnarMapperService(dynamicFlattened(b -> {}));
+        String value = randomAlphaOfLength(5);
+        String json = randomBoolean() ? "{\"_unmapped\":\"" + value + "\"}" : "{\"_unmapped\":[\"" + value + "\"]}";
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), indexSettings));
     }
 
     /**
@@ -856,7 +895,8 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      */
     public void testDynamicTemplatesPreEmptTheSink() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(unmappedSinkEnabled(), topMapping(b -> {
+        MapperService ms = columnarMapperService(topMapping(b -> {
+            b.field("dynamic", "flattened");
             b.startArray("dynamic_templates");
             b.startObject();
             b.startObject("strings_as_keyword");
@@ -872,28 +912,41 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}");
         assertNull(
             "a dynamic template may claim the leaf before the sink does",
-            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), columnarIndexSettings(unmappedSinkEnabled()))
+            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
         );
     }
 
-    /** An explicit root {@code dynamic: false} still wins over the sink, so the leaf is dropped rather than absorbed. */
-    public void testExplicitRootDynamicFalseWinsOverTheSink() throws IOException {
+    /** The sink exists on every new strict columnar index, but a root {@code dynamic: false} drops the leaf rather than absorbing it. */
+    public void testRootDynamicFalseDoesNotAbsorb() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(unmappedSinkEnabled(), topMapping(b -> {
+        MapperService ms = columnarMapperService(topMapping(b -> {
             b.field("dynamic", "false");
             b.startObject("properties");
             b.startObject("host").field("type", "keyword").endObject();
             b.endObject();
         }));
         SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}");
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            schema,
-            ms.mappingLookup(),
-            columnarIndexSettings(unmappedSinkEnabled())
-        );
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
         assertNotNull(resolution);
         assertNull(resolution.columnMappers()[schema.findLeaf("unknown", 0)]);
         assertEquals("an explicitly disabled dynamic must not sink", 0, resolution.columnGroups().length);
+    }
+
+    /**
+     * The sink is on every new strict columnar index, so a sink whose wrapped flattened mapper cannot batch (here because
+     * {@code index.mapping.index_disabled_by_default: false} turns the inverted index on) must not turn off the batch path for the whole
+     * index: a batch with no unmapped leaf still batches, and only a batch that would absorb a leaf falls back.
+     */
+    public void testSinkThatCannotBatchFallsBackOnlyWhenAbsorbing() throws IOException {
+        assumeUnmappedSinkAvailable();
+        Settings indexEnabled = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), false).build();
+        MapperService ms = columnarMapperService(
+            indexEnabled,
+            dynamicFlattened(b -> b.startObject("host").field("type", "keyword").endObject())
+        );
+        IndexSettings settings = columnarIndexSettings(indexEnabled);
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOfJson("{\"host\":\"srv\"}"), ms.mappingLookup(), settings));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}"), ms.mappingLookup(), settings));
     }
 
     /**

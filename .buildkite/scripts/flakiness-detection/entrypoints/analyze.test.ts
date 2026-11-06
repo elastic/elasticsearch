@@ -1,10 +1,11 @@
 import { describe, expect, test } from "vitest";
 
-import { BLOCKING_LABELS, type SkippedTest } from "../domain.ts";
+import { BLOCK_ALL_PRS, BLOCKING_LABELS, type SkippedTest } from "../domain.ts";
 
 import {
   allTargetTasksSkipped,
   buildFailedPayload,
+  isPullRequestBuild,
   notApplicablePayload,
   parseReportInputs,
   provenFlakinessJobs,
@@ -171,34 +172,105 @@ describe("provenFlakinessJobs", () => {
   });
 });
 
+describe("isPullRequestBuild", () => {
+  test("a PR number is a PR build", () => {
+    expect(isPullRequestBuild("12345")).toBe(true);
+  });
+
+  test('"false" is what Buildkite sets on every non-PR build, such as the manual pipeline', () => {
+    expect(isPullRequestBuild("false")).toBe(false);
+  });
+
+  test("an unset value is not a PR build, so proven flakiness fails it", () => {
+    expect(isPullRequestBuild("")).toBe(false);
+    expect(isPullRequestBuild("  ")).toBe(false);
+  });
+});
+
 describe("shouldBlock", () => {
   const OPTED_IN = BLOCKING_LABELS[0];
+  const OTHER_LABELS = ">bug,Team:NotIncludedTeam";
+  const PR = "12345";
+  const NOT_A_PR = "false";
   const PROVEN = [{ outcome: "clean_pass" }, { outcome: "flaky_detected" }];
   const CLEAN = [{ outcome: "clean_pass" }, { outcome: "timeout" }];
 
-  test("blocks only when flakiness was proven AND the PR opted in", () => {
-    expect(shouldBlock(PROVEN, `>bug,${OPTED_IN}`)).toBe(true);
+  describe("on a PR build with blocking for all PRs off", () => {
+    const pr = (labels: string) => ({ pullRequest: PR, labels, blockAllPrs: false });
+
+    test("blocks when flakiness was proven AND the PR opted in, naming the label", () => {
+      expect(shouldBlock(PROVEN, pr(`>bug,${OPTED_IN}`))).toEqual({ block: true, reason: `PR labelled ${OPTED_IN}` });
+    });
+
+    test("a proven failure on a PR that did not opt in is reported, not blocked", () => {
+      expect(shouldBlock(PROVEN, pr(OTHER_LABELS))).toEqual({
+        block: false,
+        reason: "this PR carries no blocking label",
+      });
+      expect(shouldBlock(PROVEN, pr("")).block).toBe(false);
+    });
+
+    test("an opted-in PR with nothing proven still passes", () => {
+      expect(shouldBlock(CLEAN, pr(OPTED_IN)).block).toBe(false);
+      expect(shouldBlock([], pr(OPTED_IN)).block).toBe(false);
+    });
   });
 
-  test("a proven failure on a PR that did not opt in is reported, not blocked", () => {
-    // The default for the whole repo: the report and the outcomes artifact are identical either way, only
-    // the exit code differs.
-    expect(shouldBlock(PROVEN, ">bug,Team:NotIncludedTeam")).toBe(false);
+  describe("on a PR build with blocking for all PRs on", () => {
+    const pr = (labels: string) => ({ pullRequest: PR, labels, blockAllPrs: true });
+
+    test("a proven failure blocks without any label", () => {
+      expect(shouldBlock(PROVEN, pr(""))).toEqual({ block: true, reason: "blocking is enabled for all PRs" });
+      expect(shouldBlock(PROVEN, pr(OTHER_LABELS)).block).toBe(true);
+    });
+
+    test("the labels are a no-op, so the reason names the switch rather than the label", () => {
+      expect(shouldBlock(PROVEN, pr(OPTED_IN))).toEqual({ block: true, reason: "blocking is enabled for all PRs" });
+    });
+
+    test("nothing proven still passes", () => {
+      expect(shouldBlock(CLEAN, pr(OPTED_IN)).block).toBe(false);
+      expect(shouldBlock([], pr("")).block).toBe(false);
+    });
   });
 
-  test("an opted-in PR with nothing proven still passes", () => {
-    expect(shouldBlock(CLEAN, OPTED_IN)).toBe(false);
-    expect(shouldBlock([], OPTED_IN)).toBe(false);
+  describe("on a non-PR build, i.e. the manual pipeline", () => {
+    test("a proven failure blocks regardless of the labels and the all-PRs switch", () => {
+      for (const pullRequest of [NOT_A_PR, ""]) {
+        for (const labels of ["", OPTED_IN, OTHER_LABELS]) {
+          for (const blockAllPrs of [false, true]) {
+            expect(shouldBlock(PROVEN, { pullRequest, labels, blockAllPrs }).block).toBe(true);
+          }
+        }
+      }
+    });
+
+    test("the reason shows the raw value, so a PR build missing its PR number is easy to spot", () => {
+      expect(shouldBlock(PROVEN, { pullRequest: NOT_A_PR, labels: "" }).reason).toBe(
+        'this is not a PR build (BUILDKITE_PULL_REQUEST="false")'
+      );
+      expect(shouldBlock(PROVEN, { pullRequest: "", labels: "" }).reason).toBe(
+        'this is not a PR build (BUILDKITE_PULL_REQUEST="")'
+      );
+    });
+
+    test("nothing proven still passes", () => {
+      expect(shouldBlock(CLEAN, { pullRequest: NOT_A_PR, labels: "" }).block).toBe(false);
+      expect(shouldBlock([], { pullRequest: NOT_A_PR, labels: "" }).block).toBe(false);
+    });
   });
 
-  test("a build that did not compile is never blocked here", () => {
+  test("a build that did not compile is never blocked here, under any rule", () => {
     // Its own main build is already red for the same compile error.
-    expect(shouldBlock([buildFailedPayload()], OPTED_IN)).toBe(false);
+    for (const pullRequest of [PR, NOT_A_PR]) {
+      for (const blockAllPrs of [false, true]) {
+        expect(shouldBlock([buildFailedPayload()], { pullRequest, labels: OPTED_IN, blockAllPrs }).block).toBe(false);
+      }
+    }
   });
 
-  test("no labels at all never blocks, which is what keeps the manual pipeline green", () => {
-    // GITHUB_PR_LABELS is unset outside a PR build, and the caller passes "" for that.
-    expect(shouldBlock(PROVEN, "")).toBe(false);
+  test("the all-PRs switch defaults to BLOCK_ALL_PRS", () => {
+    expect(shouldBlock(PROVEN, { pullRequest: PR, labels: "" }).block).toBe(BLOCK_ALL_PRS);
   });
 });
 

@@ -10,11 +10,11 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class InternalTestClustersPlugin implements Plugin<Project> {
@@ -22,9 +22,9 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
-        project.getRootProject().getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         var buildParams = loadBuildParams(project).get();
-        project.getRootProject().getPluginManager().apply(InternalReaperPlugin.class);
+        project.getPluginManager().apply(InternalReaperPlugin.class);
         TestClustersPlugin testClustersPlugin = project.getPlugins().apply(TestClustersPlugin.class);
         testClustersPlugin.setRuntimeJava(buildParams.getRuntimeJavaHome());
         testClustersPlugin.setIsReleasedVersion(

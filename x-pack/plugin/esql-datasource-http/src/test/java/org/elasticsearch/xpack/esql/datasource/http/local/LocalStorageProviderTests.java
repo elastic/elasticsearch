@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -28,6 +29,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -109,6 +112,77 @@ public class LocalStorageProviderTests extends ESTestCase {
         assertTrue(object.exists());
         assertEquals(content.length(), object.length());
         assertNotNull(object.lastModified());
+    }
+
+    /** A listed file's version is the modification time its listing reads, which is what an unseeded object reads too. */
+    public void testListedVersionIsTheFilesModificationTime() throws IOException {
+        Path dir = createTempDir();
+        Path file = dir.resolve("data.parquet");
+        Files.writeString(file, "content");
+        LocalStorageProvider provider = new LocalStorageProvider();
+
+        List<StorageEntry> entries = new ArrayList<>();
+        try (StorageIterator iterator = provider.listObjects(StoragePath.of(StoragePath.fileUri(dir)), false)) {
+            while (iterator.hasNext()) {
+                entries.add(iterator.next());
+            }
+        }
+        StorageEntry entry = entries.stream().filter(e -> e.path().objectName().equals("data.parquet")).findFirst().orElseThrow();
+        assertNotNull(entry.version());
+        assertEquals(entry.version(), provider.newObject(entry.path()).version());
+    }
+
+    /** A rewrite that moves the modification time moves the version, so the footer of the old contents is not reused. */
+    public void testVersionChangesWhenTheFileIsRewritten() throws IOException {
+        Path file = createTempFile("rewrite", ".parquet");
+        Files.writeString(file, "first");
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(file));
+        String before = provider.newObject(path).version();
+
+        Files.writeString(file, "second");
+        Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 10_000));
+
+        assertNotEquals(before, provider.newObject(path).version());
+    }
+
+    /** A listed file rewritten since its listing is refused, so its bytes are never read under the listed version's footer. */
+    public void testReadOfAListedFileRewrittenSinceTheListingIsRefused() throws IOException {
+        Path file = createTempFile("listed", ".parquet");
+        Files.writeString(file, "first");
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(file));
+        String listed = provider.newObject(path).version();
+        StorageObject object = provider.newObject(path, 5L, Instant.EPOCH, listed);
+
+        Files.writeString(file, "second");
+        Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 10_000));
+
+        expectThrows(ExternalObjectChangedException.class, () -> object.newStream());
+    }
+
+    /** The positional read a footer load uses is refused for a rewritten listed file too, as the stream reads are. */
+    public void testPositionalReadOfAListedFileRewrittenSinceTheListingIsRefused() throws IOException {
+        Path file = createTempFile("positional", ".parquet");
+        Files.writeString(file, "first");
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(file));
+        String listed = provider.newObject(path).version();
+        StorageObject object = provider.newObject(path, 5L, Instant.EPOCH, listed);
+
+        Files.writeString(file, "second");
+        Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 10_000));
+
+        expectThrows(ExternalObjectChangedException.class, () -> object.readBytes(0, ByteBuffer.allocate(5)));
+    }
+
+    /** A version the listing supplied is the one the object reports, not a fresh reading of the file. */
+    public void testSeededVersionIsKept() throws IOException {
+        Path file = createTempFile("seeded", ".parquet");
+        Files.writeString(file, "content");
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StorageObject object = provider.newObject(StoragePath.of(StoragePath.fileUri(file)), 7L, Instant.EPOCH, "listed");
+        assertEquals("listed", object.version());
     }
 
     /**

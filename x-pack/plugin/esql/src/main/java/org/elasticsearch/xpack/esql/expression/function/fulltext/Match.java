@@ -29,7 +29,6 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.TokenStreamMatching;
-import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -117,8 +116,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             "runtime_score",
             "runtime_lenient_non_text",
             "runtime_anywhere",
+            "fused_field_load_fix",
             "to_text_on_indexed_field_fix",
-            "to_string_on_indexed_field_fix"
+            "to_string_on_indexed_field_fix",
+            "stats_where_analyzer_fix"
         )
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
@@ -187,13 +188,13 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
             **`MATCH` on expressions**
 
-            {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+            {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
             `MATCH` can also search expressions that are not backed by an index, such as
             computed columns produced by `EVAL`, `STATS`, or other commands.
             When the target is not an indexed field, the search evaluates by scanning
             values row by row, which may be slower on large datasets.
 
-            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
             When searching `text` expressions, <<esql-function-named-params,function named parameters>>
             (match query options) are supported. As on an indexed field, the `analyzer` option applies to
             the query string only: how the expression's values are analyzed is declared where the column is
@@ -202,7 +203,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             (prebuilt or plugin-contributed); per-index custom analyzers cannot be used because the
             expression is not backed by an index. On non-text expressions only the `lenient` option is supported.
 
-            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
             When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
             a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
             (duplicate query terms each contribute separately).
@@ -481,10 +482,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return true;
         }
 
-        if (fieldAsFieldAttribute().field() instanceof FunctionEsField functionEsField) {
-            // This is a pushed block loader.
-            // We can only support FIELD_EXTRACT(flattened, "constant"), here named EXTRACT_FLATTENED_SUBFIELD
-            return functionEsField.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD;
+        if (fieldAttribute.field() instanceof FunctionEsField) {
+            // This is a pushed block loader, e.g. FIELD_EXTRACT(flattened, "constant") or MV_MIN(field). There is no
+            // indexed Lucene field behind it, so the match must run at runtime.
+            return true;
         }
         return false;
     }

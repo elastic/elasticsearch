@@ -156,3 +156,16 @@ FROM employees_multifile_split
 c:long
 80
 ;
+
+// Answered from the Parquet footer statistics of each file, with no row read. Covers the statistics path of the versioned
+// footer cache over a glob, where a same-length overwrite of one file must not leave stale min or max.
+multiFileStatisticsOnly
+required_capability: dataset_in_from_command
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| STATS c = COUNT(*), lo = MIN(emp_no), hi = MAX(emp_no);
+
+c:long | lo:integer | hi:integer
+100    | 10001      | 10100
+;

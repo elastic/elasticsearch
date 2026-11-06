@@ -984,7 +984,7 @@ public class IngestServiceTests extends ESTestCase {
             ingestService.getPipeline(projectId, "_id1").execute(ingestDocument, (ingestDocument1, e) -> exceptionHolder[0] = e);
             assertThat(exceptionHolder[0], notNullValue());
             assertThat(exceptionHolder[0].getMessage(), containsString("reload me"));
-            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), nullValue());
+            assertThat(ingestDocument.getSource().get("_field"), nullValue());
         }
 
         externalProperty[0] = true;
@@ -995,7 +995,7 @@ public class IngestServiceTests extends ESTestCase {
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
             ingestService.getPipeline(projectId, "_id1").execute(ingestDocument, (ingestDocument1, e) -> holder[0] = e);
             assertThat(holder[0], nullValue());
-            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), equalTo("_value"));
+            assertThat(ingestDocument.getSource().get("_field"), equalTo("_value"));
         }
     }
 
@@ -3044,7 +3044,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testCBORParsing() throws Exception {
         AtomicReference<Object> reference = new AtomicReference<>();
-        Consumer<IngestDocument> executor = doc -> reference.set(doc.getFieldValueAsBytes("data"));
+        Consumer<IngestDocument> executor = doc -> reference.set(doc.getFieldValue("data", byte[].class));
         final IngestService ingestService = createWithProcessors(
             Map.of("foo", (factories, tag, description, config, projectId) -> new FakeProcessor("foo", tag, description, executor))
         );

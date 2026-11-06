@@ -37,6 +37,7 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
     static final int MAX_HASH_SET_SIZE = 10_000;
 
     private final MinHashFilterFactory minHashFilterFactory;
+    private final Object sharingKey;
 
     MinHashTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -71,6 +72,13 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
             }
         }
         minHashFilterFactory = new MinHashFilterFactory(convertSettings(settings));
+        // MinHashFilterFactory hides its parsed settings, so derive them here the way it does: with_rotation
+        // is parsed leniently (anything but a case-insensitive "true" is false) and defaults to whether there
+        // is more than one bucket.
+        boolean withRotation = settings.hasValue("with_rotation")
+            ? "true".equalsIgnoreCase(settings.get("with_rotation"))
+            : bucketCount > 1;
+        this.sharingKey = new Key(hashCount, bucketCount, hashSetSize, withRotation);
     }
 
     private static void validateParamBound(String paramName, int value, int maxValue, Settings settings) {
@@ -100,4 +108,11 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         return settingMap;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int hashCount, int bucketCount, int hashSetSize, boolean withRotation) {}
 }

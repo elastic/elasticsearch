@@ -1326,6 +1326,118 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Leftover parser after an inline steal can publish into a chunk that {@code dispatchChunk}
+     * has offered but not yet counted. Readiness must use the same {@code chunksDispatched} guard
+     * as {@code takeNextPage}, otherwise {@code tryAdvanceOrPark} sees done+null+not-exhausted and
+     * hits its retry-cap assert (#162111).
+     */
+    public void testPageReadyIgnoresUncountedOfferedChunk() throws Exception {
+        int lineCount = 40;
+        int chunkSize = 32;
+        int batchSize = 8;
+        int parallelism = 2;
+
+        CountDownLatch offeredChunk1 = new CountDownLatch(1);
+        CountDownLatch releaseChunk1 = new CountDownLatch(1);
+        AtomicReference<Runnable> segmentator = new AtomicReference<>();
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        Executor executor = command -> {
+            if (segmentator.compareAndSet(null, command)) {
+                return;
+            }
+            pool.execute(command);
+        };
+        StreamingParallelParsingCoordinator.StreamingParallelIterator it = null;
+        try {
+            it = (StreamingParallelParsingCoordinator.StreamingParallelIterator) StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(chunkSize),
+                new ByteArrayInputStream(buildContent(lineCount).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                batchSize,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            it.afterOfferBeforeDispatchCount = index -> {
+                if (index != 1) {
+                    return;
+                }
+                offeredChunk1.countDown();
+                try {
+                    if (releaseChunk1.await(30, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out holding dispatch of chunk 1");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("interrupted holding dispatch of chunk 1", e);
+                }
+            };
+            Runnable start = segmentator.get();
+            assertNotNull("admission must submit the segmentator", start);
+            pool.execute(start);
+
+            assertTrue("chunk 1 never offered", offeredChunk1.await(30, TimeUnit.SECONDS));
+
+            List<String> rows = new ArrayList<>();
+            BytesRef scratch = new BytesRef();
+            // Drain chunk 0 with tryAdvance only. waitForReady would skip the chunk-0 POISON,
+            // sit on the uncounted gap, and park with no one to wake it.
+            long drainDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (it.consumerChunkIndex() < 1) {
+                if (System.nanoTime() > drainDeadline) {
+                    fail("timed out draining chunk 0 before the uncounted gap");
+                }
+                Page page = it.tryAdvance();
+                if (page != null) {
+                    BytesRefBlock block = page.getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        rows.add(block.getBytesRef(i, scratch).utf8ToString());
+                    }
+                    page.releaseBlocks();
+                    continue;
+                }
+                Thread.onSpinWait();
+            }
+            assertEquals("consumer must sit on the uncounted gap", 1, it.consumerChunkIndex());
+            assertThat(rows.size(), Matchers.both(Matchers.greaterThan(0)).and(Matchers.lessThan(lineCount)));
+
+            it.runParserOnce();
+            assertTrue("leftover parser must have published into the uncounted slot", it.uncountedSlotHasPage());
+            assertFalse("gap is not EOF", it.isExhausted());
+
+            SubscribableListener<Void> ready = it.waitForReady();
+            assertFalse("page in an offered-but-uncounted slot must not report ready", ready.isDone());
+
+            Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+            Page raced = ExternalSourceDrainUtils.tryAdvanceOrPark(it, blockedOn);
+            if (raced != null) {
+                raced.releaseBlocks();
+            }
+            assertNull("uncounted chunk must not be readable yet", raced);
+            assertNotNull("drain must park until chunksDispatched catches up", blockedOn.get());
+            assertFalse("parked listener must not be done until dispatch count advances", blockedOn.get().isDone());
+
+            releaseChunk1.countDown();
+            awaitListener(blockedOn.get());
+
+            rows.addAll(drainLinesViaTryAdvanceOrPark(it));
+            assertEquals(lineCount, rows.size());
+            for (int i = 0; i < lineCount; i++) {
+                assertEquals("line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
+            }
+        } finally {
+            releaseChunk1.countDown();
+            if (it != null) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
      * {@code putPoisonAndSignal} must not re-set the interrupt flag inside {@code queue.put}.
      * After one interrupt that loop would throw immediately and the parser would spin until
      * suite leak. Close drains the full slot, so the parser must exit and join promptly.

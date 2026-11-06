@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
+import java.util.Map;
+
 public class BlobStoreCacheDirectoryTestUtils {
 
     private BlobStoreCacheDirectoryTestUtils() {}
@@ -53,6 +55,10 @@ public class BlobStoreCacheDirectoryTestUtils {
 
     public static void updateLatestCommitInfo(SearchDirectory target, PrimaryTermAndGeneration ccTermAndGen, String nodeId) {
         target.updateLatestCommitInfo(ccTermAndGen, nodeId);
+    }
+
+    public static void mergeMetadata(SearchDirectory target, Map<String, BlobFileRanges> incomingFileRanges) {
+        target.mergeMetadata(incomingFileRanges, false);
     }
 
     /**

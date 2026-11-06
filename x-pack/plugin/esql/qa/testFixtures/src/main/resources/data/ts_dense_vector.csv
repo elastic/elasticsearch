@@ -1,0 +1,6 @@
+@timestamp:date,host:keyword,vector:dense_vector
+2024-01-01T00:00:00Z,host-a,[1.0, 2.0, 3.0]
+2024-01-01T12:00:00Z,host-a,[4.0, 5.0, 6.0]
+2024-01-02T00:00:00Z,host-a,
+2024-01-01T00:00:00Z,host-b,[7.0, 8.0, 9.0]
+2024-01-02T00:00:00Z,host-b,

@@ -17,6 +17,66 @@
                   multi_value: false
 
 ---
+"top-level multi_value rejected outside columnar mode":
+  - requires:
+      cluster_features: ["mapper.doc_values.top_level_attributes"]
+      reason: "top-level multi_value attribute requires top_level_attributes"
+
+  - do:
+      catch: /parameter \[multi_value\] can only be used in columnar index modes/
+      indices.create:
+        index: test_non_columnar_top_level_rejected
+        body:
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                multi_value: false
+
+---
+"legacy doc_values.multi_value nested form is still accepted":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.multi_value_rename", "mapper.doc_values.top_level_attributes"]
+      reason: "nested doc_values object form must still be accepted for BWC; top_level_attributes to verify output is at top level"
+
+  - do:
+      allowed_warnings:
+        - "Specifying [multi_value], [nullability] or [on_failure] inside [doc_values] for field [kw] is deprecated, set them at the top level of the field mapping instead"
+      indices.create:
+        index: test_legacy_mv
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: false
+
+  # Enforcement still works: a multi-valued doc is rejected.
+  - do:
+      catch: /configured with \[multi_value=false\] but encountered multiple values in the same document/
+      index:
+        index: test_legacy_mv
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: ["a", "b"]
+
+  # GET _mapping returns multi_value at top level, not inside doc_values:{}.
+  - do:
+      indices.get_mapping:
+        index: test_legacy_mv
+
+  - match: { test_legacy_mv.mappings.properties.kw.multi_value: false }
+
+---
 "multi_value=false is enforced per document not per segment":
   - requires:
       test_runner_features: [ capabilities ]
@@ -24,7 +84,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      cluster_features: ["mapper.doc_values.multi_value_rename", "mapper.doc_values.top_level_attributes"]
       reason: "multi_value doc values parameter uses boolean wire-format; columnar index mode required"
 
   - do:
@@ -37,8 +97,7 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
+                multi_value: false
 
   - do:
       index:
@@ -75,8 +134,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_rename"]
-      reason: "multi_value doc values parameter uses boolean wire-format; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_rename", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value emitted at top level since top_level_attributes"
 
   - do:
       indices.create:
@@ -88,14 +147,13 @@
             properties:
               kw:
                 type: keyword
-                doc_values:
-                  multi_value: false
+                multi_value: false
 
   - do:
       indices.get_mapping:
         index: test_roundtrip
 
-  - match: { test_roundtrip.mappings.properties.kw.doc_values.multi_value: false }
+  - match: { test_roundtrip.mappings.properties.kw.multi_value: false }
 
 ---
 "multi_value=false on multi-field sub rejects parent array":
@@ -105,7 +163,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      cluster_features: ["mapper.doc_values.multi_value_rename", "mapper.doc_values.top_level_attributes"]
       reason: "multi_value=false enforcement on indexing; columnar index mode required"
 
   - do:
@@ -121,8 +179,7 @@
                 fields:
                   child:
                     type: keyword
-                    doc_values:
-                      multi_value: false
+                    multi_value: false
 
   # The first value is accepted by both the parent and child fields.
   - do:
@@ -151,7 +208,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      cluster_features: ["mapper.doc_values.multi_value_rename", "mapper.doc_values.top_level_attributes"]
       reason: "multi_value=false enforcement on indexing; columnar index mode required"
 
   - do:
@@ -164,8 +221,7 @@
             properties:
               parent:
                 type: keyword
-                doc_values:
-                  multi_value: false
+                multi_value: false
                 fields:
                   child:
                     type: keyword
@@ -228,7 +284,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_index_setting"]
+      cluster_features: ["mapper.doc_values.multi_value_index_setting", "mapper.doc_values.top_level_attributes"]
       reason: "index.mapping.doc_values.multi_value index-level setting requires this feature; columnar index mode required"
 
   - do:
@@ -244,8 +300,7 @@
                 type: keyword
               kw_override:
                 type: keyword
-                doc_values:
-                  multi_value: true
+                multi_value: true
 
   # The field with the index-level default (single-valued) rejects two values.
   - do:
@@ -287,12 +342,13 @@
               kw:
                 type: keyword
 
-  # The mapping for kw should not emit an explicit doc_values.multi_value because it was not set at the field level.
+  # The mapping for kw should not emit an explicit multi_value because it was not set at the field level.
   - do:
       indices.get_mapping:
         index: test_index_setting_roundtrip
 
   - is_false: test_index_setting_roundtrip.mappings.properties.kw.doc_values
+  - is_false: test_index_setting_roundtrip.mappings.properties.kw.multi_value
 
 ---
 "term-family queries decode multi-valued ArrayOrderInlineNull doc values":

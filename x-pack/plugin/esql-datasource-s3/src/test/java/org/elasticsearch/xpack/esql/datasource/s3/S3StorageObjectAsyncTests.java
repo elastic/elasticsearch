@@ -84,12 +84,14 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
      * Suppresses the JDK's delay-scheduler daemon thread created by {@code CompletableFuture.delayedExecutor}.
      * The thread name changed across JDK versions: before JDK 25 it was {@code "CompletableFutureDelayScheduler"}
      * (a dedicated {@code ScheduledThreadPoolExecutor}); from JDK 25 it is {@code "ForkJoinPool.commonPool-delayScheduler"}
-     * (the common pool's built-in {@code DelayScheduler}). This project targets JDK 25, so only the latter name applies.
+     * (the common pool's built-in {@code DelayScheduler}). CI runs unit tests under several runtime JDKs (21, 25 and 26),
+     * so both names must be accepted.
      */
     public static class DelaySchedulerThreadFilter implements ThreadFilter {
         @Override
         public boolean reject(Thread t) {
-            return t.getName().equals("ForkJoinPool.commonPool-delayScheduler");
+            String name = t.getName();
+            return name.equals("ForkJoinPool.commonPool-delayScheduler") || name.equals("CompletableFutureDelayScheduler");
         }
     }
 
@@ -102,9 +104,11 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
     /**
      * AWS Standard retry semantics (same classification and attempt budget as production) but with
-     * immediate backoff so retry tests do not sleep.
+     * immediate backoff so retry tests do not sleep. An instance field, not a static one: the strategy owns a
+     * retry-quota token bucket that failed retries drain and only successes refill, so sharing it across tests
+     * (or repeated iterations) eventually exhausts the quota and cuts retries short.
      */
-    private static final RetryStrategy RETRY_STRATEGY = AwsRetryStrategy.standardRetryStrategy()
+    private final RetryStrategy retryStrategy = AwsRetryStrategy.standardRetryStrategy()
         .toBuilder()
         .backoffStrategy(BackoffStrategy.retryImmediately())
         .throttlingBackoffStrategy(BackoffStrategy.retryImmediately())
@@ -114,7 +118,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
     private final S3AsyncClient mockAsyncClient = mock(S3AsyncClient.class);
 
     public void testSupportsNativeAsyncWithAsyncClient() {
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
         assertTrue(obj.supportsNativeAsync());
         assertTrue(obj.readBytesAsyncReleasesExecutor());
     }
@@ -166,7 +170,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             invocation -> completeTransformer(invocation.getArgument(1), response, PAYLOAD)
         );
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
@@ -222,7 +226,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return redirectFuture;
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
@@ -257,7 +261,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             invocation -> completeTransformer(invocation.getArgument(1), response, PAYLOAD)
         );
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> fail()));
@@ -289,7 +293,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return completeTransformer(invocation.getArgument(1), response, PAYLOAD);
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch first = new CountDownLatch(1);
         obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
@@ -330,7 +334,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
                 .build();
             return completeTransformer(invocation.getArgument(1), response, PAYLOAD);
         });
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch first = new CountDownLatch(1);
         obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
@@ -379,7 +383,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return completeTransformer(invocation.getArgument(1), response, PAYLOAD);
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch first = new CountDownLatch(1);
         obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
@@ -423,7 +427,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenReturn(failedFuture);
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -447,7 +451,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
     }
 
     public void testReadBytesAsyncNegativePositionFails() throws Exception {
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -471,7 +475,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
     }
 
     public void testReadBytesAsyncLengthExceedsIntMaxFails() throws Exception {
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -540,7 +544,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return completeTransformer(transformer, response, PAYLOAD);
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
@@ -589,7 +593,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return transformer.prepare();
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
@@ -649,7 +653,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return failTransformer(transformer, s3Error(403, "AccessDenied"));
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -686,7 +690,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return failTransformer(transformer, s3Error(400, errorCode));
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -713,7 +717,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return failTransformer(transformer, new IOException("transient failure #" + call));
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -887,7 +891,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return future;
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch listenerCalled = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -947,7 +951,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return new CompletableFuture<DirectReadBuffer>();
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
         CountDownLatch listenerCalled = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
         Releasable cancel = obj.startReadBytesAsync(0, payload.length, factory, Runnable::run, new ActionListener<>() {
@@ -994,7 +998,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return new CompletableFuture<DirectReadBuffer>();
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
         CountDownLatch listenerCalled = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
         Releasable cancel = obj.startReadBytesAsync(0, PAYLOAD.length, factory, Runnable::run, new ActionListener<>() {
@@ -1088,7 +1092,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return sdkFuture;
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
         obj.readBytesAsync(0, PAYLOAD.length, factory, Runnable::run, ActionListener.wrap(buffer -> {

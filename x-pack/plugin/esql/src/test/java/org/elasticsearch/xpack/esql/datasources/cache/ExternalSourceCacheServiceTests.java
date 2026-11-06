@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -85,6 +86,93 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             .put("esql.external.cache.enabled", true)
             .put("esql.external.cache.listing.ttl", ttl)
             .build();
+    }
+
+    /**
+     * A dataset is cached under one listing key per filter-hint set. A failed query drops every key of the datasets it read,
+     * including a hint-set key the query itself did not record. It leaves another dataset's listings alone, and those of another
+     * store that happens to use the same bucket and prefix.
+     */
+    public void testInvalidateDropsEveryHintVariantOfAUsedDataset() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger loads = new AtomicInteger();
+            ListingCacheKey recorded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey hinted = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "year=2024");
+            ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey otherStore = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "other-endpoint", "", Map.of(), "");
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(4, loads.get());
+
+            service.invalidateListings(List.of(recorded));
+
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
+                service.getOrComputeListing(key, k -> {
+                    loads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            assertEquals(
+                "the recorded and the hinted listing of the used dataset are read again, the other dataset and store are not",
+                6,
+                loads.get()
+            );
+        }
+    }
+
+    /**
+     * A failed query drops only the listings and file-metadata entries it read. Another dataset's listing, which was not part of the
+     * failed query, stays cached, so one rewritten object does not cost every dataset a re-listing.
+     */
+    public void testInvalidateDropsOnlyTheGivenListingsAndFileMetadata() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger listingLoads = new AtomicInteger();
+            AtomicInteger metadataLoads = new AtomicInteger();
+            ListingCacheKey failed = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
+            FileMetadataCacheKey failedFile = new FileMetadataCacheKey("s3://bucket/data/file.parquet", "");
+            FileMetadataCacheKey otherFile = new FileMetadataCacheKey("s3://other/data/file.parquet", "");
+            for (ListingCacheKey key : List.of(failed, other)) {
+                service.getOrComputeListing(key, k -> {
+                    listingLoads.incrementAndGet();
+                    return testCompactFileList();
+                });
+            }
+            for (FileMetadataCacheKey key : List.of(failedFile, otherFile)) {
+                service.getOrComputeFileMetadata(key, k -> {
+                    metadataLoads.incrementAndGet();
+                    return new FileMetadata(1L, 1L, "e1");
+                });
+            }
+
+            service.invalidateListings(List.of(failed));
+            service.invalidateFileMetadata(List.of(failedFile));
+
+            service.getOrComputeListing(failed, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeListing(other, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(failedFile, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L, "e2");
+            });
+            service.getOrComputeFileMetadata(otherFile, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L, "e2");
+            });
+            assertEquals("only the failed query's listing is read again", 3, listingLoads.get());
+            assertEquals("only the failed query's file metadata is read again", 3, metadataLoads.get());
+        }
     }
 
     /**
@@ -333,6 +421,44 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             leaderCompletion.get().onResponse(result);
             assertSame(result, leader.actionGet());
             assertSame(result, follower.actionGet());
+        }
+    }
+
+    /**
+     * A caller that becomes leader just after the previous leader finished takes the cache from the re-check, and must still
+     * complete the in-flight entry it registered: a caller that subscribed to it in the meantime would otherwise wait forever.
+     * The window is a few instructions wide, so this is a probabilistic stress test: it has not been seen to fail without
+     * the fix, and the resolver's concurrent-listing test is what exposed the race.
+     */
+    public void testAsyncListingNeverStrandsAFollowerOfARacedLeader() throws Exception {
+        int threads = 8;
+        int rounds = 2000;
+        FileList result = testCompactFileList();
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            for (int round = 0; round < rounds; round++) {
+                ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/" + round + "/*.parquet", "", "", Map.of(), "");
+                CyclicBarrier aligned = new CyclicBarrier(threads);
+                List<PlainActionFuture<FileList>> futures = new ArrayList<>();
+                for (int t = 0; t < threads; t++) {
+                    PlainActionFuture<FileList> future = new PlainActionFuture<>();
+                    futures.add(future);
+                    executor.execute(() -> {
+                        try {
+                            aligned.await(30, TimeUnit.SECONDS);
+                        } catch (Exception e) {
+                            future.onFailure(e);
+                            return;
+                        }
+                        service.getOrComputeListingAsync(key, l -> l.onResponse(result), future);
+                    });
+                }
+                for (PlainActionFuture<FileList> future : futures) {
+                    assertSame(result, future.actionGet(30, TimeUnit.SECONDS));
+                }
+            }
+        } finally {
+            executor.shutdownNow();
         }
     }
 

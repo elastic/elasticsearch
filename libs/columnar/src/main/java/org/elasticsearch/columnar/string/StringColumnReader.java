@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -122,9 +123,9 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /** A reader for {@code meta}, which decides whether the column has a dictionary to read through. */
-    public static StringColumnReader open(StringColumnMetadata meta, ColumnInputs inputs) throws IOException {
+    public static StringColumnReader open(StringColumnMetadata meta, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         return switch (meta) {
-            case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, inputs);
+            case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, inputs, skipIndex);
             case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, inputs);
         };
     }
@@ -938,7 +939,11 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
 
     /** The documents holding a slot {@code window} holds. */
     protected final Slots slotsHeld(SlotWindow window) throws IOException {
-        final ColumnIterator presence = iterator();
+        return slotsHeld(window, iterator());
+    }
+
+    /** As {@link #slotsHeld(SlotWindow)}, among the documents {@code presence} walks, which may leave some out. */
+    protected final Slots slotsHeld(SlotWindow window, ColumnIterator presence) throws IOException {
         if (hasValueAddresses() == false) {
             // One slot a document, the document's rank. Within a run of present documents the slot advances with
             // the document, so a stretch of the window maps onto a stretch of documents by a constant offset; a

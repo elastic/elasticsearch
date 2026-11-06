@@ -21,7 +21,7 @@ import java.util.Map;
 /**
  * Fluent builder for the parameters of a {@code dense_vector} field mapping; unset parameters are omitted.
  */
-class DenseVectorMappingBuilder implements Cloneable {
+public class DenseVectorMappingBuilder implements Cloneable {
     @Nullable
     private Integer dims;
     @Nullable
@@ -35,32 +35,32 @@ class DenseVectorMappingBuilder implements Cloneable {
     @Nullable
     private CheckedConsumer<XContentBuilder, IOException> additionalParams;
 
-    DenseVectorMappingBuilder dims(@Nullable Integer dims) {
+    public DenseVectorMappingBuilder dims(@Nullable Integer dims) {
         this.dims = dims;
         return this;
     }
 
-    DenseVectorMappingBuilder index(@Nullable Boolean index) {
+    public DenseVectorMappingBuilder index(@Nullable Boolean index) {
         this.index = index;
         return this;
     }
 
-    DenseVectorMappingBuilder similarity(@Nullable VectorSimilarity similarity) {
+    public DenseVectorMappingBuilder similarity(@Nullable VectorSimilarity similarity) {
         this.similarity = similarity;
         return this;
     }
 
-    DenseVectorMappingBuilder elementType(@Nullable ElementType elementType) {
+    public DenseVectorMappingBuilder elementType(@Nullable ElementType elementType) {
         this.elementType = elementType;
         return this;
     }
 
-    DenseVectorMappingBuilder indexOptions(@Nullable Map<String, Object> indexOptions) {
+    public DenseVectorMappingBuilder indexOptions(@Nullable Map<String, Object> indexOptions) {
         this.indexOptions = indexOptions;
         return this;
     }
 
-    DenseVectorMappingBuilder additionalParams(@Nullable CheckedConsumer<XContentBuilder, IOException> additionalParams) {
+    public DenseVectorMappingBuilder additionalParams(@Nullable CheckedConsumer<XContentBuilder, IOException> additionalParams) {
         this.additionalParams = additionalParams;
         return this;
     }
@@ -77,7 +77,7 @@ class DenseVectorMappingBuilder implements Cloneable {
     /**
      * Writes the configured {@code dense_vector} parameters into {@code b} and returns it.
      */
-    XContentBuilder build(XContentBuilder b) throws IOException {
+    public XContentBuilder build(XContentBuilder b) throws IOException {
         b.field("type", DenseVectorFieldMapper.CONTENT_TYPE);
         if (dims != null) {
             b.field("dims", dims);

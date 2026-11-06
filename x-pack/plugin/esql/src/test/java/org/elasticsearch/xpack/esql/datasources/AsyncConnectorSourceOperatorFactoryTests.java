@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,6 +18,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -24,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
+import org.mockito.ArgumentMatchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -131,11 +136,61 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    public void testProducerCpuIsMeteredIntoDriver() throws Exception {
+        assumeTrue("needs thread CPU time", ThreadCpuTimer.currentNanos() >= 0);
+        int splitCount = between(1, 4);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(between(1, 3));
+        long cpuNanos = drainIntoDriver(new CpuBurningConnector(burnNanos, 0), splitCount);
+        assertThat(cpuNanos, greaterThanOrEqualTo(splitCount * burnNanos));
+    }
+
+    /** The close burns well above the producer's own overhead, which can be a few milliseconds on a cold JVM. */
+    public void testConnectorCloseIsMeteredIntoDriver() throws Exception {
+        assumeTrue("needs thread CPU time", ThreadCpuTimer.currentNanos() >= 0);
+        long closeBurnNanos = TimeUnit.MILLISECONDS.toNanos(20);
+        long cpuNanos = drainIntoDriver(new CpuBurningConnector(0, closeBurnNanos), between(1, 4));
+        assertThat(cpuNanos, greaterThanOrEqualTo(closeBurnNanos));
+    }
+
+    /** Drains {@code splitCount} splits from {@code connector} into a driver and returns the driver's CPU time. */
+    private static long drainIntoDriver(Connector connector, int splitCount) throws Exception {
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new StubSplit("s" + i));
+        }
+        QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-cpu"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(
+                connector,
+                request,
+                10,
+                pool,
+                new ExternalSliceQueue(splits)
+            );
+            DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+            SourceOperator operator = factory.get(ctx);
+            assertThat(drainRows(operator), equalTo(splitCount));
+            operator.close();
+            ctx.finish();
+            PlainActionFuture<Void> producerDone = new PlainActionFuture<>();
+            ctx.waitForAsyncActions(producerDone);
+            producerDone.actionGet(30, TimeUnit.SECONDS);
+            return ctx.cpuNanos();
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
     private static DriverContext mockDriverContext() {
         DriverContext driverContext = mock(DriverContext.class);
         when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+        // The producer loop runs inside meteredCpu, which a plain mock would skip, so run the work as the real method does.
+        doAnswer(inv -> inv.<CheckedSupplier<?, ?>>getArgument(0).get()).when(driverContext)
+            .meteredCpu(ArgumentMatchers.<CheckedSupplier<Object, RuntimeException>>any());
         return driverContext;
     }
 
@@ -260,6 +315,66 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Emits one single-row page per split, spending {@code burnNanos} of CPU time to produce it, and spends
+     * {@code closeBurnNanos} to close.
+     */
+    private static class CpuBurningConnector implements Connector {
+        private final long burnNanos;
+        private final long closeBurnNanos;
+
+        CpuBurningConnector(long burnNanos, long closeBurnNanos) {
+            this.burnNanos = burnNanos;
+            this.closeBurnNanos = closeBurnNanos;
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, Split split) {
+            return cursor();
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+            return cursor();
+        }
+
+        @Override
+        public void close() {
+            burnCpu(closeBurnNanos);
+        }
+
+        private ResultCursor cursor() {
+            return new ResultCursor() {
+                private boolean emitted;
+
+                @Override
+                public boolean hasNext() {
+                    return emitted == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    emitted = true;
+                    burnCpu(burnNanos);
+                    return new Page(TEST_BLOCK_FACTORY.newConstantIntBlockWith(1, 1));
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        private static void burnCpu(long nanos) {
+            long start = ThreadCpuTimer.currentNanos();
+            while (ThreadCpuTimer.currentNanos() - start < nanos) {
+                Thread.onSpinWait();
+            }
+        }
     }
 
     private static class StubSplit implements ExternalSplit {

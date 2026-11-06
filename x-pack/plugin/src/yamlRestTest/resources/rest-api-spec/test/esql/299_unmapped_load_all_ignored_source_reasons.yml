@@ -166,6 +166,11 @@ setup:
             known: "k"
             unknown: "u"
 
+  # Dynamic mapping updates are not acknowledged by every node, so wait until all nodes have applied them.
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
 ---
 teardown:
   - do:
@@ -272,7 +277,7 @@ teardown:
 'LOAD_ALL across two different _ignored_source reasons in one query':
   # One query spanning an enabled:false object and a dynamic:false sub-object. Each leaf exists in exactly
   # one of the two indices, so the other leg contributes only its own leaves. The KEEP terms are wildcards, not bare names:
-  # an all-literal KEEP would make the pattern NONE, so no $$unmapped_fields column would be planned.
+  # an all-literal KEEP would make the pattern NONE, so no _unmapped_fields column would be planned.
   - do:
       esql.query:
         body:

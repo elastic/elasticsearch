@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162180
+summary: Skip synthetic attributes when `DEDUP` groups a union
+type: bug

@@ -68,11 +68,13 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.time.Instant;
+import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -429,13 +431,13 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         // The 2nd call should use cache and success
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future2 = new PlainActionFuture<>();
         store.getPrivileges(List.of("myapp", "yourapp"), null, future2);
-        listener.get().onResponse(null);
+        assertThat(requests, hasSize(1));
         assertResult(sourcePrivileges, future2);
 
         // The 3rd call should use cache when the application name is part of the original query
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future3 = new PlainActionFuture<>();
         store.getPrivileges(List.of("myapp"), null, future3);
-        listener.get().onResponse(null);
+        assertThat(requests, hasSize(1));
         // Does not cache the name expansion if descriptors of the literal name is already cached
         assertNull(store.getApplicationNamesCache().get(Set.of("myapp")));
         assertResult(sourcePrivileges, future3);
@@ -463,7 +465,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         // 2nd call with more privilege names can still use the cache
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future2 = new PlainActionFuture<>();
         store.getPrivileges(Collections.singletonList("myapp"), List.of("user", "author"), future2);
-        listener.get().onResponse(null);
+        assertThat(requests, hasSize(1));
         assertResult(sourcePrivileges.subList(1, 3), future2);
     }
 
@@ -480,7 +482,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         // The 2nd call should use cache
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future2 = new PlainActionFuture<>();
         store.getPrivileges(Collections.singletonList("no-such-app"), null, future2);
-        listener.get().onResponse(null);
+        assertThat(requests, hasSize(1));
         assertResult(emptyList(), future2);
     }
 
@@ -696,6 +698,53 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         final ApplicationPrivilegeDescriptor descriptor = myappAdminPrivilege();
         loads.get(1).onResponse(List.of(descriptor));
+        assertThat(retryFuture.get(1, TimeUnit.SECONDS), containsInAnyOrder(descriptor));
+    }
+
+    /**
+     * A failure during the cache recheck must fail every subscriber and remove the in-flight entry so a later caller can retry.
+     */
+    public void testCacheRecheckFailureFailsSharedLoadAndAllowsRetry() throws Exception {
+        final Set<String> applicationNames = Set.of("myapp");
+        final IllegalStateException failure = new IllegalStateException("cache recheck failed");
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> creatorFuture = new PlainActionFuture<>();
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> joinerFuture = new PlainActionFuture<>();
+
+        // Inject a failure on the second iteration of cached names, after the shared load is registered. The first lookup
+        // misses the descriptors cache.
+        store.getApplicationNamesCache().put(applicationNames, new AbstractSet<>() {
+            private boolean firstLookup = true;
+
+            @Override
+            public Iterator<String> iterator() {
+                if (firstLookup) {
+                    firstLookup = false;
+                    return applicationNames.iterator();
+                }
+                // Remove the failing value before joining so the joining caller can reach the in-flight load.
+                store.getApplicationNamesCache().invalidate(applicationNames);
+                store.getPrivileges(applicationNames, null, joinerFuture);
+                throw failure;
+            }
+
+            @Override
+            public int size() {
+                return applicationNames.size();
+            }
+        });
+
+        store.getPrivileges(applicationNames, null, creatorFuture);
+        for (PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future : List.of(creatorFuture, joinerFuture)) {
+            final ExecutionException e = expectThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
+            assertSame(failure, e.getCause());
+        }
+        assertThat("the cache recheck should fail before searching", requests, empty());
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> retryFuture = new PlainActionFuture<>();
+        store.getPrivileges(applicationNames, null, retryFuture);
+        assertThat("the retry should start a new search", requests, hasSize(1));
+        final ApplicationPrivilegeDescriptor descriptor = myappAdminPrivilege();
+        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(List.of(descriptor))));
         assertThat(retryFuture.get(1, TimeUnit.SECONDS), containsInAnyOrder(descriptor));
     }
 

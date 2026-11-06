@@ -577,9 +577,7 @@ public class NativePrivilegeStore {
             Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> loader,
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
         ) {
-            final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = getCachedDescriptors(applicationNames);
-            if (cachedDescriptors != null) {
-                listener.onResponse(cachedDescriptors);
+            if (completeFromCache(applicationNames, listener)) {
                 return;
             }
 
@@ -598,49 +596,60 @@ public class NativePrivilegeStore {
                 );
                 return;
             }
-            // The creator completes inline on the thread that delivers the response, as it did before loads were shared
-            load.addListener(listener);
+            final ActionListener<Collection<ApplicationPrivilegeDescriptor>> completionListener = ActionListener.runBefore(
+                load,
+                () -> inFlightLoads.remove(key, load)
+            );
+            // Catch exceptions from both the cache recheck and the loader so the shared load always completes and is removed.
+            ActionListener.run(completionListener, l -> {
+                // The creator completes inline on the thread that delivers the response, as it did before loads were shared
+                load.addListener(listener);
 
-            logger.debug("Fetching application privilege documents for: {}", applicationNames);
-            // ActionListener.run turns an exception thrown by the loader itself into a failure of the shared load; otherwise the
-            // in-flight entry would never complete or be removed, and every later caller for this key would wait forever
-            ActionListener.run(ActionListener.wrap(fetchedDescriptors -> {
-                // Cache before removing the in-flight entry, so that a caller arriving in between gets a cache hit instead of
-                // starting another load. Remove before completing, so the entry does not outlive the load while listeners run.
-                putIfNoInvalidationSince(applicationNames, fetchedDescriptors, invalidationCount);
-                inFlightLoads.remove(key, load);
-                load.onResponse(fetchedDescriptors);
-            }, e -> {
-                inFlightLoads.remove(key, load);
-                load.onFailure(e);
-            }), loader::accept);
+                // Another load may have cached its result and removed its in-flight entry between the cache read above and the
+                // computeIfAbsent. Recheck now that this load is registered, so that callers that joined it are answered too.
+                if (completeFromCache(applicationNames, l)) {
+                    return;
+                }
+
+                logger.debug("Fetching application privilege documents for: {}", applicationNames);
+                loader.accept(l.map(fetchedDescriptors -> {
+                    // Cache before completion removes the in-flight entry and notifies subscribers.
+                    putIfNoInvalidationSince(applicationNames, fetchedDescriptors, invalidationCount);
+                    return fetchedDescriptors;
+                }));
+            });
         }
 
         /**
-         * Returns all privileges of the given application names if the cache can answer for all of them, or {@code null} if a load is
-         * needed. Wildcard names are never answered from here, because the cache does not know what they expand to.
+         * Completes {@code listener} with all privileges of the given application names if the cache can answer for all of them, and
+         * returns whether it did. Returns {@code false}, leaving the listener untouched, if a load is needed. Wildcard names are never
+         * answered from here, because the cache does not know what they expand to.
          */
-        @Nullable
-        private Set<ApplicationPrivilegeDescriptor> getCachedDescriptors(Set<String> applicationNames) {
+        private boolean completeFromCache(
+            Set<String> applicationNames,
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+        ) {
             // The application names cache also serves as a negative lookup: a non-wildcard name that does not exist maps to nothing
             final Set<String> concreteApplicationNames = applicationNamesCache.get(applicationNames);
             if (concreteApplicationNames != null && concreteApplicationNames.isEmpty()) {
                 logger.debug("returning empty application privileges for [{}] as application names result in empty list", applicationNames);
-                return Set.of();
+                listener.onResponse(Set.of());
+                return true;
             }
             final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = new HashSet<>();
             for (String applicationName : concreteApplicationNames != null ? concreteApplicationNames : applicationNames) {
                 if (applicationName.endsWith("*")) {
-                    return null;
+                    return false;
                 }
                 final Set<ApplicationPrivilegeDescriptor> descriptors = descriptorsCache.get(applicationName);
                 if (descriptors == null) {
-                    return null;
+                    return false;
                 }
                 cachedDescriptors.addAll(descriptors);
             }
             logger.debug("All application privileges for [{}] found in cache", applicationNames);
-            return Collections.unmodifiableSet(cachedDescriptors);
+            listener.onResponse(Collections.unmodifiableSet(cachedDescriptors));
+            return true;
         }
 
         private record InFlightKey(Set<String> applicationNames, boolean waitForAvailableSecurityIndex, long invalidationCount) {}

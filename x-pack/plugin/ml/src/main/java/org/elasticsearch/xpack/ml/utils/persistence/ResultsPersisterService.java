@@ -29,6 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -306,9 +308,9 @@ public class ResultsPersisterService {
         }
 
         /**
-         * @return ids of the bulk items that the index permanently rejected as invalid documents (HTTP 400, for example a mapping or
-         *         parsing failure). Re-sending these can never succeed. Items that failed irrecoverably for other reasons are not
-         *         included, as those may be resolved by a later attempt (for example when a missing index is created).
+         * @return ids of the bulk items whose content the index permanently rejected (a document or mapper parsing failure).
+         *         Re-sending these can never succeed. Items that failed irrecoverably for other reasons, including other 400s, are
+         *         not included, as those may be resolved by a later attempt (for example when a missing index is created).
          */
         public Set<String> rejectedDocIds() {
             return rejectedDocIds;
@@ -326,6 +328,15 @@ public class ResultsPersisterService {
         }
         // Delegate to the centralised classifier, which uses an explicit allowlist.
         return MlRecoverableErrorClassifier.isRecoverable(ex) == false;
+    }
+
+    /**
+     * Whether the index rejected the document's content itself, so that re-sending it can never succeed. Deliberately not "any 400":
+     * other 400s (a closed results index, an alias without a write index, a total-fields limit) heal once an operator acts, and dropping
+     * their documents would lose results for good.
+     */
+    private static boolean isRejectedDocument(Throwable unwrapped) {
+        return unwrapped instanceof DocumentParsingException || unwrapped instanceof MapperParsingException;
     }
 
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
@@ -377,7 +388,7 @@ public class ResultsPersisterService {
                             if (firstIrrecoverable == null) {
                                 firstIrrecoverable = unwrapped;
                             }
-                            if (status(unwrapped) == RestStatus.BAD_REQUEST) {
+                            if (isRejectedDocument(unwrapped)) {
                                 rejectedDocIds.add(itemResponse.getId());
                             }
                         }

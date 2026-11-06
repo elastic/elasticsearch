@@ -8,12 +8,12 @@ mapped_pages:
   - https://www.elastic.co/guide/en/enterprise-search/current/connectors.html
 ---
 
-# Content crawlers
+# {{content-crawlers-cap}}
 
 :::{note}
 :applies_to: stack: ga 9.0-9.6
 
-In your version of {{kib}}, **Content crawlers** is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+In your version of {{kib}}, **{{content-crawlers-cap}}** is named **{{content-connectors-cap}}**. Wherever this page says **{{content-crawlers-cap}}**, use **{{content-connectors-cap}}** instead.
 :::
 
 $$$es-connectors-native$$$
@@ -31,12 +31,12 @@ These connectors are written in Python and the source code is available in the [
 
 ## Setup modes [setup-modes]
 
-You can set up connectors in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **Content crawlers** page.
+You can set up connectors in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **{{content-crawlers-cap}}** page.
 
 | | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
 |---|---|---|
 | **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
-| **Availability** | Any Elastic environment, including {{es-serverless}} | {{ecloud}} only, where the option is enabled on the **Content crawlers** page (for example, for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md)) |
+| **Availability** | Any Elastic environment, including {{es-serverless}} | {{ecloud}} only, where the option is enabled on the **{{content-crawlers-cap}}** page (for example, for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md)) |
 | **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
 | **Customization** | Supported | Not supported |
 

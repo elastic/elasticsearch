@@ -11,7 +11,7 @@ mapped_pages:
 :::{note}
 :applies_to: stack: ga 9.0-9.6
 
-In your version of {{kib}}, **Content crawlers** is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+In your version of {{kib}}, **{{content-crawlers-cap}}** is named **{{content-connectors-cap}}**. Wherever this page says **{{content-crawlers-cap}}**, use **{{content-connectors-cap}}** instead.
 :::
 
 ::::{admonition} Naming history
@@ -71,7 +71,7 @@ In order to set up, configure, and run a connector you’ll be moving between yo
 
 1. Satisfy any data source prerequisites (e.g., create an OAuth application).
 2. Create a connector.
-   - Use the UI. Search for **Content crawlers** in the [global search field](docs-content://explore-analyze/find-and-organize/find-apps-and-objects.md).
+   - Use the UI. Search for **{{content-crawlers-cap}}** in the [global search field](docs-content://explore-analyze/find-and-organize/find-apps-and-objects.md).
    - Use the API. Refer to [create connector API]({{es-apis}}/operation/operation-connector-post).
 3. Deploy the connector service:
     - [Option 1: Run with Docker](es-connectors-run-from-docker.md) (recommended)

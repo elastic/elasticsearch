@@ -455,7 +455,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         /**
          * The {@code properties} parameter is never serialized with the others, so that its block follows the
-         * multi-fields, as {@link FlattenedFieldMapper#doXContentBody} writes it.
+         * multi-fields.
          */
         @Override
         protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
@@ -2295,18 +2295,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      */
     public void indexValueAtPath(DocumentParserContext context, String path) throws IOException {
         fieldParser.indexValueAtPath(context, arrayContext(context), path);
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder xContentBuilder, Params params) throws IOException {
-        super.doXContentBody(xContentBuilder, params);
-        if (mappedSubFields.isEmpty() == false) {
-            xContentBuilder.startObject("properties");
-            for (Map.Entry<String, FieldMapper> entry : mappedSubFields.entrySet()) {
-                entry.getValue().toXContent(xContentBuilder, params);
-            }
-            xContentBuilder.endObject();
-        }
     }
 
     @Override

@@ -137,7 +137,7 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
     private static IllegalArgumentException notEnumerable(String method) {
         return new IllegalArgumentException(
-            "[_fields] does not support [" + method + "]; access stored fields by name, e.g. _fields['field']"
+            "[_fields] does not support [" + method + "]; access stored fields by name, e.g. params._fields['field']"
         );
     }
 

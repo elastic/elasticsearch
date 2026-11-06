@@ -88,5 +88,6 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
     private static void assertNotEnumerable(ThrowingRunnable call, String method) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, call);
         assertThat(e.getMessage(), containsString("[_fields] does not support [" + method + "]"));
+        assertThat(e.getMessage(), containsString("params._fields['field']"));
     }
 }

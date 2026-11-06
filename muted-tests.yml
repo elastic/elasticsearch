@@ -379,11 +379,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testAggregationEmitPartialResultPeriodically
   issue: https://github.com/elastic/elasticsearch/issues/163688
-- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testRetryRecoveryCommitRegistrationIfPrimaryMoves
-  issue: https://github.com/elastic/elasticsearch/issues/164016
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   tasks:
   - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
@@ -423,11 +418,6 @@ tests:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testCancelTailRequest
   issue: https://github.com/elastic/elasticsearch/issues/153203
-- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testFailRecoveryCommitRegistrationIfIndexGetsDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/164232
 - class: org.elasticsearch.xpack.stateless.commits.StatelessStateNotRecoveredFileDeletionIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

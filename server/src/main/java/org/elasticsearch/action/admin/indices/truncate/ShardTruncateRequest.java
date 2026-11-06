@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.replication.ReshardSplitAwareReplication
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -30,16 +31,29 @@ public class ShardTruncateRequest extends ReplicationRequest<ShardTruncateReques
     private final long seqNo;
 
     /**
+     * The refresh result of the primary after it truncated. {@link TransportShardTruncateAction} uses it to tell the unpromotable
+     * (search) copies, which are not sent this request, which commit to wait for. It is not serialized, as promotable replicas do not
+     * need it, so it is only ever set on the primary.
+     */
+    final Engine.RefreshResult primaryRefreshResult;
+
+    /**
      * Creates the request that is sent to the primary.
      */
     public ShardTruncateRequest(ShardId shardId, SplitShardCountSummary splitShardCountSummary) {
-        this(shardId, splitShardCountSummary, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        this(shardId, splitShardCountSummary, SequenceNumbers.UNASSIGNED_SEQ_NO, Engine.RefreshResult.NO_REFRESH);
     }
 
-    private ShardTruncateRequest(ShardId shardId, SplitShardCountSummary splitShardCountSummary, long seqNo) {
+    private ShardTruncateRequest(
+        ShardId shardId,
+        SplitShardCountSummary splitShardCountSummary,
+        long seqNo,
+        Engine.RefreshResult primaryRefreshResult
+    ) {
         super(shardId);
         this.splitShardCountSummary = splitShardCountSummary;
         this.seqNo = seqNo;
+        this.primaryRefreshResult = primaryRefreshResult;
         this.waitForActiveShards = ActiveShardCount.NONE; // don't wait for any active shards before proceeding, by default
     }
 
@@ -47,13 +61,20 @@ public class ShardTruncateRequest extends ReplicationRequest<ShardTruncateReques
         super(in);
         this.splitShardCountSummary = readReshardSplitAwareSummary(in, legacySplitShardCountSummary);
         this.seqNo = in.readZLong();
+        this.primaryRefreshResult = Engine.RefreshResult.NO_REFRESH;
     }
 
     /**
-     * Returns the request to replicate once the primary truncated and was assigned {@code assignedSeqNo}.
+     * Returns the request to replicate once the primary truncated, was assigned {@code assignedSeqNo} and refreshed with the given
+     * result.
      */
-    ShardTruncateRequest forReplicas(long assignedSeqNo) {
-        final ShardTruncateRequest replicaRequest = new ShardTruncateRequest(shardId, splitShardCountSummary, assignedSeqNo);
+    ShardTruncateRequest forReplicas(long assignedSeqNo, Engine.RefreshResult primaryRefreshResult) {
+        final ShardTruncateRequest replicaRequest = new ShardTruncateRequest(
+            shardId,
+            splitShardCountSummary,
+            assignedSeqNo,
+            primaryRefreshResult
+        );
         replicaRequest.timeout(timeout());
         // the replication layer requires the request sent to replicas to belong to the same task tree as the primary's request
         replicaRequest.setParentTask(getParentTask());

@@ -10,14 +10,20 @@
 package org.elasticsearch.action.admin.indices.truncate;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.BroadcastRequestSplitHelper;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -118,15 +124,38 @@ public class TransportShardTruncateAction extends TransportReplicationAction<
         IndexShard primary,
         ActionListener<PrimaryResult<ShardTruncateRequest, ReplicationResponse>> listener
     ) {
+        // Like a write, a truncate needs a shard that can be mutated: a hollow stateless shard is unhollowed first. All permits are
+        // already held, which is what the gate expects of a mutable operation that has acquired its permit.
+        primary.ensureMutable(
+            listener.delegateFailure((l, ignored) -> truncateOnPrimary(request, primary, l)),
+            true,
+            threadPool.executor(ThreadPool.Names.FLUSH)
+        );
+    }
+
+    private void truncateOnPrimary(
+        ShardTruncateRequest request,
+        IndexShard primary,
+        ActionListener<PrimaryResult<ShardTruncateRequest, ReplicationResponse>> listener
+    ) {
         ActionListener.run(listener, l -> {
             final Engine.TruncateResult result = primary.applyTruncateOperationOnPrimary();
             logger.trace("{} truncate executed on primary with seq# [{}]", primary.shardId(), result.getSeqNo());
-            // Searches should see the empty shard, and the truncate must be durable before this copy reports it so that the global
-            // checkpoint can move past it.
-            primary.refresh("truncate");
+            // The truncate must be durable before this copy reports it so that the global checkpoint can move past it. Then the
+            // refresh makes searches see the empty shard, and tells us which commit the unpromotable copies must catch up to.
             primary.flush(
                 new FlushRequest().force(true).waitIfOngoing(true),
-                l.map(flushed -> new PrimaryResult<>(request.forReplicas(result.getSeqNo()), new ReplicationResponse()))
+                l.delegateFailureAndWrap(
+                    (l2, flushed) -> primary.externalRefresh(
+                        "truncate",
+                        l2.map(
+                            refreshResult -> new PrimaryResult<>(
+                                request.forReplicas(result.getSeqNo(), refreshResult),
+                                new ReplicationResponse()
+                            )
+                        )
+                    )
+                )
             );
         });
     }
@@ -139,6 +168,37 @@ public class TransportShardTruncateAction extends TransportReplicationAction<
             replica.refresh("truncate");
             replica.flush(new FlushRequest().force(true).waitIfOngoing(true), l.map(flushed -> new ReplicaResult()));
         });
+    }
+
+    @Override
+    protected ReplicationOperation.Replicas<ShardTruncateRequest> newReplicasProxy() {
+        return new UnpromotableReplicasRefreshProxy();
+    }
+
+    /**
+     * Unpromotable (search) copies are not part of the replication group, so they are not sent the truncate. They follow the
+     * primary through the commits it produces, and, as for a refresh, are told here which commit they have to wait for so that a
+     * search after the truncate was acknowledged does not see documents it discarded.
+     */
+    private class UnpromotableReplicasRefreshProxy extends ReplicasProxy {
+        @Override
+        public void onPrimaryOperationComplete(
+            ShardTruncateRequest replicaRequest,
+            IndexShardRoutingTable indexShardRoutingTable,
+            ActionListener<Void> listener
+        ) {
+            final var refreshResult = replicaRequest.primaryRefreshResult;
+            transportService.sendRequest(
+                transportService.getLocalNode(),
+                TransportUnpromotableShardRefreshAction.NAME,
+                new UnpromotableShardRefreshRequest(indexShardRoutingTable, refreshResult.primaryTerm(), refreshResult.generation(), false),
+                new ActionListenerResponseHandler<>(
+                    listener.safeMap(r -> null),
+                    in -> ActionResponse.Empty.INSTANCE,
+                    threadPool.executor(ThreadPool.Names.REFRESH)
+                )
+            );
+        }
     }
 
     /**

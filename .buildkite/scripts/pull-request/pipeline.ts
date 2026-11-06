@@ -79,7 +79,7 @@ const changedFilesAnyIncludedCheck = (pipeline: EsPipeline, changedFiles: string
   return true;
 };
 
-const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | undefined) => {
+export const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | undefined) => {
   if (!targetBranch || !pipeline.config?.["skip-target-branches"]) {
     return true;
   }
@@ -97,7 +97,7 @@ const triggerCommentCheck = (pipeline: EsPipeline): boolean => {
 // There are so many BWC versions that we can't use the matrix feature in Buildkite, as it's limited to 20 elements per dimension
 // So we need to duplicate the steps instead
 // Recursively check for any steps that have a bwc_template attribute and expand them out into multiple steps, one for each BWC_VERSION
-const doBwcTransforms = (step: BuildkitePipeline | BuildkiteStep) => {
+export const doBwcTransforms = (step: BuildkitePipeline | BuildkiteStep) => {
   const stepsToExpand = (step.steps || []).filter((s) => s.bwc_template);
   step.steps = (step.steps || []).filter((s) => !s.bwc_template);
 
@@ -130,7 +130,7 @@ const injectRetryIntoSteps = (steps: BuildkiteStep[]) => {
 };
 
 // Inject retry blocks into a pipeline when auto-retry config is explicitly enabled
-const injectAutoRetry = (pipeline: EsPipeline) => {
+export const injectAutoRetry = (pipeline: EsPipeline) => {
   if (pipeline.config?.["auto-retry"] === false) {
     return;
   }
@@ -140,13 +140,61 @@ const injectAutoRetry = (pipeline: EsPipeline) => {
   }
 };
 
+export const readDefaults = (directory: string): EsPipelineConfig => {
+  const defaults: EsPipelineConfig = parse(readFileSync(`${directory}/.defaults.yml`, "utf-8"));
+  defaults.config = defaults.config || {};
+  return defaults;
+};
+
+// Reads one pipeline file, expands its placeholders and applies .defaults.yml.
+// Returns undefined when the pipeline has nothing to run for the target branch.
+export const loadPipeline = (
+  directory: string,
+  file: string,
+  defaults: EsPipelineConfig,
+  targetBranch: string | undefined,
+): EsPipeline | undefined => {
+  let yaml = readFileSync(`${directory}/${file}`, "utf-8");
+  if (yaml.includes("$SNAPSHOT_BWC_VERSIONS")) {
+    const snapshotBwcVersions = getIncludedSnapshotBwcVersions();
+    if (snapshotBwcVersions.length === 0) {
+      // No version has a known-good build yet, and buildkite rejects an empty matrix dimension.
+      return undefined;
+    }
+    yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(snapshotBwcVersions));
+  }
+  yaml = yaml.replaceAll("$BWC_SNAPSHOT_PIN_ARGS", getSnapshotBwcPinArgs());
+
+  if (yaml.includes("$LATER_BRANCHES")) {
+    const laterBranches = getLaterBranches(targetBranch);
+    if (laterBranches.length === 0) {
+      // Nothing is ahead of this branch, so there is no later branch to run bwc tests from.
+      // Also guards against an empty matrix dimension, which buildkite rejects.
+      return undefined;
+    }
+    yaml = yaml.replaceAll("$LATER_BRANCHES", JSON.stringify(laterBranches));
+  }
+
+  const pipeline: EsPipeline = parse(yaml) || {};
+
+  pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };
+  if (defaults.env) {
+    pipeline.env = { ...defaults.env, ...(pipeline.env || {}) };
+  }
+
+  // '.../build-benchmark.yml' => 'build-benchmark'
+  const name = basename(file).split(".", 2)[0];
+  pipeline.name = name;
+  pipeline.config["trigger-phrase"] = pipeline.config["trigger-phrase"] || `.*run\\W+elasticsearch-ci/${name}.*`;
+
+  return pipeline;
+};
+
 export const generatePipelines = (
   directory: string = `${PROJECT_ROOT}/.buildkite/pipelines/pull-request`,
   changedFiles: string[] = [],
 ) => {
-  let defaults: EsPipelineConfig = { config: {} };
-  defaults = parse(readFileSync(`${directory}/.defaults.yml`, "utf-8"));
-  defaults.config = defaults.config || {};
+  const defaults = readDefaults(directory);
 
   let pipelines: EsPipeline[] = [];
   const files = readdirSync(directory);
@@ -155,40 +203,10 @@ export const generatePipelines = (
       continue;
     }
 
-    let yaml = readFileSync(`${directory}/${file}`, "utf-8");
-    if (yaml.includes("$SNAPSHOT_BWC_VERSIONS")) {
-      const snapshotBwcVersions = getIncludedSnapshotBwcVersions();
-      if (snapshotBwcVersions.length === 0) {
-        // No version has a known-good build yet, and buildkite rejects an empty matrix dimension.
-        continue;
-      }
-      yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(snapshotBwcVersions));
+    const pipeline = loadPipeline(directory, file, defaults, process.env["GITHUB_PR_TARGET_BRANCH"]);
+    if (pipeline) {
+      pipelines.push(pipeline);
     }
-    yaml = yaml.replaceAll("$BWC_SNAPSHOT_PIN_ARGS", getSnapshotBwcPinArgs());
-
-    if (yaml.includes("$LATER_BRANCHES")) {
-      const laterBranches = getLaterBranches(process.env["GITHUB_PR_TARGET_BRANCH"]);
-      if (laterBranches.length === 0) {
-        // Nothing is ahead of this branch, so there is no later branch to run bwc tests from.
-        // Also guards against an empty matrix dimension, which buildkite rejects.
-        continue;
-      }
-      yaml = yaml.replaceAll("$LATER_BRANCHES", JSON.stringify(laterBranches));
-    }
-
-    const pipeline: EsPipeline = parse(yaml) || {};
-
-    pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };
-    if (defaults.env) {
-      pipeline.env = { ...defaults.env, ...(pipeline.env || {}) };
-    }
-
-    // '.../build-benchmark.yml' => 'build-benchmark'
-    const name = basename(file).split(".", 2)[0];
-    pipeline.name = name;
-    pipeline.config["trigger-phrase"] = pipeline.config["trigger-phrase"] || `.*run\\W+elasticsearch-ci/${name}.*`;
-
-    pipelines.push(pipeline);
   }
 
   const labels = (process.env["GITHUB_PR_LABELS"] || "")

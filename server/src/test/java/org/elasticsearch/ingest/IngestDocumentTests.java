@@ -1697,6 +1697,35 @@ public class IngestDocumentTests extends ESTestCase {
         doWithRandomAccessPattern((doc) -> doc.removeField("fizz.some.nonsense", true));
     }
 
+    /**
+     * A flexible lookup of a field that has a dotted name can be incomplete rather than failed (it found part of the path, and the rest
+     * is the name of a field in what it found), and removing such a field has to use that result even though failures are being ignored.
+     */
+    public void testRemoveDottedFieldIgnoreMissing() throws Exception {
+        doWithAccessPattern(FLEXIBLE, (doc) -> {
+            assertThat(doc.hasField("dotted.bar.baz"), equalTo(true));
+            doc.removeField("dotted.bar.baz", randomBoolean());
+            assertThat(doc.hasField("dotted.bar.baz"), equalTo(false));
+
+            // and a missing one is still ignored
+            doc.removeField("dotted.bar.nonsense", true);
+            doc.removeField("nonsense.bar.baz", true);
+        });
+    }
+
+    /**
+     * A field that is there, but has a null value, is not a missing field.
+     */
+    public void testRemoveNullValuedFieldIgnoreMissing() throws Exception {
+        doWithRandomAccessPattern((doc) -> {
+            assertThat(doc.hasField("fizz.foo_null"), equalTo(true));
+            doc.removeField("fizz.foo_null", randomBoolean());
+            assertThat(doc.hasField("fizz.foo_null"), equalTo(false));
+
+            assertThat(doc.getFieldValue("fizz.foo_null", Object.class, true), nullValue());
+        });
+    }
+
     public void testRemoveInnerField() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("fizz.buzz");

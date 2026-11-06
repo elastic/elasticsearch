@@ -270,6 +270,30 @@ cluster state and a sub-millisecond build on first lookup. The builder asserts
 that no two indices share a UUID; the production change should turn that into
 a validation, since `indexByUuid` would silently merge them.
 
+The map is also built by a miss: `ProjectMetadata#index(Index)` falls back to the
+UUID when the name does not match, and a deleted index is exactly such a miss, so
+every cluster state that deletes an index builds it on every node, on the applier
+thread. At 100,000 indices the build takes about 10 ms. Detecting deletions and
+renames added more than that, because `ClusterChangedEvent#indicesDeleted` and
+`#indicesRenamed` each scanned every previous index, and the master asks for the
+renames twice per update. They now share one pass, computed once per event, that
+collects the indices missing by name and builds the by-UUID map only if there are
+any, which most updates have none of
+(`ClusterChangedEventIndexChangesTests` checks it against the definition on
+random renames, swaps, deletions and creations). Per cluster state, median of 25
+states in a single-JVM microbenchmark with one shard per index, so an order of
+magnitude and not a measurement of a real applier thread:
+
+| Indices | State that deletes an index, before | after | Metadata change that deletes nothing, before | after |
+|---|---|---|---|---|
+| 10,000 | 1.8 ms | 1.3 ms | 1.1 ms | 0.6 ms |
+| 50,000 | 11.0 ms | 7.0 ms | 7.3 ms | 3.4 ms |
+| 100,000 | 33.8 ms | 20.2 ms | 21.7 ms | 9.1 ms |
+
+On main, a deletion was detected by looking up each previous index by
+name only, which a scan alone costs about 6 ms at 100,000 indices; the remainder
+is the map build on a miss.
+
 ### T4. Data node state is mutated in place
 
 `IndexShard#renameTo` replaces the shard's `ShardId` and `ShardRouting`

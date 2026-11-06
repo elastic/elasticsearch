@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.LocalExchange;
+import org.elasticsearch.compute.spill.QueryScope;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
@@ -1038,23 +1039,42 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      */
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
-        receive(request, channel, task, null);
+        // On a data node the query's scope lives per request: this lease bridges the data compute and the node-reduce
+        // compute, which take leases of their own, and is released with the response, after both. It is taken once here,
+        // since a not-ready wait re-enters receive and only the final entry completes the channel.
+        QueryScope.Lease requestLease = computeService.queryScopes().acquire(ComputeService.rootOf(request.sessionId()));
+        try {
+            receive(request, channel, task, null, requestLease);
+        } catch (Exception e) {
+            // a throw before the channel listener is completed would leave the lease to nobody; closing twice is harmless
+            Releasables.close(requestLease);
+            throw e;
+        }
     }
 
     /**
      * {@link #messageReceived} with the request's wait budget: {@code null} until the request first waits for cluster
      * state, then the one {@link ReadyDeadline} every later wait of the same request draws on.
      */
-    private void receive(DataNodeRequest request, TransportChannel channel, Task task, @Nullable ReadyDeadline deadline) {
+    private void receive(
+        DataNodeRequest request,
+        TransportChannel channel,
+        Task task,
+        @Nullable ReadyDeadline deadline,
+        @Nullable QueryScope.Lease requestLease
+    ) {
         ActionListener<DataNodeComputeResponse> channelListener = new ChannelActionListener<>(channel);
         // Old coordinators receive warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS
         // wire field. Emit them here — before the channel serialises its ThreadContext — so they are included.
-        final ActionListener<DataNodeComputeResponse> listener = channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS)
-            ? channelListener
-            : channelListener.map(resp -> {
+        final ActionListener<DataNodeComputeResponse> versionedListener = channel.getVersion()
+            .supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS) ? channelListener : channelListener.map(resp -> {
                 resp.completionInfo().warnings().forEach(HeaderWarning::addWarning);
                 return resp;
             });
+        // a lease closes once, so wrapping the listener of every entry is safe; only the final entry's completes
+        final ActionListener<DataNodeComputeResponse> listener = requestLease == null
+            ? versionedListener
+            : ActionListener.runAfter(versionedListener, requestLease::close);
         final CancellableTask cancellableTask = (CancellableTask) task;
         final TransportVersion channelVersion = channel.getVersion();
         if (request.isExternalOnly()) {
@@ -1072,7 +1092,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     ClusterState::clusterRecovered,
                     "no cluster state applied yet",
                     deadline,
-                    d -> receive(request, channel, task, d)
+                    d -> receive(request, channel, task, d, requestLease)
                 );
                 return;
             }

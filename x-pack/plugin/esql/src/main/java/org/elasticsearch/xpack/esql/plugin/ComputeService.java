@@ -45,6 +45,8 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.compute.spill.QueryScopeRegistry;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -203,6 +205,7 @@ public class ComputeService {
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
+    private final QueryScopeRegistry queryScopes;
 
     private final TransportService transportService;
     private final DriverTaskRunner driverRunner;
@@ -249,6 +252,7 @@ public class ComputeService {
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
+        this.queryScopes = transportActionServices.queryScopes();
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
@@ -1165,7 +1169,12 @@ public class ComputeService {
             return;
         }
 
-        final ActionListener<Result> dispatchListener = ActionListener.notifyOnce(listener);
+        // The root lease spans the whole query on the coordinator: sub-plans run with gaps between their computes and
+        // the response outlives them, so nothing else may be what keeps the scope open.
+        final QueryScope.Lease rootLease = queryScopes.acquire(rootOf(sessionId));
+        final ActionListener<Result> dispatchListener = ActionListener.notifyOnce(
+            rootLease == null ? listener : ActionListener.runAfter(listener, rootLease::close)
+        );
         try {
             switch (executionPlan) {
                 case SubPlan.Leaf leaf -> executePlan(
@@ -2009,6 +2018,14 @@ public class ComputeService {
             singleValueQueryWarnings
         );
 
+        // One lease per compute: the data compute and the node-reduce compute of a request share the scope, and the
+        // request's own lease bridges the gap between them on a data node. Taken right before the try, so that every
+        // path from here on completes the wrapped listener and releases it.
+        final QueryScope.Lease computeLease = queryScopes.acquire(rootOf(context.sessionId()));
+        if (computeLease != null) {
+            listener = ActionListener.runAfter(listener, computeLease::close);
+        }
+        final QueryScope queryScope = computeLease == null ? null : computeLease.scope();
         try {
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
@@ -2024,6 +2041,7 @@ public class ComputeService {
                 task,
                 bigArrays,
                 blockFactory,
+                queryScope,
                 clusterService.getSettings(),
                 context.configuration(),
                 context.exchangeSourceSupplier(),
@@ -2340,6 +2358,25 @@ public class ComputeService {
 
     String newChildSession(String session) {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
+    }
+
+    /**
+     * The query identity every node derives from a session id it already receives: the root session, before the first
+     * child suffix and after the cluster alias a remote cluster prefixes to it. Session ids are base64 UUIDs, which
+     * contain neither separator, and a cluster alias cannot contain a colon, so a root is its own root and the sink a
+     * querying cluster opens under the global id and the computes a remote cluster runs under its local id meet on one
+     * identity. The exchange service, the compute leases and the data-node request lease all key on it, with nothing new
+     * on the wire.
+     */
+    public static String rootOf(String sessionId) {
+        int separator = sessionId.indexOf('/');
+        String root = separator < 0 ? sessionId : sessionId.substring(0, separator);
+        int alias = root.lastIndexOf(':');
+        return alias < 0 ? root : root.substring(alias + 1);
+    }
+
+    QueryScopeRegistry queryScopes() {
+        return queryScopes;
     }
 
     String profileDescription(String qualifier, String label) {

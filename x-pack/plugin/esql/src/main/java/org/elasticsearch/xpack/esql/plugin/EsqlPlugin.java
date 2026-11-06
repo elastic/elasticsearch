@@ -49,6 +49,7 @@ import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
+import org.elasticsearch.compute.spill.QueryScopeRegistry;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
@@ -650,6 +651,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             inventoryCounters
         );
 
+        // The query scopes of this node, keyed by the query's root session id. The factory returns null until the spill
+        // settings and store are wired in, so every query runs on its pre-feature paths with the node's block factory.
+        QueryScopeRegistry queryScopes = new QueryScopeRegistry((queryId, onClosing) -> null);
+        ExchangeService exchangeService = new ExchangeService(
+            services.clusterService().getSettings(),
+            services.threadPool(),
+            ThreadPool.Names.SEARCH,
+            blockFactoryProvider.blockFactory()
+        );
+        // The exchange layer opens a data node's sink before any compute of the query exists there, so it acquires the
+        // query's scope, creating it if need be; that is what keeps the pages it buffers and sends in the query's
+        // account, and a sink reaped without a compute closes the scope again.
+        exchangeService.setScopeResolver(exchangeId -> queryScopes.acquire(ComputeService.rootOf(exchangeId)));
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
@@ -668,12 +682,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 maxGlobExpansion::get,
                 maxListedObjects::get
             ),
-            new ExchangeService(
-                services.clusterService().getSettings(),
-                services.threadPool(),
-                ThreadPool.Names.SEARCH,
-                blockFactoryProvider.blockFactory()
-            ),
+            exchangeService,
+            queryScopes,
             new ComputeExecutor(services.threadPool().executor(ESQL_WORKER_THREAD_POOL_NAME), services.threadPool().getThreadContext()),
             blockFactoryProvider,
             dataSourceModule,

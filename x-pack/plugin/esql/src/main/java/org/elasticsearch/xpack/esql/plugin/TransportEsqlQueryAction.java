@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.spill.QueryScopeRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -155,7 +156,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         CrossProjectModeDecider crossProjectModeDecider,
         QueryMetricsListener metricsCollector,
         FederationLicense federationLicense,
-        ExternalWorkerReadiness externalWorkerReadiness
+        ExternalWorkerReadiness externalWorkerReadiness,
+        QueryScopeRegistry queryScopes
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -235,7 +237,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ipLocationService,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            queryScopes
         );
 
         var dataSourceModule = planExecutor.dataSourceModule();

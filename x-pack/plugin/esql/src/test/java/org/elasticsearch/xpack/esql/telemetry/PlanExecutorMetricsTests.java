@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.spill.QueryScopeRegistry;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -146,7 +147,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             IpLocationService.NOOP,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            cpsDecider
+            cpsDecider,
+            new QueryScopeRegistry((queryId, onClosing) -> null)
         );
     }
 

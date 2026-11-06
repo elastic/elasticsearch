@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.spill.QueryScopeRegistry;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -666,7 +667,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             null,
             null,
             mock(PlannerSettings.Holder.class),
-            null
+            null,
+            new QueryScopeRegistry((queryId, onClosing) -> null)
         );
         return new ComputeService(
             transport,

@@ -28,7 +28,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.spill.QueryScope;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -50,6 +52,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
@@ -81,6 +84,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final Executor executor;
     private final BlockFactory blockFactory;
+    private volatile Function<String, QueryScope.Lease> scopeResolver = exchangeId -> null;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
     /**
@@ -179,11 +183,36 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @throws IllegalStateException if a sink handler for the given id already exists
      */
     public ExchangeSinkHandler createSinkHandler(String exchangeId, int maxBufferSize) {
-        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier());
+        ExchangeSinkHandler sinkHandler = newSinkHandler(exchangeId, maxBufferSize);
         if (sinks.putIfAbsent(exchangeId, sinkHandler) != null) {
+            sinkHandler.releaseScope();
             throw new IllegalStateException("sink exchanger for id [" + exchangeId + "] already exists");
         }
         return sinkHandler;
+    }
+
+    /**
+     * A sink handler on the query's scope when the resolver knows one, so that the pages it buffers and sends are
+     * accounted to the query, and on the node's factory otherwise, which is the pre-feature path.
+     */
+    private ExchangeSinkHandler newSinkHandler(String exchangeId, int maxBufferSize) {
+        QueryScope.Lease lease = scopeResolver.apply(exchangeId);
+        BlockFactory factory = lease == null ? blockFactory : lease.scope().blockFactory();
+        try {
+            return new ExchangeSinkHandler(factory, maxBufferSize, threadPool.relativeTimeInMillisSupplier(), lease);
+        } catch (RuntimeException e) {
+            Releasables.close(lease);
+            throw e;
+        }
+    }
+
+    /**
+     * Resolves an exchange id to a lease on the query's scope, or null when the query has no scope on this node. The
+     * exchange layer opens a data node's sink before any compute of the query exists there, so the resolver is what
+     * ties that sink, and every remote sink and in-flight page, to the query's account.
+     */
+    public void setScopeResolver(Function<String, QueryScope.Lease> scopeResolver) {
+        this.scopeResolver = scopeResolver;
     }
 
     /**
@@ -223,10 +252,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * This is useful when the sink handler may have been pre-registered (e.g., for test setup coordination).
      */
     public ExchangeSinkHandler getOrCreateSinkHandler(String exchangeId, int maxBufferSize) {
-        return sinks.computeIfAbsent(
-            exchangeId,
-            id -> new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier())
-        );
+        // the mapping function resolves the scope, which may create it; that never touches this map, as computeIfAbsent requires
+        return sinks.computeIfAbsent(exchangeId, id -> newSinkHandler(id, maxBufferSize));
     }
 
     /**
@@ -236,10 +263,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public void finishSinkHandler(String exchangeId, @Nullable Exception failure) {
         final ExchangeSinkHandler sinkHandler = sinks.remove(exchangeId);
         if (sinkHandler != null) {
-            if (failure != null) {
-                sinkHandler.onFailure(failure);
+            try {
+                if (failure != null) {
+                    sinkHandler.onFailure(failure);
+                }
+                assert sinkHandler.isFinished() : "Exchange sink " + exchangeId + " wasn't finished yet";
+            } finally {
+                sinkHandler.releaseScope();
             }
-            assert sinkHandler.isFinished() : "Exchange sink " + exchangeId + " wasn't finished yet";
         }
     }
 
@@ -443,7 +474,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param conn             the connection to the remote node where the remote exchange sink is located
      */
     public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
-        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
+        QueryScope.Lease lease = scopeResolver.apply(exchangeId);
+        BlockFactory factory = lease == null ? blockFactory : lease.scope().blockFactory();
+        return new TransportRemoteSink(transportService, factory, conn, parentTask, exchangeId, executor, lease);
     }
 
     static final class TransportRemoteSink implements RemoteSink {
@@ -453,6 +486,12 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final Task parentTask;
         final String exchangeId;
         final Executor responseExecutor;
+        /**
+         * The query scope this sink keeps alive until it is closed; each fetch in flight takes a lease of its own,
+         * released after the fetch's accounting cleanup, so a page decoded into the scope's factory never outlives the scope.
+         */
+        @Nullable
+        final QueryScope.Lease scopeLease;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
         final AtomicReference<SubscribableListener<Void>> completionListenerRef = new AtomicReference<>(null);
@@ -463,7 +502,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             Transport.Connection connection,
             Task parentTask,
             String exchangeId,
-            Executor responseExecutor
+            Executor responseExecutor,
+            @Nullable QueryScope.Lease scopeLease
         ) {
             this.transportService = transportService;
             this.blockFactory = blockFactory;
@@ -471,6 +511,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             this.parentTask = parentTask;
             this.exchangeId = exchangeId;
             this.responseExecutor = responseExecutor;
+            this.scopeLease = scopeLease;
         }
 
         @Override
@@ -488,6 +529,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             doFetchPageAsync(false, ActionListener.wrap(r -> {
                 if (r.finished()) {
                     completionListenerRef.compareAndSet(null, SubscribableListener.nullSuccess());
+                    // the source handler does not close a sink that finished on its own; the sink's lease goes here, while
+                    // the fetch's own lease still covers this last response until it is handed on
+                    Releasables.close(scopeLease);
                 }
                 listener.onResponse(r);
             }, e -> close(ActionListener.running(() -> listener.onFailure(e)))));
@@ -505,6 +549,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                     return;
                 }
                 listener = ActionListener.runAfter(listener, () -> blockFactory.breaker().addWithoutBreaking(-reservedBytes));
+            }
+            final QueryScope.Lease fetchLease = scopeLease == null ? null : scopeLease.scope().tryAcquire();
+            if (fetchLease != null) {
+                // released last, after the reservation above went back and the response was handed on
+                listener = ActionListener.runAfter(listener, fetchLease::close);
             }
             transportService.sendChildRequest(
                 connection,
@@ -535,6 +584,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 curr -> Objects.requireNonNullElse(curr, candidate)
             );
             actual.addListener(listener);
+            // the sink's own lease goes with its completion, whichever call completed it; a lease closes once
+            actual.addListener(ActionListener.running(() -> Releasables.close(scopeLease)));
             if (candidate == actual) {
                 doFetchPageAsync(true, ActionListener.wrap(r -> {
                     final Page page = r.takePage();

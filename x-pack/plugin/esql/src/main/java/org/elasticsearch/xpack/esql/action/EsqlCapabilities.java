@@ -2760,9 +2760,9 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
-         * Typed time-series metadata: {@code _timeseries} as a typed column, the {@code TS_*} functions over it, and the
-         * PromQL shapes that modify it; also the release gate for that behavior. Disabled until PromQL exposes the typed
-         * column end to end.
+         * Typed time-series metadata: PromQL carries {@code _timeseries} internally as a typed column, which the PromQL
+         * shapes that modify it rely on; the user always gets the keyword form. Also the release gate for that behavior.
+         * Disabled until PromQL uses the typed column end to end.
          */
         PROMQL_ENABLE_TIMESERIES_TYPE(false),
 

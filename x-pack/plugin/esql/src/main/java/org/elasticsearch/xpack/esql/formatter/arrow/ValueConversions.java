@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.core.util.TimeSeriesMetadata;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -59,11 +58,6 @@ public class ValueConversions {
      */
     public static BytesRef versionToString(BytesRef value, BytesRef scratch) {
         return new BytesRef(new Version(value).toString());
-    }
-
-    /** Renders typed time-series metadata as its JSON display form. */
-    public static BytesRef timeSeriesToJson(BytesRef value, BytesRef scratch) {
-        return new BytesRef(TimeSeriesMetadata.render(value));
     }
 
     /**

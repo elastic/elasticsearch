@@ -53,6 +53,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -94,12 +95,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             if (enableRandomFailures == false) {
                 // initializing a shard should succeed when enableRandomFailures is disabled
                 // active shards can be failed if state persistence was disabled in an earlier CS update
-                if (pendingAllocationStates.values()
-                    .stream()
-                    .anyMatch(
-                        s -> s instanceof IndicesClusterStateService.PendingAllocationState.FailureReported(var routing, var ignored, var ignored2)
-                            && routing.initializing()
-                    )) {
+                Predicate<IndicesClusterStateService.PendingAllocationState> failedAndInitializing =
+                    s -> s instanceof IndicesClusterStateService.PendingAllocationState.FailureReported(var routing, var a, var b)
+                        && routing.initializing();
+                if (pendingAllocationStates.values().stream().anyMatch(failedAndInitializing)) {
                     fail("failed shard cache should not contain initializing shard routing: " + pendingAllocationStates.values());
                 }
             }

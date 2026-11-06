@@ -221,14 +221,14 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
+        final FieldPath fieldPath = FieldPath.of(path, getAccessPattern());
         Object context = fieldPath.initialContext(this);
         Object result = resolve(
             fieldPath.pathElements,
             fieldPath.pathElements.length,
             path,
             context,
-            getCurrentAccessPatternSafe(),
+            getAccessPattern(),
             ignoreMissing ? Failures.IGNORE_ALL : Failures.REPORT
         );
         if (result == IGNORED_FAILURE) {
@@ -262,7 +262,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
-        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
+        final FieldPath fieldPath = FieldPath.of(path, getAccessPattern());
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
@@ -272,7 +272,7 @@ public final class IngestDocument {
             if (context == null) {
                 return false;
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
-                switch (getCurrentAccessPatternSafe()) {
+                switch (getAccessPattern()) {
                     case CLASSIC -> context = map.get(pathElement);
                     case FLEXIBLE -> {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND);
@@ -306,7 +306,7 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof Map<?, ?> map) {
-                switch (getCurrentAccessPatternSafe()) {
+                switch (getAccessPattern()) {
                     case CLASSIC -> context = map.get(pathElement);
                     case FLEXIBLE -> {
                         @SuppressWarnings("unchecked")
@@ -342,7 +342,7 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof List<?> list) {
-                if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                if (getAccessPattern() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                     // Flexible access pattern cannot yet access array values, new syntax must be added.
                     // Handle this as if the path element was not parsable as an integer in the classic mode
                     return false;
@@ -374,7 +374,7 @@ public final class IngestDocument {
         } else if (context instanceof Map<?, ?> map) {
             return map.containsKey(leafKey);
         } else if (context instanceof List<?> list) {
-            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+            if (getAccessPattern() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                 // Flexible access pattern cannot yet access array values, new syntax must be added.
                 // Handle this as if the path element was not parsable as an integer in the classic mode
                 return false;
@@ -416,7 +416,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
      */
     public void removeField(String path, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
+        final FieldPath fieldPath = FieldPath.of(path, getAccessPattern());
         Object context = fieldPath.initialContext(this);
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         Object result = resolve(
@@ -424,7 +424,7 @@ public final class IngestDocument {
             fieldPath.pathElements.length - 1,
             path,
             context,
-            getCurrentAccessPatternSafe(),
+            getAccessPattern(),
             ignoreMissing ? Failures.IGNORE_ERRORS : Failures.REPORT
         );
         if (result == IGNORED_FAILURE) {
@@ -457,7 +457,7 @@ public final class IngestDocument {
                 throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
             }
         } else if (context instanceof List<?> list) {
-            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+            if (getAccessPattern() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                 // Flexible access pattern cannot yet access array values, new syntax must be added.
                 if (ignoreMissing == false) {
                     throw new IllegalArgumentException("path [" + path + "] is not valid");
@@ -762,7 +762,7 @@ public final class IngestDocument {
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {
         assert append || (allowDuplicates == false && ignoreEmptyValues == false)
             : "allowDuplicates and ignoreEmptyValues only apply if append is true";
-        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
+        final FieldPath fieldPath = FieldPath.of(path, getAccessPattern());
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
@@ -772,7 +772,7 @@ public final class IngestDocument {
             if (context == null) {
                 throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
-                switch (getCurrentAccessPatternSafe()) {
+                switch (getAccessPattern()) {
                     case CLASSIC -> {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
@@ -815,7 +815,7 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof Map<?, ?>) {
-                switch (getCurrentAccessPatternSafe()) {
+                switch (getAccessPattern()) {
                     case CLASSIC -> {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> map = (Map<String, Object>) context;
@@ -862,7 +862,7 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof List<?> list) {
-                if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                if (getAccessPattern() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                     // Flexible access pattern cannot yet access array values, new syntax must be added.
                     throw new IllegalArgumentException("path [" + path + "] is not valid");
                 }
@@ -923,7 +923,7 @@ public final class IngestDocument {
             }
             map.put(leafKey, value);
         } else if (context instanceof List<?>) {
-            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+            if (getAccessPattern() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                 // Flexible access pattern cannot yet access array values, new syntax must be added.
                 throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
@@ -1139,10 +1139,10 @@ public final class IngestDocument {
     }
 
     /**
-     * @return The access pattern for any currently executing pipelines, or {@link IngestPipelineFieldAccessPattern#CLASSIC} if no
-     * pipelines are in progress for this doc for the sake of backwards compatibility
+     * @return The access pattern of the pipeline that is currently executing on this doc, or
+     * {@link IngestPipelineFieldAccessPattern#CLASSIC} if no pipelines are in progress for the sake of backwards compatibility
      */
-    public IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
+    public IngestPipelineFieldAccessPattern getAccessPattern() {
         final IngestPipelineFieldAccessPattern current = accessPatternStack.peek();
         return current != null ? current : IngestPipelineFieldAccessPattern.CLASSIC;
     }

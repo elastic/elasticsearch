@@ -2178,7 +2178,7 @@ public class IngestDocumentTests extends ESTestCase {
 
         // At the end of the test, there should be neither pipeline ids nor access patterns left in the stack.
         assertThat(document.getPipelineStack(), is(empty()));
-        assertThat(document.getCurrentAccessPatternSafe(), is(IngestPipelineFieldAccessPattern.CLASSIC));
+        assertThat(document.getAccessPattern(), is(IngestPipelineFieldAccessPattern.CLASSIC));
     }
 
     /**
@@ -2220,7 +2220,7 @@ public class IngestDocumentTests extends ESTestCase {
             logger.debug("LEVEL {}/{}: Executing {}/{}", level, maxCallDepth, pipelineIdx, pipelinesAtThisLevel);
             // the access pattern that is in effect for the pipeline that is above us (if there is one), which has to be back in effect
             // once this pipeline has finished
-            IngestPipelineFieldAccessPattern accessPatternBefore = document.getCurrentAccessPatternSafe();
+            IngestPipelineFieldAccessPattern accessPatternBefore = document.getAccessPattern();
             document.executePipeline(mockPipeline, mockHandler);
 
             // Verify pipeline was called, capture completion handler
@@ -2229,7 +2229,7 @@ public class IngestDocumentTests extends ESTestCase {
 
             // Assert expected state
             assertThat(document.getPipelineStack().getFirst(), is(expectedPipelineId));
-            assertThat(document.getCurrentAccessPatternSafe(), is(expectedAccessPattern));
+            assertThat(document.getAccessPattern(), is(expectedAccessPattern));
 
             // Randomly recurse: We recurse only one time per level to avoid hogging test time, but we randomize which
             // pipeline to recurse on, eventually requiring a recursion on the last pipeline run if one hasn't happened yet.
@@ -2246,7 +2246,7 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(document.getPipelineStack().size(), is(equalTo(level)));
             // At the top level there is no pipeline above us, and if we're nested below it we should still have the access pattern on
             // the document for the pipeline above us
-            assertThat(document.getCurrentAccessPatternSafe(), is(accessPatternBefore));
+            assertThat(document.getAccessPattern(), is(accessPatternBefore));
         }
         logger.debug("LEVEL {}/{}: COMPLETE", level, maxCallDepth);
     }

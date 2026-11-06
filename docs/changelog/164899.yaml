@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 164899
+summary: Has_privileges - Allow matching ANY on index name instead of ALL
+type: feature

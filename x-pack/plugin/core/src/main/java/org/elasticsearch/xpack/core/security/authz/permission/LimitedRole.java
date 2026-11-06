@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
@@ -259,6 +260,21 @@ public final class LimitedRole implements Role {
             resourcePrivilegesMapBuilder
         );
         return baseRoleCheck && limitedByRoleCheck;
+    }
+
+    /**
+     * The privilege must be granted over the same index names by both the base and the limited-by role, hence the intersection.
+     */
+    @Override
+    public Automaton grantedIndicesMatching(String indexPattern, boolean allowRestrictedIndices, String privilege) {
+        final Automaton baseGranted = baseRole.grantedIndicesMatching(indexPattern, allowRestrictedIndices, privilege);
+        if (Operations.isEmpty(baseGranted)) {
+            return baseGranted;
+        }
+        return Automatons.intersectAndMinimize(
+            baseGranted,
+            limitedByRole.grantedIndicesMatching(indexPattern, allowRestrictedIndices, privilege)
+        );
     }
 
     /**

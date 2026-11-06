@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -44,6 +45,11 @@ public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public String getName() {
         return "security_profile_has_privileges_action";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(RestHasPrivilegesAction.HAS_PRIVILEGES_MATCH_NAME_CAPABILITY);
     }
 
     @Override

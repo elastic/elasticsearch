@@ -107,6 +107,57 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
         );
     }
 
+    public void testParseMatchName() throws Exception {
+        String json = """
+            {
+              "index": [
+                {
+                  "names": [ "logs-*", "metrics-*" ],
+                  "privileges": [ "read" ]
+                },
+                {
+                  "names": [ "logs-*", "metrics-*" ],
+                  "privileges": [ "read" ],
+                  "match_name": "all"
+                },
+                {
+                  "names": [ "logs-*", "metrics-*" ],
+                  "privileges": [ "read" ],
+                  "match_name": "any"
+                }
+              ]
+            }""";
+
+        final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
+        builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+
+        final HasPrivilegesRequest request = builder.request();
+        assertThat(request.indexPrivileges().length, equalTo(3));
+        assertThat(request.indexPrivileges()[0].matchName(), equalTo(RoleDescriptor.IndicesPrivileges.MatchName.ALL));
+        assertThat(request.indexPrivileges()[1].matchName(), equalTo(RoleDescriptor.IndicesPrivileges.MatchName.ALL));
+        assertThat(request.indexPrivileges()[2].matchName(), equalTo(RoleDescriptor.IndicesPrivileges.MatchName.ANY));
+    }
+
+    public void testInvalidMatchNameThrowsException() throws Exception {
+        String json = """
+            {
+              "index": [
+                {
+                  "names": [ "logs-*" ],
+                  "privileges": [ "read" ],
+                  "match_name": "some"
+                }
+              ]
+            }""";
+
+        final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
+        final ElasticsearchParseException parseException = expectThrows(
+            ElasticsearchParseException.class,
+            () -> builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
+        );
+        assertThat(parseException.getMessage(), containsString("unknown value [some] for [match_name], expected one of [all, any]"));
+    }
+
     public void testUseOfFieldLevelSecurityThrowsException() throws Exception {
         String json = """
             {

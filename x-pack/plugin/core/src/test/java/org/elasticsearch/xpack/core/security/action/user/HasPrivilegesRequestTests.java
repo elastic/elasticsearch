@@ -29,6 +29,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class HasPrivilegesRequestTests extends ESTestCase {
 
+    private static final TransportVersion HAS_PRIVILEGES_MATCH_NAME = TransportVersion.fromName("has_privileges_match_name");
+
     public void testSerializationCurrentVersion() throws IOException {
         final HasPrivilegesRequest original = randomRequest();
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
@@ -38,6 +40,50 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         assertThat(copy.clusterPrivileges(), equalTo(original.clusterPrivileges()));
         assertThat(copy.indexPrivileges(), equalTo(original.indexPrivileges()));
         assertThat(copy.applicationPrivileges(), equalTo(original.applicationPrivileges()));
+    }
+
+    public void testSerializationOfMatchName() throws IOException {
+        final HasPrivilegesRequest original = new HasPrivilegesRequest();
+        original.username(randomAlphaOfLength(8));
+        original.clusterPrivileges(Strings.EMPTY_ARRAY);
+        original.applicationPrivileges(new ApplicationResourcePrivileges[0]);
+        original.indexPrivileges(
+            IndicesPrivileges.builder()
+                .indices("logs-*", "metrics-*")
+                .privileges("read")
+                .matchName(randomFrom(IndicesPrivileges.MatchName.values()))
+                .build()
+        );
+
+        final HasPrivilegesRequest copy = serializeAndDeserialize(original, TransportVersion.current());
+        assertThat(copy.indexPrivileges(), equalTo(original.indexPrivileges()));
+        assertThat(copy.indexPrivileges()[0].matchName(), equalTo(original.indexPrivileges()[0].matchName()));
+    }
+
+    public void testSerializationOfMatchNameAnyToUnsupportedVersionFails() {
+        final HasPrivilegesRequest original = new HasPrivilegesRequest();
+        original.username(randomAlphaOfLength(8));
+        original.clusterPrivileges(Strings.EMPTY_ARRAY);
+        original.applicationPrivileges(new ApplicationResourcePrivileges[0]);
+        original.indexPrivileges(
+            IndicesPrivileges.builder().indices("logs-*").privileges("read").matchName(IndicesPrivileges.MatchName.ANY).build()
+        );
+
+        final TransportVersion version = TransportVersionUtils.getPreviousVersion(HAS_PRIVILEGES_MATCH_NAME);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> serializeAndDeserialize(original, version));
+        assertThat(e.getMessage(), equalTo("[match_name] with value [any] is not supported by all nodes in the cluster"));
+    }
+
+    public void testSerializationOfMatchNameAllToUnsupportedVersion() throws IOException {
+        final HasPrivilegesRequest original = new HasPrivilegesRequest();
+        original.username(randomAlphaOfLength(8));
+        original.clusterPrivileges(Strings.EMPTY_ARRAY);
+        original.applicationPrivileges(new ApplicationResourcePrivileges[0]);
+        original.indexPrivileges(IndicesPrivileges.builder().indices("logs-*").privileges("read").build());
+
+        final TransportVersion version = TransportVersionUtils.getPreviousVersion(HAS_PRIVILEGES_MATCH_NAME);
+        final HasPrivilegesRequest copy = serializeAndDeserialize(original, version);
+        assertThat(copy.indexPrivileges(), equalTo(original.indexPrivileges()));
     }
 
     public void testValidateNullPrivileges() {

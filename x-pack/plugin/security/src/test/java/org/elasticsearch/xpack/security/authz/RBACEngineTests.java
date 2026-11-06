@@ -568,6 +568,178 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     /**
+     * With {@code match_name: any} each privilege only needs to be granted over one of the names (not necessarily the same one),
+     * while the per-index details still report the actual grants.
+     */
+    public void testMatchNameAnyGrantsWhenEachPrivilegeIsGrantedOverSomeName() throws Exception {
+        Role role = Role.builder(RESTRICTED_INDICES, "test-any")
+            .add(IndexPrivilege.INDEX, "academy")
+            .add(IndexPrivilege.WRITE, "initiative")
+            .build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        PrivilegesCheckResult response = hasPrivileges(
+            IndicesPrivileges.builder()
+                .indices("academy", "initiative", "school")
+                .privileges("index", "delete")
+                .matchName(IndicesPrivileges.MatchName.ANY)
+                .build(),
+            authzInfo,
+            List.of(),
+            Strings.EMPTY_ARRAY
+        );
+
+        assertThat(response.allChecksSuccess(), is(true));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(3));
+        assertThat(response.getDetails().index().get("academy").getPrivileges(), equalTo(Map.of("index", true, "delete", false)));
+        assertThat(response.getDetails().index().get("initiative").getPrivileges(), equalTo(Map.of("index", true, "delete", true)));
+        assertThat(response.getDetails().index().get("school").getPrivileges(), equalTo(Map.of("index", false, "delete", false)));
+    }
+
+    public void testMatchNameAnyDeniesWhenSomePrivilegeIsNotGrantedOverAnyName() throws Exception {
+        Role role = Role.builder(RESTRICTED_INDICES, "test-any")
+            .add(IndexPrivilege.INDEX, "academy")
+            .add(IndexPrivilege.WRITE, "initiative")
+            .build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        PrivilegesCheckResult response = hasPrivileges(
+            IndicesPrivileges.builder()
+                .indices("academy", "initiative", "school")
+                .privileges("index", "manage")
+                .matchName(IndicesPrivileges.MatchName.ANY)
+                .build(),
+            authzInfo,
+            List.of(),
+            Strings.EMPTY_ARRAY
+        );
+
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().get("academy").getPrivileges(), equalTo(Map.of("index", true, "manage", false)));
+        assertThat(response.getDetails().index().get("initiative").getPrivileges(), equalTo(Map.of("index", true, "manage", false)));
+        assertThat(response.getDetails().index().get("school").getPrivileges(), equalTo(Map.of("index", false, "manage", false)));
+    }
+
+    /**
+     * With {@code match_name: any} a wildcard pattern is granted a privilege when the privilege is granted over some index that the
+     * pattern matches, whereas with {@code match_name: all} the privilege has to be granted over every index that it matches.
+     */
+    public void testMatchNameAnyWithWildcardPattern() throws Exception {
+        Role role = Role.builder(RESTRICTED_INDICES, "test-any").add(IndexPrivilege.READ, "logs-a").build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        PrivilegesCheckResult response = hasPrivileges(
+            IndicesPrivileges.builder()
+                .indices("*", "metrics-*")
+                .privileges("read", "write")
+                .matchName(IndicesPrivileges.MatchName.ANY)
+                .build(),
+            authzInfo,
+            List.of(),
+            Strings.EMPTY_ARRAY
+        );
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().get("*").getPrivileges(), equalTo(Map.of("read", true, "write", false)));
+        assertThat(response.getDetails().index().get("metrics-*").getPrivileges(), equalTo(Map.of("read", false, "write", false)));
+
+        response = hasPrivileges(
+            IndicesPrivileges.builder().indices("*").privileges("read").matchName(IndicesPrivileges.MatchName.ANY).build(),
+            authzInfo,
+            List.of(),
+            Strings.EMPTY_ARRAY
+        );
+        assertThat(response.allChecksSuccess(), is(true));
+        assertThat(response.getDetails().index().get("*").getPrivileges(), equalTo(Map.of("read", true)));
+
+        response = hasPrivileges(
+            IndicesPrivileges.builder().indices("*").privileges("read").build(),
+            authzInfo,
+            List.of(),
+            Strings.EMPTY_ARRAY
+        );
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().get("*").getPrivileges(), equalTo(Map.of("read", false)));
+    }
+
+    /**
+     * A wildcard pattern only matches restricted indices with {@code allow_restricted_indices}, also with {@code match_name: any}.
+     */
+    public void testMatchNameAnyWithWildcardPatternAndRestrictedIndices() throws Exception {
+        Role role = Role.builder(RESTRICTED_INDICES, "test-any")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.READ, true, TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7)
+            .build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        for (boolean allowRestrictedIndices : new boolean[] { false, true }) {
+            PrivilegesCheckResult response = hasPrivileges(
+                IndicesPrivileges.builder()
+                    .indices("*")
+                    .privileges("read")
+                    .allowRestrictedIndices(allowRestrictedIndices)
+                    .matchName(IndicesPrivileges.MatchName.ANY)
+                    .build(),
+                authzInfo,
+                List.of(),
+                Strings.EMPTY_ARRAY
+            );
+            assertThat(response.allChecksSuccess(), is(allowRestrictedIndices));
+        }
+    }
+
+    /**
+     * For a limited role (e.g. an API key) both the base and the limited-by role must grant the privilege over the same index.
+     */
+    public void testMatchNameAnyWithWildcardPatternForLimitedRole() throws Exception {
+        final Role baseRole = Role.builder(RESTRICTED_INDICES, "base").add(IndexPrivilege.READ, "logs-a").build();
+        final IndicesPrivileges check = IndicesPrivileges.builder()
+            .indices("*")
+            .privileges("read")
+            .matchName(IndicesPrivileges.MatchName.ANY)
+            .build();
+
+        final Role disjointLimitedBy = Role.builder(RESTRICTED_INDICES, "limited-by").add(IndexPrivilege.READ, "logs-b").build();
+        PrivilegesCheckResult response = hasPrivileges(
+            check,
+            new RBACAuthorizationInfo(baseRole.limitedBy(disjointLimitedBy), null),
+            List.of(),
+            Strings.EMPTY_ARRAY
+        );
+        assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().get("*").getPrivileges(), equalTo(Map.of("read", false)));
+
+        final Role overlappingLimitedBy = Role.builder(RESTRICTED_INDICES, "limited-by").add(IndexPrivilege.READ, "logs-*").build();
+        response = hasPrivileges(
+            check,
+            new RBACAuthorizationInfo(baseRole.limitedBy(overlappingLimitedBy), null),
+            List.of(),
+            Strings.EMPTY_ARRAY
+        );
+        assertThat(response.allChecksSuccess(), is(true));
+        assertThat(response.getDetails().index().get("*").getPrivileges(), equalTo(Map.of("read", true)));
+    }
+
+    /**
+     * The same names and privileges must not share a cached check result across the two match modes.
+     */
+    public void testMatchNameAllAndAnyAreCachedSeparately() throws Exception {
+        Role role = Role.builder(RESTRICTED_INDICES, "test-any").add(IndexPrivilege.READ, "academy").build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        final IndicesPrivileges matchAll = IndicesPrivileges.builder()
+            .indices("academy", "school")
+            .privileges("read")
+            .matchName(IndicesPrivileges.MatchName.ALL)
+            .build();
+        final IndicesPrivileges matchAny = IndicesPrivileges.builder()
+            .indices("academy", "school")
+            .privileges("read")
+            .matchName(IndicesPrivileges.MatchName.ANY)
+            .build();
+
+        assertThat(hasPrivileges(matchAll, authzInfo, List.of()).allChecksSuccess(), is(false));
+        assertThat(hasPrivileges(matchAny, authzInfo, List.of()).allChecksSuccess(), is(true));
+    }
+
+    /**
      * This tests that the action responds correctly when the user/role has none
      * of the privileges being checked.
      */

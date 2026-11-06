@@ -366,19 +366,7 @@ public final class IndicesPermission {
                 IndexComponentSelector.FAILURES
             );
         Map<String, Automaton> checkIndexPatterns = checkForIndexPatterns.stream()
-            .collect(Collectors.toMap(Function.identity(), pattern -> {
-                try {
-                    Automaton automaton = Automatons.patterns(pattern);
-                    if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(pattern)) {
-                        automaton = Automatons.minusAndMinimize(automaton, restrictedIndices.getAutomaton());
-                    }
-                    return automaton;
-                } catch (TooComplexToDeterminizeException e) {
-                    final String text = pattern.length() > 260 ? Strings.cleanTruncate(pattern, 256) + "..." : pattern;
-                    logger.info("refusing to check privileges against complex index pattern [{}]", text);
-                    throw new IllegalArgumentException("the provided index pattern [" + text + "] is too complex to be evaluated", e);
-                }
-            }));
+            .collect(Collectors.toMap(Function.identity(), pattern -> checkIndexPatternAutomaton(pattern, allowRestrictedIndices)));
         for (var entry : checkIndexPatterns.entrySet()) {
             final String forIndexPattern = entry.getKey();
             final Automaton checkIndexAutomaton = entry.getValue();
@@ -443,6 +431,55 @@ public final class IndicesPermission {
             }
         }
         return allMatch;
+    }
+
+    /**
+     * Returns an automaton matching the index names that {@code indexPattern} matches and over which {@code privilege} is granted.
+     * Unlike {@link #checkResourcePrivileges}, which requires the privilege over <em>every</em> index name that the pattern matches,
+     * this is used to determine whether the privilege is granted over <em>some</em> index name that the pattern matches (i.e. the returned
+     * automaton is not empty).
+     * <p>
+     * An index name is only considered when a single index group grants the whole privilege over it; a privilege that is only granted by
+     * combining the privileges of several index groups is not recognized.
+     *
+     * @param indexPattern the requested index name pattern
+     * @param allowRestrictedIndices if {@code true} then the pattern matches restricted indices as well
+     * @param privilege the index privilege (name or action) to check
+     */
+    public Automaton grantedIndicesMatching(String indexPattern, boolean allowRestrictedIndices, String privilege) {
+        final IndexPrivilege indexPrivilege = IndexPrivilege.get(privilege);
+        final Automaton privilegeAutomaton = indexPrivilege.getAutomaton();
+        final boolean checkWithDataSelector = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.DATA);
+        final boolean checkWithFailuresSelector = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.FAILURES);
+        final List<Automaton> grantingGroupsIndexAutomatons = new ArrayList<>();
+        for (Group group : groups) {
+            final boolean selectorApplies = (checkWithDataSelector && group.checkSelector(IndexComponentSelector.DATA))
+                || (checkWithFailuresSelector && group.checkSelector(IndexComponentSelector.FAILURES));
+            if (selectorApplies && Automatons.subsetOf(privilegeAutomaton, group.privilege().getAutomaton())) {
+                grantingGroupsIndexAutomatons.add(group.getIndexMatcherAutomaton());
+            }
+        }
+        if (grantingGroupsIndexAutomatons.isEmpty()) {
+            return Automatons.EMPTY;
+        }
+        return Automatons.intersectAndMinimize(
+            checkIndexPatternAutomaton(indexPattern, allowRestrictedIndices),
+            Automatons.unionAndMinimize(grantingGroupsIndexAutomatons)
+        );
+    }
+
+    private Automaton checkIndexPatternAutomaton(String pattern, boolean allowRestrictedIndices) {
+        try {
+            Automaton automaton = Automatons.patterns(pattern);
+            if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(pattern)) {
+                automaton = Automatons.minusAndMinimize(automaton, restrictedIndices.getAutomaton());
+            }
+            return automaton;
+        } catch (TooComplexToDeterminizeException e) {
+            final String text = pattern.length() > 260 ? Strings.cleanTruncate(pattern, 256) + "..." : pattern;
+            logger.info("refusing to check privileges against complex index pattern [{}]", text);
+            throw new IllegalArgumentException("the provided index pattern [" + text + "] is too complex to be evaluated", e);
+        }
     }
 
     public Automaton allowedActionsMatcher(String index) {

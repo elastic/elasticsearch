@@ -546,8 +546,3 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/164938
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
-  method: test {yaml=esql/317_unmapped_fields_mapped_later/LOAD_ALL does not return the old values in _unmapped_fields either}
-  issue: https://github.com/elastic/elasticsearch/issues/164963

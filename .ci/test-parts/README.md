@@ -44,12 +44,15 @@ Regenerate with `./gradlew generateEsqlReleaseTestPartAssignment`.
 
 ## Refreshing
 
-1. Export durations from the CI stats cluster (median executed duration of each Gradle task in
-   `elasticsearch-pull-request` `part-*` jobs over the last 7 days) into `durations.json`. Durations
-   from a cold build (one that changes build logic, so no test or precommit task comes from the cache)
-   balance the parts for the slowest case; there, precommit tasks take much longer than usual because
-   they compete with the tests for CPU.
+1. Export durations from the CI stats cluster with a read-only key for its `gradle-tasks` and `gradle-tests` indices:
+   ```bash
+   CI_STATS_URL=... CI_STATS_API_KEY=... node .buildkite/scripts/ci-parts/export.ts --suite check
+   ```
+   `--suite` is `check`, `bc-upgrade` or `esql-release`. By default it reads the last 14 days of the suite's
+   pull request jobs (`--days`). When main doesn't run the part layout being planned yet, `--builds` reads
+   only the given builds instead, for example cold builds of the pull request that changes the layout (ones
+   that change build logic, so no test or precommit task comes from the cache).
 2. Run `./gradlew generateCiPartAssignment` (or `generateBcUpgradeTestPartAssignment`,
-   `generateEsqlReleaseTestPartAssignment`); it prints the
-   planner's per-part estimate.
-3. Review the diff of `assignment.json`.
+   `generateEsqlReleaseTestPartAssignment`); it prints the planner's per-part estimate.
+3. Review the diffs of `durations.json` and `assignment.json`. A test task that a mute makes short looks
+   cheap and stops being split; pin it in `pinnedSplits` until it's unmuted.

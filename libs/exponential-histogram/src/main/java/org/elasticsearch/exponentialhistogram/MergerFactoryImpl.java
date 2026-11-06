@@ -22,6 +22,7 @@
 package org.elasticsearch.exponentialhistogram;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Nullable;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
@@ -148,9 +149,12 @@ public class MergerFactoryImpl implements ExponentialHistogramMerger.Factory {
 
     /**
      * Release the buffer back to the factory.
-     * @param buffer the buffer previously acquired via {@link #acquireBuffer(int)}
+     * @param buffer the buffer previously acquired via {@link #acquireBuffer(int)}, or null in which case this is a no-op
      */
-    void releaseBuffer(FixedCapacityExponentialHistogram buffer) {
+    void releaseBuffer(@Nullable FixedCapacityExponentialHistogram buffer) {
+        if (buffer == null) {
+            return;
+        }
         int poolIndex = poolIndex(buffer.getCapacity());
         assert poolCapacity(poolIndex) == buffer.getCapacity() : "buffer was not acquired from this factory";
         if (pooledBuffers[poolIndex] == null) {

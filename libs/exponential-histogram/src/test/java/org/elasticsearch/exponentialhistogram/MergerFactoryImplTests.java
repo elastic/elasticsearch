@@ -142,7 +142,7 @@ public class MergerFactoryImplTests extends ExponentialHistogramTestCase {
     }
 
     /**
-     * Verifies that the merger starts with small buffers and grows them when the estimate turns out to be too low,
+     * Verifies that the merger sizes its buffers for the upper bound of the merged bucket count,
      * only falling back to reducing the scale once the bucket limit is reached.
      */
     public void testBufferGrowth() {
@@ -150,21 +150,25 @@ public class MergerFactoryImplTests extends ExponentialHistogramTestCase {
             ExponentialHistogramMerger.Factory factory = ExponentialHistogramMerger.createFactory(320, breaker());
             ExponentialHistogramMerger merger = factory.createMerger()
         ) {
-            // The estimate of 15 buckets is based on the added histogram, so the smallest pool is used
+            // The upper bound of 10 buckets is based on the added histogram only, so the smallest pool is used
             merger.add(histogramWithPositiveBuckets(0, 10));
             assertThat(resultCapacity(merger), equalTo(16));
             assertThat(merger.get().scale(), equalTo(0));
             assertThat(merger.get().positiveBuckets().bucketCount(), equalTo(10));
 
-            // The estimate of 15 buckets is too low for the 20 resulting buckets, so the buffer is grown without downscaling
+            // The buckets overlap completely, but the buffer is sized for the upper bound of 20 buckets
+            merger.add(histogramWithPositiveBuckets(0, 10));
+            assertThat(resultCapacity(merger), equalTo(32));
+            assertThat(merger.get().scale(), equalTo(0));
+            assertThat(merger.get().positiveBuckets().bucketCount(), equalTo(10));
+
             merger.add(histogramWithPositiveBuckets(100, 10));
             assertThat(resultCapacity(merger), equalTo(32));
             assertThat(merger.get().scale(), equalTo(0));
             assertThat(merger.get().positiveBuckets().bucketCount(), equalTo(20));
 
-            // The estimate of 150 buckets is based on the larger, added histogram and fits the 120 resulting buckets
             merger.add(histogramWithPositiveBuckets(1000, 100));
-            assertThat(resultCapacity(merger), equalTo(256));
+            assertThat(resultCapacity(merger), equalTo(128));
             assertThat(merger.get().scale(), equalTo(0));
             assertThat(merger.get().positiveBuckets().bucketCount(), equalTo(120));
 

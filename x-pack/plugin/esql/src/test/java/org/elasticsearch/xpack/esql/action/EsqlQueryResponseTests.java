@@ -233,7 +233,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
                 || t == DataType.TSID_DATA_TYPE
                 || t == DataType.DATE_RANGE
-                || t == DataType.PARTIAL_AGG,
+                || t == DataType.PARTIAL_AGG
+                // No union block to build one from yet; randomPage below has no arm that could fill it.
+                || t == DataType.UNION,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());

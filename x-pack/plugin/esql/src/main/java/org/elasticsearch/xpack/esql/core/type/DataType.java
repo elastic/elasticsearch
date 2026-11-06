@@ -840,7 +840,10 @@ public enum DataType implements Writeable {
         SCALED_FLOAT,
         HALF_FLOAT,
         PARTIAL_AGG,
-        DOC_DATA_TYPE
+        DOC_DATA_TYPE,
+        // UNION leaves this set in the increment that gives it a text extractor and an XContent writer. A type listed as
+        // representable must have both, so it cannot be declared renderable before the union block it would read from exists.
+        UNION
     );
 
     /**
@@ -858,7 +861,7 @@ public enum DataType implements Writeable {
      * wherever a representable value is expected.
      */
     public static boolean isRepresentableInExpression(DataType t) {
-        return isRepresentableInOutput(t) && t.isCounter() == false && t != SOURCE && t != UNSUPPORTED && t != UNION;
+        return isRepresentableInOutput(t) && t.isCounter() == false && t != SOURCE && t != UNSUPPORTED;
     }
 
     public static boolean isCounter(DataType t) {

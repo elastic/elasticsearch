@@ -344,7 +344,7 @@ public class HashAggregationOperator implements Operator {
     protected final DriverContext driverContext;
     private final boolean supportPartitioning;
     private final int partitioningRowThreshold;
-    private final long partitioningMemoryThreshold;
+    private long partitioningMemoryThreshold;
     private final ParallelConfig parallelConfig;
 
     // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
@@ -771,6 +771,16 @@ public class HashAggregationOperator implements Operator {
 
     boolean partitioningThresholdReached() {
         return blockHash.numKeys() >= partitioningRowThreshold || estimatedBytesForPartitioning() >= partitioningMemoryThreshold;
+    }
+
+    /**
+     * Raises the memory threshold a worker splits at, never lowering it: the parallel operator calls it once its
+     * registry spills, so that generations grow with the query's budget rather than with its input.
+     */
+    void raisePartitioningMemoryThreshold(long threshold) {
+        if (threshold > partitioningMemoryThreshold) {
+            partitioningMemoryThreshold = threshold;
+        }
     }
 
     private long estimatedBytesForPartitioning() {

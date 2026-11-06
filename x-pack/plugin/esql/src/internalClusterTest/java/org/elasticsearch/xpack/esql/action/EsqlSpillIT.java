@@ -12,10 +12,14 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.spill.SpillSettings;
 import org.elasticsearch.xpack.esql.spill.disk.DiskSpillPlugin;
@@ -27,7 +31,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -144,6 +150,88 @@ public class EsqlSpillIT extends AbstractEsqlIntegTestCase {
             }
             assertThat("bytes went to disk", spilledBytes, greaterThan(0L));
         }
+        assertSpillDirectoriesEmpty();
+    }
+
+    /**
+     * The slice route: {@code STATS ... BY} over a key set larger than the budget, with the parallel operator engaged
+     * on every stage by a low partitioning threshold. Every generation spills and comes back; the results are those
+     * of a run that fits; the spill directories are empty afterwards.
+     */
+    public void testStatsBySpillsOnEveryStageAndCleansUp() throws Exception {
+        assumeTrue("the spill flag is on in snapshot builds", SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled());
+        String index = "spill_stats_by";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(Settings.builder().put("index.number_of_shards", between(1, 3)).put("index.number_of_replicas", 0))
+                .setMapping("key", "type=long", "value", "type=long")
+        );
+        int keys = between(2_000, 5_000);
+        int rowsPerKey = 3;
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int row = 0; row < keys * rowsPerKey; row++) {
+            bulk.add(client().prepareIndex(index).setSource("key", row % keys, "value", row));
+        }
+        assertFalse(bulk.get().hasFailures());
+
+        // a budget every driver crosses at its first page, no own-state minimum, and partitioning from a few hundred
+        // keys on, so that every stage runs the parallel operator and spills every generation; the functions are
+        // ones that partition, which SUM over longs does not
+        Settings pragmas = Settings.builder()
+            .put(QueryPragmas.SPILL_BUDGET.getKey(), "1kb")
+            .put(QueryPragmas.SPILL_MIN_BYTES.getKey(), "0b")
+            .put(QueryPragmas.PAGE_SIZE.getKey(), between(50, 500))
+            .put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(100, 500))
+            .build();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query(
+            "FROM "
+                + index
+                + " | STATS c = COUNT(*), m = MAX(value) BY key"
+                + " | STATS keys = COUNT(*), rows = SUM(c), most = MAX(c), top = MAX(m)"
+        );
+        request.pragmas(new QueryPragmas(pragmas));
+        request.acceptedPragmaRisks(true);
+        request.profile(true);
+        try (EsqlQueryResponse response = run(request, TimeValue.timeValueMinutes(3))) {
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values, hasSize(1));
+            assertThat("every key survives", values.get(0).get(0), equalTo((long) keys));
+            assertThat("every row is counted", values.get(0).get(1), equalTo((long) keys * rowsPerKey));
+            assertThat(values.get(0).get(2), equalTo((long) rowsPerKey));
+            assertThat("the largest value survives", values.get(0).get(3), equalTo((long) keys * rowsPerKey - 1));
+
+            // the data node's partial aggregation emits partitioned blocks rather than promoting itself: the parallel
+            // operator runs where those blocks land, the node reduce, and on the coordinator's final aggregation
+            Map<String, List<ParallelHashAggregationOperator.PartitioningStatus>> byStage = new HashMap<>();
+            for (DriverProfile driver : response.profile().drivers()) {
+                for (OperatorStatus operator : driver.operators()) {
+                    if (operator.status() instanceof HashAggregationOperator.Status status) {
+                        for (Operator.Status.ExtraStatus extra : status.extraFields()) {
+                            if (extra instanceof ParallelHashAggregationOperator.PartitioningStatus partitioning) {
+                                byStage.computeIfAbsent(driver.description(), k -> new ArrayList<>()).add(partitioning);
+                            }
+                        }
+                    }
+                }
+            }
+            // which stages promote depends on the plan: the coordinator's final aggregation always does here, the node
+            // reduce only when the data stage hands it partitioned blocks
+            assertThat("the parallel operator ran: " + byStage.keySet(), byStage.size(), greaterThan(0));
+            long readBack = 0;
+            for (Map.Entry<String, List<ParallelHashAggregationOperator.PartitioningStatus>> stage : byStage.entrySet()) {
+                int runs = stage.getValue().stream().mapToInt(s -> s.spill().spillRuns()).sum();
+                assertThat("stage [" + stage.getKey() + "] spilled: " + stage.getValue(), runs, greaterThan(0));
+                readBack += stage.getValue().stream().mapToLong(s -> s.spill().readBackBytes()).sum();
+            }
+            assertThat("what went to disk came back", readBack, greaterThan(0L));
+        }
+        assertSpillDirectoriesEmpty();
+    }
+
+    private void assertSpillDirectoriesEmpty() throws Exception {
         // the scopes close once the response is gone; their files go on the I/O pool
         assertBusy(() -> {
             for (Environment environment : internalCluster().getInstances(Environment.class)) {

@@ -24,9 +24,11 @@ public class PartitionedAggregationBlockTests extends ComputeTestCase {
             blockFactory,
             numKeys,
             new TestKeys(blockFactory.breaker()),
-            new GroupingAggregatorFunction.PartitionedState[] { new TestAggState(blockFactory.breaker()) }
+            new GroupingAggregatorFunction.PartitionedState[] { new TestAggState(blockFactory.breaker()) },
+            blockFactory.breaker().getUsed()
         );
         assertThat(block.getPositionCount(), equalTo(numKeys));
+        assertThat(block.ramBytesUsed(), equalTo(blockFactory.breaker().getUsed()));
         assertThat(block.elementType(), equalTo(ElementType.UNKNOWN));
         var keys = block.takeKeys();
         var aggs = block.takeAggs();

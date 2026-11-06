@@ -10,6 +10,8 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.spill.SpillStatus;
+import org.elasticsearch.compute.spill.SpillStatusTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -31,7 +33,8 @@ public class HashAggregationOperatorStatusTests extends AbstractWireSerializingT
             5,
             2002,
             60016,
-            7
+            7,
+            SpillStatus.NONE
         );
         return new HashAggregationOperator.Status(500012, 200012, 123, 111, 222, 180017, 2, List.of(partitioning));
     }
@@ -101,7 +104,8 @@ public class HashAggregationOperatorStatusTests extends AbstractWireSerializingT
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    randomNonNegativeLong()
+                    randomNonNegativeLong(),
+                    SpillStatusTests.randomSpillStatus()
                 )
             );
     }

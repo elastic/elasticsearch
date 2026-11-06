@@ -62,10 +62,12 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressCodecs("*") // require production codecs
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
@@ -716,6 +718,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), between(3, 10))
                 .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
                 .put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.AUTO)
+                .put(QueryPragmas.TIME_SERIES_SINGLE_PASS.getKey(), true)
                 .put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), 1)
                 .build()
         );
@@ -728,17 +731,31 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             request.query("TS my-hosts | STATS sum(rate(request_count)) BY cluster | SORT cluster");
             try (var resp = run(request)) {
                 EsqlQueryResponse.Profile profile = resp.profile();
-                List<DriverProfile> reduceProfiles = profile.drivers()
-                    .stream()
-                    .filter(d -> d.description().equals(ComputeService.REDUCE_DESCRIPTION))
-                    .toList();
-                assertThat(reduceProfiles, empty());
                 List<DriverProfile> dataProfiles = profile.drivers()
                     .stream()
                     .filter(d -> d.description().equals(ComputeService.DATA_DESCRIPTION))
                     .toList();
                 for (DriverProfile p : dataProfiles) {
-                    assertThat(p.operators().get(0).operator(), containsString("TimeSeriesSourceOperator"));
+                    assertThat(p.operators(), hasSize(9));
+                    assertThat(p.operators().get(0).operator(), startsWith("TimeSeriesSourceOperator"));
+                    assertThat(
+                        p.operators().get(1).operator(),
+                        equalTo("ValuesSourceReaderOperator[fields = [_tsid, request_count, @timestamp, <temporality>]]")
+                    );
+                    assertThat(p.operators().get(2).operator(), startsWith("TimeSeriesAggregationOperator"));
+                    assertThat(p.operators().get(2).operator(), endsWith("mode=SINGLE]]]"));
+                    assertThat(p.operators().get(3).operator(), startsWith("ProjectOperator"));
+                    assertThat(p.operators().get(4).operator(), startsWith("ReadDimsOperator"));
+                    assertThat(
+                        p.operators().get(4).operator(),
+                        endsWith("valuesSourceReader=ValuesSourceReaderOperator[fields = [cluster]]]")
+                    );
+                    assertThat(p.operators().get(5).operator(), startsWith("PackDimsOperator"));
+                    assertThat(p.operators().get(6).operator(), startsWith("ProjectOperator"));
+                    assertThat(p.operators().get(7).operator(), startsWith("HashAggregationOperator"));
+                    assertThat(p.operators().get(7).operator(), containsString("HashAggregationOperator"));
+                    assertThat(p.operators().get(7).operator(), endsWith("mode=INITIAL]]]"));
+                    assertThat(p.operators().get(8).operator(), startsWith("ExchangeSinkOperator"));
                     LuceneSourceOperator.Status luceneStatus = (LuceneSourceOperator.Status) p.operators().get(0).status();
                     for (LuceneSliceQueue.PartitioningStrategy v : luceneStatus.partitioningStrategies().values()) {
                         if (TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current())) {

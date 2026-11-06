@@ -2,14 +2,9 @@ import { describe, expect, test } from "vitest";
 
 import type { BuildkiteStep } from "../pull-request/types.ts";
 import { type IntakeVersionPlan, intakeBwcGroup, unpinnedIntakeBwcGroup } from "./intake-pipeline.ts";
-import type { KnownGood } from "./known-good.ts";
 
-const knownGood = (buildId: string): KnownGood => ({
-  branch: buildId.split(".").slice(0, 2).join("."),
-  version: buildId.substring(0, buildId.lastIndexOf("-")),
-  build_id: buildId,
-  promoted_at: "2026-11-02T12:00:00.000Z",
-});
+// A known-good record is just the build ID.
+const knownGood = (buildId: string): string => buildId;
 
 const latest = (buildId: string) => ({ buildId, version: buildId.substring(0, buildId.lastIndexOf("-")) });
 

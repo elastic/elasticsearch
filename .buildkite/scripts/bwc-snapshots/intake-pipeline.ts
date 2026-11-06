@@ -101,7 +101,7 @@ const candidateJob = (
 export const intakeVersionSteps = (plan: IntakeVersionPlan, allPins: Record<string, string>): BuildkiteStep[] => {
   const key = `bwc-snapshots-${snake(plan.version)}`;
   const label = `${plan.version} / bwc-snapshots`;
-  const knownGood = plan.knownGood?.build_id;
+  const knownGood = plan.knownGood;
   const latest = plan.latest?.buildId;
 
   if (plan.current) {

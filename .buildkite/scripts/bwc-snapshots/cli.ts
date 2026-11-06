@@ -8,7 +8,7 @@
 //   node .buildkite/scripts/bwc-snapshots/cli.ts included
 //       Print the versions of .ci/snapshotBwcVersions that PR and merge-queue bwc jobs test.
 //   node .buildkite/scripts/bwc-snapshots/cli.ts show
-//       Print the stored record of every snapshot bwc version's branch.
+//       Print the known-good build of every snapshot bwc version's branch.
 
 import { execFileSync } from "child_process";
 import { parseArgs } from "util";
@@ -93,13 +93,7 @@ const promoteCommand = async (args: string[]): Promise<void> => {
   if (!store) {
     throw new Error("BWC_KNOWN_GOOD_BUCKET is not set");
   }
-  const result = await promote(store, dra, {
-    branch,
-    buildId,
-    sourceBuildUrl: process.env["BUILDKITE_BUILD_URL"],
-    testedBranch: process.env["BUILDKITE_BRANCH"],
-    testedCommit: process.env["BUILDKITE_COMMIT"],
-  });
+  const result = await promote(store, dra, { branch, buildId });
   console.log(`${result.promoted ? "Promoted" : "Did not promote"} ${buildId} for ${branch} in ${store.location}: ${result.reason}`);
 };
 
@@ -110,7 +104,7 @@ const show = async (): Promise<void> => {
   }
   for (const version of getSnapshotBwcVersions() as string[]) {
     const branch = branchForVersion(version);
-    console.log(`${branch}: ${JSON.stringify(await store.read(branch))}`);
+    console.log(`${branch}: ${(await store.read(branch)) ?? "none"}`);
   }
 };
 

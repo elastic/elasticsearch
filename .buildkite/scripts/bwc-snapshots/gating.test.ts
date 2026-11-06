@@ -1,21 +1,15 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { type FakeGcs, startFakeGcs } from "./fake-servers.ts";
-import { type PendingStore, includedVersions, pendingStoreFromEnv, trackPending } from "./gating.ts";
+import { type FakeBucket, startFakeBucket } from "./fake-servers.ts";
+import { PendingStore, includedVersions, trackPending } from "./gating.ts";
 import type { IntakeVersionPlan } from "./intake-pipeline.ts";
-import type { KnownGood } from "./known-good.ts";
 
-const BUCKET = "bwc-known-good-test";
 const HOUR = 60 * 60 * 1000;
 const T0 = new Date("2026-11-02T00:00:00Z");
 const at = (hours: number): Date => new Date(T0.getTime() + hours * HOUR);
 
-const knownGood = (buildId: string): KnownGood => ({
-  branch: buildId.split(".").slice(0, 2).join("."),
-  version: buildId.substring(0, buildId.lastIndexOf("-")),
-  build_id: buildId,
-  promoted_at: T0.toISOString(),
-});
+// A known-good record is just the build ID.
+const knownGood = (buildId: string): string => buildId;
 const latest = (buildId: string) => ({ buildId, version: buildId.substring(0, buildId.lastIndexOf("-")) });
 
 describe("new-version gating", () => {
@@ -30,20 +24,16 @@ describe("new-version gating", () => {
   });
 
   describe("pending tracking and the 48 hour alert", () => {
-    let gcs: FakeGcs;
+    let bucket: FakeBucket;
     let store: PendingStore;
 
     beforeEach(async () => {
-      gcs = await startFakeGcs();
-      const fromEnv = pendingStoreFromEnv({ BWC_KNOWN_GOOD_BUCKET: BUCKET, BWC_KNOWN_GOOD_GCS_URL: gcs.url });
-      if (!fromEnv) {
-        throw new Error("store should be enabled");
-      }
-      store = fromEnv;
+      bucket = await startFakeBucket();
+      store = new PendingStore(bucket.bucket, "elasticsearch/bwc-known-good");
     });
 
     afterEach(async () => {
-      await gcs.close();
+      await bucket.close();
     });
 
     const newVersion: IntakeVersionPlan = { version: "9.7.0", branch: "9.7", latest: latest("9.7.0-dddd4444") };

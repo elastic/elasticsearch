@@ -1,30 +1,9 @@
-// In-process fakes of the GCS JSON API, the Google OAuth2 token endpoint and the DRA snapshot endpoints.
+// In-process fakes of the known-good bucket and the DRA snapshot endpoints.
 // Used by the vitest suites and for dry-running the CLI without touching real buckets.
 
-import { createServer, type IncomingMessage, type Server } from "http";
-import { createVerify } from "crypto";
+import { createServer, type Server } from "http";
 
-export type FakeGcs = {
-  url: string;
-  /** "bucket/object" => { body, generation } */
-  objects: Map<string, { body: string; generation: number }>;
-  /** Number of writes rejected because of a stale ifGenerationMatch */
-  preconditionFailures: number;
-  close: () => Promise<void>;
-};
-
-export type FakeGcsOptions = {
-  /** When set, requests must carry the token issued for a JWT signed by this key, and the token endpoint is served */
-  publicKeyPem?: string;
-};
-
-const readBody = async (req: IncomingMessage): Promise<string> => {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString("utf-8");
-};
+import { Bucket, type BucketWriter, PreconditionFailedError } from "./gcs.ts";
 
 const listen = async (server: Server): Promise<string> => {
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -37,79 +16,67 @@ const listen = async (server: Server): Promise<string> => {
 
 const close = (server: Server) => (): Promise<void> => new Promise((resolve) => server.close(() => resolve()));
 
-const FAKE_TOKEN = "fake-access-token";
+export type FakeBucket = {
+  /** Reads over HTTP from the fake server, writes in memory with the same generation preconditions as gsutil */
+  bucket: Bucket;
+  /** object name => { body, generation } */
+  objects: Map<string, { body: string; generation: number }>;
+  /** Number of writes rejected because of a stale generation */
+  preconditionFailures: number;
+  /** Bumps the object's generation right before the next write, as a concurrent writer would */
+  interfereOnce: (name: string) => void;
+  close: () => Promise<void>;
+};
 
-export const startFakeGcs = async (options: FakeGcsOptions = {}): Promise<FakeGcs> => {
+export const startFakeBucket = async (): Promise<FakeBucket> => {
   const objects = new Map<string, { body: string; generation: number }>();
   let generation = 1000;
-  const fake = { objects, preconditionFailures: 0 };
+  let interfere: string | undefined;
 
-  const server = createServer(async (req, res) => {
-    const url = new URL(req.url ?? "/", "http://localhost");
-    const body = await readBody(req);
-
-    if (req.method === "POST" && url.pathname === "/token") {
-      const assertion = new URLSearchParams(body).get("assertion") ?? "";
-      const [header, claims, signature] = assertion.split(".");
-      const valid =
-        options.publicKeyPem &&
-        signature &&
-        createVerify("RSA-SHA256").update(`${header}.${claims}`).verify(options.publicKeyPem, signature, "base64url");
-      res.writeHead(valid ? 200 : 401, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(valid ? { access_token: FAKE_TOKEN, expires_in: 3600 } : { error: "invalid_grant" }));
+  const server = createServer((req, res) => {
+    const object = objects.get(decodeURIComponent(new URL(req.url ?? "/", "http://localhost").pathname.slice(1)));
+    if (req.method !== "GET" || !object) {
+      res.writeHead(404).end("not found");
       return;
     }
-
-    if (options.publicKeyPem && req.headers.authorization !== `Bearer ${FAKE_TOKEN}`) {
-      res.writeHead(401).end("missing or wrong token");
-      return;
-    }
-
-    const read = url.pathname.match(/^\/storage\/v1\/b\/([^/]+)\/o\/(.+)$/);
-    if (req.method === "GET" && read) {
-      const object = objects.get(`${decodeURIComponent(read[1] ?? "")}/${decodeURIComponent(read[2] ?? "")}`);
-      if (!object) {
-        res.writeHead(404).end("not found");
-        return;
-      }
-      res.writeHead(200, { "x-goog-generation": String(object.generation) }).end(object.body);
-      return;
-    }
-
-    if (req.method === "DELETE" && read) {
-      const key = `${decodeURIComponent(read[1] ?? "")}/${decodeURIComponent(read[2] ?? "")}`;
-      const expected = url.searchParams.get("ifGenerationMatch");
-      const current = objects.get(key)?.generation ?? 0;
-      if (expected !== null && Number(expected) !== current) {
-        fake.preconditionFailures++;
-        res.writeHead(412).end("precondition failed");
-        return;
-      }
-      objects.delete(key);
-      res.writeHead(current ? 204 : 404).end();
-      return;
-    }
-
-    const write = url.pathname.match(/^\/upload\/storage\/v1\/b\/([^/]+)\/o$/);
-    if (req.method === "POST" && write) {
-      const key = `${decodeURIComponent(write[1] ?? "")}/${url.searchParams.get("name")}`;
-      const expected = url.searchParams.get("ifGenerationMatch");
-      const current = objects.get(key)?.generation ?? 0;
-      if (expected !== null && Number(expected) !== current) {
-        fake.preconditionFailures++;
-        res.writeHead(412).end("precondition failed");
-        return;
-      }
-      objects.set(key, { body, generation: ++generation });
-      res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ generation: String(generation) }));
-      return;
-    }
-
-    res.writeHead(400).end(`unexpected ${req.method} ${url.pathname}`);
+    res.writeHead(200, { "x-goog-generation": String(object.generation) }).end(object.body);
   });
 
+  const checkGeneration = (name: string, expected: string): void => {
+    if (interfere === name) {
+      interfere = undefined;
+      const object = objects.get(name);
+      if (object) {
+        objects.set(name, { ...object, generation: ++generation });
+      }
+    }
+    if (Number(expected) !== (objects.get(name)?.generation ?? 0)) {
+      fake.preconditionFailures++;
+      throw new PreconditionFailedError(`${name} changed concurrently`);
+    }
+  };
+  const writer: BucketWriter = {
+    write: async (name, body, ifGenerationMatch) => {
+      checkGeneration(name, ifGenerationMatch);
+      objects.set(name, { body, generation: ++generation });
+    },
+    remove: async (name, ifGenerationMatch) => {
+      checkGeneration(name, ifGenerationMatch);
+      objects.delete(name);
+    },
+  };
+
   const url = await listen(server);
-  return Object.assign(fake, { url, close: close(server) });
+  const fake: FakeBucket = {
+    bucket: new Bucket(url, writer),
+    objects,
+    preconditionFailures: 0,
+    interfereOnce: (name) => {
+      interfere = name;
+    },
+    close: close(server),
+  };
+  return fake;
 };
 
 export type FakeDraBuild = { buildId: string; startTime: string; commit: string };

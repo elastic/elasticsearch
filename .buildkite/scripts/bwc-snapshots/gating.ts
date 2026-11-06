@@ -9,9 +9,9 @@
 // The clock lives next to the known-good objects:
 //   gs://$BWC_KNOWN_GOOD_BUCKET/$BWC_KNOWN_GOOD_PREFIX/pending/<branch>.json
 
-import { GcsClient, PreconditionFailedError } from "./gcs.ts";
+import { Bucket, type BucketWriter, bucketFromEnv } from "./gcs.ts";
 import type { IntakeVersionPlan } from "./intake-pipeline.ts";
-import { type VersionPin, gcsFromEnv } from "./known-good.ts";
+import type { VersionPin } from "./known-good.ts";
 
 export const ALERT_AFTER_HOURS = 48;
 export const REALERT_AFTER_HOURS = 24;
@@ -34,52 +34,36 @@ export type NotGreenAlert = {
   knownGoodBuildId?: string;
 };
 
-export interface PendingStore {
-  read(branch: string): Promise<Pending | undefined>;
-  /** Read-modify-write; `change` returns the new record, null to delete it, or undefined to leave it as is. */
-  update(branch: string, change: (current: Pending | undefined) => Pending | null | undefined): Promise<void>;
-}
-
-export class GcsPendingStore implements PendingStore {
-  private readonly gcs: GcsClient;
+export class PendingStore {
+  private readonly bucket: Bucket;
   private readonly prefix: string;
 
-  constructor(gcs: GcsClient, prefix: string) {
-    this.gcs = gcs;
+  constructor(bucket: Bucket, prefix: string) {
+    this.bucket = bucket;
     this.prefix = `${prefix}/pending`;
   }
 
   async read(branch: string): Promise<Pending | undefined> {
-    const object = await this.gcs.read(`${this.prefix}/${branch}.json`);
+    const object = await this.bucket.read(this.objectName(branch));
     return object ? JSON.parse(object.body) : undefined;
   }
 
+  /** Read-modify-write; `change` returns the new record, null to delete it, or undefined to leave it as is. */
   async update(branch: string, change: (current: Pending | undefined) => Pending | null | undefined): Promise<void> {
-    const name = `${this.prefix}/${branch}.json`;
-    for (let attempt = 1; ; attempt++) {
-      const object = await this.gcs.read(name);
-      const next = change(object ? JSON.parse(object.body) : undefined);
-      try {
-        if (next === null) {
-          if (object) {
-            await this.gcs.delete(name, object.generation);
-          }
-        } else if (next) {
-          await this.gcs.write(name, JSON.stringify(next, null, 2) + "\n", object?.generation ?? "0");
-        }
-        return;
-      } catch (e) {
-        if (!(e instanceof PreconditionFailedError) || attempt >= 3) {
-          throw e;
-        }
-      }
-    }
+    await this.bucket.update(this.objectName(branch), (current) => {
+      const next = change(current ? JSON.parse(current) : undefined);
+      return next ? JSON.stringify(next, null, 2) + "\n" : next;
+    });
+  }
+
+  private objectName(branch: string): string {
+    return `${this.prefix}/${branch}.json`;
   }
 }
 
-export const pendingStoreFromEnv = (env: NodeJS.ProcessEnv = process.env): PendingStore | undefined => {
-  const gcs = gcsFromEnv(env);
-  return gcs && new GcsPendingStore(gcs.client, gcs.prefix);
+export const pendingStoreFromEnv = (env: NodeJS.ProcessEnv = process.env, writer?: BucketWriter): PendingStore | undefined => {
+  const configured = bucketFromEnv(env, writer);
+  return configured && new PendingStore(configured.bucket, configured.prefix);
 };
 
 /** Versions that take part in PR, merge-queue and blocking intake bwc. */
@@ -94,7 +78,7 @@ export const waitingToGoGreen = (plan: IntakeVersionPlan): boolean => {
   if (!plan.knownGood) {
     return true;
   }
-  return !!plan.latest && plan.latest.buildId !== plan.knownGood.build_id;
+  return !!plan.latest && plan.latest.buildId !== plan.knownGood;
 };
 
 /**
@@ -130,7 +114,7 @@ export const trackPending = async (
       since: current.since,
       hours,
       latestBuildId: plan.latest?.buildId,
-      knownGoodBuildId: plan.knownGood?.build_id,
+      knownGoodBuildId: plan.knownGood,
     };
     return { ...current, alerted_at: now.toISOString() };
   });

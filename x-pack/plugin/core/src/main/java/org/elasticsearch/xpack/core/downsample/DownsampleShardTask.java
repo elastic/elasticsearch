@@ -33,6 +33,7 @@ public class DownsampleShardTask extends AllocatedPersistentTask {
     private final AtomicLong numSent = new AtomicLong(0);
     private final AtomicLong numIndexed = new AtomicLong(0);
     private final AtomicLong numFailed = new AtomicLong(0);
+    private final AtomicLong numSkippedAlreadyIndexed = new AtomicLong(0);
     private final AtomicLong lastSourceTimestamp = new AtomicLong(0);
     private final AtomicLong lastTargetTimestamp = new AtomicLong(0);
     private final AtomicLong lastIndexingTimestamp = new AtomicLong(0);
@@ -115,6 +116,7 @@ public class DownsampleShardTask extends AllocatedPersistentTask {
             numSent.get(),
             numIndexed.get(),
             numFailed.get(),
+            numSkippedAlreadyIndexed.get(),
             totalShardDocCount,
             lastSourceTimestamp.get(),
             lastTargetTimestamp.get(),
@@ -144,6 +146,14 @@ public class DownsampleShardTask extends AllocatedPersistentTask {
 
     public long getNumFailed() {
         return numFailed.get();
+    }
+
+    /**
+     * Downsampled documents that were rejected by the target index with a version conflict because the same bucket had
+     * already been indexed by a previous, interrupted run of this task.
+     */
+    public long getNumSkippedAlreadyIndexed() {
+        return numSkippedAlreadyIndexed.get();
     }
 
     public long getLastSourceTimestamp() {
@@ -204,6 +214,10 @@ public class DownsampleShardTask extends AllocatedPersistentTask {
 
     public void addNumFailed(long count) {
         numFailed.addAndGet(count);
+    }
+
+    public void addNumSkippedAlreadyIndexed(long count) {
+        numSkippedAlreadyIndexed.addAndGet(count);
     }
 
     public void setLastSourceTimestamp(long timestamp) {

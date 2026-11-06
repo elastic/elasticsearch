@@ -11,6 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -20,6 +21,8 @@ import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.util.Arrays;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class ColumnarOffsetsBuilderTests extends ESTestCase {
 
@@ -94,6 +97,29 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
         );
         // The sorted distinct values are [3, 7], so every 3 maps to ordinal 0 and every 7 to ordinal 1.
         assertArrayEquals(new int[] { 1, 0, 1, 0, 1 }, readOffsets(column, docs.length)[0]);
+    }
+
+    /**
+     * A document with more slots than fit in a sorted doc value makes the builder bail out of the columnar path, so the batch
+     * takes the row path, where {@link FieldArrayContext} rejects just that document with the same error. Other documents in
+     * the batch do not change that, and the error names the field and the limit.
+     */
+    public void testOversizedOffsetsBailOut() {
+        // One more slot than IndexWriter.MAX_TERM_LENGTH guarantees the encoded offsets exceed the limit, since every slot
+        // takes at least one byte on top of the length prefix.
+        final long[] pool = longPool();
+        final long[][] docs = new long[between(1, 3)][];
+        for (int doc = 0; doc < docs.length; doc++) {
+            docs[doc] = randomLongSlots(between(ColumnarOffsetsBuilder.MIN_RECORDED_SLOTS, 8), pool);
+        }
+        docs[randomInt(docs.length - 1)] = randomLongSlots(IndexWriter.MAX_TERM_LENGTH + between(1, 500), pool);
+
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> ColumnarOffsetsBuilder.build(longArrayColumn(docs), OFFSETS_FIELD, BytesRefRecycler.NON_RECYCLING_INSTANCE, data -> {})
+        );
+        assertThat(ex.getMessage(), containsString("encoded offsets of field [" + OFFSETS_FIELD + "] are too large to store"));
+        assertThat(ex.getMessage(), containsString("limit [" + IndexWriter.MAX_TERM_LENGTH + "]"));
     }
 
     /** Same property as {@link #testLongRoundTrip}, over byte-string elements. */

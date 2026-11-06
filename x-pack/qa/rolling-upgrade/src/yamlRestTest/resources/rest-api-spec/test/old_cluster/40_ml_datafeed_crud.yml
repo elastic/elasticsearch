@@ -333,3 +333,44 @@
         datafeed_id: old-cluster-datafeed-with-comp-aggs
   - match: { datafeeds.0.state: stopped}
   - is_false: datafeeds.0.node
+
+---
+"Put job and datafeed for max_consecutive_extraction_failures upgrade test":
+  # The datafeed is created without max_consecutive_extraction_failures here: the field's add/revert/re-add history
+  # means older bwc versions would reject it on PUT, so it is only exercised on the fully upgraded cluster (see the
+  # upgraded_cluster suite). This datafeed simply needs to survive the upgrade so the field can be set on it afterwards.
+  - do:
+      ml.put_job:
+        job_id: old-cluster-max-consec-failures-job
+        body:  >
+          {
+            "description":"Cluster upgrade - max_consecutive_extraction_failures",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+  - match: { job_id: old-cluster-max-consec-failures-job }
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: old-cluster-datafeed-max-consec-failures
+        body:  >
+          {
+            "job_id":"old-cluster-max-consec-failures-job",
+            "indices":["airline-data"],
+            "scroll_size": 2000
+          }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: old-cluster-datafeed-max-consec-failures
+  - match: { datafeeds.0.state: stopped}
+  - is_false: datafeeds.0.node

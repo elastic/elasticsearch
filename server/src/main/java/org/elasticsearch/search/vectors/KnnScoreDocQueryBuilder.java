@@ -21,7 +21,6 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -190,10 +189,8 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
                 BoolQueryBuilder boolQuery = new BoolQueryBuilder();
                 boolQuery.must(exactKnnQuery);
                 for (QueryBuilder filter : this.filterQueries) {
-                    // filter can be both over parents or nested docs, so add them as should clauses to a filter
-                    BoolQueryBuilder adjustedFilter = new BoolQueryBuilder().should(filter)
-                        .should(new ToChildBlockJoinQueryBuilder(filter));
-                    boolQuery.filter(adjustedFilter);
+                    // built at the root like the knn search filters, not in the nested scope of the inner hits
+                    boolQuery.filter(new NestedLevelJoinQueryBuilder(new RootScopedQueryBuilder(filter), fieldName));
                 }
                 return boolQuery;
             }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -32,13 +33,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -567,7 +565,7 @@ public class SearchTransportService {
             logger.trace("releasing search context [{}], [{}]", request.id(), freed);
             channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
-        final Executor freeContextExecutor = buildFreeContextExecutor(transportService, settings);
+        final Executor freeContextExecutor = searchService.getFreeContextExecutor();
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             freeContextExecutor,
@@ -788,6 +786,12 @@ public class SearchTransportService {
             // coordinator and data node have different feature flag states or versions.
             if (fetchPhaseChunkedEnabled && versionSupported && coordinatorSupportsChunkedFetch) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
+                final CircuitBreaker breaker = searchService.getCircuitBreaker();
+                // A coordinator on this node reads the hits as slices of the chunk pages and charges them itself, so the pages are not
+                // charged here. Each chunk is uncharged until the coordinator charges it, normally right after it is built, so at most the
+                // target chunk size plus one hit per chunk. The last chunk is the exception: it waits for the shard's result before the
+                // coordinator sees it, so it is charged while held.
+                final boolean localCoordinator = transportService.getLocalNode().equals(fetchSearchReq.getCoordinatingNode());
 
                 // Capture the current ThreadContext to preserve authentication headers
                 final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()
@@ -830,13 +834,17 @@ public class SearchTransportService {
 
                     @Override
                     public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                        return transportService.newNetworkBytesStream(searchService.getCircuitBreaker());
+                        return transportService.newNetworkBytesStream(localCoordinator ? null : breaker);
+                    }
+
+                    @Override
+                    public ReleasableBytesReference holdLastChunk(ReleasableBytesReference bytes) {
+                        return localCoordinator ? chargeHeldChunk(bytes, breaker) : bytes;
                     }
                 };
             }
-            // BWC: old coordinator (CHUNKED_FETCH_PHASE) expects lastChunkBytes but this node
-            // (CHUNKED_FETCH_DOC_ID_ORDER) fell back to traditional fetch — serialize hits into
-            // lastChunkBytes in the old format so the coordinator's response stream isn't empty.
+            // The coordinator asked for a chunked fetch but this node does a classic one. Older coordinators build the shard
+            // result from lastChunkBytes only, so also serialize the hits there in the format that coordinator reads.
             ActionListener<FetchSearchResult> responseListener = new ChannelActionListener<>(channel);
             if (hasCoordinator && chunkWriter == null) {
                 final TransportVersion bwcVersion = channelVersion;
@@ -894,53 +902,39 @@ public class SearchTransportService {
     }
 
     /**
-     * BWC: serializes hits into lastChunkBytes (old format, no vInt position prefix) for old coordinators
-     * whose TransportFetchPhaseCoordinationAction ignores FetchSearchResult.hits.
+     * Serializes a classic fetch's hits into lastChunkBytes for coordinators that build the shard result from those bytes only
+     * and ignore FetchSearchResult.hits. Coordinators that support {@code CHUNKED_FETCH_DOC_ID_ORDER} read a vInt position before
+     * each hit; older ones read the hits alone. Classic fetch returns hits in request order, so a hit's position is its index.
      */
     static void populateBwcLastChunkBytes(FetchSearchResult result, TransportVersion transportVersion) throws IOException {
         SearchHit[] hits = result.hits().getHits();
         if (hits.length == 0) {
             return;
         }
+        final boolean withPositions = transportVersion.supports(CHUNKED_FETCH_DOC_ID_ORDER);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(transportVersion);
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                if (withPositions) {
+                    out.writeVInt(i);
+                }
+                hits[i].writeTo(out);
             }
             result.setLastChunkSequenceStart(0);
             result.setLastChunkBytes(out.bytes(), hits.length);
         }
     }
 
+    /**
+     * Charges a held last chunk written for a coordinator on this node until its pages are freed. The coordinator's hits keep slices of
+     * the pages, so once it charges them too the chunk is counted twice until it releases them, at most one chunk per shard. A trip here
+     * is a shard failure, like the other data-side fetch charges.
+     */
     // package-private for testing
-    static int freeContextConcurrency(Settings settings) {
-        return Math.max(1, EsExecutors.allocatedProcessors(settings) / 2);
-    }
-
-    private static Executor buildFreeContextExecutor(TransportService transportService, Settings settings) {
-        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner(
-            "free_context",
-            freeContextConcurrency(settings),
-            transportService.getThreadPool().generic()
-        );
-        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                try (releasable) {
-                    r.run();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (r instanceof AbstractRunnable abstractRunnable) {
-                    abstractRunnable.onFailure(e);
-                }
-                // should be impossible, GENERIC pool doesn't reject anything
-                logger.error("unexpected failure running " + r, e);
-                assert false : new AssertionError("unexpected failure running " + r, e);
-            }
-        });
+    static ReleasableBytesReference chargeHeldChunk(ReleasableBytesReference bytes, CircuitBreaker breaker) {
+        final long size = bytes.length();
+        breaker.addEstimateBytesAndMaybeBreak(size, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
+        return new ReleasableBytesReference(bytes, () -> Releasables.close(bytes, () -> breaker.addWithoutBreaking(-size)));
     }
 
     /**

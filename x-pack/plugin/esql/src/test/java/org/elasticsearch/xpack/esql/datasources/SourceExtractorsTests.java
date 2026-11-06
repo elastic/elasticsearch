@@ -88,7 +88,11 @@ public class SourceExtractorsTests extends ESTestCase {
         SourceExtractors registry = new SourceExtractors();
         expectThrows(IllegalArgumentException.class, () -> registry.register(null));
         registry.close();
-        expectThrows(IllegalStateException.class, () -> registry.register(new IntListExtractor(new int[] { 1 })));
+        IntListExtractor late = new IntListExtractor(new int[] { 1 });
+        var e = expectThrows(SourceExtractors.ClosedException.class, () -> registry.register(late));
+        assertEquals("SourceExtractors is closed", e.getMessage());
+        assertEquals("a rejected extractor is not added", 0, registry.size());
+        assertEquals("the registry does not close an extractor it never accepted", 0, late.closeCount());
     }
 
     public void testGetRejectsOutOfRange() {
@@ -512,7 +516,10 @@ public class SourceExtractorsTests extends ESTestCase {
         registry.register(new IntListExtractor(new int[] { 1 }));
         registry.close();
         long[] refs = new long[] { SourceExtractors.encode(0, 0) };
-        expectThrows(IllegalStateException.class, () -> registry.materialize(refs, refs.length, List.of("col"), null, blockFactory));
+        expectThrows(
+            SourceExtractors.ClosedException.class,
+            () -> registry.materialize(refs, refs.length, List.of("col"), null, blockFactory)
+        );
     }
 
     public void testRegisterIdSpaceExhaustion() {

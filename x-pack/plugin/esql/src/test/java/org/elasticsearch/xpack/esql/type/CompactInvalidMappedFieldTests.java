@@ -11,6 +11,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.util.HashMap;
@@ -36,7 +37,12 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
             new LinkedHashSet<>(Set.of("idx_c", "idx_d", "idx_e"))
         );
 
-        CompactInvalidMappedField field = CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>());
+        CompactInvalidMappedField field = CompactInvalidMappedField.mappedEverywhere(
+            "f",
+            input,
+            new HashMap<>(),
+            EsField.TimeSeriesFieldType.UNKNOWN
+        );
 
         assertMap(
             field.getTypesToIndices(),
@@ -51,7 +57,12 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
             .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<DataType, Set<String>> input = Map.of(DataType.KEYWORD, manyIndices);
 
-        CompactInvalidMappedField field = CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>());
+        CompactInvalidMappedField field = CompactInvalidMappedField.mappedEverywhere(
+            "f",
+            input,
+            new HashMap<>(),
+            EsField.TimeSeriesFieldType.UNKNOWN
+        );
 
         assertMap(
             field.getTypesToIndices(),
@@ -65,7 +76,8 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
             .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<DataType, Set<String>> input = new TreeMap<>(Map.of(DataType.KEYWORD, manyIndices));
 
-        String message = CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>()).errorMessage();
+        String message = CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>(), EsField.TimeSeriesFieldType.UNKNOWN)
+            .errorMessage();
 
         assertThat(message, containsString("[1] incompatible types"));
         assertThat(message, containsString("[idx_00000, idx_00001, idx_00002]"));
@@ -81,7 +93,8 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
         );
 
         assertThat(
-            CompactInvalidMappedField.mappedEverywhere("f", compactInput, new HashMap<>()).errorMessage(),
+            CompactInvalidMappedField.mappedEverywhere("f", compactInput, new HashMap<>(), EsField.TimeSeriesFieldType.UNKNOWN)
+                .errorMessage(),
             equalTo(new InvalidMappedField("f", legacyInput).errorMessage())
         );
     }
@@ -107,7 +120,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
         );
 
         assertThat(
-            CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>()).types(),
+            CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>(), EsField.TimeSeriesFieldType.UNKNOWN).types(),
             containsInAnyOrder(DataType.KEYWORD, DataType.LONG)
         );
     }

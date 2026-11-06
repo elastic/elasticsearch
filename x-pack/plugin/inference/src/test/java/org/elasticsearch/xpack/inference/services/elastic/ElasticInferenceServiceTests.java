@@ -1118,7 +1118,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     }
 
     /**
-     * The parameters are made-up values only demonstrating the pass-through; they are not valid Jina Reader parameters.
+     * The parameters are made-up values only demonstrating the pass-through; they are not valid parameters.
      * <p>
      * Parameters are passed through to the Elastic Inference Service as they are, including embedded objects, arrays and arrays of
      * objects. Stored and request parameters are merged per top-level parameter, so an object in the request replaces the stored one.
@@ -2809,11 +2809,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     public Model createEmbeddingModel(SimilarityMeasure similarity) {
         var settings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(randomAlphaOfLength(8), similarity, null, null);
         return ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(randomAlphaOfLength(8), settings, null);
-    }
-
-    @Override
-    public SimilarityMeasure getDefaultSimilarity() {
-        return SimilarityMeasure.COSINE;
     }
 
     @Override

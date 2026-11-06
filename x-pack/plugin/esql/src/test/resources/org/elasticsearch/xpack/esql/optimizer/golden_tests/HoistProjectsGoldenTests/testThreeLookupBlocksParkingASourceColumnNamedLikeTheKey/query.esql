@@ -1,0 +1,20 @@
+FROM employees
+| RENAME languages AS language_code
+| RENAME language_code AS parked
+| EVAL language_code = parked
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| DROP language_code
+| RENAME parked AS language_code
+| RENAME language_code AS parked
+| EVAL language_code = parked - 1
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_one
+| DROP language_code
+| RENAME parked AS language_code
+| RENAME language_code AS parked
+| EVAL language_code = parked - 2
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_two
+| DROP language_code
+| RENAME parked AS language_code

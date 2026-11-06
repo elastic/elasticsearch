@@ -12,12 +12,12 @@ package org.elasticsearch.simdvec;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntFunction;
 
@@ -46,11 +46,6 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
     @BeforeClass
     public static void beforeClass() {
         SimdVecLibraryTests.setup();
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        SimdVecLibraryTests.cleanup();
     }
 
     public void testAllZeroValues() {
@@ -111,8 +106,36 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
 
         float[] bulkScores = new float[numVecs];
-        similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
-        assertArrayEquals(expectedScores, bulkScores, delta);
+        assertRejectsHeapSegments(() -> similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores)));
+    }
+
+    // Exercises the heap-only typed-array bulk API: non-zero dataset and scores offsets, and counts
+    // that are not a multiple of the maxSim chunk size, must produce the same scores as the segment
+    // binding on an equivalent dataset.
+    public void testFloat32BulkHeap() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("heap bulk API is dot product only", function == SimdVecLibrary.SimilarityFunction.DOT_PRODUCT);
+        final int dims = size;
+        for (int numVecs : new int[] { 1, 31, 33, 70, randomIntBetween(2, 101) }) {
+            var values = new float[numVecs][];
+            for (int i = 0; i < numVecs; i++) {
+                values[i] = randomFloatArray(dims);
+            }
+            final int headBytes = randomIntBetween(1, dims) * Float.BYTES;
+            byte[] dataset = new byte[headBytes + numVecs * dims * Float.BYTES];
+            var datasetSeg = MemorySegment.ofArray(dataset);
+            for (int i = 0; i < numVecs; i++) {
+                MemorySegment.copy(values[i], 0, datasetSeg, LAYOUT_LE_FLOAT, headBytes + (long) i * dims * Float.BYTES, dims);
+            }
+            int queryOrd = randomInt(numVecs - 1);
+            float[] expectedScores = new float[numVecs];
+            ScalarOperations.bulk(function, values[queryOrd], values, expectedScores);
+
+            final int headScores = randomIntBetween(1, numVecs);
+            float[] scores = new float[headScores + numVecs];
+            getVectorDistance().dotProductF32Bulk(dataset, headBytes, values[queryOrd], dims, numVecs, scores, headScores);
+            assertArrayEquals(expectedScores, Arrays.copyOfRange(scores, headScores, scores.length), delta);
+        }
     }
 
     // Tests bulk sparse similarity where vector addresses are slices of a single contiguous segment,
@@ -146,11 +169,6 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         similarityBulkSparse(addressesSeg, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
-
-        // Plain (non-@Critical) binding must produce the same results, given a native scores segment.
-        var offHeapScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-        similarityBulkSparseOffHeap(addressesSeg, nativeQuerySeg, dims, numVecs, offHeapScoresSeg);
-        assertScoresEquals(expectedScores, offHeapScoresSeg, delta);
     }
 
     // Tests bulk sparse similarity where each vector lives in its own independently allocated segment,
@@ -287,14 +305,4 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
             case COSINE -> throw new UnsupportedOperationException(function.toString());
         }
     }
-
-    // Plain (non-@Critical) binding; result must be a native segment.
-    void similarityBulkSparseOffHeap(MemorySegment addresses, MemorySegment query, int dims, int count, MemorySegment result) {
-        switch (function) {
-            case DOT_PRODUCT -> getVectorDistance().dotProductF32BulkSparseOffHeap(addresses, query, dims, count, result);
-            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32BulkSparseOffHeap(addresses, query, dims, count, result);
-            case COSINE -> throw new UnsupportedOperationException(function.toString());
-        }
-    }
-
 }

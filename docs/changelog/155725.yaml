@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 155725
-summary: Adds late materialization for LIMIT BY
+summary: Add late materialization for `LIMIT` BY
 type: enhancement

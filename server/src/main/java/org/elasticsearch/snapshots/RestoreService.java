@@ -58,6 +58,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
@@ -73,7 +74,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
@@ -87,6 +87,7 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
+import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -129,7 +130,10 @@ import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_ID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 
@@ -221,7 +225,7 @@ public final class RestoreService implements ClusterStateApplier {
 
     private volatile boolean refreshRepositoryUuidOnRestore;
 
-    private volatile RestoreLifecycleListener lifecycleListener = RestoreLifecycleListener.NOOP;
+    private final RestoreLifecycleListener lifecycleListener;
 
     public RestoreService(
         ClusterService clusterService,
@@ -236,7 +240,8 @@ public final class RestoreService implements ClusterStateApplier {
         ThreadPool threadPool,
         boolean deserializeProjectMetadata,
         IndexMetadataRestoreTransformer indexMetadataRestoreTransformer,
-        FeatureService featureService
+        FeatureService featureService,
+        RestoreLifecycleListener restoreLifecycleListener
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -259,16 +264,7 @@ public final class RestoreService implements ClusterStateApplier {
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
         this.indexMetadataRestoreTransformer = indexMetadataRestoreTransformer;
         this.featureService = featureService;
-    }
-
-    /**
-     * Registers the single {@link RestoreLifecycleListener} during node construction.
-     */
-    public void setLifecycleListener(RestoreLifecycleListener listener) {
-        if (lifecycleListener != RestoreLifecycleListener.NOOP) {
-            throw new IllegalStateException("Lifecycle listener already set. Cannot change lifecycle listener");
-        }
-        this.lifecycleListener = Objects.requireNonNull(listener);
+        this.lifecycleListener = Objects.requireNonNull(restoreLifecycleListener);
     }
 
     /**
@@ -1330,6 +1326,38 @@ public final class RestoreService implements ClusterStateApplier {
             .build();
     }
 
+    /**
+     * Puts the data streams that are restored over back in the aliases that they were in before, with the filters and the write data
+     * stream flags that they had there. A data stream that is restored over is deleted and created again, and deleting a data stream
+     * removes it from all of its aliases. When the aliases of the snapshot are not restored, nothing else would put them back, and the
+     * aliases that exist are meant to be the ones that are in effect after the restore, like they are for an index that is restored over.
+     *
+     * @param before            the project before the data streams that are restored over were deleted
+     * @param replacedTargets   the data streams that are restored over
+     * @param restored          the project after the restore, which has the data streams that were restored
+     */
+    // visible for testing
+    static void keepAliasesOfReplacedDataStreams(
+        ProjectMetadata before,
+        Collection<DataStreamRestoreTarget> replacedTargets,
+        ProjectMetadata.Builder restored
+    ) {
+        for (DataStreamRestoreTarget target : replacedTargets) {
+            final String dataStream = target.destinationDataStream().getName();
+            for (DataStreamAlias alias : before.dataStreamAliases().values()) {
+                if (alias.getDataStreams().contains(dataStream)) {
+                    final CompressedXContent filter = alias.getFilter(dataStream);
+                    restored.put(
+                        alias.getName(),
+                        dataStream,
+                        dataStream.equals(alias.getWriteDataStream()),
+                        filter == null ? null : filter.string()
+                    );
+                }
+            }
+        }
+    }
+
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {
         boolean changesMade = false;
         RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
@@ -1715,10 +1743,9 @@ public final class RestoreService implements ClusterStateApplier {
 
         final ProjectState projectState = currentState.projectState(projectId);
         final Set<Index> indexAsSet = Set.of(expectedIndex);
-        final Set<Index> reshardingIndices = IndexReshardService.reshardingIndices(projectState, indexAsSet);
-        if (reshardingIndices.isEmpty() == false) {
-            throw new SnapshotRestoreException(snapshot, "cannot restore index [" + expectedIndex + "] because it is being resharded");
-        }
+        // An index being resharded is not rejected here. Restoring over it discards its resharding metadata along with everything
+        // else (see restoreOverExistingIndex), and IndicesClusterStateService#isRestoreHistoryUuidTransition already tears down and
+        // recreates every shard of the index as part of any open-index restore, which safely unwinds the in-progress split too.
         // Preserve the existing close-index safety rule: an index being snapshotted cannot be restored over in place either, and this
         // restore must not cancel or otherwise interfere with that snapshot.
         final Map<Snapshot, Set<Index>> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(projectState, indexAsSet);
@@ -2078,6 +2105,28 @@ public final class RestoreService implements ClusterStateApplier {
                 return true;
             }
         }));
+        if (indexMetadata.isSearchableSnapshot()) {
+            // Preserve the backing snapshot identity, including missing UUIDs for old-format repositories.
+            for (String key : List.of(
+                SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY,
+                SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY,
+                SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY,
+                SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY,
+                SEARCHABLE_SNAPSHOT_INDEX_ID_SETTING_KEY,
+                SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY
+            )) {
+                if (Objects.equals(settings.get(key), settingsBuilder.get(key)) == false) {
+                    throw new SnapshotRestoreException(
+                        snapshot,
+                        format(
+                            "cannot change or remove setting [%s] when restoring searchable snapshot index %s",
+                            key,
+                            indexMetadata.getIndex()
+                        )
+                    );
+                }
+            }
+        }
         settingsBuilder.remove(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey());
         return builder.settings(settingsBuilder).build();
     }
@@ -2208,6 +2257,9 @@ public final class RestoreService implements ClusterStateApplier {
             // Check if the snapshot to restore is currently being deleted
             ensureSnapshotNotDeleted(currentState);
 
+            // Deleting a data stream removes it from its aliases, so the aliases that the data streams that are restored over are in have
+            // to be taken from the project as it is before they are deleted.
+            final ProjectMetadata projectBeforeDeletingDataStreams = currentState.metadata().getProject(projectId);
             if (existingDataStreamTargets.isEmpty() == false) {
                 // Validate and delete the destination data streams and their backing/failure-store indices, in the same cluster-state
                 // update, before the ordinary per-index restore loop below runs. Once deleted, the restored backing/failure indices no
@@ -2400,6 +2452,13 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             applyDataStreamRestores(currentState, mdBuilder, projectId);
+            if (request.includeAliases() == false) {
+                keepAliasesOfReplacedDataStreams(
+                    projectBeforeDeletingDataStreams,
+                    existingDataStreamTargets,
+                    mdBuilder.getProject(projectId)
+                );
+            }
 
             // Restore global state if needed
             if (request.includeGlobalState()) {

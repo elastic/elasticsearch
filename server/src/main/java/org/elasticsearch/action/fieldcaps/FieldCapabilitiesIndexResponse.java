@@ -66,19 +66,6 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         this.mappingVersion = mappingVersion;
     }
 
-    public FieldCapabilitiesIndexResponse(
-        String indexName,
-        @Nullable String indexMappingHash,
-        Map<String, IndexFieldCapabilities> responseMap,
-        boolean canMatch,
-        IndexMode indexMode,
-        int numberOfShards,
-        long indexSettingsVersion,
-        long mappingVersion
-    ) {
-        this(indexName, indexMappingHash, responseMap, canMatch, indexMode, numberOfShards, 0, indexSettingsVersion, mappingVersion);
-    }
-
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
         this.indexName = in.readString();
         this.responseMap = in.readMap(IndexFieldCapabilities::readFrom);
@@ -282,7 +269,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     }
 
     /**
-     * Returns the id of the created index version of this index, 0 for unknown
+     * Returns the ID of the index version in which this index was created, or {@code 0} if unknown.
      */
     public int getCreatedVersion() {
         return createdVersion;

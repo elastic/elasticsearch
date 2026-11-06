@@ -210,7 +210,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
             var indexMode = randomFrom(IndexMode.availableModes());
             String mappingHash = e.getKey();
             for (String index : e.getValue()) {
-                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, fieldCaps, true, indexMode, 0, 0, 0));
+                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, fieldCaps, true, indexMode, 0, 0, 0, 0));
             }
         }
         return responses;
@@ -222,7 +222,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             String index = "index_without_mapping_hash_" + i;
             var indexMode = randomFrom(IndexMode.availableModes());
-            responses.add(new FieldCapabilitiesIndexResponse(index, null, randomFieldCaps(), randomBoolean(), indexMode, 0, 0, 0));
+            responses.add(new FieldCapabilitiesIndexResponse(index, null, randomFieldCaps(), randomBoolean(), indexMode, 0, 0, 0, 0));
         }
         return responses;
     }

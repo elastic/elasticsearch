@@ -801,10 +801,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         if (binaryOperator.match() != VectorMatch.NONE && scalarOperand) {
                             failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
                         } else if (needsConcreteMatchKeys(binaryOperator)) {
-                            // on(...)/ignoring(...) declare the match keys as unresolved label refs; ResolvePromqlAttributes
-                            // materializes them from time-series metadata/_timeseries (#157669). Default matching (including an unmatched
-                            // op composed over a prior match) packs a metadata signature for opaque sides and named keys
-                            // for concrete ones - same joinKey path as concrete x opaque without nesting.
                             failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
                         }
                     }
@@ -821,6 +817,20 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         // vectors), like arithmetic.
                         if (comp.boolMode() == false && PromqlPlan.returnsScalar(comp.left()) && PromqlPlan.returnsScalar(comp.right())) {
                             failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
+                        }
+                        if (comp.filterMode()
+                            && PromqlPlan.returnsScalar(comp.left())
+                            && PromqlPlan.returnsScalar(comp.right()) == false
+                            && comp.left() instanceof LiteralSelector == false) {
+                            // A filter keeps the vector's samples where a scalar function on the left compares true; translation
+                            // returns rows Prometheus does not until the typed metadata translation lands.
+                            failures.add(
+                                fail(
+                                    lp,
+                                    "comparison filters with a non-literal scalar on the left are not supported at this time [{}]",
+                                    lp.sourceText()
+                                )
+                            );
                         }
                     }
                     if (binaryOperator instanceof VectorBinarySet setOp) {
@@ -1113,30 +1123,25 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
-     * Whether vector matching still needs every operand to name its labels up front. {@code on(...)} / {@code ignoring(...)}
-     * declare the match keys; unresolved refs materialize them from an opaque {@code _timeseries}. Default matching -
-     * including an unmatched op composed over a prior match - packs a metadata signature for any opaque side (and named
-     * keys from a concrete sibling), so opaque x concrete does not need labels named up front. Explicit {@code group_*}
-     * without {@code on}/{@code ignoring} over a single opaque side still does.
+     * Whether vector matching still needs every operand to name its labels up front: {@code on(...)}, {@code ignoring(...)},
+     * {@code group_left}/{@code group_right}, or an unmatched operator composed over a prior match, with an operand whose
+     * labels only its metadata holds. Translation of those shapes returns rows Prometheus does not until the typed
+     * metadata translation lands, so they stay rejected as before.
+     * TODO: Materialize match keys from runtime-defined labels.
+     * https://github.com/elastic/elasticsearch/issues/157669
      */
     private static boolean needsConcreteMatchKeys(VectorBinaryOperator op) {
-        if (hasConcreteLabels(op.left()) && hasConcreteLabels(op.right())) {
-            return false;
-        }
-        VectorMatch.Filter filter = op.match().filter();
-        if (filter == VectorMatch.Filter.ON || filter == VectorMatch.Filter.IGNORING) {
-            return false;
-        }
-        // Default matching: joinKey packs opaque time-series metadata (and EMPTY_SIGNATURE on a labelless/concrete sibling).
-        if (op.match() == VectorMatch.NONE) {
-            return false;
-        }
-        // Both opaque (e.g. two {@code group_right} results): translateAsLeftJoin packs time-series metadata like cross-metric default
-        // matching.
-        if (PromqlLabels.metadataLabel(op.left().output()) != null && PromqlLabels.metadataLabel(op.right().output()) != null) {
-            return false;
-        }
-        return true;
+        boolean joinComposed = PromqlPlan.returnsScalar(op.left()) == false
+            && PromqlPlan.returnsScalar(op.right()) == false
+            && (containsVectorMatch(op.left()) || containsVectorMatch(op.right()));
+        return (op.match() != VectorMatch.NONE || joinComposed)
+            && (hasConcreteLabels(op.left()) == false || hasConcreteLabels(op.right()) == false);
+    }
+
+    private static boolean containsVectorMatch(LogicalPlan plan) {
+        return plan.anyMatch(
+            p -> p instanceof VectorBinaryOperator op && (p instanceof VectorBinarySet) == false && op.match() != VectorMatch.NONE
+        );
     }
 
     /**

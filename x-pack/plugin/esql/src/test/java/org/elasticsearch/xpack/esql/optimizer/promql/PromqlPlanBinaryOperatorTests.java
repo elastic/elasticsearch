@@ -625,18 +625,16 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
                     + "/ on (cluster) sum by (cluster) (network.eth0.rx))"
             )
         );
-        assertThat(e.getMessage(), containsString("binary expressions with WITHOUT are not supported at this time"));
+        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
     }
 
-    /**
-     * Shape 3 (asymmetric): concrete {@code by} x opaque selector with {@code on (cluster)}. Match keys are declared by
-     * {@code on}; Resolve materializes {@code cluster} from the selector's rest.
-     */
-    public void testVectorMatchOnAllowsOpaqueSelectorOperand() {
+    public void testVectorMatchRejectsOpaqueSelectorOperand() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx)");
-        assertThat(plan.collect(HashJoin.class), hasSize(1));
-        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "cluster"));
+        VerificationException e = assertThrows(
+            VerificationException.class,
+            () -> planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx)")
+        );
+        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
     }
 
     public void testVectorMatchComposedWithOpaqueOperandRejected() {
@@ -649,7 +647,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
                     + "/ on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)"
             )
         );
-        assertThat(e.getMessage(), containsString("binary operations between an aggregated and a raw vector are not supported"));
+        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
     }
 
     public void testGroupLabelMissingFromBuildDoesNotLeakFromProbe() {

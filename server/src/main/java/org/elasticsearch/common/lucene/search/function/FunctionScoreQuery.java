@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.script.ScriptTermStats;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -239,6 +240,7 @@ public class FunctionScoreQuery extends Query {
         org.apache.lucene.search.ScoreMode subQueryScoreMode = combineFunction != CombineFunction.REPLACE
             ? org.apache.lucene.search.ScoreMode.COMPLETE
             : org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
+        final Runnable cancellationCheck = (searcher instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
         Weight[] filterWeights = new Weight[functions.length];
         for (int i = 0; i < functions.length; ++i) {
             if (functions[i].needsScores()) {
@@ -251,6 +253,10 @@ public class FunctionScoreQuery extends Query {
                     org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES,
                     1f
                 );
+            }
+            ScoreFunction function = functions[i] instanceof FilterScoreFunction filterFunction ? filterFunction.function : functions[i];
+            if (function instanceof ScriptScoreFunction scriptScoreFunction) {
+                scriptScoreFunction.setCancellationCheck(cancellationCheck);
             }
             if (functions[i] instanceof ScriptScoreFunction scriptScoreFunction && scriptScoreFunction.needsTermStats()) {
                 subQueryScoreMode = org.apache.lucene.search.ScoreMode.COMPLETE;

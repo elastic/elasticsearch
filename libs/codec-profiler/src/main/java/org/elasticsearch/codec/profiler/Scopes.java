@@ -38,7 +38,9 @@ public final class Scopes {
 
     /**
      * The recorder for a reader that the doc values format {@code codec} opens now on this thread, for {@code field} of
-     * segment {@code segment}. Returns null when no scope is bound; the reader is then not profiled.
+     * segment {@code segment}. Returns null when no scope is bound; the reader is then not profiled. The recorder
+     * belongs to the execution of the bound scope, so only objects whose work belongs to that execution may keep it; the
+     * module documentation states the rule.
      *
      * @param facts what the codec knows about the stored column; see {@link Scope#metrics}
      */

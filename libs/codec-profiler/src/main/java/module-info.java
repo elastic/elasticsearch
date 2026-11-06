@@ -69,8 +69,13 @@
  *   allocates nothing for profiling. The only cost is one thread-local lookup when the reader opens.</li>
  *   <li>A collector, its details and their handles have one writer at a time. A snapshot needs the same exclusive
  *   access, or a completed handoff. Calls of one timer must not overlap. Assertions check these preconditions.</li>
- *   <li>The scope bound when a reader opens owns all the work of that reader. This holds because a reader is built
- *   for one request and is not shared. A reader cache breaks this rule.</li>
+ *   <li>A recorder and the handles taken from it belong to the execution whose scope was bound when the reader opened.
+ *   Only an object whose instrumented work all belongs to that execution may keep them, for example a reader that one
+ *   execution opens and no other execution uses. A component that serves several executions, such as a cache in the
+ *   doc values producer, never keeps them: it records with the handles of the caller it works for. A reader cache
+ *   that hands one reader to several executions breaks this rule, and so does a merge that takes the scope of an
+ *   unrelated execution bound on its thread. Work that no execution-owned object performs, for example in a shared
+ *   background component, cannot be attributed to an execution by this module.</li>
  *   <li>The frontend decides what to profile, binds scopes, owns the collectors, takes the snapshots and attributes
  *   them to shards, segments and fields. The codec declares metrics, gets its recorder and records. Each side sees the
  *   other only through this module.</li>

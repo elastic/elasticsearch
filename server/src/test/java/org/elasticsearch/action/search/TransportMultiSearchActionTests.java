@@ -972,19 +972,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1, null);
         sections.adoptCoordinatorFetchCharge(() -> {});
         try {
-            return new SearchResponse(
-                sections,
-                null,
-                1,
-                1,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY,
-                null,
-                null,
-                null
-            );
+            return new SearchResponse(sections, null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY, null, null, null);
         } finally {
             sections.close();
         }

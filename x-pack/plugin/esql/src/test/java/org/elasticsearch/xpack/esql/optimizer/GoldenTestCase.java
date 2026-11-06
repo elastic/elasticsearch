@@ -851,7 +851,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(
                     pattern.indexPattern(),
-                    singleConcreteIndex ? withConcreteIndices(resolution) : resolution
+                    singleConcreteIndex ? singleIndex(resolution) : resolution
                 )
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
@@ -1415,7 +1415,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             .stream()
             .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
                 IndexMode m = indexModeOf(ds);
-                return new IndexProperties(m, 0, IndexVersion.current().id());
+                return new IndexProperties(m, 0, 0);
             }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
@@ -1425,15 +1425,20 @@ public abstract class GoldenTestCase extends ESTestCase {
         return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
     }
 
-    private static IndexResolution withConcreteIndices(IndexResolution resolution) {
+    private static IndexResolution singleIndex(IndexResolution resolution) {
         EsIndex index = resolution.get();
+        Map<String, IndexProperties> indexProperties = new HashMap<>();
+        index.indexProperties()
+            .forEach(
+                (key, v) -> indexProperties.put(key, new IndexProperties(v.indexMode(), v.numberOfShards(), IndexVersion.current().id()))
+            );
         return IndexResolution.valid(
             new EsIndex(
                 index.name(),
                 index.mapping(),
-                index.indexProperties(),
+                indexProperties,
                 index.originalIndices(),
-                Map.of("", List.copyOf(index.indexProperties().keySet()))
+                Map.of("", List.copyOf(indexProperties.keySet()))
             )
         );
     }

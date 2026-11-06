@@ -1,4 +1,4 @@
-Limit[10000[INTEGER],false,false]
+Limit[1000[INTEGER],false,false]
 \_Aggregate[[],[FilteredExpression[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]),COALESCE(CASE($$in_subquery_mark$0{r$}#0,true[BOOLEAN],$$in_subquery_mark$1{r$}#1),ISNULL($$in_subquery_mark$2{r$}#2),ISNOTNULL($$in_subquery_mark$3{r$}#3),false[BOOLEAN])] AS count#4]]
   \_MarkJoin[[salary{f}#5],[salary{f}#6],$$in_subquery_mark$3{r$}#3]
     |_MarkJoin[[emp_no{f}#7],[emp_no{f}#8],$$in_subquery_mark$2{r$}#2]

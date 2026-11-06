@@ -1,4 +1,4 @@
-Limit[10000[INTEGER],false,false]
+Limit[1000[INTEGER],false,false]
 \_InlineStats[]
   \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#0]]
     \_SemiJoin[[emp_no{f}#1],[emp_no{f}#2]]

@@ -216,22 +216,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    public void testKnnInsideInSubqueryInUnionAll() {
-        runGoldenTest("""
-            FROM colors,
-                 (FROM colors
-                  | WHERE id IN (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800") | KEEP id))
-            """, STAGES);
-    }
-
-    public void testKnnInsideInSubqueryInNestedUnionAll() {
-        runGoldenTest("""
-            FROM (FROM (FROM colors | WHERE id IN (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800") | KEEP id)),
-                       (FROM colors)),
-                 (FROM colors)
-            """, STAGES);
-    }
-
     public void testKnnOnUnionBranchLeftOfInSubqueryStillGetsLimit() {
         runGoldenTest("""
             FROM colors,

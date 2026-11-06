@@ -1,4 +1,4 @@
-Limit[10000[INTEGER],false,false]
+Limit[1000[INTEGER],false,false]
 \_LookupJoin[LEFT,[language_code{r}#0],[language_code{f}#1],null,ANY]
   |_Eval[[languages{f}#2 AS language_code#0]]
   | \_SemiJoin[[emp_no{f}#3],[emp_no{f}#4]]

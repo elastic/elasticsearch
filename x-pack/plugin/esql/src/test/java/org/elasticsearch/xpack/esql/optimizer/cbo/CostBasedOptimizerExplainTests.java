@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -171,18 +172,20 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
 
         RunReport report = explain(shape.aggregate(), shape.statistics(), Settings.EMPTY).report();
 
-        String expected = """
-            run 0 (initial) status=ok decisions=2 candidates=9 counterfactuals=2
-            plan <cost>
-            Exchange[GATHER]
-            \\_Aggregate d1=DISTRIBUTED cost_based basis=exact
-              |  vs COORDINATOR score=<score> rejected_fit: coordinator_aggregate_state demand=610.3mb>512mb
-              \\_LookupJoin[LOOKUP JOIN customers ON key @%d:%d] d2=PARTITIONED cost_based basis=exact
-                |  vs LOOKUP score=<score>
-                |_Exchange[HASH %s]
-                | \\_EsRelation[probe] rows=100.0M bytes=7.4gb exact [+1 ops]
-                \\_Exchange[HASH %s]
-                  \\_EsRelation[customers] rows=50.0M bytes=4.6gb exact""".formatted(
+        String expected = String.format(
+            Locale.ROOT,
+            """
+                run 0 (initial) status=ok decisions=2 candidates=9 counterfactuals=2
+                plan <cost>
+                Exchange[GATHER]
+                \\_Aggregate d1=DISTRIBUTED cost_based basis=exact
+                  |  vs COORDINATOR score=<score> rejected_fit: coordinator_aggregate_state demand=610.3mb>512mb
+                  \\_LookupJoin[LOOKUP JOIN customers ON key @%d:%d] d2=PARTITIONED cost_based basis=exact
+                    |  vs LOOKUP score=<score>
+                    |_Exchange[HASH %s]
+                    | \\_EsRelation[probe] rows=100.0M bytes=7.4gb exact [+1 ops]
+                    \\_Exchange[HASH %s]
+                      \\_EsRelation[customers] rows=50.0M bytes=4.6gb exact""",
             joinSource.lineNumber(),
             joinSource.columnNumber(),
             shape.probeKey(),

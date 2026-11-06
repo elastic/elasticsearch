@@ -762,7 +762,12 @@ public class LocalExecutionPlanner {
         LocalExecutionPlannerContext context,
         boolean allowPartitionedOutput
     ) {
-        var source = insertSketchFilter(aggregate, plan(aggregate.child(), context), context);
+        PhysicalOperation source;
+        if (sketchFilterApplies(aggregate, context) && aggregate.child() instanceof FieldExtractExec extract) {
+            source = planWithLateMaterialization(aggregate, extract, context);
+        } else {
+            source = insertSketchFilter(aggregate, plan(aggregate.child(), context), context);
+        }
         HashAggregationOperator.ParallelConfig parallelConfig = null;
         if (parallelWorkerExecutor != null) {
             parallelConfig = new HashAggregationOperator.ParallelConfig(
@@ -785,16 +790,49 @@ public class LocalExecutionPlanner {
      * counted their keys. The proof that this is correct needs one barrier for all the data of the query, so it is only used when
      * the query runs on a single node over a single shard.
      */
+    private static boolean sketchFilterApplies(AggregateExec aggregate, LocalExecutionPlannerContext context) {
+        return aggregate.topCountLimit() != null
+            && aggregate.getMode() == AggregatorMode.INITIAL
+            && context.queryPragmas().sketchFilter()
+            && context.singleNodeOptimizations()
+            && context.shardContexts().size() == 1
+            && MarkTopCountAggregations.countStarAttribute(aggregate) != null;
+    }
+
+    /**
+     * Plan the field extraction below a filtered aggregation in two steps: first only the grouping columns, then the sketch filter,
+     * then the other columns (the inputs of the other aggregates). The filter drops almost all rows, so the second step reads the
+     * other columns for the rows of the candidate keys only. The doc block stays in the page for the second step.
+     * Without other columns there is nothing to delay, and the filter goes right after the extraction.
+     */
+    private PhysicalOperation planWithLateMaterialization(
+        AggregateExec aggregate,
+        FieldExtractExec extract,
+        LocalExecutionPlannerContext context
+    ) {
+        List<Attribute> keys = MarkTopCountAggregations.keyAttributes(aggregate);
+        List<Attribute> early = new ArrayList<>();
+        List<Attribute> late = new ArrayList<>();
+        for (Attribute attribute : extract.attributesToExtract()) {
+            if (keys.stream().anyMatch(k -> k.id().equals(attribute.id()))) {
+                early.add(attribute);
+            } else {
+                late.add(attribute);
+            }
+        }
+        if (late.isEmpty() || early.size() != keys.size() || extract.sourceAttribute() == null) {
+            return insertSketchFilter(aggregate, plan(extract, context), context);
+        }
+        PhysicalOperation source = planFieldExtractNode(extract.withAttributesToExtract(early), context);
+        source = insertSketchFilter(aggregate, source, context);
+        return physicalOperationProviders.fieldExtractPhysicalOperation(extract.withAttributesToExtract(late), source, context);
+    }
+
     private PhysicalOperation insertSketchFilter(AggregateExec aggregate, PhysicalOperation source, LocalExecutionPlannerContext context) {
-        Integer topCountLimit = aggregate.topCountLimit();
-        if (topCountLimit == null
-            || aggregate.getMode() != AggregatorMode.INITIAL
-            || context.queryPragmas().sketchFilter() == false
-            || context.singleNodeOptimizations() == false
-            || context.shardContexts().size() != 1
-            || MarkTopCountAggregations.countStarAttribute(aggregate) == null) {
+        if (sketchFilterApplies(aggregate, context) == false) {
             return source;
         }
+        Integer topCountLimit = aggregate.topCountLimit();
         List<Attribute> keyAttributes = MarkTopCountAggregations.keyAttributes(aggregate);
         int[] channels = new int[keyAttributes.size()];
         for (int i = 0; i < channels.length; i++) {

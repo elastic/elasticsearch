@@ -67,7 +67,7 @@ public class SketchFilterIT extends AbstractEsqlIntegTestCase {
         return docs;
     }
 
-    private record Result(List<List<Object>> rows, long received, long emitted, int filters) {}
+    private record Result(List<List<Object>> rows, long received, long emitted, int filters, List<String> filterDriverOperators) {}
 
     private Result run(String index, boolean sketchFilter) {
         return runQuery(String.format(java.util.Locale.ROOT, QUERY, index), sketchFilter);
@@ -98,19 +98,21 @@ public class SketchFilterIT extends AbstractEsqlIntegTestCase {
             long received = 0;
             long emitted = 0;
             int filters = 0;
+            List<String> filterDriverOperators = List.of();
             for (DriverProfile driver : response.profile().drivers()) {
                 if (driver.description().equals(ComputeService.DATA_DESCRIPTION)) {
                     for (OperatorStatus operator : driver.operators()) {
                         Matcher m = ROWS.matcher(operator.operator());
                         if (m.find()) {
                             filters++;
+                            filterDriverOperators = driver.operators().stream().map(OperatorStatus::operator).toList();
                             received += Long.parseLong(m.group(1));
                             emitted += Long.parseLong(m.group(2));
                         }
                     }
                 }
             }
-            return new Result(rows, received, emitted, filters);
+            return new Result(rows, received, emitted, filters, filterDriverOperators);
         }
     }
 
@@ -160,6 +162,54 @@ public class SketchFilterIT extends AbstractEsqlIntegTestCase {
         assertThat(filtered.rows, equalTo(plain.rows));
         assertThat(filtered.received, equalTo((long) docs));
         assertThat("most rows should be dropped before the aggregation", filtered.emitted, lessThan(filtered.received / 2));
+    }
+
+    /**
+     * The columns that only feed the other aggregates are read after the filter, for the rows that survive it. The grouping columns
+     * are read before it.
+     */
+    public void testNonKeyColumnsAreReadAfterTheFilter() {
+        client().admin()
+            .indices()
+            .prepareCreate("late")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1))
+            .setMapping("k", "type=long", "v", "type=long")
+            .get();
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int heavy = 0; heavy < 10; heavy++) {
+            for (int i = 0; i < 1000 + heavy * 100; i++) {
+                bulk.add(client().prepareIndex("late").setSource("k", 1_000_000L + heavy, "v", i));
+            }
+        }
+        for (int i = 0; i < 20_000; i++) {
+            bulk.add(client().prepareIndex("late").setSource("k", randomLongBetween(0, 50_000), "v", i));
+        }
+        assertFalse(bulk.get().hasFailures());
+        String query = "FROM late | STATS c = COUNT(*), s = SUM(v) BY k | SORT c DESC | LIMIT 10";
+        Result plain = runQuery(query, false);
+        Result filtered = runQuery(query, true);
+        assertThat(filtered.rows, equalTo(plain.rows));
+        List<String> operators = filtered.filterDriverOperators;
+        int filter = indexOf(operators, "SketchFilterOperator");
+        assertThat(filter, greaterThan(0));
+        int before = indexOf(operators, "ValuesSourceReaderOperator");
+        assertThat("keys are read before the filter", before, lessThan(filter));
+        assertThat(operators.get(before), equalTo("ValuesSourceReaderOperator[fields = [k]]"));
+        String after = operators.subList(filter, operators.size())
+            .stream()
+            .filter(o -> o.startsWith("ValuesSourceReaderOperator"))
+            .findFirst()
+            .orElse("none");
+        assertThat("the other column is read after the filter", after, equalTo("ValuesSourceReaderOperator[fields = [v]]"));
+    }
+
+    private static int indexOf(List<String> operators, String prefix) {
+        for (int i = 0; i < operators.size(); i++) {
+            if (operators.get(i).startsWith(prefix)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     public void testDocumentsWithoutAKeyPassThrough() {

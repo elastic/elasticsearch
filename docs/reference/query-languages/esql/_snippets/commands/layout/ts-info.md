@@ -15,6 +15,9 @@ lets you discover the exact dimension values (labels) that identify each series.
 `METRICS_INFO`, any [`WHERE`](/reference/query-languages/esql/commands/where.md) filters that precede
 `TS_INFO` narrow the set of time series considered.
 
+If you only need metric names, types, units, or dimension field names, use
+[`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) instead.
+
 ## Syntax
 
 ```esql

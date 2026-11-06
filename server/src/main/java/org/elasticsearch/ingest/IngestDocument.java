@@ -30,7 +30,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
@@ -63,6 +62,23 @@ public final class IngestDocument {
 
     // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
     private static final Object NOT_FOUND = new Object();
+
+    // what 'resolve' returns, rather than a ResolveResult, when the path could not be resolved and the caller does not care why. That
+    // is the case for every caller that ignores missing fields, and not having to describe the failure (which would mean allocating a
+    // ResolveResult, and building an error message that is then thrown away) makes that very common situation allocation free.
+    private static final Object IGNORED_FAILURE = new Object();
+
+    /**
+     * What {@link #resolve} should do when a path can not be resolved.
+     */
+    private enum Failures {
+        /** Describe the failure, with a {@link ResolveResult}, so that the caller can report it. */
+        REPORT,
+        /** Return {@link #IGNORED_FAILURE} for an error, but still describe an incomplete result, as the caller can make use of that. */
+        IGNORE_ERRORS,
+        /** Return {@link #IGNORED_FAILURE} for any failure, including an incomplete result, as the caller has no use for either. */
+        IGNORE_ALL
+    }
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
@@ -208,83 +224,24 @@ public final class IngestDocument {
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
         final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
-        ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context, getCurrentAccessPatternSafe());
-        if (result.wasSuccessful) {
-            return cast(path, result.resolvedObject, clazz);
-        } else if (ignoreMissing) {
+        Object result = resolve(
+            fieldPath.pathElements,
+            fieldPath.pathElements.length,
+            path,
+            context,
+            getCurrentAccessPatternSafe(),
+            ignoreMissing ? Failures.IGNORE_ALL : Failures.REPORT
+        );
+        if (result == IGNORED_FAILURE) {
             return null;
-        } else {
+        } else if (result instanceof ResolveResult failure) {
+            assert ignoreMissing == false : "resolve would have ignored this failure";
             // Reconstruct the error message if the resolve result was incomplete
             throw new IllegalArgumentException(
-                Objects.requireNonNullElseGet(result.errorMessage, () -> Errors.notPresent(path, result.missingFields))
+                Objects.requireNonNullElseGet(failure.errorMessage, () -> Errors.notPresent(path, failure.missingFields))
             );
-        }
-    }
-
-    /**
-     * Returns the value contained in the document for the provided path as a byte array.
-     * If the path value is a string, a base64 decode operation will happen.
-     * If the path value is a byte array, it is just returned
-     * @param path The path within the document in dot-notation
-     * @return the byte array for the provided path if existing
-     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
-     * or if the field that is found at the provided path is not of the expected type.
-     */
-    public byte[] getFieldValueAsBytes(String path) {
-        return getFieldValueAsBytes(path, false);
-    }
-
-    /**
-     * Returns the value contained in the document for the provided path as a byte array.
-     * If the path value is a string, a base64 decode operation will happen.
-     * If the path value is a byte array, it is just returned
-     * @param path The path within the document in dot-notation
-     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
-     * @return the byte array for the provided path if existing
-     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
-     * or if the field that is found at the provided path is not of the expected type.
-     */
-    public byte[] getFieldValueAsBytes(String path, boolean ignoreMissing) {
-        Object object = getFieldValue(path, Object.class, ignoreMissing);
-        return getFieldValueAsBytes(path, object);
-    }
-
-    /**
-     * Returns the value contained in the field value as a byte array.
-     * If the field value is a string, a base64 decode operation will happen.
-     * If the field value is a byte array, it is just returned
-     * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
-     * @return the byte array of the field value
-     * @throws IllegalArgumentException if the field value is not of the expected type.
-     */
-    public byte[] getFieldValueAsBytes(String path, Object fieldValue) {
-        if (fieldValue == null) {
-            return null;
-        } else if (fieldValue instanceof byte[] bytes) {
-            return bytes;
-        } else if (fieldValue instanceof String string) {
-            return Base64.getDecoder().decode(string);
         } else {
-            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, fieldValue));
-        }
-    }
-
-    /**
-     * Returns the raw in-memory size in bytes of a value that {@link #getFieldValueAsBytes(String, Object)} accepts, before any decoding.
-     * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
-     * @param fieldValue the resolved field value
-     * @return size in bytes, an integer (because the underlying format can be a byte array or a string)
-     * @throws IllegalArgumentException if the field value is not of the expected type.
-     */
-    public int getFieldValueRawBytesLength(String path, Object fieldValue) {
-        if (fieldValue == null) {
-            return 0;
-        } else if (fieldValue instanceof byte[] bytes) {
-            return bytes.length;
-        } else if (fieldValue instanceof String string) {
-            return string.length(); // one base64 character is assumed to be one byte
-        } else {
-            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, fieldValue));
+            return cast(path, result, clazz);
         }
     }
 
@@ -463,23 +420,27 @@ public final class IngestDocument {
         final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        ResolveResult result = resolve(
+        Object result = resolve(
             fieldPath.pathElements,
             fieldPath.pathElements.length - 1,
             path,
             context,
-            getCurrentAccessPatternSafe()
+            getCurrentAccessPatternSafe(),
+            ignoreMissing ? Failures.IGNORE_ERRORS : Failures.REPORT
         );
-        if (result.wasSuccessful) {
-            context = result.resolvedObject;
-        } else if (result.missingFields != null) {
-            // Incomplete result, update the leaf key and context to continue the operation
-            leafKey = result.missingFields + "." + leafKey;
-            context = result.resolvedObject;
-        } else if (ignoreMissing) {
+        if (result == IGNORED_FAILURE) {
             return; // nothing was found, so there's nothing to remove :shrug:
+        } else if (result instanceof ResolveResult failure) {
+            if (failure.missingFields != null) {
+                // Incomplete result, update the leaf key and context to continue the operation
+                leafKey = failure.missingFields + "." + leafKey;
+                context = failure.resolvedObject;
+            } else {
+                assert ignoreMissing == false : "resolve would have ignored this error";
+                throw new IllegalArgumentException(failure.errorMessage);
+            }
         } else {
-            throw new IllegalArgumentException(result.errorMessage);
+            context = result;
         }
 
         if (context == null && ignoreMissing == false) {
@@ -527,26 +488,38 @@ public final class IngestDocument {
     }
 
     /**
-     * Resolves the path elements (up to the limit) within the context. The result of such resolution can either be successful,
-     * or can indicate a failure.
+     * Resolves the path elements (up to the limit) within the context. The result is one of:
+     * <ul>
+     * <li>the object that was found (which can be null), if the resolution was successful. This is not wrapped in anything, so that the
+     * (by far) most common outcome does not allocate.</li>
+     * <li>{@link #IGNORED_FAILURE}, if the resolution failed and <code>failures</code> says that the caller does not care why. There is
+     * no need to describe such a failure, which would allocate. An incomplete result (see {@link ResolveResult#incomplete}) is only
+     * ignored if <code>failures</code> is {@link Failures#IGNORE_ALL}, as some callers that ignore errors can still use it.</li>
+     * <li>a {@link ResolveResult} describing the failure, otherwise.</li>
+     * </ul>
      */
-    private static ResolveResult resolve(
+    private static Object resolve(
         final String[] pathElements,
         final int limit,
         final String fullPath,
         Object context,
-        IngestPipelineFieldAccessPattern accessPattern
+        IngestPipelineFieldAccessPattern accessPattern,
+        Failures failures
     ) {
         for (int i = 0; i < limit; i++) {
             String pathElement = pathElements[i];
             if (context == null) {
-                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
+                return failures != Failures.REPORT
+                    ? IGNORED_FAILURE
+                    : ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
                 switch (accessPattern) {
                     case CLASSIC -> {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
-                            return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                            return failures != Failures.REPORT
+                                ? IGNORED_FAILURE
+                                : ResolveResult.error(Errors.notPresent(fullPath, pathElement));
                         } else {
                             context = object;
                         }
@@ -557,7 +530,7 @@ public final class IngestDocument {
                             context = object;
                         } else if (i == (limit - 1)) {
                             // This is our last path element, return incomplete
-                            return ResolveResult.incomplete(context, pathElement);
+                            return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, pathElement);
                         } else {
                             // Attempt a flexible lookup
                             // Iterate through the remaining elements until we get a hit
@@ -574,7 +547,7 @@ public final class IngestDocument {
                             }
                             if (object == NOT_FOUND) {
                                 // Not found, and out of path elements, return an incomplete result
-                                return ResolveResult.incomplete(context, combinedPath);
+                                return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, combinedPath);
                             }
                         }
                     }
@@ -586,7 +559,9 @@ public final class IngestDocument {
                         Map<String, Object> map = (Map<String, Object>) context;
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
-                            return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                            return failures != Failures.REPORT
+                                ? IGNORED_FAILURE
+                                : ResolveResult.error(Errors.notPresent(fullPath, pathElement));
                         } else {
                             context = object;
                         }
@@ -599,7 +574,7 @@ public final class IngestDocument {
                             context = object;
                         } else if (i == (limit - 1)) {
                             // This is our last path element, return incomplete
-                            return ResolveResult.incomplete(context, pathElement);
+                            return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, pathElement);
                         } else {
                             // Attempt a flexible lookup
                             // Iterate through the remaining elements until we get a hit
@@ -616,7 +591,7 @@ public final class IngestDocument {
                             }
                             if (object == NOT_FOUND) {
                                 // Not found, and out of path elements, return an incomplete result
-                                return ResolveResult.incomplete(context, combinedPath);
+                                return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, combinedPath);
                             }
                         }
                     }
@@ -624,24 +599,28 @@ public final class IngestDocument {
             } else if (context instanceof List<?> list) {
                 if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                     // Flexible access pattern cannot yet access array values, new syntax must be added.
-                    return ResolveResult.error(Errors.invalidPath(fullPath));
+                    return failures != Failures.REPORT ? IGNORED_FAILURE : ResolveResult.error(Errors.invalidPath(fullPath));
                 }
                 int index;
                 try {
                     index = Integer.parseInt(pathElement);
                 } catch (NumberFormatException e) {
-                    return ResolveResult.error(Errors.notInteger(fullPath, pathElement));
+                    return failures != Failures.REPORT ? IGNORED_FAILURE : ResolveResult.error(Errors.notInteger(fullPath, pathElement));
                 }
                 if (index < 0 || index >= list.size()) {
-                    return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
+                    return failures != Failures.REPORT
+                        ? IGNORED_FAILURE
+                        : ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
                 } else {
                     context = list.get(index);
                 }
             } else {
-                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
+                return failures != Failures.REPORT
+                    ? IGNORED_FAILURE
+                    : ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
             }
         }
-        return ResolveResult.success(context);
+        return context;
     }
 
     /**
@@ -1387,26 +1366,21 @@ public final class IngestDocument {
         }
     }
 
-    private record ResolveResult(boolean wasSuccessful, Object resolvedObject, String errorMessage, String missingFields) {
-        /**
-         * The resolve operation ended with a successful result, locating the resolved object at the given path location
-         * @param resolvedObject The resolved object
-         * @return Successful result
-         */
-        static ResolveResult success(Object resolvedObject) {
-            return new ResolveResult(true, resolvedObject, null, null);
-        }
-
+    /**
+     * Describes a resolve operation that did not end with a successful result (which is just the object that was found, see
+     * {@link #resolve}).
+     */
+    private record ResolveResult(Object resolvedObject, String errorMessage, String missingFields) {
         /**
          * Due to the access pattern, the resolve operation was only partially completed. The last resolved context object is returned,
-         * along with the fields that have been tried up until running into the field limit. The result's success flag is set to false,
-         * but it contains additional information about further resolving the operation.
+         * along with the fields that have been tried up until running into the field limit. This is not an error, as it contains
+         * additional information about further resolving the operation.
          * @param lastResolvedObject The last successfully resolved context object from the document
          * @param missingFields The fields from the given path that have not been located yet
          * @return Incomplete result
          */
         static ResolveResult incomplete(Object lastResolvedObject, String missingFields) {
-            return new ResolveResult(false, lastResolvedObject, null, missingFields);
+            return new ResolveResult(lastResolvedObject, null, missingFields);
         }
 
         /**
@@ -1416,7 +1390,7 @@ public final class IngestDocument {
          * @return Error result
          */
         static ResolveResult error(String errorMessage) {
-            return new ResolveResult(false, null, errorMessage, null);
+            return new ResolveResult(null, errorMessage, null);
         }
     }
 
@@ -1544,10 +1518,6 @@ public final class IngestDocument {
 
         private static String notPresent(String path, String key) {
             return "field [" + key + "] not present as part of path [" + path + "]";
-        }
-
-        private static String notStringOrByteArray(String path, Object value) {
-            return "Content field [" + path + "] of unknown type [" + value.getClass().getName() + "], must be string or byte array";
         }
 
         private static String invalidPath(String fullPath) {

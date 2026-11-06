@@ -723,23 +723,6 @@ public abstract class FieldMapper extends Mapper {
      */
     public abstract Builder getMergeBuilder();
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(leafName());
-        doXContentBody(builder, params);
-        return builder.endObject();
-    }
-
-    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field("type", contentType());
-        getMergeBuilder().serializeParameters(builder, params);
-        builderParams.multiFields.toXContent(builder, params);
-        builderParams.copyTo.toXContent(builder);
-        if (builderParams.sourceKeepMode.isPresent()) {
-            builderParams.sourceKeepMode.get().toXContent(builder);
-        }
-    }
-
     protected abstract String contentType();
 
     @Override
@@ -913,7 +896,7 @@ public abstract class FieldMapper extends Mapper {
         SourceLoader.SyntheticFieldLoader loader();
     }
 
-    public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {
+    public static final class MultiFields implements Iterable<FieldMapper> {
 
         private static final MultiFields EMPTY = new MultiFields(new FieldMapper[0]);
 
@@ -1006,10 +989,16 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
+            void collectFieldBuilders(String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+                for (FieldMapper.Builder fieldBuilder : fieldBuilders.values()) {
+                    fieldBuilder.collectFieldBuilders(parentPath, consumer);
+                }
+            }
+
             /**
              * Writes the {@code fields} block, sorted by name exactly as {@link MultiFields} sorts its built mappers.
              */
-            void toXContent(XContentBuilder builder, Params params) throws IOException {
+            void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
                 if (fieldBuilders.isEmpty() == false) {
                     builder.startObject("fields");
                     for (FieldMapper.Builder fieldBuilder : new TreeMap<>(fieldBuilders).values()) {
@@ -1065,17 +1054,6 @@ public abstract class FieldMapper extends Mapper {
             return Iterators.forArray(mappers);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (mappers.length != 0) {
-                builder.startObject("fields");
-                for (Mapper mapper : mappers) {
-                    mapper.toXContent(builder, params);
-                }
-                builder.endObject();
-            }
-            return builder;
-        }
     }
 
     /**
@@ -2239,6 +2217,13 @@ public abstract class FieldMapper extends Mapper {
             multiFieldsBuilder.normalize(context.createChildContext(leafName(), null));
         }
 
+        @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            String fullPath = fullPath(parentPath);
+            consumer.accept(fullPath, this);
+            multiFieldsBuilder.collectFieldBuilders(fullPath, consumer);
+        }
+
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
             return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
         }
@@ -2368,8 +2353,8 @@ public abstract class FieldMapper extends Mapper {
 
         /**
          * Writes the contents of the field's object: its type, parameters, multi-fields, {@code copy_to} and
-         * {@code synthetic_source_keep}, in the order the mapper has always written them. Builders whose mapper
-         * overrides {@link FieldMapper#doXContentBody} override this to match it.
+         * {@code synthetic_source_keep}, in the order the mapping source has always carried them. Builders with a
+         * fixed legacy order of their own override this.
          */
         protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", contentType());

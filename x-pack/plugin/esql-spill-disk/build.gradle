@@ -1,0 +1,26 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name = 'esql-spill-disk'
+  description = 'Local disk backend for ES|QL spilling'
+  classname = 'org.elasticsearch.xpack.esql.spill.disk.DiskSpillPlugin'
+  extendedPlugins = ['x-pack-esql']
+  deploymentTarget = 'STATEFUL_ONLY'
+}
+
+base {
+  archivesName = 'esql-spill-disk'
+}
+
+dependencies {
+  compileOnly project(':server')
+  compileOnly project(xpackModule('esql:compute'))
+  testImplementation project(xpackModule('esql:compute:test'))
+}

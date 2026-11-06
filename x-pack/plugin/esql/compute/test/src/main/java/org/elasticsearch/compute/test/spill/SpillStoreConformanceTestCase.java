@@ -78,6 +78,13 @@ public abstract class SpillStoreConformanceTestCase extends ComputeTestCase {
      */
     protected void pump() {}
 
+    /**
+     * The setting name a backend reports in {@link SpillLimitExceededException}; the suite's own by default.
+     */
+    protected String limitSettingName() {
+        return LIMIT_SETTING;
+    }
+
     @Before
     public void startPool() {
         breaker = blockFactory().breaker();
@@ -413,9 +420,9 @@ public abstract class SpillStoreConformanceTestCase extends ComputeTestCase {
         assertThat(e, instanceOf(SpillLimitExceededException.class));
         SpillLimitExceededException limitExceeded = (SpillLimitExceededException) e;
         assertThat(limitExceeded.status(), equalTo(RestStatus.INSUFFICIENT_STORAGE));
-        assertThat(limitExceeded.settingName(), equalTo(LIMIT_SETTING));
+        assertThat(limitExceeded.settingName(), equalTo(limitSettingName()));
         assertThat(limitExceeded.limitBytes(), equalTo(limit));
-        assertThat(limitExceeded.getMessage(), containsString(LIMIT_SETTING));
+        assertThat(limitExceeded.getMessage(), containsString(limitSettingName()));
         // poisoned
         try (ReleasableBytesReference chunk = chunk(within, 0, 1)) {
             assertThat(failedAppend(writer, chunk), instanceOf(IllegalStateException.class));

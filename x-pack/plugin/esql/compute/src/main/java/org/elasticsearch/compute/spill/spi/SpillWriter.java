@@ -32,7 +32,8 @@ public interface SpillWriter extends ChunkSink {
     void finish(ActionListener<SpillObject> listener);
 
     /**
-     * Discards what was appended, returning its bytes to the quota. Idempotent; a no-op after finish.
+     * Discards what was appended, returning its bytes to the quota; with an append in flight, that append's completion
+     * is what returns them. Idempotent; a no-op after finish.
      */
     void abort(ActionListener<Void> listener);
 }

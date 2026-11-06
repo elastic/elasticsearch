@@ -25,12 +25,20 @@ public final class SpillLimitExceededException extends ElasticsearchException {
     private static final String LIMIT_KEY = "es.spill.limit";
 
     public SpillLimitExceededException(String settingName, long limitBytes, long bytesInUse, long bytesWanted) {
+        this(settingName, limitBytes, bytesInUse, bytesWanted, null);
+    }
+
+    /**
+     * @param detail what else stood in the way, such as the file store's free space, or null
+     */
+    public SpillLimitExceededException(String settingName, long limitBytes, long bytesInUse, long bytesWanted, String detail) {
         super(
-            "spill limit [{}] of [{}] exceeded: [{}] in use, [{}] wanted",
+            "spill limit [{}] of [{}] exceeded: [{}] in use, [{}] wanted{}",
             ByteSizeValue.ofBytes(limitBytes),
             settingName,
             ByteSizeValue.ofBytes(bytesInUse),
-            ByteSizeValue.ofBytes(bytesWanted)
+            ByteSizeValue.ofBytes(bytesWanted),
+            detail == null ? "" : "; " + detail
         );
         addMetadata(SETTING_KEY, settingName);
         addMetadata(LIMIT_KEY, Long.toString(limitBytes));

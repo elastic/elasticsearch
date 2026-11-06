@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 162251
-summary: Support CHANGE_POINT under unmapped_fields="LOAD_ALL"
+summary: 'Support `CHANGE_POINT` under `unmapped_fields`="LOAD_ALL"'
 type: enhancement

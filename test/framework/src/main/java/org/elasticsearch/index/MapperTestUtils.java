@@ -74,13 +74,30 @@ public class MapperTestUtils {
         String indexName,
         Setting<?>[] additionalSettings
     ) throws IOException {
+        return newMapperService(xContentRegistry, tempDir, settings, Settings.EMPTY, indicesModule, indexName, additionalSettings);
+    }
+
+    public static MapperService newMapperService(
+        NamedXContentRegistry xContentRegistry,
+        Path tempDir,
+        Settings settings,
+        Settings nodeSettings,
+        IndicesModule indicesModule,
+        String indexName,
+        Setting<?>[] additionalSettings
+    ) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).put(settings);
         if (settings.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
             settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         }
         Settings finalSettings = settingsBuilder.build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexName, finalSettings, additionalSettings);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            new Index(indexName, finalSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)),
+            finalSettings,
+            nodeSettings,
+            additionalSettings
+        );
         IndexAnalyzers indexAnalyzers = createTestAnalysis(indexSettings, finalSettings).indexAnalyzers;
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);

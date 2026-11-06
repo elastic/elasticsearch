@@ -31,24 +31,18 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryDeprecationInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.snapshots.SnapshotsServiceUtils;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -61,7 +55,6 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -184,22 +177,13 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
 
-    /**
-     * Artificial delay to introduce after a snapshot finalization or delete has finished so long as the repository is still using the
-     * backwards compatible snapshot format from before
-     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link IndexVersions#V_7_6_0}).
-     * This delay is necessary so that the eventually consistent nature of AWS S3 does not randomly result in repository corruption when
-     * doing repository operations in rapid succession on a repository in the old metadata format.
-     * This setting should not be adjusted in production when working with an AWS S3 backed repository. Doing so risks the repository
-     * becoming silently corrupted. To get rid of this waiting period, either create a new S3 repository or remove all snapshots older than
-     * {@link IndexVersions#V_7_6_0} from the repository which will trigger an upgrade of the repository metadata to the new
-     * format and disable the cooldown period.
-     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no-op and deprecated in v9, can be removed in v10
     static final Setting<TimeValue> COOLDOWN_PERIOD = Setting.timeSetting(
         "cooldown_period",
         new TimeValue(3, TimeUnit.MINUTES),
         new TimeValue(0, TimeUnit.MILLISECONDS),
-        Setting.Property.Dynamic
+        Setting.Property.Dynamic,
+        Setting.Property.Deprecated
     );
 
     /**
@@ -281,12 +265,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final String metadataStorageClass;
 
     private final String cannedACL;
-
-    /**
-     * Time period to delay repository operations by after finalizing or deleting a snapshot.
-     * See {@link #COOLDOWN_PERIOD} for details.
-     */
-    private final TimeValue coolDown;
 
     /**
      * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
@@ -372,7 +350,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             );
         }
 
-        coolDown = COOLDOWN_PERIOD.get(metadata.settings());
+        COOLDOWN_PERIOD.get(metadata.settings()); // Validate and warn about the deprecated setting, which no longer has any effect.
         supportsConditionalWrites = UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.get(metadata.settings()) == Boolean.FALSE;
 
         if (supportsConditionalWrites == false) {
@@ -622,87 +600,6 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
     }
 
-    /**
-     * Holds a reference to delayed repository operation {@link Scheduler.Cancellable} so it can be cancelled should the repository be
-     * closed concurrently.
-     */
-    private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
-
-    @Override
-    public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
-        final FinalizeSnapshotContext wrappedFinalizeContext;
-        if (SnapshotsServiceUtils.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
-            final ListenableFuture<Void> metadataDone = new ListenableFuture<>();
-            wrappedFinalizeContext = new FinalizeSnapshotContext(
-                finalizeSnapshotContext.serializeProjectMetadata(),
-                finalizeSnapshotContext.updatedShardGenerations(),
-                finalizeSnapshotContext.repositoryStateId(),
-                finalizeSnapshotContext.clusterMetadata(),
-                finalizeSnapshotContext.snapshotInfo(),
-                finalizeSnapshotContext.repositoryMetaVersion(),
-                wrapWithWeakConsistencyProtection(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
-                () -> metadataDone.addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        finalizeSnapshotContext.onDone();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        assert false : e; // never fails
-                    }
-                })
-            );
-        } else {
-            wrappedFinalizeContext = finalizeSnapshotContext;
-        }
-        super.finalizeSnapshot(wrappedFinalizeContext);
-    }
-
-    /**
-     * Wraps given listener such that it is executed with a delay of {@link #coolDown} on the snapshot thread-pool after being invoked.
-     * See {@link #COOLDOWN_PERIOD} for details.
-     */
-    @Override
-    protected ActionListener<RepositoryData> wrapWithWeakConsistencyProtection(ActionListener<RepositoryData> listener) {
-        final ActionListener<RepositoryData> wrappedListener = ActionListener.runBefore(listener, () -> {
-            final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-            assert cancellable != null;
-        });
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(RepositoryData response) {
-                logCooldownInfo();
-                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)), coolDown, snapshotExecutor)
-                );
-                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logCooldownInfo();
-                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, snapshotExecutor)
-                );
-                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-            }
-        };
-    }
-
-    private void logCooldownInfo() {
-        logger.info(
-            "Sleeping for [{}] after modifying repository [{}] because it contains snapshots older than version [{}]"
-                + " and therefore is using a backwards compatible metadata format that requires this cooldown period to avoid "
-                + "repository corruption. To get rid of this message and move to the new repository metadata format, either remove "
-                + "all snapshots older than version [{}] from the repository or create a new repository at an empty location.",
-            coolDown,
-            metadata.name(),
-            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION,
-            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION
-        );
-    }
-
     private static BlobPath buildBasePath(RepositoryMetadata metadata) {
         final String basePath = BASE_PATH_SETTING.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
@@ -746,16 +643,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
-    }
-
-    @Override
-    protected void doClose() {
-        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-        if (cancellable != null) {
-            logger.debug("Repository [{}] closed during cool-down period", metadata.name());
-            cancellable.cancel();
-        }
-        super.doClose();
     }
 
     @Override

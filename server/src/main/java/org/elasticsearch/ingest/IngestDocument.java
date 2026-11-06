@@ -30,7 +30,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
@@ -218,73 +217,6 @@ public final class IngestDocument {
             throw new IllegalArgumentException(
                 Objects.requireNonNullElseGet(result.errorMessage, () -> Errors.notPresent(path, result.missingFields))
             );
-        }
-    }
-
-    /**
-     * Returns the value contained in the document for the provided path as a byte array.
-     * If the path value is a string, a base64 decode operation will happen.
-     * If the path value is a byte array, it is just returned
-     * @param path The path within the document in dot-notation
-     * @return the byte array for the provided path if existing
-     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
-     * or if the field that is found at the provided path is not of the expected type.
-     */
-    public byte[] getFieldValueAsBytes(String path) {
-        return getFieldValueAsBytes(path, false);
-    }
-
-    /**
-     * Returns the value contained in the document for the provided path as a byte array.
-     * If the path value is a string, a base64 decode operation will happen.
-     * If the path value is a byte array, it is just returned
-     * @param path The path within the document in dot-notation
-     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
-     * @return the byte array for the provided path if existing
-     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
-     * or if the field that is found at the provided path is not of the expected type.
-     */
-    public byte[] getFieldValueAsBytes(String path, boolean ignoreMissing) {
-        Object object = getFieldValue(path, Object.class, ignoreMissing);
-        return getFieldValueAsBytes(path, object);
-    }
-
-    /**
-     * Returns the value contained in the field value as a byte array.
-     * If the field value is a string, a base64 decode operation will happen.
-     * If the field value is a byte array, it is just returned
-     * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
-     * @return the byte array of the field value
-     * @throws IllegalArgumentException if the field value is not of the expected type.
-     */
-    public byte[] getFieldValueAsBytes(String path, Object fieldValue) {
-        if (fieldValue == null) {
-            return null;
-        } else if (fieldValue instanceof byte[] bytes) {
-            return bytes;
-        } else if (fieldValue instanceof String string) {
-            return Base64.getDecoder().decode(string);
-        } else {
-            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, fieldValue));
-        }
-    }
-
-    /**
-     * Returns the raw in-memory size in bytes of a value that {@link #getFieldValueAsBytes(String, Object)} accepts, before any decoding.
-     * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
-     * @param fieldValue the resolved field value
-     * @return size in bytes, an integer (because the underlying format can be a byte array or a string)
-     * @throws IllegalArgumentException if the field value is not of the expected type.
-     */
-    public int getFieldValueRawBytesLength(String path, Object fieldValue) {
-        if (fieldValue == null) {
-            return 0;
-        } else if (fieldValue instanceof byte[] bytes) {
-            return bytes.length;
-        } else if (fieldValue instanceof String string) {
-            return string.length(); // one base64 character is assumed to be one byte
-        } else {
-            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, fieldValue));
         }
     }
 
@@ -1544,10 +1476,6 @@ public final class IngestDocument {
 
         private static String notPresent(String path, String key) {
             return "field [" + key + "] not present as part of path [" + path + "]";
-        }
-
-        private static String notStringOrByteArray(String path, Object value) {
-            return "Content field [" + path + "] of unknown type [" + value.getClass().getName() + "], must be string or byte array";
         }
 
         private static String invalidPath(String fullPath) {

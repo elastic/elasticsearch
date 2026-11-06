@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,6 +37,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
@@ -212,6 +214,46 @@ public class FramedRunTests extends ComputeTestCase {
             }
         }
         return last + 1;
+    }
+
+    /**
+     * A reader that holds the records' positions, as a value run's rows do, reads them back at their offsets without
+     * the index, in any order, and a read outside the run fails before it allocates.
+     */
+    public void testRecordsReadBackAtTheirOffsets() {
+        SpillScope scope = store.newScope("q", breaker);
+        FramedRunWriter writer = newWriter(scope, FramedRunMaxima.DEFAULT);
+        int count = between(1, 100);
+        List<byte[]> records = new ArrayList<>();
+        List<Long> offsets = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            byte[] bytes = randomRecord(3 * chunkSize + 1);
+            offsets.add(append(writer, 0, bytes));
+            records.add(bytes);
+        }
+        FramedRun run = await(writer::finish);
+        try (FramedRunReader reader = open(run, FramedRunMaxima.DEFAULT); FramedRunReader.RecordCursor cursor = reader.cursor(0)) {
+            List<Integer> order = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
+                order.add(i);
+            }
+            if (randomBoolean()) {
+                Collections.shuffle(order, random());
+            }
+            for (int i : order) {
+                PlainActionFuture<ReleasableBytesReference> future = new PlainActionFuture<>();
+                cursor.readAt(offsets.get(i), records.get(i).length, future);
+                try (ReleasableBytesReference read = awaitFuture(future)) {
+                    assertArrayEquals(records.get(i), BytesReference.toBytes(read));
+                }
+            }
+            PlainActionFuture<ReleasableBytesReference> outside = new PlainActionFuture<>();
+            cursor.readAt(run.footer().logicalBytes() - 1, 2, outside);
+            Exception e = expectThrows(Exception.class, () -> awaitFuture(outside));
+            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IllegalArgumentException.class));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+        await(scope::close);
     }
 
     public void testEmptyRun() {

@@ -551,6 +551,50 @@ public final class FramedRunReader implements Releasable {
         }
 
         /**
+         * Reads {@code length} bytes at the logical {@code offset}, through this cursor's window and without the index: for
+         * a run whose records' positions the caller holds, as a value run's rows do. The buffer is charged to the breaker
+         * before it is allocated; reads in ascending offset order share windows. The listener may complete inline.
+         */
+        public void readAt(long offset, int length, ActionListener<ReleasableBytesReference> listener) {
+            if (offset < 0 || length < 0 || offset + length > footer.logicalBytes()) {
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "read of [" + length + "] bytes at [" + offset + "] is outside the run's [" + footer.logicalBytes() + "] bytes"
+                    )
+                );
+                return;
+            }
+            if (length > maxima.recordBytes()) {
+                listener.onFailure(new IllegalArgumentException("read of [" + length + "] bytes exceeds the record maximum"));
+                return;
+            }
+            byte[] payload;
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(length, "spill run read");
+                payload = new byte[length];
+            } catch (CircuitBreakingException e) {
+                listener.onFailure(e);
+                return;
+            }
+            ReleasableBytesReference reference = new ReleasableBytesReference(
+                new BytesArray(payload),
+                () -> breaker.addWithoutBreaking(-length)
+            );
+            fill(payload, offset, offset + length, 0, new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    listener.onResponse(reference);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    reference.close();
+                    listener.onFailure(e);
+                }
+            });
+        }
+
+        /**
          * The next record, or null at the end. The listener may complete inline.
          */
         public void next(ActionListener<Record> listener) {

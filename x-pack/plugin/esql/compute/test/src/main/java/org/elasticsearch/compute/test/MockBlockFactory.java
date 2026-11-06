@@ -174,7 +174,6 @@ public class MockBlockFactory extends BlockFactory {
         }
     }
 
-
     void purgeTrackBlocks() {
         for (var entries : TRACKED_BLOCKS.entrySet()) {
             var key = entries.getKey();

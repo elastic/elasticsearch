@@ -85,10 +85,22 @@ public class HashAggregationOperatorStatusTests extends AbstractWireSerializingT
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(List.of(ParallelHashAggregationOperator.PartitioningStatus.ENTRY));
+        return new NamedWriteableRegistry(
+            List.of(ParallelHashAggregationOperator.PartitioningStatus.ENTRY, HashAggregationOperator.FreezeStatus.ENTRY)
+        );
     }
 
     static List<Operator.Status.ExtraStatus> randomExtraFields() {
+        if (randomBoolean()) {
+            return List.of(
+                new HashAggregationOperator.FreezeStatus(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeInt(),
+                    SpillStatusTests.randomSpillStatus()
+                )
+            );
+        }
         return randomBoolean()
             ? List.of()
             : List.of(

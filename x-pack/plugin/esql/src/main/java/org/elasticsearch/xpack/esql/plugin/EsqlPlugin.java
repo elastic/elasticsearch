@@ -925,6 +925,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);
         entries.add(ParallelHashAggregationOperator.PartitioningStatus.ENTRY);
+        entries.add(HashAggregationOperator.FreezeStatus.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
         entries.add(GroupedLimitOperator.Status.ENTRY);
         entries.add(GroupedTopNOperatorStatus.ENTRY);

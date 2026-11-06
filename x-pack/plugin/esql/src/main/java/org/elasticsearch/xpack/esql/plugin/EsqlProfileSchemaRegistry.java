@@ -93,6 +93,11 @@ public final class EsqlProfileSchemaRegistry {
                 Operator.Status.ExtraStatus.class,
                 ParallelHashAggregationOperator.PartitioningStatus.ENTRY,
                 ParallelHashAggregationOperator.PartitioningStatus.PROFILE_SCHEMA
+            ),
+            ProfileSchema.Variant.fromEntry(
+                Operator.Status.ExtraStatus.class,
+                HashAggregationOperator.FreezeStatus.ENTRY,
+                HashAggregationOperator.FreezeStatus.PROFILE_SCHEMA
             )
         );
     }

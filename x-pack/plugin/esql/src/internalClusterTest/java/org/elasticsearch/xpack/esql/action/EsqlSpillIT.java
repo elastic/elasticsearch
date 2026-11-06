@@ -231,6 +231,76 @@ public class EsqlSpillIT extends AbstractEsqlIntegTestCase {
         assertSpillDirectoriesEmpty();
     }
 
+    /**
+     * The freeze route: {@code STATS ... BY} with a function that does not partition, so the stages that consume
+     * intermediate pages freeze their groups under the budget and replay the rest from disk. The results are those
+     * of a run that fits and the spill directories are empty afterwards.
+     */
+    public void testStatsByFreezesAndCleansUp() throws Exception {
+        assumeTrue("the spill flag is on in snapshot builds", SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled());
+        String index = "spill_stats_freeze";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(Settings.builder().put("index.number_of_shards", between(1, 3)).put("index.number_of_replicas", 0))
+                .setMapping("key", "type=long", "value", "type=long")
+        );
+        int keys = between(2_000, 5_000);
+        int rowsPerKey = 3;
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int row = 0; row < keys * rowsPerKey; row++) {
+            bulk.add(client().prepareIndex(index).setSource("key", row % keys, "value", row));
+        }
+        assertFalse(bulk.get().hasFailures());
+
+        // a budget every driver crosses at its first page and no own-state minimum; SUM over longs has no splitter,
+        // so no stage takes the slice route and the freeze is what spills
+        Settings pragmas = Settings.builder()
+            .put(QueryPragmas.SPILL_BUDGET.getKey(), "1kb")
+            .put(QueryPragmas.SPILL_MIN_BYTES.getKey(), "0b")
+            .put(QueryPragmas.PAGE_SIZE.getKey(), between(50, 500))
+            .build();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query(
+            "FROM " + index + " | STATS s = SUM(value), c = COUNT(*) BY key | STATS keys = COUNT(*), total = SUM(s), rows = SUM(c)"
+        );
+        request.pragmas(new QueryPragmas(pragmas));
+        request.acceptedPragmaRisks(true);
+        request.profile(true);
+        long total = (long) keys * rowsPerKey * (keys * rowsPerKey - 1) / 2;
+        try (EsqlQueryResponse response = run(request, TimeValue.timeValueMinutes(3))) {
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values, hasSize(1));
+            assertThat("every key survives", values.get(0).get(0), equalTo((long) keys));
+            assertThat("every value is summed once", values.get(0).get(1), equalTo(total));
+            assertThat("every row is counted once", values.get(0).get(2), equalTo((long) keys * rowsPerKey));
+
+            Map<String, List<HashAggregationOperator.FreezeStatus>> byStage = new HashMap<>();
+            for (DriverProfile driver : response.profile().drivers()) {
+                for (OperatorStatus operator : driver.operators()) {
+                    if (operator.status() instanceof HashAggregationOperator.Status status) {
+                        for (Operator.Status.ExtraStatus extra : status.extraFields()) {
+                            if (extra instanceof HashAggregationOperator.FreezeStatus freeze) {
+                                byStage.computeIfAbsent(driver.description(), k -> new ArrayList<>()).add(freeze);
+                            }
+                        }
+                    }
+                }
+            }
+            assertThat("a stage froze: " + byStage.keySet(), byStage.size(), greaterThan(0));
+            long rowsSpilled = 0;
+            long readBack = 0;
+            for (List<HashAggregationOperator.FreezeStatus> stage : byStage.values()) {
+                rowsSpilled += stage.stream().mapToLong(HashAggregationOperator.FreezeStatus::rowsSpilled).sum();
+                readBack += stage.stream().mapToLong(f -> f.spill().readBackBytes()).sum();
+            }
+            assertThat("rows went to disk: " + byStage, rowsSpilled, greaterThan(0L));
+            assertThat("what went to disk came back", readBack, greaterThan(0L));
+        }
+        assertSpillDirectoriesEmpty();
+    }
+
     private void assertSpillDirectoriesEmpty() throws Exception {
         // the scopes close once the response is gone; their files go on the I/O pool
         assertBusy(() -> {

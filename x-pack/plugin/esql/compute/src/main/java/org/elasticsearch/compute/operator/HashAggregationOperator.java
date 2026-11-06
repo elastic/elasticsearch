@@ -9,9 +9,14 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FilteredGroupingAggregatorFunction;
@@ -21,22 +26,32 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.PartitionedBlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.PartitionedAggregationBlock;
+import org.elasticsearch.compute.spill.QueryBreaker;
+import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.compute.spill.SpillStatus;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -316,7 +331,10 @@ public class HashAggregationOperator implements Operator {
                 topAggregation,
                 driverContext,
                 parallelConfig,
-                allowPartitionedOutput
+                allowPartitionedOutput,
+                groups,
+                0,
+                0
             );
         }
 
@@ -393,11 +411,35 @@ public class HashAggregationOperator implements Operator {
 
     protected long rowsAddedInCurrentBatch;
 
+    // ---- spilling: the freeze route; every field below is the driver thread's
+    /** The group specs, which the route's key encoder needs; an operator built without them stays resident. */
+    @Nullable
+    private final List<BlockHash.GroupSpec> groups;
+    /** The query's scope when it spills and this operator may freeze, null otherwise: today's paths then run untouched. */
+    @Nullable
+    private final QueryScope scope;
+    /** The overflow and the replay, present exactly when {@link #scope} is. */
+    @Nullable
+    private final SpillReplay spill;
+    private final int depth;
+    private final int seed;
+    /** The groups present at the freeze: a looked-up id outside this set is a key the hash reserved, not one it holds. */
+    @Nullable
+    private BitArray frozenGroups;
+    @Nullable
+    private GroupKeyEncoder keyEncoder;
+    /** A page admitted after the freeze while the writer was still being created; routed when it exists. */
+    @Nullable
+    private Page held;
+    private long groupsFrozen;
+    /** Where the lookup of a page after the freeze chunks its ids. */
+    private static final ByteSizeValue LOOKUP_TARGET_BYTES = ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE);
+
     /**
      * Build the operator. Instead of calling this directly, build the {@link Builder},
-     * then the {@link Builder#build()} then {@link Factory#get}.
+     * then the {@link Builder#build()} then {@link Factory#get}. An operator built this way, without its group
+     * specs, keeps every group resident.
      */
-    @SuppressWarnings("this-escape")
     public HashAggregationOperator(
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
@@ -409,6 +451,44 @@ public class HashAggregationOperator implements Operator {
         DriverContext driverContext,
         ParallelConfig parallelConfig,
         boolean allowPartitionedOutput
+    ) {
+        this(
+            aggregatorMode,
+            aggregatorFactories,
+            blockHashSupplier,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            maxPageSize,
+            topAggregation,
+            driverContext,
+            parallelConfig,
+            allowPartitionedOutput,
+            null,
+            0,
+            0
+        );
+    }
+
+    /**
+     * @param groups the group specs, for the freeze route's key encoder; null keeps the operator resident
+     * @param depth how many freezes this operator's input went through already; zero for the planned operator
+     * @param seed changes the partition routing at each depth, so a partition that freezes again splits differently
+     */
+    @SuppressWarnings("this-escape")
+    HashAggregationOperator(
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        Function<DriverContext, BlockHash> blockHashSupplier,
+        int partialEmitKeysThreshold,
+        double partialEmitUniquenessThreshold,
+        int maxPageSize,
+        TopAggregation topAggregation,
+        DriverContext driverContext,
+        ParallelConfig parallelConfig,
+        boolean allowPartitionedOutput,
+        @Nullable List<BlockHash.GroupSpec> groups,
+        int depth,
+        int seed
     ) {
         if (partialEmitKeysThreshold <= 0) {
             throw new IllegalArgumentException("partialEmitKeysThreshold must be greater than 0; got " + partialEmitKeysThreshold);
@@ -425,6 +505,9 @@ public class HashAggregationOperator implements Operator {
         this.parallelConfig = parallelConfig;
         this.partitioningRowThreshold = parallelConfig != null ? parallelConfig.partitionKeysThreshold : Integer.MAX_VALUE;
         this.partitioningMemoryThreshold = parallelConfig != null ? parallelConfig.partitioningMemoryThreshold : Long.MAX_VALUE;
+        this.groups = groups;
+        this.depth = depth;
+        this.seed = seed;
         boolean success = false;
         try {
             this.blockHash = blockHashSupplier.apply(driverContext);
@@ -438,6 +521,12 @@ public class HashAggregationOperator implements Operator {
                 && PartitionedBlockHash.supportPartitioning()
                 && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning());
             this.partitionedPartialOutput = this.supportPartitioning && allowPartitionedOutput && aggregatorMode.isOutputPartial();
+            QueryScope queryScope = driverContext.queryScope();
+            this.scope = groups != null && SpillReplay.applies(queryScope) && freezeEligible() ? queryScope : null;
+            // the replay's host is this operator; it reads nothing of it before the constructor is done
+            this.spill = this.scope == null
+                ? null
+                : new SpillReplay(driverContext, this.scope, new ReplayHost(), "hash-aggregation", depth, seed);
             success = true;
         } finally {
             if (success == false) {
@@ -490,6 +579,8 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public Operator tryPromote(DriverContext driverContext) {
+        // an operator that may freeze does not partition, so neither condition holds for it: a promotion could not
+        // take over rows on disk
         if (partitionedAggregationBlocks.isEmpty() == false
             || (supportPartitioning && aggregatorMode.isOutputPartial() == false && partitioningThresholdReached())) {
             var parallelOp = new ParallelHashAggregationOperator(parallelConfig, this);
@@ -501,13 +592,22 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return output == null && pendingInputPage == null && finished == false;
+        return output == null
+            && pendingInputPage == null
+            && finished == false
+            && held == null
+            && (spill == null || spill.appendsBlocked().listener().isDone());
     }
 
     @Override
     public void addInput(Page page) {
         // will be promoted to the parallel operator
         if (page.getBlockCount() == 1 && page.getBlock(0) instanceof PartitionedAggregationBlock pb) {
+            if (spill != null) {
+                // only an operator whose functions all partition sends them, and its receiver partitions as well
+                page.releaseBlocks();
+                throw new IllegalStateException("an aggregation that may freeze received partitioned blocks");
+            }
             pb.mustIncRef();
             partitionedAggregationBlocks.add(pb);
             page.close();
@@ -515,6 +615,14 @@ public class HashAggregationOperator implements Operator {
         }
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
+        if (spill != null) {
+            addInputSpilling(page);
+            return;
+        }
+        addInputResident(page);
+    }
+
+    private void addInputResident(Page page) {
         final boolean toEmit;
         boolean success = false;
         try {
@@ -619,6 +727,9 @@ public class HashAggregationOperator implements Operator {
                     out = nextOutputPage();
                 }
             }
+            if (out == null && spill != null) {
+                out = outputSpilling();
+            }
         }
         return out;
     }
@@ -643,8 +754,12 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         finished = true;
-        if (pendingInputPage == null) {
+        // a page held for the writer has rows of the frozen groups to merge first: the route emits once it has gone
+        if (pendingInputPage == null && held == null) {
             emit();
+        }
+        if (spill != null) {
+            spill.maybeStartFinishing(true, held != null);
         }
     }
 
@@ -751,6 +866,10 @@ public class HashAggregationOperator implements Operator {
         if (aggregatorMode.isOutputPartial() == false) {
             return false;
         }
+        if (spill != null && spill.frozen()) {
+            // the frozen groups are what the route keeps resident; an emit would drop them and route every row
+            return false;
+        }
         if (rowsAddedInCurrentBatch == 0) {
             return false;
         }
@@ -794,28 +913,330 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finished && output == null && pendingInputPage == null;
+        if (finished == false || output != null || pendingInputPage != null) {
+            return false;
+        }
+        return spill == null || spill.frozen() == false || (held == null && spill.replayDone());
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return output != null || pendingInputPage != null;
+        return output != null || pendingInputPage != null || held != null || (spill != null && spill.frozen() && finished);
+    }
+
+    @Override
+    public IsBlockedResult isBlocked() {
+        if (spill == null || output != null) {
+            return NOT_BLOCKED;
+        }
+        return spill.blocked(held != null);
     }
 
     @Override
     public void close() {
+        Releasable heldRelease = held == null ? () -> {} : held::releaseBlocks;
         Releasables.close(
             blockHash,
             () -> Releasables.close(aggregators),
             output,
             pendingInputPage,
+            heldRelease,
+            spill,
+            frozenGroups,
+            keyEncoder,
             Releasables.wrap(partitionedAggregationBlocks)
         );
     }
 
     @Override
     public Operator.Status status() {
-        return new Status(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos, emitCount, List.of());
+        List<Status.ExtraStatus> extra = spill != null && spill.frozen()
+            ? List.of(new FreezeStatus(groupsFrozen, spill.rowsSpilled(), spill.partitionsReplayed(), spill.spillStatus()))
+            : List.of();
+        return new Status(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos, emitCount, extra);
+    }
+
+    // ---- the freeze route
+
+    /**
+     * Whether this operator may freeze its groups: it consumes intermediate pages, whose keys are scalar, its hash
+     * looks keys up without inserting them and every function keeps a bounded state per group; a top-N pushdown
+     * selects among the groups it holds, which a replay by partition would not see as one set. An operator that
+     * partitions, every function with a splitter under a parallel configuration, leaves spilling to the parallel
+     * operator's slice route: a promotion could not take over rows on disk, and the partitioned blocks its input may
+     * carry hold no row to route.
+     */
+    boolean freezeEligible() {
+        return aggregatorMode.isInputPartial()
+            && topAggregation == null
+            && supportPartitioning == false
+            && blockHash.supportsLookup()
+            && aggregators.stream().allMatch(a -> a.aggregatorFunction().freezeEligible());
+    }
+
+    /**
+     * The input path under a scope that spills: resident until the query would cross its budget, or the reservation
+     * before a page fails with headroom in hand, then frozen. After the freeze a row of a group the hash holds merges
+     * into it, a row of any other group goes to a partition's run.
+     */
+    private void addInputSpilling(Page page) {
+        // the page is the operator's from here on: a throw before it was admitted, routed or held releases it
+        boolean handedOver = false;
+        try {
+            spill.checkSpillFailure();
+            if (spill.frozen()) {
+                handedOver = true;
+                routeOrHold(page);
+                return;
+            }
+            spill.maybeAcquireHeadroom();
+            spill.resolveHeadroom();
+            // what a page may add: its keys and their states, about the page itself again
+            long estimate = 2 * page.ramBytesUsedByBlocks();
+            if (spill.shouldFreeze(estimate)) {
+                freeze("the query would cross its budget");
+                handedOver = true;
+                routeOrHold(page);
+                return;
+            }
+            // the reservation before the page is the backstop at a safe point: it fails here, with the hash and the
+            // states untouched, rather than in the middle of the page; with headroom in hand that failure is the
+            // freeze, without it the query fails as it does today
+            QueryBreaker.View view = driverContext.queryView();
+            boolean reserved = false;
+            if (view != null) {
+                try {
+                    view.reserve(estimate, "hash aggregation page");
+                    reserved = true;
+                } catch (CircuitBreakingException e) {
+                    if (spill.mayFreeze()) {
+                        freeze("the reservation before the page failed");
+                        handedOver = true;
+                        routeOrHold(page);
+                        return;
+                    }
+                    throw e;
+                }
+            }
+            try {
+                handedOver = true;
+                addInputResident(page);
+            } finally {
+                if (reserved) {
+                    view.releaseReserve();
+                }
+            }
+        } catch (RuntimeException e) {
+            if (handedOver == false) {
+                page.releaseBlocks();
+            }
+            throw e;
+        }
+    }
+
+    private void freeze(String reason) {
+        frozenGroups = blockHash.seenGroupIds(driverContext.bigArrays());
+        groupsFrozen = blockHash.numKeys();
+        int[] channels = new int[groups.size()];
+        int widest = 0;
+        for (int i = 0; i < channels.length; i++) {
+            channels[i] = groups.get(i).channel();
+            widest = Math.max(widest, channels[i]);
+        }
+        List<ElementType> types = new ArrayList<>(Collections.nCopies(widest + 1, (ElementType) null));
+        for (BlockHash.GroupSpec group : groups) {
+            types.set(group.channel(), group.elementType());
+        }
+        BlockFactory blockFactory = driverContext.blockFactory();
+        PagedBytesBuilder row = new PagedBytesBuilder(blockFactory.bigArrays().recycler(), blockFactory.breaker(), "group-key-encoder", 64);
+        keyEncoder = new GroupKeyEncoder(channels, types, row);
+        spill.freeze(reason, groupsFrozen);
+    }
+
+    private void routeOrHold(Page page) {
+        boolean ready;
+        try {
+            ready = spill.writerReady();
+        } catch (RuntimeException e) {
+            page.releaseBlocks();
+            throw e;
+        }
+        if (ready) {
+            route(page);
+        } else {
+            held = page;
+        }
+    }
+
+    /**
+     * The frozen loop: a row of a group the hash holds merges into it through the aggregators' intermediate input, a
+     * row of any other group goes to its partition's run. Membership is the frozen set's, not the lookup's: a hash
+     * that reserves an id for null answers it for a null key it has never seen.
+     */
+    private void route(Page page) {
+        long start = System.nanoTime();
+        try {
+            int positionCount = page.getPositionCount();
+            int[] present = new int[positionCount];
+            int[] presentIds = new int[positionCount];
+            int presentCount = 0;
+            int[][] byPartition = new int[SpillReplay.PARTITIONS][];
+            int[] partitionCounts = new int[SpillReplay.PARTITIONS];
+            int positionOffset = 0;
+            try (ReleasableIterator<IntBlock> lookups = blockHash.lookup(page, LOOKUP_TARGET_BYTES)) {
+                while (lookups.hasNext()) {
+                    try (IntBlock ids = lookups.next()) {
+                        for (int p = 0; p < ids.getPositionCount(); p++) {
+                            int pos = positionOffset + p;
+                            if (ids.isNull(p) == false) {
+                                if (ids.getValueCount(p) != 1) {
+                                    throw new IllegalStateException("a key with several values in an intermediate page");
+                                }
+                                int id = ids.getInt(ids.getFirstValueIndex(p));
+                                if (frozenGroups.get(id)) {
+                                    present[presentCount] = pos;
+                                    presentIds[presentCount++] = id;
+                                    continue;
+                                }
+                            }
+                            PagedBytesCursor key = keyEncoder.encode(page, pos);
+                            int partition = spill.partitionOf(key);
+                            int[] positions = byPartition[partition];
+                            if (positions == null) {
+                                positions = new int[8];
+                                byPartition[partition] = positions;
+                            } else if (partitionCounts[partition] == positions.length) {
+                                positions = Arrays.copyOf(positions, positions.length * 2);
+                                byPartition[partition] = positions;
+                            }
+                            positions[partitionCounts[partition]++] = pos;
+                        }
+                        positionOffset += ids.getPositionCount();
+                    }
+                }
+            }
+            hashNanos += System.nanoTime() - start;
+            if (presentCount > 0) {
+                long aggStart = System.nanoTime();
+                Page presentPage = presentCount == positionCount ? page.shallowCopy() : page.filter(false, present, 0, presentCount);
+                try (
+                    IntVector ids = driverContext.blockFactory().newIntArrayVector(Arrays.copyOf(presentIds, presentCount), presentCount)
+                ) {
+                    for (GroupingAggregator aggregator : aggregators) {
+                        try (GroupingAggregatorFunction.AddInput add = aggregator.prepareProcessPage(blockHash, presentPage)) {
+                            if (add != null) {
+                                add.add(0, ids);
+                            }
+                        }
+                    }
+                } finally {
+                    presentPage.releaseBlocks();
+                }
+                rowsAddedInCurrentBatch += presentCount;
+                aggregationNanos += System.nanoTime() - aggStart;
+            }
+            for (int partition = 0; partition < SpillReplay.PARTITIONS; partition++) {
+                if (partitionCounts[partition] == 0) {
+                    continue;
+                }
+                Page part = page.filter(false, byPartition[partition], 0, partitionCounts[partition]);
+                try {
+                    spill.append(partition, part);
+                } finally {
+                    part.releaseBlocks();
+                }
+            }
+        } finally {
+            pagesProcessed++;
+            rowsReceived += page.getPositionCount();
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * The output after the frozen state's own: a held page routed once the writer exists, then the replay's pages.
+     */
+    @Nullable
+    private Page outputSpilling() {
+        spill.checkSpillFailure();
+        if (held != null) {
+            if (spill.writerReady() == false) {
+                return null;
+            }
+            Page page = held;
+            held = null;
+            route(page);
+            spill.maybeStartFinishing(finished, false);
+            if (finished) {
+                // the frozen groups, with the held page's rows of them merged, go out before the replay
+                emit();
+                return nextOutputPage();
+            }
+        }
+        if (spill.frozen() == false || finished == false || output != null) {
+            return null;
+        }
+        Page out = spill.advanceReplay();
+        if (out != null) {
+            rowsEmitted += out.getPositionCount();
+        }
+        return out;
+    }
+
+    private void releaseFrozenState() {
+        Releasables.close(blockHash, () -> Releasables.close(aggregators), frozenGroups, keyEncoder);
+        blockHash = null;
+        aggregators.clear();
+        frozenGroups = null;
+        keyEncoder = null;
+    }
+
+    SpillStatus spillStatus() {
+        return spill == null ? SpillStatus.NONE : spill.spillStatus();
+    }
+
+    /**
+     * What the replay needs of this operator: its size, a child for a partition, the frozen state's release and a
+     * child's counters. The size is an estimate: the keys as the partitioned hash measures them, or a few dozen bytes
+     * per group, and a few words of state per group and aggregator.
+     */
+    private final class ReplayHost implements SpillReplay.Host {
+        @Override
+        public long ownBytes() {
+            long keys = blockHash instanceof PartitionedBlockHash partitioned
+                ? partitioned.estimatedBytesForPartitioning()
+                : blockHash.numKeys() * 32L;
+            return keys + blockHash.numKeys() * 16L * aggregators.size();
+        }
+
+        @Override
+        public Operator newReplay(int depth, int seed) {
+            return new HashAggregationOperator(
+                aggregatorMode,
+                aggregatorFactories,
+                blockHashSupplier,
+                partialEmitKeysThreshold,
+                partialEmitUniquenessThreshold,
+                maxPageSize,
+                topAggregation,
+                driverContext,
+                null,
+                false,
+                groups,
+                depth,
+                seed
+            );
+        }
+
+        @Override
+        public void releaseFrozenState() {
+            HashAggregationOperator.this.releaseFrozenState();
+        }
+
+        @Override
+        public SpillStatus spillStatusOf(Operator replay) {
+            return ((HashAggregationOperator) replay).spillStatus();
+        }
     }
 
     protected static void checkState(boolean condition, String msg) {
@@ -855,6 +1276,7 @@ public class HashAggregationOperator implements Operator {
             .required("emit_nanos", ProfileSchema.integer())
             .optional("emit_time", ProfileSchema.string())
             .optional("partitioning", ParallelHashAggregationOperator.PartitioningStatus.partitioningSchema())
+            .optional("freeze", FreezeStatus.freezeSchema())
             .build();
 
         private static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME = TransportVersion.fromName(
@@ -1226,6 +1648,116 @@ public class HashAggregationOperator implements Operator {
         @Override
         public void close() {
             Releasables.close(keys, Releasables.wrap(aggs));
+        }
+    }
+
+    /**
+     * What a frozen operator reports: the groups it froze, the rows that went to disk, the partitions replayed and the
+     * shared spill counters. Present in the status only once the operator froze, which a scope that spills makes
+     * possible, so a node without the record never reads it.
+     */
+    public static class FreezeStatus extends Status.ExtraStatus {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Status.ExtraStatus.class,
+            "hashagg_freeze",
+            FreezeStatus::new
+        );
+        private static final ProfileSchema<FreezeStatus> FREEZE_SCHEMA = SpillStatus.addTo(
+            ProfileSchema.of(FreezeStatus.class, (builder, status, params) -> builder)
+        )
+            .required("groups_frozen", ProfileSchema.integer())
+            .required("rows_spilled", ProfileSchema.integer())
+            .required("partitions_replayed", ProfileSchema.integer())
+            .build();
+        public static final ProfileSchema<FreezeStatus> PROFILE_SCHEMA = ProfileSchema.fragment(
+            FreezeStatus.class,
+            (builder, status, params) -> {
+                status.writeProfile(builder);
+                return builder;
+            }
+        ).required("freeze", FREEZE_SCHEMA.schema()).build();
+
+        static Map<String, Object> freezeSchema() {
+            return FREEZE_SCHEMA.schema();
+        }
+
+        private final long groupsFrozen;
+        private final long rowsSpilled;
+        private final int partitionsReplayed;
+        private final SpillStatus spill;
+
+        public FreezeStatus(long groupsFrozen, long rowsSpilled, int partitionsReplayed, SpillStatus spill) {
+            this.groupsFrozen = groupsFrozen;
+            this.rowsSpilled = rowsSpilled;
+            this.partitionsReplayed = partitionsReplayed;
+            this.spill = spill;
+        }
+
+        FreezeStatus(StreamInput in) throws IOException {
+            this(in.readVLong(), in.readVLong(), in.readVInt(), SpillStatus.readFrom(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(groupsFrozen);
+            out.writeVLong(rowsSpilled);
+            out.writeVInt(partitionsReplayed);
+            spill.writeTo(out);
+        }
+
+        public long groupsFrozen() {
+            return groupsFrozen;
+        }
+
+        public long rowsSpilled() {
+            return rowsSpilled;
+        }
+
+        public int partitionsReplayed() {
+            return partitionsReplayed;
+        }
+
+        public SpillStatus spill() {
+            return spill;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        protected void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private void writeProfile(XContentBuilder builder) throws IOException {
+            builder.startObject("freeze");
+            builder.field("groups_frozen", groupsFrozen);
+            builder.field("rows_spilled", rowsSpilled);
+            builder.field("partitions_replayed", partitionsReplayed);
+            spill.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            FreezeStatus other = (FreezeStatus) o;
+            return groupsFrozen == other.groupsFrozen
+                && rowsSpilled == other.rowsSpilled
+                && partitionsReplayed == other.partitionsReplayed
+                && spill.equals(other.spill);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(groupsFrozen, rowsSpilled, partitionsReplayed, spill);
         }
     }
 }

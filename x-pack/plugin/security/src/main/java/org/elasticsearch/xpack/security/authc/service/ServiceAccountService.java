@@ -218,7 +218,7 @@ public class ServiceAccountService {
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
-        @Nullable String description,
+        UserManagedServiceAccountStore.Details details,
         Authentication authentication,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<UserManagedServiceAccountStore.PutResult> listener
@@ -229,7 +229,7 @@ public class ServiceAccountService {
         }
         userManagedServiceAccountStore.getByPrincipal(accountId.asPrincipal(), listener.delegateFailureAndWrap((delegate, account) -> {
             if (account != null) {
-                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, description, authentication, refreshPolicy, delegate);
+                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, details, authentication, refreshPolicy, delegate);
                 return;
             }
             indexServiceAccountTokenStore.hasTokensFor(accountId, delegate.delegateFailureAndWrap((inner, hasTokens) -> {
@@ -242,7 +242,7 @@ public class ServiceAccountService {
                         )
                     );
                 } else {
-                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, description, authentication, refreshPolicy, inner);
+                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, details, authentication, refreshPolicy, inner);
                 }
             }));
         }));
@@ -299,6 +299,8 @@ public class ServiceAccountService {
             account.roles(),
             account.enabled(),
             account.description(),
+            account.fullName(),
+            account.initials(),
             account.createdBy(),
             account.createdAt(),
             account.updatedBy(),

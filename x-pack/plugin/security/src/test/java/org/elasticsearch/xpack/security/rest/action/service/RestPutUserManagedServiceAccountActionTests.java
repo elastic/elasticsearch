@@ -58,17 +58,26 @@ public class RestPutUserManagedServiceAccountActionTests extends RestActionTestC
         assertThat(putRequest.getRoles(), contains("role1", "role2"));
         assertThat(putRequest.isEnabled(), equalTo(true));
         assertThat(putRequest.getDescription(), nullValue());
+        assertThat(putRequest.getFullName(), nullValue());
+        assertThat(putRequest.getInitials(), nullValue());
         assertThat(putRequest.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.WAIT_UNTIL));
     }
 
     public void testEnabledDescriptionAndRefreshAreReadWhenGiven() {
-        dispatchRequest(request("""
-            {"roles":[],"enabled":false,"description":"Deploys my-app"}""", Map.of("refresh", "true")));
+        dispatchRequest(
+            request(
+                """
+                    {"roles":[],"enabled":false,"description":"Deploys my-app","full_name":"My App","initials":"MA"}""",
+                Map.of("refresh", "true")
+            )
+        );
 
         final PutUserManagedServiceAccountRequest putRequest = requestHolder.get();
         assertThat(putRequest.getRoles(), empty());
         assertThat(putRequest.isEnabled(), equalTo(false));
         assertThat(putRequest.getDescription(), equalTo("Deploys my-app"));
+        assertThat(putRequest.getFullName(), equalTo("My App"));
+        assertThat(putRequest.getInitials(), equalTo("MA"));
         assertThat(putRequest.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
     }
 

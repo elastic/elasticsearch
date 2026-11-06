@@ -26,31 +26,40 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION;
+import static org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME;
 
 /**
  * Creates a user-managed service account, or replaces an existing one of the same name wholesale. Creating an account
  * of a name that still has leftover tokens is refused. A replacement is not a partial update: an account whose
  * {@code enabled} was set to false and is then written again without the field comes back enabled, because the default
- * applies to every write rather than only to the first. Likewise a write without {@code description} leaves the
- * account with none.
+ * applies to every write rather than only to the first. Likewise a write without {@code description},
+ * {@code full_name} or {@code initials} leaves the account without that field, whatever it held before.
  */
 public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
 
     private static final ParseField ROLES = new ParseField("roles");
     private static final ParseField ENABLED = new ParseField("enabled");
     private static final ParseField DESCRIPTION = new ParseField("description");
+    private static final ParseField FULL_NAME = new ParseField("full_name");
+    private static final ParseField INITIALS = new ParseField("initials");
 
     /**
      * The request body on its own. The account a request names comes from the path, so parsing produces this and the
      * two are joined afterward, rather than a request that exists for a moment without the account it is about.
      */
-    private record Body(List<String> roles, boolean enabled, @Nullable String description) {}
+    private record Body(
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials
+    ) {}
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Body, Void> PARSER = new ConstructingObjectParser<>(
         "put_user_managed_service_account_request",
         false,
-        args -> new Body((List<String>) args[0], args[1] == null || (Boolean) args[1], (String) args[2])
+        args -> new Body((List<String>) args[0], args[1] == null || (Boolean) args[1], (String) args[2], (String) args[3], (String) args[4])
     );
 
     static {
@@ -58,6 +67,8 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED);
         // An explicit null is the same as leaving the field out, so a client that always sends every field can clear it.
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FULL_NAME);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), INITIALS);
     }
 
     private final String namespace;
@@ -66,6 +77,10 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
     private final boolean enabled;
     @Nullable
     private final String description;
+    @Nullable
+    private final String fullName;
+    @Nullable
+    private final String initials;
     private final WriteRequest.RefreshPolicy refreshPolicy;
 
     public PutUserManagedServiceAccountRequest(
@@ -73,9 +88,11 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
         String serviceName,
         List<String> roles,
         boolean enabled,
-        @Nullable String description
+        @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials
     ) {
-        this(namespace, serviceName, roles, enabled, description, WriteRequest.RefreshPolicy.WAIT_UNTIL);
+        this(namespace, serviceName, roles, enabled, description, fullName, initials, WriteRequest.RefreshPolicy.WAIT_UNTIL);
     }
 
     public PutUserManagedServiceAccountRequest(
@@ -84,6 +101,8 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
         List<String> roles,
         boolean enabled,
         @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials,
         WriteRequest.RefreshPolicy refreshPolicy
     ) {
         this.namespace = Objects.requireNonNull(namespace, "namespace cannot be null");
@@ -91,6 +110,8 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
         this.enabled = enabled;
         this.description = description;
+        this.fullName = fullName;
+        this.initials = initials;
         this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
     }
 
@@ -102,6 +123,13 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
         this.enabled = in.readBoolean();
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
         this.description = in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION) ? in.readOptionalString() : null;
+        if (in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME)) {
+            this.fullName = in.readOptionalString();
+            this.initials = in.readOptionalString();
+        } else {
+            this.fullName = null;
+            this.initials = null;
+        }
     }
 
     /**
@@ -122,6 +150,8 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
             body.roles(),
             body.enabled(),
             body.description(),
+            body.fullName(),
+            body.initials(),
             refreshPolicy
         );
     }
@@ -147,6 +177,16 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
         return description;
     }
 
+    @Nullable
+    public String getFullName() {
+        return fullName;
+    }
+
+    @Nullable
+    public String getInitials() {
+        return initials;
+    }
+
     public WriteRequest.RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
     }
@@ -165,12 +205,14 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
             && serviceName.equals(that.serviceName)
             && roles.equals(that.roles)
             && Objects.equals(description, that.description)
+            && Objects.equals(fullName, that.fullName)
+            && Objects.equals(initials, that.initials)
             && refreshPolicy == that.refreshPolicy;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(namespace, serviceName, roles, enabled, description, refreshPolicy);
+        return Objects.hash(namespace, serviceName, roles, enabled, description, fullName, initials, refreshPolicy);
     }
 
     @Override
@@ -184,10 +226,14 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
         if (out.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION)) {
             out.writeOptionalString(description);
         }
+        if (out.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME)) {
+            out.writeOptionalString(fullName);
+            out.writeOptionalString(initials);
+        }
     }
 
     /**
-     * Reports every problem with the account's name, roles and description at once, so that a caller correcting a
+     * Reports every problem with the account's name, roles, description, full name and initials at once, so that a caller correcting a
      * request does not have to submit it again to find the next fault. The account store validates the same things for
      * callers that do not arrive through this request.
      */
@@ -215,6 +261,14 @@ public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
         final Validation.Error descriptionError = Validation.UserManagedServiceAccounts.validateDescription(description);
         if (descriptionError != null) {
             validationException = addValidationError(descriptionError.toString(), validationException);
+        }
+        final Validation.Error fullNameError = Validation.UserManagedServiceAccounts.validateFullName(fullName);
+        if (fullNameError != null) {
+            validationException = addValidationError(fullNameError.toString(), validationException);
+        }
+        final Validation.Error initialsError = Validation.UserManagedServiceAccounts.validateInitials(initials);
+        if (initialsError != null) {
+            validationException = addValidationError(initialsError.toString(), validationException);
         }
         return validationException;
     }

@@ -386,8 +386,8 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     /**
-     * Creates the account, or replaces it wholesale if it already exists. A {@code null} description leaves the
-     * account without one.
+     * Creates the account, or replaces it wholesale if it already exists. Each {@code null} field of {@code details}
+     * leaves the account without that field.
      * <p>
      * The write is a single update with an upsert, so that which of the two happened is decided by the index rather
      * than by a read that a concurrent write could make stale. The upsert is the whole document with the caller as
@@ -395,17 +395,20 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
      * creator alone. An update merges into the stored document field by field, so a field that a write may leave
      * empty is written as an explicit {@code null} rather than omitted, or the previous value would survive. The
      * attribution fields are not written to a cluster whose nodes do not all declare them, because until then the
-     * index mapping may not hold them and the write would be rejected.
+     * index mapping may not hold them and the write would be rejected. The initials are held back for the same reason,
+     * but they come from the caller rather than from the server, so a write that sets them is refused until then rather
+     * than stored without them; a write that does not set them leaves the field out entirely.
      */
     void putAccount(
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
-        @Nullable String description,
+        Details details,
         Authentication authentication,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<PutResult> listener
     ) {
+        Objects.requireNonNull(details, "details cannot be null");
         if (featureService.clusterHasFeature(clusterService.state(), SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS) == false) {
             listener.onFailure(
                 new IllegalStateException(
@@ -414,9 +417,21 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             );
             return;
         }
-        final ValidationException validationException = validatePutRequest(accountId, roles, description);
+        final ValidationException validationException = validatePutRequest(accountId, roles, details);
         if (validationException != null) {
             listener.onFailure(validationException);
+            return;
+        }
+        final boolean writeInitials = featureService.clusterHasFeature(
+            clusterService.state(),
+            SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNT_INITIALS
+        );
+        if (writeInitials == false && details.initials() != null) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "cannot set the initials of a user-managed service account because not all nodes in the cluster support them yet"
+                )
+            );
             return;
         }
         final boolean recordAttribution = featureService.clusterHasFeature(
@@ -427,8 +442,8 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         final Instant now = clock.instant();
         final List<String> distinctRoles = sortedDistinct(roles);
         try (
-            XContentBuilder upsert = newAccountDocument(accountId, distinctRoles, enabled, description, author, now);
-            XContentBuilder doc = accountChanges(distinctRoles, enabled, description, author, now)
+            XContentBuilder upsert = newAccountDocument(accountId, distinctRoles, enabled, details, author, now);
+            XContentBuilder doc = accountChanges(distinctRoles, enabled, details, writeInitials, author, now)
         ) {
             final UpdateRequest updateRequest = client.prepareUpdate(SECURITY_MAIN_ALIAS, docIdForPrincipal(accountId.asPrincipal()))
                 .setDoc(doc)
@@ -532,11 +547,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     @Nullable
-    private static ValidationException validatePutRequest(
-        ServiceAccountId accountId,
-        @Nullable List<String> roles,
-        @Nullable String description
-    ) {
+    private static ValidationException validatePutRequest(ServiceAccountId accountId, @Nullable List<String> roles, Details details) {
         final ValidationException validationException = new ValidationException();
         addIfError(validationException, Validation.UserManagedServiceAccounts.validateNamespace(accountId.namespace()));
         addIfError(validationException, Validation.UserManagedServiceAccounts.validateServiceName(accountId.serviceName()));
@@ -546,7 +557,9 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             roles.forEach(role -> addIfError(validationException, NativeRealmValidationUtil.validateRoleName(role, true)));
             addIfError(validationException, Validation.UserManagedServiceAccounts.validateRoles(roles));
         }
-        addIfError(validationException, Validation.UserManagedServiceAccounts.validateDescription(description));
+        addIfError(validationException, Validation.UserManagedServiceAccounts.validateDescription(details.description()));
+        addIfError(validationException, Validation.UserManagedServiceAccounts.validateFullName(details.fullName()));
+        addIfError(validationException, Validation.UserManagedServiceAccounts.validateInitials(details.initials()));
         return validationException.validationErrors().isEmpty() ? null : validationException;
     }
 
@@ -565,15 +578,16 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     /**
-     * The whole document, for when the account does not exist yet. The description is left out rather than written
-     * as {@code null}, so that an account without one looks the same as one written before the field existed. The
-     * caller is recorded as the creator; there is no updater until the account is replaced.
+     * The whole document, for when the account does not exist yet. The description, full name and initials are each
+     * left out rather than written as {@code null}, so that an account without one looks the same as one written
+     * before the field existed. The caller is recorded as the creator; there is no updater until the account is
+     * replaced.
      */
     private static XContentBuilder newAccountDocument(
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
-        @Nullable String description,
+        Details details,
         @Nullable ServiceAccountAuthor createdBy,
         Instant now
     ) throws IOException {
@@ -584,8 +598,14 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             .field("username", accountId.asPrincipal())
             .field("roles", roles)
             .field("enabled", enabled);
-        if (description != null) {
-            builder.field("description", description);
+        if (details.description() != null) {
+            builder.field("description", details.description());
+        }
+        if (details.fullName() != null) {
+            builder.field("full_name", details.fullName());
+        }
+        if (details.initials() != null) {
+            builder.field("initials", details.initials());
         }
         if (createdBy != null) {
             addAuthor(builder, "creator", createdBy);
@@ -596,22 +616,30 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
 
     /**
      * The fields a write changes, for when the account already exists. Merged into the stored document, so the
-     * description is written as an explicit {@code null} when there is none: left out, the old one would survive.
-     * The caller is recorded as the updater; the creator is not touched.
+     * description, full name and initials are each written as an explicit {@code null} when there is none: left out,
+     * the old one would survive. The initials are the exception while {@code writeInitials} is false: the mapping may
+     * not hold the field yet, so not even a {@code null} is written, and since no node can have stored initials until
+     * then there is nothing to clear. The caller is recorded as the updater; the creator is not touched.
      */
     private static XContentBuilder accountChanges(
         List<String> roles,
         boolean enabled,
-        @Nullable String description,
+        Details details,
+        boolean writeInitials,
         @Nullable ServiceAccountAuthor updatedBy,
         Instant now
     ) throws IOException {
+        assert writeInitials || details.initials() == null : "initials must be refused before the cluster supports them";
         final XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
             .field("version", UserManagedServiceAccount.Version.CURRENT.id())
             .field("roles", roles)
             .field("enabled", enabled)
-            .field("description", description);
+            .field("description", details.description())
+            .field("full_name", details.fullName());
+        if (writeInitials) {
+            builder.field("initials", details.initials());
+        }
         if (updatedBy != null) {
             addAuthor(builder, "updated_by", updatedBy);
             builder.field("update_time", now.toEpochMilli());
@@ -670,10 +698,21 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         if (roles == null) {
             return null;
         }
-        // Absent in documents written before the field existed, and for accounts written without one since.
+        // Each absent in documents written before the field existed, and for accounts written without one since.
+        // Length rules are enforced on write, not on read, for the same reason as role-name rules.
         final Object descriptionValue = source.get("description");
         if (descriptionValue != null && descriptionValue instanceof String == false) {
             logger.warn("service account document [{}] has an invalid [description] field", expectedPrincipal);
+            return null;
+        }
+        final Object fullNameValue = source.get("full_name");
+        if (fullNameValue != null && fullNameValue instanceof String == false) {
+            logger.warn("service account document [{}] has an invalid [full_name] field", expectedPrincipal);
+            return null;
+        }
+        final Object initialsValue = source.get("initials");
+        if (initialsValue != null && initialsValue instanceof String == false) {
+            logger.warn("service account document [{}] has an invalid [initials] field", expectedPrincipal);
             return null;
         }
         if (source.get("enabled") instanceof Boolean enabled) {
@@ -684,7 +723,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
                     ServiceAccountId.fromPrincipal(expectedPrincipal),
                     roles,
                     enabled,
-                    (String) descriptionValue,
+                    new Details((String) descriptionValue, (String) fullNameValue, (String) initialsValue),
                     parseAuthor(source.get("creator"), "creator"),
                     parseTimestamp(source.get("creation_time"), "creation_time"),
                     parseAuthor(source.get("updated_by"), "updated_by"),
@@ -831,5 +870,15 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     public enum PutResult {
         CREATED,
         UPDATED
+    }
+
+    /**
+     * The optional text an account carries for its callers: a description, a full name and initials. Bundled because
+     * all three are nullable strings that would otherwise travel side by side, where swapping two of them would go
+     * unnoticed.
+     */
+    public record Details(@Nullable String description, @Nullable String fullName, @Nullable String initials) {
+
+        public static final Details NONE = new Details(null, null, null);
     }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.Details;
 import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.PutResult;
 import org.junit.Before;
 
@@ -66,6 +67,8 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
         final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
         final String description = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+        final String fullName = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+        final String initials = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 2);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final PutUserManagedServiceAccountRequest request = new PutUserManagedServiceAccountRequest(
             "engineering",
@@ -73,6 +76,8 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
             roles,
             enabled,
             description,
+            fullName,
+            initials,
             refreshPolicy
         );
 
@@ -82,7 +87,7 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
             eq(new ServiceAccountId("engineering", "deploy_bot")),
             eq(roles),
             eq(enabled),
-            eq(description),
+            eq(new Details(description, fullName, initials)),
             eq(authentication),
             eq(refreshPolicy),
             any()
@@ -99,7 +104,7 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
     }
 
     private static PutUserManagedServiceAccountRequest newRequest() {
-        return new PutUserManagedServiceAccountRequest("engineering", "deploy_bot", List.of("deployer"), randomBoolean(), null);
+        return new PutUserManagedServiceAccountRequest("engineering", "deploy_bot", List.of("deployer"), randomBoolean(), null, null, null);
     }
 
     private void stubPutResult(PutResult result) {

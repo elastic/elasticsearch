@@ -1644,6 +1644,22 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
     }
 
+    public void testPutUserManagedServiceAccountAuditEventIncludesTheFullNameAndInitials() {
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[0]);
+        auditTrail.accessGranted(
+            randomRequestId(),
+            createAuthentication(),
+            PutUserManagedServiceAccountAction.NAME,
+            new PutUserManagedServiceAccountRequest("soc", "alert_zero", List.of("viewer"), true, "Triages alerts", "AlertZero", "AZ"),
+            authorizationInfo
+        );
+        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        assertThat(output.get(1), containsString("""
+            "put":{"user_managed_service_account":{"namespace":"soc","service":"alert_zero","roles":["viewer"],"enabled":true,\
+            "description":"Triages alerts","full_name":"AlertZero","initials":"AZ"}}"""));
+    }
+
     public void testSecurityConfigChangeEventFormattingForUserManagedServiceAccount() {
         final String requestId = randomRequestId();
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
@@ -1663,7 +1679,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
             serviceName,
             accountRoles,
             enabled,
-            description
+            description,
+            null,
+            null
         );
 
         auditTrail.accessGranted(
@@ -1677,7 +1695,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedPutUserManagedServiceAccountAuditEventString = output.get(1);
 
-        // The description is logged only when the request carries one.
+        // The description is logged only when the request carries one, and so are the full name and initials, which
+        // this request does not; see testPutUserManagedServiceAccountAuditEventIncludesTheFullNameAndInitials.
         final String expectedDescriptionJson = description == null ? "" : ",\"description\":\"" + description + "\"";
         final String expectedPutUserManagedServiceAccountAuditEventString = Strings.format(
             """
@@ -2428,7 +2447,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     serviceName,
                     List.of(randomAlphaOfLengthBetween(3, 8)),
                     randomBoolean(),
-                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 2)
                 )
             ),
             new Tuple<>(DeleteUserManagedServiceAccountAction.NAME, new DeleteUserManagedServiceAccountRequest(namespace, serviceName)),

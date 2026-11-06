@@ -35,6 +35,13 @@ public class SecurityFeatures implements FeatureSpecification {
      */
     public static final NodeFeature USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION = new NodeFeature("user_managed_service_account_attribution");
 
+    /**
+     * Gates storing the initials of a user-managed service account. As with attribution, the strict security index
+     * mapping gains the field only once every node declares it. Unlike attribution, the initials come from the caller,
+     * so a write that sets them is refused until then rather than stored without them.
+     */
+    public static final NodeFeature USER_MANAGED_SERVICE_ACCOUNT_INITIALS = new NodeFeature("user_managed_service_account_initials");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -42,7 +49,8 @@ public class SecurityFeatures implements FeatureSpecification {
             CERTIFICATE_IDENTITY_FIELD_FEATURE,
             SECURITY_STATS_ENDPOINT,
             USER_MANAGED_SERVICE_ACCOUNTS,
-            USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION
+            USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION,
+            USER_MANAGED_SERVICE_ACCOUNT_INITIALS
         );
     }
 }

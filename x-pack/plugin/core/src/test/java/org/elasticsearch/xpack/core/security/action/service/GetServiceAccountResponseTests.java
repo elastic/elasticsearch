@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetServiceAccountResponseTests extends AbstractWireSerializingTestCase<GetServiceAccountResponse> {
@@ -50,12 +52,24 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
             new ServiceAccountInfo[] {
                 new ServiceAccountInfo.BuiltIn("elastic/fleet-server", roleDescriptor),
                 new ServiceAccountInfo.UserManaged("my-team/worker", List.of("role-a", "role-b"), false, "Worker for my-team"),
-                new ServiceAccountInfo.UserManaged("my-team/quiet_worker", List.of(), true, null) }
+                new ServiceAccountInfo.UserManaged("my-team/quiet_worker", List.of(), true, null),
+                new ServiceAccountInfo.UserManaged(
+                    "soc/alert_zero",
+                    List.of("viewer"),
+                    true,
+                    null,
+                    "AlertZero",
+                    "AZ",
+                    null,
+                    null,
+                    null,
+                    null
+                ) }
         );
 
         final Map<String, Object> responseMap = toMap(response);
 
-        assertThat(responseMap.size(), equalTo(3));
+        assertThat(responseMap.size(), equalTo(4));
         final Map<String, Object> builtIn = fragment(responseMap, "elastic/fleet-server");
         assertThat(builtIn.get("type"), equalTo("built_in"));
         assertRoleDescriptorEquals(builtIn, roleDescriptor);
@@ -65,10 +79,43 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
                 Map.of("type", "user_managed", "roles", List.of("role-a", "role-b"), "enabled", false, "description", "Worker for my-team")
             )
         );
-        // An account without a description does not report the field at all.
+        // An account without a description, full name or initials does not report those fields at all.
         assertThat(
             fragment(responseMap, "my-team/quiet_worker"),
             equalTo(Map.of("type", "user_managed", "roles", List.of(), "enabled", true))
+        );
+        assertThat(
+            fragment(responseMap, "soc/alert_zero"),
+            equalTo(Map.of("type", "user_managed", "roles", List.of("viewer"), "enabled", true, "full_name", "AlertZero", "initials", "AZ"))
+        );
+    }
+
+    /**
+     * A node that predates the full name and initials receives each account in the response without them.
+     */
+    public void testTheFullNameAndInitialsAreDroppedForNodesThatDoNotKnowThem() throws IOException {
+        final GetServiceAccountResponse response = new GetServiceAccountResponse(
+            new ServiceAccountInfo[] {
+                new ServiceAccountInfo.UserManaged(
+                    "soc/alert_zero",
+                    List.of("viewer"),
+                    true,
+                    "Triages alerts",
+                    "AlertZero",
+                    "AZ",
+                    null,
+                    null,
+                    null,
+                    null
+                ) }
+        );
+        final GetServiceAccountResponse copy = copyInstance(
+            response,
+            TransportVersionUtils.getPreviousVersion(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME)
+        );
+        assertThat(
+            copy.getServiceAccountInfos(),
+            arrayContaining(new ServiceAccountInfo.UserManaged("soc/alert_zero", List.of("viewer"), true, "Triages alerts"))
         );
     }
 
@@ -88,7 +135,13 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
                 principal,
                 randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8)),
                 randomBoolean(),
-                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)
+                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
+                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
+                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 2),
+                null,
+                null,
+                null,
+                null
             );
     }
 

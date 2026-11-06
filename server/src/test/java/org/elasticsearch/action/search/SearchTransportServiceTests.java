@@ -30,9 +30,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
@@ -83,8 +81,8 @@ public class SearchTransportServiceTests extends ESTestCase {
     }
 
     /**
-     * The handler of every shard request route charges the response's pieces to the reservation it is given while they arrive, and
-     * reports a trip to the search before failing the listener.
+     * The handler of every shard request route except scroll charges the response's pieces to the reservation it is given while they
+     * arrive, and reports a trip to the search before failing the listener.
      */
     public void testShardResponseHandlersReserveAndReportTripWhileArriving() {
         for (Map.Entry<String, TripRoute> route : shardResponseRoutes().entrySet()) {
@@ -160,18 +158,6 @@ public class SearchTransportServiceTests extends ESTestCase {
             reserving(
                 (s, c, r, f) -> s.sendExecuteRankFeature(c, mock(RankFeatureShardRequest.class), null, r, failing(f), l -> {}, l -> {})
             )
-        );
-        routes.put(
-            "scroll query",
-            reserving((s, c, r, f) -> s.sendExecuteScrollQuery(c, mock(InternalScrollSearchRequest.class), null, r, failing(f)))
-        );
-        routes.put(
-            "scroll query and fetch",
-            reserving((s, c, r, f) -> s.sendExecuteScrollFetch(c, mock(InternalScrollSearchRequest.class), null, r, failing(f)))
-        );
-        routes.put(
-            "scroll fetch",
-            reserving((s, c, r, f) -> s.sendExecuteFetchScroll(c, mock(ShardFetchRequest.class), null, r, failing(f)))
         );
         // The fetch phase builds its reservation from the search, so a trip fails the search through it
         routes.put("fetch", (service, connection, breaker, onFailure) -> {

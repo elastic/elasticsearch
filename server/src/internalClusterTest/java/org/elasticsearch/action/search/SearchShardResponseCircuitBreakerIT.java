@@ -16,12 +16,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
@@ -126,54 +124,6 @@ public class SearchShardResponseCircuitBreakerIT extends ESIntegTestCase {
                 FetchSearchPhase.NAME,
                 ShardResponseReservation.FETCH_BREAKER_LABEL
             );
-        }
-    }
-
-    public void testScrollQueryResponseTripsWhileArriving() throws Exception {
-        startCluster();
-        // Sorting on the long tags makes the query responses large
-        assertScrollTripsWhileArriving(
-            prepareScroll(SMALL, LARGE).addSort("tag", SortOrder.ASC),
-            "query",
-            ShardResponseReservation.BREAKER_LABEL
-        );
-    }
-
-    public void testScrollFetchResponseTripsWhileArriving() throws Exception {
-        startCluster();
-        assertScrollTripsWhileArriving(prepareScroll(SMALL, LARGE), FetchSearchPhase.NAME, ShardResponseReservation.FETCH_BREAKER_LABEL);
-    }
-
-    public void testScrollQueryAndFetchResponseTripsWhileArriving() throws Exception {
-        startCluster();
-        // A scroll over a single shard queries and fetches in one round trip
-        assertScrollTripsWhileArriving(
-            prepareScroll(LARGE).setPreference("_shards:0"),
-            "query",
-            ShardResponseReservation.FETCH_BREAKER_LABEL
-        );
-    }
-
-    /**
-     * Starts the scroll on a data node, whose breaker has room for the first round, so that only the next round goes through the
-     * coordinating node.
-     */
-    private SearchRequestBuilder prepareScroll(String... indices) {
-        return client(dataNodes.getFirst()).prepareSearch(indices).setScroll(TimeValue.timeValueMinutes(1)).setSize(LARGE_DOCS / 4);
-    }
-
-    private void assertScrollTripsWhileArriving(SearchRequestBuilder start, String phase, String label) throws Exception {
-        SearchResponse firstRound = start.get();
-        String scrollId = firstRound.getScrollId();
-        firstRound.decRef();
-        try {
-            assertTripsWhileArriving(
-                client(coordinator).prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)),
-                phase,
-                label
-            );
-        } finally {
-            client().prepareClearScroll().addScrollId(scrollId).get();
         }
     }
 

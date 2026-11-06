@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
@@ -34,10 +33,9 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
         SearchScrollRequest request,
         SearchTask task,
         ParsedScrollId scrollId,
-        ActionListener<SearchResponse> listener,
-        CircuitBreaker circuitBreaker
+        ActionListener<SearchResponse> listener
     ) {
-        super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService, circuitBreaker);
+        super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService);
         this.task = task;
         this.queryFetchResults = new AtomicArray<>(scrollId.getContext().length);
     }
@@ -48,13 +46,7 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
         InternalScrollSearchRequest internalRequest,
         ActionListener<ScrollQueryFetchSearchResult> searchActionListener
     ) {
-        searchTransportService.sendExecuteScrollFetch(
-            connection,
-            internalRequest,
-            task,
-            newShardResponseReservation("query", ShardResponseReservation.FETCH_BREAKER_LABEL),
-            searchActionListener
-        );
+        searchTransportService.sendExecuteScrollFetch(connection, internalRequest, task, searchActionListener);
     }
 
     @Override
@@ -64,7 +56,6 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
 
     @Override
     protected void onFirstPhaseResult(int shardId, ScrollQueryFetchSearchResult result) {
-        // Takes no reference, so there is nothing to release if a coordinator trip fails the request
         queryFetchResults.setOnce(shardId, result.result());
     }
 }

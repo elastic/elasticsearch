@@ -19,9 +19,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.tasks.Task;
@@ -41,7 +39,6 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
     private final SearchResponseMetrics searchResponseMetrics;
-    private final CircuitBreaker circuitBreaker;
 
     @Inject
     public TransportSearchScrollAction(
@@ -49,14 +46,12 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         ClusterService clusterService,
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
-        SearchResponseMetrics searchResponseMetrics,
-        CircuitBreakerService circuitBreakerService
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchResponseMetrics = searchResponseMetrics;
-        this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
     }
 
     @Override
@@ -116,8 +111,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     request,
                     (SearchTask) task,
                     scrollId,
-                    loggingAndMetrics,
-                    circuitBreaker
+                    loggingAndMetrics
                 );
                 case QUERY_AND_FETCH_TYPE -> // TODO can we get rid of this?
                     new SearchScrollQueryAndFetchAsyncAction(
@@ -127,8 +121,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         request,
                         (SearchTask) task,
                         scrollId,
-                        loggingAndMetrics,
-                        circuitBreaker
+                        loggingAndMetrics
                     );
                 default -> throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             };

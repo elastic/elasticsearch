@@ -14,7 +14,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchShardTarget;
@@ -41,10 +40,9 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
         SearchScrollRequest request,
         SearchTask task,
         ParsedScrollId scrollId,
-        ActionListener<SearchResponse> listener,
-        CircuitBreaker circuitBreaker
+        ActionListener<SearchResponse> listener
     ) {
-        super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService, circuitBreaker);
+        super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService);
         this.task = task;
         this.fetchResults = new AtomicArray<>(scrollId.getContext().length);
         this.queryResults = new AtomicArray<>(scrollId.getContext().length);
@@ -60,13 +58,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
         InternalScrollSearchRequest internalRequest,
         ActionListener<ScrollQuerySearchResult> searchActionListener
     ) {
-        searchTransportService.sendExecuteScrollQuery(
-            connection,
-            internalRequest,
-            task,
-            newShardResponseReservation("query", ShardResponseReservation.BREAKER_LABEL),
-            searchActionListener
-        );
+        searchTransportService.sendExecuteScrollQuery(connection, internalRequest, task, searchActionListener);
     }
 
     @Override
@@ -110,24 +102,18 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                             connection,
                             shardFetchRequest,
                             task,
-                            newShardResponseReservation(getName(), ShardResponseReservation.FETCH_BREAKER_LABEL),
                             new SearchActionListener<>(querySearchResult.getSearchShardTarget(), index) {
                                 @Override
                                 protected void innerOnResponse(FetchSearchResult response) {
                                     // Scroll fetch has no SearchPhaseResults pipeline; accumulate per-shard DirectoryMetrics here directly
                                     accumulateDirectoryMetrics(response.getDirectoryMetrics());
-                                    if (holdFetchResult(response) == false) {
-                                        // A coordinator trip has failed the request, so the phase will not finish
-                                        return;
-                                    }
+                                    fetchResults.setOnce(response.getShardIndex(), response);
+                                    response.incRef();
                                     countDownAndFinish(counter, onFetchPhaseFinished);
                                 }
 
                                 @Override
                                 public void onFailure(Exception t) {
-                                    if (failedOnCoordinatorTrip()) {
-                                        return;
-                                    }
                                     onShardFailure(
                                         getName(),
                                         counter,
@@ -152,31 +138,6 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                 }
             }
         };
-    }
-
-    /**
-     * Keeps a fetch result until the response is sent, unless a coordinator trip has failed the request.
-     *
-     * @return whether the result is held
-     */
-    private synchronized boolean holdFetchResult(FetchSearchResult response) {
-        if (failedOnCoordinatorTrip()) {
-            return false;
-        }
-        fetchResults.setOnce(response.getShardIndex(), response);
-        response.incRef();
-        return true;
-    }
-
-    @Override
-    protected synchronized void onCoordinatorTrip() {
-        for (int i = 0; i < fetchResults.length(); i++) {
-            FetchSearchResult result = fetchResults.get(i);
-            if (result != null) {
-                fetchResults.set(i, null);
-                result.decRef();
-            }
-        }
     }
 
     private static void countDownAndFinish(CountDown counter, Runnable onFinish) {

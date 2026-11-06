@@ -324,7 +324,6 @@ public class SearchTransportService {
         Transport.Connection connection,
         final InternalScrollSearchRequest request,
         SearchTask task,
-        ShardResponseReservation reservation,
         final ActionListener<ScrollQuerySearchResult> listener
     ) {
         transportService.sendChildRequest(
@@ -332,7 +331,7 @@ public class SearchTransportService {
             QUERY_SCROLL_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, ScrollQuerySearchResult::new, connection, reservation)
+            new ConnectionCountingHandler<>(listener, ScrollQuerySearchResult::new, connection)
         );
     }
 
@@ -358,7 +357,6 @@ public class SearchTransportService {
         Transport.Connection connection,
         final InternalScrollSearchRequest request,
         SearchTask task,
-        ShardResponseReservation reservation,
         final ActionListener<ScrollQueryFetchSearchResult> listener
     ) {
         transportService.sendChildRequest(
@@ -366,7 +364,7 @@ public class SearchTransportService {
             QUERY_FETCH_SCROLL_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, connection, reservation)
+            new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, connection)
         );
     }
 
@@ -480,10 +478,10 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardFetchRequest request,
         SearchTask task,
-        ShardResponseReservation reservation,
         final ActionListener<FetchSearchResult> listener
     ) {
-        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, reservation, listener, FetchSearchResult::new);
+        // Scroll reserves nothing. The data nodes have moved the cursor by then, so a client retrying the 429 of a trip would skip a page.
+        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, null, listener, FetchSearchResult::new);
     }
 
     private void sendExecuteFetch(
@@ -491,7 +489,7 @@ public class SearchTransportService {
         String action,
         final TransportRequest request,
         SearchTask task,
-        ShardResponseReservation reservation,
+        @Nullable ShardResponseReservation reservation,
         final ActionListener<FetchSearchResult> listener,
         Writeable.Reader<FetchSearchResult> reader
     ) {

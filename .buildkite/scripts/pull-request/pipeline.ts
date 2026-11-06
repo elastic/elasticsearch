@@ -87,9 +87,9 @@ export const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | u
   return !getArray(pipeline.config["skip-target-branches"]).some((branch) => branch === targetBranch);
 };
 
-const triggerCommentCheck = (pipeline: EsPipeline): boolean => {
-  if (process.env["GITHUB_PR_TRIGGER_COMMENT"] && pipeline.config?.["trigger-phrase"]) {
-    return !!process.env["GITHUB_PR_TRIGGER_COMMENT"].match(pipeline.config["trigger-phrase"]);
+const triggerCommentCheck = (pipeline: EsPipeline, triggerComment: string | undefined): boolean => {
+  if (triggerComment && pipeline.config?.["trigger-phrase"]) {
+    return !!triggerComment.match(pipeline.config["trigger-phrase"]);
   }
   return false;
 };
@@ -182,10 +182,68 @@ export const loadPipeline = (
   return pipeline;
 };
 
+/**
+ * What a pipeline selection is for: the target branch, labels and trigger comment of a pull request build. The merge
+ * queue passes its own, so it selects pipelines with exactly the rules pull requests use.
+ */
+export interface PipelineSelection {
+  targetBranch: string | undefined;
+  labels: string[];
+  triggerComment: string | undefined;
+}
+
+/** The selection of the pull request this build is for, from the variables the pull request trigger sets. */
+export const pullRequestSelection = (): PipelineSelection => ({
+  targetBranch: process.env["GITHUB_PR_TARGET_BRANCH"],
+  labels: (process.env["GITHUB_PR_LABELS"] || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x),
+  triggerComment: process.env["GITHUB_PR_TRIGGER_COMMENT"],
+});
+
+/** The files changed on this branch since it left the target branch. */
+export const changedFilesAgainst = (targetBranch: string | undefined): string[] => {
+  console.log("Doing git fetch and getting merge-base");
+  const mergeBase = execSync(`git fetch origin ${targetBranch}; git merge-base origin/${targetBranch} HEAD`, {
+    cwd: PROJECT_ROOT,
+  })
+    .toString()
+    .trim();
+
+  console.log(`Merge base: ${mergeBase}`);
+
+  const changedFiles = execSync(`git diff --name-only ${mergeBase}`, { cwd: PROJECT_ROOT })
+    .toString()
+    .trim()
+    .split("\n")
+    .map((x) => x.trim())
+    .filter((x) => x);
+
+  console.log("Changed files (first 50):");
+  console.log(changedFiles.slice(0, 50).join("\n"));
+  return changedFiles;
+};
+
+/** The rules a pipeline must pass to run for this selection and these changed files (trigger comments aside). */
+export const selectionFilters = (
+  changedFiles: string[],
+  { targetBranch, labels }: PipelineSelection,
+): ((pipeline: EsPipeline) => boolean)[] => [
+  (pipeline) => checkTargetBranch(pipeline, targetBranch),
+  (pipeline) => labelCheckAllow(pipeline, labels),
+  (pipeline) => labelCheckSkip(pipeline, labels),
+  (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),
+  (pipeline) => changedFilesIncludedCheck(pipeline, changedFiles),
+  (pipeline) => changedFilesAnyIncludedCheck(pipeline, changedFiles),
+];
+
 export const generatePipelines = (
   directory: string = `${PROJECT_ROOT}/.buildkite/pipelines/pull-request`,
   changedFiles: string[] = [],
+  selection: PipelineSelection = pullRequestSelection(),
 ) => {
+  const { targetBranch, triggerComment } = selection;
   const defaults = readDefaults(directory);
 
   let pipelines: EsPipeline[] = [];
@@ -195,57 +253,21 @@ export const generatePipelines = (
       continue;
     }
 
-    const pipeline = loadPipeline(directory, file, defaults, process.env["GITHUB_PR_TARGET_BRANCH"]);
+    const pipeline = loadPipeline(directory, file, defaults, targetBranch);
     if (pipeline) {
       pipelines.push(pipeline);
     }
   }
 
-  const labels = (process.env["GITHUB_PR_LABELS"] || "")
-    .split(",")
-    .map((x) => x.trim())
-    .filter((x) => x);
-
   if (!changedFiles?.length) {
-    console.log("Doing git fetch and getting merge-base");
-    const mergeBase = execSync(
-      `git fetch origin ${process.env["GITHUB_PR_TARGET_BRANCH"]}; git merge-base origin/${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`,
-      { cwd: PROJECT_ROOT },
-    )
-      .toString()
-      .trim();
-
-    console.log(`Merge base: ${mergeBase}`);
-
-    const changedFilesOutput = execSync(`git diff --name-only ${mergeBase}`, { cwd: PROJECT_ROOT }).toString().trim();
-
-    changedFiles = changedFilesOutput
-      .split("\n")
-      .map((x) => x.trim())
-      .filter((x) => x);
-
-    console.log("Changed files (first 50):");
-    console.log(changedFiles.slice(0, 50).join("\n"));
+    changedFiles = changedFilesAgainst(targetBranch);
   }
 
-  let filters: ((pipeline: EsPipeline) => boolean)[] = [
-    (pipeline) => checkTargetBranch(pipeline, process.env["GITHUB_PR_TARGET_BRANCH"]),
-    (pipeline) => labelCheckAllow(pipeline, labels),
-    (pipeline) => labelCheckSkip(pipeline, labels),
-    (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),
-    (pipeline) => changedFilesIncludedCheck(pipeline, changedFiles),
-    (pipeline) => changedFilesAnyIncludedCheck(pipeline, changedFiles),
-  ];
-
+  let filters = selectionFilters(changedFiles, selection);
   // When triggering via the "run elasticsearch-ci/step-name" comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc
   // However, if we're using the overall CI trigger "[buildkite] test this [please]", we should use the regular filters above
-  if (
-    process.env["GITHUB_PR_TRIGGER_COMMENT"] &&
-    !process.env["GITHUB_PR_TRIGGER_COMMENT"].match(
-      /^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i,
-    )
-  ) {
-    filters = [triggerCommentCheck];
+  if (triggerComment && !triggerComment.match(/^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i)) {
+    filters = [(pipeline) => triggerCommentCheck(pipeline, triggerComment)];
   }
 
   for (const filter of filters) {

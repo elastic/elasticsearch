@@ -1,7 +1,7 @@
 import { stringify } from "yaml";
 import { execSync } from "child_process";
 
-import { generateMergeQueuePipeline, getBaseBranch } from "./pipeline.ts";
+import { generateMergeQueuePipeline, getBaseBranch, getPullRequestNumber } from "./pipeline.ts";
 
 const branch = process.env["BUILDKITE_BRANCH"];
 if (!branch) {
@@ -11,7 +11,7 @@ if (!branch) {
 const baseBranch = getBaseBranch(branch);
 console.log(`Generating the merge queue pipeline for ${branch} (base branch ${baseBranch})`);
 
-const pipeline = generateMergeQueuePipeline(baseBranch);
+const pipeline = generateMergeQueuePipeline(baseBranch, getPullRequestNumber(branch));
 console.log(stringify(pipeline));
 
 // Only do the pipeline upload if we're actually in CI

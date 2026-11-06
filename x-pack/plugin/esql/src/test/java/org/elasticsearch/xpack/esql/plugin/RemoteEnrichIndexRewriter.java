@@ -47,7 +47,8 @@ public final class RemoteEnrichIndexRewriter {
                         original.clusterAlias(),
                         original.sessionId(),
                         original.configuration(),
-                        new RemoteClusterPlan(tamperedPlan, plan.targetIndices(), plan.originalIndices())
+                        new RemoteClusterPlan(tamperedPlan, plan.targetIndices(), plan.originalIndices()),
+                        original.fetchContextsKeepAlive()
                     );
                     tampered.setParentTask(original.getParentTask());
                     connection.sendRequest(requestId, action, tampered, options);

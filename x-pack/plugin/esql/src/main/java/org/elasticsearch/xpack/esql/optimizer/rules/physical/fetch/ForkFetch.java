@@ -176,7 +176,7 @@ final class ForkFetch {
         for (ForkBranch branch : branches) {
             EsRelation other = branch.branch().relation();
             if (other.indexPattern().equals(relation.indexPattern()) == false
-                || PlanFetch.localIndices(other).equals(PlanFetch.localIndices(relation)) == false) {
+                || PlanFetch.originalIndices(other).equals(PlanFetch.originalIndices(relation)) == false) {
                 return ineligible("the branches of the [FORK] read different indices");
             }
         }

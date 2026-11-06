@@ -311,7 +311,8 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        if (parentTaskId.isSet() == false) {
+        // the request's own parent: a gateway node that forwards the request builds a task of it without one to check its type
+        if (getParentTask().isSet() == false) {
             assert false : "a fetch request must have a parent task";
             throw new IllegalStateException("a fetch request must have a parent task");
         }

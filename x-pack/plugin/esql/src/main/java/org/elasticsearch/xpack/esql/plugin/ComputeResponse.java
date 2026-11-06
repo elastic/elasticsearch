@@ -15,11 +15,14 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
@@ -40,6 +43,16 @@ final class ComputeResponse extends TransportResponse {
     public final int skippedShards;
     public final int failedShards;
     public final List<ShardSearchFailure> failures;
+    /**
+     * The fetch contexts that the data nodes of a remote cluster keep open for the querying cluster after this response, by
+     * node id. The querying cluster refreshes and frees them from then on.
+     */
+    private final Map<String, List<ShardSearchContextId>> fetchContexts;
+    /**
+     * The shortest keep-alive the data nodes gave {@link #fetchContexts}, {@code null} without them.
+     */
+    @Nullable
+    private final TimeValue fetchContextsKeepAlive;
 
     ComputeResponse(DriverCompletionInfo completionInfo) {
         this(completionInfo, null, null, null, null, null, List.of());
@@ -54,6 +67,25 @@ final class ComputeResponse extends TransportResponse {
         Integer failedShards,
         List<ShardSearchFailure> failures
     ) {
+        this(completionInfo, took, totalShards, successfulShards, skippedShards, failedShards, failures, Map.of(), null);
+    }
+
+    private ComputeResponse(
+        DriverCompletionInfo completionInfo,
+        TimeValue took,
+        Integer totalShards,
+        Integer successfulShards,
+        Integer skippedShards,
+        Integer failedShards,
+        List<ShardSearchFailure> failures,
+        Map<String, List<ShardSearchContextId>> fetchContexts,
+        @Nullable TimeValue fetchContextsKeepAlive
+    ) {
+        if (fetchContexts.isEmpty() != (fetchContextsKeepAlive == null)) {
+            throw new IllegalArgumentException(
+                "fetch contexts " + fetchContexts + " need their keep-alive, but it was [" + fetchContextsKeepAlive + "]"
+            );
+        }
         this.completionInfo = completionInfo;
         this.took = took;
         this.totalShards = totalShards == null ? 0 : totalShards.intValue();
@@ -61,6 +93,8 @@ final class ComputeResponse extends TransportResponse {
         this.skippedShards = skippedShards == null ? 0 : skippedShards.intValue();
         this.failedShards = failedShards == null ? 0 : failedShards.intValue();
         this.failures = failures;
+        this.fetchContexts = fetchContexts;
+        this.fetchContextsKeepAlive = fetchContextsKeepAlive;
     }
 
     ComputeResponse(StreamInput in, ThreadContext threadContext) throws IOException {
@@ -98,10 +132,21 @@ final class ComputeResponse extends TransportResponse {
         } else {
             this.failures = List.of();
         }
+        if (in.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS)) {
+            this.fetchContexts = in.readImmutableMap(i -> i.readCollectionAsImmutableList(ShardSearchContextId::new));
+            this.fetchContextsKeepAlive = fetchContexts.isEmpty() ? null : in.readTimeValue();
+        } else {
+            this.fetchContexts = Map.of();
+            this.fetchContextsKeepAlive = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (fetchContexts.isEmpty() == false && out.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS) == false) {
+            // only a querying cluster that asked for fetch contexts gets them, and it can read them
+            throw new IllegalStateException("can't send fetch contexts to a cluster on [" + out.getTransportVersion() + "]");
+        }
         if (supportsCompletionInfo(out.getTransportVersion())) {
             completionInfo.writeTo(out);
         } else {
@@ -116,10 +161,35 @@ final class ComputeResponse extends TransportResponse {
         if (out.getTransportVersion().supports(ESQL_FAILURE_FROM_REMOTE)) {
             out.writeCollection(failures, (o, v) -> v.writeTo(o));
         }
+        if (out.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS)) {
+            out.writeMap(fetchContexts, StreamOutput::writeCollection);
+            if (fetchContexts.isEmpty() == false) {
+                out.writeTimeValue(fetchContextsKeepAlive);
+            }
+        }
     }
 
     private static boolean supportsCompletionInfo(TransportVersion version) {
         return version.supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED);
+    }
+
+    /**
+     * This response, listing the fetch contexts the data nodes of a remote cluster keep open for the querying cluster.
+     *
+     * @param keepAlive the shortest keep-alive the data nodes gave them, unused without them
+     */
+    ComputeResponse withFetchContexts(Map<String, List<ShardSearchContextId>> contexts, TimeValue keepAlive) {
+        return new ComputeResponse(
+            completionInfo,
+            took,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            failedShards,
+            failures,
+            Map.copyOf(contexts),
+            contexts.isEmpty() ? null : keepAlive
+        );
     }
 
     public DriverCompletionInfo getCompletionInfo() {
@@ -148,5 +218,20 @@ final class ComputeResponse extends TransportResponse {
 
     public List<ShardSearchFailure> getFailures() {
         return failures;
+    }
+
+    /**
+     * The fetch contexts that the data nodes of a remote cluster keep open for the querying cluster, by node id.
+     */
+    Map<String, List<ShardSearchContextId>> fetchContexts() {
+        return fetchContexts;
+    }
+
+    /**
+     * The shortest keep-alive the data nodes gave {@link #fetchContexts()}, {@code null} without them.
+     */
+    @Nullable
+    TimeValue fetchContextsKeepAlive() {
+        return fetchContextsKeepAlive;
     }
 }

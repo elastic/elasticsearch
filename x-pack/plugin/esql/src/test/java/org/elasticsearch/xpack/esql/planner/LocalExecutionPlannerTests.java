@@ -1923,7 +1923,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             doc,
             List.of(message, location),
             "test",
-            List.of("test"),
+            Map.of("", List.of("test")),
             64
         );
 
@@ -1979,7 +1979,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             doc,
             List.of(message),
             "test",
-            List.of("test"),
+            Map.of("", List.of("test")),
             64
         );
         Supplier<ExchangeSource> neverCalled = () -> { throw new AssertionError("planning doesn't open the exchange"); };
@@ -2019,7 +2019,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             doc,
             List.of(message),
             "test",
-            List.of("test"),
+            Map.of("", List.of("test")),
             64
         );
         FetchOperatorProvider provider = (exec, channel) -> { throw new AssertionError("planning stops before the operator"); };

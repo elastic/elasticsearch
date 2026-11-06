@@ -18,6 +18,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
@@ -48,6 +51,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequest> {
     @Override
@@ -222,6 +226,32 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
         TransportVersion older = TransportVersionUtils.getPreviousVersion(FetchRequest.ESQL_FETCH);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> copyInstance(createTestInstance(), older));
         assertThat(e.getMessage(), containsString("can't send a fetch request to a node on"));
+    }
+
+    /**
+     * A gateway node that forwards a fetch request to another node of its cluster builds a task of it to check its type,
+     * without a parent. The request still has the parent its coordinator gave it, so its task is a cancellable one.
+     */
+    public void testATaskBuiltWithoutAParentByAGatewayIsCancellable() {
+        FetchRequest request = createTestInstance();
+        request.setParentTask(new TaskId("coordinator", 7));
+
+        Task task = request.createTask(1, "transport", FetchService.FETCH_ACTION_NAME, TaskId.EMPTY_TASK_ID, Map.of());
+
+        assertThat(task, instanceOf(CancellableTask.class));
+    }
+
+    /**
+     * A fetch request is a child of the query that selected its documents, so cancelling the query cancels it.
+     */
+    public void testARequestWithoutAParentIsRefused() {
+        FetchRequest request = createTestInstance();
+        request.setParentTask(TaskId.EMPTY_TASK_ID);
+
+        expectThrows(
+            AssertionError.class,
+            () -> request.createTask(1, "transport", FetchService.FETCH_ACTION_NAME, TaskId.EMPTY_TASK_ID, Map.of())
+        );
     }
 
     static PhysicalPlan fetchPlan(List<Attribute> fetched) {

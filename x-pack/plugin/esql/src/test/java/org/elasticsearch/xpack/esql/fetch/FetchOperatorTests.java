@@ -115,6 +115,24 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
+     * The nodes of a remote cluster can be found only after the batch was sent, on another thread. The rows still keep
+     * their order, and the stats count every node the batch reached.
+     */
+    public void testNodesFoundAfterTheBatchWasSentStillFetchEveryRowInOrder() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.lateNodes = true;
+        List<List<Ref>> input = randomInput();
+        List<Page> output = run(blockFactory, client, input);
+        try {
+            assertThat(rows(output), equalTo(input.stream().flatMap(List::stream).toList()));
+            assertThat(stats.requests(), equalTo((long) client.requests.size()));
+        } finally {
+            output.forEach(Page::releaseBlocks);
+        }
+    }
+
+    /**
      * A page leaves at once, alone, when no batch fetches: the first page of the cut, and a page that arrives once the
      * driver has the output of every batch before it.
      */
@@ -367,7 +385,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         client.failingShard = failed.contextId();
         client.holdResponses = new CountDownLatch(1);
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, clusterAlias -> false);
         Operator operator = factory(client, failures, batching(1, 100)).get(driverContext);
         try {
             List<Ref> first = List.of(new Ref(ORIGINS.get(3), 0, 1));
@@ -906,7 +924,7 @@ public class FetchOperatorTests extends ComputeTestCase {
             new Ref(failed, 1, 4),
             new Ref(ORIGINS.get(0), 2, 5)
         );
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, clusterAlias -> false);
         List<Page> output = run(blockFactory, client, List.of(input), failures);
         try {
             assertThat(rows(output), equalTo(without(input, failed)));
@@ -933,7 +951,7 @@ public class FetchOperatorTests extends ComputeTestCase {
             new Ref(ORIGINS.get(1), 0, 3),
             new Ref(ORIGINS.get(3), 0, 4)
         );
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, clusterAlias -> false);
         List<Page> output = run(blockFactory, client, List.of(input), failures);
         try {
             assertThat(rows(output), equalTo(without(input, ORIGINS.get(0), ORIGINS.get(1))));
@@ -955,7 +973,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         FakeClient client = new FakeClient(blockFactory);
         client.goneNode = "n2";
         List<Ref> input = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2), new Ref(ORIGINS.get(1), 0, 3));
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, clusterAlias -> false);
         List<Page> output = run(blockFactory, client, List.of(input), failures);
         try {
             assertThat(rows(output), equalTo(without(input, ORIGINS.get(2))));
@@ -977,7 +995,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         FakeClient client = new FakeClient(blockFactory);
         client.throwingNode = "n1";
         List<Ref> input = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, clusterAlias -> false);
         List<Page> output = run(blockFactory, client, List.of(input), failures);
         try {
             assertThat(rows(output), equalTo(without(input, ORIGINS.get(0))));
@@ -1000,7 +1018,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         client.failingNode = "n1";
         client.goneNode = "n2";
         List<Ref> input = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2), new Ref(ORIGINS.get(1), 0, 3));
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, clusterAlias -> false);
         List<Page> output = run(blockFactory, client, List.of(input), failures);
         try {
             assertThat(output.size(), equalTo(1));
@@ -1024,7 +1042,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         Ref ofTheFailedShard = new Ref(failed, 0, 7);
         Ref answered = new Ref(ORIGINS.get(0), 0, 3);
         List<Ref> input = List.of(ofTheFailedShard, answered, ofTheFailedShard, new Ref(ORIGINS.get(2), 1, 1), answered);
-        List<Page> output = run(blockFactory, client, List.of(input), new FetchFailures(true));
+        List<Page> output = run(blockFactory, client, List.of(input), new FetchFailures(true, clusterAlias -> false));
         try {
             assertThat(rows(output), equalTo(List.of(answered, new Ref(ORIGINS.get(2), 1, 1), answered)));
         } finally {
@@ -1045,7 +1063,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         for (int p = 0; p < pages; p++) {
             input.add(List.of(new Ref(ORIGINS.get(0), p, 1), new Ref(failed, p, 2), new Ref(ORIGINS.get(3), p, 3)));
         }
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, clusterAlias -> false);
         List<Page> output = run(blockFactory, client, input, failures);
         try {
             assertThat(rows(output), equalTo(without(input.stream().flatMap(List::stream).toList(), failed)));
@@ -1073,7 +1091,7 @@ public class FetchOperatorTests extends ComputeTestCase {
             FakeClient ofAShard = new FakeClient(blockFactory);
             ofAShard.failingShard = ORIGINS.get(2).contextId();
             ofAShard.shardFailure = failure;
-            FetchFailures shardFailures = new FetchFailures(true);
+            FetchFailures shardFailures = new FetchFailures(true, clusterAlias -> false);
             Exception e = expectThrows(Exception.class, () -> run(blockFactory, ofAShard, input, shardFailures));
             assertThat(e, sameInstance(failure));
             assertThat("the query fails, so it reports no failed shard", reported(shardFailures).getFailedShards(), equalTo(0));
@@ -1081,7 +1099,7 @@ public class FetchOperatorTests extends ComputeTestCase {
             FakeClient ofARequest = new FakeClient(blockFactory);
             ofARequest.failingNode = "n2";
             ofARequest.nodeFailure = failure;
-            FetchFailures requestFailures = new FetchFailures(true);
+            FetchFailures requestFailures = new FetchFailures(true, clusterAlias -> false);
             e = expectThrows(Exception.class, () -> run(blockFactory, ofARequest, input, requestFailures));
             assertThat(e, sameInstance(failure));
             assertThat("the query fails, so it reports no failed shard", reported(requestFailures).getFailedShards(), equalTo(0));
@@ -1100,19 +1118,28 @@ public class FetchOperatorTests extends ComputeTestCase {
 
         FakeClient anotherShard = new FakeClient(blockFactory);
         anotherShard.wrongShardNode = "n2";
-        Exception e = expectThrows(IllegalStateException.class, () -> run(blockFactory, anotherShard, input, new FetchFailures(true)));
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> run(blockFactory, anotherShard, input, new FetchFailures(true, clusterAlias -> false))
+        );
         assertThat(e.getMessage(), equalTo("node [n2] answered for " + FakeClient.OTHER_SHARD + " instead of " + ORIGINS.get(2).shardId()));
 
         FakeClient missingShard = new FakeClient(blockFactory);
         missingShard.missingResultNode = "n1";
-        e = expectThrows(IllegalStateException.class, () -> run(blockFactory, missingShard, input, new FetchFailures(true)));
+        e = expectThrows(
+            IllegalStateException.class,
+            () -> run(blockFactory, missingShard, input, new FetchFailures(true, clusterAlias -> false))
+        );
         assertThat(e.getMessage(), equalTo("node [n1] answered for [1] shards out of [2]"));
 
         // n1 loads shard 0 first and returns no row for it, while shard 1 fails, which the page could go on without
         FakeClient missingRows = new FakeClient(blockFactory);
         missingRows.shortNode = "n1";
         missingRows.failingShard = ORIGINS.get(1).contextId();
-        e = expectThrows(IllegalStateException.class, () -> run(blockFactory, missingRows, input, new FetchFailures(true)));
+        e = expectThrows(
+            IllegalStateException.class,
+            () -> run(blockFactory, missingRows, input, new FetchFailures(true, clusterAlias -> false))
+        );
         assertThat(e.getMessage(), equalTo("node [n1] returned [0] rows for [1] documents"));
     }
 
@@ -1227,7 +1254,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         FakeClient client = new FakeClient(blockFactory);
         client.throwingNode = "n1";
         List<Ref> input = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
-        run(blockFactory, client, List.of(input), new FetchFailures(true)).forEach(Page::releaseBlocks);
+        run(blockFactory, client, List.of(input), new FetchFailures(true, clusterAlias -> false)).forEach(Page::releaseBlocks);
 
         assertThat(stats.requests(), equalTo(1L));
         assertThat(stats.nodesContacted(), equalTo(1));
@@ -1246,7 +1273,7 @@ public class FetchOperatorTests extends ComputeTestCase {
      * takes one, waits while it is blocked, and finishes it after the last page.
      */
     private List<Page> run(BlockFactory blockFactory, FakeClient client, List<List<Ref>> input) throws Exception {
-        return run(blockFactory, client, input, new FetchFailures(false));
+        return run(blockFactory, client, input, new FetchFailures(false, clusterAlias -> false));
     }
 
     private List<Page> run(BlockFactory blockFactory, FakeClient client, List<List<Ref>> input, FetchFailures failures) throws Exception {
@@ -1303,7 +1330,7 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     private FetchOperator.Factory factory(FetchOperator.Client client) {
-        return factory(client, new FetchFailures(false));
+        return factory(client, new FetchFailures(false, clusterAlias -> false));
     }
 
     private FetchOperator.Factory factory(FetchOperator.Client client, FetchFailures failures) {
@@ -1311,7 +1338,7 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     private FetchOperator.Factory factory(FetchOperator.Client client, FetchOperator.Batching batching) {
-        return factory(client, new FetchFailures(false), batching);
+        return factory(client, new FetchFailures(false, clusterAlias -> false), batching);
     }
 
     private FetchOperator.Factory factory(FetchOperator.Client client, FetchFailures failures, FetchOperator.Batching batching) {
@@ -1445,7 +1472,7 @@ public class FetchOperatorTests extends ComputeTestCase {
             null
         );
         EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(cluster);
-        failures.applyTo(builder, cluster);
+        failures.applyTo(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, builder, cluster);
         return builder.build();
     }
 
@@ -1482,6 +1509,8 @@ public class FetchOperatorTests extends ComputeTestCase {
         /** The failure of the request to {@link #failingNode}, a rejection when {@code null}. */
         private Exception nodeFailure;
         private String goneNode;
+        /** Every node is found on another thread, after the batch was sent. */
+        private boolean lateNodes;
         /** The request to this node fails before it is sent. */
         private String throwingNode;
         /** This node returns no row for the first shard it loads. */
@@ -1511,8 +1540,16 @@ public class FetchOperatorTests extends ComputeTestCase {
         }
 
         @Override
-        public DiscoveryNode node(String clusterAlias, String nodeId) {
-            return nodeId.equals(goneNode) ? null : DiscoveryNodeUtils.builder(nodeId).name(nodeId).build();
+        public void node(FetchNode node, ActionListener<DiscoveryNode> listener) {
+            if (node.nodeId().equals(goneNode)) {
+                listener.onFailure(new NoNodeAvailableException("node [" + node.nodeId() + "] left the cluster"));
+            } else if (lateNodes) {
+                // like the nodes of a remote cluster that the directory still collects
+                threadPool.generic()
+                    .execute(() -> listener.onResponse(DiscoveryNodeUtils.builder(node.nodeId()).name(node.nodeId()).build()));
+            } else {
+                listener.onResponse(DiscoveryNodeUtils.builder(node.nodeId()).name(node.nodeId()).build());
+            }
         }
 
         @Override

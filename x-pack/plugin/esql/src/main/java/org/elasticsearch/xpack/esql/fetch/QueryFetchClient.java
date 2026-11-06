@@ -11,28 +11,27 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * Sends the fetch requests of one {@link org.elasticsearch.xpack.esql.plan.physical.FetchExec} from the coordinator of its
- * query.
+ * query, to the nodes of its own cluster and of remote clusters.
  * <p>
- * Each request is a child of the query's task, so cancelling the query cancels it. It carries the index expressions of
- * the relation the documents come from, so it is authorized like the query's other requests to the data nodes. The
- * drivers that load the documents count as drivers of the query: their counters and profiles go to the query's compute
- * listener, once per request, whether it succeeds or not. Otherwise the query would wait for them forever.
+ * Each request is a child of the query's task, so cancelling the query cancels it. It carries the index expressions that
+ * the relation the documents come from names on the cluster of the node, so it is authorized like the query's other
+ * requests to the data nodes of that cluster. The drivers that load the documents count as drivers of the query: their
+ * counters and profiles go to the query's compute listener, once per request, whether it succeeds or not. Otherwise the
+ * query would wait for them forever.
  */
 final class QueryFetchClient implements FetchOperator.Client {
     /**
@@ -40,35 +39,44 @@ final class QueryFetchClient implements FetchOperator.Client {
      */
     @FunctionalInterface
     interface Sender {
-        void send(DiscoveryNode node, FetchRequest request, Task parentTask, ActionListener<FetchResponse> listener);
+        void send(FetchNode node, DiscoveryNode target, FetchRequest request, Task parentTask, ActionListener<FetchResponse> listener);
     }
 
     private final Sender sender;
     private final ThreadContext threadContext;
-    private final Supplier<DiscoveryNodes> nodes;
+    private final FetchNodeDirectory nodes;
     private final QueryFetchScope scope;
-    private final OriginalIndices indices;
+    private final Map<String, OriginalIndices> indices;
 
     /**
-     * @param nodes            the nodes of the cluster, as of now
-     * @param indexExpressions the index expressions of the relation the documents come from, on the local cluster
+     * @param indexExpressions the index expressions of the relation the documents come from, by the alias of each cluster
+     *                         it reads
      */
     QueryFetchClient(
         Sender sender,
         ThreadContext threadContext,
-        Supplier<DiscoveryNodes> nodes,
+        FetchNodeDirectory nodes,
         QueryFetchScope scope,
-        List<String> indexExpressions
+        Map<String, List<String>> indexExpressions
     ) {
-        if (indexExpressions.isEmpty()) {
+        if (indexExpressions.isEmpty() || indexExpressions.values().stream().anyMatch(List::isEmpty)) {
             // a request without index expressions is authorized for every index
-            throw new IllegalArgumentException("a fetch needs the index expressions of its relation");
+            throw new IllegalArgumentException(
+                "a fetch needs the index expressions of its relation on every cluster, not " + indexExpressions
+            );
         }
         this.sender = sender;
         this.threadContext = threadContext;
         this.nodes = nodes;
         this.scope = scope;
-        this.indices = new OriginalIndices(indexExpressions.toArray(String[]::new), SearchRequest.DEFAULT_INDICES_OPTIONS);
+        Map<String, OriginalIndices> indices = new HashMap<>();
+        indexExpressions.forEach(
+            (clusterAlias, expressions) -> indices.put(
+                clusterAlias,
+                new OriginalIndices(expressions.toArray(String[]::new), SearchRequest.DEFAULT_INDICES_OPTIONS)
+            )
+        );
+        this.indices = Map.copyOf(indices);
     }
 
     @Override
@@ -77,13 +85,8 @@ final class QueryFetchClient implements FetchOperator.Client {
     }
 
     @Override
-    @Nullable
-    public DiscoveryNode node(String clusterAlias, String nodeId) {
-        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
-            // the planner fetches from the local cluster only
-            throw new IllegalStateException("can't fetch documents of cluster [" + clusterAlias + "]");
-        }
-        return nodes.get().get(nodeId);
+    public void node(FetchNode node, ActionListener<DiscoveryNode> listener) {
+        nodes.find(node, listener);
     }
 
     @Override
@@ -94,13 +97,19 @@ final class QueryFetchClient implements FetchOperator.Client {
         PhysicalPlan fetchPlan,
         ActionListener<FetchResponse> listener
     ) {
-        FetchRequest request = new FetchRequest(scope.sessionId(), clusterAlias, indices, shards, scope.configuration(), fetchPlan);
+        OriginalIndices clusterIndices = indices.get(clusterAlias);
+        if (clusterIndices == null) {
+            // the documents come from the relation, so the relation reads their cluster
+            throw new IllegalStateException("the fetch has no index expressions for the cluster [" + clusterAlias + "]");
+        }
+        FetchRequest request = new FetchRequest(scope.sessionId(), clusterAlias, clusterIndices, shards, scope.configuration(), fetchPlan);
+        FetchNode fetchNode = new FetchNode(clusterAlias, node.getId());
         ActionListener<DriverCompletionInfo> drivers = scope.completionInfo().get();
         ActionListener<FetchResponse> countingDrivers = ActionListener.notifyOnce(new ActionListener<>() {
             @Override
             public void onResponse(FetchResponse response) {
                 try {
-                    scope.fetchContexts().freedByTheirNode(new FetchNode(clusterAlias, node.getId()), freedByTheNode(shards, response));
+                    scope.fetchContexts().freedByTheirNode(fetchNode, freedByTheNode(shards, response));
                     listener.onResponse(response);
                 } finally {
                     drivers.onResponse(response.completionInfo());
@@ -118,7 +127,7 @@ final class QueryFetchClient implements FetchOperator.Client {
             }
         });
         try {
-            sender.send(node, request, scope.rootTask(), countingDrivers);
+            sender.send(fetchNode, node, request, scope.rootTask(), countingDrivers);
         } catch (Exception e) {
             countingDrivers.onFailure(e);
         }

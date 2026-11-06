@@ -52,7 +52,10 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
@@ -667,7 +670,7 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
             doc,
             fetched,
             relation.indexPattern(),
-            localIndices(relation),
+            originalIndices(relation),
             null
         );
         PhysicalPlan replaced = filter == null ? originalCut : filter.filter();
@@ -681,9 +684,14 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         return rewritten;
     }
 
-    static List<String> localIndices(EsRelation relation) {
-        List<String> local = relation.originalIndices().get(LOCAL_CLUSTER_GROUP_KEY);
-        return local == null ? List.of() : List.copyOf(local);
+    /**
+     * The index expressions the user wrote for each cluster the relation reads, which authorize the fetch requests to the
+     * nodes of that cluster.
+     */
+    static Map<String, List<String>> originalIndices(EsRelation relation) {
+        Map<String, List<String>> copy = new TreeMap<>();
+        relation.originalIndices().forEach((clusterAlias, expressions) -> copy.put(clusterAlias, List.copyOf(expressions)));
+        return Collections.unmodifiableMap(copy);
     }
 
     private static boolean sameIds(List<Attribute> left, List<Attribute> right) {

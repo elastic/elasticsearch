@@ -1,6 +1,6 @@
 ProjectExec[[first_name{f}#0, last_name{f}#1, hire_date{f}#2]]
 \_LimitExec[10[INTEGER],null]
-  \_FetchExec[_doc{f}#3,[first_name{f}#0, last_name{f}#1],employees,[],null]
+  \_FetchExec[_doc{f}#3,[first_name{f}#0, last_name{f}#1],employees,{},null]
     \_FilterExec[hire_date{f}#2 > 504921600000[DATETIME]]
       \_TopNExec[[Order[hire_date{f}#2,ASC,LAST]],10[INTEGER],null]
         \_ExchangeExec[[_doc{f}#3, hire_date{f}#2],false]

@@ -45,7 +45,7 @@ public interface FetchPhaseServices {
                             new QueryFetchClient(
                                 fetchService::sendFetch,
                                 clusterService.threadPool().getThreadContext(),
-                                () -> clusterService.state().nodes(),
+                                contextService.nodes(),
                                 scope,
                                 exec.originalIndices()
                             ),

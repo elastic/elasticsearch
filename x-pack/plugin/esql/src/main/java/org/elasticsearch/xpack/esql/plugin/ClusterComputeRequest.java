@@ -17,6 +17,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -40,22 +42,37 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
     private final String sessionId;
     private final Configuration configuration;
     private final RemoteClusterPlan plan;
+    /**
+     * Set when the documents of the rows leave the remote cluster for the fetch phase: the data nodes of the remote cluster
+     * keep a reader context per shard open for the querying cluster, which fetches from them.
+     */
+    @Nullable
+    private final TimeValue fetchContextsKeepAlive;
 
     private transient String[] indices;
 
     /**
      * A request to start a compute on a remote cluster.
      *
-     * @param clusterAlias  the cluster alias of this remote cluster
-     * @param sessionId     the sessionId in which the output pages will be placed in the exchange sink specified by this id
-     * @param configuration the configuration for this compute
-     * @param plan          the physical plan to be executed
+     * @param clusterAlias           the cluster alias of this remote cluster
+     * @param sessionId              the sessionId in which the output pages will be placed in the exchange sink specified by this id
+     * @param configuration          the configuration for this compute
+     * @param plan                   the physical plan to be executed
+     * @param fetchContextsKeepAlive the keep-alive of the fetch contexts the data nodes of the remote cluster keep open for
+     *                               the querying cluster, {@code null} when its documents never leave it
      */
-    ClusterComputeRequest(String clusterAlias, String sessionId, Configuration configuration, RemoteClusterPlan plan) {
+    ClusterComputeRequest(
+        String clusterAlias,
+        String sessionId,
+        Configuration configuration,
+        RemoteClusterPlan plan,
+        @Nullable TimeValue fetchContextsKeepAlive
+    ) {
         this.clusterAlias = clusterAlias;
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.plan = plan;
+        this.fetchContextsKeepAlive = fetchContextsKeepAlive;
         this.indices = plan.originalIndices().indices();
     }
 
@@ -78,6 +95,9 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
             )
         );
         this.plan = RemoteClusterPlan.from(new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper));
+        this.fetchContextsKeepAlive = in.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS)
+            ? in.readOptionalTimeValue()
+            : null;
         this.indices = plan.originalIndices().indices();
     }
 
@@ -88,6 +108,12 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
         out.writeString(sessionId);
         configuration.writeTo(out);
         plan.writeTo(new PlanStreamOutput(out, configuration));
+        if (out.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS)) {
+            out.writeOptionalTimeValue(fetchContextsKeepAlive);
+        } else if (fetchContextsKeepAlive != null) {
+            // the plan sends documents off the remote cluster, which only fetch contexts can serve
+            throw new IllegalStateException("can't ask a cluster on [" + out.getTransportVersion() + "] for fetch contexts");
+        }
     }
 
     @Override
@@ -136,6 +162,15 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
         return plan;
     }
 
+    /**
+     * The keep-alive of the fetch contexts the data nodes of the remote cluster keep open for the querying cluster,
+     * {@code null} when its documents never leave it.
+     */
+    @Nullable
+    TimeValue fetchContextsKeepAlive() {
+        return fetchContextsKeepAlive;
+    }
+
     @Override
     public String getDescription() {
         return "plan=" + plan;
@@ -155,11 +190,12 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
             && sessionId.equals(request.sessionId)
             && configuration.equals(request.configuration)
             && plan.equals(request.plan)
+            && Objects.equals(fetchContextsKeepAlive, request.fetchContextsKeepAlive)
             && getParentTask().equals(request.getParentTask());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, plan);
+        return Objects.hash(sessionId, configuration, plan, fetchContextsKeepAlive);
     }
 }

@@ -24,17 +24,19 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
- * The shards whose fetch failed in one query, on its coordinator. A query that allows partial results goes on without the
- * rows of those shards, and reports them like the shards that failed in the query phase: its cluster counts them as
- * failed and lists their failures.
+ * The shards whose fetch failed in one query, on its coordinator. A query goes on without the rows of those shards when it
+ * allows partial results, or when their cluster is a remote cluster that the query skips when it fails. It reports them
+ * like the shards that failed in the query phase: their cluster counts them as failed and lists their failures.
  * <p>
  * Thread safe. The fetch operators of the query record failures on the threads that receive the responses, and the query
- * folds them into its cluster once its coordinator, its data nodes and its fetches are done.
+ * folds them into each cluster once its coordinator, its data nodes and its fetches are done.
  */
 public final class FetchFailures {
     /**
@@ -43,25 +45,36 @@ public final class FetchFailures {
     static final int MAX_LISTED_FAILURES = 5;
 
     private final boolean allowPartialResults;
+    private final Predicate<String> skipsClusterOnFailure;
     /**
-     * The first failure of each shard, in the order the shards failed. Guarded by {@code this}. The fetch reads the local
-     * cluster only, so a shard id names one shard.
+     * The first failure of each shard, in the order the shards failed. Guarded by {@code this}.
      */
-    private final Map<ShardId, ShardSearchFailure> failedShards = new LinkedHashMap<>();
+    private final Map<ClusterShard, ShardSearchFailure> failedShards = new LinkedHashMap<>();
 
-    public FetchFailures(boolean allowPartialResults) {
+    /**
+     * A shard of a cluster. Two clusters can each have a shard with the same id.
+     */
+    private record ClusterShard(String clusterAlias, ShardId shardId) {}
+
+    /**
+     * @param skipsClusterOnFailure whether the query skips a cluster, by alias, when it fails, like
+     *                              {@link EsqlExecutionInfo#shouldSkipOnFailure}
+     */
+    public FetchFailures(boolean allowPartialResults, Predicate<String> skipsClusterOnFailure) {
         this.allowPartialResults = allowPartialResults;
+        this.skipsClusterOnFailure = skipsClusterOnFailure;
     }
 
     /**
-     * Whether the query goes on without the rows of a fetch that failed with {@code e}, rather than failing.
+     * Whether the query goes on without the rows of a fetch from the cluster {@code clusterAlias} that failed with
+     * {@code e}, rather than failing.
      * <p>
      * Cancellation, circuit breaker trips and security failures always fail the query. An {@link IndexNotFoundException}
      * doesn't, unlike in the query phase ({@link EsqlCCSUtils#canAllowPartial}): during the fetch it means that an index
      * was deleted after the query phase read it, which {@code _search} reports as a shard failure too.
      */
-    public boolean tolerates(Exception e) {
-        return allowPartialResults
+    public boolean tolerates(String clusterAlias, Exception e) {
+        return (allowPartialResults || skipsClusterOnFailure.test(clusterAlias))
             && ExceptionsHelper.unwrap(
                 e,
                 TaskCancelledException.class,
@@ -71,29 +84,42 @@ public final class FetchFailures {
     }
 
     /**
-     * Records that the fetch of {@code shardId} from {@code nodeId} failed with {@code e}. A shard counts once, with its first
-     * failure.
+     * Records that the fetch of {@code shardId} of the cluster {@code clusterAlias} from {@code nodeId} failed with
+     * {@code e}. A shard counts once, with its first failure.
      */
     public void shardFailed(String clusterAlias, String nodeId, ShardId shardId, Exception e) {
         ShardSearchFailure failure = new ShardSearchFailure(unwrap(e), new SearchShardTarget(nodeId, shardId, clusterAlias));
         synchronized (this) {
-            failedShards.putIfAbsent(shardId, failure);
+            failedShards.putIfAbsent(new ClusterShard(clusterAlias, shardId), failure);
         }
     }
 
     /**
-     * Moves the shards whose fetch failed from the successful to the failed shards of {@code cluster}, the local cluster of
-     * the query, and lists the failures of the first ones, once per distinct failure, so a node that failed shows once.
-     *
-     * @return whether any fetch failed
+     * The aliases of the clusters with a shard whose fetch failed.
      */
-    public boolean applyTo(EsqlExecutionInfo.Cluster.Builder builder, EsqlExecutionInfo.Cluster cluster) {
-        int failed;
+    public synchronized Set<String> failedClusters() {
+        Set<String> clusters = new LinkedHashSet<>();
+        failedShards.keySet().forEach(shard -> clusters.add(shard.clusterAlias()));
+        return clusters;
+    }
+
+    /**
+     * Moves the shards of the cluster {@code clusterAlias} whose fetch failed from the successful to the failed shards of
+     * {@code cluster}, and lists the failures of the first ones, once per distinct failure, so a node that failed shows once.
+     *
+     * @return whether any fetch from the cluster failed
+     */
+    public boolean applyTo(String clusterAlias, EsqlExecutionInfo.Cluster.Builder builder, EsqlExecutionInfo.Cluster cluster) {
+        int failed = 0;
         List<ShardSearchFailure> listed = new ArrayList<>();
         synchronized (this) {
-            failed = failedShards.size();
             Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-            for (ShardSearchFailure failure : failedShards.values()) {
+            for (Map.Entry<ClusterShard, ShardSearchFailure> shard : failedShards.entrySet()) {
+                if (shard.getKey().clusterAlias().equals(clusterAlias) == false) {
+                    continue;
+                }
+                failed++;
+                ShardSearchFailure failure = shard.getValue();
                 if (listed.size() < MAX_LISTED_FAILURES && seen.add(failure.getCause())) {
                     listed.add(failure);
                 }

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.fetch;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -40,7 +42,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -52,6 +53,12 @@ import static org.mockito.Mockito.when;
  */
 public class QueryFetchClientTests extends ComputeTestCase {
     private static final DiscoveryNode NODE = DiscoveryNodeUtils.create("n1");
+    private static final Map<String, List<String>> INDEX_EXPRESSIONS = Map.of(
+        "",
+        List.of("logs-*", "-logs-old"),
+        "remote",
+        List.of("remote-logs-*")
+    );
     /**
      * {@link #NODE}, as the lease names the node of its contexts.
      */
@@ -101,12 +108,15 @@ public class QueryFetchClientTests extends ComputeTestCase {
     public void testSendsTheRequestAsAChildOfTheQuery() {
         List<Sent> sent = new ArrayList<>();
         PhysicalPlan fetchPlan = FetchRequestTests.fetchPlan(List.of());
-        QueryFetchClient client = client((node, request, parentTask, listener) -> sent.add(new Sent(node, request, parentTask)));
+        QueryFetchClient client = client(
+            (node, target, request, parentTask, listener) -> sent.add(new Sent(node, target, request, parentTask))
+        );
         client.fetch(NODE, "", List.of(SHARD), fetchPlan, ActionListener.noop());
 
         assertThat(client.threadContext(), sameInstance(threadContext));
         assertThat(sent.size(), equalTo(1));
-        assertThat(sent.getFirst().node(), sameInstance(NODE));
+        assertThat(sent.getFirst().node(), equalTo(FETCH_NODE));
+        assertThat(sent.getFirst().target(), sameInstance(NODE));
         assertThat(sent.getFirst().parentTask(), sameInstance(rootTask));
         FetchRequest request = sent.getFirst().request();
         assertThat(request.sessionId(), equalTo("query-session"));
@@ -121,7 +131,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
         FetchResponse response = new FetchResponse(blockFactory(), List.of(), List.of(), FETCH_DRIVERS, 0, 0);
         try {
             List<FetchResponse> received = new ArrayList<>();
-            client((node, request, parentTask, listener) -> listener.onResponse(response)).fetch(
+            client((node, target, request, parentTask, listener) -> listener.onResponse(response)).fetch(
                 NODE,
                 "",
                 List.of(SHARD),
@@ -140,7 +150,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
     public void testAFailedRequestCompletesItsDrivers() {
         List<Exception> failures = new ArrayList<>();
         IllegalStateException rejected = new IllegalStateException("rejected");
-        client((node, request, parentTask, listener) -> listener.onFailure(rejected)).fetch(
+        client((node, target, request, parentTask, listener) -> listener.onFailure(rejected)).fetch(
             NODE,
             "",
             List.of(SHARD),
@@ -156,7 +166,9 @@ public class QueryFetchClientTests extends ComputeTestCase {
      */
     public void testARequestThatCannotBeSentCompletesItsDrivers() {
         List<Exception> failures = new ArrayList<>();
-        QueryFetchClient.Sender cannotSend = (node, request, parentTask, listener) -> { throw new IllegalStateException("not sent"); };
+        QueryFetchClient.Sender cannotSend = (node, target, request, parentTask, listener) -> {
+            throw new IllegalStateException("not sent");
+        };
         client(cannotSend).fetch(
             NODE,
             "",
@@ -176,7 +188,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
         FetchResponse response = new FetchResponse(blockFactory(), List.of(), List.of(), FETCH_DRIVERS, 0, 0);
         try {
             List<Exception> failures = new ArrayList<>();
-            client((node, request, parentTask, listener) -> {
+            client((node, target, request, parentTask, listener) -> {
                 try {
                     listener.onResponse(response);
                 } catch (Exception e) {
@@ -200,12 +212,17 @@ public class QueryFetchClientTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * The client finds the nodes through the directory of this node: a node of the local cluster from its cluster state.
+     */
     public void testFindsTheNodesOfTheLocalCluster() {
-        QueryFetchClient client = client((node, request, parentTask, listener) -> fail("nothing to send"));
-        assertThat(client.node("", "n1"), sameInstance(NODE));
-        assertThat("a node that left", client.node("", "n2"), nullValue());
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> client.node("remote", "n1"));
-        assertThat(e.getMessage(), equalTo("can't fetch documents of cluster [remote]"));
+        QueryFetchClient client = client((node, target, request, parentTask, listener) -> fail("nothing to send"));
+        PlainActionFuture<DiscoveryNode> found = new PlainActionFuture<>();
+        client.node(FETCH_NODE, found);
+        assertThat(found.actionGet(), sameInstance(NODE));
+        PlainActionFuture<DiscoveryNode> left = new PlainActionFuture<>();
+        client.node(FetchNode.local("n2"), left);
+        expectThrows(NoNodeAvailableException.class, left::actionGet);
     }
 
     /**
@@ -217,11 +234,11 @@ public class QueryFetchClientTests extends ComputeTestCase {
         try {
             RecordedLease recorded = leaseThatRecordsFrees(threadPool);
             QueryFetchClient client = new QueryFetchClient(
-                (node, request, parentTask, listener) -> fail("nothing to send"),
+                (node, target, request, parentTask, listener) -> fail("nothing to send"),
                 threadContext,
-                this::nodes,
+                directory(),
                 scope(recorded.execution()),
-                List.of("logs-*")
+                Map.of("", List.of("logs-*"))
             );
             ShardSearchContextId read = new ShardSearchContextId("session", 1);
             ShardSearchContextId unread = new ShardSearchContextId("session", 2);
@@ -249,11 +266,11 @@ public class QueryFetchClientTests extends ComputeTestCase {
         try {
             RecordedLease recorded = leaseThatRecordsFrees(threadPool);
             QueryFetchClient client = new QueryFetchClient(
-                (node, request, parentTask, listener) -> listener.onResponse(response),
+                (node, target, request, parentTask, listener) -> listener.onResponse(response),
                 threadContext,
-                this::nodes,
+                directory(),
                 scope(recorded.execution()),
-                List.of("logs-*")
+                Map.of("", List.of("logs-*"))
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
             ShardSearchContextId readAgain = new ShardSearchContextId("session", 8);
@@ -283,11 +300,11 @@ public class QueryFetchClientTests extends ComputeTestCase {
         try {
             RecordedLease recorded = leaseThatRecordsFrees(threadPool);
             QueryFetchClient client = new QueryFetchClient(
-                (node, request, parentTask, listener) -> listener.onResponse(response),
+                (node, target, request, parentTask, listener) -> listener.onResponse(response),
                 threadContext,
-                this::nodes,
+                directory(),
                 scope(recorded.execution()),
-                List.of("logs-*")
+                Map.of("", List.of("logs-*"))
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
             recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId()), NODE_KEEP_ALIVE);
@@ -312,11 +329,11 @@ public class QueryFetchClientTests extends ComputeTestCase {
         try {
             RecordedLease recorded = leaseThatRecordsFrees(threadPool);
             QueryFetchClient client = new QueryFetchClient(
-                (node, request, parentTask, listener) -> listener.onFailure(new IllegalStateException("not connected")),
+                (node, target, request, parentTask, listener) -> listener.onFailure(new IllegalStateException("not connected")),
                 threadContext,
-                this::nodes,
+                directory(),
                 scope(recorded.execution()),
-                List.of("logs-*")
+                Map.of("", List.of("logs-*"))
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
             recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId()), NODE_KEEP_ALIVE);
@@ -347,14 +364,14 @@ public class QueryFetchClientTests extends ComputeTestCase {
         when(transportService.getThreadPool()).thenReturn(threadPool);
         RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = new FetchContextLease(
-            new FetchContextService(null, transportService, () -> DiscoveryNodes.EMPTY_NODES, new OpenFetchContexts(MeterRegistry.NOOP)),
+            new FetchContextService(null, transportService, directory(), new OpenFetchContexts(MeterRegistry.NOOP)),
             transport,
             rootTask,
             threadContext.newRestorableContext(false),
             TimeValue.timeValueMinutes(5)
         );
         FetchContextLease.Execution execution = lease.newExecution(
-            new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
+            Map.of("", new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS))
         );
         return new RecordedLease(lease, execution, transport);
     }
@@ -369,25 +386,77 @@ public class QueryFetchClientTests extends ComputeTestCase {
     public void testNeedsTheIndexExpressionsOfTheRelation() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new QueryFetchClient((node, request, parentTask, listener) -> {}, threadContext, this::nodes, scope(), List.of())
+            () -> new QueryFetchClient((node, target, request, parentTask, listener) -> {}, threadContext, directory(), scope(), Map.of())
         );
         assertThat(e.getMessage(), containsString("index expressions"));
     }
 
+    /**
+     * A cluster with an empty list of index expressions would get requests authorized for every index of that cluster.
+     */
+    public void testNeedsIndexExpressionsForEveryCluster() {
+        Map<String, List<String>> remoteWithout = Map.of("", List.of("logs-*"), "remote", List.of());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new QueryFetchClient(
+                (node, target, request, parentTask, listener) -> {},
+                threadContext,
+                directory(),
+                scope(),
+                remoteWithout
+            )
+        );
+        assertThat(e.getMessage(), containsString("index expressions"));
+    }
+
+    /**
+     * A request to a node of a remote cluster names that cluster, and carries the index expressions the query wrote for it,
+     * which the remote cluster authorizes it with.
+     */
+    public void testARequestToARemoteNodeCarriesTheIndexExpressionsOfItsCluster() {
+        List<Sent> sent = new ArrayList<>();
+        QueryFetchClient client = client(
+            (node, target, request, parentTask, listener) -> sent.add(new Sent(node, target, request, parentTask))
+        );
+
+        client.fetch(NODE, "remote", List.of(SHARD), null, ActionListener.noop());
+
+        assertThat(sent.size(), equalTo(1));
+        assertThat(sent.getFirst().node(), equalTo(new FetchNode("remote", "n1")));
+        assertThat(sent.getFirst().request().clusterAlias(), equalTo("remote"));
+        assertThat(sent.getFirst().request().indices(), equalTo(new String[] { "remote-logs-*" }));
+    }
+
+    /**
+     * The relation reads the clusters the documents come from, so a cluster without index expressions is a bug, which
+     * fails the fetch rather than sending a request that the cluster authorizes for every index.
+     */
+    public void testAClusterTheRelationDoesNotReadIsRefused() {
+        QueryFetchClient client = client((node, target, request, parentTask, listener) -> fail("nothing to send"));
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> client.fetch(NODE, "other", List.of(SHARD), null, ActionListener.noop())
+        );
+
+        assertThat(e.getMessage(), equalTo("the fetch has no index expressions for the cluster [other]"));
+        assertThat(drivers.completed, empty());
+    }
+
     private QueryFetchClient client(QueryFetchClient.Sender sender) {
-        return new QueryFetchClient(sender, threadContext, this::nodes, scope(), List.of("logs-*", "-logs-old"));
+        return new QueryFetchClient(sender, threadContext, directory(), scope(), INDEX_EXPRESSIONS);
     }
 
     private QueryFetchScope scope() {
         // the client holds no context in these tests, so the lease never sends a request
         return scope(
             new FetchContextLease(
-                new FetchContextService(null, null, () -> DiscoveryNodes.EMPTY_NODES, new OpenFetchContexts(MeterRegistry.NOOP)),
+                new FetchContextService(null, null, directory(), new OpenFetchContexts(MeterRegistry.NOOP)),
                 new RecordingFetchContextTransport(),
                 rootTask,
                 threadContext.newRestorableContext(false),
                 TimeValue.timeValueMinutes(5)
-            ).newExecution(new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS))
+            ).newExecution(Map.of("", new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)))
         );
     }
 
@@ -397,7 +466,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
             "query-session",
             EsqlTestUtils.TEST_CFG,
             drivers,
-            new FetchFailures(false),
+            new FetchFailures(false, clusterAlias -> false),
             fetchContexts,
             new FetchPhaseStats()
         );
@@ -407,7 +476,18 @@ public class QueryFetchClientTests extends ComputeTestCase {
         return DiscoveryNodes.builder().add(NODE).build();
     }
 
-    private record Sent(DiscoveryNode node, FetchRequest request, Task parentTask) {}
+    /**
+     * The directory of a node that knows the local cluster only: these tests never look a remote node up.
+     */
+    private FetchNodeDirectory directory() {
+        return new FetchNodeDirectory(
+            this::nodes,
+            (clusterAlias, listener) -> listener.onFailure(new IllegalStateException("no remote cluster in this test")),
+            threadContext
+        );
+    }
+
+    private record Sent(FetchNode node, DiscoveryNode target, FetchRequest request, Task parentTask) {}
 
     /**
      * Stands in for the compute listener of the query, which counts the drivers of each listener it hands out.

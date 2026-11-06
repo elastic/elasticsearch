@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -154,7 +155,7 @@ final class SubPlansExecutor {
         this.cancelOnFailure = new RunOnce(computeService.cancelQueryOnFailure(rootTask));
         this.rootPlanTimeProfile = planTimeProfile;
         this.fetchContexts = fetchContextsOf(computeService, rootTask, rootPlan.plan());
-        this.fetchFailures = new FetchFailures(configuration.allowPartialResults());
+        this.fetchFailures = new FetchFailures(configuration.allowPartialResults(), execInfo::shouldSkipOnFailure);
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         final PageStreamPublisher streamPublisher = rootPlan.plan() instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
@@ -189,7 +190,7 @@ final class SubPlansExecutor {
 
     /**
      * One execution for the reader contexts of every branch when the root plan fetches after the merge. The planner fetches
-     * through a {@code FORK} only when every branch reads the same local indices, the ones the fetch names.
+     * through a {@code FORK} only when every branch reads the same indices of the same clusters, the ones the fetch names.
      */
     @Nullable
     private static FetchContextLease.Execution fetchContextsOf(ComputeService computeService, CancellableTask rootTask, PhysicalPlan root) {
@@ -197,24 +198,30 @@ final class SubPlansExecutor {
         if (fetches.isEmpty()) {
             return null;
         }
-        String[] indices = fetches.getFirst().originalIndices().toArray(String[]::new);
-        return computeService.fetchPhaseServices()
-            .contextService()
-            .leaseFor(rootTask)
-            .newExecution(new OriginalIndices(indices, SearchRequest.DEFAULT_INDICES_OPTIONS));
+        Map<String, OriginalIndices> indices = new HashMap<>();
+        fetches.getFirst()
+            .originalIndices()
+            .forEach(
+                (clusterAlias, expressions) -> indices.put(
+                    clusterAlias,
+                    new OriginalIndices(expressions.toArray(String[]::new), SearchRequest.DEFAULT_INDICES_OPTIONS)
+                )
+            );
+        return computeService.fetchPhaseServices().contextService().leaseFor(rootTask).newExecution(indices);
     }
 
     /**
-     * Moves the shards whose fetch after the merge failed to the failed shards of the local cluster, like the query phase
+     * Moves the shards whose fetch after the merge failed to the failed shards of their cluster, like the query phase
      * reports its own.
      */
     private void reportFetchFailures() {
+        ComputeService.applyRemoteFetchFailures(execInfo, fetchFailures);
         if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER) == false) {
             return;
         }
         execInfo.swapCluster(LOCAL_CLUSTER, (alias, cluster) -> {
             var builder = new EsqlExecutionInfo.Cluster.Builder(cluster);
-            if (fetchFailures.applyTo(builder, cluster)) {
+            if (fetchFailures.applyTo(LOCAL_CLUSTER, builder, cluster)) {
                 ComputeService.applyClusterStatusAfterBranch(builder, cluster, true, true);
             }
             return builder.build();

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -102,6 +103,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.fetch.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.FetchContextService;
 import org.elasticsearch.xpack.esql.fetch.FetchFailures;
+import org.elasticsearch.xpack.esql.fetch.FetchNodeDirectory;
 import org.elasticsearch.xpack.esql.fetch.FetchPhaseServices;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.fetch.OpenFetchContexts;
@@ -255,6 +257,7 @@ public class ComputeService {
         OperatorFactoryRegistry operatorFactoryRegistry,
         FormatReaderRegistry formatReaderRegistry,
         Client client,
+        NamedWriteableRegistry namedWriteableRegistry,
         OpenFetchContexts openFetchContexts
     ) {
         this.searchService = transportActionServices.searchService();
@@ -271,11 +274,15 @@ public class ComputeService {
         FetchContextService fetchContextService = new FetchContextService(
             searchService,
             transportService,
-            () -> transportActionServices.clusterService().state().nodes(),
+            FetchNodeDirectory.create(
+                transportService,
+                threadPool.getThreadContext(),
+                () -> transportActionServices.clusterService().state().nodes()
+            ),
             openFetchContexts
         );
         fetchContextService.registerTaskListener();
-        fetchContextService.registerHandlers();
+        fetchContextService.registerHandlers(namedWriteableRegistry);
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -311,6 +318,7 @@ public class ComputeService {
             clusterService,
             searchService,
             blockFactory,
+            namedWriteableRegistry,
             threadPool.executor(EsqlPlugin.computePool()),
             plannerSettings::get,
             this::fetchPlanner
@@ -1520,18 +1528,24 @@ public class ComputeService {
             return;
         }
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
-        var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
-        var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         // documents that leave the data nodes name the contexts they keep open for the fetch phase, which this execution
-        // frees once it no longer reads them, and the query once it ends. The fetch reads only local indices.
+        // frees once it no longer reads them, and the query once it ends. The nodes of every cluster the query reads keep them.
         final FetchContextLease.Execution fetchContexts;
         if (dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
             fetchContexts = mergeFetchContexts != null
                 ? mergeFetchContexts
-                : fetchPhaseServices.contextService().leaseFor(rootTask).newExecution(localOriginalIndices);
+                : fetchPhaseServices.contextService().leaseFor(rootTask).newExecution(withIndexExpressions(clusterToOriginalIndices));
+            for (Map.Entry<String, OriginalIndices> cluster : clusterToConcreteIndices.entrySet()) {
+                if (cluster.getKey().equals(LOCAL_CLUSTER) == false && cluster.getValue().indices().length > 0) {
+                    // the fetch finds the nodes of a remote cluster once it has its documents, so they are collected meanwhile
+                    fetchPhaseServices.contextService().nodes().prepare(cluster.getKey());
+                }
+            }
         } else {
             fetchContexts = null;
         }
+        var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
+        var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         /*
          * Grab the output attributes here, so we can pass them to
          * the listener without holding on to a reference to the
@@ -1553,18 +1567,20 @@ public class ComputeService {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
-                // the fetches of the query record the shards they went on without, which the local cluster reports as failed
-                final FetchFailures fetchFailures = new FetchFailures(configuration.allowPartialResults());
+                // the fetches of the query record the shards they went on without, which their clusters report as failed
+                final FetchFailures fetchFailures = new FetchFailures(configuration.allowPartialResults(), execInfo::shouldSkipOnFailure);
                 try (
                     var localListener = new ComputeListener(
                         cancelQueryOnFailure,
                         computeListener.acquireCompute().delegateFailure((l, completionInfo) -> {
+                            // the fetch ran in the coordinator compute, after every remote cluster reported its shard counts
+                            applyRemoteFetchFailures(execInfo, fetchFailures);
                             if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = execInfo.queryProfile().total().timeSinceStarted();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
                                     // only now: the data nodes assign the shard counts, which would replace the fetch failures
-                                    boolean fetchFailed = fetchFailures.applyTo(builder, v);
+                                    boolean fetchFailed = fetchFailures.applyTo(LOCAL_CLUSTER, builder, v);
                                     if (execInfo.isMainPlan()) {
                                         // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
                                         // and never demote PARTIAL. receivedResults is false: this is coordinator finalization, not a
@@ -1699,6 +1715,7 @@ public class ComputeService {
                         cancelQueryOnFailure,
                         execInfo,
                         exchangeSinkSupplier != null,
+                        fetchContexts,
                         computeListener.acquireCompute().delegateResponse((l, ex) -> {
                             /*
                              * At various points, when collecting failures before sending a response, we manually check
@@ -1879,6 +1896,25 @@ public class ComputeService {
      * gates are independent: CCS with {@code skip_unavailable=true} still records {@code PARTIAL} when {@code allow_partial_results} is
      * false.
      */
+    /**
+     * Moves the shards of remote clusters whose fetch failed to the failed shards of their cluster, which becomes partial:
+     * it sent the rows the query went on without.
+     */
+    static void applyRemoteFetchFailures(EsqlExecutionInfo execInfo, FetchFailures fetchFailures) {
+        for (String clusterAlias : fetchFailures.failedClusters()) {
+            if (clusterAlias.equals(LOCAL_CLUSTER) || execInfo.clusterInfo.containsKey(clusterAlias) == false) {
+                continue;
+            }
+            execInfo.swapCluster(clusterAlias, (k, v) -> {
+                var builder = new EsqlExecutionInfo.Cluster.Builder(v);
+                if (fetchFailures.applyTo(clusterAlias, builder, v)) {
+                    applyClusterStatusAfterBranch(builder, v, true, true);
+                }
+                return builder.build();
+            });
+        }
+    }
+
     static void applyClusterStatusAfterBranch(
         EsqlExecutionInfo.Cluster.Builder builder,
         EsqlExecutionInfo.Cluster existing,
@@ -2487,6 +2523,20 @@ public class ComputeService {
             }));
         });
         return holder.getOrDefault(Map::of);
+    }
+
+    /**
+     * The clusters of {@code clusterToOriginalIndices} with index expressions. A request without any is authorized for
+     * every index, so a fetch context request never goes to a cluster that has none.
+     */
+    private static Map<String, OriginalIndices> withIndexExpressions(Map<String, OriginalIndices> clusterToOriginalIndices) {
+        Map<String, OriginalIndices> withExpressions = new HashMap<>();
+        clusterToOriginalIndices.forEach((clusterAlias, indices) -> {
+            if (indices.indices().length > 0) {
+                withExpressions.put(clusterAlias, indices);
+            }
+        });
+        return withExpressions;
     }
 
 }

@@ -48,11 +48,20 @@ public class FetchPhaseStatsTests extends ESTestCase {
 
     public void testBatchesAddUpAndANodeCountsOnce() {
         FetchPhaseStats stats = new FetchPhaseStats();
-        stats.batchEnded(5, List.of("n1", "n2"), 1_000);
-        stats.batchEnded(3, List.of("n2"), 2_000);
+        stats.batchEnded(5, List.of(FetchNode.local("n1"), FetchNode.local("n2")), 1_000);
+        stats.batchEnded(3, List.of(FetchNode.local("n2")), 2_000);
         assertThat(stats.documents(), equalTo(8L));
         assertThat(stats.requests(), equalTo(3L));
         assertThat(stats.nodesContacted(), equalTo(2));
         assertThat(stats.tookNanos(), equalTo(3_000L));
+    }
+
+    /**
+     * Two clusters can each have a node with the same id, and each counts.
+     */
+    public void testNodesOfTwoClustersWithTheSameIdCountTwice() {
+        FetchPhaseStats stats = new FetchPhaseStats();
+        stats.batchEnded(2, List.of(FetchNode.local("n1"), new FetchNode("remote", "n1")), 1_000);
+        assertThat(stats.nodesContacted(), equalTo(2));
     }
 }

@@ -103,7 +103,8 @@ public class ExternalSourceRequestShapeIT extends AbstractExternalDataSourceIT {
                 new ExchangeSinkExec(Source.EMPTY, exec.output(), false, exec),
                 indices,
                 new OriginalIndices(indices, IndicesOptions.strictExpandOpen())
-            )
+            ),
+            null
         );
 
         ElasticsearchStatusException e = expectRefusal(node, ComputeService.CLUSTER_ACTION_NAME, request, in -> {

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedSupplier;
@@ -30,6 +31,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.junit.After;
@@ -39,6 +41,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -55,6 +58,13 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
     protected static final OriginalIndices QUERY_INDICES = new OriginalIndices(
         new String[] { INDEX },
         SearchRequest.DEFAULT_INDICES_OPTIONS
+    );
+    /**
+     * The index expressions of an execution that reads this node's cluster only.
+     */
+    protected static final Map<String, OriginalIndices> EXECUTION_INDICES = Map.of(
+        RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+        QUERY_INDICES
     );
 
     /**
@@ -73,10 +83,15 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
 
     @Before
     public void createService() {
+        TransportService transportService = getInstanceFromNode(TransportService.class);
         service = new FetchContextService(
             searchService(),
-            getInstanceFromNode(TransportService.class),
-            () -> getInstanceFromNode(ClusterService.class).state().nodes(),
+            transportService,
+            FetchNodeDirectory.create(
+                transportService,
+                transportService.getThreadPool().getThreadContext(),
+                () -> getInstanceFromNode(ClusterService.class).state().nodes()
+            ),
             openContexts
         );
         registerHandlers();
@@ -171,7 +186,7 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
      */
     private void registerHandlers() {
         if (getInstanceFromNode(TransportService.class).getRequestHandler(FetchContextService.KEEP_ALIVE_ACTION_NAME) == null) {
-            service.registerHandlers();
+            service.registerHandlers(getInstanceFromNode(NamedWriteableRegistry.class));
         }
     }
 

@@ -31,7 +31,10 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
@@ -41,18 +44,81 @@ import static org.hamcrest.Matchers.sameInstance;
  */
 public class FetchFailuresTests extends ESTestCase {
     private static final String LOCAL = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+    private static final String REMOTE = "remote";
+    private static final Predicate<String> NO_CLUSTER_SKIPPED = clusterAlias -> false;
     private static final Index INDEX = new Index("idx", "idx-uuid");
+
+    /**
+     * Without partial results, the query goes on without the rows of a remote cluster that it skips when it fails, like
+     * the query phase does with {@code skip_unavailable}. The other clusters still fail it.
+     */
+    public void testAClusterSkippedOnFailureIsToleratedWithoutPartialResults() {
+        FetchFailures failures = new FetchFailures(false, REMOTE::equals);
+        for (Exception e : shardFailures()) {
+            assertTrue(e.toString(), failures.tolerates(REMOTE, e));
+            assertFalse(e.toString(), failures.tolerates(LOCAL, e));
+            assertFalse(e.toString(), failures.tolerates("other", e));
+        }
+    }
+
+    /**
+     * A cancellation, a circuit breaker trip or a security failure fails the query, also from a cluster it skips on failure.
+     */
+    public void testAClusterSkippedOnFailureStillFailsTheQueryOnCancellationCircuitBreakingAndSecurity() {
+        FetchFailures failures = new FetchFailures(randomBoolean(), REMOTE::equals);
+        for (Exception e : queryFailures()) {
+            assertFalse(e.toString(), failures.tolerates(REMOTE, e));
+        }
+    }
+
+    /**
+     * Two clusters can have a shard with the same id. Each counts as a failed shard of its own cluster, with its own failure.
+     */
+    public void testTheSameShardOfTwoClustersCountsOnceInEach() {
+        FetchFailures failures = new FetchFailures(true, NO_CLUSTER_SKIPPED);
+        Exception localFailure = new ElasticsearchException("local");
+        Exception remoteFailure = new ElasticsearchException("remote");
+        failures.shardFailed(LOCAL, "n1", shard(0), localFailure);
+        failures.shardFailed(REMOTE, "r1", shard(0), remoteFailure);
+
+        EsqlExecutionInfo.Cluster local = apply(failures, cluster(2, 2, 0, List.of()));
+        EsqlExecutionInfo.Cluster.Builder remoteBuilder = new EsqlExecutionInfo.Cluster.Builder(cluster(REMOTE, 3, 3, 0, List.of()));
+        assertTrue(failures.applyTo(REMOTE, remoteBuilder, cluster(REMOTE, 3, 3, 0, List.of())));
+        EsqlExecutionInfo.Cluster remote = remoteBuilder.build();
+
+        assertThat(local.getFailedShards(), equalTo(1));
+        assertThat(local.getSuccessfulShards(), equalTo(1));
+        assertThat(local.getFailures().getFirst().getCause(), sameInstance(localFailure));
+        assertThat(remote.getFailedShards(), equalTo(1));
+        assertThat(remote.getSuccessfulShards(), equalTo(2));
+        assertThat(remote.getFailures().getFirst().getCause(), sameInstance(remoteFailure));
+        assertThat(remote.getFailures().getFirst().shard(), equalTo(new SearchShardTarget("r1", shard(0), REMOTE)));
+    }
+
+    /**
+     * The clusters with a failed fetch are the ones the query folds failures into, and no other.
+     */
+    public void testFailedClustersAreTheClustersWithAFailedShard() {
+        FetchFailures failures = new FetchFailures(true, NO_CLUSTER_SKIPPED);
+        assertThat(failures.failedClusters(), empty());
+        failures.shardFailed(REMOTE, "r1", shard(0), new ElasticsearchException("remote"));
+        failures.shardFailed(REMOTE, "r1", shard(1), new ElasticsearchException("remote"));
+
+        assertThat(failures.failedClusters(), equalTo(Set.of(REMOTE)));
+        EsqlExecutionInfo.Cluster local = cluster(2, 2, 0, List.of());
+        assertFalse("the local cluster had no failed fetch", failures.applyTo(LOCAL, new EsqlExecutionInfo.Cluster.Builder(local), local));
+    }
 
     /**
      * Without partial results, every failed fetch fails the query, also one whose context is gone.
      */
     public void testWithoutPartialResultsNothingIsTolerated() {
-        FetchFailures failures = new FetchFailures(false);
+        FetchFailures failures = new FetchFailures(false, NO_CLUSTER_SKIPPED);
         List<Exception> all = new ArrayList<>(shardFailures());
         all.add(new IndexNotFoundException("idx"));
         all.addAll(queryFailures());
         for (Exception e : all) {
-            assertFalse(e.toString(), failures.tolerates(e));
+            assertFalse(e.toString(), failures.tolerates(LOCAL, e));
         }
     }
 
@@ -61,9 +127,9 @@ public class FetchFailuresTests extends ESTestCase {
      * a failure while loading, a rejected request, a node that left.
      */
     public void testShardFailuresAreToleratedWithPartialResults() {
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, NO_CLUSTER_SKIPPED);
         for (Exception e : shardFailures()) {
-            assertTrue(e.toString(), failures.tolerates(e));
+            assertTrue(e.toString(), failures.tolerates(LOCAL, e));
         }
     }
 
@@ -73,8 +139,8 @@ public class FetchFailuresTests extends ESTestCase {
     public void testAMissingIndexIsToleratedUnlikeInTheQueryPhase() {
         IndexNotFoundException e = new IndexNotFoundException("idx");
         assertFalse("the query phase fails on a missing index", EsqlCCSUtils.canAllowPartial(e));
-        assertTrue(new FetchFailures(true).tolerates(e));
-        assertTrue(new FetchFailures(true).tolerates(remote(e)));
+        assertTrue(new FetchFailures(true, NO_CLUSTER_SKIPPED).tolerates(LOCAL, e));
+        assertTrue(new FetchFailures(true, NO_CLUSTER_SKIPPED).tolerates(LOCAL, remote(e)));
     }
 
     /**
@@ -82,10 +148,10 @@ public class FetchFailuresTests extends ESTestCase {
      * carries it.
      */
     public void testCancellationCircuitBreakingAndSecurityAreNeverTolerated() {
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, NO_CLUSTER_SKIPPED);
         for (Exception e : queryFailures()) {
-            assertFalse(e.toString(), failures.tolerates(e));
-            assertFalse(e.toString(), failures.tolerates(remote(e)));
+            assertFalse(e.toString(), failures.tolerates(LOCAL, e));
+            assertFalse(e.toString(), failures.tolerates(LOCAL, remote(e)));
         }
     }
 
@@ -93,7 +159,7 @@ public class FetchFailuresTests extends ESTestCase {
      * A shard that fails several times counts once, with its first failure and the node that reported it.
      */
     public void testAShardCountsOnceWithItsFirstFailure() {
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, NO_CLUSTER_SKIPPED);
         Exception first = new SearchContextMissingException(new ShardSearchContextId("session", 1));
         failures.shardFailed(LOCAL, "n1", shard(0), first);
         failures.shardFailed(LOCAL, "n2", shard(0), new ElasticsearchException("second"));
@@ -110,7 +176,7 @@ public class FetchFailuresTests extends ESTestCase {
      * A failure that a transport exception carries is recorded as the failure the remote node reported.
      */
     public void testRecordsTheFailureATransportExceptionCarries() {
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, NO_CLUSTER_SKIPPED);
         Exception reported = new SearchContextMissingException(new ShardSearchContextId("session", 1));
         failures.shardFailed(LOCAL, "n1", shard(0), new TransportException("failed on [n1]", reported));
 
@@ -123,7 +189,7 @@ public class FetchFailuresTests extends ESTestCase {
      * total and the failures of the query phase.
      */
     public void testApplyMovesTheFailedShardsToTheFailedOnes() {
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, NO_CLUSTER_SKIPPED);
         failures.shardFailed(LOCAL, "n1", shard(1), new ElasticsearchException("one"));
         failures.shardFailed(LOCAL, "n2", shard(2), new ElasticsearchException("two"));
         ShardSearchFailure queryPhaseFailure = new ShardSearchFailure(
@@ -144,7 +210,7 @@ public class FetchFailuresTests extends ESTestCase {
      * Applying lists one failure per distinct exception, at most five, so a node whose request failed shows once.
      */
     public void testApplyListsOneFailurePerException() {
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, NO_CLUSTER_SKIPPED);
         Exception nodeFailure = new EsRejectedExecutionException("rejected");
         int shardsOfTheNode = between(2, 4);
         for (int s = 0; s < shardsOfTheNode; s++) {
@@ -171,7 +237,7 @@ public class FetchFailuresTests extends ESTestCase {
      * Without failed fetches, applying changes nothing and reports that no fetch failed.
      */
     public void testApplyWithoutFailuresChangesNothing() {
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, NO_CLUSTER_SKIPPED);
         ShardSearchFailure queryPhaseFailure = new ShardSearchFailure(
             new ElasticsearchException("query phase"),
             new SearchShardTarget("n1", shard(0), LOCAL)
@@ -179,7 +245,7 @@ public class FetchFailuresTests extends ESTestCase {
         EsqlExecutionInfo.Cluster cluster = cluster(3, 2, 1, List.of(queryPhaseFailure));
         EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(cluster);
 
-        assertFalse(failures.applyTo(builder, cluster));
+        assertFalse(failures.applyTo(LOCAL, builder, cluster));
         EsqlExecutionInfo.Cluster built = builder.build();
         assertThat(built, equalTo(cluster));
         assertThat(built.getFailures(), equalTo(cluster.getFailures()));
@@ -190,7 +256,7 @@ public class FetchFailuresTests extends ESTestCase {
      * that several threads fail counts once.
      */
     public void testRecordsFromSeveralThreads() {
-        FetchFailures failures = new FetchFailures(true);
+        FetchFailures failures = new FetchFailures(true, NO_CLUSTER_SKIPPED);
         int threads = between(2, 8);
         int shardsPerThread = between(10, 100);
         int sharedShards = between(1, 10);
@@ -246,8 +312,18 @@ public class FetchFailuresTests extends ESTestCase {
      * The local cluster as the data nodes leave it.
      */
     private static EsqlExecutionInfo.Cluster cluster(int total, int successful, int failed, List<ShardSearchFailure> failures) {
+        return cluster(LOCAL, total, successful, failed, failures);
+    }
+
+    private static EsqlExecutionInfo.Cluster cluster(
+        String clusterAlias,
+        int total,
+        int successful,
+        int failed,
+        List<ShardSearchFailure> failures
+    ) {
         return new EsqlExecutionInfo.Cluster(
-            LOCAL,
+            clusterAlias,
             null,
             "idx",
             false,
@@ -263,7 +339,7 @@ public class FetchFailuresTests extends ESTestCase {
 
     private static EsqlExecutionInfo.Cluster apply(FetchFailures failures, EsqlExecutionInfo.Cluster cluster) {
         EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(cluster);
-        assertTrue("a fetch failed", failures.applyTo(builder, cluster));
+        assertTrue("a fetch failed", failures.applyTo(LOCAL, builder, cluster));
         return builder.build();
     }
 }

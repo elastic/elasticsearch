@@ -262,6 +262,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             operatorFactoryRegistry,
             dataSourceModule.formatReaderRegistry(),
             client,
+            registry,
             openFetchContexts
         );
 

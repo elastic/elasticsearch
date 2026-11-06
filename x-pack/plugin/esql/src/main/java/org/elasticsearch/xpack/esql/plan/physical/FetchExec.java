@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -41,7 +42,7 @@ public final class FetchExec extends UnaryExec implements EstimatesRowSize {
     private final Attribute doc;
     private final List<Attribute> fetchedAttributes;
     private final String indexPattern;
-    private final List<String> originalIndices;
+    private final Map<String, List<String>> originalIndices;
     private final Integer estimatedRowSize;
     private List<Attribute> lazyOutput;
 
@@ -49,8 +50,9 @@ public final class FetchExec extends UnaryExec implements EstimatesRowSize {
      * @param doc               the {@code _doc} column of {@code child}
      * @param fetchedAttributes the columns the fetch appends to each row
      * @param indexPattern      the index pattern of the relation the documents come from
-     * @param originalIndices   the index expressions the user wrote for the local cluster. A fetch request carries
-     *                          them so it is authorized like the query that selected the documents.
+     * @param originalIndices   the index expressions the user wrote for each cluster the relation reads, by cluster alias.
+     *                          A fetch request to a node carries the ones of its cluster, so it is authorized like the
+     *                          query that selected the documents.
      */
     public FetchExec(
         Source source,
@@ -58,7 +60,7 @@ public final class FetchExec extends UnaryExec implements EstimatesRowSize {
         Attribute doc,
         List<Attribute> fetchedAttributes,
         String indexPattern,
-        List<String> originalIndices,
+        Map<String, List<String>> originalIndices,
         Integer estimatedRowSize
     ) {
         super(source, child);
@@ -76,7 +78,7 @@ public final class FetchExec extends UnaryExec implements EstimatesRowSize {
             in.readNamedWriteable(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readString(),
-            in.readStringCollectionAsList(),
+            in.readMap(StreamInput::readStringCollectionAsList),
             in.readOptionalVInt()
         );
     }
@@ -88,7 +90,7 @@ public final class FetchExec extends UnaryExec implements EstimatesRowSize {
         out.writeNamedWriteable(doc);
         out.writeNamedWriteableCollection(fetchedAttributes);
         out.writeString(indexPattern);
-        out.writeStringCollection(originalIndices);
+        out.writeMap(originalIndices, StreamOutput::writeStringCollection);
         out.writeOptionalVInt(estimatedRowSize);
     }
 
@@ -109,7 +111,7 @@ public final class FetchExec extends UnaryExec implements EstimatesRowSize {
         return indexPattern;
     }
 
-    public List<String> originalIndices() {
+    public Map<String, List<String>> originalIndices() {
         return originalIndices;
     }
 

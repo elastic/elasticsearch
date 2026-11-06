@@ -295,8 +295,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     if (fetchContexts != null) {
+                                        // the data nodes are in the cluster of this coordinator, also on a remote cluster
                                         fetchContexts.add(
-                                            new FetchNode(clusterAlias, connection.getNode().getId()),
+                                            FetchNode.local(connection.getNode().getId()),
                                             r.openContexts(),
                                             r.fetchContextsKeepAlive()
                                         );

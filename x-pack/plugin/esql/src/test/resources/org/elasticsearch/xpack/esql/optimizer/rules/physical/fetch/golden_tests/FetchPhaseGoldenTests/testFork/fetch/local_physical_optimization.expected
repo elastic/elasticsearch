@@ -1,5 +1,5 @@
 ProjectExec[[first_name{r}#0, last_name{r}#1, hire_date{r}#2, _fork{r}#3]]
-\_FetchExec[_doc{f}#4,[first_name{f}#0, last_name{f}#1],employees,[],null]
+\_FetchExec[_doc{f}#4,[first_name{f}#0, last_name{f}#1],employees,{},null]
   \_TopNExec[[Order[hire_date{r}#2,DESC,FIRST]],10[INTEGER],null]
     \_MergeExec[[_doc{f}#4, hire_date{r}#2, _fork{r}#3],FORK]
       |_ProjectExec[[_doc{f}#5, hire_date{f}#6, _fork{r}#7]]

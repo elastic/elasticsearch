@@ -1,5 +1,5 @@
 ProjectExec[[first_name{f}#0, last_name{f}#1, languages{f}#2]]
-\_FetchExec[_doc{f}#3,[first_name{f}#0, last_name{f}#1],employees,[],null]
+\_FetchExec[_doc{f}#3,[first_name{f}#0, last_name{f}#1],employees,{},null]
   \_LimitExec[1000[INTEGER],null]
     \_LimitByExec[2[INTEGER],[languages{f}#2],null]
       \_ExchangeExec[[_doc{f}#3, languages{f}#2],false]

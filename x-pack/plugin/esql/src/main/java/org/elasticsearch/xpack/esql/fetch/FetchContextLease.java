@@ -98,14 +98,15 @@ public final class FetchContextLease implements Releasable {
      * A new execution of the query, which keeps its own contexts in the lease. Several executions of one query can run
      * under the same session id, so each one needs its own.
      *
-     * @param indices the index expressions of the execution, which authorize its keep-alive requests like its other requests
+     * @param indices the index expressions of the execution on each cluster it reads, by cluster alias, which authorize its
+     *                keep-alive and free requests to the nodes of that cluster like its other requests there
      */
-    public Execution newExecution(OriginalIndices indices) {
-        if (indices.indices().length == 0) {
+    public Execution newExecution(Map<String, OriginalIndices> indices) {
+        if (indices.isEmpty() || indices.values().stream().anyMatch(i -> i.indices().length == 0)) {
             // a request without index expressions is authorized for every index
-            throw new IllegalArgumentException("an execution needs the index expressions of its query");
+            throw new IllegalArgumentException("an execution needs the index expressions of its query on every cluster");
         }
-        Execution execution = new Execution(indices);
+        Execution execution = new Execution(Map.copyOf(indices));
         synchronized (this) {
             if (closed == false) {
                 executions.add(execution);
@@ -149,7 +150,7 @@ public final class FetchContextLease implements Releasable {
             for (Execution execution : executions) {
                 execution.held.forEach((node, ids) -> {
                     if (ids.isEmpty() == false) {
-                        toRefresh.add(new Contexts(execution.indices, node, List.copyOf(ids)));
+                        toRefresh.add(execution.contexts(node, List.copyOf(ids)));
                     }
                 });
             }
@@ -172,6 +173,14 @@ public final class FetchContextLease implements Releasable {
      * @param indices the index expressions of the execution, which authorize the requests for its contexts
      */
     private record Contexts(OriginalIndices indices, FetchNode node, List<ShardSearchContextId> ids) {}
+
+    /**
+     * The contexts an execution handed over, see {@link Execution#handOver}.
+     *
+     * @param contexts  the contexts of each node
+     * @param keepAlive the shortest keep-alive a node gave them, which the new holder refreshes them within
+     */
+    public record HandedOver(Map<FetchNode, List<ShardSearchContextId>> contexts, TimeValue keepAlive) {}
 
     /**
      * Called with the lock held, when the lease holds contexts that a node keeps open for {@code nodeKeepAlive}. A keep-alive
@@ -216,7 +225,7 @@ public final class FetchContextLease implements Releasable {
      * The contexts of one execution of the query, and the ones it still reads. The lease guards it.
      */
     public final class Execution {
-        private final OriginalIndices indices;
+        private final Map<String, OriginalIndices> indices;
         private final Map<FetchNode, List<ShardSearchContextId>> held = new HashMap<>();
         /**
          * The contexts the rows of the cut read, once the cut ended.
@@ -225,8 +234,15 @@ public final class FetchContextLease implements Releasable {
         private Set<ShardSearchContextId> read;
         private boolean fetchEnded;
 
-        private Execution(OriginalIndices indices) {
+        private Execution(Map<String, OriginalIndices> indices) {
             this.indices = Objects.requireNonNull(indices);
+        }
+
+        /**
+         * The contexts {@code ids} of {@code node}, with the index expressions of its cluster, which {@link #add} checked.
+         */
+        private Contexts contexts(FetchNode node, List<ShardSearchContextId> ids) {
+            return new Contexts(indices.get(node.clusterAlias()), node, ids);
         }
 
         /**
@@ -247,6 +263,10 @@ public final class FetchContextLease implements Releasable {
                 return;
             }
             Objects.requireNonNull(nodeKeepAlive, "nodeKeepAlive");
+            if (indices.containsKey(node.clusterAlias()) == false) {
+                // only the nodes of the clusters the execution reads open contexts for it
+                throw new IllegalStateException("the execution has no index expressions for the cluster of [" + node + "]");
+            }
             List<ShardSearchContextId> unread = new ArrayList<>();
             synchronized (FetchContextLease.this) {
                 if (closed) {
@@ -266,7 +286,7 @@ public final class FetchContextLease implements Releasable {
                 }
             }
             if (unread.isEmpty() == false) {
-                free(List.of(new Contexts(indices, node, unread)));
+                free(List.of(contexts(node, unread)));
             }
         }
 
@@ -302,6 +322,36 @@ public final class FetchContextLease implements Releasable {
         }
 
         /**
+         * Hands the contexts that the rows which left read over to the coordinator of the querying cluster, and frees the
+         * others. For the coordinator of a remote cluster, once its request ended: the querying cluster fetches from those
+         * contexts, and refreshes and frees them from then on. The execution holds none of them after, and leaves the lease.
+         * A context that a response lists later is freed at once.
+         *
+         * @param read the contexts the rows that left read
+         */
+        public HandedOver handOver(Set<ShardSearchContextId> read) {
+            List<Contexts> unread;
+            Map<FetchNode, List<ShardSearchContextId>> handedOver = new HashMap<>();
+            TimeValue nodeKeepAlive;
+            synchronized (FetchContextLease.this) {
+                assert this.read == null && fetchEnded == false : "an execution hands its contexts over once, without a fetch";
+                this.read = Set.copyOf(read);
+                unread = takeUnread();
+                held.forEach((node, ids) -> {
+                    if (ids.isEmpty() == false) {
+                        handedOver.put(node, List.copyOf(ids));
+                    }
+                });
+                held.clear();
+                fetchEnded = true;
+                executions.remove(this);
+                nodeKeepAlive = shortestKeepAlive;
+            }
+            free(unread);
+            return new HandedOver(Map.copyOf(handedOver), nodeKeepAlive);
+        }
+
+        /**
          * The fetch ended, so the execution reads none of its contexts anymore. Frees them, and leaves the lease.
          */
         public void fetchEnded() {
@@ -334,7 +384,7 @@ public final class FetchContextLease implements Releasable {
                     }
                 }
                 if (unreadOfNode.isEmpty() == false) {
-                    unread.add(new Contexts(indices, node.getKey(), unreadOfNode));
+                    unread.add(contexts(node.getKey(), unreadOfNode));
                 }
             }
             return unread;
@@ -347,7 +397,7 @@ public final class FetchContextLease implements Releasable {
             List<Contexts> taken = new ArrayList<>();
             held.forEach((node, ids) -> {
                 if (ids.isEmpty() == false) {
-                    taken.add(new Contexts(indices, node, List.copyOf(ids)));
+                    taken.add(contexts(node, List.copyOf(ids)));
                 }
             });
             held.clear();

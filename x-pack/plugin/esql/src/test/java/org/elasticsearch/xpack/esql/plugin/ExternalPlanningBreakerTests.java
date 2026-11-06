@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +32,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -615,6 +617,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(transportService.getTaskManager()).thenReturn(new TaskManager(Settings.EMPTY, threadPool, Set.of()));
+        // the fetch actions register their forwarding handlers on top of their own handlers, which the mock doesn't keep
+        when(transportService.getRequestHandler(anyString())).thenAnswer(invocation -> mock(RequestHandlerRegistry.class));
 
         Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registered.add(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);
@@ -685,6 +689,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             operators,
             readers,
             null,
+            new NamedWriteableRegistry(List.of()),
             new OpenFetchContexts(MeterRegistry.NOOP)
         );
     }

@@ -1,5 +1,5 @@
 ProjectExec[[title{r}#0, author{r}#1, _score{r}#2]]
-\_FetchExec[_doc{r}#3,[author{f}#1, title{f}#0],books,[],null]
+\_FetchExec[_doc{r}#3,[author{f}#1, title{f}#0],books,{},null]
   \_TopNExec[[Order[_score{r}#2,DESC,FIRST]],10[INTEGER],null]
     \_AggregateExec[[_id{r}#4, _index{r}#5],[SUM(_score{r}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS _score#2, FIRSTDOCID(_doc{f}#7,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#3],SINGLE,[_id{r}#4, _index{r}#5, $$_score$value{r}#8, $$_score$delta{r}#9, $$_score$seen{r}#10, $$_doc$_doc{r}#11],null]
       \_EvalExec[[null[NULL] AS $$$FIRST$0#12]]

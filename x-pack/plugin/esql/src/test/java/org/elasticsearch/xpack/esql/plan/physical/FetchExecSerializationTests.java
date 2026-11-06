@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializationTests<FetchExec> {
     public static FetchExec randomFetchExec(int depth) {
@@ -20,9 +22,16 @@ public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializati
             FetchSourceExecSerializationTests.randomDoc(),
             randomFieldAttributes(1, 5, false),
             randomAlphaOfLength(5),
-            randomList(1, 3, () -> randomAlphaOfLength(5)),
+            randomOriginalIndices(),
             randomEstimatedRowSize()
         );
+    }
+
+    /**
+     * The index expressions of the local cluster, of remote clusters, or of both.
+     */
+    private static Map<String, List<String>> randomOriginalIndices() {
+        return randomMap(1, 3, () -> Tuple.tuple(randomFrom("", randomAlphaOfLength(5)), randomList(1, 3, () -> randomAlphaOfLength(5))));
     }
 
     @Override
@@ -36,14 +45,14 @@ public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializati
         Attribute doc = instance.doc();
         List<Attribute> fetched = instance.fetchedAttributes();
         String indexPattern = instance.indexPattern();
-        List<String> originalIndices = instance.originalIndices();
+        Map<String, List<String>> originalIndices = instance.originalIndices();
         Integer estimatedRowSize = instance.estimatedRowSize();
         switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> doc = randomValueOtherThan(doc, FetchSourceExecSerializationTests::randomDoc);
             case 2 -> fetched = randomValueOtherThan(fetched, () -> randomFieldAttributes(1, 5, false));
             case 3 -> indexPattern = randomValueOtherThan(indexPattern, () -> randomAlphaOfLength(5));
-            case 4 -> originalIndices = randomValueOtherThan(originalIndices, () -> randomList(1, 3, () -> randomAlphaOfLength(5)));
+            case 4 -> originalIndices = randomValueOtherThan(originalIndices, FetchExecSerializationTests::randomOriginalIndices);
             case 5 -> estimatedRowSize = randomValueOtherThan(
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize

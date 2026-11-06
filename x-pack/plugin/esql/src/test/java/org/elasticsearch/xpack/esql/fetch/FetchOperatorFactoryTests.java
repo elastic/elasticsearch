@@ -51,11 +51,17 @@ public class FetchOperatorFactoryTests extends ESTestCase {
             doc,
             fetched,
             "idx",
-            List.of("idx"),
+            Map.of("", List.of("idx")),
             null
         );
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false), new FetchPhaseStats());
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(
+            exec,
+            0,
+            null,
+            new FetchFailures(false, cluster -> false),
+            new FetchPhaseStats()
+        );
         assertThat(factory.fetchedTypes(), equalTo(List.of(ElementType.BYTES_REF, ElementType.BYTES_REF)));
         assertThat(factory.fetchPlan(), instanceOf(ProjectExec.class));
         ProjectExec project = (ProjectExec) factory.fetchPlan();
@@ -82,7 +88,7 @@ public class FetchOperatorFactoryTests extends ESTestCase {
             fetchOver(topNOver(doc), doc),
             0,
             null,
-            new FetchFailures(false),
+            new FetchFailures(false, cluster -> false),
             new FetchPhaseStats()
         );
 
@@ -101,7 +107,7 @@ public class FetchOperatorFactoryTests extends ESTestCase {
             fetchOver(filtered, doc),
             0,
             null,
-            new FetchFailures(false),
+            new FetchFailures(false, cluster -> false),
             new FetchPhaseStats()
         );
 
@@ -117,7 +123,13 @@ public class FetchOperatorFactoryTests extends ESTestCase {
         PhysicalPlan cut = new LimitExec(Source.EMPTY, new ExchangeSourceExec(Source.EMPTY, List.of(doc), false), limit, null);
         FetchExec exec = fetchOver(cut, doc);
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false), new FetchPhaseStats());
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(
+            exec,
+            0,
+            null,
+            new FetchFailures(false, cluster -> false),
+            new FetchPhaseStats()
+        );
 
         assertThat(factory.batching(), equalTo(FetchOperator.Batching.Streaming.forFetched(exec.fetchedAttributes())));
     }
@@ -143,7 +155,7 @@ public class FetchOperatorFactoryTests extends ESTestCase {
             fetchOver(cut, doc),
             0,
             null,
-            new FetchFailures(false),
+            new FetchFailures(false, cluster -> false),
             new FetchPhaseStats()
         );
 
@@ -165,13 +177,19 @@ public class FetchOperatorFactoryTests extends ESTestCase {
         PhysicalPlan cut = new LimitExec(Source.EMPTY, limitBy, new Literal(Source.EMPTY, 1000, DataType.INTEGER), null);
         FetchExec exec = fetchOver(cut, doc);
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false), new FetchPhaseStats());
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(
+            exec,
+            0,
+            null,
+            new FetchFailures(false, cluster -> false),
+            new FetchPhaseStats()
+        );
 
         assertThat(factory.batching(), equalTo(FetchOperator.Batching.Streaming.forFetched(exec.fetchedAttributes())));
     }
 
     private static FetchExec fetchOver(PhysicalPlan cut, Attribute doc) {
-        return new FetchExec(Source.EMPTY, cut, doc, List.of(field("message", DataType.KEYWORD)), "idx", List.of("idx"), null);
+        return new FetchExec(Source.EMPTY, cut, doc, List.of(field("message", DataType.KEYWORD)), "idx", Map.of("", List.of("idx")), null);
     }
 
     private static TopNExec topNOver(Attribute doc) {

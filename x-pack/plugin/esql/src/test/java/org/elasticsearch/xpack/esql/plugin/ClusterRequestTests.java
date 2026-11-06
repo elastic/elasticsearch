@@ -13,9 +13,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
@@ -48,6 +51,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterRequestTests extends AbstractWireSerializingTestCase<ClusterComputeRequest> {
 
@@ -78,7 +83,8 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             randomAlphaOfLength(10),
             sessionId,
             randomConfiguration(query, randomTables()),
-            new RemoteClusterPlan(physicalPlan, targetIndices, originalIndices)
+            new RemoteClusterPlan(physicalPlan, targetIndices, originalIndices),
+            randomFetchContextsKeepAlive()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -86,13 +92,14 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
 
     @Override
     protected ClusterComputeRequest mutateInstance(ClusterComputeRequest in) throws IOException {
-        return switch (between(0, 4)) {
+        return switch (between(0, 5)) {
             case 0 -> {
                 var request = new ClusterComputeRequest(
                     randomValueOtherThan(in.clusterAlias(), () -> randomAlphaOfLength(10)),
                     in.sessionId(),
                     in.configuration(),
-                    in.remoteClusterPlan()
+                    in.remoteClusterPlan(),
+                    in.fetchContextsKeepAlive()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -102,7 +109,8 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                     in.clusterAlias(),
                     randomValueOtherThan(in.sessionId(), () -> randomAlphaOfLength(10)),
                     in.configuration(),
-                    in.remoteClusterPlan()
+                    in.remoteClusterPlan(),
+                    in.fetchContextsKeepAlive()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -112,7 +120,8 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                     in.clusterAlias(),
                     in.sessionId(),
                     randomValueOtherThan(in.configuration(), ConfigurationTestUtils::randomConfiguration),
-                    in.remoteClusterPlan()
+                    in.remoteClusterPlan(),
+                    in.fetchContextsKeepAlive()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -127,7 +136,8 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                         plan.plan(),
                         randomArrayOtherThan(plan.targetIndices(), () -> generateRandomStringArray(10, 10, false, false)),
                         plan.originalIndices()
-                    )
+                    ),
+                    in.fetchContextsKeepAlive()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -148,13 +158,70 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                                 () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
                             )
                         )
-                    )
+                    ),
+                    in.fetchContextsKeepAlive()
+                );
+                request.setParentTask(in.getParentTask());
+                yield request;
+            }
+            case 5 -> {
+                var request = new ClusterComputeRequest(
+                    in.clusterAlias(),
+                    in.sessionId(),
+                    in.configuration(),
+                    in.remoteClusterPlan(),
+                    randomValueOtherThan(in.fetchContextsKeepAlive(), ClusterRequestTests::randomFetchContextsKeepAlive)
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
             }
             default -> throw new AssertionError("invalid value");
         };
+    }
+
+    @Nullable
+    private static TimeValue randomFetchContextsKeepAlive() {
+        return randomBoolean() ? null : TimeValue.timeValueSeconds(between(1, 600));
+    }
+
+    /**
+     * A cluster without the fetch phase can't keep fetch contexts, so the request refuses to ask one for them, rather than
+     * leaving out what its plan depends on.
+     */
+    public void testAClusterWithoutTheFetchPhaseIsNotAskedForFetchContexts() {
+        ClusterComputeRequest request = createTestInstance();
+        ClusterComputeRequest withContexts = new ClusterComputeRequest(
+            request.clusterAlias(),
+            request.sessionId(),
+            request.configuration(),
+            request.remoteClusterPlan(),
+            TimeValue.timeValueMinutes(5)
+        );
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_FETCH_CONTEXTS);
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> copyInstance(withContexts, older));
+
+        assertThat(e.getMessage(), containsString("for fetch contexts"));
+    }
+
+    /**
+     * A request that keeps no fetch contexts still reaches a cluster without the fetch phase.
+     */
+    public void testARequestWithoutFetchContextsReachesAnOlderCluster() throws IOException {
+        ClusterComputeRequest request = createTestInstance();
+        ClusterComputeRequest withoutContexts = new ClusterComputeRequest(
+            request.clusterAlias(),
+            request.sessionId(),
+            request.configuration(),
+            request.remoteClusterPlan(),
+            null
+        );
+        withoutContexts.setParentTask(request.getParentTask());
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_FETCH_CONTEXTS);
+
+        ClusterComputeRequest copy = copyInstance(withoutContexts, older);
+
+        assertThat(copy.fetchContextsKeepAlive(), nullValue());
     }
 
     private static String randomQuery() {

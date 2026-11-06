@@ -29,7 +29,7 @@ public final class FetchPhaseStats {
     private final LongAdder documents = new LongAdder();
     private final LongAdder requests = new LongAdder();
     private final LongAdder tookNanos = new LongAdder();
-    private final Set<String> nodes = ConcurrentCollections.newConcurrentSet();
+    private final Set<FetchNode> nodes = ConcurrentCollections.newConcurrentSet();
 
     /**
      * The decisions of the planner for the plans of the query, which it records as it optimizes them.
@@ -53,7 +53,7 @@ public final class FetchPhaseStats {
      * A batch of a fetch ended: it asked each of {@code contacted} for some of its {@code documents}, one request per node,
      * and its last answer came {@code nanos} after it went out.
      */
-    public void batchEnded(long documents, Collection<String> contacted, long nanos) {
+    public void batchEnded(long documents, Collection<FetchNode> contacted, long nanos) {
         this.documents.add(documents);
         this.requests.add(contacted.size());
         this.tookNanos.add(nanos);
@@ -72,7 +72,7 @@ public final class FetchPhaseStats {
     }
 
     /**
-     * The distinct nodes the fetches asked, by name.
+     * The distinct nodes the fetches asked, of every cluster.
      */
     public int nodesContacted() {
         return nodes.size();

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.action.TimeSpan;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.fetch.FetchNode;
 import org.elasticsearch.xpack.esql.fetch.FetchPhaseStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
@@ -282,7 +283,7 @@ public class EsqlQueryLogTests extends ESTestCase {
     public void testAQueryThatFetchedLogsItsFetches() {
         EsqlExecutionInfo executionInfo = getEsqlExecutionInfo(SLOW_QUERY_NANOS);
         executionInfo.fetchPhase().plannedBy(outcomes(Outcome.APPLIED));
-        executionInfo.fetchPhase().batchEnded(7, List.of("n1", "n2"), TimeUnit.MILLISECONDS.toNanos(3));
+        executionInfo.fetchPhase().batchEnded(7, List.of(FetchNode.local("n1"), FetchNode.local("n2")), TimeUnit.MILLISECONDS.toNanos(3));
 
         ESLogMessage msg = logSuccess(executionInfo);
         assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_OUTCOME), is("applied"));
@@ -323,7 +324,7 @@ public class EsqlQueryLogTests extends ESTestCase {
         assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         FetchPhaseStats fetchPhase = new FetchPhaseStats();
         fetchPhase.plannedBy(outcomes(Outcome.APPLIED));
-        fetchPhase.batchEnded(4, List.of("n1"), TimeUnit.MILLISECONDS.toNanos(1));
+        fetchPhase.batchEnded(4, List.of(FetchNode.local("n1")), TimeUnit.MILLISECONDS.toNanos(1));
 
         queryLog.onQueryFailure("from idx", RESOLVED_SETTINGS, Map.of(), fetchPhase, new ValidationException(), SLOW_QUERY_NANOS);
         ESLogMessage msg = (ESLogMessage) appender.getLastEventAndReset().getMessage();

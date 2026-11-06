@@ -30,7 +30,6 @@ import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.compute.operator.fetch.FetchGather;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
@@ -216,10 +215,10 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         ThreadContext threadContext();
 
         /**
-         * The node the origin of a document names, or {@code null} once it left the cluster.
+         * Finds the node the origin of a document names. Fails with {@link NoNodeAvailableException} once it left its
+         * cluster. The listener may run on another thread, when the node is in a cluster whose nodes aren't known yet.
          */
-        @Nullable
-        DiscoveryNode node(String clusterAlias, String nodeId);
+        void node(FetchNode node, ActionListener<DiscoveryNode> listener);
 
         /**
          * Fetches the documents of {@code shards} from {@code node}. The listener runs on another thread, and must take the
@@ -655,10 +654,10 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
          */
         private final AtomicIntegerArray failedShards;
         /**
-         * The names of the nodes the batch sent a request to, and their documents. Set by the thread that sends the batch,
-         * which holds a reference until it sent them all, so {@link #onResponded} reads them complete.
+         * The nodes the batch sent a request to, and their documents. Set by the threads that find the nodes, each holding
+         * a reference until it sent its request, so {@link #onResponded} reads them complete. Guarded by {@code this}.
          */
-        private final List<String> contacted = new ArrayList<>();
+        private final List<FetchNode> contacted = new ArrayList<>();
         private long contactedDocuments;
         private long sentNanos;
 
@@ -684,24 +683,53 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
                         // the failure fails the query, so the other nodes have nothing to load
                         break;
                     }
+                    int index = n;
                     FetchBatchPlanner.NodeBatch node = batch.nodes().get(n);
-                    DiscoveryNode target = client.node(node.clusterAlias(), node.nodeId());
-                    if (target == null) {
-                        nodeFailed(n, new NoNodeAvailableException("node [" + node.nodeId() + "] left the cluster"));
-                        continue;
-                    }
-                    // a second completion would release the reference of the node twice and complete the batch too early
-                    ActionListener<FetchResponse> nodeListener = ActionListener.notifyOnce(
-                        new NodeListener(n, node, target.getName(), refs.acquire())
-                    );
+                    Releasable ref = refs.acquire();
+                    ActionListener<DiscoveryNode> found = ActionListener.notifyOnce(new ActionListener<>() {
+                        @Override
+                        public void onResponse(DiscoveryNode target) {
+                            fetchFrom(index, node, target, ref);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            try {
+                                nodeFailed(index, e);
+                            } finally {
+                                ref.close();
+                            }
+                        }
+                    });
                     try {
-                        client.fetch(target, node.clusterAlias(), node.shards(), fetchPlan, nodeListener);
-                        contacted.add(target.getName());
-                        contactedDocuments += node.docCount();
+                        client.node(new FetchNode(node.clusterAlias(), node.nodeId()), found);
                     } catch (Exception e) {
-                        nodeListener.onFailure(e);
+                        found.onFailure(e);
                     }
                 }
+            }
+        }
+
+        /**
+         * Sends the request of node {@code n}, which releases {@code ref} once it answered or failed.
+         */
+        private void fetchFrom(int n, FetchBatchPlanner.NodeBatch node, DiscoveryNode target, Releasable ref) {
+            // a second completion would release the reference of the node twice and complete the batch too early
+            ActionListener<FetchResponse> nodeListener = ActionListener.notifyOnce(new NodeListener(n, node, target.getName(), ref));
+            FetchNode contactedNode = new FetchNode(node.clusterAlias(), node.nodeId());
+            // before sending: the response can release the last reference of the batch before the request returns
+            synchronized (this) {
+                contacted.add(contactedNode);
+                contactedDocuments += node.docCount();
+            }
+            try {
+                client.fetch(target, node.clusterAlias(), node.shards(), fetchPlan, nodeListener);
+            } catch (Exception e) {
+                synchronized (this) {
+                    contacted.remove(contactedNode);
+                    contactedDocuments -= node.docCount();
+                }
+                nodeListener.onFailure(e);
             }
         }
 
@@ -709,8 +737,10 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
          * Runs on the thread of the last node to answer, or on the thread that sent the batch when no request went out.
          */
         private void onResponded() {
-            if (contacted.isEmpty() == false) {
-                stats.batchEnded(contactedDocuments, contacted, System.nanoTime() - sentNanos);
+            synchronized (this) {
+                if (contacted.isEmpty() == false) {
+                    stats.batchEnded(contactedDocuments, List.copyOf(contacted), System.nanoTime() - sentNanos);
+                }
             }
             Exception failure = failures.getFailure();
             List<Page> fetched = new ArrayList<>();
@@ -750,7 +780,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
          */
         private void nodeFailed(int n, Exception e) {
             Exception failure = FetchFailures.unwrap(e);
-            if (fetchFailures.tolerates(failure) == false) {
+            if (fetchFailures.tolerates(batch.nodes().get(n).clusterAlias(), failure) == false) {
                 failures.unwrapAndCollect(e);
                 return;
             }
@@ -854,7 +884,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
                     }
                     if (result.failure() == null) {
                         expectedRows += shard.docCount();
-                    } else if (fetchFailures.tolerates(result.failure())) {
+                    } else if (fetchFailures.tolerates(node.clusterAlias(), result.failure())) {
                         anyFailed = true;
                     } else {
                         failures.unwrapAndCollect(result.failure());

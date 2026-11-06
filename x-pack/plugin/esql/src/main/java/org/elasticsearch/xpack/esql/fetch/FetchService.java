@@ -12,19 +12,22 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
+import java.io.IOException;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
@@ -56,25 +59,30 @@ public final class FetchService {
 
     private final TransportService transportService;
     private final BlockFactory blockFactory;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final DataNodeFetchExecutor executor;
     private volatile int maxConcurrentShardTasks;
 
     /**
-     * @param blockFactory   the root block factory of the node, which accounts the responses while they are serialized
-     * @param driverExecutor runs the drivers that load the documents, next to the drivers of the query phase
-     * @param plannerFactory builds the planner of each fetch request
+     * @param blockFactory           the root block factory of the node, which accounts the responses while they are
+     *                               serialized, and while a gateway node reads one it forwards to a node of another version
+     * @param namedWriteableRegistry reads a response that a gateway node forwards to a node of another version
+     * @param driverExecutor         runs the drivers that load the documents, next to the drivers of the query phase
+     * @param plannerFactory         builds the planner of each fetch request
      */
     public FetchService(
         TransportService transportService,
         ClusterService clusterService,
         SearchService searchService,
         BlockFactory blockFactory,
+        NamedWriteableRegistry namedWriteableRegistry,
         Executor driverExecutor,
         Supplier<PlannerSettings> plannerSettings,
         FetchPlannerFactory plannerFactory
     ) {
         this.transportService = transportService;
         this.blockFactory = blockFactory;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.executor = new DataNodeFetchExecutor(
             transportService,
             clusterService,
@@ -89,30 +97,45 @@ public final class FetchService {
     }
 
     /**
-     * Sends a fetch request to {@code node} as a child of the task of the query. The response is read on the search pool,
-     * into the block factory of this node. A request to this node is handed over without serialization, through the
-     * same handler and the same authorization. A node that isn't connected fails the listener on the search pool too.
+     * Sends a fetch request to {@code target}, the node {@code node} names, as a child of the task of the query. The
+     * response is read on the search pool, into the block factory of this node. A request to this node is handed over
+     * without serialization, through the same handler and the same authorization. A request to a node of a remote cluster
+     * goes through a gateway node of that cluster when this node isn't connected to it.
+     *
+     * @throws org.elasticsearch.transport.NodeNotConnectedException when this node can't reach a node of its own cluster
      */
-    public void sendFetch(DiscoveryNode node, FetchRequest request, Task parentTask, ActionListener<FetchResponse> listener) {
-        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+    public void sendFetch(
+        FetchNode node,
+        DiscoveryNode target,
+        FetchRequest request,
+        Task parentTask,
+        ActionListener<FetchResponse> listener
+    ) {
         transportService.sendChildRequest(
-            node,
+            FetchNodeDirectory.connection(transportService, node, target),
             FETCH_ACTION_NAME,
             request,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, in -> {
-                // the stream keeps a reference to the last block of nulls it read, which closing it releases
-                try (BlockStreamInput blocks = new BlockStreamInput(in, blockFactory)) {
-                    return new FetchResponse(blocks, threadContext);
-                }
-            }, transportService.getThreadPool().executor(ThreadPool.Names.SEARCH))
+            new ActionListenerResponseHandler<>(
+                listener,
+                this::readResponse,
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+            )
         );
+    }
+
+    private FetchResponse readResponse(StreamInput in) throws IOException {
+        // the stream keeps a reference to the last block of nulls it read, which closing it releases
+        try (BlockStreamInput blocks = new BlockStreamInput(in, blockFactory)) {
+            return new FetchResponse(blocks, transportService.getThreadPool().getThreadContext());
+        }
     }
 
     /**
      * Serves fetch requests on the search pool, where reader contexts open their searchers and document level security
-     * can run queries.
+     * can run queries. A gateway node forwards the fetch requests of a coordinator of another cluster that isn't connected
+     * to the node they go to.
      */
     public void registerHandlers() {
         transportService.registerRequestHandler(
@@ -121,5 +144,6 @@ public final class FetchService {
             FetchRequest::new,
             (request, channel, task) -> executor.execute(request, (CancellableTask) task, new ChannelActionListener<>(channel))
         );
+        TransportActionProxy.registerProxyAction(transportService, FETCH_ACTION_NAME, true, this::readResponse, namedWriteableRegistry);
     }
 }

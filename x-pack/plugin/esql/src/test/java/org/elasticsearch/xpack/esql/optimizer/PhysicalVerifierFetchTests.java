@@ -135,7 +135,7 @@ public class PhysicalVerifierFetchTests extends ESTestCase {
     }
 
     private FetchExec fetch(PhysicalPlan child, Attribute documents) {
-        return new FetchExec(Source.EMPTY, child, documents, List.of(b), "idx", List.of("idx"), null);
+        return new FetchExec(Source.EMPTY, child, documents, List.of(b), "idx", Map.of("", List.of("idx")), null);
     }
 
     private ExchangeExec exchange(Attribute... output) {

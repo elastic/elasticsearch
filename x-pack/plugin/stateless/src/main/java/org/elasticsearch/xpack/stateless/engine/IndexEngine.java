@@ -641,7 +641,11 @@ public class IndexEngine extends InternalEngine {
     }
 
     public static boolean isLastCommitHollow(SegmentInfos segmentInfos) {
-        String translogRecoveryStartFile = segmentInfos.getUserData().get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
+        return isLastCommitHollow(segmentInfos.getUserData());
+    }
+
+    public static boolean isLastCommitHollow(Map<String, String> commitUserData) {
+        String translogRecoveryStartFile = commitUserData.get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
         return translogRecoveryStartFile != null ? Long.parseLong(translogRecoveryStartFile) == HOLLOW_TRANSLOG_RECOVERY_START_FILE : false;
     }
 

@@ -30,6 +30,8 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -623,6 +625,51 @@ public class InboundHandlerTests extends ESTestCase {
         assertThat(responseHandler.exceptionCaptor.get(), instanceOf(TransportSerializationException.class));
         assertThat("released before the handler gets the failure", reservedWhenFailed.get(), equalTo(0L));
         assertThat(reserved.get(), equalTo(0L));
+        assertTrue(messageReleased.get());
+    }
+
+    /**
+     * A response with bytes left over after the handler read it is a wire-format bug. The handler gets the failure instead, so the
+     * response it read must be released here.
+     */
+    public void testResponseNotReadFullyIsReleased() throws Exception {
+        final AtomicBoolean responseReleased = new AtomicBoolean();
+        final RefCounted responseRefs = AbstractRefCounted.of(() -> responseReleased.set(true));
+        final CapturingResponseHandler responseHandler = new CapturingResponseHandler() {
+            @Override
+            public TestResponse read(StreamInput in) {
+                // Leaves the message body unread. TransportMessage ref counting is a no-op, so delegate to a real counter, which also
+                // fails on a double release.
+                return new TestResponse("") {
+                    @Override
+                    public void incRef() {
+                        responseRefs.incRef();
+                    }
+
+                    @Override
+                    public boolean tryIncRef() {
+                        return responseRefs.tryIncRef();
+                    }
+
+                    @Override
+                    public boolean decRef() {
+                        return responseRefs.decRef();
+                    }
+
+                    @Override
+                    public boolean hasReferences() {
+                        return responseRefs.hasReferences();
+                    }
+                };
+            }
+        };
+        final long requestId = responseHandlers.add(responseHandler, null, "test-action").requestId();
+        final AtomicBoolean messageReleased = new AtomicBoolean();
+
+        // the handler under test ignores deserialization errors, so the assertion this path carries does not fire
+        handler.inboundMessage(channel, responseMessage(requestId, between(1, 1000), messageReleased, () -> {}));
+        assertThat(responseHandler.exceptionCaptor.get(), instanceOf(TransportSerializationException.class));
+        assertTrue(responseReleased.get());
         assertTrue(messageReleased.get());
     }
 

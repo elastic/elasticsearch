@@ -349,7 +349,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
-        this.shardFailures = shardFailures;
+        this.shardFailures = List.copyOf(shardFailures);
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";

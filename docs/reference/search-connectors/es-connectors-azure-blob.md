@@ -6,6 +6,12 @@ mapped_pages:
 
 # Elastic Azure Blob Storage connector reference [es-connectors-azure-blob]
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, the page for managing connectors is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+:::
+
 
 The *Elastic Azure Blob Storage connector* is a [connector](/reference/search-connectors/index.md) for [Azure Blob Storage](https://azure.microsoft.com/en-us/services/storage/blobs/).
 
@@ -32,7 +38,7 @@ This connector has not been tested with Azure Government. Therefore we cannot gu
 
 To create a new Azure Blob Storage connector:
 
-1. In the Kibana UI, search for **Content crawlers** {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` or **Content connectors** {applies_to}`stack: ga 9.0-9.6` using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
+1. In the Kibana UI, search for **Content crawlers** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Azure Blob Storage** self-managed connector.
 
 

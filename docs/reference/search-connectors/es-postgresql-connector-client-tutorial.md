@@ -12,6 +12,12 @@ description: Synchronize data from a PostgreSQL data source into Elasticsearch.
 
 # Set up a self-managed PostgreSQL connector
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, the page for managing connectors is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+:::
+
 Elastic connectors enable you to create searchable, read-only replicas of your data sources in {{es}}.
 This tutorial walks you through the process of creating a self-managed connector for a PostgreSQL data source.
 
@@ -53,7 +59,7 @@ Follow the index creation workflow then optionally define field mappings.
 For example, to add semantic search capabilities, you could add an extra field that stores your vectors for semantic search.
 ::::
 ::::{step} Create the connector
-Search for **Content crawlers** {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` or **Content connectors** {applies_to}`stack: ga 9.0-9.6` using the global search field.
+Search for **Content crawlers** using the global search field.
 Follow the connector creation process in the UI. For example:
 
 1. Select **PostgreSQL** from the list of connectors.

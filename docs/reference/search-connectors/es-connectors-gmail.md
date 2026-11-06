@@ -6,6 +6,12 @@ mapped_pages:
 
 # Elastic Gmail connector reference [es-connectors-gmail]
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, the page for managing connectors is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+:::
+
 
 The *Elastic GMail connector* is a [connector](/reference/search-connectors/index.md) for GMail.
 
@@ -27,7 +33,7 @@ To use this connector, satisfy all [self-managed connector requirements](/refere
 
 To create a new Gmail connector:
 
-1. In the Kibana UI, search for **Content crawlers** {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` or **Content connectors** {applies_to}`stack: ga 9.0-9.6` using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
+1. In the Kibana UI, search for **Content crawlers** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Gmail** self-managed connector.
 
 

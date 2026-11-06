@@ -9,9 +9,15 @@ mapped_pages:
 
 # Connectors UI [es-connectors-usage]
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, the page for managing connectors is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+:::
+
 This document describes operations available to connectors using the UI.
 
-In the Kibana or Serverless UI, search for **Content crawlers** {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` or **Content connectors** {applies_to}`stack: ga 9.0-9.6` using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
+In the Kibana or Serverless UI, search for **Content crawlers** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
 
 ::::{note}
 :applies_to: serverless: ga
@@ -31,7 +37,7 @@ In 8.12 we introduced a set of [connector APIs]({{es-apis}}group/endpoint-connec
 You connector writes data to an {{es}} index.
 
 To create [self-managed connectors](/reference/search-connectors/self-managed-connectors.md):
-1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find **Content crawlers** {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` or **Content connectors** {applies_to}`stack: ga 9.0-9.6`, then select it from the results.
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find **Content crawlers**, then select it from the results.
 2. On the **Elasticsearch connectors** page, select **New Connector**.
 Once you’ve chosen the data source type you’d like to sync, you’ll be prompted to create an {{es}} index.
 

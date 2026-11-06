@@ -6,6 +6,12 @@ mapped_pages:
 
 # Elastic ServiceNow connector reference [es-connectors-servicenow]
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, the page for managing connectors is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+:::
+
 
 The *Elastic ServiceNow connector* is a [connector](/reference/search-connectors/index.md) for [ServiceNow](https://www.servicenow.com).
 
@@ -27,7 +33,7 @@ The ServiceNow connector was introduced in Elastic version 8.9.0. This connector
 
 To create a new ServiceNow connector:
 
-1. In the Kibana UI, search for **Content crawlers** {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` or **Content connectors** {applies_to}`stack: ga 9.0-9.6` using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
+1. In the Kibana UI, search for **Content crawlers** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **ServiceNow** self-managed connector.
 
 

@@ -10,6 +10,12 @@ mapped_pages:
 
 # Content crawlers
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, the page for managing connectors is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+:::
+
 $$$es-connectors-native$$$
 
 

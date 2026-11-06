@@ -6,6 +6,12 @@ mapped_pages:
 
 # Elastic Oracle connector reference [es-connectors-oracle]
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, the page for managing connectors is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+:::
+
 ## **Self-managed connector reference** [es-connectors-oracle-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-oracle-client-availability-prerequisites]
@@ -20,7 +26,7 @@ This connector is available as a self-managed connector. This self-managed conne
 
 To create a new Oracle connector:
 
-1. In the Kibana UI, search for **Content crawlers** {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` or **Content connectors** {applies_to}`stack: ga 9.0-9.6` using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
+1. In the Kibana UI, search for **Content crawlers** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Oracle** self-managed connector.
 
 

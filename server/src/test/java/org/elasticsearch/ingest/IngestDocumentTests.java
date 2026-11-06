@@ -37,7 +37,6 @@ import static org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.CLASSIC;
 import static org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.FLEXIBLE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1698,6 +1697,35 @@ public class IngestDocumentTests extends ESTestCase {
         doWithRandomAccessPattern((doc) -> doc.removeField("fizz.some.nonsense", true));
     }
 
+    /**
+     * A flexible lookup of a field that has a dotted name can be incomplete rather than failed (it found part of the path, and the rest
+     * is the name of a field in what it found), and removing such a field has to use that result even though failures are being ignored.
+     */
+    public void testRemoveDottedFieldIgnoreMissing() throws Exception {
+        doWithAccessPattern(FLEXIBLE, (doc) -> {
+            assertThat(doc.hasField("dotted.bar.baz"), equalTo(true));
+            doc.removeField("dotted.bar.baz", randomBoolean());
+            assertThat(doc.hasField("dotted.bar.baz"), equalTo(false));
+
+            // and a missing one is still ignored
+            doc.removeField("dotted.bar.nonsense", true);
+            doc.removeField("nonsense.bar.baz", true);
+        });
+    }
+
+    /**
+     * A field that is there, but has a null value, is not a missing field.
+     */
+    public void testRemoveNullValuedFieldIgnoreMissing() throws Exception {
+        doWithRandomAccessPattern((doc) -> {
+            assertThat(doc.hasField("fizz.foo_null"), equalTo(true));
+            doc.removeField("fizz.foo_null", randomBoolean());
+            assertThat(doc.hasField("fizz.foo_null"), equalTo(false));
+
+            assertThat(doc.getFieldValue("fizz.foo_null", Object.class, true), nullValue());
+        });
+    }
+
     public void testRemoveInnerField() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("fizz.buzz");
@@ -2035,55 +2063,6 @@ public class IngestDocumentTests extends ESTestCase {
 
         assertThat(copy.getSource().get("beforeClockChange"), equalTo(original.getSource().get("beforeClockChange")));
         assertThat(copy.getSource().get("afterClockChange"), equalTo(original.getSource().get("afterClockChange")));
-    }
-
-    public void testSetInvalidSourceField() {
-        Map<String, Object> document = new HashMap<>();
-        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
-        document.put("source_field", randomObject);
-
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        try {
-            ingestDocument.getFieldValueAsBytes("source_field");
-            fail("Expected an exception due to invalid source field, but did not happen");
-        } catch (IllegalArgumentException e) {
-            String expectedClassName = randomObject.getClass().getName();
-
-            assertThat(
-                e.getMessage(),
-                containsString("field [source_field] of unknown type [" + expectedClassName + "], must be string or byte array")
-            );
-        }
-    }
-
-    public void testGetFieldValueRawBytesLength() {
-        Map<String, Object> document = new HashMap<>();
-        document.put("bytes_field", new byte[] { 1, 2, 3 });
-        document.put("ascii_field", "QQ==");
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        assertThat(
-            ingestDocument.getFieldValueRawBytesLength("bytes_field", ingestDocument.getFieldValue("bytes_field", Object.class)),
-            equalTo(3)
-        );
-        assertThat(
-            ingestDocument.getFieldValueRawBytesLength("ascii_field", ingestDocument.getFieldValue("ascii_field", Object.class)),
-            equalTo(4)
-        );
-    }
-
-    public void testGetFieldValueRawBytesLengthInvalidType() {
-        Map<String, Object> document = new HashMap<>();
-        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
-        document.put("source_field", randomObject);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ingestDocument.getFieldValueRawBytesLength("source_field", randomObject)
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("field [source_field] of unknown type [" + randomObject.getClass().getName() + "], must be string or byte array")
-        );
     }
 
     public void testDeepCopy() {

@@ -548,10 +548,11 @@ static void dotd2q4_inner_bulk4(
 
     // Four vectors per batch, each with one accumulator per doc bit plane so the UDOT chains stay short:
     // the eight bit planes, the four query planes, the five weights and the eight accumulators fit in the
-    // 32 z registers. That includes z8-z15, whose low 64 bits are the scalar FP registers d8-d15 that the
-    // calling convention requires a function to preserve, so the function using them saves and restores
-    // d8-d15. In a separate function those saves only run for calls with at least one full batch; whether
-    // to inline it is left to the compiler. Each step's dot products are grouped
+    // 32 z registers. The ARM calling convention requires d8-d15 to be saved, which overlaps with SIMD
+    // registers z8-z15. So, because this function uses those, it needs to save the existing contents first.
+    // If this function was inlined, the top-level function would need to do this all the time. By not
+    // forcing inlining, this function needs to do it, but it's only called some of the time; whether
+    // to actually inline it is left to the compiler. Each step's dot products are grouped
     // per accumulator in the source; the compiler interleaves the eight independent chains itself. Four
     // vectors of two bit planes keep as many streams in flight as the eight single-plane vectors of the
     // d1q4 batch; eight d2q4 vectors would need more than 32 registers.

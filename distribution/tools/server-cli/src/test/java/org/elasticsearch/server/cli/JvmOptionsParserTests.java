@@ -399,10 +399,8 @@ public class JvmOptionsParserTests extends ESTestCase {
             "-XX:CompileCommand=dontinline,java.nio.*::putBuffer",
             "-XX:CompileCommand=dontinline,java.nio.*::getArray"
         );
-        assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(true, true).toList(), equalTo(expected));
-        assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(true, false).toList(), empty());
-        assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(false, true).toList(), empty());
-        assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(false, false).toList(), empty());
+        assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(true).toList(), equalTo(expected));
+        assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(false).toList(), empty());
     }
 
     public void testCommandLineDistributionType() {

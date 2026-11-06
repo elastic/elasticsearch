@@ -9,7 +9,6 @@
 
 package org.elasticsearch.server.cli;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.UpdateForV10;
@@ -82,7 +81,7 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAddJitCompilerOptions(isHotspot, Build.current().isSnapshot()),
+            maybeAddJitCompilerOptions(isHotspot),
             attachEntitlementAgent(esHome)
         ).flatMap(s -> s).toList();
     }
@@ -165,10 +164,10 @@ final class SystemJvmOptions {
     }
 
     /*
-     * Additional JIT compiler options. These are only applied to snapshot builds running on HotSpot.
+     * Additional JIT compiler options. These are only applied when running on HotSpot.
      */
-    static Stream<String> maybeAddJitCompilerOptions(boolean isHotspot, boolean isSnapshot) {
-        if (isHotspot == false || isSnapshot == false) {
+    static Stream<String> maybeAddJitCompilerOptions(boolean isHotspot) {
+        if (isHotspot == false) {
             return Stream.empty();
         }
         return Stream.of(

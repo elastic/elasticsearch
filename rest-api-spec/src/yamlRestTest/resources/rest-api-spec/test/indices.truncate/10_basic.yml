@@ -1,0 +1,111 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /{index}/_truncate
+      reason: "index truncate is a new API"
+
+---
+"Truncate discards documents but keeps mappings, settings and aliases":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              field:
+                type: keyword
+          aliases:
+            test_alias: {}
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+        wait_for_no_initializing_shards: true
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test", "_id": "1"}}'
+          - '{"field": "one"}'
+          - '{"index": {"_index": "test", "_id": "2"}}'
+          - '{"field": "two"}'
+
+  - do:
+      count:
+        index: test
+  - match: { count: 2 }
+
+  - do:
+      indices.truncate:
+        index: test
+  - match: { _shards.failed: 0 }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      count:
+        index: test
+  - match: { count: 0 }
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { test.mappings.properties.field.type: keyword }
+
+  - do:
+      indices.get_alias:
+        index: test
+  - is_true: test.aliases.test_alias
+
+---
+"A document id can be reused after truncate":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+        wait_for_no_initializing_shards: true
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body: { "field": "before" }
+  - match: { result: created }
+
+  - do:
+      indices.truncate:
+        index: test
+  - match: { _shards.failed: 0 }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body: { "field": "after" }
+  - match: { result: created }
+  - match: { _version: 1 }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field: after }

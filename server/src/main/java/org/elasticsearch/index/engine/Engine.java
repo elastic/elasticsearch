@@ -140,6 +140,11 @@ public abstract class Engine implements Closeable {
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
+    /**
+     * Commit user data key holding the sequence number of the most recent {@link Truncate} that this engine applied. Every operation
+     * below it was discarded, so the engine must never (re)apply one, and history below it must not be served to peers.
+     */
+    public static final String TRUNCATED_AT_SEQNO = "truncated_at_seq_no";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     // Field name that stores the Elasticsearch version in Lucene commit user data, representing
     // the version that was used to write the commit (and thus a max version for the underlying segments).
@@ -741,6 +746,17 @@ public abstract class Engine implements Closeable {
     public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
+     * Discards every document (and the history behind it) in this engine as of the sequence number of the given operation.
+     * <p>
+     * The caller must hold all of the shard's operation permits so that no other operation is running and every operation with a
+     * lower sequence number has been fully applied, here and on every other copy of the shard. Engines that cannot truncate
+     * keep the default of rejecting the request.
+     */
+    public TruncateResult truncate(Truncate truncate) throws IOException {
+        throw new UnsupportedOperationException("truncate is not supported by [" + getClass().getSimpleName() + "]");
+    }
+
+    /**
      * Base class for index and delete operation results
      * Holds result meta data (e.g. translog location, updated version)
      * for an executed write {@link Operation}
@@ -939,6 +955,14 @@ public abstract class Engine implements Closeable {
         // visible for testing
         protected NoOpResult(long term, long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo, null);
+        }
+
+    }
+
+    public static class TruncateResult extends Result {
+
+        public TruncateResult(long term, long seqNo) {
+            super(Operation.TYPE.TRUNCATE, 0, term, seqNo, null);
         }
 
     }
@@ -1914,7 +1938,8 @@ public abstract class Engine implements Closeable {
         public enum TYPE {
             INDEX,
             DELETE,
-            NO_OP;
+            NO_OP,
+            TRUNCATE;
 
             private final String lowercase;
 
@@ -2221,6 +2246,48 @@ public abstract class Engine implements Closeable {
         @Override
         public int estimatedSizeInBytes() {
             return 2 * reason.length() + 2 * Long.BYTES;
+        }
+
+    }
+
+    /**
+     * Discards all documents of the shard. On the primary the engine assigns the sequence number; on replicas and during recovery
+     * the sequence number the primary assigned is replayed.
+     */
+    public static class Truncate extends Operation {
+
+        public Truncate(final long seqNo, final long primaryTerm, final Origin origin, final long startTime) {
+            super(null, seqNo, primaryTerm, Versions.NOT_FOUND, null, origin, startTime);
+        }
+
+        @Override
+        public BytesRef uid() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long version() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public VersionType versionType() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        String id() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public TYPE operationType() {
+            return TYPE.TRUNCATE;
+        }
+
+        @Override
+        public int estimatedSizeInBytes() {
+            return 2 * Long.BYTES;
         }
 
     }

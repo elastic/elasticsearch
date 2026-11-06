@@ -5528,7 +5528,11 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(1, 10));
             ParsedDocument doc = createParsedDoc(id, null);
-            Engine.Operation.TYPE type = randomFrom(Engine.Operation.TYPE.values());
+            // truncate is covered by InternalEngineTruncateTests: it discards the very documents this test goes on to check
+            Engine.Operation.TYPE type = randomValueOtherThan(
+                Engine.Operation.TYPE.TRUNCATE,
+                () -> randomFrom(Engine.Operation.TYPE.values())
+            );
             switch (type) {
                 case INDEX -> {
                     Engine.IndexResult index = indexDoc(engine, replicaIndexForDoc(doc, between(1, 100), i, randomBoolean()));

@@ -218,6 +218,13 @@ public class InternalEngine extends Engine {
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
+    /**
+     * Sequence number of the latest {@link Truncate} applied to this engine, or {@link SequenceNumbers#NO_OPS_PERFORMED} if there has
+     * been none. Everything below it was discarded: operations that arrive late (for example historical operations sent by a peer
+     * recovery source that read its history before the truncate) must not be applied, and history below it is not served to peers
+     * because it no longer exists. Persisted in the commit user data under {@link Engine#TRUNCATED_AT_SEQNO}.
+     */
+    private volatile long truncatedAtSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
     private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
 
     /**
@@ -307,6 +314,10 @@ public class InternalEngine extends Engine {
                 this.totalDiskSpace = ByteSizeValue.of(Environment.getFileStore(translog.location()).getTotalSpace(), ByteSizeUnit.BYTES);
                 this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 this.softDeletesPolicy = newSoftDeletesPolicy();
+                final String committedTruncatedAtSeqNo = lastCommittedSegmentInfos.userData.get(Engine.TRUNCATED_AT_SEQNO);
+                if (committedTruncatedAtSeqNo != null) {
+                    this.truncatedAtSeqNo = Long.parseLong(committedTruncatedAtSeqNo);
+                }
                 this.indexDeletionPolicy = newIndexDeletionPolicy(engineConfig, logger, translog, softDeletesPolicy);
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 writer = createWriter();
@@ -2119,7 +2130,8 @@ public class InternalEngine extends Engine {
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return false for the created flag in favor of code simplicity
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
-        if (hasBeenProcessedBefore(index)) {
+        if (hasBeenProcessedBefore(index) || isBelowTruncation(index.seqNo())) {
+            // (a truncate discarded everything below it, so a late arrival from below it must not resurrect its document)
             // the operation seq# was processed and thus the same operation was already put into lucene
             // this can happen during recovery where older operations are sent from the translog that are already
             // part of the lucene commit (either from a peer recovery or a local translog)
@@ -2524,7 +2536,8 @@ public class InternalEngine extends Engine {
     protected final DeletionStrategy planDeletionAsNonPrimary(Delete delete) throws IOException {
         assert assertNonPrimaryOrigin(delete);
         final DeletionStrategy plan;
-        if (hasBeenProcessedBefore(delete)) {
+        if (hasBeenProcessedBefore(delete) || isBelowTruncation(delete.seqNo())) {
+            // (a truncate discarded everything below it, so a late arrival from below it must not be applied)
             // the operation seq# was processed thus this operation was already put into lucene
             // this can happen during recovery where older operations are sent from the translog that are already
             // part of the lucene commit (either from a peer recovery or a local translog)
@@ -2857,6 +2870,124 @@ public class InternalEngine extends Engine {
      */
     protected Optional<Exception> preFlightCheckForNoOp(final NoOp noOp) throws IOException {
         return Optional.empty();
+    }
+
+    /**
+     * Reason recorded on the no-op tombstone that a truncate leaves behind in Lucene. The tombstone keeps the history gap-free at the
+     * truncate's sequence number; it is turned back into a {@link Translog.Truncate} when history is read for peers.
+     */
+    private static final String TRUNCATE_TOMBSTONE_REASON = "truncate";
+
+    @Override
+    public TruncateResult truncate(final Truncate truncate) throws IOException {
+        final TruncateResult truncateResult;
+        try (var ignored = acquireEnsureOpenRef()) {
+            truncateResult = innerTruncate(truncate);
+        } catch (final Exception e) {
+            try {
+                maybeFailEngine("truncate", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        }
+        return truncateResult;
+    }
+
+    private TruncateResult innerTruncate(final Truncate truncate) throws IOException {
+        assert isDrainedForClose() == false;
+        final long seqNo;
+        if (truncate.origin() == Operation.Origin.PRIMARY) {
+            seqNo = generateSeqNoForOperationOnPrimary(truncate);
+            // like a delete, a truncate must make replicas treat every older operation as potentially superseded
+            advanceMaxSeqNoOfDeletesOnPrimary(seqNo);
+        } else {
+            seqNo = truncate.seqNo();
+        }
+        final long primaryTerm = truncate.primaryTerm();
+        // The Lucene side of a truncate is a no-op tombstone, so it can reuse the keyed lock and processed-before logic of no-ops.
+        final NoOp tombstone = new NoOp(seqNo, primaryTerm, truncate.origin(), truncate.startTime(), TRUNCATE_TOMBSTONE_REASON);
+        // Taking the flush lock keeps a concurrent flush from committing a state in which the segments and the truncated-at
+        // sequence number disagree.
+        flushLock.lock();
+        try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
+            if (hasBeenProcessedBefore(tombstone) == false) {
+                indexWriter.deleteAll();
+                versionMap.clear();
+                truncatedAtSeqNo = Math.max(truncatedAtSeqNo, seqNo);
+            }
+            final NoOpResult tombstoneResult = applyNoOpToLucene(tombstone);
+            if (tombstoneResult.getResultType() != Result.Type.SUCCESS) {
+                throw new EngineException(shardId, "failed to record truncate tombstone", tombstoneResult.getFailure());
+            }
+            refreshInternalSearcher("truncate", true);
+            final TruncateResult truncateResult = new TruncateResult(primaryTerm, seqNo);
+            if (truncate.origin().isFromTranslog() == false) {
+                truncateResult.setTranslogLocation(translog.add(new Translog.Truncate(seqNo, primaryTerm)));
+            }
+            localCheckpointTracker.markSeqNoAsProcessed(seqNo);
+            if (truncateResult.getTranslogLocation() == null) {
+                // the op is coming from the translog (and is hence persisted already)
+                assert truncate.origin().isFromTranslog();
+                localCheckpointTracker.markSeqNoAsPersisted(seqNo);
+            }
+            truncateResult.setTook(System.nanoTime() - truncate.startTime());
+            truncateResult.freeze();
+            return truncateResult;
+        } finally {
+            flushLock.unlock();
+            assert isDrainedForClose() == false;
+        }
+    }
+
+    /**
+     * The sequence number of the latest truncate applied to this engine, or {@link SequenceNumbers#NO_OPS_PERFORMED} if none was.
+     */
+    public long getTruncatedAtSeqNo() {
+        return truncatedAtSeqNo;
+    }
+
+    /**
+     * Returns {@code true} if an operation with the given sequence number was discarded by a truncate and so must not be applied.
+     */
+    private boolean isBelowTruncation(final long seqNo) {
+        return seqNo < truncatedAtSeqNo;
+    }
+
+    /**
+     * Wraps a history snapshot so that the tombstone left by the latest truncate is handed to the consumer as a
+     * {@link Translog.Truncate}, which is what makes a peer discard its own documents.
+     */
+    private Translog.Snapshot truncateAware(final Translog.Snapshot delegate) {
+        final long truncatedAt = truncatedAtSeqNo;
+        if (truncatedAt <= SequenceNumbers.NO_OPS_PERFORMED) {
+            return delegate;
+        }
+        return new Translog.Snapshot() {
+            @Override
+            public int totalOperations() {
+                return delegate.totalOperations();
+            }
+
+            @Override
+            public int skippedOperations() {
+                return delegate.skippedOperations();
+            }
+
+            @Override
+            public Translog.Operation next() throws IOException {
+                final Translog.Operation op = delegate.next();
+                if (op instanceof Translog.NoOp && op.seqNo() == truncatedAt) {
+                    return new Translog.Truncate(op.seqNo(), op.primaryTerm());
+                }
+                return op;
+            }
+
+            @Override
+            public void close() throws IOException {
+                delegate.close();
+            }
+        };
     }
 
     @Override
@@ -3936,6 +4067,9 @@ public class InternalEngine extends Engine {
                     commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
                 }
                 commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
+                if (truncatedAtSeqNo > SequenceNumbers.NO_OPS_PERFORMED) {
+                    commitData.put(Engine.TRUNCATED_AT_SEQNO, Long.toString(truncatedAtSeqNo));
+                }
                 commitData.put(ES_VERSION, IndexVersion.current().toString());
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
@@ -4114,9 +4248,14 @@ public class InternalEngine extends Engine {
     @Override
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
         ensureOpen();
+        final long truncatedAt = truncatedAtSeqNo;
+        if (truncatedAt > SequenceNumbers.NO_OPS_PERFORMED && toSeqNo < truncatedAt) {
+            return 0;
+        }
+        final long clampedFromSeqNo = truncatedAt > SequenceNumbers.NO_OPS_PERFORMED ? Math.max(fromSeqNo, truncatedAt) : fromSeqNo;
         refreshIfNeeded(source, toSeqNo);
         try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
-            return LuceneChangesSnapshot.countOperations(searcher, engineConfig.getIndexSettings(), fromSeqNo, toSeqNo);
+            return LuceneChangesSnapshot.countOperations(searcher, engineConfig.getIndexSettings(), clampedFromSeqNo, toSeqNo);
         } catch (Exception e) {
             try {
                 maybeFailEngine("count changes", e);
@@ -4145,6 +4284,16 @@ public class InternalEngine extends Engine {
             );
         }
         ensureOpen();
+        // History below the latest truncate was discarded and is covered by the truncate itself, so a consumer asking for it is
+        // served from the truncate onwards.
+        // Only once a truncate has happened: otherwise requests, including invalid ones, must reach the snapshot untouched.
+        final long truncatedAt = truncatedAtSeqNo;
+        if (truncatedAt > SequenceNumbers.NO_OPS_PERFORMED) {
+            if (toSeqNo < truncatedAt) {
+                return Translog.Snapshot.EMPTY;
+            }
+            fromSeqNo = Math.max(fromSeqNo, truncatedAt);
+        }
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
@@ -4173,7 +4322,7 @@ public class InternalEngine extends Engine {
                 );
             }
             searcher = null;
-            return snapshot;
+            return truncateAware(snapshot);
         } catch (Exception e) {
             try {
                 maybeFailEngine("acquire changes snapshot", e);

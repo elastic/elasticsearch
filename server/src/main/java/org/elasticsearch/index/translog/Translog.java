@@ -1260,7 +1260,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             INDEX((byte) 2),
             DELETE((byte) 3),
             NO_OP((byte) 4),
-            BATCH((byte) 5);
+            BATCH((byte) 5),
+            TRUNCATE((byte) 6);
 
             // Verify that the ids shared with Operation.Type stay in sync.
             static {
@@ -1268,6 +1269,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 assert INDEX.id == Operation.Type.INDEX.id();
                 assert DELETE.id == Operation.Type.DELETE.id();
                 assert NO_OP.id == Operation.Type.NO_OP.id();
+                assert TRUNCATE.id == Operation.Type.TRUNCATE.id();
             }
 
             private final byte id;
@@ -1287,6 +1289,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 3 -> DELETE;
                     case 4 -> NO_OP;
                     case 5 -> BATCH;
+                    case 6 -> TRUNCATE;
                     default -> throw new IllegalArgumentException("no type mapped for [" + id + "]");
                 };
             }
@@ -1305,6 +1308,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             case CREATE, INDEX -> Index.readFrom(input);
             case DELETE -> Delete.readFrom(input);
             case NO_OP -> new NoOp(input);
+            case TRUNCATE -> new Truncate(input);
             case BATCH -> IndexOperationBatch.TranslogRecord.readFrom(input);
         };
     }
@@ -1313,7 +1317,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      */
-    public abstract static sealed class Operation implements Writeable, Record permits Delete, Index, NoOp {
+    public abstract static sealed class Operation implements Writeable, Record permits Delete, Index, NoOp, Truncate {
 
         /**
          * The type of a single-document operation.
@@ -1324,7 +1328,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             CREATE((byte) 1),
             INDEX((byte) 2),
             DELETE((byte) 3),
-            NO_OP((byte) 4);
+            NO_OP((byte) 4),
+            TRUNCATE((byte) 6);
 
             private final byte id;
 
@@ -1371,6 +1376,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 case CREATE, INDEX -> Index.readFrom(input);
                 case DELETE -> Delete.readFrom(input);
                 case NO_OP -> new NoOp(input);
+                case TRUNCATE -> new Truncate(input);
                 case BATCH -> throw new IOException("Cannot read batch record as a single Operation");
             };
         }
@@ -1853,6 +1859,71 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * Records that every document with a lower sequence number was discarded by a truncate of the shard. Replaying it drops all
+     * documents (and the history that backs them) from the replaying engine. It carries no payload beyond its position in the
+     * sequence number space, which is what orders it against the surrounding index and delete operations.
+     * <p>
+     * Writers must only create this operation once every node in the cluster can read it, because older nodes do not know
+     * this operation type and would treat the translog or a recovery stream containing it as corrupt.
+     */
+    public static final class Truncate extends Operation {
+
+        private Truncate(final StreamInput in) throws IOException {
+            this(in.readLong(), in.readLong());
+        }
+
+        public Truncate(final long seqNo, final long primaryTerm) {
+            super(seqNo, primaryTerm);
+            assert seqNo > SequenceNumbers.NO_OPS_PERFORMED;
+            assert primaryTerm >= 0;
+        }
+
+        @Override
+        protected void writeHeader(int format, StreamOutput out) throws IOException {
+            out.writeLong(seqNo);
+            out.writeLong(primaryTerm);
+        }
+
+        @Override
+        public void writeBody(final StreamOutput out) throws IOException {
+            // No versioning for truncate
+            writeHeader(-1, out);
+        }
+
+        @Override
+        public Type opType() {
+            return Type.TRUNCATE;
+        }
+
+        @Override
+        public long estimateSize() {
+            return 2 * Long.BYTES;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            final Truncate that = (Truncate) obj;
+            return seqNo == that.seqNo && primaryTerm == that.primaryTerm;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * Long.hashCode(seqNo) + Long.hashCode(primaryTerm);
+        }
+
+        @Override
+        public String toString() {
+            return "Truncate{" + "seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + '}';
+        }
+    }
+
     public enum Durability {
 
         /**
@@ -1991,6 +2062,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             case Index index -> TranslogHeaderWriter.writeIndexHeader(out, index);
             case Delete delete -> TranslogHeaderWriter.writeDeleteHeader(out, delete);
             case NoOp noOp -> TranslogHeaderWriter.writeNoOpHeader(out, noOp);
+            case Truncate truncate -> TranslogHeaderWriter.writeTruncateHeader(out, truncate);
         }
     }
 

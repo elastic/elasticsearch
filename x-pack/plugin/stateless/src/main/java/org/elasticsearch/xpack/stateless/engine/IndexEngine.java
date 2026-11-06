@@ -598,6 +598,12 @@ public class IndexEngine extends InternalEngine {
         return super.delete(delete);
     }
 
+    @Override
+    public TruncateResult truncate(Truncate truncate) throws IOException {
+        checkNoNewOperationsWhileHollow();
+        return super.truncate(truncate);
+    }
+
     /**
      * Marks the engine as hollow by making sure a last commit is flushed that has a
      * {@link StatelessCompoundCommit#TRANSLOG_RECOVERY_START_FILE} user data equal

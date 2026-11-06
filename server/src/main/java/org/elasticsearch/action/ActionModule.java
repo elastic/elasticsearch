@@ -156,6 +156,9 @@ import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateA
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.truncate.TransportShardTruncateAction;
+import org.elasticsearch.action.admin.indices.truncate.TransportTruncateIndexAction;
+import org.elasticsearch.action.admin.indices.truncate.TruncateIndexAction;
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
@@ -356,6 +359,7 @@ import org.elasticsearch.rest.action.admin.indices.RestResolveIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestSimulateTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestTruncateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.RestValidateQueryAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
@@ -725,6 +729,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
+        actions.register(TruncateIndexAction.INSTANCE, TransportTruncateIndexAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
         actions.register(TransportClearIndicesCacheAction.TYPE, TransportClearIndicesCacheAction.class);
         actions.register(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
@@ -804,6 +809,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportNodesListGatewayStartedShards.TYPE, TransportNodesListGatewayStartedShards.class);
         actions.register(TransportNodesListShardStoreMetadata.TYPE, TransportNodesListShardStoreMetadata.class);
         actions.register(TransportShardFlushAction.TYPE, TransportShardFlushAction.class);
+        actions.register(TransportShardTruncateAction.TYPE, TransportShardTruncateAction.class);
         actions.register(TransportShardRefreshAction.TYPE, TransportShardRefreshAction.class);
         actions.register(TransportPrevalidateShardPathAction.TYPE, TransportPrevalidateShardPathAction.class);
         actions.register(TransportAwaitClusterStateVersionAppliedAction.TYPE, TransportAwaitClusterStateVersionAppliedAction.class);
@@ -936,6 +942,7 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestRefreshAction());
         registerHandler.accept(new RestFlushAction());
+        registerHandler.accept(new RestTruncateIndexAction());
         registerHandler.accept(new RestForceMergeAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
         registerHandler.accept(new RestResolveClusterAction());

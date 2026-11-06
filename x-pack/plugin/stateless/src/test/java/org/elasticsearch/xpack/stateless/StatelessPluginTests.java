@@ -193,6 +193,15 @@ public class StatelessPluginTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("does not support setting data_streams.lifecycle_only.mode to false"));
     }
 
+    public void testBloomFilterForDataStreamTimestampIndicesIsEnabled() {
+        final var plugin = createStatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build());
+        assertThat(
+            plugin.additionalSettings().get(StatelessPlugin.BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED.getKey()),
+            equalTo("true")
+        );
+        assertThat(plugin.getSettings(), hasItem(StatelessPlugin.BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED));
+    }
+
     public void testIdLookupPrewarmEnabledSettingIsRegistered() {
         final var plugin = createStatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build());
         assertThat(plugin.getSettings(), hasItem(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING));

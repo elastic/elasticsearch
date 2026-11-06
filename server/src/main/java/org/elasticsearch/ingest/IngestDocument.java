@@ -1140,18 +1140,11 @@ public final class IngestDocument {
     }
 
     /**
-     * @return The access pattern for any currently executing pipelines, or empty if no pipelines are in progress for this doc
-     */
-    public Optional<IngestPipelineFieldAccessPattern> getCurrentAccessPattern() {
-        return Optional.ofNullable(accessPatternStack.peek());
-    }
-
-    /**
      * @return The access pattern for any currently executing pipelines, or {@link IngestPipelineFieldAccessPattern#CLASSIC} if no
      * pipelines are in progress for this doc for the sake of backwards compatibility
      */
     public IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
-        return getCurrentAccessPattern().orElse(IngestPipelineFieldAccessPattern.CLASSIC);
+        return Optional.ofNullable(accessPatternStack.peek()).orElse(IngestPipelineFieldAccessPattern.CLASSIC);
     }
 
     /**

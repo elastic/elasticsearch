@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 165022
+summary: Fix batch indexing treating every required multi field as missing
+type: bug

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +30,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
@@ -352,6 +354,36 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         assertThat(result.metadata().getProject().index(secondIndex.getIndex().getName()).isSystem(), equalTo(false));
         assertThat(result.metadata().getProject().dataStreams().get(dataStreamName).isSystem(), equalTo(false));
         assertThat(result.metadata().getProject().index(backingIndex.getIndex().getName()).isSystem(), equalTo(false));
+    }
+
+    public void testWarnsAboutDataStreamMatchingSystemIndexPattern() {
+        IndexMetadata backingIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(".myindex-ds", 1))
+            .settings(getSettingsBuilder())
+            .build();
+        DataStream dataStream = DataStream.builder(".myindex-ds", List.of(backingIndex.getIndex())).setHidden(true).build();
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        DiscoveryNodes previousNodes = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build();
+        ClusterState previousState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
+            .metadata(Metadata.builder().put(backingIndex, true).put(dataStream))
+            .nodes(previousNodes)
+            .build();
+        ClusterState currentState = ClusterState.builder(previousState)
+            .nodes(DiscoveryNodes.builder(previousNodes).masterNodeId(localNode.getId()))
+            .build();
+
+        try (var mockLog = MockLog.capture(SystemIndexMetadataUpgradeService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "warning",
+                    SystemIndexMetadataUpgradeService.class.getCanonicalName(),
+                    Level.WARN,
+                    "data stream [.myindex-ds] matches system index pattern [.myindex-*] but is not a system data stream; "
+                        + "its backing indices are not restricted"
+                )
+            );
+            service.clusterChanged(new ClusterChangedEvent("local node elected master", currentState, previousState));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testIsVisible() {

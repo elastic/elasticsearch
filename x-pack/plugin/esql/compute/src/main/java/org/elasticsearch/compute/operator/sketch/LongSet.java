@@ -19,6 +19,7 @@ final class LongSet {
     private final int shift;
     private final boolean hasZero;
     private final int size;
+    private final long[] values;
 
     LongSet(long[] values) {
         int capacity = Math.max(8, Integer.highestOneBit(Math.max(1, values.length * 4 - 1)) << 1);
@@ -38,10 +39,16 @@ final class LongSet {
         }
         this.hasZero = zero;
         this.size = count;
+        this.values = values.clone();
     }
 
     int size() {
         return size;
+    }
+
+    /** The values the set was built from (distinct if the input was). */
+    long[] values() {
+        return values;
     }
 
     boolean contains(long v) {

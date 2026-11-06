@@ -67,7 +67,17 @@ public final class SketchFilterOperator implements Operator {
         }
     }
 
-    private record Buffered(Page page, long countedBytes) {}
+    /**
+     * Pages with more candidate keys than this are always read: each candidate adds bits to test, and the filter then skips fewer pages.
+     */
+    private static final int MAX_BLOOM_CANDIDATES = 64;
+
+    /** A buffered page, the bytes it counts against the shared buffer limit, and the Bloom filter of its keys (null if none). */
+    private record Buffered(Page page, long countedBytes, long[] bloom, int bloomShift) {
+        long bloomBytes() {
+            return bloom == null ? 0 : (long) bloom.length * Long.BYTES;
+        }
+    }
 
     private final DriverContext driverContext;
     private final int keyChannel;
@@ -84,8 +94,14 @@ public final class SketchFilterOperator implements Operator {
     private int[] positions = new int[0];
     private long[] keys = new long[0];
 
+    /** Set by {@link #sketchPage}: the Bloom filter of the page that was just counted. */
+    private long[] pageBloom;
+    private int pageBloomShift;
+
     private long rowsReceived;
     private long rowsEmitted;
+    private long pagesBuffered;
+    private long pagesSkipped;
 
     /** Timing for the profile, see {@link #toString}. All are {@link System#nanoTime} values or durations, {@code 0} until set. */
     private long firstInputNanos;
@@ -115,6 +131,8 @@ public final class SketchFilterOperator implements Operator {
             firstInputNanos = System.nanoTime();
         }
         long counted = 0;
+        long[] bloom = null;
+        int bloomShift = 0;
         if (passthrough == false) {
             final long sketchStart = System.nanoTime();
             final boolean sketched = barrier.aborted() == false && sketchPage(page);
@@ -122,15 +140,22 @@ public final class SketchFilterOperator implements Operator {
             if (sketched == false) {
                 giveUp();
             } else {
+                bloom = pageBloom;
+                bloomShift = pageBloomShift;
                 // An estimate that does not walk the blocks: this runs once per page and the exact size is not needed for the limit.
-                counted = (long) page.getPositionCount() * Long.BYTES * page.getBlockCount();
+                counted = (long) page.getPositionCount() * Long.BYTES * page.getBlockCount() + (long) bloom.length * Long.BYTES;
                 if (barrier.tryBuffer(counted) == false) {
+                    driverContext.breaker().addWithoutBreaking(-(long) bloom.length * Long.BYTES);
                     counted = 0;
+                    bloom = null;
                     giveUp();
                 }
             }
         }
-        pages.add(new Buffered(page, counted));
+        if (bloom != null) {
+            pagesBuffered++;
+        }
+        pages.add(new Buffered(page, counted, bloom, bloomShift));
     }
 
     /** Count the keys of a page. Returns false if the page is not supported, so this operator must give up. */
@@ -146,7 +171,12 @@ public final class SketchFilterOperator implements Operator {
         }
         // Copy to an array first: the loop below then reads a plain array instead of calling a vector of some unknown class per row.
         vector.copyTo(0, keys, 0, count);
-        sketch.addAll(keys, count);
+        final int shift = PageBloom.shiftFor(count);
+        final long[] bloom = PageBloom.create(shift);
+        driverContext.breaker().addEstimateBytesAndMaybeBreak((long) bloom.length * Long.BYTES, "sketch_filter");
+        sketch.addAll(keys, count, bloom, shift);
+        pageBloom = bloom;
+        pageBloomShift = shift;
         return true;
     }
 
@@ -199,10 +229,11 @@ public final class SketchFilterOperator implements Operator {
         while (pages.isEmpty() == false) {
             Buffered buffered = pages.poll();
             barrier.unbuffer(buffered.countedBytes);
+            driverContext.breaker().addWithoutBreaking(-buffered.bloomBytes());
             Page page = buffered.page;
             if (filter) {
                 final long filterStart = System.nanoTime();
-                page = filter(page);
+                page = filter(buffered);
                 filterNanos += System.nanoTime() - filterStart;
                 if (page == null) {
                     continue;
@@ -215,9 +246,28 @@ public final class SketchFilterOperator implements Operator {
         return null;
     }
 
-    /** Keep only the rows of candidate keys. Returns null if no row is left. Takes ownership of {@code page}. */
-    private Page filter(Page page) {
+    /**
+     * Keep only the rows of candidate keys. Returns null if no row is left. Takes ownership of the page. A page whose Bloom filter
+     * has none of the candidates is released without being read.
+     */
+    private Page filter(Buffered buffered) {
+        final Page page = buffered.page;
         final LongSet candidates = barrier.candidates();
+        final long[] candidateKeys = candidates.values();
+        if (buffered.bloom != null && candidateKeys.length <= MAX_BLOOM_CANDIDATES) {
+            boolean mayHaveCandidate = false;
+            for (long candidate : candidateKeys) {
+                if (PageBloom.mayContain(buffered.bloom, buffered.bloomShift, candidate)) {
+                    mayHaveCandidate = true;
+                    break;
+                }
+            }
+            if (mayHaveCandidate == false) {
+                pagesSkipped++;
+                page.releaseBlocks();
+                return null;
+            }
+        }
         final LongVector keyVector = ((LongBlock) page.getBlock(keyChannel)).asVector();
         assert keyVector != null : "pages were checked when they were buffered";
         final int count = keyVector.getPositionCount();
@@ -267,6 +317,7 @@ public final class SketchFilterOperator implements Operator {
         arrive();
         for (Buffered buffered : pages) {
             barrier.unbuffer(buffered.countedBytes);
+            driverContext.breaker().addWithoutBreaking(-buffered.bloomBytes());
             buffered.page.releaseBlocks();
         }
         pages.clear();
@@ -284,7 +335,7 @@ public final class SketchFilterOperator implements Operator {
         return String.format(
             java.util.Locale.ROOT,
             "SketchFilterOperator[rowsReceived=%d, rowsEmitted=%d, passthrough=%s, startEpochMs=%d, firstInputMs=%.1f, arrivedMs=%.1f, "
-                + "decideStartMs=%.1f, decideEndMs=%.1f, lastOutputMs=%.1f, sketchMs=%.1f, filterMs=%.1f]",
+                + "decideStartMs=%.1f, decideEndMs=%.1f, lastOutputMs=%.1f, sketchMs=%.1f, filterMs=%.1f, pages=%d, pagesSkipped=%d]",
             rowsReceived,
             rowsEmitted,
             passthrough,
@@ -295,7 +346,9 @@ public final class SketchFilterOperator implements Operator {
             barrier.millisSinceStart(barrier.decideEndNanos()),
             barrier.millisSinceStart(lastOutputNanos),
             sketchNanos / 1_000_000.0,
-            filterNanos / 1_000_000.0
+            filterNanos / 1_000_000.0,
+            pagesBuffered,
+            pagesSkipped
         );
     }
 }

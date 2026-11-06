@@ -196,6 +196,76 @@ public class SketchFilterOperatorTests extends ESTestCase {
         }
     }
 
+    /** A Bloom filter has no false negatives, and it must not reject everything's neighbours either. */
+    public void testPageBloomHasNoFalseNegatives() {
+        for (int trial = 0; trial < 50; trial++) {
+            int positions = randomFrom(1, 7, 100, 512, 20_480, 100_000);
+            int shift = PageBloom.shiftFor(positions);
+            long[] bloom = PageBloom.create(shift);
+            long[] added = new long[between(1, positions)];
+            for (int i = 0; i < added.length; i++) {
+                added[i] = randomBoolean() ? randomLong() : randomIntBetween(-50, 50);
+                PageBloom.add(bloom, shift, added[i]);
+            }
+            for (long key : added) {
+                assertTrue(PageBloom.mayContain(bloom, shift, key));
+            }
+            // About 6 bits per row and two bits per key: other keys are rejected most of the time when the page is full.
+            if (added.length >= positions / 2 && positions >= 512) {
+                int falsePositives = 0;
+                for (int i = 0; i < 2000; i++) {
+                    long other = randomLong();
+                    if (PageBloom.mayContain(bloom, shift, other)) {
+                        falsePositives++;
+                    }
+                }
+                assertThat("false positives of 2000", falsePositives, lessThan(300));
+            }
+        }
+    }
+
+    /**
+     * Long runs of a heavy key span several pages, so the first row of a page often repeats the last key of the previous page of the
+     * same driver. The count of the sketch skips the slow path for that row, but its key must still be in the Bloom filter of the
+     * page, or a page with candidate rows could be skipped. The counts must stay exact, and pages without candidate rows must be skipped.
+     */
+    public void testPagesWithoutCandidatesAreSkippedAndCountsStayExact() {
+        List<Long> rows = new ArrayList<>();
+        for (int i = 0; i < 80_000; i++) {
+            long key = randomLongBetween(0, 1_000_000);
+            for (int r = randomIntBetween(1, 3); r > 0; r--) {
+                rows.add(key);
+            }
+        }
+        for (int heavy = 0; heavy < TOP_N; heavy++) {
+            int position = randomIntBetween(0, rows.size());
+            rows.addAll(position, java.util.Collections.nCopies(4_000 + heavy * 500, 2_000_000L + heavy));
+        }
+        long[] all = rows.stream().mapToLong(Long::longValue).toArray();
+        int drivers = 4;
+        var factory = new SketchFilterOperator.Factory(0, 4096, TOP_N, 4096, Long.MAX_VALUE);
+        Operator[] ops = build(factory, drivers);
+        try {
+            List<Long> out = run(ops, all, true, false);
+            Map<Long, Long> truth = counts(all);
+            Map<Long, Long> filtered = counts(out);
+            assertThat(topCounts(filtered), equalTo(topCounts(truth)));
+            for (var e : filtered.entrySet()) {
+                assertThat(e.getValue(), equalTo(truth.get(e.getKey())));
+            }
+            double skipped = 0;
+            double buffered = 0;
+            for (Operator op : ops) {
+                skipped += field(op.toString(), "pagesSkipped");
+                buffered += field(op.toString(), "pages");
+            }
+            assertThat("pages buffered", buffered, org.hamcrest.Matchers.greaterThan(100.0));
+            assertThat("pages skipped", skipped, org.hamcrest.Matchers.greaterThan(buffered / 2));
+        } finally {
+            org.elasticsearch.core.Releasables.close(ops);
+        }
+    }
+
     public void testUniformDataIsNotFiltered() {
         long[] rows = new long[50_000];
         for (int i = 0; i < rows.length; i++) {

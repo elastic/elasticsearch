@@ -102,9 +102,21 @@ public final class CountSketch {
 
     /** Count the first {@code count} keys of {@code keys}, in order. Same as calling {@link #add} for each. */
     public void addAll(long[] keys, int count) {
+        addAll(keys, count, null, 0);
+    }
+
+    /**
+     * Count the first {@code count} keys of {@code keys}, in order, and add every key of the page to {@code bloom} if it is not
+     * {@code null}. A key that repeats the previous one is counted without being added again, because it was added with the previous
+     * row. The exception is the first row of the page: it can repeat the last key of the previous page, so it is always added.
+     */
+    void addAll(long[] keys, int count, long[] bloom, int bloomShift) {
         final long[] t = table;
         long last = lastKey;
         int idx = lastIdx;
+        if (bloom != null && count > 0) {
+            PageBloom.add(bloom, bloomShift, keys[0]);
+        }
         for (int r = 0; r < count; r++) {
             final long key = keys[r];
             if (idx >= 0 && key == last) {
@@ -112,6 +124,9 @@ public final class CountSketch {
             } else {
                 idx = insert(key);
                 last = key;
+                if (bloom != null) {
+                    PageBloom.add(bloom, bloomShift, key);
+                }
             }
         }
         lastKey = last;

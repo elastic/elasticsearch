@@ -475,7 +475,7 @@ public class Mapper {
 
         DistributedHashJoinExec.Mode mode = strategy == JoinStrategySelector.JoinStrategy.BROADCAST
             ? DistributedHashJoinExec.Mode.BROADCAST
-            : DistributedHashJoinExec.Mode.PARTITIONED;
+            : DistributedHashJoinExec.Mode.SHUFFLE;
         PhysicalPlan mapped = new DistributedHashJoinExec(source, left, right, leftFields, rightFields, addedFields, mode);
         if (marker != null) {
             mapped = new ProjectExec(source, new FilterExec(source, mapped, new IsNotNull(source, marker)), join.output());
@@ -525,17 +525,17 @@ public class Mapper {
             case BROADCAST -> subquery == false ? "BROADCAST applies only to subquery joins"
                 : distributedJoinEligible(join) ? null
                 : NOT_DISTRIBUTABLE;
-            case PARTITIONED -> distributedJoinEligible(join) == false ? NOT_DISTRIBUTABLE
+            case SHUFFLE -> distributedJoinEligible(join) == false ? NOT_DISTRIBUTABLE
                 : subquery || lookupIndex && leftIsScan ? null
-                : lookupIndex ? "PARTITIONED lookup requires a scan fragment on the left side"
-                : "PARTITIONED applies only to subquery and lookup-index joins";
+                : lookupIndex ? "SHUFFLE lookup requires a scan fragment on the left side"
+                : "SHUFFLE applies only to subquery and lookup-index joins";
             case LOOKUP -> lookupIndex ? null : "LOOKUP applies only to lookup-index joins";
             case LOCAL -> subquery || lookupIndex ? "LOCAL does not apply to subquery or lookup-index joins" : null;
         };
     }
 
     private static boolean isDistributedJoinStrategy(JoinStrategySelector.JoinStrategy strategy) {
-        return strategy == JoinStrategySelector.JoinStrategy.PARTITIONED || strategy == JoinStrategySelector.JoinStrategy.BROADCAST;
+        return strategy == JoinStrategySelector.JoinStrategy.SHUFFLE || strategy == JoinStrategySelector.JoinStrategy.BROADCAST;
     }
 
     private PhysicalPlan mapMergePlan(MergePlan merge) {

@@ -30,7 +30,7 @@ import java.util.function.Function;
 
 /**
  * Chooses how a join that can run more than one way is executed: a subquery join is materialized on the coordinator, broadcast, or
- * partitioned, and a lookup-index join runs as a lookup or partitioned.
+ * shuffled, and a lookup-index join runs as a lookup or shuffled.
  */
 public final class JoinStrategyDecisionKind implements DecisionKind {
     public static final JoinStrategyDecisionKind INSTANCE = new JoinStrategyDecisionKind();
@@ -42,9 +42,9 @@ public final class JoinStrategyDecisionKind implements DecisionKind {
     private static final List<String> SUBQUERY_DOMAIN = List.of(
         JoinStrategy.MATERIALIZED.name(),
         JoinStrategy.BROADCAST.name(),
-        JoinStrategy.PARTITIONED.name()
+        JoinStrategy.SHUFFLE.name()
     );
-    private static final List<String> LOOKUP_DOMAIN = List.of(JoinStrategy.LOOKUP.name(), JoinStrategy.PARTITIONED.name());
+    private static final List<String> LOOKUP_DOMAIN = List.of(JoinStrategy.LOOKUP.name(), JoinStrategy.SHUFFLE.name());
 
     private JoinStrategyDecisionKind() {}
 

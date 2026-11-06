@@ -67,7 +67,7 @@ public class QueryPragmasTests extends ESTestCase {
         assertThat(defaults.shufflePartitionsPerNode(), equalTo(0));
         assertFalse(defaults.shuffleAgg());
         assertFalse(defaults.shuffleJoin());
-        assertThat(defaults.shuffleJoinStrategy(), equalTo("partitioned"));
+        assertThat(defaults.shuffleJoinStrategy(), equalTo("shuffle"));
         assertFalse(defaults.shuffleEnabled());
 
         QueryPragmas pragmas = new QueryPragmas(

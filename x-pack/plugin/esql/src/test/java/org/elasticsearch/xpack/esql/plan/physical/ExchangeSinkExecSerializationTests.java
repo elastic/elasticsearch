@@ -96,8 +96,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1152898b - added slice selection to EsRelation (1 byte for the absent optional string)
          *  1159898b - added passthrough flag to EsField
          *  1160499b - added created index version
+         *  1161701b - added doc count and size in bytes to IndexProperties (2 bytes for two ZLong(-1) per 601 indices)
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1160499L));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1161701L));
     }
 
     /**
@@ -125,8 +126,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  2304521b - added slice selection to EsRelation (1 byte for the absent optional string)
          *  2311521b - added passthrough flag to EsField
          *  2312122b - added created index version
+         *  2313324b - added doc count and size in bytes to IndexProperties (2 bytes for two ZLong(-1) per 601 indices)
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2312122L));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2313324L));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -203,6 +205,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          * 4999b - added shardCounts to EsRelation (1 byte for empty-map VInt)
          * 5098b - make IndexProperties Writeable: inline VInt(0) per 100 indices (+100 -1 for removed trailing map)
          * 5199b - added created index version
+         * 5399b - added doc count and size in bytes to IndexProperties (2 bytes for two ZLong(-1) per 100 indices)
          */
 
         var index = EsIndexGenerator.esIndex(
@@ -212,7 +215,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
                 .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
                 .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
         );
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5199));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5399));
     }
 
     /**

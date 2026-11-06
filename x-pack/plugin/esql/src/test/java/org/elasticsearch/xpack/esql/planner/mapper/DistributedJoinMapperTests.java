@@ -62,7 +62,7 @@ public class DistributedJoinMapperTests extends ESTestCase {
         PhysicalPlan plan = distributedPlan(DISTRIBUTED_QUERY, BROADCAST_SHUFFLE_JOIN_SETTINGS);
 
         DistributedHashJoinExec join = plan.collect(DistributedHashJoinExec.class).getFirst();
-        assertEquals(DistributedHashJoinExec.Mode.PARTITIONED, join.mode());
+        assertEquals(DistributedHashJoinExec.Mode.SHUFFLE, join.mode());
         ShuffleExchangeExec leftHash = as(join.left(), ShuffleExchangeExec.class);
         ShuffleExchangeExec rightHash = as(join.right(), ShuffleExchangeExec.class);
         assertEquals(ExchangeDistribution.HASH, leftHash.distribution());

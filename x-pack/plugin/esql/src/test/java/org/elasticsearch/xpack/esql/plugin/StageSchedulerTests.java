@@ -41,7 +41,7 @@ public class StageSchedulerTests extends ESTestCase {
     private final ThreadContext context = new ThreadContext(Settings.EMPTY);
 
     public void testChainedJoinBuildsCompleteBeforeProbeProducersStart() {
-        for (String strategy : List.of("partitioned", "broadcast")) {
+        for (String strategy : List.of("shuffle", "broadcast")) {
             StagedPlan plan = joinPlan(strategy, false);
             Stage receiver = joinStage(plan);
             DistributedHashJoinExec outer = receiver.plan().collect(DistributedHashJoinExec.class).getFirst();
@@ -66,7 +66,7 @@ public class StageSchedulerTests extends ESTestCase {
                 }
                 assertTrue(running.containsKey(innerBuild));
                 running.remove(innerBuild).onResponse(null);
-                if (strategy.equals("partitioned")) {
+                if (strategy.equals("shuffle")) {
                     int probe = producer(plan, inner.left().collect(StageSourceExec.class).getFirst());
                     assertTrue(running.containsKey(probe));
                     running.remove(probe).onResponse(null);
@@ -80,7 +80,7 @@ public class StageSchedulerTests extends ESTestCase {
     }
 
     public void testUnionBuildWaitsForEveryProducer() {
-        StagedPlan plan = joinPlan("partitioned", true);
+        StagedPlan plan = joinPlan("shuffle", true);
         Stage receiver = joinStage(plan);
         DistributedHashJoinExec outer = receiver.plan().collect(DistributedHashJoinExec.class).getFirst();
         DistributedHashJoinExec inner = outer.left().collect(DistributedHashJoinExec.class).getFirst();
@@ -110,7 +110,7 @@ public class StageSchedulerTests extends ESTestCase {
     }
 
     public void testBuildFailureDoesNotStartWaitingProducers() {
-        StagedPlan plan = joinPlan("partitioned", false);
+        StagedPlan plan = joinPlan("shuffle", false);
         Stage receiver = joinStage(plan);
         DistributedHashJoinExec outer = receiver.plan().collect(DistributedHashJoinExec.class).getFirst();
         int build = producer(plan, outer.right().collect(StageSourceExec.class).getFirst());
@@ -135,7 +135,7 @@ public class StageSchedulerTests extends ESTestCase {
     }
 
     public void testBufferBudgetReducesAllHashStagesTogether() {
-        StagedPlan plan = joinPlan("partitioned", false);
+        StagedPlan plan = joinPlan("shuffle", false);
         Map<Integer, Integer> nodes = nodeCounts(plan);
         assertEquals(4, StageScheduler.budgetedPartitions(plan, nodes, 2, 4, 1, 50));
         assertEquals(2, StageScheduler.budgetedPartitions(plan, nodes, 2, 4, 1, 26));
@@ -149,7 +149,7 @@ public class StageSchedulerTests extends ESTestCase {
     }
 
     public void testCancellationBeforeQueuedStartsDoesNotDispatchStages() {
-        StagedPlan plan = joinPlan("partitioned", false);
+        StagedPlan plan = joinPlan("shuffle", false);
         CancellableTask task = task();
         ArrayDeque<Runnable> queued = new ArrayDeque<>();
         PlainActionFuture<Void> finished = new PlainActionFuture<>();
@@ -170,7 +170,7 @@ public class StageSchedulerTests extends ESTestCase {
     }
 
     public void testBufferBudgetCountsEveryUnionProducer() {
-        StagedPlan plan = joinPlan("partitioned", true);
+        StagedPlan plan = joinPlan("shuffle", true);
         assertEquals(1, StageScheduler.budgetedPartitions(plan, nodeCounts(plan), 2, 4, 1, 33));
         assertEquals(2, StageScheduler.budgetedPartitions(plan, nodeCounts(plan), 2, 4, 1, 34));
     }

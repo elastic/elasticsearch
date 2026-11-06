@@ -91,7 +91,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         RunReport report = decisions.report();
 
         assertEquals(AggMode.DISTRIBUTED, decisions.aggregate(shape.aggregate().aggregates()).orElseThrow());
-        assertEquals(JoinStrategy.PARTITIONED, decisions.join(shape.join()).orElseThrow());
+        assertEquals(JoinStrategy.SHUFFLE, decisions.join(shape.join()).orElseThrow());
         assertEquals(RunStatus.OK, report.status());
         assertEquals(2, report.decisions().size());
         assertEquals(2, report.search().counterfactualSearches());
@@ -135,7 +135,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         assertEquals(joinSource.lineNumber(), join.source().line());
         assertEquals(joinSource.columnNumber(), join.source().column());
         assertEquals(DecisionMode.COST_BASED, join.mode());
-        assertEquals("PARTITIONED", join.chosen().name());
+        assertEquals("SHUFFLE", join.chosen().name());
         assertEquals(List.of("key{r}", "key{r}"), join.anchor());
         assertEquals(
             List.of(
@@ -150,7 +150,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         assertEquals("LOOKUP", lookup.name());
         assertEquals(AlternativeStatus.LOST_ON_COST, lookup.status());
         assertEquals(List.of(), lookup.otherDecisions());
-        assertThat(join.summary(), startsWith("PARTITIONED chosen by cost. LOOKUP scores "));
+        assertThat(join.summary(), startsWith("SHUFFLE chosen by cost. LOOKUP scores "));
 
         assertEquals(
             List.of(
@@ -160,7 +160,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
                     AggKey.of(shape.aggregate().aggregates()),
                     "DISTRIBUTED"
                 ),
-                new PlanDecisions.DecisionPoint("d2", JoinStrategyDecisionKind.INSTANCE, JoinKey.of(shape.join()), "PARTITIONED")
+                new PlanDecisions.DecisionPoint("d2", JoinStrategyDecisionKind.INSTANCE, JoinKey.of(shape.join()), "SHUFFLE")
             ),
             decisions.points()
         );
@@ -180,7 +180,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
                 Exchange[GATHER]
                 \\_Aggregate d1=DISTRIBUTED cost_based basis=exact
                   |  vs COORDINATOR score=<score> rejected_fit: coordinator_aggregate_state demand=610.3mb>512mb
-                  \\_LookupJoin[LOOKUP JOIN customers ON key @%d:%d] d2=PARTITIONED cost_based basis=exact
+                  \\_LookupJoin[LOOKUP JOIN customers ON key @%d:%d] d2=SHUFFLE cost_based basis=exact
                     |  vs LOOKUP score=<score>
                     |_Exchange[HASH %s]
                     | \\_EsRelation[probe] rows=100.0M bytes=7.4gb exact [+1 ops]
@@ -206,7 +206,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
 
         DecisionReport decision = report.decisions().get(0);
         assertEquals(DecisionMode.COST_BASED, decision.mode());
-        assertEquals("PARTITIONED", decision.chosen().name());
+        assertEquals("SHUFFLE", decision.chosen().name());
         assertEquals(List.of(new Exclusion("MATERIALIZED", ExclusionCode.PRAGMA_FORCED, "shuffle_join=true")), decision.excluded());
         AlternativeReport broadcast = decision.alternatives().get(0);
         assertEquals("BROADCAST", broadcast.name());
@@ -214,10 +214,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         assertThat(broadcast.delta().score(), lessThan(0d));
         assertEquals(List.of("broadcast_build_per_node"), failedChecks(broadcast));
         assertFalse(decision.searchAnomaly());
-        assertEquals(
-            "PARTITIONED chosen by cost. BROADCAST rejected: broadcast_build_per_node failed (p=0.00 < 0.99).",
-            decision.summary()
-        );
+        assertEquals("SHUFFLE chosen by cost. BROADCAST rejected: broadcast_build_per_node failed (p=0.00 < 0.99).", decision.summary());
     }
 
     public void testGatedWhenBuildBytesAreUnknown() {
@@ -239,7 +236,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         );
         assertEquals(Provenance.UNKNOWN, decision.estimateBasis());
         assertThat(decision.summary(), startsWith("MATERIALIZED kept: "));
-        assertThat(decision.summary(), endsWith(", so BROADCAST and PARTITIONED were not costed."));
+        assertThat(decision.summary(), endsWith(", so BROADCAST and SHUFFLE were not costed."));
     }
 
     public void testGatedAggregateStaysDistributedAfterShuffle() {
@@ -263,7 +260,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
 
         PlanDecisions decisions = explain(aggregate, statistics, Settings.EMPTY);
 
-        assertEquals(JoinStrategy.PARTITIONED, decisions.join(join).orElseThrow());
+        assertEquals(JoinStrategy.SHUFFLE, decisions.join(join).orElseThrow());
         assertEquals(AggMode.DISTRIBUTED, decisions.aggregate(aggregate.aggregates()).orElseThrow());
         DecisionReport decision = decisions.report().decisions().get(0);
         assertEquals(AggregateDistributionDecisionKind.NAME, decision.kind());
@@ -309,7 +306,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         assertEquals(
             List.of(
                 new Exclusion("MATERIALIZED", ExclusionCode.PRAGMA_FORCED, reason),
-                new Exclusion("PARTITIONED", ExclusionCode.PRAGMA_FORCED, reason)
+                new Exclusion("SHUFFLE", ExclusionCode.PRAGMA_FORCED, reason)
             ),
             decision.excluded()
         );
@@ -326,7 +323,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         assertEquals(DecisionMode.INELIGIBLE, join.mode());
         assertEquals("LOOKUP", join.chosen().name());
         String reason = "shuffle_join_strategy=broadcast does not apply to lookup joins";
-        assertEquals(List.of(new Exclusion("PARTITIONED", ExclusionCode.NOT_ELIGIBLE, reason)), join.excluded());
+        assertEquals(List.of(new Exclusion("SHUFFLE", ExclusionCode.NOT_ELIGIBLE, reason)), join.excluded());
         assertEquals("LOOKUP is the only legal strategy: " + reason + ".", join.summary());
     }
 
@@ -399,7 +396,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         RunReport report = explain(shape.aggregate(), shape.statistics(), Settings.EMPTY).report();
 
         DecisionReport join = report.decisions().get(1);
-        assertEquals("PARTITIONED", join.chosen().name());
+        assertEquals("SHUFFLE", join.chosen().name());
         AlternativeReport lookup = join.alternatives().get(0);
         assertEquals("LOOKUP", lookup.name());
         assertEquals(List.of("d1=COORDINATOR"), lookup.otherDecisions().stream().map(d -> d.id() + "=" + d.chosen()).toList());
@@ -433,7 +430,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         assertNull(aggregate.alternatives().get(0).planCost());
         DecisionReport join = report.decisions().get(1);
         assertEquals(AlternativeStatus.NOT_COSTED, join.alternatives().get(0).status());
-        assertEquals("PARTITIONED chosen by cost. LOOKUP was not costed.", join.summary());
+        assertEquals("SHUFFLE chosen by cost. LOOKUP was not costed.", join.summary());
     }
 
     public void testDecisionAndCounterfactualCaps() {
@@ -476,11 +473,11 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
     }
 
     /**
-     * A partitioned lookup-index join must read its probe side from a scan fragment. On its own the inner join prefers BROADCAST,
+     * A shuffle lookup-index join must read its probe side from a scan fragment. On its own the inner join prefers BROADCAST,
      * which keeps the probe partitioned by source but runs outside any fragment, so the search must keep the costlier MATERIALIZED
-     * inner plan, which folds into the fragment, for the outer join to be partitioned.
+     * inner plan, which folds into the fragment, for the outer join to be shuffled.
      */
-    public void testPartitionedLookupJoinKeepsInnerJoinInScanFragment() {
+    public void testShuffleLookupJoinKeepsInnerJoinInScanFragment() {
         Attribute key = attribute("key");
         Attribute buildKey = attribute("build_key");
         Attribute lookupKey = attribute("key");
@@ -507,7 +504,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
 
         assertEquals(JoinStrategy.BROADCAST, explain(inner, statistics, Settings.EMPTY).join(inner).orElseThrow());
         PlanDecisions decisions = explain(outer, statistics, Settings.EMPTY);
-        assertEquals(JoinStrategy.PARTITIONED, decisions.join(outer).orElseThrow());
+        assertEquals(JoinStrategy.SHUFFLE, decisions.join(outer).orElseThrow());
         assertEquals(JoinStrategy.MATERIALIZED, decisions.join(inner).orElseThrow());
     }
 

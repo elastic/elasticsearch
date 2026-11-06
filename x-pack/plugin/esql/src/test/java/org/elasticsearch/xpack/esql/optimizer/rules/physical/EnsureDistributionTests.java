@@ -184,7 +184,7 @@ public class EnsureDistributionTests extends ESTestCase {
     public void testBroadcastJoinPreservesProbeHashPartitioning() {
         FragmentExec fragment = distributedPlan("FROM test | LIMIT 1000", Settings.EMPTY).collect(FragmentExec.class).getFirst();
         Attribute joinKey = fragment.output().stream().filter(attribute -> attribute.name().equals("emp_no")).findFirst().orElseThrow();
-        DistributedHashJoinExec partitionedJoin = new DistributedHashJoinExec(
+        DistributedHashJoinExec shuffleJoin = new DistributedHashJoinExec(
             fragment.source(),
             copyFragment(fragment),
             copyFragment(fragment),
@@ -192,7 +192,7 @@ public class EnsureDistributionTests extends ESTestCase {
             List.of(joinKey),
             List.of()
         );
-        DistributedHashJoinExec broadcastJoin = broadcastJoin(partitionedJoin, copyFragment(fragment), joinKey);
+        DistributedHashJoinExec broadcastJoin = broadcastJoin(shuffleJoin, copyFragment(fragment), joinKey);
 
         PhysicalPlan plan = ensureDistribution(broadcastJoin);
 

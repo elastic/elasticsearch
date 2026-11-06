@@ -73,7 +73,7 @@ public class OptimizerProfileSerializationTests extends AbstractWireSerializingT
             ),
             List.of(
                 new AlternativeReport(
-                    "PARTITIONED",
+                    "SHUFFLE",
                     AlternativeStatus.LOST_ON_COST,
                     "hash(k{f}#1)",
                     new CostVector(Double.NaN, 3e9, 0, 0, 0, 0),
@@ -180,7 +180,7 @@ public class OptimizerProfileSerializationTests extends AbstractWireSerializingT
                       },
                       "alternatives": [
                         {
-                          "name": "PARTITIONED",
+                          "name": "SHUFFLE",
                           "status": "lost_on_cost",
                           "delivered": "hash(k{f}#1)",
                           "plan_cost": {

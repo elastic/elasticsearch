@@ -41,8 +41,8 @@ public class DistributedHashJoinExecSerializationTests extends AbstractPhysicalP
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION);
         assertEquals(broadcastJoin, copyInstance(broadcastJoin, ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION));
         assertEquals(
-            "older transport versions decode the legacy join format as partitioned",
-            DistributedHashJoinExec.Mode.PARTITIONED,
+            "older transport versions decode the legacy join format as shuffle",
+            DistributedHashJoinExec.Mode.SHUFFLE,
             copyInstance(join, oldVersion).mode()
         );
         expectThrows(IllegalStateException.class, () -> copyInstance(broadcastJoin, oldVersion));

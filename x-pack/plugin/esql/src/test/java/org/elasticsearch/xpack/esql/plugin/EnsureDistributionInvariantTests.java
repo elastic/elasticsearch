@@ -42,7 +42,7 @@ public class EnsureDistributionInvariantTests extends ESTestCase {
         ShuffleQueryGenerator generator = new ShuffleQueryGenerator(random(), List.of("test"));
         for (int joins : new int[] { 1, 2, 5, 10, 20 }) {
             String query = generator.query(joins, joins == 20 ? 4 : randomIntBetween(0, 4));
-            for (String strategy : List.of("partitioned", "broadcast")) {
+            for (String strategy : List.of("shuffle", "broadcast")) {
                 for (boolean shuffleAgg : List.of(false, true)) {
                     QueryPragmas pragmas = new QueryPragmas(
                         Settings.builder()
@@ -112,7 +112,7 @@ public class EnsureDistributionInvariantTests extends ESTestCase {
         }
         if (plan instanceof DistributedHashJoinExec join) {
             Distribution probe = children.getFirst();
-            if (join.mode() == DistributedHashJoinExec.Mode.PARTITIONED) {
+            if (join.mode() == DistributedHashJoinExec.Mode.SHUFFLE) {
                 assertEquals("probe partitioning:\n" + PlanShape.of(plan), ids(join.leftFields()), probe.keys());
                 assertEquals("build partitioning:\n" + PlanShape.of(plan), ids(join.rightFields()), children.get(1).keys());
             }

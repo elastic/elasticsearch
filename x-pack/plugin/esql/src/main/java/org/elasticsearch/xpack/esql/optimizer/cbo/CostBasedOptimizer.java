@@ -460,14 +460,14 @@ public final class CostBasedOptimizer {
         private Enumeration subqueryJoinAlternatives(Group group, Join join) {
             JoinStrategySelector.JoinStrategy materialized = JoinStrategySelector.JoinStrategy.MATERIALIZED;
             JoinStrategySelector.JoinStrategy broadcast = JoinStrategySelector.JoinStrategy.BROADCAST;
-            JoinStrategySelector.JoinStrategy partitioned = JoinStrategySelector.JoinStrategy.PARTITIONED;
+            JoinStrategySelector.JoinStrategy shuffle = JoinStrategySelector.JoinStrategy.SHUFFLE;
             if (pragmas.shuffleJoinExplicit() && pragmas.shuffleJoin() == false) {
                 String pragma = "shuffle_join=false";
                 return new Enumeration(
                     List.of(joinAlternative(join, materialized, true)),
                     List.of(
                         excluded(broadcast, ExclusionCode.PRAGMA_DISABLED, pragma),
-                        excluded(partitioned, ExclusionCode.PRAGMA_DISABLED, pragma)
+                        excluded(shuffle, ExclusionCode.PRAGMA_DISABLED, pragma)
                     ),
                     DecisionMode.FORCED,
                     pragma
@@ -481,24 +481,24 @@ public final class CostBasedOptimizer {
                 if (eligible && requested != null) {
                     String pragma = "shuffle_join_strategy=" + pragmas.shuffleJoinStrategy();
                     List<Exclusion> excluded = new ArrayList<>();
-                    for (JoinStrategySelector.JoinStrategy other : List.of(materialized, broadcast, partitioned)) {
+                    for (JoinStrategySelector.JoinStrategy other : List.of(materialized, broadcast, shuffle)) {
                         if (other != requested) {
                             excluded.add(excluded(other, ExclusionCode.PRAGMA_FORCED, pragma));
                         }
                     }
                     return new Enumeration(List.of(joinAlternative(join, requested, true)), excluded, DecisionMode.FORCED, pragma);
                 }
-                return shuffleJoinUnavailable(join, materialized, List.of(broadcast, partitioned));
+                return shuffleJoinUnavailable(join, materialized, List.of(broadcast, shuffle));
             }
 
             if (eligible == false) {
-                return shuffleJoinUnavailable(join, materialized, List.of(broadcast, partitioned));
+                return shuffleJoinUnavailable(join, materialized, List.of(broadcast, shuffle));
             }
             if (pragmas.shuffleJoinExplicit()) {
                 String pragma = "shuffle_join=true";
                 if (buildKnown == false) {
                     return new Enumeration(
-                        List.of(joinAlternative(join, partitioned, false)),
+                        List.of(joinAlternative(join, shuffle, false)),
                         List.of(
                             excluded(materialized, ExclusionCode.PRAGMA_FORCED, pragma),
                             excluded(broadcast, ExclusionCode.UNKNOWN_STATISTICS, BUILD_BYTES_UNKNOWN)
@@ -508,7 +508,7 @@ public final class CostBasedOptimizer {
                     );
                 }
                 return new Enumeration(
-                    List.of(joinAlternative(join, broadcast, false), joinAlternative(join, partitioned, false)),
+                    List.of(joinAlternative(join, broadcast, false), joinAlternative(join, shuffle, false)),
                     List.of(excluded(materialized, ExclusionCode.PRAGMA_FORCED, pragma)),
                     DecisionMode.COST_BASED,
                     null
@@ -519,7 +519,7 @@ public final class CostBasedOptimizer {
                     List.of(joinAlternative(join, materialized, false)),
                     List.of(
                         excluded(broadcast, ExclusionCode.UNKNOWN_STATISTICS, BUILD_BYTES_UNKNOWN),
-                        excluded(partitioned, ExclusionCode.UNKNOWN_STATISTICS, BUILD_BYTES_UNKNOWN)
+                        excluded(shuffle, ExclusionCode.UNKNOWN_STATISTICS, BUILD_BYTES_UNKNOWN)
                     ),
                     DecisionMode.GATED,
                     BUILD_BYTES_UNKNOWN
@@ -529,7 +529,7 @@ public final class CostBasedOptimizer {
                 List.of(
                     joinAlternative(join, materialized, false),
                     joinAlternative(join, broadcast, false),
-                    joinAlternative(join, partitioned, false)
+                    joinAlternative(join, shuffle, false)
                 ),
                 List.of(),
                 DecisionMode.COST_BASED,
@@ -539,12 +539,12 @@ public final class CostBasedOptimizer {
 
         private Enumeration lookupJoinAlternatives(Group group, Join join) {
             JoinStrategySelector.JoinStrategy lookup = JoinStrategySelector.JoinStrategy.LOOKUP;
-            JoinStrategySelector.JoinStrategy partitioned = JoinStrategySelector.JoinStrategy.PARTITIONED;
+            JoinStrategySelector.JoinStrategy shuffle = JoinStrategySelector.JoinStrategy.SHUFFLE;
             if (pragmas.shuffleJoinExplicit() && pragmas.shuffleJoin() == false) {
                 String pragma = "shuffle_join=false";
                 return new Enumeration(
                     List.of(joinAlternative(join, lookup, true)),
-                    List.of(excluded(partitioned, ExclusionCode.PRAGMA_DISABLED, pragma)),
+                    List.of(excluded(shuffle, ExclusionCode.PRAGMA_DISABLED, pragma)),
                     DecisionMode.FORCED,
                     pragma
                 );
@@ -554,19 +554,19 @@ public final class CostBasedOptimizer {
             if (pragmas.shuffleJoinExplicit()) {
                 if (eligible) {
                     return new Enumeration(
-                        List.of(joinAlternative(join, partitioned, true), lookupFallbackAlternative()),
+                        List.of(joinAlternative(join, shuffle, true), lookupFallbackAlternative()),
                         List.of(),
                         DecisionMode.FORCED,
                         "shuffle_join=true"
                     );
                 }
-                return shuffleJoinUnavailable(join, lookup, List.of(partitioned));
+                return shuffleJoinUnavailable(join, lookup, List.of(shuffle));
             }
             if (pragmas.shuffleJoinStrategyExplicit()) {
                 JoinStrategySelector.JoinStrategy requested = requestedShuffleStrategy();
-                if (eligible && requested == partitioned) {
+                if (eligible && requested == shuffle) {
                     return new Enumeration(
-                        List.of(joinAlternative(join, partitioned, true), lookupFallbackAlternative()),
+                        List.of(joinAlternative(join, shuffle, true), lookupFallbackAlternative()),
                         List.of(),
                         DecisionMode.FORCED,
                         "shuffle_join_strategy=" + pragmas.shuffleJoinStrategy()
@@ -576,28 +576,28 @@ public final class CostBasedOptimizer {
                     String reason = "shuffle_join_strategy=broadcast does not apply to lookup joins";
                     return new Enumeration(
                         List.of(joinAlternative(join, lookup, false)),
-                        List.of(excluded(partitioned, ExclusionCode.NOT_ELIGIBLE, reason)),
+                        List.of(excluded(shuffle, ExclusionCode.NOT_ELIGIBLE, reason)),
                         DecisionMode.INELIGIBLE,
                         reason
                     );
                 }
-                return shuffleJoinUnavailable(join, lookup, List.of(partitioned));
+                return shuffleJoinUnavailable(join, lookup, List.of(shuffle));
             }
 
             if (eligible == false) {
-                return shuffleJoinUnavailable(join, lookup, List.of(partitioned));
+                return shuffleJoinUnavailable(join, lookup, List.of(shuffle));
             }
             boolean buildKnown = estimateBytes(group.children.get(1).stats).isUnknown() == false;
             if (buildKnown == false) {
                 return new Enumeration(
                     List.of(joinAlternative(join, lookup, false)),
-                    List.of(excluded(partitioned, ExclusionCode.UNKNOWN_STATISTICS, BUILD_BYTES_UNKNOWN)),
+                    List.of(excluded(shuffle, ExclusionCode.UNKNOWN_STATISTICS, BUILD_BYTES_UNKNOWN)),
                     DecisionMode.GATED,
                     BUILD_BYTES_UNKNOWN
                 );
             }
             return new Enumeration(
-                List.of(joinAlternative(join, lookup, false), joinAlternative(join, partitioned, false)),
+                List.of(joinAlternative(join, lookup, false), joinAlternative(join, shuffle, false)),
                 List.of(),
                 DecisionMode.COST_BASED,
                 null
@@ -697,7 +697,7 @@ public final class CostBasedOptimizer {
 
         private JoinStrategySelector.JoinStrategy requestedShuffleStrategy() {
             return switch (pragmas.shuffleJoinStrategy()) {
-                case "partitioned" -> JoinStrategySelector.JoinStrategy.PARTITIONED;
+                case "shuffle" -> JoinStrategySelector.JoinStrategy.SHUFFLE;
                 case "broadcast" -> JoinStrategySelector.JoinStrategy.BROADCAST;
                 default -> throw new IllegalArgumentException(
                     "unsupported [shuffle_join_strategy] value [" + pragmas.shuffleJoinStrategy() + "]"
@@ -731,7 +731,7 @@ public final class CostBasedOptimizer {
             switch (strategy) {
                 case MATERIALIZED -> rightRequirement = SingleRequirement.INSTANCE;
                 case BROADCAST -> rightRequirement = BroadcastRequirement.INSTANCE;
-                case PARTITIONED -> {
+                case SHUFFLE -> {
                     leftRequirement = new HashRequirement(ids(join.config().leftFields()));
                     rightRequirement = new HashRequirement(ids(join.config().rightFields()));
                 }
@@ -751,7 +751,7 @@ public final class CostBasedOptimizer {
             );
         }
 
-        /** Lookup stays available when a forced partitioned lookup join has no scan fragment on its left side. */
+        /** Lookup stays available when a forced shuffle lookup join has no scan fragment on its left side. */
         private Alternative lookupFallbackAlternative() {
             return new Alternative(
                 OperatorKind.JOIN,
@@ -830,7 +830,7 @@ public final class CostBasedOptimizer {
                     outputLanes = lanes(output, left.lanes());
                     local = broadcastJoinCost(leftStats, rightStats);
                 }
-                case PARTITIONED -> {
+                case SHUFFLE -> {
                     if (Mapper.isIndexModeLookup(join.right()) && left.scanFragment() == false) {
                         return null;
                     }
@@ -844,7 +844,7 @@ public final class CostBasedOptimizer {
                     List<NameId> keys = ids(join.config().leftFields());
                     output = keepIfPresent(new HashPartitioning(keys, leftHash.exact()), join.output());
                     outputLanes = workerLanes;
-                    local = partitionedJoinCost(leftStats, rightStats);
+                    local = shuffleJoinCost(leftStats, rightStats);
                 }
                 case LOOKUP -> {
                     if (alternative.lookupFallback() && left.scanFragment()) {
@@ -869,7 +869,7 @@ public final class CostBasedOptimizer {
             return switch (strategy) {
                 case MATERIALIZED, LOOKUP, LOCAL -> join.executesOn() == ExecuteLocation.REMOTE
                     || (left.scanFragment() && join.executesOn() != ExecuteLocation.COORDINATOR);
-                case BROADCAST, PARTITIONED -> false;
+                case BROADCAST, SHUFFLE -> false;
             };
         }
 
@@ -1066,7 +1066,7 @@ public final class CostBasedOptimizer {
             );
         }
 
-        private CostBreakdown partitionedJoinCost(PlanStats leftStats, PlanStats rightStats) {
+        private CostBreakdown shuffleJoinCost(PlanStats leftStats, PlanStats rightStats) {
             double buildRows = estimateValue(estimateRows(rightStats), CostConstants.UNKNOWN_ROWS);
             double probeRows = estimateValue(estimateRows(leftStats), CostConstants.UNKNOWN_ROWS);
             int lanes = Math.max(1, workerLanes);
@@ -1316,8 +1316,8 @@ public final class CostBasedOptimizer {
             List<Winner> safe = new ArrayList<>();
             if (group.plan instanceof Join join) {
                 JoinStrategySelector.JoinStrategy fallback = Mapper.isIndexModeLookup(join.right())
-                    ? JoinStrategySelector.JoinStrategy.PARTITIONED
-                    : join instanceof SubqueryLookupJoin ? JoinStrategySelector.JoinStrategy.PARTITIONED
+                    ? JoinStrategySelector.JoinStrategy.SHUFFLE
+                    : join instanceof SubqueryLookupJoin ? JoinStrategySelector.JoinStrategy.SHUFFLE
                     : null;
                 if (fallback != null) {
                     addMatching(safe, rejected, fallback);
@@ -1484,7 +1484,7 @@ public final class CostBasedOptimizer {
                 return switch (alternative.joinStrategy()) {
                     case BROADCAST -> 0;
                     case MATERIALIZED -> 1;
-                    case PARTITIONED, LOOKUP, LOCAL -> 2;
+                    case SHUFFLE, LOOKUP, LOCAL -> 2;
                 };
             }
             if (alternative.kind() == OperatorKind.JOIN || alternative.kind() == OperatorKind.AGGREGATE) {
@@ -1906,7 +1906,7 @@ public final class CostBasedOptimizer {
 
     /**
      * The native properties and local cost of one alternative over chosen children. {@code scanFragment} mirrors whether {@link Mapper}
-     * folds the subtree into one {@code FragmentExec}: a partitioned lookup join requires that of its left side, and the delivered
+     * folds the subtree into one {@code FragmentExec}: a shuffle lookup join requires that of its left side, and the delivered
      * partitioning alone cannot tell, because a broadcast join keeps its probe's source partitioning without being a fragment.
      */
     record Evaluation(

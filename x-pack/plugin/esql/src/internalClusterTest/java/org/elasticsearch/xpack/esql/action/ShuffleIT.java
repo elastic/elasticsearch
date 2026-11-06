@@ -709,7 +709,7 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
     public void testShuffleBuildFailureReleasesWaitingProducers() throws Exception {
         assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         addFailingRuntimeField();
-        for (String strategy : List.of("partitioned", "broadcast")) {
+        for (String strategy : List.of("shuffle", "broadcast")) {
             FailingPauseFieldPlugin.resetPlugin();
             String query = """
                 FROM events
@@ -763,13 +763,13 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
     }
 
     private void assertShuffleSubqueryJoinMatches(String query, int partitionsPerNode, boolean shuffleAgg) throws InterruptedException {
-        assertShuffleJoinMatches(query, partitionsPerNode, shuffleAgg, true, "partitioned");
+        assertShuffleJoinMatches(query, partitionsPerNode, shuffleAgg, true, "shuffle");
         assertShuffleJoinMatches(query, partitionsPerNode, shuffleAgg, shuffleAgg, "broadcast");
     }
 
     private void assertShuffleJoinMatches(String query, int partitionsPerNode, boolean shuffleAgg, boolean expectHashShuffle)
         throws InterruptedException {
-        assertShuffleJoinMatches(query, partitionsPerNode, shuffleAgg, expectHashShuffle, "partitioned");
+        assertShuffleJoinMatches(query, partitionsPerNode, shuffleAgg, expectHashShuffle, "shuffle");
     }
 
     private void assertShuffleJoinMatches(
@@ -845,7 +845,7 @@ public class ShuffleIT extends AbstractEsqlIntegTestCase {
     }
 
     private Settings shuffleJoinPragmas(int partitionsPerNode, boolean shuffleAgg) {
-        return shuffleJoinPragmas(partitionsPerNode, shuffleAgg, "partitioned");
+        return shuffleJoinPragmas(partitionsPerNode, shuffleAgg, "shuffle");
     }
 
     private Settings shuffleJoinPragmas(int partitionsPerNode, boolean shuffleAgg, String joinStrategy) {

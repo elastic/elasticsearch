@@ -82,7 +82,7 @@ public class ShuffleGenerativeIT extends AbstractEsqlIntegTestCase {
             try (EsqlQueryResponse baseline = run(syncEsqlQueryRequest(query).acceptedPragmaRisks(true).pragmas(QueryPragmas.EMPTY))) {
                 List<List<Object>> expected = getValuesList(baseline);
                 assertThat("query must not truncate its result:\n" + query, expected.size(), lessThan(10_000));
-                for (String strategy : List.of("partitioned", "broadcast")) {
+                for (String strategy : List.of("shuffle", "broadcast")) {
                     for (boolean shuffleAgg : List.of(false, true)) {
                         QueryPragmas pragmas = new QueryPragmas(
                             Settings.builder()

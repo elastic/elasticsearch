@@ -130,7 +130,7 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Boolean> SHUFFLE_JOIN = Setting.boolSetting("shuffle_join", false);
 
     /** Selects the exchange strategy for eligible subquery joins when shuffle planning is enabled. */
-    public static final Setting<String> SHUFFLE_JOIN_STRATEGY = Setting.simpleString("shuffle_join_strategy", "partitioned");
+    public static final Setting<String> SHUFFLE_JOIN_STRATEGY = Setting.simpleString("shuffle_join_strategy", "shuffle");
 
     /** Enables cost-based selection of eligible join and aggregation distribution strategies. */
     public static final Setting<Boolean> CBO = Setting.boolSetting("cost_based_optimizer", false);

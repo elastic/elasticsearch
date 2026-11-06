@@ -102,7 +102,7 @@ public final class AggregateDistributionDecisionKind implements DecisionKind {
 
     /**
      * Whether a single-phase aggregate runs in place on hash partitions, because its input is already partitioned by a hash
-     * exchange or a partitioned join below it. The first exchange or join reached through unary nodes decides.
+     * exchange or a shuffle join below it. The first exchange or join reached through unary nodes decides.
      */
     private static boolean runsOnHashPartitions(PhysicalPlan plan) {
         PhysicalPlan node = plan;
@@ -111,7 +111,7 @@ public final class AggregateDistributionDecisionKind implements DecisionKind {
                 return exchange.distribution() == ExchangeDistribution.HASH;
             }
             if (node instanceof DistributedHashJoinExec join) {
-                return join.mode() == DistributedHashJoinExec.Mode.PARTITIONED;
+                return join.mode() == DistributedHashJoinExec.Mode.SHUFFLE;
             }
             if (node instanceof MergeExec merge) {
                 return merge.children().isEmpty() == false

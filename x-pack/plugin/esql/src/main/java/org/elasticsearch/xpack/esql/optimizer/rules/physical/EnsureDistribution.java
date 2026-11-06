@@ -166,22 +166,22 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
             }
             if (node instanceof DistributedHashJoinExec join) {
                 Result left = switch (join.mode()) {
-                    case PARTITIONED -> ensure(join.left(), new HashRequirement(join.leftFields()));
+                    case SHUFFLE -> ensure(join.left(), new HashRequirement(join.leftFields()));
                     case BROADCAST -> visit(join.left(), AnyRequirement.INSTANCE);
                 };
                 Result right = switch (join.mode()) {
-                    case PARTITIONED -> ensure(join.right(), new HashRequirement(join.rightFields()));
+                    case SHUFFLE -> ensure(join.right(), new HashRequirement(join.rightFields()));
                     case BROADCAST -> ensure(join.right(), BroadcastRequirement.INSTANCE);
                 };
                 PhysicalPlan rewritten = join.replaceChildren(left.plan(), right.plan());
                 Partitioning output;
-                if (join.mode() == DistributedHashJoinExec.Mode.PARTITIONED) {
+                if (join.mode() == DistributedHashJoinExec.Mode.SHUFFLE) {
                     if (left.partitioning() instanceof HashPartitioning hash) {
                         output = containsIds(rewritten.output(), join.leftFields())
                             ? new HashPartitioning(join.leftFields(), hash.exact())
                             : ArbitraryPartitioning.INSTANCE;
                     } else {
-                        throw new IllegalStateException("bug: partitioned join probe side is not hash partitioned");
+                        throw new IllegalStateException("bug: shuffle join probe side is not hash partitioned");
                     }
                 } else {
                     output = keepIfPresent(left.partitioning(), rewritten.output());

@@ -29,27 +29,27 @@ import java.util.Map;
 
 public class PlanDecisionsHolderTests extends ESTestCase {
     private static final String NO_MATCH = PlanDecisionsHolder.NO_MATCH;
-    private static final Observation RAN_PARTITIONED = new Observation("PARTITIONED", "join", "coordinator plan");
+    private static final Observation RAN_SHUFFLE = new Observation("SHUFFLE", "join", "coordinator plan");
     private static final Observation RAN_LOOKUP = new Observation("LOOKUP", "join", "data node fragment");
 
     public void testOutcomeMergeRule() {
         assertOutcome(outcome(null, null), OutcomeStatus.NOT_OBSERVED, null, NO_MATCH);
         assertOutcome(
-            outcome(new Entry("PARTITIONED", "LOOKUP", "no scan fragment"), null),
+            outcome(new Entry("SHUFFLE", "LOOKUP", "no scan fragment"), null),
             OutcomeStatus.NOT_OBSERVED,
             "LOOKUP",
             NO_MATCH + "; planning used LOOKUP because no scan fragment"
         );
-        assertOutcome(outcome(null, RAN_PARTITIONED), OutcomeStatus.APPLIED, null, null);
+        assertOutcome(outcome(null, RAN_SHUFFLE), OutcomeStatus.APPLIED, null, null);
         assertOutcome(
             outcome(null, RAN_LOOKUP),
             OutcomeStatus.MISMATCH,
             "LOOKUP",
             "the plan runs LOOKUP and the planner recorded no override"
         );
-        assertOutcome(outcome(new Entry("PARTITIONED", "PARTITIONED", null), RAN_PARTITIONED), OutcomeStatus.APPLIED, null, null);
+        assertOutcome(outcome(new Entry("SHUFFLE", "SHUFFLE", null), RAN_SHUFFLE), OutcomeStatus.APPLIED, null, null);
         assertOutcome(
-            outcome(new Entry("PARTITIONED", "LOOKUP", "no scan fragment"), RAN_LOOKUP),
+            outcome(new Entry("SHUFFLE", "LOOKUP", "no scan fragment"), RAN_LOOKUP),
             OutcomeStatus.OVERRIDDEN,
             "LOOKUP",
             "no scan fragment"
@@ -58,16 +58,16 @@ public class PlanDecisionsHolderTests extends ESTestCase {
             outcome(new Entry("LOOKUP", "LOOKUP", null), RAN_LOOKUP),
             OutcomeStatus.MISMATCH,
             "LOOKUP",
-            "the planner read LOOKUP instead of the published PARTITIONED"
+            "the planner read LOOKUP instead of the published SHUFFLE"
         );
         assertOutcome(
-            outcome(new Entry("PARTITIONED", "LOOKUP", "no scan fragment"), RAN_PARTITIONED),
+            outcome(new Entry("SHUFFLE", "LOOKUP", "no scan fragment"), RAN_SHUFFLE),
             OutcomeStatus.MISMATCH,
             null,
-            "the planner recorded LOOKUP but the plan runs PARTITIONED"
+            "the planner recorded LOOKUP but the plan runs SHUFFLE"
         );
         assertOutcome(
-            outcome(new Entry("PARTITIONED", "LOOKUP", null), RAN_LOOKUP),
+            outcome(new Entry("SHUFFLE", "LOOKUP", null), RAN_LOOKUP),
             OutcomeStatus.MISMATCH,
             "LOOKUP",
             "the planner used LOOKUP without recording a reason"
@@ -80,17 +80,17 @@ public class PlanDecisionsHolderTests extends ESTestCase {
         JoinKey overridden = randomKey();
         JoinKey mismatched = randomKey();
         JoinKey conflicting = randomKey();
-        DecisionReport conflict = report("d4", "PARTITIONED", new Outcome(OutcomeStatus.CONFLICT, null, "conflict", null, null));
+        DecisionReport conflict = report("d4", "SHUFFLE", new Outcome(OutcomeStatus.CONFLICT, null, "conflict", null, null));
         holder.startRun(
             run(
                 holder.nextRun(Trigger.INITIAL),
                 List.of(applied, overridden, mismatched, conflicting),
-                List.of(report("d1", "PARTITIONED", null), report("d2", "PARTITIONED", null), report("d3", "PARTITIONED", null), conflict)
+                List.of(report("d1", "SHUFFLE", null), report("d2", "SHUFFLE", null), report("d3", "SHUFFLE", null), conflict)
             )
         );
-        holder.record(JoinStrategyDecisionKind.INSTANCE, applied, "PARTITIONED", "PARTITIONED", null);
-        holder.record(JoinStrategyDecisionKind.INSTANCE, overridden, "PARTITIONED", "LOOKUP", "no scan fragment");
-        holder.observeExternal(JoinStrategyDecisionKind.INSTANCE, applied, RAN_PARTITIONED);
+        holder.record(JoinStrategyDecisionKind.INSTANCE, applied, "SHUFFLE", "SHUFFLE", null);
+        holder.record(JoinStrategyDecisionKind.INSTANCE, overridden, "SHUFFLE", "LOOKUP", "no scan fragment");
+        holder.observeExternal(JoinStrategyDecisionKind.INSTANCE, applied, RAN_SHUFFLE);
         holder.observeExternal(JoinStrategyDecisionKind.INSTANCE, overridden, RAN_LOOKUP);
         holder.observeExternal(JoinStrategyDecisionKind.INSTANCE, mismatched, RAN_LOOKUP);
         holder.observeExternal(JoinStrategyDecisionKind.INSTANCE, conflicting, RAN_LOOKUP);
@@ -103,13 +103,13 @@ public class PlanDecisionsHolderTests extends ESTestCase {
         assertEquals(OutcomeStatus.APPLIED, decisions.get(0).outcome().status());
         assertEquals("join", decisions.get(0).outcome().physicalNode());
         assertEquals("coordinator plan", decisions.get(0).outcome().observedIn());
-        assertEquals("PARTITIONED chosen by cost.", decisions.get(0).summary());
+        assertEquals("SHUFFLE chosen by cost.", decisions.get(0).summary());
 
         assertEquals(OutcomeStatus.OVERRIDDEN, decisions.get(1).outcome().status());
-        assertEquals("PARTITIONED chosen by cost. Overridden at planning: no scan fragment; ran LOOKUP.", decisions.get(1).summary());
+        assertEquals("SHUFFLE chosen by cost. Overridden at planning: no scan fragment; ran LOOKUP.", decisions.get(1).summary());
 
         assertEquals(OutcomeStatus.MISMATCH, decisions.get(2).outcome().status());
-        assertEquals("PARTITIONED chosen by cost. Mismatch: plan ran LOOKUP.", decisions.get(2).summary());
+        assertEquals("SHUFFLE chosen by cost. Mismatch: plan ran LOOKUP.", decisions.get(2).summary());
 
         assertEquals(conflict, decisions.get(3));
     }
@@ -122,12 +122,12 @@ public class PlanDecisionsHolderTests extends ESTestCase {
 
         JoinKey key = randomKey();
         RunInfo first = holder.nextRun(Trigger.INITIAL);
-        holder.startRun(run(first, List.of(key), List.of(report("d1", "PARTITIONED", null))));
+        holder.startRun(run(first, List.of(key), List.of(report("d1", "SHUFFLE", null))));
         assertEquals(1, holder.startSubPlan());
         RunInfo second = holder.nextRun(Trigger.AFTER_SUBPLAN);
         assertEquals(new RunInfo(2, Trigger.AFTER_SUBPLAN, 1), second);
-        holder.startRun(run(second, List.of(key), List.of(report("d1", "PARTITIONED", null))));
-        holder.observeExternal(JoinStrategyDecisionKind.INSTANCE, key, RAN_PARTITIONED);
+        holder.startRun(run(second, List.of(key), List.of(report("d1", "SHUFFLE", null))));
+        holder.observeExternal(JoinStrategyDecisionKind.INSTANCE, key, RAN_SHUFFLE);
 
         List<RunReport> runs = holder.snapshot().runs();
         assertEquals(2, runs.size());
@@ -146,7 +146,7 @@ public class PlanDecisionsHolderTests extends ESTestCase {
     }
 
     private static Outcome outcome(@Nullable Entry entry, @Nullable Observation observation) {
-        return PlanDecisionsHolder.outcome("PARTITIONED", entry, observation, NO_MATCH);
+        return PlanDecisionsHolder.outcome("SHUFFLE", entry, observation, NO_MATCH);
     }
 
     private static void assertOutcome(Outcome outcome, OutcomeStatus status, @Nullable String effective, @Nullable String reason) {

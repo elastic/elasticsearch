@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 public final class JoinStrategySelector {
     /** Available physical strategies for logical joins. */
     public enum JoinStrategy {
-        PARTITIONED,
+        SHUFFLE,
         BROADCAST,
         LOOKUP,
         MATERIALIZED,
@@ -32,19 +32,15 @@ public final class JoinStrategySelector {
                 return JoinStrategy.MATERIALIZED;
             }
             return switch (pragmas.shuffleJoinStrategy()) {
-                case "partitioned" -> JoinStrategy.PARTITIONED;
+                case "shuffle" -> JoinStrategy.SHUFFLE;
                 case "broadcast" -> JoinStrategy.BROADCAST;
                 default -> throw new EsqlIllegalArgumentException(
-                    "unsupported [shuffle_join_strategy] value ["
-                        + pragmas.shuffleJoinStrategy()
-                        + "]; expected [partitioned] or [broadcast]"
+                    "unsupported [shuffle_join_strategy] value [" + pragmas.shuffleJoinStrategy() + "]; expected [shuffle] or [broadcast]"
                 );
             };
         }
         if (isLookupIndexJoin(join)) {
-            return pragmas.shuffleJoin() && Mapper.distributedJoinEligible(join) && leftIsScan
-                ? JoinStrategy.PARTITIONED
-                : JoinStrategy.LOOKUP;
+            return pragmas.shuffleJoin() && Mapper.distributedJoinEligible(join) && leftIsScan ? JoinStrategy.SHUFFLE : JoinStrategy.LOOKUP;
         }
         return JoinStrategy.LOCAL;
     }

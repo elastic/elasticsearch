@@ -43,7 +43,7 @@ public class DistributedHashJoinExec extends BinaryExec implements EstimatesRowS
     /** Describes how probe and build rows are distributed before the join. */
     public enum Mode {
         /** Both inputs are hash partitioned by their join keys. */
-        PARTITIONED,
+        SHUFFLE,
         /** Build rows are copied to every probe partition. */
         BROADCAST
     }
@@ -59,7 +59,7 @@ public class DistributedHashJoinExec extends BinaryExec implements EstimatesRowS
         List<Attribute> rightFields,
         List<Attribute> addedFields
     ) {
-        this(source, left, right, leftFields, rightFields, addedFields, Mode.PARTITIONED);
+        this(source, left, right, leftFields, rightFields, addedFields, Mode.SHUFFLE);
     }
 
     /**
@@ -88,7 +88,7 @@ public class DistributedHashJoinExec extends BinaryExec implements EstimatesRowS
         this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.mode = in.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)
             ? in.readEnum(Mode.class)
-            : Mode.PARTITIONED;
+            : Mode.SHUFFLE;
     }
 
     @Override

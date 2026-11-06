@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public class CostBasedOptimizerTests extends ESTestCase {
-    public void testLargeBuildUsesPartitionedJoin() {
+    public void testLargeBuildUsesShuffleJoin() {
         Attribute leftKey = attribute("probe_key");
         Attribute rightKey = attribute("build_key");
         SubqueryLookupJoin join = subqueryJoin(relation("probe", leftKey), relation("build", rightKey), leftKey, rightKey);
@@ -45,7 +45,7 @@ public class CostBasedOptimizerTests extends ESTestCase {
 
         PlanDecisions decisions = optimize(join, statistics, 128L * 1024 * 1024);
 
-        assertEquals(JoinStrategy.PARTITIONED, decisions.join(join).orElseThrow());
+        assertEquals(JoinStrategy.SHUFFLE, decisions.join(join).orElseThrow());
     }
 
     public void testBroadcastFitIgnoresLanesPerNode() {
@@ -61,7 +61,7 @@ public class CostBasedOptimizerTests extends ESTestCase {
         assertEquals(JoinStrategy.BROADCAST, decisions.join(join).orElseThrow());
     }
 
-    public void testDistributedAggregateCanFeedPartitionedJoin() {
+    public void testDistributedAggregateCanFeedShuffleJoin() {
         Attribute leftKey = attribute("group_key");
         Attribute rightKey = attribute("join_key");
         EsRelation input = relation("input", leftKey);
@@ -77,7 +77,7 @@ public class CostBasedOptimizerTests extends ESTestCase {
 
         PlanDecisions decisions = optimize(join, statistics, 128L * 1024 * 1024);
 
-        assertEquals(JoinStrategy.PARTITIONED, decisions.join(join).orElseThrow());
+        assertEquals(JoinStrategy.SHUFFLE, decisions.join(join).orElseThrow());
         assertEquals(AggMode.DISTRIBUTED, decisions.aggregate(aggregate.aggregates()).orElseThrow());
     }
 

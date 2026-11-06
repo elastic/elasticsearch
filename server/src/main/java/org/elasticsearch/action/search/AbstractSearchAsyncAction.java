@@ -584,16 +584,17 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
         }
-        if (failedOnCoordinatorTrip()) {
-            // The search failed while this shard was in flight, after releasing the contexts of the shards it had.
-            releaseSearchContext(result, null);
-        }
         // accumulate the per-shard metrics into the single merged reference before consuming the result
         accumulateDirectoryMetrics(result.getDirectoryMetrics());
         results.consumeResult(result, () -> {
             successfulOps.incrementAndGet();
             finishOneShard();
         });
+        // Checked after the result is added, since a trip sets the flag before releasing the results it has, so one of the two sees it
+        if (failedOnCoordinatorTrip()) {
+            // The search failed while this shard was in flight, maybe after releasing the contexts of the shards it had.
+            releaseSearchContext(result, null);
+        }
     }
 
     /**

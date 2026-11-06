@@ -521,6 +521,116 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     /**
+     * A result that arrives while another shard trips is released, also when the trip releases the results it has after the late result
+     * passed its check but before it was added.
+     */
+    public void testResultArrivingDuringTripIsReleased() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node1");
+        Map<String, Transport.Connection> lookup = Map.of("node1", new SearchAsyncActionTests.MockConnection(node));
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of("node1"),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        Map<Integer, Runnable> responses = new ConcurrentHashMap<>();
+        List<ShardSearchContextId> freedContexts = Collections.synchronizedList(new ArrayList<>());
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(DiscoveryNodeUtils.create("coordinator"));
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                int shardId = request.shardId().id();
+                if (shardId == 0) {
+                    responses.put(shardId, () -> ShardResponseReservationTests.tripWhileArriving(reservation, listener));
+                    return;
+                }
+                responses.put(shardId, () -> {
+                    QuerySearchResult result = new QuerySearchResult(
+                        new ShardSearchContextId("late", shardId),
+                        new SearchShardTarget(connection.getNode().getId(), request.shardId(), null),
+                        null
+                    );
+                    result.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    resultsToRelease.add(result);
+                    listener.onResponse(result);
+                });
+            }
+
+            @Override
+            public void sendFreeContext(
+                Transport.Connection connection,
+                ShardSearchContextId contextId,
+                ActionListener<SearchFreeContextResponse> listener
+            ) {
+                freedContexts.add(contextId);
+            }
+        };
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        // Shard 0 trips while shard 1's result is being added, the order two threads can run them in
+        try (
+            QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+                new SearchRequest(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                NoopCircuitBreaker.INSTANCE,
+                new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder()),
+                () -> false,
+                SearchProgressListener.NOOP,
+                shardsIter.size(),
+                exc -> {}
+            ) {
+                @Override
+                public void consumeResult(SearchPhaseResult result, Runnable next) {
+                    responses.get(0).run();
+                    super.consumeResult(result, next);
+                }
+            }
+        ) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                false,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+            assertThat(responses.keySet(), containsInAnyOrder(0, 1));
+
+            responses.get(1).run();
+            resultsToRelease.forEach(QuerySearchResult::decRef);
+
+            assertThat(failures, hasSize(1));
+            assertThat(freedContexts, contains(new ShardSearchContextId("late", 1)));
+        }
+    }
+
+    /**
      * A shard that fails after the trip on its last copy isn't counted, so the phase doesn't finish with results the trip released.
      */
     public void testShardFailureAfterTripDoesNotFinishPhase() throws Exception {

@@ -463,7 +463,7 @@ stack: preview 9.7
 serverless: preview
 ```
 
-When a query reads fields stored by a codec that supports read profiling, such as the [columnar](/reference/elasticsearch/columnar/index.md) doc values format, each `ValuesSourceReaderOperator` in the profile reports what the codec did for it: how many readers it opened, how many blocks and chunks it fetched and inflated, and how long that took. Use it to find out whether the time an operator spends loading values goes into reading column data, and which field and segment it belongs to.
+When a query reads fields stored by a codec that supports read profiling, such as the [columnar](/reference/elasticsearch/columnar/index.md) doc values format, each `ValuesSourceReaderOperator` in the profile reports what the codec did for it: how many readers it opened, how many blocks and chunks it fetched and inflated, and how long that took. Use it to find out whether the time an operator spends loading values goes into reading column data, and which field and segment it belongs to. Only the field loading of `ValuesSourceReaderOperator` is counted. Codec reads done by filters and sorts pushed down to Lucene, and by `LOOKUP JOIN` and `ENRICH`, are not.
 
 Start with the totals, which cost the least, then name what you suspect, and ask for full detail only when nothing is suspected yet:
 

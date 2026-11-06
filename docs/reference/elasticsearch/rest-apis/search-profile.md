@@ -1206,7 +1206,7 @@ stack: preview 9.7
 serverless: preview
 ```
 
-A query node that reads a field stored by a codec that supports read profiling, such as the [columnar](/reference/elasticsearch/columnar/index.md) doc values format, reports what the codec did for it: how many readers it opened, how many blocks and chunks it fetched and inflated, and how long that took. Use it to find out whether a slow query spends its time reading column data, and which field and segment that time belongs to.
+A query node that reads a field stored by a codec that supports read profiling, such as the [columnar](/reference/elasticsearch/columnar/index.md) doc values format, reports what the codec did for it: how many readers it opened, how many blocks and chunks it fetched and inflated, and how long that took. Use it to find out whether a slow query spends its time reading column data, and which field and segment that time belongs to. Only readers that a query opens while its scorer is built are counted. Codec reads done by aggregations, sorting and the fetch phase are not.
 
 Start with the totals, which cost the least, then name what you suspect, and ask for full detail only when nothing is suspected yet:
 

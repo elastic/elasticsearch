@@ -245,11 +245,11 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
         Query actual = combinedFieldsQuery("dogs cats", "synonym1", "synonym2").operator(Operator.AND).toQuery(context);
 
         Query expected = new BooleanQuery.Builder().add(
-            new CombinedFieldQuery.Builder("synonym1").addField("synonym1").addField("synonym2").addField("dog").addField("dogs").build(),
+            new CombinedFieldQuery.Builder("dogs").addField("synonym1").addField("synonym2").addField("dog").addField("dogs").build(),
             BooleanClause.Occur.MUST
         )
             .add(
-                new CombinedFieldQuery.Builder("synonym1").addField("synonym1").addField("synonym2").addField("cats").build(),
+                new CombinedFieldQuery.Builder("cats").addField("synonym1").addField("synonym2").addField("cats").build(),
                 BooleanClause.Occur.MUST
             )
             .build();
@@ -274,14 +274,14 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
                 BooleanClause.Occur.SHOULD
             )
                 .add(
-                    new CombinedFieldQuery.Builder("synonym1").addField("synonym1").addField("synonym2").addField("cavy").build(),
+                    new CombinedFieldQuery.Builder("cavy").addField("synonym1").addField("synonym2").addField("cavy").build(),
                     BooleanClause.Occur.SHOULD
                 )
                 .build(),
             BooleanClause.Occur.MUST
         )
             .add(
-                new CombinedFieldQuery.Builder("synonym1").addField("synonym1").addField("synonym2").addField("cats").build(),
+                new CombinedFieldQuery.Builder("cats").addField("synonym1").addField("synonym2").addField("cats").build(),
                 BooleanClause.Occur.MUST
             )
             .build();
@@ -297,25 +297,25 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
         Query expected = new BooleanQuery.Builder().add(
             new BooleanQuery.Builder().add(
                 new BooleanQuery.Builder().add(
-                    new CombinedFieldQuery.Builder("synonym1").addField("synonym1").addField("synonym2").addField("guinea").build(),
+                    new CombinedFieldQuery.Builder("guinea").addField("synonym1").addField("synonym2").addField("guinea").build(),
                     BooleanClause.Occur.MUST
                 )
                     .add(
-                        new CombinedFieldQuery.Builder("synonym1").addField("synonym1").addField("synonym2").addField("pig").build(),
+                        new CombinedFieldQuery.Builder("pig").addField("synonym1").addField("synonym2").addField("pig").build(),
                         BooleanClause.Occur.MUST
                     )
                     .build(),
                 BooleanClause.Occur.SHOULD
             )
                 .add(
-                    new CombinedFieldQuery.Builder("synonym1").addField("synonym1").addField("synonym2").addField("cavy").build(),
+                    new CombinedFieldQuery.Builder("cavy").addField("synonym1").addField("synonym2").addField("cavy").build(),
                     BooleanClause.Occur.SHOULD
                 )
                 .build(),
             BooleanClause.Occur.MUST
         )
             .add(
-                new CombinedFieldQuery.Builder("synonym1").addField("synonym1").addField("synonym2").addField("cats").build(),
+                new CombinedFieldQuery.Builder("cats").addField("synonym1").addField("synonym2").addField("cats").build(),
                 BooleanClause.Occur.MUST
             )
             .build();
@@ -332,11 +332,11 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
 
         Query query = combinedFieldsQuery("the quick fox").field("stopwords1").zeroTermsQuery(zeroTermsQuery).toQuery(context);
         Query expected = new BooleanQuery.Builder().add(
-            new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1").addField(quickTerm.utf8ToString()).build(),
+            new CombinedFieldQuery.Builder(quickTerm.utf8ToString()).addField("stopwords1").addField(quickTerm.utf8ToString()).build(),
             BooleanClause.Occur.SHOULD
         )
             .add(
-                new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1").addField(foxTerm.utf8ToString()).build(),
+                new CombinedFieldQuery.Builder(foxTerm.utf8ToString()).addField("stopwords1").addField(foxTerm.utf8ToString()).build(),
                 BooleanClause.Occur.SHOULD
             )
             .build();
@@ -347,14 +347,14 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
             .zeroTermsQuery(zeroTermsQuery)
             .toQuery(context);
         expected = new BooleanQuery.Builder().add(
-            new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1")
+            new CombinedFieldQuery.Builder(quickTerm.utf8ToString()).addField("stopwords1")
                 .addField("stopwords2")
                 .addField(quickTerm.utf8ToString())
                 .build(),
             BooleanClause.Occur.SHOULD
         )
             .add(
-                new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1")
+                new CombinedFieldQuery.Builder(foxTerm.utf8ToString()).addField("stopwords1")
                     .addField("stopwords2")
                     .addField(foxTerm.utf8ToString())
                     .build(),

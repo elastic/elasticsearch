@@ -200,7 +200,7 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         SubqueryLookupJoin join = subqueryJoin(relation("probe", leftKey), relation("build", rightKey), leftKey, rightKey);
         Map<LogicalPlan, PlanStats> statistics = new IdentityHashMap<>();
         statistics.put(join.left(), stats(100_000_000, 8_000_000_000d, 80));
-        statistics.put(join.right(), stats(800_000, 80_000_000, 100));
+        statistics.put(join.right(), stats(800_000, 400_000_000, 500));
 
         RunReport report = explain(join, statistics, pragmas(QueryPragmas.SHUFFLE_JOIN.getKey(), true)).report();
 

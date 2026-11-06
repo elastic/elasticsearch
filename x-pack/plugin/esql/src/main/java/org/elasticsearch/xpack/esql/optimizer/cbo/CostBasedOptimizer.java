@@ -2017,7 +2017,7 @@ public final class CostBasedOptimizer {
         static final double REPLAN_SECONDS = 0.005;
         static final double HASH_TABLE_OVERHEAD = 2;
         static final double HOT_PARTITION_FRACTION = 0.1;
-        static final double BROADCAST_MEMORY_BYTES = 128d * 1024 * 1024;
+        static final double BROADCAST_MEMORY_BYTES = 512d * 1024 * 1024;
         static final double COORDINATOR_MEMORY_BYTES = 512d * 1024 * 1024;
         static final double AGGREGATE_STATE_BYTES = 64;
         static final double UNKNOWN_ROWS = 100_000;

@@ -165,9 +165,6 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/157535
-- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
-  method: testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes
-  issue: https://github.com/elastic/elasticsearch/issues/157799
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testUploadedCommitPrefetchNeverHitsIndexingNode
   issue: https://github.com/elastic/elasticsearch/issues/157813
@@ -372,11 +369,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
-- class: org.elasticsearch.xpack.esql.action.ExternalLaggingWorkerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testFallbackThatCannotBeSentTheSplitsFailsTheQuery
-  issue: https://github.com/elastic/elasticsearch/issues/163761
 - class: org.elasticsearch.index.mapper.UnmappedFieldsTests
   tasks:
   - :server:test
@@ -485,11 +477,6 @@ tests:
   - :test:test-clusters:test
   method: testWaitsForLiveFileRecreatedAfterRename
   issue: https://github.com/elastic/elasticsearch/issues/164549
-- class: org.elasticsearch.xpack.esql.action.ExternalLaggingWorkerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testFallbackWhoseExchangeCannotBeOpenedFailsTheQuery
-  issue: https://github.com/elastic/elasticsearch/issues/164583
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   tasks:
   - :modules:repository-azure:test
@@ -539,3 +526,13 @@ tests:
   - :test:framework:integTest
   method: testLeakingRecyclerBackedByteArrayIsDetected
   issue: https://github.com/elastic/elasticsearch/issues/164889
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
+  issue: https://github.com/elastic/elasticsearch/issues/164906
+- class: org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldTypeTests
+  tasks:
+  - :x-pack:plugin:spatial:test
+  method: testFetchVectorTile
+  issue: https://github.com/elastic/elasticsearch/issues/164908

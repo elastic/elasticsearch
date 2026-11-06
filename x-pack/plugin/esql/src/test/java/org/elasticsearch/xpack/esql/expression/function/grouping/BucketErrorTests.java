@@ -83,17 +83,28 @@ public class BucketErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             }
         } else if (field == DataType.NULL) {
             if (isSupportedBucketsNumeric(buckets) == false && DataType.isTemporalAmount(buckets) == false && buckets != DataType.NULL) {
-                return typeErrorMessage(signature, 1, "numeric, date_period or time_duration");
+                return typeErrorMessage(signature, 1, "integer, long, double, date_period or time_duration");
             }
             if (fourArgs) {
                 if (buckets.isRationalNumber()) {
                     return arityError(field, buckets, "two");
                 }
-                if (isStringOrDateOrNumeric(signature.get(2)) == false) {
-                    return typeErrorMessage(signature, 2, "datetime, date_nanos, string or numeric");
-                }
-                if (isStringOrDateOrNumeric(signature.get(3)) == false) {
-                    return typeErrorMessage(signature, 3, "datetime, date_nanos, string or numeric");
+                DataType from = signature.get(2);
+                DataType to = signature.get(3);
+                if (DataType.isTemporalAmount(buckets) == false && (from.isNumeric() || to.isNumeric())) {
+                    if (isNumericOrNull(from) == false) {
+                        return typeErrorMessage(signature, 2, "numeric");
+                    }
+                    if (isNumericOrNull(to) == false) {
+                        return typeErrorMessage(signature, 3, "numeric");
+                    }
+                } else {
+                    if (isStringOrDate(from) == false) {
+                        return typeErrorMessage(signature, 2, "datetime, date_nanos or string");
+                    }
+                    if (isStringOrDate(to) == false) {
+                        return typeErrorMessage(signature, 3, "datetime, date_nanos or string");
+                    }
                 }
             }
         } else {
@@ -132,9 +143,5 @@ public class BucketErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     private static boolean isStringOrDate(DataType dt) {
         return dt == DataType.NULL || DataType.isString(dt) || DataType.isMillisOrNanos(dt);
-    }
-
-    private static boolean isStringOrDateOrNumeric(DataType dt) {
-        return isStringOrDate(dt) || dt.isNumeric();
     }
 }

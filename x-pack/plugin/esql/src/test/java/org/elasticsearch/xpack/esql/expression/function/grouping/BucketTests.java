@@ -46,7 +46,6 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,7 +53,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
@@ -252,7 +250,6 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 : original.expectedType(),
             (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
         );
-        nullFieldMixedBoundsCases(suppliers);
         multipleNullArgumentsCases(suppliers);
         dateAndNanosSpanRangeCases(
             suppliers,
@@ -541,66 +538,22 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
     }
 
     /**
-     * With a NULL field, BUCKET cannot tell whether the date or the numeric overload applies, so
-     * {@code resolveType} accepts any date-ish/numeric mix of from/to and the result is simply null.
-     * {@code anyNullIsNull} cannot produce these signatures — it only nullifies one argument of
-     * existing cases, whose bounds are always family-consistent — so they are declared explicitly.
-     */
-    private static void nullFieldMixedBoundsCases(List<TestCaseSupplier> suppliers) {
-        for (DataType bucketsType : BUCKETS_TYPE) {
-            for (DataType dateBoundType : DATE_BOUNDS_TYPE) {
-                for (DataType numericBoundType : NUMERIC_BOUNDS_WITH_UNSIGNED_LONG) {
-                    nullFieldMixedBoundsCase(
-                        suppliers,
-                        bucketsType,
-                        dateBound("from", dateBoundType, "2023-02-01T00:00:00.00Z"),
-                        bound("to", numericBoundType)
-                    );
-                    nullFieldMixedBoundsCase(
-                        suppliers,
-                        bucketsType,
-                        bound("from", numericBoundType),
-                        dateBound("to", dateBoundType, "2023-03-01T09:00:00.00Z")
-                    );
-                }
-            }
-        }
-    }
-
-    private static void nullFieldMixedBoundsCase(
-        List<TestCaseSupplier> suppliers,
-        DataType bucketsType,
-        TestCaseSupplier.TypedData from,
-        TestCaseSupplier.TypedData to
-    ) {
-        nullFoldingCase(
-            suppliers,
-            "null field with mixed bounds",
-            DataType.NULL,
-            TestCaseSupplier.TypedData.NULL,
-            new TestCaseSupplier.TypedData(50, bucketsType, "buckets").forceLiteral(),
-            from,
-            to
-        );
-    }
-
-    /**
      * Explicit coverage for calls with more than one null argument: {@code anyNullIsNull} only
      * nullifies one argument of existing cases, and {@code BucketErrorTests} skips signatures with
-     * more than one NULL, so these combinations are otherwise untested. Each non-null argument is
-     * valid for some overload, so the calls must resolve and fold to null.
+     * more than one NULL, so these combinations are otherwise untested. The non-null arguments
+     * are valid for a single overload, so the calls must resolve and fold to null.
      */
     private static void multipleNullArgumentsCases(List<TestCaseSupplier> suppliers) {
         TestCaseSupplier.TypedData nullArg = TestCaseSupplier.TypedData.NULL;
         String name = "multiple null arguments";
         // BUCKET(null, null)
         nullFoldingCase(suppliers, name, DataType.NULL, nullArg, nullArg);
-        // BUCKET(null, null, from, to) across every date-ish/numeric bound combination, mixed families included
-        List<DataType> boundTypes = Stream.concat(Arrays.stream(DATE_BOUNDS_TYPE), Arrays.stream(NUMERIC_BOUNDS_WITH_UNSIGNED_LONG))
-            .toList();
-        for (DataType fromType : boundTypes) {
-            for (DataType toType : boundTypes) {
-                nullFoldingCase(suppliers, name, DataType.NULL, nullArg, nullArg, bound("from", fromType), bound("to", toType));
+        // BUCKET(null, null, from, to) across every bound combination of the date and of the numeric overload
+        for (DataType[] boundTypes : List.of(DATE_BOUNDS_TYPE, NUMERIC_BOUNDS_WITH_UNSIGNED_LONG)) {
+            for (DataType fromType : boundTypes) {
+                for (DataType toType : boundTypes) {
+                    nullFoldingCase(suppliers, name, DataType.NULL, nullArg, nullArg, bound("from", fromType), bound("to", toType));
+                }
             }
         }
         // null field and buckets with a null bound on either side

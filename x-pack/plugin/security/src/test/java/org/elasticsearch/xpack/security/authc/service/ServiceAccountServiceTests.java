@@ -765,6 +765,30 @@ public class ServiceAccountServiceTests extends ESTestCase {
         verify(indexServiceAccountTokenStore, never()).authenticate(any(), any());
     }
 
+    public void testUserManagedAccountIsActiveOnlyWhenItExistsAndIsEnabled() {
+        stubUserManagedAccount(enabledAccount());
+        assertUserManagedAccountActive(serviceAccountService, USER_MANAGED_ACCOUNT_ID, true);
+
+        stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), false, null));
+        assertUserManagedAccountActive(serviceAccountService, USER_MANAGED_ACCOUNT_ID, false);
+
+        stubNoUserManagedAccounts();
+        assertUserManagedAccountActive(serviceAccountService, USER_MANAGED_ACCOUNT_ID, false);
+    }
+
+    public void testUserManagedAccountIsNeverActiveWhereTheAccountStoreIsNotConfigured() {
+        final ServiceAccountService service = newServiceAccountService(null);
+        stubUserManagedAccount(enabledAccount());
+        assertUserManagedAccountActive(service, USER_MANAGED_ACCOUNT_ID, false);
+        verify(userManagedServiceAccountStore, never()).getByPrincipal(any(), any());
+    }
+
+    private static void assertUserManagedAccountActive(ServiceAccountService service, ServiceAccountId accountId, boolean expected) {
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        service.isUserManagedAccountActive(accountId.asPrincipal(), future);
+        assertThat(future.actionGet(), is(expected));
+    }
+
     public void testCreateBuiltInTokenWillDelegate() {
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final CreateServiceAccountTokenRequest request = newCreateTokenRequest(BUILT_IN_ACCOUNT_ID);
@@ -861,8 +885,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
         verify(userManagedServiceAccountStore, never()).getByPrincipal(any(), any());
     }
 
-    public void testPutUserManagedAccountDelegatesToTheAccountStoreWhenCreatingWithNoLeftoverTokens() {
+    public void testPutUserManagedAccountDelegatesToTheAccountStoreWhenCreatingWithNoLeftoverCredentials() {
         stubHasTokensFor(false);
+        stubHasUsableApiKeysFor(false);
         final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
         final String description = randomDescription();
@@ -881,6 +906,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         );
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
         verify(indexServiceAccountTokenStore).hasTokensFor(eq(USER_MANAGED_ACCOUNT_ID), any());
+        verify(userManagedServiceAccountStore).hasUsableApiKeysFor(eq(USER_MANAGED_ACCOUNT_ID), any());
         verify(userManagedServiceAccountStore).putAccount(
             eq(USER_MANAGED_ACCOUNT_ID),
             eq(roles),
@@ -914,6 +940,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         );
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
         verify(indexServiceAccountTokenStore, never()).hasTokensFor(any(), any());
+        verify(userManagedServiceAccountStore, never()).hasUsableApiKeysFor(any(), any());
         verify(userManagedServiceAccountStore).putAccount(
             eq(USER_MANAGED_ACCOUNT_ID),
             eq(roles),
@@ -946,6 +973,38 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 "cannot create service account ["
                     + USER_MANAGED_ACCOUNT_ID
                     + "] because it has leftover service tokens; delete the tokens first"
+            )
+        );
+        verify(userManagedServiceAccountStore, never()).hasUsableApiKeysFor(any(), any());
+        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any(), any(), any());
+    }
+
+    /**
+     * A key outlives the account that created it, and keeps the privileges captured when it was created. Recreating the
+     * name would let it authenticate again as the new account, so recreation waits until no such key can authenticate.
+     */
+    public void testPutUserManagedAccountIsRefusedWhenLeftoverApiKeysExist() {
+        stubHasTokensFor(false);
+        stubHasUsableApiKeysFor(true);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        serviceAccountService.putUserManagedAccount(
+            USER_MANAGED_ACCOUNT_ID,
+            List.of("a_role"),
+            true,
+            null,
+            authentication,
+            RefreshPolicy.NONE,
+            future
+        );
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "cannot create service account ["
+                    + USER_MANAGED_ACCOUNT_ID
+                    + "] because it has leftover API keys; invalidate the keys first"
             )
         );
         verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any(), any(), any());
@@ -981,11 +1040,37 @@ public class ServiceAccountServiceTests extends ESTestCase {
                     + " or set force=true to delete the account and leave its tokens in place"
             )
         );
+        verify(userManagedServiceAccountStore, never()).hasUsableApiKeysFor(any(), any());
         verify(userManagedServiceAccountStore, never()).deleteAccount(any(), any(), any());
     }
 
-    public void testDeletingAnAccountProceedsWhenItHasNoTokens() {
+    /**
+     * Held to the same rule as tokens, and for the same reason: a key left behind blocks recreating the account until it
+     * is invalidated, so stranding one is something the caller must ask for.
+     */
+    public void testDeletingAnAccountIsRefusedWhileItStillHasUsableApiKeys() {
         stubHasTokensFor(false);
+        stubHasUsableApiKeysFor(true);
+
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        serviceAccountService.deleteUserManagedAccount(USER_MANAGED_ACCOUNT_ID, false, RefreshPolicy.NONE, future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "cannot delete service account ["
+                    + USER_MANAGED_ACCOUNT_ID
+                    + "] because it has API keys; invalidate the keys first,"
+                    + " or set force=true to delete the account and leave its keys in place"
+            )
+        );
+        verify(userManagedServiceAccountStore, never()).deleteAccount(any(), any(), any());
+    }
+
+    public void testDeletingAnAccountProceedsWhenItHasNoTokensOrApiKeys() {
+        stubHasTokensFor(false);
+        stubHasUsableApiKeysFor(false);
         final boolean found = randomBoolean();
         stubDeleteAccount(found);
 
@@ -993,16 +1078,18 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         serviceAccountService.deleteUserManagedAccount(USER_MANAGED_ACCOUNT_ID, false, refreshPolicy, future);
         assertThat(future.actionGet(), is(found));
+        verify(userManagedServiceAccountStore).hasUsableApiKeysFor(eq(USER_MANAGED_ACCOUNT_ID), any());
         verify(userManagedServiceAccountStore).deleteAccount(eq(USER_MANAGED_ACCOUNT_ID), eq(refreshPolicy), any());
     }
 
-    public void testForceDeletingAnAccountSkipsTheTokenCheck() {
+    public void testForceDeletingAnAccountSkipsTheCredentialChecks() {
         stubDeleteAccount(true);
 
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         serviceAccountService.deleteUserManagedAccount(USER_MANAGED_ACCOUNT_ID, true, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(true));
         verify(indexServiceAccountTokenStore, never()).hasTokensFor(any(), any());
+        verify(userManagedServiceAccountStore, never()).hasUsableApiKeysFor(any(), any());
     }
 
     public void testDeletingAnAccountFailsWhereTheAccountStoreIsNotConfigured() {
@@ -1327,6 +1414,15 @@ public class ServiceAccountServiceTests extends ESTestCase {
             listener.onResponse(hasTokens);
             return null;
         }).when(indexServiceAccountTokenStore).hasTokensFor(any(), any());
+    }
+
+    private void stubHasUsableApiKeysFor(boolean hasApiKeys) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(hasApiKeys);
+            return null;
+        }).when(userManagedServiceAccountStore).hasUsableApiKeysFor(any(), any());
     }
 
     private void stubPutAccount(UserManagedServiceAccountStore.PutResult result) {

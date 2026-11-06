@@ -123,6 +123,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -138,6 +139,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.metric.SecurityCacheMetrics.CacheType;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -3709,6 +3711,153 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(auth3.getMetadata(), hasEntry(API_KEY_TYPE_KEY, apiKeyDoc3.type.value()));
     }
 
+    public void testApiKeyCreatedByUserManagedServiceAccountAuthenticatesOnlyWhileTheAccountIsActive() throws IOException {
+        final String principal = "engineering/deploy-bot";
+        final boolean active = randomBoolean();
+        final ServiceAccountService serviceAccountService = serviceAccountServiceReportingActive(principal, active);
+        final ApiKeyService apiKeyService = createApiKeyService(Settings.EMPTY, MeterRegistry.NOOP, serviceAccountService);
+        final ApiKeyCredentials credentials = getApiKeyCredentials(randomAlphaOfLength(12), randomAlphaOfLength(16), ApiKey.Type.REST);
+
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        apiKeyService.completeApiKeyAuthentication(
+            buildApiKeyDocCreatedBy(principal, ServiceAccountSettings.REALM_TYPE),
+            credentials,
+            clock,
+            future
+        );
+
+        final AuthenticationResult<User> result = future.actionGet();
+        if (active) {
+            assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+            assertThat(result.getValue().principal(), equalTo(principal));
+        } else {
+            assertThat(result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
+            assertThat(result.getValue(), nullValue());
+            assertThat(
+                result.getMessage(),
+                equalTo(
+                    "api key ["
+                        + credentials.getId()
+                        + "] was created by user-managed service account ["
+                        + principal
+                        + "], which does not exist or is disabled"
+                )
+            );
+        }
+        verify(serviceAccountService).isUserManagedAccountActive(eq(principal), anyActionListener());
+    }
+
+    public void testApiKeyCreatedByUserManagedServiceAccountIsRejectedWithoutAServiceAccountService() throws IOException {
+        final ApiKeyCredentials credentials = getApiKeyCredentials(randomAlphaOfLength(12), randomAlphaOfLength(16), ApiKey.Type.REST);
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        createApiKeyService().completeApiKeyAuthentication(
+            buildApiKeyDocCreatedBy("engineering/deploy-bot", ServiceAccountSettings.REALM_TYPE),
+            credentials,
+            clock,
+            future
+        );
+        assertThat(future.actionGet().getStatus(), is(AuthenticationResult.Status.CONTINUE));
+    }
+
+    public void testApiKeyCreatedByUserManagedServiceAccountFailsWhenTheAccountCannotBeLookedUp() throws IOException {
+        // Mocked because the account store behind a real ServiceAccountService is only reachable from its own package.
+        final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        final ElasticsearchException lookupFailure = new ElasticsearchException("security index unavailable");
+        doAnswer(invocation -> {
+            final ActionListener<Boolean> listener = invocation.getArgument(1);
+            listener.onFailure(lookupFailure);
+            return null;
+        }).when(serviceAccountService).isUserManagedAccountActive(any(), anyActionListener());
+        final ApiKeyService apiKeyService = createApiKeyService(Settings.EMPTY, MeterRegistry.NOOP, serviceAccountService);
+
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        apiKeyService.completeApiKeyAuthentication(
+            buildApiKeyDocCreatedBy("engineering/deploy-bot", ServiceAccountSettings.REALM_TYPE),
+            getApiKeyCredentials(randomAlphaOfLength(12), randomAlphaOfLength(16), ApiKey.Type.REST),
+            clock,
+            future
+        );
+        assertThat(expectThrows(ElasticsearchException.class, future::actionGet), sameInstance(lookupFailure));
+    }
+
+    /**
+     * Built-in accounts cannot be deleted or disabled, and no user-managed account can carry their namespace, so their keys
+     * must keep authenticating without the user-managed store being consulted.
+     */
+    public void testApiKeyCreatedByBuiltInServiceAccountIsNotCheckedAgainstUserManagedAccounts() throws IOException {
+        final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        final ApiKeyService apiKeyService = createApiKeyService(Settings.EMPTY, MeterRegistry.NOOP, serviceAccountService);
+        final String principal = randomFrom("elastic", "ELASTIC", "Elastic") + "/fleet-server";
+
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        apiKeyService.completeApiKeyAuthentication(
+            buildApiKeyDocCreatedBy(principal, ServiceAccountSettings.REALM_TYPE),
+            getApiKeyCredentials(randomAlphaOfLength(12), randomAlphaOfLength(16), ApiKey.Type.REST),
+            clock,
+            future
+        );
+        assertThat(future.actionGet().getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        verify(serviceAccountService, never()).isUserManagedAccountActive(any(), anyActionListener());
+    }
+
+    public void testApiKeyCreatedByAUserIsNotCheckedAgainstUserManagedAccounts() throws IOException {
+        final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        final ApiKeyService apiKeyService = createApiKeyService(Settings.EMPTY, MeterRegistry.NOOP, serviceAccountService);
+
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        apiKeyService.completeApiKeyAuthentication(
+            // A username may contain a slash, so the realm type rather than the principal's shape is what marks a service account.
+            buildApiKeyDocCreatedBy("engineering/deploy-bot", randomAlphaOfLengthBetween(3, 8)),
+            getApiKeyCredentials(randomAlphaOfLength(12), randomAlphaOfLength(16), ApiKey.Type.REST),
+            clock,
+            future
+        );
+        assertThat(future.actionGet().getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        verify(serviceAccountService, never()).isUserManagedAccountActive(any(), anyActionListener());
+    }
+
+    /**
+     * Mocked because the account store behind a real {@link ServiceAccountService} is only reachable from its own package; the
+     * service's own tests cover how it decides an account is active.
+     */
+    private static ServiceAccountService serviceAccountServiceReportingActive(String principal, boolean active) {
+        final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocation -> {
+            final ActionListener<Boolean> listener = invocation.getArgument(1);
+            listener.onResponse(active);
+            return null;
+        }).when(serviceAccountService).isUserManagedAccountActive(eq(principal), anyActionListener());
+        return serviceAccountService;
+    }
+
+    private static ApiKeyDoc buildApiKeyDocCreatedBy(String principal, String realmType) throws IOException {
+        return new ApiKeyDoc(
+            "api_key",
+            ApiKey.Type.REST,
+            Clock.systemUTC().instant().toEpochMilli(),
+            -1L,
+            false,
+            -1L,
+            "unused-hash",
+            randomAlphaOfLength(12),
+            Version.CURRENT.id,
+            new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
+            new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}"),
+            Map.of(
+                "principal",
+                principal,
+                "realm",
+                realmType,
+                "realm_type",
+                realmType,
+                "metadata",
+                Map.of(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD, true)
+            ),
+            XContentTestUtils.convertToXContent(ApiKeyTests.randomMetadata(), XContentType.JSON),
+            null
+        );
+    }
+
     public void testCreateApiKeyWithDatasourcePrivilegeRejectedInMixedCluster() {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         final ClusterService clusterService = mock(ClusterService.class);
@@ -4195,6 +4344,14 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     private ApiKeyService createApiKeyService(Settings baseSettings, MeterRegistry meterRegistry) {
+        return createApiKeyService(baseSettings, meterRegistry, null);
+    }
+
+    private ApiKeyService createApiKeyService(
+        Settings baseSettings,
+        MeterRegistry meterRegistry,
+        @Nullable ServiceAccountService serviceAccountService
+    ) {
         final Settings settings = Settings.builder()
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(baseSettings)
@@ -4215,7 +4372,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             cacheInvalidatorRegistry,
             threadPool,
             meterRegistry,
-            mock(FeatureService.class)
+            mock(FeatureService.class),
+            serviceAccountService
         );
         if ("0s".equals(settings.get(ApiKeyService.CACHE_TTL_SETTING.getKey()))) {
             verify(cacheInvalidatorRegistry, never()).registerCacheInvalidator(eq("api_key"), any());

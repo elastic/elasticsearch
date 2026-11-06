@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -117,6 +118,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.metric.SecurityCacheMetrics;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
@@ -247,6 +249,8 @@ public class ApiKeyService implements Closeable {
     private final ThreadPool threadPool;
     private final ApiKeyDocCache apiKeyDocCache;
     private final FeatureService featureService;
+    @Nullable
+    private final ServiceAccountService serviceAccountService;
 
     private static final int API_KEY_SECRET_NUM_BYTES = 16;
     // The API key secret is a Base64 encoded string of 128 random bits.
@@ -260,7 +264,10 @@ public class ApiKeyService implements Closeable {
 
     private final List<AutoCloseable> cacheMetrics;
 
-    @SuppressWarnings("this-escape")
+    /**
+     * Creates a service that cannot look up user-managed service accounts, so it refuses every API key one of them
+     * created rather than letting such a key outlive its account.
+     */
     public ApiKeyService(
         Settings settings,
         Clock clock,
@@ -272,7 +279,40 @@ public class ApiKeyService implements Closeable {
         MeterRegistry meterRegistry,
         FeatureService featureService
     ) {
+        this(
+            settings,
+            clock,
+            client,
+            securityIndex,
+            clusterService,
+            cacheInvalidatorRegistry,
+            threadPool,
+            meterRegistry,
+            featureService,
+            null
+        );
+    }
+
+    /**
+     * @param serviceAccountService resolves the user-managed service account behind an API key it created, so that the key stops
+     *                              authenticating once the account is deleted or disabled. When {@code null}, such keys never
+     *                              authenticate.
+     */
+    @SuppressWarnings("this-escape")
+    public ApiKeyService(
+        Settings settings,
+        Clock clock,
+        Client client,
+        SecurityIndexManager securityIndex,
+        ClusterService clusterService,
+        CacheInvalidatorRegistry cacheInvalidatorRegistry,
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry,
+        FeatureService featureService,
+        @Nullable ServiceAccountService serviceAccountService
+    ) {
         this.clock = clock;
+        this.serviceAccountService = serviceAccountService;
         this.client = client;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
@@ -1681,10 +1721,56 @@ public class ApiKeyService implements Closeable {
             if (apiKeyDoc.metadataFlattened != null) {
                 authResultMetadata.put(AuthenticationField.API_KEY_METADATA_KEY, apiKeyDoc.metadataFlattened);
             }
-            listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
+            final AuthenticationResult<User> success = AuthenticationResult.success(apiKeyUser, authResultMetadata);
+            if (isCreatedByUserManagedServiceAccount(apiKeyDoc)) {
+                checkUserManagedServiceAccountCreatorIsActive(principal, credentials, success, listener);
+            } else {
+                listener.onResponse(success);
+            }
         } else {
             listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));
         }
+    }
+
+    /**
+     * Whether the key's creator is a user-managed service account. The namespace alone decides it: the built-in namespace
+     * is reserved in any capitalization, so a service account outside it is user-managed. Built-in accounts cannot be
+     * deleted or disabled, which is why only user-managed creators need a liveness check.
+     */
+    private static boolean isCreatedByUserManagedServiceAccount(ApiKeyDoc apiKeyDoc) {
+        if (ServiceAccountSettings.REALM_TYPE.equals(apiKeyDoc.creator.get("realm_type")) == false) {
+            return false;
+        }
+        final String principal = (String) apiKeyDoc.creator.get("principal");
+        final int separator = principal.indexOf('/');
+        final String namespace = separator == -1 ? principal : principal.substring(0, separator);
+        return ServiceAccountSettings.BUILTIN_NAMESPACE.equalsIgnoreCase(namespace) == false;
+    }
+
+    /**
+     * A key a user-managed service account created must not outlive the account, so it authenticates only while the
+     * account exists and is enabled, the same condition the account's own tokens are held to. Role edits to the account
+     * do not reach the key, whose privileges were captured when it was created.
+     */
+    private void checkUserManagedServiceAccountCreatorIsActive(
+        String principal,
+        ApiKeyCredentials credentials,
+        AuthenticationResult<User> success,
+        ActionListener<AuthenticationResult<User>> listener
+    ) {
+        final AuthenticationResult<User> creatorInactive = AuthenticationResult.unsuccessful(
+            "api key ["
+                + credentials.getId()
+                + "] was created by user-managed service account ["
+                + principal
+                + "], which does not exist or is disabled",
+            null
+        );
+        if (serviceAccountService == null) {
+            listener.onResponse(creatorInactive);
+            return;
+        }
+        serviceAccountService.isUserManagedAccountActive(principal, listener.map(active -> active ? success : creatorInactive));
     }
 
     private boolean validateCertificateIdentity(String certificateIdentity, String certificateIdentityPattern) {

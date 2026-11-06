@@ -42,7 +42,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -181,13 +180,14 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     }
 
     public void testCompletionAnalyzerSettings() throws Exception {
-        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(b -> {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "completion");
             b.field("analyzer", "simple");
             b.field("search_analyzer", "standard");
             b.field("preserve_separators", false);
             b.field("preserve_position_increments", true);
         }));
+        DocumentMapper defaultMapper = mapperService.documentMapper();
 
         Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
@@ -207,14 +207,17 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
-        assertEquals("""
-            {"field":{"type":"completion","analyzer":"simple","search_analyzer":"standard",\
-            "preserve_separators":false,"preserve_position_increments":true,"max_input_length":50}}""", Strings.toString(fieldMapper));
+        assertEquals(
+            """
+                {"field":{"type":"completion","analyzer":"simple","search_analyzer":"standard",\
+                "preserve_separators":false,"preserve_position_increments":true,"max_input_length":50}}""",
+            fieldMappingToString(mapperService, "field")
+        );
     }
 
     @SuppressWarnings("unchecked")
     public void testTypeParsing() throws Exception {
-        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(b -> {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "completion");
             b.field("analyzer", "simple");
             b.field("search_analyzer", "standard");
@@ -223,11 +226,12 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.field("max_input_length", 14);
         }));
 
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
 
         XContentBuilder builder = jsonBuilder().startObject();
-        fieldMapper.toXContent(builder, new ToXContent.MapParams(Map.of("include_defaults", "true"))).endObject();
+        fieldToXContent(mapperService, "field", builder, INCLUDE_DEFAULTS);
+        builder.endObject();
         builder.close();
         Map<String, Object> serializedMap;
         try (var parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {

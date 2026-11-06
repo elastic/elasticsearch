@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Randomness;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
+@LuceneTestCase.SuppressCodecs("*") // require production codecs
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     public void testEmpty() {
@@ -126,7 +128,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     public void populateIndex() {
         Settings.Builder settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster"));
         if (randomBoolean()) {
-            settings.put("index.codec", "default").put("index.number_of_replicas", 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+            settings.put("index.number_of_replicas", 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         client().admin()
             .indices()

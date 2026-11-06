@@ -33,9 +33,7 @@ import org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Base64;
@@ -164,15 +162,12 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         private FloatVectorValues floatVectorValues; // use when indexed
         private KnnVectorValues.DocIndexIterator iterator; // use when indexed
         private BinaryDocValues binary; // use when not indexed
-        private static final ValueLayout floatLayout = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.BIG_ENDIAN);
-        private MemorySegment scratchBuffer;
-        private byte[] scratchBytes;
+        private ByteBuffer scratchBuffer;
 
         FloatDocValues(boolean base64) {
             this.base64 = base64;
             if (base64) {
-                this.scratchBuffer = Arena.ofAuto().allocate((long) dims * Float.BYTES, Float.BYTES);
-                this.scratchBytes = new byte[dims * Float.BYTES];
+                this.scratchBuffer = ByteBuffer.allocate(dims * Float.BYTES).order(ByteOrder.BIG_ENDIAN);
             }
             try {
                 if (indexed) {
@@ -215,9 +210,8 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         @Override
         public Object nextValue() {
             if (base64) {
-                MemorySegment.copy(vector, 0, scratchBuffer, floatLayout, 0, vector.length);
-                MemorySegment.copy(scratchBuffer, ValueLayout.JAVA_BYTE, 0, scratchBytes, 0, scratchBytes.length);
-                return Base64.getEncoder().encodeToString(scratchBytes);
+                scratchBuffer.asFloatBuffer().put(vector);
+                return Base64.getEncoder().encodeToString(scratchBuffer.array());
             }
             return Arrays.copyOf(vector, vector.length);
         }

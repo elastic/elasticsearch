@@ -15,7 +15,7 @@ description: Synchronize data from a PostgreSQL data source into Elasticsearch.
 :::{note}
 :applies_to: stack: ga 9.0-9.6
 
-In your version of {{kib}}, the page for managing connectors is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+In your version of {{kib}}, **Content crawlers** is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
 :::
 
 Elastic connectors enable you to create searchable, read-only replicas of your data sources in {{es}}.
@@ -129,7 +129,7 @@ Here we’re working locally. In production setups, you’ll deploy the connecto
 Now your connector instance is up and running, but it doesn’t yet know where to sync data from.
 The final piece of the puzzle is to configure your connector with details about the PostgreSQL instance.
 
-Return to the page for managing connectors to complete the connector creation process in the UI.
+Return to **Content crawlers** to complete the connector creation process in the UI.
 Enter the following PostgreSQL instance details:
 
 * **Host**: The server host address for your PostgreSQL instance.
@@ -154,7 +154,7 @@ Otherwise, the index is created for you and uses dynamic mappings for the fields
 
 ## Sync your data [es-postgresql-connector-client-tutorial-sync-data-source]
 
-On the page for managing connectors, you can launch a sync on-demand or on a schedule.
+On the **Content crawlers** page, you can launch a sync on-demand or on a schedule.
 The connector will traverse the database and synchronize documents to your index.
 
 If you navigate to the terminal window where you’re running the connector service, after a sync occurs you should see output like the following:
@@ -173,7 +173,7 @@ This confirms the connector has fetched records from your PostgreSQL tables and 
 If you verify your {{es}} documents and you’re happy with the results, set a recurring sync schedule.
 This will ensure your searchable data in {{es}} is always up to date with changes to your PostgreSQL data source.
 
-On the page for managing connectors, click on the connector, and then click **Scheduling**.
+On **Content crawlers**, click on the connector, and then click **Scheduling**.
 For example, you can schedule your content to be synchronized at the top of every hour, as long as the connector is up and running.
 
 ## Next steps

@@ -9,7 +9,7 @@ navigation_title: "Exchange Server"
 :::{note}
 :applies_to: stack: ga 9.0-9.6
 
-In your version of {{kib}}, the page for managing connectors is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+In your version of {{kib}}, **Content crawlers** is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
 :::
 
 The Elastic Exchange Server connector is built with the Elastic connector framework and is available as a [self-managed connector](/reference/search-connectors/self-managed-connectors.md). It syncs mail, contacts, calendar events, tasks, and attachments from on-premises Microsoft Exchange Server.

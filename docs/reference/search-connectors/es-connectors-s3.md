@@ -9,7 +9,7 @@ mapped_pages:
 :::{note}
 :applies_to: stack: ga 9.0-9.6
 
-In your version of {{kib}}, the page for managing connectors is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
+In your version of {{kib}}, **Content crawlers** is named **Content connectors**. Wherever this page says **Content crawlers**, use **Content connectors** instead.
 :::
 
 The *Elastic S3 connector* is a [connector](/reference/search-connectors/index.md) for [Amazon S3](https://aws.amazon.com/s3/) data sources.

@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -119,6 +121,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final TransportService transportService;
     private final ExchangeService exchangeService;
     private final Executor searchExecutor;
+    private final StageComputeHandler stageComputeHandler;
     private final ThreadPool threadPool;
     /**
      * Resolved once: {@link Federation#FEDERATION_ENABLED} is node scoped and takes effect only after a restart, so
@@ -141,7 +144,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         TransportService transportService,
         ExchangeService exchangeService,
         Executor searchExecutor,
-        Client client
+        Client client,
+        StageComputeHandler stageComputeHandler
     ) {
         this.computeService = computeService;
         this.clusterService = clusterService;
@@ -150,6 +154,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.transportService = transportService;
         this.exchangeService = exchangeService;
         this.searchExecutor = searchExecutor;
+        this.stageComputeHandler = stageComputeHandler;
         this.threadPool = transportService.getThreadPool();
         this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
         this.externalSourceAuthorizer = new ExternalSourceAuthorizer(
@@ -163,6 +168,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(ExternalSourceSettings.WORKER_READY_TIMEOUT, workerReadyTimeout::set);
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
+    }
+
+    record NodeShards(List<DataNodeRequest.Shard> shards, Map<Index, AliasFilter> aliasFilters) {
+        NodeShards {
+            shards = List.copyOf(shards);
+            aliasFilters = Map.copyOf(aliasFilters);
+        }
     }
 
     void startComputeOnDataNodes(
@@ -296,6 +308,74 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );
+    }
+
+    void resolveShardsStatically(
+        CancellableTask task,
+        EsqlFlags flags,
+        Configuration configuration,
+        PhysicalPlan fragmentPlan,
+        Set<String> concreteIndices,
+        OriginalIndices originalIndices,
+        boolean lookupScan,
+        ActionListener<Map<DiscoveryNode, NodeShards>> listener
+    ) {
+        DataNodeRequestSender sender = new DataNodeRequestSender(
+            clusterService,
+            projectResolver,
+            transportService,
+            searchExecutor,
+            task,
+            originalIndices,
+            lookupScan
+                ? null
+                : PlannerUtils.canMatchFilter(flags, configuration, clusterService.state().getMinTransportVersion(), fragmentPlan),
+            PlannerUtils.sliceSelection(fragmentPlan),
+            ComputeService.LOCAL_CLUSTER,
+            false,
+            -1,
+            configuration.pragmas().unavailableShardResolutionAttempts()
+        ) {
+            @Override
+            void sendRequest(
+                DiscoveryNode node,
+                List<DataNodeRequest.Shard> shards,
+                Map<Index, AliasFilter> aliasFilters,
+                NodeListener nodeListener
+            ) {
+                throw new UnsupportedOperationException("static shard resolution does not dispatch compute requests");
+            }
+        };
+        try {
+            sender.searchShards(concreteIndices, ActionListener.wrap(targetShards -> {
+                Map<DiscoveryNode, List<DataNodeRequest.Shard>> shardsByNode = new LinkedHashMap<>();
+                Map<DiscoveryNode, Map<Index, AliasFilter>> filtersByNode = new LinkedHashMap<>();
+                for (DataNodeRequestSender.TargetShard targetShard : targetShards.shards().values()) {
+                    if (targetShard.remainingNodes().isEmpty()) {
+                        listener.onFailure(new IllegalStateException("no allocated nodes for shard [" + targetShard.shardId() + "]"));
+                        return;
+                    }
+                    DiscoveryNode node = targetShard.remainingNodes().getFirst();
+                    if (node == null) {
+                        listener.onFailure(new IllegalStateException("no allocated node for shard [" + targetShard.shardId() + "]"));
+                        return;
+                    }
+                    shardsByNode.computeIfAbsent(node, ignored -> new ArrayList<>())
+                        .add(new DataNodeRequest.Shard(targetShard.shardId(), targetShard.splitShardCountSummary()));
+                    if (targetShard.aliasFilter() != null) {
+                        filtersByNode.computeIfAbsent(node, ignored -> new LinkedHashMap<>())
+                            .put(targetShard.shardId().getIndex(), targetShard.aliasFilter());
+                    }
+                }
+                Map<DiscoveryNode, NodeShards> result = new LinkedHashMap<>();
+                for (Map.Entry<DiscoveryNode, List<DataNodeRequest.Shard>> entry : shardsByNode.entrySet()) {
+                    result.put(entry.getKey(), new NodeShards(entry.getValue(), filtersByNode.getOrDefault(entry.getKey(), Map.of())));
+                }
+                listener.onResponse(Map.copyOf(result));
+            }, listener::onFailure));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     void startExternalComputeOnDataNodes(
@@ -793,6 +873,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         null,
                         () -> exchangeSink(pagesProduced::incrementAndGet),
                         singleNodeOptimizations,
+                        null,
                         sortBound
                     );
                     computeService.runCompute(
@@ -1019,6 +1100,81 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
     }
 
+    private void runStageOnDataNode(DataNodeRequest request, CancellableTask task, ActionListener<DataNodeComputeResponse> listener) {
+        if ((request.plan() instanceof StageSinkExec) == false) {
+            listener.onFailure(new IllegalStateException("expected a stage sink for SHARDS stage but got " + request.plan()));
+            return;
+        }
+        StageSinkExec stagePlan = (StageSinkExec) request.plan();
+        final Tuple<ExchangeSinkExec, PhysicalPlan> split;
+        try {
+            split = StagedPlanner.splitShardsStage(stagePlan);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
+        final AcquiredSearchContexts searchContexts = new AcquiredSearchContexts(request.shards().size());
+        ActionListener<DataNodeComputeResponse> responseListener = ActionListener.releaseAfter(listener, searchContexts);
+        try (
+            ComputeListener computeListener = new ComputeListener(
+                computeService.cancelQueryOnFailure(task),
+                responseListener.map(info -> new DataNodeComputeResponse(info, shardLevelFailures))
+            )
+        ) {
+            ActionListener<Void> parentListener = computeListener.acquireAvoid();
+            LocalExchange internalExchange = new LocalExchange(request.pragmas().exchangeBufferSize());
+            try {
+                EsqlFlags flags = computeService.createFlags();
+                int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
+                DataNodeRequest internal = new DataNodeRequest(
+                    request.sessionId() + "[n]",
+                    request.configuration(),
+                    request.clusterAlias(),
+                    request.shards(),
+                    request.aliasFilters(),
+                    split.v1(),
+                    request.indices(),
+                    request.indicesOptions(),
+                    false,
+                    false,
+                    false,
+                    request.externalSplits()
+                );
+                task.addListener(() -> internalExchange.finish(true));
+                DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
+                    flags,
+                    internal,
+                    task,
+                    internalExchange,
+                    null,
+                    internal.sessionId(),
+                    maxConcurrentShards,
+                    true,
+                    false,
+                    shardLevelFailures,
+                    computeListener,
+                    searchContexts,
+                    null
+                );
+                dataNodeRequestExecutor.start();
+                stageComputeHandler.runStage(
+                    task,
+                    request,
+                    split.v2(),
+                    internalExchange::exchangeSource,
+                    searchContexts.globalView(),
+                    computeListener.acquireCompute()
+                );
+                parentListener.onResponse(null);
+            } catch (Exception e) {
+                internalExchange.finish(true);
+                parentListener.onFailure(e);
+            }
+        }
+    }
+
     /**
      * A plan that names an external dataset is authorized for the request's credential before any branch below runs,
      * so neither the planning nor the rebind ({@link DatasetConfigResolver}) ever sees a dataset the caller may not
@@ -1147,8 +1303,29 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             planTimeProfile = new PlanTimeProfile();
         }
 
+        if (request.stageWiring() != null && StagedPlanner.isExternalSourceStage(request.plan())) {
+            handleExternalSourceRequest(request, task, listener, planTimeProfile, deadline);
+            return;
+        }
+
         if (request.externalSplits().isEmpty() == false && request.shards().isEmpty()) {
             handleExternalSourceRequest(request, task, listener, planTimeProfile, deadline);
+            return;
+        }
+
+        if (request.stageWiring() != null) {
+            if (request.stageWiring().placement() == StagedPlanner.StagePlacement.SHARDS) {
+                runStageOnDataNode(request, task, listener);
+            } else {
+                stageComputeHandler.runStage(
+                    task,
+                    request,
+                    request.plan(),
+                    null,
+                    EmptyIndexedByShardId.instance(),
+                    listener.map(info -> new DataNodeComputeResponse(info, Map.of()))
+                );
+            }
             return;
         }
 
@@ -1438,12 +1615,26 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             failWithoutStarting(request, listener, Federation.notAvailableException());
             return;
         }
-        if (request.plan() instanceof ExchangeSinkExec == false) {
+        boolean staged = request.stageWiring() != null;
+        if (staged == false && request.plan() instanceof ExchangeSinkExec == false) {
             failWithoutStarting(
                 request,
                 listener,
                 new IllegalStateException("expected exchange sink for external compute; got " + request.plan())
             );
+            return;
+        }
+        if (staged && request.plan() instanceof StageSinkExec == false) {
+            failWithoutStarting(
+                request,
+                listener,
+                new IllegalStateException("expected stage sink for external compute; got " + request.plan())
+            );
+            return;
+        }
+        if (staged) {
+            // A staged request writes into the stage exchange that StageComputeHandler wires, not the coordinator's sink.
+            planAndRunExternal(request, task, listener, planTimeProfile, null, deadline);
             return;
         }
         final String sessionId = request.sessionId();
@@ -1468,10 +1659,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         CancellableTask task,
         ActionListener<DataNodeComputeResponse> listener,
         PlanTimeProfile planTimeProfile,
-        ExchangeSinkHandler externalSink,
+        @Nullable ExchangeSinkHandler externalSink,
         @Nullable ReadyDeadline deadline
     ) {
-        ExchangeSinkExec sinkExec = (ExchangeSinkExec) request.plan();
         Configuration configuration = request.configuration();
         final String sessionId = request.sessionId();
         EsqlFlags flags = computeService.createFlags();
@@ -1499,7 +1689,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 flags,
                 configuration,
                 configuration.newFoldContext(),
-                sinkExec,
+                request.plan(),
                 SearchStats.EMPTY,
                 computeService.formatReaderRegistry(),
                 request.externalSplits(),
@@ -1535,6 +1725,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
         if (task.isCancelled()) {
             listener.onFailure(new TaskCancelledException(task.getReasonCancelled()));
+            return;
+        }
+        if (request.stageWiring() != null) {
+            stageComputeHandler.runStage(
+                task,
+                request,
+                planWithSplits,
+                null,
+                EmptyIndexedByShardId.instance(),
+                listener.map(profiles -> new DataNodeComputeResponse(profiles, Map.of()))
+            );
             return;
         }
 

@@ -94,7 +94,8 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
         List<Object[]> backendTests = readExternalSpecTests(
             "/datasources/external-basic.csv-spec",
             "/datasources/external-highlight.csv-spec",
-            "/datasources/external-multivalue.csv-spec"
+            "/datasources/external-multivalue.csv-spec",
+            "/datasources/external-lookup-join.csv-spec"
         );
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] backendTest : backendTests) {

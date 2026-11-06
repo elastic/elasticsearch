@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -107,6 +108,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -130,7 +132,6 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -215,6 +216,7 @@ public class ComputeService {
     private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
+    private final StageScheduler stageScheduler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
     private final PlannerSettings.Holder plannerSettings;
@@ -265,6 +267,13 @@ public class ComputeService {
                 GROK_WATCHDOG_MAX_EXECUTION_TIME,
                 timeValue -> grokMatcherWatchdog.set(MatcherWatchdog.newInstance(timeValue.millis()))
             );
+        StageComputeHandler stageComputeHandler = new StageComputeHandler(
+            this,
+            exchangeService,
+            transportService,
+            clusterService,
+            searchExecutor
+        );
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
             this,
             clusterService,
@@ -273,7 +282,16 @@ public class ComputeService {
             transportService,
             exchangeService,
             searchExecutor,
-            client
+            client,
+            stageComputeHandler
+        );
+        this.stageScheduler = new StageScheduler(
+            this,
+            dataNodeComputeHandler,
+            exchangeService,
+            transportService,
+            clusterService,
+            searchExecutor
         );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
@@ -1141,6 +1159,27 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
+        execute(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, planTimeProfile, null, listener);
+    }
+
+    /**
+     * Executes {@code physicalPlan}, failing as soon as the pages collected on the coordinator exceed
+     * {@code maxCollectedBytes}, rather than after the whole plan has run.
+     *
+     * @param maxCollectedBytes limit on the collected result pages, or {@code null} for no limit
+     */
+    public void execute(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        PlanTimeProfile planTimeProfile,
+        ByteSizeValue maxCollectedBytes,
+        ActionListener<Result> listener
+    ) {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
@@ -1153,7 +1192,9 @@ public class ComputeService {
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
         final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
         try {
-            executionPlan = PlannerUtils.buildSubPlan(physicalPlan);
+            executionPlan = StagedPlanner.hasShuffle(physicalPlan)
+                ? new SubPlan.Leaf(physicalPlan)
+                : PlannerUtils.buildSubPlan(physicalPlan);
             // take a snapshot of the initial cluster statuses, this is the status after index resolutions,
             // and it will be checked before executing data node plan on remote clusters
             initialClusterStatuses = new HashMap<>(execInfo.clusterInfo.size());
@@ -1181,7 +1222,9 @@ public class ComputeService {
                     null,
                     initialClusterStatuses,
                     planTimeProfile,
-                    warnIndexCoordinatorOnce
+                    warnIndexCoordinatorOnce,
+                    SiblingPlacement.SINGLE,
+                    maxCollectedBytes
                 );
                 case SubPlan.Merge merge -> new SubPlansExecutor(
                     this,
@@ -1196,6 +1239,7 @@ public class ComputeService {
                     warnIndexCoordinatorOnce,
                     planTimeProfile,
                     merge,
+                    maxCollectedBytes,
                     dispatchListener
                 ).executePlan();
             }
@@ -1260,6 +1304,42 @@ public class ComputeService {
         Runnable warnIndexCoordinatorOnce,
         SiblingPlacement placement
     ) {
+        executePlan(
+            sessionId,
+            rootTask,
+            flags,
+            physicalPlan,
+            configuration,
+            foldContext,
+            execInfo,
+            profileQualifier,
+            listener,
+            exchangeSinkSupplier,
+            initialClusterStatuses,
+            planTimeProfile,
+            warnIndexCoordinatorOnce,
+            placement,
+            null
+        );
+    }
+
+    private void executePlan(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        String profileQualifier,
+        ActionListener<Result> listener,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+        PlanTimeProfile planTimeProfile,
+        Runnable warnIndexCoordinatorOnce,
+        SiblingPlacement placement,
+        ByteSizeValue maxCollectedBytes
+    ) {
         final long splitDiscoveryStart = System.nanoTime();
         ExternalPlanningReservation reservation = execInfo == null ? null : execInfo.externalPlanning();
         ExternalPlanningReservation.Run run = reservation == null ? null : reservation.openRun();
@@ -1292,7 +1372,8 @@ public class ComputeService {
                     planTimeProfile,
                     warnIndexCoordinatorOnce,
                     splitDiscoveryStart + waitedNanos,
-                    placement
+                    placement,
+                    maxCollectedBytes
                 ),
                 releasing
             );
@@ -1405,7 +1486,8 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
         long splitDiscoveryStart,
-        SiblingPlacement placement
+        SiblingPlacement placement,
+        ByteSizeValue maxCollectedBytes
     ) {
         final ExternalDistributionResult distributionResult;
         try {
@@ -1428,7 +1510,34 @@ public class ComputeService {
             return;
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
-        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        if (StagedPlanner.hasShuffle(resolvedPlan)) {
+            if (exchangeSinkSupplier != null) {
+                throw new IllegalStateException("shuffle stages cannot run as a branch with an external exchange sink");
+            }
+            if (clusterService.state().getMinTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
+                throw new IllegalStateException(
+                    "shuffle stages require transport version [" + ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION + "]"
+                );
+            }
+            stageScheduler.execute(
+                sessionId,
+                rootTask,
+                flags,
+                resolvedPlan,
+                distributionResult,
+                configuration,
+                foldContext,
+                execInfo,
+                profileQualifier,
+                exchangeSinkSupplier,
+                maxCollectedBytes,
+                planTimeProfile,
+                listener
+            );
+            return;
+        }
+        final BoundedPageCollector pageCollector = new BoundedPageCollector(maxCollectedBytes);
+        final List<Page> collectedPages = pageCollector.pages();
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
             l.onFailure(e);
@@ -1442,7 +1551,7 @@ public class ComputeService {
             ? streaming.pageStream()
             : null;
         if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
-            coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
+            coordinatorPlan = new OutputExec(coordinatorPlan, pageCollector);
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNode.v2();
@@ -1748,7 +1857,7 @@ public class ComputeService {
     }
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
-    private static void updateShardCountForCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
+    static void updateShardCountForCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(
@@ -1770,7 +1879,7 @@ public class ComputeService {
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries).
     // Merge leaves share one EsqlExecutionInfo; only the root (or a standalone plan) should stop query timers.
-    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo, boolean finalizeQuery) {
+    static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo, boolean finalizeQuery) {
         if (finalizeQuery) {
             execInfo.markEndQuery();
         }
@@ -2041,7 +2150,8 @@ public class ComputeService {
                 computeExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                context.exchangeWiring()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
@@ -2388,7 +2498,7 @@ public class ComputeService {
         }
     }
 
-    private static Map<String, OriginalIndices> getIndices(PhysicalPlan plan, Function<EsRelation, Map<String, List<String>>> getter) {
+    static Map<String, OriginalIndices> getIndices(PhysicalPlan plan, Function<EsRelation, Map<String, List<String>>> getter) {
         var holder = new Holder<Map<String, OriginalIndices>>();
         PlannerUtils.forEachRelation(plan, esRelation -> {
             holder.set(Maps.transformValues(getter.apply(esRelation), v -> {

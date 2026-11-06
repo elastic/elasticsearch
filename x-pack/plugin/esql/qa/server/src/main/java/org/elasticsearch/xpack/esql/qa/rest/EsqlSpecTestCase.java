@@ -75,6 +75,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VEC
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_ON_SUBQUERY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ML_ANOMALIES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
@@ -423,6 +424,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && testCase.expectedWarnings().isEmpty() // avoid shifting warnings positions in source query
             && testCase.expectedWarningsRegex().isEmpty() // regexp might also contain line/position
             && query.startsWith("SET") == false // avoid conflicts with provided settings
+            && testCase.requiredCapabilities.contains(JOIN_ON_SUBQUERY.capabilityName()) == false // needs unmapped_fields=default
                 ? "SET unmapped_fields=" + randomFrom("\"nullify\"; ", "\"default\"; ") + query
                 : query;
     }

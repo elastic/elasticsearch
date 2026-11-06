@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,6 +33,7 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -87,9 +89,46 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
      * means unknown (old coordinator).
      */
     private final long requiredClusterStateVersion;
+    @Nullable
+    private final StageWiring stageWiring;
 
     /**
-     * Constructor with all parameters, including the cluster state version the plan was made from.
+     * Constructor with all parameters, including the cluster state version the plan was made from and the optional stage wiring.
+     */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        boolean singleNodeOptimizations,
+        List<ExternalSplit> externalSplits,
+        long requiredClusterStateVersion,
+        @Nullable StageWiring stageWiring
+    ) {
+        this.sessionId = sessionId;
+        this.configuration = configuration;
+        this.clusterAlias = clusterAlias;
+        this.shards = shards;
+        this.aliasFilters = aliasFilters;
+        this.plan = plan;
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
+        this.runNodeLevelReduction = runNodeLevelReduction;
+        this.reductionLateMaterialization = reductionLateMaterialization;
+        this.singleNodeOptimizations = singleNodeOptimizations;
+        this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
+        this.requiredClusterStateVersion = requiredClusterStateVersion;
+        this.stageWiring = stageWiring;
+    }
+
+    /**
+     * Constructor with the cluster state version the plan was made from and no stage wiring.
      */
     DataNodeRequest(
         String sessionId,
@@ -106,19 +145,58 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         List<ExternalSplit> externalSplits,
         long requiredClusterStateVersion
     ) {
-        this.sessionId = sessionId;
-        this.configuration = configuration;
-        this.clusterAlias = clusterAlias;
-        this.shards = shards;
-        this.aliasFilters = aliasFilters;
-        this.plan = plan;
-        this.indices = indices;
-        this.indicesOptions = indicesOptions;
-        this.runNodeLevelReduction = runNodeLevelReduction;
-        this.reductionLateMaterialization = reductionLateMaterialization;
-        this.singleNodeOptimizations = singleNodeOptimizations;
-        this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
-        this.requiredClusterStateVersion = requiredClusterStateVersion;
+        this(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            singleNodeOptimizations,
+            externalSplits,
+            requiredClusterStateVersion,
+            null
+        );
+    }
+
+    /**
+     * Constructor with stage wiring and no cluster state version: the worker consults none.
+     */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        boolean singleNodeOptimizations,
+        List<ExternalSplit> externalSplits,
+        @Nullable StageWiring stageWiring
+    ) {
+        this(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            singleNodeOptimizations,
+            externalSplits,
+            0L,
+            stageWiring
+        );
     }
 
     /**
@@ -244,6 +322,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             // An old coordinator sends no version, so none is consulted.
             this.requiredClusterStateVersion = 0L;
         }
+        if (in.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)) {
+            this.stageWiring = in.readOptionalWriteable(StageWiring::new);
+        } else {
+            this.stageWiring = null;
+        }
     }
 
     @Override
@@ -279,6 +362,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else if (out.getTransportVersion().supports(ESQL_EXTERNAL_WORKER_READINESS)) {
             out.writeBoolean(false); // the decline flag, dropped since
             out.writeVLong(requiredClusterStateVersion);
+        }
+        if (out.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)) {
+            out.writeOptionalWriteable(stageWiring);
         }
     }
 
@@ -377,6 +463,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return requiredClusterStateVersion;
     }
 
+    @Nullable
+    StageWiring stageWiring() {
+        return stageWiring;
+    }
+
     @Override
     public String getDescription() {
         String desc = "shards=" + shards + " plan=" + plan;
@@ -413,7 +504,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && reductionLateMaterialization == request.reductionLateMaterialization
             && singleNodeOptimizations == request.singleNodeOptimizations
             && externalSplits.equals(request.externalSplits)
-            && requiredClusterStateVersion == request.requiredClusterStateVersion;
+            && requiredClusterStateVersion == request.requiredClusterStateVersion
+            && Objects.equals(stageWiring, request.stageWiring);
     }
 
     @Override
@@ -431,7 +523,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             singleNodeOptimizations,
             externalSplits,
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            stageWiring
         );
     }
 
@@ -449,7 +542,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             singleNodeOptimizations,
             externalSplits,
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            stageWiring
         );
     }
 

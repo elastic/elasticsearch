@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.antlr.v4.runtime.BailErrorStrategy;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -16,14 +19,19 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CLUSTER;
@@ -78,6 +86,74 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
             assertThat(as(join.config().leftFields().get(i), UnresolvedAttribute.class).name(), equalTo(existingIdentifiers.get(i)));
         }
         assertThat(join.config().type().joinName(), equalTo("LEFT OUTER"));
+    }
+
+    public void testSubqueryTargetGrammar() {
+        EsqlConfig config = new EsqlConfig(TEST_FUNCTION_REGISTRY);
+        assumeTrue("Requires a snapshot build", config.isDevVersion());
+        for (String subquery : List.of(
+            "FROM right | KEEP key",
+            "ROW key = 1 | KEEP key",
+            "TS metrics | KEEP key",
+            "FROM (FROM nested) | KEEP key",
+            "FROM right /* nested comment */ | WHERE key == ?_key | KEEP key",
+            "FROM right | LOOKUP JOIN nested ON key"
+        )) {
+            assertGrammarAccepts("FROM left | LEFT OUTER JOIN (" + subquery + ") ON key", config);
+            assertGrammarAccepts("FROM left | INNER JOIN (" + subquery + ") ON key", config);
+        }
+    }
+
+    public void testLookupJoinSubquerySyntaxIsRejected() {
+        expectError("FROM main | LOOKUP JOIN (FROM sub) ON key", "mismatched input '('");
+    }
+
+    public void testLookupJoinIndexNamedOuter() {
+        assumeTrue("LOOKUP JOIN requires the corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        var join = as(query("FROM main | LOOKUP JOIN outer ON key"), LookupJoin.class);
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("outer"));
+    }
+
+    public void testSubqueryTargetBuildsIndependentJoin() {
+        assumeTrue("requires JOIN subquery capability", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+
+        var join = as(query("FROM main | LEFT OUTER JOIN (FROM sub | KEEP key, value) ON key"), SubqueryLookupJoin.class);
+        assertThat(join, instanceOf(IndependentSubqueryJoin.class));
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("main"));
+        assertThat(as(as(join.right(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("sub"));
+        assertThat(join.config().type().joinName(), equalTo("LEFT OUTER"));
+        assertThat(join.config().leftFields(), hasSize(1));
+        assertThat(((UnresolvedAttribute) join.config().leftFields().getFirst()).name(), equalTo("key"));
+        assertThat(join.config().rightFields(), equalTo(join.config().leftFields()));
+        assertNull(join.config().joinOnConditions());
+    }
+
+    public void testInnerSubqueryJoinBuildsInnerJoin() {
+        assumeTrue("requires JOIN subquery capability", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+
+        var join = as(query("FROM main | INNER JOIN (FROM sub | KEEP key, value) ON key"), SubqueryLookupJoin.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.INNER));
+    }
+
+    public void testBareIndexTargetIsShorthandForFromSubquery() {
+        assumeTrue("requires JOIN subquery capability", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+
+        for (String join : List.of("LEFT OUTER JOIN", "INNER JOIN")) {
+            var bare = as(query("FROM main | " + join + " sub ON key"), SubqueryLookupJoin.class);
+            var subquery = as(query("FROM main | " + join + " (FROM sub) ON key"), SubqueryLookupJoin.class);
+            assertThat(bare.config().type(), equalTo(subquery.config().type()));
+            assertThat(bare.right(), equalTo(subquery.right()));
+            assertThat(as(bare.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("sub"));
+        }
+    }
+
+    public void testSubqueryTargetRejectsExpressionOn() {
+        assumeTrue("requires JOIN subquery capability", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        expectError(
+            "FROM main | LEFT OUTER JOIN (FROM sub) ON left_key == right_key",
+            "JOIN on a subquery only supports a list of fields in ON"
+        );
     }
 
     /**
@@ -384,6 +460,18 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
                 expectError("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause, "no viable alternative at input");
             }
         }
+
+    }
+
+    private void assertGrammarAccepts(String query, EsqlConfig config) {
+        EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
+        lexer.setEsqlConfig(config);
+        EsqlBaseParser parser = new EsqlBaseParser(new CommonTokenStream(lexer));
+        parser.setEsqlConfig(config);
+        parser.removeErrorListeners();
+        parser.setErrorHandler(new BailErrorStrategy());
+        parser.singleStatement();
+        assertEquals(0, parser.getNumberOfSyntaxErrors());
     }
 
     public void testLookupJoinOnExpressionWithNamedQueryParameters() {

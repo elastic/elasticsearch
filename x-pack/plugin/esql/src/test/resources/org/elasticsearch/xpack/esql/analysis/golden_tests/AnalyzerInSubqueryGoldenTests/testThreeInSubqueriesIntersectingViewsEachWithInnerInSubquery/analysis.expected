@@ -1,4 +1,4 @@
-Limit[10000[INTEGER],false,false]
+Limit[1000[INTEGER],false,false]
 \_SemiJoin[[emp_no{f}#0],[emp_no{f}#1]]
   |_SemiJoin[[emp_no{f}#0],[emp_no{f}#2]]
   | |_SemiJoin[[emp_no{f}#0],[emp_no{f}#3]]

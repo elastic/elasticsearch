@@ -47,13 +47,24 @@ import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
+import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.ProjectOperator;
+import org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSink;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.ShuffleExchangeSink;
+import org.elasticsearch.compute.operator.lookup.HashJoinBuildOperator;
+import org.elasticsearch.compute.operator.lookup.HashJoinColumnLoadOperator;
+import org.elasticsearch.compute.operator.lookup.HashJoinProbeOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -126,12 +137,21 @@ import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperato
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedLookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryResultContext;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -140,13 +160,17 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -154,6 +178,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -163,6 +188,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -1291,6 +1317,108 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertInnerJoinOutput(results, List.of(), List.of());
     }
 
+    public void testRepeatedKeyJoinExpandsEveryBuildMatch() throws IOException {
+        HashJoinExec join = lookupSubqueryJoinExec(
+            true,
+            new long[] { 1, 2, 9 },
+            new long[] { 100, 200, 900 },
+            new long[] { 1, 1, 2 },
+            new long[] { 10, 11, 20 },
+            "left_value",
+            "right_value"
+        );
+        LocalExecutionPlanner.PhysicalOperation operation = planLookupSubqueryJoin(join);
+        List<Class<?>> factories = operation.intermediateOperatorFactories.stream().map(Object::getClass).toList();
+        assertThat(
+            factories,
+            contains(
+                RowInTableLookupOperator.Factory.class,
+                MvExpandOperator.Factory.class,
+                ColumnLoadOperator.Factory.class,
+                ProjectOperatorFactory.class
+            )
+        );
+
+        List<Page> results = runPlanned(operation);
+        try {
+            assertThat(longColumn(results, operation.layout().get(join.left().output().get(0).id()).channel()), contains(1L, 1L, 2L, 9L));
+            assertThat(
+                longColumn(results, operation.layout().get(join.left().output().get(1).id()).channel()),
+                contains(100L, 100L, 200L, 900L)
+            );
+            assertThat(
+                longColumn(results, operation.layout().get(join.joinData().output().get(1).id()).channel()),
+                contains(10L, 11L, 20L, null)
+            );
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testMaterializedSubqueryLeftJoinExpandsMatchesAndPreservesUnmatchedRows() throws IOException {
+        List<Long> expectedKeys = List.of(1L, 1L, 2L, 1L, 1L, 3L);
+        List<Long> expectedLeftValues = List.of(10L, 10L, 20L, 11L, 11L, 30L);
+        List<Long> expectedRightValues = Arrays.asList(100L, 101L, null, 100L, 101L, 300L);
+
+        assertMaterializedSubqueryJoinOutput(JoinTypes.LEFT, false, expectedKeys, expectedLeftValues, expectedRightValues);
+        assertMaterializedSubqueryJoinOutput(JoinTypes.LEFT, true, expectedKeys, expectedLeftValues, expectedRightValues);
+    }
+
+    public void testMaterializedSubqueryInnerJoinExpandsMatchesAndDropsUnmatchedRows() throws IOException {
+        List<Long> expectedKeys = List.of(1L, 1L, 1L, 1L, 3L);
+        List<Long> expectedLeftValues = List.of(10L, 10L, 11L, 11L, 30L);
+        List<Long> expectedRightValues = List.of(100L, 101L, 100L, 101L, 300L);
+
+        assertMaterializedSubqueryJoinOutput(JoinTypes.INNER, false, expectedKeys, expectedLeftValues, expectedRightValues);
+        assertMaterializedSubqueryJoinOutput(JoinTypes.INNER, true, expectedKeys, expectedLeftValues, expectedRightValues);
+    }
+
+    public void testRepeatedKeyJoinWithoutPayloadStillExpandsMatches() throws IOException {
+        HashJoinExec join = lookupSubqueryJoinExec(
+            true,
+            new long[] { 1, 9 },
+            new long[] { 100, 900 },
+            new long[] { 1, 1 },
+            null,
+            "left_value",
+            null
+        );
+        LocalExecutionPlanner.PhysicalOperation operation = planLookupSubqueryJoin(join);
+        List<Class<?>> factories = operation.intermediateOperatorFactories.stream().map(Object::getClass).toList();
+        assertThat(
+            factories,
+            contains(RowInTableLookupOperator.Factory.class, MvExpandOperator.Factory.class, ProjectOperatorFactory.class)
+        );
+
+        List<Page> results = runPlanned(operation);
+        try {
+            assertThat(longColumn(results, operation.layout().get(join.left().output().get(0).id()).channel()), contains(1L, 1L, 9L));
+            assertThat(longColumn(results, operation.layout().get(join.left().output().get(1).id()).channel()), contains(100L, 100L, 900L));
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testRepeatedKeyJoinLoadsPayloadThatShadowsALeftFieldName() throws IOException {
+        HashJoinExec join = lookupSubqueryJoinExec(
+            true,
+            new long[] { 1, 1 },
+            new long[] { 100, 200 },
+            new long[] { 1 },
+            new long[] { 10 },
+            "value",
+            "value"
+        );
+        LocalExecutionPlanner.PhysicalOperation operation = planLookupSubqueryJoin(join);
+        List<Page> results = runPlanned(operation);
+        try {
+            assertThat(longColumn(results, operation.layout().get(join.left().output().get(1).id()).channel()), contains(100L, 200L));
+            assertThat(longColumn(results, operation.layout().get(join.joinData().output().get(1).id()).channel()), contains(10L, 10L));
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+    }
+
     public void testInnerJoinMultivaluedBuildKeyThrows() {
         // The lookup table only supports single-valued keys; a multivalued build key is rejected.
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
@@ -1401,6 +1529,133 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             EmptyIndexedByShardId.instance(),
             randomBoolean()
         );
+    }
+
+    private LocalExecutionPlanner.PhysicalOperation planLookupSubqueryJoin(HashJoinExec join) throws IOException {
+        return planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            join,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        ).driverFactories.get(0).driverSupplier().physicalOperation();
+    }
+
+    private void assertMaterializedSubqueryJoinOutput(
+        JoinType type,
+        boolean localMapper,
+        List<Long> expectedKeys,
+        List<Long> expectedLeftValues,
+        List<Long> expectedRightValues
+    ) throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        ReferenceAttribute leftValue = new ReferenceAttribute(Source.EMPTY, "left_value", DataType.LONG);
+        ReferenceAttribute rightKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        ReferenceAttribute rightValue = new ReferenceAttribute(Source.EMPTY, "right_value", DataType.LONG);
+
+        LocalRelation left = new LocalRelation(
+            Source.EMPTY,
+            List.of(leftKey, leftValue),
+            LocalSupplier.of(
+                new Page(
+                    blockFactory.newLongArrayVector(new long[] { 1, 2, 1, 3 }, 4).asBlock(),
+                    blockFactory.newLongArrayVector(new long[] { 10, 20, 11, 30 }, 4).asBlock()
+                )
+            )
+        );
+        SubqueryLookupJoin subqueryJoin = new SubqueryLookupJoin(
+            Source.EMPTY,
+            left,
+            new LocalRelation(Source.EMPTY, List.of(rightKey, rightValue), LocalSupplier.of(new Page(0))),
+            type,
+            List.of(leftKey),
+            List.of(rightKey),
+            null,
+            ExecuteLocation.ANY
+        );
+        Page materializedPage = new Page(
+            blockFactory.newLongArrayVector(new long[] { 1, 1, 3 }, 3).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 100, 101, 300 }, 3).asBlock()
+        );
+        AtomicReference<Page> pageHolder = new AtomicReference<>(materializedPage);
+        LocalRelation materializedRight = new LocalRelation(
+            Source.EMPTY,
+            List.of(rightKey, rightValue),
+            LocalSupplier.of(materializedPage)
+        );
+
+        MaterializedLookupJoin join = as(
+            subqueryJoin.inlineSubqueryResult(
+                materializedRight,
+                new SubqueryResultContext(0, ByteSizeValue.ofMb(10), blockFactory, pageHolder)
+            ),
+            MaterializedLookupJoin.class
+        );
+        assertThat(join.config().type(), equalTo(type));
+        assertNotNull(pageHolder.getAndSet(null));
+
+        PhysicalPlan mapped = localMapper
+            ? LocalMapper.INSTANCE.map(join)
+            : new Mapper().map(new Versioned<>(join, TransportVersion.current()));
+        LocalExecutionPlanner.PhysicalOperation operation = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            mapped,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        ).driverFactories.get(0).driverSupplier().physicalOperation();
+
+        List<Page> results = runPlanned(operation);
+        try {
+            assertThat(longColumn(results, operation.layout().get(leftKey.id()).channel()), equalTo(expectedKeys));
+            assertThat(longColumn(results, operation.layout().get(leftValue.id()).channel()), equalTo(expectedLeftValues));
+            assertThat(longColumn(results, operation.layout().get(rightValue.id()).channel()), equalTo(expectedRightValues));
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+    }
+
+    private static HashJoinExec lookupSubqueryJoinExec(
+        boolean repeatedKeys,
+        long[] probeKeys,
+        long[] probeValues,
+        long[] buildKeys,
+        long[] buildValues,
+        String leftValueName,
+        String rightValueName
+    ) {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        ReferenceAttribute leftValue = new ReferenceAttribute(Source.EMPTY, leftValueName, DataType.LONG);
+        List<Block> probeBlocks = new ArrayList<>();
+        probeBlocks.add(blockFactory.newLongArrayVector(probeKeys, probeKeys.length).asBlock());
+        probeBlocks.add(blockFactory.newLongArrayVector(probeValues, probeValues.length).asBlock());
+        LocalSourceExec probe = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(leftKey, leftValue),
+            LocalSupplier.of(new Page(probeBlocks.toArray(new Block[0])))
+        );
+
+        ReferenceAttribute rightKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        List<Attribute> buildOutput = new ArrayList<>(List.of(rightKey));
+        List<Attribute> addedFields = new ArrayList<>();
+        List<Block> buildBlocks = new ArrayList<>();
+        buildBlocks.add(blockFactory.newLongArrayVector(buildKeys, buildKeys.length).asBlock());
+        if (rightValueName != null) {
+            ReferenceAttribute rightValue = new ReferenceAttribute(Source.EMPTY, rightValueName, DataType.LONG);
+            buildOutput.add(rightValue);
+            addedFields.add(rightValue);
+            buildBlocks.add(blockFactory.newLongArrayVector(buildValues, buildValues.length).asBlock());
+        }
+        LocalSourceExec build = new LocalSourceExec(
+            Source.EMPTY,
+            buildOutput,
+            LocalSupplier.of(new Page(buildBlocks.toArray(new Block[0])))
+        );
+        return new HashJoinExec(Source.EMPTY, probe, build, List.of(leftKey), List.of(rightKey), addedFields, repeatedKeys);
     }
 
     /**
@@ -1664,6 +1919,17 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         return rows;
     }
 
+    private static List<Long> longColumn(List<Page> pages, int channel) {
+        List<Long> values = new ArrayList<>();
+        for (Page page : pages) {
+            LongBlock block = page.getBlock(channel);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                values.add(block.isNull(p) ? null : block.getLong(block.getFirstValueIndex(p)));
+            }
+        }
+        return values;
+    }
+
     /** Only membership in the selected project determines the parent data stream, regardless of the index name. */
     public void testResolveDataStreamName() {
         List<String> backingNames = List.of(
@@ -1742,6 +2008,110 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             TaskType.EMBEDDING
         );
         assertThat(embedding.inputType(), equalTo(InputType.INTERNAL_INGEST));
+    }
+
+    public void testStageHashSinkOverStageSourceUsesPartitionedExchange() throws IOException {
+        FieldAttribute key = new FieldAttribute(
+            Source.EMPTY,
+            "key",
+            new EsField("key", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        StageSourceExec source = new StageSourceExec(Source.EMPTY, List.of(key), false, "input");
+        StageSinkExec sink = new StageSinkExec(
+            Source.EMPTY,
+            List.of(key),
+            false,
+            "output",
+            ExchangeDistribution.HASH,
+            List.of(key),
+            source
+        );
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner(null, true, null, true, exchangeWiring(2)).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            sink,
+            EmptyIndexedByShardId.instance(),
+            false
+        );
+        assertThat(plan.driverFactories.size(), equalTo(1));
+        LocalExecutionPlanner.PhysicalOperation operation = plan.driverFactories.get(0).driverSupplier().physicalOperation();
+        assertThat(operation.sourceOperatorFactory, instanceOf(ExchangeSourceOperatorFactory.class));
+        assertThat(operation.sinkOperatorFactory, instanceOf(ExchangeSinkOperatorFactory.class));
+
+        ExchangeSink exchangeSink = ((ExchangeSinkOperatorFactory) operation.sinkOperatorFactory).exchangeSinks().get();
+        try {
+            assertThat(exchangeSink, instanceOf(ShuffleExchangeSink.class));
+        } finally {
+            exchangeSink.finish();
+        }
+    }
+
+    public void testDistributedHashJoinUsesSingleBuildDriver() throws IOException {
+        ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "key", DataType.INTEGER);
+        ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "key", DataType.INTEGER);
+        ReferenceAttribute buildValue = new ReferenceAttribute(Source.EMPTY, "value", DataType.KEYWORD);
+        Attribute marker = Mapper.newJoinMarker(Source.EMPTY);
+        StageSourceExec probe = new StageSourceExec(Source.EMPTY, List.of(probeKey), false, "probe");
+        StageSourceExec build = new StageSourceExec(Source.EMPTY, List.of(buildKey, buildValue), false, "build");
+        DistributedHashJoinExec join = new DistributedHashJoinExec(
+            Source.EMPTY,
+            probe,
+            build,
+            List.of(probeKey),
+            List.of(buildKey),
+            List.of(buildValue, marker)
+        );
+        ExchangeWiring wiring = new ExchangeWiring(
+            Map.of(
+                "probe",
+                new ExchangeSourceHandler(10, null)::createExchangeSource,
+                "build",
+                new ExchangeSourceHandler(10, null)::createExchangeSource
+            ),
+            Map.of()
+        );
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner(null, true, null, true, wiring).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            join,
+            EmptyIndexedByShardId.instance(),
+            false
+        );
+
+        assertThat(plan.driverFactories, hasSize(2));
+        assertThat(plan.driverFactories.get(0).driverParallelism(), equalTo(LocalExecutionPlanner.DriverParallelism.SINGLE));
+        var buildOperation = plan.driverFactories.get(0).driverSupplier().physicalOperation();
+        assertThat(buildOperation.sinkOperatorFactory, instanceOf(HashJoinBuildOperator.Factory.class));
+        HashJoinBuildOperator.Factory buildFactory = (HashJoinBuildOperator.Factory) buildOperation.sinkOperatorFactory;
+        assertArrayEquals(new int[] { 0 }, buildFactory.keyChannels());
+        assertArrayEquals(new int[] { 1 }, buildFactory.payloadChannels());
+
+        var probeOperation = plan.driverFactories.get(1).driverSupplier().physicalOperation();
+        assertThat(probeOperation.intermediateOperatorFactories, hasSize(3));
+        assertThat(probeOperation.intermediateOperatorFactories.get(0), instanceOf(HashJoinProbeOperator.Factory.class));
+        assertThat(probeOperation.intermediateOperatorFactories.get(1), instanceOf(MvExpandOperator.Factory.class));
+        assertThat(probeOperation.intermediateOperatorFactories.get(2), instanceOf(HashJoinColumnLoadOperator.Factory.class));
+        assertThat(probeOperation.layout.get(marker.id()).channel(), equalTo(1));
+        assertThat(probeOperation.layout.get(buildValue.id()).channel(), equalTo(2));
+    }
+
+    public void testStageGatherSinkRequiresExactlyOneHandler() throws IOException {
+        FieldAttribute key = new FieldAttribute(
+            Source.EMPTY,
+            "key",
+            new EsField("key", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        StageSourceExec source = new StageSourceExec(Source.EMPTY, List.of(key), false, "input");
+        StageSinkExec sink = new StageSinkExec(Source.EMPTY, List.of(key), false, "output", ExchangeDistribution.GATHER, List.of(), source);
+        LocalExecutionPlanner planner = planner(null, true, null, true, exchangeWiring(2));
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> planner.plan("test", FoldContext.small(), PlannerSettings.DEFAULTS, sink, EmptyIndexedByShardId.instance(), false)
+        );
+        assertThat(exception.getMessage(), equalTo("gather edge with [2] sinks"));
     }
 
     /**
@@ -1878,6 +2248,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         InferenceService inferenceService,
         boolean snapshotBuild
     ) throws IOException {
+        return planner(operatorFactoryRegistry, federationEnabled, inferenceService, snapshotBuild, null);
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService,
+        boolean snapshotBuild,
+        ExchangeWiring exchangeWiring
+    ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -1907,8 +2287,17 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            exchangeWiring
         );
+    }
+
+    private ExchangeWiring exchangeWiring(int sinkCount) {
+        List<ExchangeSinkHandler> sinks = new ArrayList<>();
+        for (int i = 0; i < sinkCount; i++) {
+            sinks.add(new ExchangeSinkHandler(TestBlockFactory.getNonBreakingInstance(), 10, () -> 10));
+        }
+        return new ExchangeWiring(Map.of("input", new ExchangeSourceHandler(10, null)::createExchangeSource), Map.of("output", sinks));
     }
 
     private Configuration config() {

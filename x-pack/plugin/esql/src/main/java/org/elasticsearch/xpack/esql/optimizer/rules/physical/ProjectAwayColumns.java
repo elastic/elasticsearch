@@ -19,10 +19,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ShuffleExchangeExec;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -42,6 +44,9 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan) {
+        if (plan.anyMatch(node -> node instanceof ShuffleExchangeExec || node instanceof DistributedHashJoinExec)) {
+            return plan;
+        }
         return apply(plan, false);
     }
 

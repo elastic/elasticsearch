@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.OptimizerProfile;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -132,6 +133,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * metering independently of the scan counters, so an external-source query that ends up scanning nothing is still metered.
      */
     private transient volatile boolean externalSource;
+    /**
+     * The cost-based optimizer's report for the query profile. Coordinator-only and not serialized with this class: the
+     * transport actions copy it into the response profile.
+     */
+    private transient volatile OptimizerProfile optimizerProfile;
 
     private final EsqlQueryProfile queryProfile;
 
@@ -262,6 +268,17 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     @Nullable
     public ExternalPlanningReservation externalPlanning() {
         return externalPlanning;
+    }
+
+    /** Replaces the cost-based optimizer's report, which grows as the session plans each run and subplan. */
+    public void optimizerProfile(@Nullable OptimizerProfile profile) {
+        this.optimizerProfile = profile;
+    }
+
+    /** @return the cost-based optimizer's report, or {@code null} when no optimizer run was reported */
+    @Nullable
+    public OptimizerProfile optimizerProfile() {
+        return optimizerProfile;
     }
 
     /**

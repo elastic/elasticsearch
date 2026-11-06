@@ -77,14 +77,22 @@ import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TimeSeriesCollapseOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.compute.operator.UnpackDimsOperator;
+import org.elasticsearch.compute.operator.exchange.BroadcastExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.HashPartitioner;
+import org.elasticsearch.compute.operator.exchange.ShuffleExchangeSink;
 import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.lookup.HashJoinBridge;
+import org.elasticsearch.compute.operator.lookup.HashJoinBuildOperator;
+import org.elasticsearch.compute.operator.lookup.HashJoinColumnLoadOperator;
+import org.elasticsearch.compute.operator.lookup.HashJoinProbeOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
 import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
@@ -191,6 +199,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -225,6 +234,8 @@ import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
@@ -282,6 +293,8 @@ public class LocalExecutionPlanner {
      */
     public static final int DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS = ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS;
 
+    private static final int MV_EXPAND_BLOCK_SIZE = 5000;
+
     /**
      * Minimum pages of work each pushed-LIMIT driver must have. One page per driver
      * guarantees idle drivers under first-byte latency skew: the shared limiter admits
@@ -301,6 +314,8 @@ public class LocalExecutionPlanner {
     private final Configuration configuration;
     private final Supplier<ExchangeSource> exchangeSourceSupplier;
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
+    @Nullable
+    private final ExchangeWiring exchangeWiring;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
@@ -348,6 +363,61 @@ public class LocalExecutionPlanner {
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion
     ) {
+        this(
+            sessionId,
+            clusterAlias,
+            parentTask,
+            bigArrays,
+            blockFactory,
+            settings,
+            configuration,
+            exchangeSourceSupplier,
+            exchangeSinkSupplier,
+            enrichLookupService,
+            lookupFromIndexService,
+            inferenceService,
+            userAgentParserRegistry,
+            ipLocationService,
+            projectResolver,
+            projectMetadata,
+            physicalOperationProviders,
+            operatorFactoryRegistry,
+            snapshotBuild,
+            parallelWorkerExecutor,
+            esqlWorkerPoolSize,
+            grokMatcherWatchdog,
+            minTransportVersion,
+            null
+        );
+    }
+
+    /** Creates a planner that can wire stage exchange nodes to their edge handlers. */
+    public LocalExecutionPlanner(
+        String sessionId,
+        String clusterAlias,
+        CancellableTask parentTask,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        Settings settings,
+        Configuration configuration,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
+        InferenceService inferenceService,
+        UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
+        ProjectResolver projectResolver,
+        ProjectMetadata projectMetadata,
+        AbstractPhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean snapshotBuild,
+        @Nullable Executor parallelWorkerExecutor,
+        int esqlWorkerPoolSize,
+        MatcherWatchdog grokMatcherWatchdog,
+        TransportVersion minTransportVersion,
+        @Nullable ExchangeWiring exchangeWiring
+    ) {
 
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
@@ -358,6 +428,7 @@ public class LocalExecutionPlanner {
         this.configuration = configuration;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
+        this.exchangeWiring = exchangeWiring;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
@@ -531,12 +602,16 @@ public class LocalExecutionPlanner {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
+        } else if (node instanceof StageSourceExec stageSource) {
+            return planStageSource(stageSource);
         } else if (node instanceof ExternalSourceExec externalSource) {
             return planExternalSource(externalSource, context);
         }
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
             return planEnrich(enrich, context);
+        } else if (node instanceof DistributedHashJoinExec join) {
+            return planDistributedHashJoin(join, context);
         } else if (node instanceof HashJoinExec join) {
             return planHashJoin(join, context);
         } else if (node instanceof DistinctByExec distinctBy) {
@@ -551,6 +626,8 @@ public class LocalExecutionPlanner {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
             return planExchangeSink(exchangeSink, context);
+        } else if (node instanceof StageSinkExec stageSink) {
+            return planStageSink(stageSink, context);
         } else if (node instanceof FuseScoreEvalExec fuse) {
             return planFuseScoreEvalExec(fuse, context);
         } else if (node instanceof MMRExec mmr) {
@@ -995,15 +1072,67 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource, Supplier<ExchangeSource> exchangeSourceSupplier) {
-        Objects.requireNonNull(exchangeSourceSupplier, "ExchangeSourceHandler wasn't provided");
+        return planExchangeSource(exchangeSource.output(), exchangeSource.isIntermediateAgg(), exchangeSourceSupplier);
+    }
 
+    private PhysicalOperation planStageSource(StageSourceExec stageSource) {
+        ExchangeWiring wiring = Objects.requireNonNull(exchangeWiring, "ExchangeWiring wasn't provided");
+        return planExchangeSource(stageSource.output(), stageSource.isIntermediateAgg(), wiring.source(stageSource.edgeKey()));
+    }
+
+    private PhysicalOperation planExchangeSource(
+        List<Attribute> output,
+        boolean intermediateAgg,
+        Supplier<ExchangeSource> exchangeSourceSupplier
+    ) {
+        Objects.requireNonNull(exchangeSourceSupplier, "ExchangeSourceHandler wasn't provided");
         var builder = new Layout.Builder();
-        builder.append(exchangeSource.output());
+        builder.append(output);
         // decorate the layout
         var l = builder.build();
-        var layout = exchangeSource.isIntermediateAgg() ? new ExchangeLayout(l) : l;
+        var layout = intermediateAgg ? new ExchangeLayout(l) : l;
 
         return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceSupplier), layout);
+    }
+
+    private PhysicalOperation planStageSink(StageSinkExec stageSink, LocalExecutionPlannerContext context) {
+        ExchangeWiring wiring = Objects.requireNonNull(exchangeWiring, "ExchangeWiring wasn't provided");
+        PhysicalOperation planned = plan(stageSink.child(), context);
+        final PhysicalOperation op;
+        final int[] keyChannels;
+        if (stageSink.isIntermediateAgg()) {
+            op = planned;
+            keyChannels = IntStream.range(0, stageSink.keys().size()).toArray();
+        } else {
+            List<Integer> projection = stageSink.output().stream().map(attribute -> planned.layout.get(attribute.id()).channel()).toList();
+            Layout layout = new Layout.Builder().append(stageSink.output()).build();
+            op = planned.with(new ProjectOperatorFactory(projection), layout);
+            keyChannels = stageSink.keys().stream().mapToInt(key -> layout.get(key.id()).channel()).toArray();
+        }
+
+        List<ExchangeSinkHandler> handlers = wiring.sinks(stageSink.edgeKey());
+        Supplier<ExchangeSink> sink = switch (stageSink.distribution()) {
+            case GATHER -> {
+                if (handlers.size() != 1) {
+                    throw new IllegalStateException("gather edge with [" + handlers.size() + "] sinks");
+                }
+                yield () -> handlers.get(0).createExchangeSink(() -> {});
+            }
+            case HASH -> {
+                ElementType[] types = stageSink.keys()
+                    .stream()
+                    .map(key -> PlannerUtils.toElementType(key.dataType()))
+                    .toArray(ElementType[]::new);
+                yield () -> new ShuffleExchangeSink(
+                    handlers.stream().map(handler -> handler.createExchangeSink(() -> {})).toList(),
+                    new HashPartitioner(keyChannels, types, handlers.size())
+                );
+            }
+            case BROADCAST -> () -> new BroadcastExchangeSink(
+                handlers.stream().map(handler -> handler.createExchangeSink(() -> {})).toList()
+            );
+        };
+        return op.withSink(new ExchangeSinkOperatorFactory(sink), op.layout);
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
@@ -1711,6 +1840,148 @@ public class LocalExecutionPlanner {
         return source.with(new HighlightOperator.Factory(config, fieldEvaluators, indexEvaluator), layoutBuilder.build());
     }
 
+    private PhysicalOperation planDistributedHashJoin(DistributedHashJoinExec join, LocalExecutionPlannerContext context) {
+        ExchangeWiring.SharedHashJoin shared = join.mode() == DistributedHashJoinExec.Mode.BROADCAST
+            && join.right() instanceof StageSourceExec source
+            && exchangeWiring != null ? exchangeWiring.sharedHashJoins().get(source.edgeKey()) : null;
+        HashJoinBridge bridge = shared == null ? new HashJoinBridge() : shared.bridge();
+        List<Attribute> payloadFields = join.addedFields().stream().filter(field -> Mapper.isJoinMarker(field) == false).toList();
+        if (shared == null || shared.claimBuild()) {
+            planHashJoinBuild(join, context, bridge, payloadFields, shared != null);
+        }
+
+        PhysicalOperation probe = plan(join.left(), context);
+        int positionsChannel = probe.layout.numberOfChannels();
+        Attribute marker = join.addedFields().stream().filter(Mapper::isJoinMarker).findFirst().orElse(null);
+        Layout.Builder layoutBuilder = probe.layout.builder();
+        if (marker != null) {
+            layoutBuilder.append(marker);
+        }
+        for (Attribute field : join.output()) {
+            if (join.left().outputSet().contains(field) || field.equals(marker)) {
+                continue;
+            }
+            layoutBuilder.append(field);
+        }
+        Layout layout = layoutBuilder.build();
+
+        int[] leftKeyChannels = new int[join.leftFields().size()];
+        for (int i = 0; i < join.leftFields().size(); i++) {
+            Attribute field = join.leftFields().get(i);
+            Layout.ChannelAndType input = probe.layout.get(field.id());
+            if (input == null) {
+                throw new IllegalArgumentException("can't find probe column for [" + field + "]");
+            }
+            leftKeyChannels[i] = input.channel();
+        }
+
+        probe = probe.with(new HashJoinProbeOperator.Factory(bridge, leftKeyChannels, join.source()), layout);
+        probe = probe.with(new MvExpandOperator.Factory(positionsChannel, MV_EXPAND_BLOCK_SIZE), layout);
+        for (int i = 0; i < payloadFields.size(); i++) {
+            probe = probe.with(new HashJoinColumnLoadOperator.Factory(bridge, i, positionsChannel), layout);
+        }
+
+        if (marker != null) {
+            return probe;
+        }
+        List<Integer> projection = new ArrayList<>();
+        IntStream.range(0, positionsChannel).forEach(projection::add);
+        IntStream.range(positionsChannel + 1, positionsChannel + 1 + payloadFields.size()).forEach(projection::add);
+        return probe.with(new ProjectOperatorFactory(projection), layout);
+    }
+
+    private void planHashJoinBuild(
+        DistributedHashJoinExec join,
+        LocalExecutionPlannerContext context,
+        HashJoinBridge bridge,
+        List<Attribute> payloadFields,
+        boolean retainBridge
+    ) {
+        LocalExecutionPlannerContext buildContext = new LocalExecutionPlannerContext(
+            context.description(),
+            context.driverFactories(),
+            new Holder<>(DriverParallelism.SINGLE),
+            context.queryPragmas(),
+            context.bigArrays(),
+            context.blockFactory(),
+            context.foldCtx(),
+            context.plannerSettings(),
+            context.timeSeries(),
+            context.settings(),
+            context.shardContexts(),
+            context.analysisRegistry(),
+            context.lastVisitedTopN(),
+            context.luceneMinCompetitivePilot(),
+            context.singleNodeOptimizations(),
+            null
+        );
+        PhysicalOperation build = plan(join.right(), buildContext);
+        List<Attribute> buildOutput = join.right().output();
+        int[] rightKeyChannels = new int[join.rightFields().size()];
+        ElementType[] keyTypes = new ElementType[join.rightFields().size()];
+        for (int i = 0; i < join.rightFields().size(); i++) {
+            Attribute field = join.rightFields().get(i);
+            rightKeyChannels[i] = buildChannel(build.layout, buildOutput, field);
+            keyTypes[i] = PlannerUtils.toElementType(field.dataType());
+        }
+
+        int[] payloadChannels = new int[payloadFields.size()];
+        ElementType[] payloadTypes = new ElementType[payloadFields.size()];
+        for (int i = 0; i < payloadFields.size(); i++) {
+            Attribute field = payloadFields.get(i);
+            payloadChannels[i] = buildChannel(build.layout, buildOutput, field);
+            payloadTypes[i] = PlannerUtils.toElementType(field.dataType());
+        }
+
+        build = build.withSink(
+            new HashJoinBuildOperator.Factory(
+                bridge,
+                rightKeyChannels,
+                keyTypes,
+                payloadChannels,
+                payloadTypes,
+                join.source(),
+                retainBridge
+            ),
+            build.layout
+        );
+        context.addDriverFactory(
+            new DriverFactory(
+                new DriverSupplier(
+                    context.description(),
+                    ClusterName.CLUSTER_NAME_SETTING.get(context.settings()).value(),
+                    Node.NODE_NAME_SETTING.get(context.settings()),
+                    context.bigArrays(),
+                    context.blockFactory(),
+                    context.shardContexts(),
+                    build,
+                    context.queryPragmas().statusInterval(),
+                    context.settings()
+                ),
+                DriverParallelism.SINGLE
+            )
+        );
+
+    }
+
+    private static int buildChannel(Layout layout, List<Attribute> buildOutput, Attribute field) {
+        Layout.ChannelAndType input = layout.get(field.id());
+        if (input == null) {
+            for (Attribute output : buildOutput) {
+                if (output.name().equals(field.name())) {
+                    input = layout.get(output.id());
+                    if (input != null) {
+                        break;
+                    }
+                }
+            }
+        }
+        if (input == null) {
+            throw new IllegalArgumentException("can't find build column for [" + field + "]");
+        }
+        return input.channel();
+    }
+
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(join.left(), context);
         int positionsChannel = source.layout.numberOfChannels();
@@ -1760,7 +2031,10 @@ public class LocalExecutionPlanner {
         }
 
         // Load the "positions" of each match
-        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
+        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, join.repeatedKeys(), join.source()), layout);
+        if (join.repeatedKeys()) {
+            source = source.with(new MvExpandOperator.Factory(positionsChannel, MV_EXPAND_BLOCK_SIZE), layout);
+        }
 
         // Load the "values" from each match
         int loadedFields = 0;
@@ -2795,7 +3069,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
-        int blockSize = 5000;// TODO estimate row size and use context.pageSize()
+        int blockSize = MV_EXPAND_BLOCK_SIZE;// TODO estimate row size and use context.pageSize()
         Layout.Builder layout = source.layout.builder();
         layout.replace(mvExpandExec.target().id(), mvExpandExec.expanded().id());
         return source.with(

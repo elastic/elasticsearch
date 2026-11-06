@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
@@ -102,8 +104,8 @@ public class PreAnalyzer {
                 } else {
                     IndexMode m1 = p.indexMode();
                     IndexMode m2 = indexes.get(p.indexPattern());
-                    throw new IllegalStateException(
-                        "index pattern '" + p.indexPattern() + "' found with different index mode: " + m2 + " != " + m1
+                    throw new EsqlIllegalArgumentException(
+                        "Index pattern [" + p.indexPattern() + "] is referenced with multiple index modes [" + m2 + "] and [" + m1 + "]"
                     );
                 }
             }
@@ -193,11 +195,10 @@ public class PreAnalyzer {
 
         Holder<Boolean> hasTimeSeriesAggregation = new Holder<>(false);
         Holder<Boolean> requiresAllDimensionFields = new Holder<>(false);
-        plan.forEachUp(TimeSeriesAggregate.class, p -> hasTimeSeriesAggregation.set(true));
-        plan.forEachUp(PromqlCommand.class, p -> {
-            hasTimeSeriesAggregation.set(true);
-            requiresAllDimensionFields.set(true);
-        });
+        hasTimeSeriesAggregation.set(
+            IndependentSubqueryJoin.anyMatchInMainScope(plan, p -> p instanceof TimeSeriesAggregate || p instanceof PromqlCommand)
+        );
+        requiresAllDimensionFields.set(IndependentSubqueryJoin.anyMatchInMainScope(plan, p -> p instanceof PromqlCommand));
         // Only a HIGHLIGHT analyzing with the mapping analyzers reads which indices use which one; skip the cost otherwise.
         boolean needsAnalyzerGroups = plan.anyMatch(p -> p instanceof Highlight h && h.hasAnalyzerOption() == false);
         // Only DESCRIBE reads the field semantics; skip building them otherwise.

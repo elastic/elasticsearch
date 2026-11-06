@@ -13,12 +13,16 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * SORT cannot be executed without a LIMIT, as ES|QL doesn't support unbounded sort (yet).
@@ -43,8 +47,15 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
-        if (plan instanceof OrderBy || plan instanceof TopN || plan instanceof Aggregate) {
-            Set<OrderBy> redundant = findRedundantSort(((UnaryPlan) plan).child());
+        if (plan instanceof SubqueryLookupJoin lookupJoin) {
+            Set<OrderBy> redundant = findRedundantSort(lookupJoin.right(), IndependentSubqueryJoin::mainScopeChildren);
+            if (redundant.isEmpty()) {
+                return plan;
+            }
+            LogicalPlan right = lookupJoin.right().transformDown(p -> redundant.contains(p) ? ((UnaryPlan) p).child() : p);
+            return lookupJoin.replaceChildren(lookupJoin.left(), right);
+        } else if (plan instanceof OrderBy || plan instanceof TopN || plan instanceof Aggregate) {
+            Set<OrderBy> redundant = findRedundantSort(((UnaryPlan) plan).child(), LogicalPlan::children);
             if (redundant.isEmpty()) {
                 return plan;
             }
@@ -57,8 +68,12 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
     /**
      * breadth-first recursion to find redundant SORTs in the children tree.
      * Returns an identity set (we need to compare and prune the exact instances)
+     * <p>
+     * A SORT, TopN or STATS also prunes SORTs inside IN subqueries below it, while the JOIN subquery pass stays within
+     * the subquery's own scope: an unbounded SORT in an IN subquery nested in a JOIN subquery is left for the verifier
+     * to reject.
      */
-    private Set<OrderBy> findRedundantSort(LogicalPlan plan) {
+    private Set<OrderBy> findRedundantSort(LogicalPlan plan, Function<LogicalPlan, List<LogicalPlan>> childrenOf) {
         Set<OrderBy> result = Collections.newSetFromMap(new IdentityHashMap<>());
 
         Deque<LogicalPlan> toCheck = new ArrayDeque<>();
@@ -73,7 +88,7 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
                 result.add(ob);
                 toCheck.push(ob.child());
             } else if (p instanceof SortAgnostic) {
-                for (LogicalPlan child : p.children()) {
+                for (LogicalPlan child : childrenOf.apply(p)) {
                     toCheck.push(child);
                 }
             }

@@ -37,6 +37,7 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;
     private final List<Attribute> addedFields;
+    private final boolean repeatedKeys;
     private List<Attribute> lazyOutput;
     private AttributeSet lazyAddedFields;
 
@@ -48,10 +49,23 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         List<Attribute> rightFields,
         List<Attribute> addedFields
     ) {
+        this(source, left, hashData, leftFields, rightFields, addedFields, false);
+    }
+
+    public HashJoinExec(
+        Source source,
+        PhysicalPlan left,
+        PhysicalPlan hashData,
+        List<Attribute> leftFields,
+        List<Attribute> rightFields,
+        List<Attribute> addedFields,
+        boolean repeatedKeys
+    ) {
         super(source, left, hashData);
         this.leftFields = leftFields;
         this.rightFields = rightFields;
         this.addedFields = addedFields;
+        this.repeatedKeys = repeatedKeys;
     }
 
     private HashJoinExec(StreamInput in) throws IOException {
@@ -62,10 +76,14 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.repeatedKeys = in.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) && in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (repeatedKeys && out.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
+            throw new IllegalStateException("repeated-key hash join cannot be sent to a node without subquery join support");
+        }
         super.writeTo(out);
         if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
             out.writeNamedWriteableCollection(leftFields);
@@ -73,6 +91,9 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(addedFields);
+        if (out.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)) {
+            out.writeBoolean(repeatedKeys);
+        }
     }
 
     @Override
@@ -90,6 +111,10 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
 
     public List<Attribute> rightFields() {
         return rightFields;
+    }
+
+    public boolean repeatedKeys() {
+        return repeatedKeys;
     }
 
     public Set<Attribute> addedFields() {
@@ -147,12 +172,12 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public HashJoinExec replaceChildren(PhysicalPlan left, PhysicalPlan right) {
-        return new HashJoinExec(source(), left, right, leftFields, rightFields, addedFields);
+        return new HashJoinExec(source(), left, right, leftFields, rightFields, addedFields, repeatedKeys);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, HashJoinExec::new, left(), right(), leftFields, rightFields, addedFields);
+        return NodeInfo.create(this, HashJoinExec::new, left(), right(), leftFields, rightFields, addedFields, repeatedKeys);
     }
 
     @Override
@@ -167,11 +192,14 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
             return false;
         }
         HashJoinExec hash = (HashJoinExec) o;
-        return leftFields.equals(hash.leftFields) && rightFields.equals(hash.rightFields) && addedFields.equals(hash.addedFields);
+        return leftFields.equals(hash.leftFields)
+            && rightFields.equals(hash.rightFields)
+            && addedFields.equals(hash.addedFields)
+            && repeatedKeys == hash.repeatedKeys;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields);
+        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields, repeatedKeys);
     }
 }

@@ -803,6 +803,50 @@ public class ExternalDistributionTests extends ESTestCase {
         assertTrue("Expected FragmentExec child", collapsedTopN.child() instanceof FragmentExec);
     }
 
+    public void testSplitAssignmentsAreGroupedByExternalSourcePath() {
+        String principalsPath = "s3://bucket/imdb/title.principals.tsv";
+        String basicsPath = "s3://bucket/imdb/title.basics.tsv";
+        FileSplit principalsSplit = new FileSplit("csv", StoragePath.of(principalsPath), 0, 1024, ".tsv", Map.of(), Map.of());
+        FileSplit basicsSplit = new FileSplit("csv", StoragePath.of(basicsPath), 0, 1024, ".tsv", Map.of(), Map.of());
+
+        Map<String, Map<String, List<ExternalSplit>>> assignments = StageScheduler.splitAssignmentsBySource(
+            Map.of("node-1", List.of(principalsSplit, basicsSplit)),
+            List.of(principalsPath, basicsPath)
+        );
+
+        assertEquals(List.of(principalsSplit), assignments.get(principalsPath).get("node-1"));
+        assertEquals(List.of(basicsSplit), assignments.get(basicsPath).get("node-1"));
+    }
+
+    public void testSplitAssignmentsSeparateCoalescedSplitsByExternalSourcePath() {
+        String principalsPath = "s3://bucket/imdb/title.principals.tsv";
+        String basicsPath = "s3://bucket/imdb/title.basics.tsv";
+        FileSplit principalsSplit = new FileSplit("csv", StoragePath.of(principalsPath), 0, 1024, ".tsv", Map.of(), Map.of());
+        FileSplit basicsSplit = new FileSplit("csv", StoragePath.of(basicsPath), 0, 1024, ".tsv", Map.of(), Map.of());
+        CoalescedSplit coalescedSplit = new CoalescedSplit("csv", List.of(principalsSplit, basicsSplit));
+
+        Map<String, Map<String, List<ExternalSplit>>> assignments = StageScheduler.splitAssignmentsBySource(
+            Map.of("node-1", List.of(coalescedSplit)),
+            List.of(principalsPath, basicsPath)
+        );
+
+        assertEquals(List.of(principalsSplit), ((CoalescedSplit) assignments.get(principalsPath).get("node-1").getFirst()).children());
+        assertEquals(List.of(basicsSplit), ((CoalescedSplit) assignments.get(basicsPath).get("node-1").getFirst()).children());
+    }
+
+    public void testSplitAssignmentsRejectAmbiguousSourcePaths() {
+        String principalsPath = "s3://bucket/imdb/title.principals.tsv";
+        FileSplit split = new FileSplit("csv", StoragePath.of(principalsPath), 0, 1024, ".tsv", Map.of(), Map.of());
+
+        expectThrows(
+            IllegalStateException.class,
+            () -> StageScheduler.splitAssignmentsBySource(
+                Map.of("node-1", List.of(split)),
+                List.of("s3://bucket/imdb/*.tsv", principalsPath)
+            )
+        );
+    }
+
     // --- Helpers ---
 
     private static PhysicalPlan runLocalPlan(PhysicalPlan plan) {

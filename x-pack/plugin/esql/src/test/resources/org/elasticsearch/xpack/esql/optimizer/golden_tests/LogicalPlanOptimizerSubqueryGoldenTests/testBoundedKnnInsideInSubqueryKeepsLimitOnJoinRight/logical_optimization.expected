@@ -1,4 +1,4 @@
-Limit[10000[INTEGER],false,false]
+Limit[1000[INTEGER],false,false]
 \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#0]]
   \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
     |_Project[[color{f}#1, hex_code{f}#2, id{f}#3, primary{f}#4, rgb_byte_vector{f}#5, rgb_vector{f}#6]]

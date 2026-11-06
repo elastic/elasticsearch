@@ -13,6 +13,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.planner.ExchangeWiring;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.function.Supplier;
@@ -28,6 +29,7 @@ record ComputeContext(
     Supplier<ExchangeSource> exchangeSourceSupplier,
     Supplier<ExchangeSink> exchangeSinkSupplier,
     boolean singleNodeOptimizations,
+    @Nullable ExchangeWiring exchangeWiring,
     @Nullable SharedSortBound sortBound
 ) {
     ComputeContext(
@@ -53,6 +55,7 @@ record ComputeContext(
             exchangeSourceSupplier,
             exchangeSinkSupplier,
             singleNodeOptimizations,
+            null,
             null
         );
     }

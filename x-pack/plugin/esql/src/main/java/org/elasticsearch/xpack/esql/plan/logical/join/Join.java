@@ -235,7 +235,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         JoinType joinType = config.type();
         List<NamedExpression> output;
         // TODO: make the other side nullable
-        if (LEFT.equals(joinType)) {
+        if (LEFT.equals(joinType) || JoinTypes.INNER.equals(joinType)) {
             if (config.joinOnConditions() == null) {
                 // right side becomes nullable and overrides left except for join keys, which we preserve from the left
                 AttributeSet rightKeys = AttributeSet.of(config.rightFields());
@@ -347,7 +347,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         }
     }
 
-    private static boolean comparableTypes(Attribute left, Attribute right) {
+    static boolean comparableTypes(Attribute left, Attribute right) {
         DataType leftType = left.dataType();
         DataType rightType = right.dataType();
         if (leftType == NULL) {
@@ -373,7 +373,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private void checkForRemoteJoinBlockers(LogicalPlan plan, Failures failures) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             // The right side is an independent subquery; do not traverse into it.
             checkForRemoteJoinBlockers(subqueryJoin.left(), failures);
         } else {

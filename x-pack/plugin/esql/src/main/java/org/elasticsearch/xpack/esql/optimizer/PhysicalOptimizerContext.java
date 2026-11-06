@@ -8,6 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.optimizer.cbo.PlanDecisionsHolder;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-public record PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion) {}
+public record PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion, PlanDecisionsHolder decisions) {
+    public PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion) {
+        this(configuration, minimumVersion, new PlanDecisionsHolder());
+    }
+}

@@ -166,6 +166,10 @@
             "$ref" : "#/definitions/PlanProfile"
           }
         },
+        "optimizer" : {
+          "type" : "object",
+          "additionalProperties" : { }
+        },
         "minimumTransportVersion" : {
           "anyOf" : [
             {

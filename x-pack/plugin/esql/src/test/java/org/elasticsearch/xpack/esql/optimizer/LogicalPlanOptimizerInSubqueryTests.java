@@ -70,6 +70,32 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
         );
     }
 
+    public void testOuterLimitDoesNotSetKnnSubqueryLimit() {
+        String operator = randomBoolean() ? "IN" : "NOT IN";
+        var e = expectThrows(
+            VerificationException.class,
+            () -> optimize(
+                typesAnalyzer().query(
+                    "FROM types | WHERE integer " + operator + " (FROM types | WHERE knn(dense_vector, [0, 1, 2]) | KEEP integer)"
+                )
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find")
+        );
+    }
+
+    public void testOuterLimitDoesNotSetKnnSubqueryLimitInUnionAllBranch() {
+        String branch = "FROM types | WHERE integer IN (FROM types | WHERE knn(dense_vector, [0, 1, 2]) | KEEP integer)";
+        String query = randomBoolean() ? "FROM types, (" + branch + ")" : "FROM (FROM (" + branch + "), (FROM types)), (FROM types)";
+        var e = expectThrows(VerificationException.class, () -> optimize(typesAnalyzer().query(query)));
+        assertThat(
+            e.getMessage(),
+            containsString("Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find")
+        );
+    }
+
     // -- view with unbounded SORT referenced from an IN subquery tests --
 
     /**

@@ -159,7 +159,8 @@ final class RequestDispatcher {
                     imd.getSettingsVersion(),
                     imd.getMappingVersion(),
                     fields,
-                    filters
+                    filters,
+                    fieldCapsRequest.includeFieldStats()
                 );
                 FieldCapabilitiesIndexResponse cached = cache.get(key);
                 if (cached != null) {
@@ -261,7 +262,8 @@ final class RequestDispatcher {
             fieldCapsRequest.indexFilter(),
             nowInMillis,
             fieldCapsRequest.runtimeFields(),
-            fieldCapsRequest.includeEmptyFields()
+            fieldCapsRequest.includeEmptyFields(),
+            fieldCapsRequest.includeFieldStats()
         );
         transportService.sendChildRequest(
             node,

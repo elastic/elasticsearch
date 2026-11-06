@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -277,7 +278,7 @@ public class Enrich extends UnaryPlan
      * retaining the originating cluster and restructuring pages for routing, which might be complicated.
      */
     private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
-        this.forEachDown(LogicalPlan.class, u -> {
+        IndependentSubqueryJoin.forEachInMainScope(this, u -> {
             if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
                 // Name the actual limitation for federated sources (which always execute on the coordinator) rather than
                 // leaving it as a bare positional statement - the generic message otherwise reads like an ordering quirk.

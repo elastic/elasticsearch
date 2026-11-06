@@ -29,11 +29,16 @@ final class FieldCapsCache {
     static final int MAX_FILTERS = 3;
     static final int MAX_INDICES = 5;
 
-    record Key(String indexUUID, long settingsVersion, long mappingVersion, String[] fields, String[] filters) {
+    record Key(String indexUUID, long settingsVersion, long mappingVersion, String[] fields, String[] filters, boolean includeFieldStats) {
+        Key(String indexUUID, long settingsVersion, long mappingVersion, String[] fields, String[] filters) {
+            this(indexUUID, settingsVersion, mappingVersion, fields, filters, false);
+        }
+
         int slot() {
             int h = indexUUID.hashCode();
             h = 31 * h + Arrays.hashCode(fields);
             h = 31 * h + Arrays.hashCode(filters);
+            h = 31 * h + Boolean.hashCode(includeFieldStats);
             return BitMixer.mix(h) & MASK;
         }
 
@@ -42,7 +47,8 @@ final class FieldCapsCache {
                 && mappingVersion == other.mappingVersion
                 && indexUUID.equals(other.indexUUID)
                 && Arrays.equals(fields, other.fields)
-                && Arrays.equals(filters, other.filters);
+                && Arrays.equals(filters, other.filters)
+                && includeFieldStats == other.includeFieldStats;
         }
     }
 
@@ -63,7 +69,8 @@ final class FieldCapsCache {
                 resp.getIndexSettingsVersion(),
                 resp.getMappingVersion(),
                 key.fields(),
-                key.filters()
+                key.filters(),
+                key.includeFieldStats()
             );
             entries[responseKey.slot()] = new Entry(responseKey, resp);
         }

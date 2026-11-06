@@ -44,12 +44,14 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedLookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -67,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -74,6 +77,8 @@ import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
@@ -116,6 +121,7 @@ public class PlanWritables {
             InlineJoin.ENTRY,
             InlineStats.ENTRY,
             Join.ENTRY,
+            MaterializedLookupJoin.ENTRY,
             LocalRelation.ENTRY,
             Limit.ENTRY,
             LimitBy.ENTRY,
@@ -149,6 +155,7 @@ public class PlanWritables {
             CompletionExec.ENTRY,
             DissectExec.ENTRY,
             DenseVectorExec.ENTRY,
+            DistributedHashJoinExec.ENTRY,
             EnrichExec.ENTRY,
             EsSourceExec.ENTRY,
             EvalExec.ENTRY,
@@ -165,11 +172,14 @@ public class PlanWritables {
             LimitByExec.ENTRY,
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
+            LookupJoinExec.ENTRY,
             MvExpandExec.ENTRY,
             ProjectExec.ENTRY,
             RerankExec.ENTRY,
             SampleExec.ENTRY,
             SampledAggregateExec.ENTRY,
+            StageSinkExec.ENTRY,
+            StageSourceExec.ENTRY,
             TopNPreFilterExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,

@@ -619,6 +619,29 @@ public class ExchangeServiceTests extends ESTestCase {
         }
     }
 
+    public void testClosePreopenedExchangeWithoutProducer() {
+        MockTransportService node0 = newTransportService();
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange; node0; node1) {
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            PlainActionFuture<Void> opened = new PlainActionFuture<>();
+            ExchangeService.openExchange(node0, connection, "unstarted", randomExchangeBuffer(), threadPool.generic(), opened);
+            safeGet(opened);
+            ExchangeSinkHandler handler = exchange.getSinkHandler("unstarted");
+            assertFalse(exchange.isEmpty());
+            for (int attempt = 0; attempt < 2; attempt++) {
+                PlainActionFuture<Void> closed = new PlainActionFuture<>();
+                ExchangeService.closeExchange(node0, connection, "unstarted", threadPool.generic(), closed);
+                safeGet(closed);
+                assertTrue(handler.isFinished());
+                assertTrue(exchange.isEmpty());
+            }
+        }
+    }
+
     public void testFailToRespondPage() throws Exception {
         Settings settings = Settings.builder().build();
         MockTransportService node0 = newTransportService();

@@ -17,8 +17,13 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.OptimizerProfile;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.OptimizerProfileSerializationTests;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 
+import java.io.IOException;
 import java.util.List;
 
 public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCase<EsqlQueryResponse.Profile> {
@@ -29,7 +34,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     @Override
     protected EsqlQueryResponse.Profile createTestInstance() {
-        return new EsqlQueryResponse.Profile(randomDriverProfiles(), randomPlanProfiles(), randomMinimumVersion());
+        return new EsqlQueryResponse.Profile(randomDriverProfiles(), randomPlanProfiles(), randomMinimumVersion(), randomOptimizer());
     }
 
     @Override
@@ -37,13 +42,27 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         var drivers = instance.drivers();
         var plans = instance.plans();
         var minimumVersion = instance.minimumVersion();
+        var optimizer = instance.optimizer();
 
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0 -> drivers = randomValueOtherThan(drivers, EsqlQueryResponseProfileTests::randomDriverProfiles);
             case 1 -> plans = randomValueOtherThan(plans, EsqlQueryResponseProfileTests::randomPlanProfiles);
             case 2 -> minimumVersion = randomValueOtherThan(minimumVersion, EsqlQueryResponseProfileTests::randomMinimumVersion);
+            case 3 -> optimizer = randomValueOtherThan(optimizer, EsqlQueryResponseProfileTests::randomOptimizer);
         }
-        return new EsqlQueryResponse.Profile(drivers, plans, minimumVersion);
+        return new EsqlQueryResponse.Profile(drivers, plans, minimumVersion, optimizer);
+    }
+
+    public void testOptimizerIsDroppedForOlderVersions() throws IOException {
+        EsqlQueryResponse.Profile instance = new EsqlQueryResponse.Profile(
+            randomDriverProfiles(),
+            randomPlanProfiles(),
+            randomMinimumVersion(),
+            OptimizerProfileSerializationTests.randomOptimizerProfile()
+        );
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION);
+        EsqlQueryResponse.Profile copy = copyInstance(instance, older);
+        assertEquals(new EsqlQueryResponse.Profile(instance.drivers(), instance.plans(), instance.minimumVersion()), copy);
     }
 
     @Override
@@ -100,6 +119,10 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
                 )
                 : null
         );
+    }
+
+    private static OptimizerProfile randomOptimizer() {
+        return randomBoolean() ? null : OptimizerProfileSerializationTests.randomOptimizerProfile();
     }
 
     public static TransportVersion randomMinimumVersion() {

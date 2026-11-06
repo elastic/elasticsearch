@@ -118,7 +118,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
     }
 
     private void checkForLimits(LogicalPlan plan, Failures failures) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             // The right side is an independent subquery; do not traverse into it.
             checkForLimits(subqueryJoin.left(), failures);
         } else {

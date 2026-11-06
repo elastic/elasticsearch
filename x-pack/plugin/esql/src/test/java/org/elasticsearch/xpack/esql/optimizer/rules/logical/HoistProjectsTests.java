@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.rule.RuleExecutionException;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
@@ -142,6 +143,21 @@ public class HoistProjectsTests extends AbstractLogicalPlanOptimizerTests {
 
         Eval temporaryNames = as(join.left(), Eval.class);
         assertThat(Expressions.names(temporaryNames.fields()), contains(startsWith("$$first_name")));
+    }
+
+    public void testSubqueryLookupJoinKeepsItsTypeWhenHoistedPastShadowingProject() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        LogicalPlan plan = new HoistProjects().apply(substituted("""
+            FROM test
+            | EVAL language_name = 2 * salary
+            | KEEP languages, language_name
+            | RENAME language_name AS foo
+            | LEFT OUTER JOIN (FROM test | EVAL language_name = last_name | KEEP languages, language_name) ON languages
+            """));
+
+        List<SubqueryLookupJoin> joins = plan.collect(SubqueryLookupJoin.class);
+        assertThat(joins, hasSize(1));
+        as(joins.getFirst().left(), Eval.class);
     }
 
     /**

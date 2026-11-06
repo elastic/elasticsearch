@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.OptimizerProfile;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
@@ -1660,6 +1662,26 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   }
                 }""", minimumVersion == null ? "null" : minimumVersion.id())));
         }
+    }
+
+    public void testProfileXContentWithOptimizer() throws IOException {
+        EsqlQueryResponse.Profile profile = new EsqlQueryResponse.Profile(
+            List.of(),
+            List.of(),
+            null,
+            new OptimizerProfile(OptimizerProfile.COST_MODEL, List.of(), 0)
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        Iterator<? extends ToXContent> chunks = EsqlQueryResponse.profileXContent(profile, null).toXContentChunked(ToXContent.EMPTY_PARAMS);
+        while (chunks.hasNext()) {
+            chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+        builder.endObject();
+
+        Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), true, XContentType.JSON).v2();
+        Map<?, ?> rendered = (Map<?, ?>) map.get("profile");
+        assertEquals(List.of("drivers", "plans", "optimizer", "minimumTransportVersion"), List.copyOf(rendered.keySet()));
+        assertEquals(OptimizerProfile.COST_MODEL, ((Map<?, ?>) rendered.get("optimizer")).get("cost_model"));
     }
 
     @Override

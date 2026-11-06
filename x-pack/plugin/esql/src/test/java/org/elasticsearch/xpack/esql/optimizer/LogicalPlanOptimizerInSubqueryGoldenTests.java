@@ -83,6 +83,14 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testOuterSortPrunesUnboundedSortInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | SORT emp_no | KEEP emp_no)
+            | SORT emp_no
+            """, STAGES);
+    }
+
     public void testStatsWithSortLimitInSubquery() {
         runGoldenTest("""
             FROM employees

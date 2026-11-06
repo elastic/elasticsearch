@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -132,7 +133,7 @@ public final class RuleUtils {
         if (stopCondition.test(plan)) {
             return;
         }
-        for (LogicalPlan child : plan.children()) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             collectFoldableRefs(child, collectRefsBuilder, ctx, stopCondition);
         }
         // At Aggregate boundaries, remove multi-valued grouping keys before processing this node's expressions.

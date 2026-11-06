@@ -25,6 +25,10 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         parse("row a = 1 | lookup_\uD83D\uDC14 \"foo\" on j", "lookup_\uD83D\uDC14");
     }
 
+    public void testLookupJoinSubqueryIsDevelopmentOnly() {
+        expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | lookup join (row b = 2) on b"));
+    }
+
     public void testDevelopmentMatch() throws Exception {
         parse("row a = 1 | match foo", "match");
     }

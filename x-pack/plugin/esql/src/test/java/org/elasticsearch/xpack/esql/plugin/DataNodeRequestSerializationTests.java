@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -104,6 +105,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             new Index("concrete-index", "n/a"),
             AliasFilter.of(new TermQueryBuilder("id", "1"), "alias-1")
         );
+        StageWiring stageWiring = randomBoolean() ? randomStageWiring() : null;
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
             randomConfiguration(query, randomTables()),
@@ -117,7 +119,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             randomBoolean(),
             randomBoolean(),
             List.of(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            stageWiring
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -143,6 +146,76 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
 
         DataNodeRequest current = copyInstance(request, TransportVersion.current());
         assertThat(current.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
+    }
+
+    public void testMultiProducerStageWiringRoundTrips() throws IOException {
+        StageWiring wiring = new StageWiring(
+            "root",
+            7,
+            StagedPlanner.StagePlacement.WORKERS,
+            List.of(0, 1),
+            List.of(
+                new StageWiring.Input(
+                    "edge",
+                    List.of(new StageWiring.Producer(2, List.of("node-a", "node-b")), new StageWiring.Producer(3, List.of("node-c")))
+                )
+            ),
+            new StageWiring.Output("output", ExchangeDistribution.HASH, 2)
+        );
+
+        StageWiring copy = copyWriteable(wiring, new NamedWriteableRegistry(List.of()), StageWiring::new);
+
+        assertThat(copy, equalTo(wiring));
+    }
+
+    public void testBroadcastStageWiringRequiresItsTransportVersion() throws IOException {
+        StageWiring wiring = new StageWiring(
+            "root",
+            7,
+            StagedPlanner.StagePlacement.WORKERS,
+            List.of(0, 1),
+            List.of(new StageWiring.Input("edge", List.of(new StageWiring.Producer(2, List.of("node-a", "node-b"))))),
+            new StageWiring.Output("output", ExchangeDistribution.BROADCAST, 2)
+        );
+
+        StageWiring copy = copyWriteable(
+            wiring,
+            new NamedWriteableRegistry(List.of()),
+            StageWiring::new,
+            ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION
+        );
+        assertThat(copy, equalTo(wiring));
+        expectThrows(
+            IllegalStateException.class,
+            () -> copyWriteable(
+                wiring,
+                new NamedWriteableRegistry(List.of()),
+                StageWiring::new,
+                TransportVersionUtils.getPreviousVersion(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)
+            )
+        );
+    }
+
+    public void testStageWiringUsesLegacyWireFormatForOlderTransportVersions() throws IOException {
+        StageWiring wiring = new StageWiring(
+            "root",
+            7,
+            StagedPlanner.StagePlacement.WORKERS,
+            List.of(0, 1),
+            List.of(new StageWiring.Input("edge", List.of(new StageWiring.Producer(2, List.of("node-a", "node-b"))))),
+            new StageWiring.Output("output", ExchangeDistribution.HASH, 2)
+        );
+        TransportVersion legacyVersion = TransportVersionUtils.getPreviousVersion(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION);
+
+        StageWiring copy = copyWriteable(wiring, new NamedWriteableRegistry(List.of()), StageWiring::new, legacyVersion);
+
+        assertEquals(wiring.rootSessionId(), copy.rootSessionId());
+        assertEquals(wiring.stageId(), copy.stageId());
+        assertEquals(wiring.placement(), copy.placement());
+        assertEquals(wiring.localLanes(), copy.localLanes());
+        assertEquals(List.of(new StageWiring.Producer(0, List.of("node-a", "node-b"))), copy.inputs().getFirst().producers());
+        assertFalse(copy.stageQualifiedExchangeIds());
+        assertEquals("root/stage/edge/0", StageWiring.exchangeId("root", "edge", 2, 0, copy.stageQualifiedExchangeIds()));
     }
 
     /**
@@ -253,9 +326,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var reductionLateMaterialization = in.reductionLateMaterialization();
         var singleNodeOptimizations = in.singleNodeOptimizations();
         var requiredClusterStateVersion = in.requiredClusterStateVersion();
+        var stageWiring = in.stageWiring();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -305,6 +379,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             }
             case 10 -> singleNodeOptimizations = singleNodeOptimizations == false;
             case 11 -> requiredClusterStateVersion = randomValueOtherThan(requiredClusterStateVersion, ESTestCase::randomNonNegativeLong);
+            case 12 -> stageWiring = stageWiring == null ? randomStageWiring() : null;
             default -> throw new AssertionError("invalid value");
         }
 
@@ -320,11 +395,38 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             runNodeLevelReduction,
             reductionLateMaterialization,
             singleNodeOptimizations,
-            List.of(),
-            requiredClusterStateVersion
+            in.externalSplits(),
+            requiredClusterStateVersion,
+            stageWiring
         );
         request.setParentTask(parentTask);
         return request;
+    }
+
+    private StageWiring randomStageWiring() {
+        return new StageWiring(
+            randomAlphaOfLength(10),
+            randomIntBetween(0, 100),
+            randomFrom(StagedPlanner.StagePlacement.values()),
+            randomList(0, 10, () -> randomIntBetween(0, 10)),
+            randomList(
+                1,
+                3,
+                () -> new StageWiring.Input(
+                    randomAlphaOfLength(10),
+                    randomList(
+                        2,
+                        3,
+                        () -> new StageWiring.Producer(randomIntBetween(0, 10), randomList(1, 3, () -> randomAlphaOfLength(10)))
+                    )
+                )
+            ),
+            new StageWiring.Output(
+                randomAlphaOfLength(10),
+                randomFrom(ExchangeDistribution.GATHER, ExchangeDistribution.HASH),
+                randomIntBetween(0, 10)
+            )
+        );
     }
 
     static Versioned<LogicalPlan> parse(String query) {

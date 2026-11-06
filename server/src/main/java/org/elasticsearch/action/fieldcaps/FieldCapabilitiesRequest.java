@@ -54,6 +54,7 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     private boolean includeEmptyFields = true;
+    private boolean includeFieldStats = false;
     @Nullable
     private ResolvedIndexExpressions resolvedIndexExpressions = null;
     @Nullable
@@ -105,6 +106,7 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
         } else {
             includeResolvedTo = false;
         }
+        includeFieldStats = in.getTransportVersion().supports(FieldCapabilitiesIndexResponse.SHARD_DOC_STATS_VERSION) && in.readBoolean();
     }
 
     public FieldCapabilitiesRequest() {}
@@ -155,6 +157,9 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
         }
         if (out.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
             out.writeBoolean(includeResolvedTo);
+        }
+        if (out.getTransportVersion().supports(FieldCapabilitiesIndexResponse.SHARD_DOC_STATS_VERSION)) {
+            out.writeBoolean(includeFieldStats);
         }
     }
 
@@ -324,6 +329,19 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
     }
 
     /**
+     * Whether each per-index response should carry {@link IndexFieldStats} for its fields, read from the shard copy that
+     * answered. They are planning hints for query planners and cost an extra pass over the segment metadata per field.
+     */
+    public boolean includeFieldStats() {
+        return includeFieldStats;
+    }
+
+    public FieldCapabilitiesRequest includeFieldStats(boolean includeFieldStats) {
+        this.includeFieldStats = includeFieldStats;
+        return this;
+    }
+
+    /**
      * Allows to filter indices if the provided {@link QueryBuilder} rewrites to `match_none` on every shard.
      */
     public FieldCapabilitiesRequest indexFilter(QueryBuilder indexFilter) {
@@ -386,7 +404,8 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
             && Arrays.equals(filters, that.filters)
             && Arrays.equals(types, that.types)
             && Objects.equals(runtimeFields, that.runtimeFields)
-            && includeEmptyFields == that.includeEmptyFields;
+            && includeEmptyFields == that.includeEmptyFields
+            && includeFieldStats == that.includeFieldStats;
     }
 
     @Override
@@ -398,7 +417,8 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
             indexFilter,
             nowInMillis,
             runtimeFields,
-            includeEmptyFields
+            includeEmptyFields,
+            includeFieldStats
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);

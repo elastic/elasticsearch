@@ -84,6 +84,7 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
             "/datasources/external-declared-schema.csv-spec",
             "/datasources/external-heavy-aggregates.csv-spec",
             "/datasources/external-highlight.csv-spec",
+            "/datasources/external-lookup-join.csv-spec",
             "/datasources/external-metadata-collision.csv-spec",
             "/datasources/external-metadata-score.csv-spec",
             "/datasources/external-multifile.csv-spec",

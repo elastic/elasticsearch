@@ -115,6 +115,30 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
     /**
+     * Number of hash-shuffle partitions per data node; zero disables shuffle planning. When unset and {@link #CBO} is on,
+     * the coordinator resolves it to its allocated processors, see {@link #withDefaultShufflePartitions}.
+     */
+    public static final Setting<Integer> SHUFFLE_PARTITIONS_PER_NODE = Setting.intSetting("shuffle_partitions_per_node", 0, 0);
+
+    /** Bounds queued output-exchange pages across a query, independently of operator memory and circuit breakers. */
+    public static final Setting<Integer> SHUFFLE_MAX_BUFFERED_PAGES = Setting.intSetting("shuffle_max_buffered_pages", 4096, 1);
+
+    /** Enables hash-shuffle aggregation when shuffle planning is enabled. */
+    public static final Setting<Boolean> SHUFFLE_AGG = Setting.boolSetting("shuffle_agg", false);
+
+    /** Enables hash-shuffle joins when shuffle planning is enabled. */
+    public static final Setting<Boolean> SHUFFLE_JOIN = Setting.boolSetting("shuffle_join", false);
+
+    /** Selects the exchange strategy for eligible subquery joins when shuffle planning is enabled. */
+    public static final Setting<String> SHUFFLE_JOIN_STRATEGY = Setting.simpleString("shuffle_join_strategy", "shuffle");
+
+    /** Enables cost-based selection of eligible join and aggregation distribution strategies. */
+    public static final Setting<Boolean> CBO = Setting.boolSetting("cost_based_optimizer", false);
+
+    /** Logs cost-based planner decisions at INFO instead of DEBUG. */
+    public static final Setting<Boolean> CBO_TRACE = Setting.boolSetting("cbo_trace", false);
+
+    /**
      * Query-level override for the IN subquery hash join threshold.
      * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.
      * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
@@ -274,6 +298,13 @@ public final class QueryPragmas implements Writeable {
         ROUNDTO_PUSHDOWN_THRESHOLD,
         MAX_KEYWORD_SORT_FIELDS,
         EXTERNAL_DISTRIBUTION,
+        SHUFFLE_PARTITIONS_PER_NODE,
+        SHUFFLE_MAX_BUFFERED_PAGES,
+        SHUFFLE_AGG,
+        SHUFFLE_JOIN,
+        SHUFFLE_JOIN_STRATEGY,
+        CBO,
+        CBO_TRACE,
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
         MAX_BRANCH_COUNT,
@@ -429,6 +460,72 @@ public final class QueryPragmas implements Writeable {
 
     public String externalDistribution() {
         return EXTERNAL_DISTRIBUTION.get(settings);
+    }
+
+    public int shufflePartitionsPerNode() {
+        return SHUFFLE_PARTITIONS_PER_NODE.get(settings);
+    }
+
+    public int shuffleMaxBufferedPages() {
+        return SHUFFLE_MAX_BUFFERED_PAGES.get(settings);
+    }
+
+    public boolean shuffleAgg() {
+        return SHUFFLE_AGG.get(settings);
+    }
+
+    public boolean shuffleJoin() {
+        return SHUFFLE_JOIN.get(settings);
+    }
+
+    /** Returns the exchange strategy for eligible subquery joins. */
+    public String shuffleJoinStrategy() {
+        return SHUFFLE_JOIN_STRATEGY.get(settings);
+    }
+
+    /** Indicates whether the query explicitly selected aggregation distribution. */
+    public boolean shuffleAggExplicit() {
+        return SHUFFLE_AGG.exists(settings);
+    }
+
+    /** Indicates whether the query explicitly enabled or disabled shuffle joins. */
+    public boolean shuffleJoinExplicit() {
+        return SHUFFLE_JOIN.exists(settings);
+    }
+
+    /** Indicates whether the query explicitly selected a shuffle join strategy. */
+    public boolean shuffleJoinStrategyExplicit() {
+        return SHUFFLE_JOIN_STRATEGY.exists(settings);
+    }
+
+    /** Returns whether cost-based physical planning is enabled for the query. */
+    public boolean cbo() {
+        return CBO.get(settings);
+    }
+
+    /** Returns whether cost-based plan decisions should be logged at info level. */
+    public boolean cboTrace() {
+        return CBO_TRACE.get(settings);
+    }
+
+    public boolean shuffleEnabled() {
+        return shufflePartitionsPerNode() > 0;
+    }
+
+    /**
+     * Turns on shuffle for cost-based planning without requiring a separate partition pragma. When {@link #CBO} is on
+     * and {@link #SHUFFLE_PARTITIONS_PER_NODE} is unset, returns pragmas with one partition per allocated processor,
+     * so each node runs one lane per core. The value is written into the pragmas rather than computed on read, so the
+     * optimizer, the stage scheduler and the data nodes all see the same partition count. An explicit value,
+     * including zero, is kept.
+     */
+    public QueryPragmas withDefaultShufflePartitions(int allocatedProcessors) {
+        if (cbo() == false || SHUFFLE_PARTITIONS_PER_NODE.exists(settings)) {
+            return this;
+        }
+        return new QueryPragmas(
+            Settings.builder().put(settings).put(SHUFFLE_PARTITIONS_PER_NODE.getKey(), Math.max(1, allocatedProcessors)).build()
+        );
     }
 
     public int parsingParallelism() {

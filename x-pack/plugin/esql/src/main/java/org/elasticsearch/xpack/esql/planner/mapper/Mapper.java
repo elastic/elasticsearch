@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.planner.mapper;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -17,6 +21,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.optimizer.cbo.JoinKey;
+import org.elasticsearch.xpack.esql.optimizer.cbo.JoinStrategyDecisionKind;
+import org.elasticsearch.xpack.esql.optimizer.cbo.PlanDecisionsHolder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -43,7 +50,10 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedLookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -59,10 +69,13 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * <p>This class is part of the planner</p>
@@ -74,8 +87,77 @@ import java.util.List;
  */
 public class Mapper {
 
+    private static final Logger logger = LogManager.getLogger(Mapper.class);
+
+    private static final Set<DataType> DISTRIBUTED_JOIN_KEY_TYPES = Set.of(
+        DataType.KEYWORD,
+        DataType.LONG,
+        DataType.INTEGER,
+        DataType.DATETIME,
+        DataType.IP,
+        DataType.BOOLEAN
+    );
+
+    private static final String NOT_DISTRIBUTABLE =
+        "the join cannot be distributed: it has a non-equality condition or mismatched or unsupported key types";
+
+    private final QueryPragmas pragmas;
+    private final PlanDecisionsHolder decisions;
+
     /* Used to add inner join semantics atop of left join operator. */
     public static final String JOIN_MARKER_PREFIX = Attribute.rawTemporaryName("_join_marker");
+
+    public Mapper() {
+        this(QueryPragmas.EMPTY);
+    }
+
+    /**
+     * Creates a mapper that can rewrite eligible joins into shuffle exchanges.
+     */
+    public Mapper(boolean shuffleJoin) {
+        this(new QueryPragmas(Settings.builder().put(QueryPragmas.SHUFFLE_JOIN.getKey(), shuffleJoin).build()));
+    }
+
+    /** Creates a mapper using the query's planner pragmas. */
+    public Mapper(QueryPragmas pragmas) {
+        this(pragmas, new PlanDecisionsHolder());
+    }
+
+    /** Creates a mapper that reads decisions from the query's shared planning state. */
+    public Mapper(QueryPragmas pragmas, PlanDecisionsHolder decisions) {
+        this.pragmas = pragmas;
+        this.decisions = decisions;
+    }
+
+    /**
+     * Checks whether a logical join can be mapped to shuffle exchanges without session-side subquery materialization.
+     */
+    public boolean shouldDistribute(Join join) {
+        return isDistributedJoinStrategy(selectJoinStrategy(join));
+    }
+
+    /** Checks whether both join sides can be distributed without changing join semantics. */
+    public static boolean distributedJoinEligible(Join join) {
+        JoinConfig config = join.config();
+        if (config.joinOnConditions() != null || config.leftFields().size() != config.rightFields().size()) {
+            return false;
+        }
+        for (int i = 0; i < config.leftFields().size(); i++) {
+            DataType leftType = config.leftFields().get(i).dataType();
+            if (leftType != config.rightFields().get(i).dataType() || DISTRIBUTED_JOIN_KEY_TYPES.contains(leftType) == false) {
+                return false;
+            }
+        }
+        if (join.config().type() != JoinTypes.LEFT
+            && (join instanceof SubqueryLookupJoin == false || join.config().type() != JoinTypes.INNER)) {
+            return false;
+        }
+        if (join instanceof SubqueryLookupJoin) {
+            return (join.executesOn() == ExecuteLocation.ANY || join.executesOn() == ExecuteLocation.COORDINATOR)
+                && join.right().anyMatch(Fork.class::isInstance) == false;
+        }
+        return join.executesOn() == ExecuteLocation.ANY && isIndexModeLookup(join.right());
+    }
 
     /** Fresh synthetic INTEGER lookup-ordinal attribute, see {@link #JOIN_MARKER_PREFIX}. */
     public static ReferenceAttribute newJoinMarker(Source source) {
@@ -92,6 +174,38 @@ public class Mapper {
 
     public static boolean isJoinMarker(Attribute attr) {
         return attr.name() != null && attr.name().startsWith(JOIN_MARKER_PREFIX);
+    }
+
+    static PhysicalPlan mapMaterializedSubqueryJoin(Join join, PhysicalPlan left, LocalSourceExec localData) {
+        List<Attribute> rightOutputFields = join.rightOutputFields();
+        if (join.config().type() == JoinTypes.INNER) {
+            var marker = newJoinMarker(join.source());
+            List<Attribute> addedFields = new ArrayList<>(rightOutputFields);
+            addedFields.add(marker);
+            PhysicalPlan mapped = new HashJoinExec(
+                join.source(),
+                left,
+                localData,
+                join.config().leftFields(),
+                join.config().rightFields(),
+                addedFields,
+                true
+            );
+            mapped = new FilterExec(join.source(), mapped, new IsNotNull(join.source(), marker));
+            return new ProjectExec(join.source(), mapped, join.output());
+        }
+        if (join.config().type() == JoinTypes.LEFT) {
+            return new HashJoinExec(
+                join.source(),
+                left,
+                localData,
+                join.config().leftFields(),
+                join.config().rightFields(),
+                rightOutputFields,
+                true
+            );
+        }
+        throw new EsqlIllegalArgumentException("unsupported join type [" + join.config().type() + "]");
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
@@ -235,6 +349,16 @@ public class Mapper {
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
+        if (bp instanceof Join join) {
+            JoinStrategySelector.JoinStrategy strategy = selectJoinStrategy(join);
+            if (isDistributedJoinStrategy(strategy)) {
+                PhysicalPlan left = mapInner(join.left());
+                PhysicalPlan right = join instanceof SubqueryLookupJoin
+                    ? mapInner(join.right())
+                    : new FragmentExec(lookupScan(join.right()));
+                return distributedJoin(join, left, right, strategy);
+            }
+        }
         if (bp instanceof InnerJoin innerJoin) {
             PhysicalPlan left = mapInner(bp.left());
             PhysicalPlan right = mapInner(bp.right());
@@ -264,7 +388,8 @@ public class Mapper {
         }
         if (bp instanceof Join join) {
             JoinConfig config = join.config();
-            if (config.type() != JoinTypes.LEFT) {
+            boolean materializedSubqueryInnerJoin = join instanceof MaterializedLookupJoin && config.type() == JoinTypes.INNER;
+            if (config.type() != JoinTypes.LEFT && materializedSubqueryInnerJoin == false) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
@@ -291,13 +416,17 @@ public class Mapper {
             PhysicalPlan right = mapInner(bp.right());
             // if the right is data we can use a hash join directly
             if (right instanceof LocalSourceExec localData) {
+                if (join instanceof MaterializedLookupJoin) {
+                    return mapMaterializedSubqueryJoin(join, left, localData);
+                }
                 return new HashJoinExec(
                     join.source(),
                     left,
                     localData,
                     config.leftFields(),
                     config.rightFields(),
-                    join.rightOutputFields()
+                    join.rightOutputFields(),
+                    false
                 );
             }
             if (right instanceof FragmentExec fragment) {
@@ -318,16 +447,95 @@ public class Mapper {
         return MapperUtils.unsupported(bp);
     }
 
+    private static LogicalPlan lookupScan(LogicalPlan plan) {
+        return plan.transformDown(
+            EsRelation.class,
+            relation -> new EsRelation(
+                relation.source(),
+                relation.indexPattern(),
+                IndexMode.STANDARD,
+                Map.of("", List.of(relation.indexPattern())),
+                relation.concreteIndices(),
+                relation.indexProperties(),
+                relation.output()
+            )
+        );
+    }
+
+    private PhysicalPlan distributedJoin(Join join, PhysicalPlan left, PhysicalPlan right, JoinStrategySelector.JoinStrategy strategy) {
+        Source source = join.source();
+        List<Attribute> leftFields = join.config().leftFields();
+        List<Attribute> rightFields = join.config().rightFields();
+        List<Attribute> addedFields = new ArrayList<>(join.rightOutputFields());
+        ReferenceAttribute marker = null;
+        if (join.config().type() == JoinTypes.INNER) {
+            marker = newJoinMarker(source);
+            addedFields.add(marker);
+        }
+
+        DistributedHashJoinExec.Mode mode = strategy == JoinStrategySelector.JoinStrategy.BROADCAST
+            ? DistributedHashJoinExec.Mode.BROADCAST
+            : DistributedHashJoinExec.Mode.SHUFFLE;
+        PhysicalPlan mapped = new DistributedHashJoinExec(source, left, right, leftFields, rightFields, addedFields, mode);
+        if (marker != null) {
+            mapped = new ProjectExec(source, new FilterExec(source, mapped, new IsNotNull(source, marker)), join.output());
+        }
+        return mapped;
+    }
+
     private static boolean isIndexModeLookup(FragmentExec fragment) {
-        // we support 2 cases:
-        // EsRelation in index_mode=lookup
-        boolean isIndexModeLookup = fragment.fragment() instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
-        // or Filter(EsRelation) in index_mode=lookup
-        isIndexModeLookup = isIndexModeLookup
-            || fragment.fragment() instanceof Filter filter
-                && filter.child() instanceof EsRelation relation
-                && relation.indexMode() == IndexMode.LOOKUP;
-        return isIndexModeLookup;
+        return isIndexModeLookup(fragment.fragment());
+    }
+
+    /** Finds lookup-mode index sources through the filter shape supported by lookup joins. */
+    public static boolean isIndexModeLookup(LogicalPlan plan) {
+        if (plan instanceof EsRelation relation) {
+            return relation.indexMode() == IndexMode.LOOKUP;
+        }
+        return plan instanceof Filter filter && filter.child() instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
+    }
+
+    private JoinStrategySelector.JoinStrategy selectJoinStrategy(Join join) {
+        boolean canCheckLeftScan = (pragmas.shuffleJoin() || pragmas.cbo())
+            && distributedJoinEligible(join)
+            && JoinStrategySelector.isLookupIndexJoin(join);
+        boolean leftIsScan = canCheckLeftScan && mapInner(join.left()) instanceof FragmentExec;
+        var decided = decisions.get().join(join);
+        if (decided.isEmpty()) {
+            return JoinStrategySelector.select(join, pragmas, leftIsScan);
+        }
+        JoinStrategySelector.JoinStrategy strategy = decided.get();
+        String illegal = illegalDecisionReason(join, strategy, leftIsScan);
+        JoinStrategySelector.JoinStrategy effective = strategy;
+        if (illegal != null) {
+            logger.debug("Ignoring cost-based join decision [{}] for join [{}] because {}", strategy, join, illegal);
+            effective = JoinStrategySelector.select(join, pragmas, leftIsScan);
+        }
+        decisions.record(JoinStrategyDecisionKind.INSTANCE, JoinKey.of(join), strategy.name(), effective.name(), illegal);
+        return effective;
+    }
+
+    /** Returns why {@code strategy} cannot execute {@code join}, or {@code null} if it can. */
+    @Nullable
+    private static String illegalDecisionReason(Join join, JoinStrategySelector.JoinStrategy strategy, boolean leftIsScan) {
+        boolean subquery = join instanceof SubqueryLookupJoin;
+        boolean lookupIndex = JoinStrategySelector.isLookupIndexJoin(join);
+        return switch (strategy) {
+            case MATERIALIZED -> subquery ? null : "MATERIALIZED applies only to subquery joins";
+            case BROADCAST -> subquery == false ? "BROADCAST applies only to subquery joins"
+                : distributedJoinEligible(join) ? null
+                : NOT_DISTRIBUTABLE;
+            case SHUFFLE -> distributedJoinEligible(join) == false ? NOT_DISTRIBUTABLE
+                : subquery || lookupIndex && leftIsScan ? null
+                : lookupIndex ? "SHUFFLE lookup requires a scan fragment on the left side"
+                : "SHUFFLE applies only to subquery and lookup-index joins";
+            case LOOKUP -> lookupIndex ? null : "LOOKUP applies only to lookup-index joins";
+            case LOCAL -> subquery || lookupIndex ? "LOCAL does not apply to subquery or lookup-index joins" : null;
+        };
+    }
+
+    private static boolean isDistributedJoinStrategy(JoinStrategySelector.JoinStrategy strategy) {
+        return strategy == JoinStrategySelector.JoinStrategy.SHUFFLE || strategy == JoinStrategySelector.JoinStrategy.BROADCAST;
     }
 
     private PhysicalPlan mapMergePlan(MergePlan merge) {

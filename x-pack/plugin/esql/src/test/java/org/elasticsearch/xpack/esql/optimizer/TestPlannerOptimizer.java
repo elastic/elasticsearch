@@ -51,7 +51,7 @@ public class TestPlannerOptimizer {
         this.logicalOptimizer = logicalOptimizer;
 
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion()));
-        mapper = new Mapper();
+        mapper = new Mapper(config.pragmas());
 
     }
 
@@ -83,6 +83,14 @@ public class TestPlannerOptimizer {
         LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
         LogicalPlan subPlan = InlineJoin.firstSubPlan(logical, new HashSet<>()).stubReplacedSubPlan();
         return optimizedPlan(mapper.map(new Versioned<>(subPlan, analyzer.context().minimumVersion())), stats);
+    }
+
+    /**
+     * Builds the distributed physical plan before it is split into coordinator and data-node plans.
+     * This exposes the same boundary used by {@link PlannerUtils#breakPlanBetweenCoordinatorAndDataNode} to planner tests.
+     */
+    public PhysicalPlan distributedPlan(String query) {
+        return EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan(query, analyzer)));
     }
 
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {

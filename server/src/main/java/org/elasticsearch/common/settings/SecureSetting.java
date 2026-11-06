@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.UpdateForV10;
@@ -18,6 +19,7 @@ import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * A secure setting.
@@ -33,7 +35,9 @@ public abstract class SecureSetting<T> extends Setting<T> {
     private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(
         Property.Deprecated,
         Property.DeprecatedWarning,
-        Property.Consistent
+        Property.Consistent,
+        Property.Dynamic,
+        Property.OperatorDynamic
     );
 
     private static final Property[] FIXED_PROPERTIES = { Property.NodeScope };
@@ -125,6 +129,15 @@ public abstract class SecureSetting<T> extends Setting<T> {
      */
     @Override
     public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {}
+
+    /**
+     * Dynamic secure settings are never part of a cluster settings update, so an update consumer would never fire. Their new values
+     * reach {@link org.elasticsearch.plugins.ReloadablePlugin#reload} instead.
+     */
+    @Override
+    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> validator) {
+        throw new IllegalStateException("secure setting [" + getKey() + "] cannot have a settings update consumer");
+    }
 
     /**
      * A setting which contains a sensitive string.

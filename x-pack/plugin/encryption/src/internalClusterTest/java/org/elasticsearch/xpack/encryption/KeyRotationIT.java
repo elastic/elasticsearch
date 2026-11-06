@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -50,10 +51,10 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -204,7 +205,10 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         for (int count : keyAddEvents) {
             assertThat("each install or rotation must add exactly one key", count, equalTo(1));
         }
-        assertThat("no handlers registered, handlerKeyIds must be empty", metadataOnMaster().getHandlerKeyIds(), anEmptyMap());
+        // handlers of other modules on the test classpath (such as secure-settings) are discovered too
+        Map<String, String> handlerKeyIds = metadataOnMaster().getHandlerKeyIds();
+        assertThat("no test handlers registered", handlerKeyIds, not(hasKey(AlphaBlob.TYPE)));
+        assertThat("no test handlers registered", handlerKeyIds, not(hasKey(BetaBlob.TYPE)));
     }
 
     public void testRotationCycleWithNoHandlers() throws Exception {

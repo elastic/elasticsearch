@@ -896,6 +896,9 @@ public abstract class AbstractScopedSettings {
             ((onlyDynamic == false && get(key) != null) || isDynamicSetting(key)));
         for (String key : toApply.keySet()) {
             boolean isDelete = toApply.hasValue(key) == false;
+            if (get(key) instanceof SecureSetting<?>) {
+                throw new IllegalArgumentException(type + " setting [" + key + "] is a secure setting and cannot be stored as plain text");
+            }
             if (isDelete && (isValidDelete(key, onlyDynamic) || key.endsWith("*"))) {
                 // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
                 // we don't validate if there is any dynamic setting with that prefix yet we could do in the future

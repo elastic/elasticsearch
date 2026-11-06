@@ -90,6 +90,7 @@ public enum SearchResponseUtils {
         return response(hits).build();
     }
 
+    @Deprecated // Use List<ShardSearchFailure> instead
     public static SearchResponse emptyWithTotalHits(
         String scrollId,
         int totalShards,
@@ -97,6 +98,18 @@ public enum SearchResponseUtils {
         int skippedShards,
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
+        SearchResponse.Clusters clusters
+    ) {
+        return emptyWithTotalHits(scrollId, totalShards, successfulShards, skippedShards, tookInMillis, List.of(shardFailures), clusters);
+    }
+
+    public static SearchResponse emptyWithTotalHits(
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        List<ShardSearchFailure> shardFailures,
         SearchResponse.Clusters clusters
     ) {
         return new SearchResponse(

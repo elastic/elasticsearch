@@ -9,8 +9,11 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -99,6 +102,62 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
         // NOOP metrics records to MeterRegistry.NOOP, so nothing shows up in the test telemetry plugin
         var measurements = telemetryPlugin.getLongHistogramMeasurement(TokenCountingMetrics.FIELD_TOKEN_COUNT);
         assertEquals(0, measurements.size());
+    }
+
+    public void testReusesComponentsLikeTheDelegate() throws IOException {
+        try (StandardAnalyzer delegate = new StandardAnalyzer()) {
+            // StandardAnalyzer reuses one chain for all fields, so the counting wrapper must too
+            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, TokenCountingMetrics.NOOP);
+            TokenStream first;
+            try (TokenStream ts = analyzer.tokenStream("field_a", "quick brown fox")) {
+                first = ts;
+            }
+            try (TokenStream ts = analyzer.tokenStream("field_b", "quick brown fox")) {
+                assertSame(first, ts);
+            }
+        }
+    }
+
+    public void testRejectsNamedAnalyzer() {
+        try (NamedAnalyzer named = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer())) {
+            expectThrows(AssertionError.class, () -> new TokenCountingAnalyzer(named, TokenCountingMetrics.NOOP));
+        }
+    }
+
+    public void testRejectsDelegatingAnalyzer() {
+        try (
+            StandardAnalyzer standard = new StandardAnalyzer();
+            Analyzer perField = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+                @Override
+                protected Analyzer getWrappedAnalyzer(String fieldName) {
+                    return standard;
+                }
+            }
+        ) {
+            // borrowing this strategy would silently cache a chain per field
+            expectThrows(AssertionError.class, () -> new TokenCountingAnalyzer(perField, TokenCountingMetrics.NOOP));
+        }
+    }
+
+    public void testAcceptsPerFieldReuseStrategy() throws IOException {
+        try (Analyzer delegate = new Analyzer(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                return new TokenStreamComponents(new StandardTokenizer());
+            }
+        }) {
+            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, TokenCountingMetrics.NOOP);
+            TokenStream first;
+            try (TokenStream ts = analyzer.tokenStream("field_a", "quick brown fox")) {
+                first = ts;
+            }
+            try (TokenStream ts = analyzer.tokenStream("field_a", "quick brown fox")) {
+                assertSame(first, ts);
+            }
+            try (TokenStream ts = analyzer.tokenStream("field_b", "quick brown fox")) {
+                assertNotSame(first, ts);
+            }
+        }
     }
 
     private TokenCountingMetrics createMetrics() {

@@ -112,6 +112,14 @@ In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read
 
 `LOAD_ALL` also loads the fully unmapped fields that the query doesn't reference. It returns them in the `_unmapped_fields` column.
 
+### Fields that are mapped after documents were indexed [esql-unmapped-fields-mapped-later]
+
+`LOAD` and `LOAD_ALL` read a field from `_source` only while the index doesn't map it. Once you add the field to the mapping, {{esql}} reads it like any other mapped field, from the data structures that were built when each document was indexed. Documents indexed before the mapping update have no such data for the field, so it is `null` for them, even though `_source` still contains the value. This is the same behavior as for any mapped field that you add to an existing index, and it applies with or without `SET unmapped_fields`.
+
+For example, with `"dynamic": false`, a field `f` that is first read with `LOAD` returns its values for every document. After you map `f` as `keyword`, the same query returns `null` for the documents that were indexed before the mapping, and the real value only for newer documents. If the query uses `LOAD_ALL`, the old value is also missing from the `_unmapped_fields` column, because `f` is no longer an unmapped field.
+
+The value is not lost. It remains in `_source`, and the [get API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get) still returns it. To make the older documents readable through the mapped field, rewrite them, for example with the [update by query API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query) or by [reindexing](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) into an index with the new mapping.
+
 ### Other restrictions [esql-unmapped-fields-other-restrictions]
 
 `LOAD` and `LOAD_ALL` do not support every command, function, and field type. Notable restrictions include:

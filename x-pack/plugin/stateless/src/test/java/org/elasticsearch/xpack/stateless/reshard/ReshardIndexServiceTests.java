@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.hamcrest.Matchers.containsString;
@@ -88,7 +89,9 @@ public class ReshardIndexServiceTests extends ESTestCase {
             )
             .build();
 
-        var transitionSourceStateExecutor = new ReshardIndexService.TransitionSourceStateExecutor();
+        var transitionSourceStateExecutor = new ReshardIndexService.TransitionSourceStateExecutor(
+            (reason, priority, listener) -> listener.onResponse(null)
+        );
 
         for (var newTargetState : IndexReshardingState.Split.TargetShardState.values()) {
             if (newTargetState == IndexReshardingState.Split.TargetShardState.CLONE) continue;
@@ -106,14 +109,30 @@ public class ReshardIndexServiceTests extends ESTestCase {
                         ActionListener.wrap(unused -> {}, ESTestCase::fail)
                     );
                     if (expectSuccess) {
-                        clusterState = transitionSourceStateExecutor.executeTask(transitionSourceToReadyForCleanup, clusterState).v1();
+                        final var readyForCleanup = transitionSourceStateExecutor.executeTask(
+                            transitionSourceToReadyForCleanup,
+                            clusterState
+                        );
+                        clusterState = readyForCleanup.v1();
+                        assertFalse(
+                            "moving a split source to READY_FOR_CLEANUP does not remove the resharding metadata",
+                            readyForCleanup.v2()
+                        );
                         var transitionSourceToDone = new ReshardIndexService.TransitionSourceStateTask(
                             shardId,
                             null,
                             IndexReshardingState.Split.SourceShardState.DONE,
                             ActionListener.wrap(unused -> {}, ESTestCase::fail)
                         );
-                        clusterState = transitionSourceStateExecutor.executeTask(transitionSourceToDone, clusterState).v1();
+                        final var done = transitionSourceStateExecutor.executeTask(transitionSourceToDone, clusterState);
+                        clusterState = done.v1();
+                        final boolean removedReshardingMetadata = done.v2();
+                        // Only the last source shard to finish removes the resharding metadata
+                        assertThat(removedReshardingMetadata, equalTo(sourceId == numShards - 1));
+                        assertThat(
+                            removedReshardingMetadata,
+                            equalTo(clusterState.metadata().getProject(projectId).index(index).getReshardingMetadata() == null)
+                        );
                     } else {
                         var finalClusterState = clusterState;
                         var error = expectThrows(
@@ -125,6 +144,29 @@ public class ReshardIndexServiceTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testRerouteAfterRemovingReshardingMetadata() {
+        final var reroutes = new AtomicInteger();
+        final var transitionSourceStateExecutor = new ReshardIndexService.TransitionSourceStateExecutor((reason, priority, listener) -> {
+            reroutes.incrementAndGet();
+            listener.onResponse(null);
+        });
+        final var listenerCalls = new AtomicInteger();
+        final var task = new ReshardIndexService.TransitionSourceStateTask(
+            new ShardId(new Index(randomIndexName(), INDEX_UUID_NA_VALUE), 0),
+            null,
+            IndexReshardingState.Split.SourceShardState.DONE,
+            ActionListener.wrap(unused -> listenerCalls.incrementAndGet(), ESTestCase::fail)
+        );
+
+        transitionSourceStateExecutor.taskSucceeded(task, false);
+        assertThat(listenerCalls.get(), equalTo(1));
+        assertThat("a source state transition that does not remove the resharding metadata must not reroute", reroutes.get(), equalTo(0));
+
+        transitionSourceStateExecutor.taskSucceeded(task, true);
+        assertThat(listenerCalls.get(), equalTo(2));
+        assertThat("removing the resharding metadata must reroute", reroutes.get(), equalTo(1));
     }
 
     public void testInvalidSourceStateTransition() throws Exception {
@@ -150,7 +192,9 @@ public class ReshardIndexServiceTests extends ESTestCase {
             )
             .build();
 
-        var transitionSourceStateExecutor = new ReshardIndexService.TransitionSourceStateExecutor();
+        var transitionSourceStateExecutor = new ReshardIndexService.TransitionSourceStateExecutor(
+            (reason, priority, listener) -> listener.onResponse(null)
+        );
 
         var task = new ReshardIndexService.TransitionSourceStateTask(
             shardId,

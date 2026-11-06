@@ -63,6 +63,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocat
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -547,45 +548,61 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-    public void testCanRemainReturnsYesWhenIndexIsBeingResharded() {
+    public void testCanRemainReturnsYesForSplitSourcesWhenIndexIsBeingResharded() {
         setup(Settings.EMPTY, () -> Settings.EMPTY, 1);
 
         // Both index node 2 and search node 2 will be over the threshold
         moveAShard(indexNodeOne, indexNodeTwo);
         moveAShard(searchNodeOne, searchNodeTwo);
 
-        final var reshardingIndexMetadata = IndexMetadata.builder(indexMetadata)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(numberOfPrimaryShards / 2, 2))
-            .build();
+        // The test reads the current index as the result of a 2x split
+        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(numberOfPrimaryShards / 2, 2);
+        final var reshardingIndexMetadata = IndexMetadata.builder(indexMetadata).reshardingMetadata(reshardingMetadata).build();
         final var projectMetadata = clusterState.metadata().projectFor(indexMetadata.getIndex());
         clusterState = ClusterState.builder(clusterState)
             .putProjectMetadata(ProjectMetadata.builder(projectMetadata).put(reshardingIndexMetadata, true))
             .build();
         refreshDerivedState();
 
-        assertDecisionMatches(
-            "Shards of an index being resharded are allowed to remain on an index node over the threshold",
-            indexBalanceAllocationDecider.canRemain(
+        final var overThresholdExplanation = "There are [2] eligible nodes in the [*] tier for assignment of [*] shards in index *";
+        int splitSources = 0;
+        int splitTargets = 0;
+        for (ShardRouting shardRouting : clusterState.getRoutingNodes().node(indexNodeTwo.getId()).copyShards()) {
+            final var decision = indexBalanceAllocationDecider.canRemain(
                 reshardingIndexMetadata,
-                getRandomShardRouting(indexNodeTwo),
+                shardRouting,
                 routingIndexNodeTwo,
                 routingAllocation
-            ),
-            Decision.Type.YES,
-            "Decider is disabled for indices that are being resharded."
-        );
+            );
+            if (IndexReshardingMetadata.isSplitSource(shardRouting.shardId(), reshardingMetadata)) {
+                splitSources++;
+                assertDecisionMatches(
+                    "Split sources are allowed to remain on an index node over the threshold",
+                    decision,
+                    Decision.Type.YES,
+                    "Decider is disabled for split sources of indices that are being resharded."
+                );
+            } else {
+                splitTargets++;
+                assertDecisionMatches(
+                    "Split targets are not preferred to remain on an index node over the threshold",
+                    decision,
+                    Decision.Type.NOT_PREFERRED,
+                    overThresholdExplanation
+                );
+            }
+        }
+        assertThat(splitSources, greaterThan(0));
+        assertThat(splitTargets, greaterThan(0));
 
-        assertDecisionMatches(
-            "Shards of an index being resharded are allowed to remain on a search node over the threshold",
-            indexBalanceAllocationDecider.canRemain(
-                reshardingIndexMetadata,
-                getRandomShardRouting(searchNodeTwo),
-                routingSearchNodeTwo,
-                routingAllocation
-            ),
-            Decision.Type.YES,
-            "Decider is disabled for indices that are being resharded."
-        );
+        for (ShardRouting shardRouting : clusterState.getRoutingNodes().node(searchNodeTwo.getId()).copyShards()) {
+            assertDecisionMatches(
+                "Search shards of an index being resharded are not preferred to remain on a search node over the threshold",
+                indexBalanceAllocationDecider.canRemain(reshardingIndexMetadata, shardRouting, routingSearchNodeTwo, routingAllocation),
+                Decision.Type.NOT_PREFERRED,
+                overThresholdExplanation
+            );
+        }
 
         // canAllocate still accounts for the resharding index, so that split targets are spread across nodes
         assertDecisionMatches(
@@ -600,7 +617,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         final var settings = Settings.builder()
             .put("stateless.enabled", "true")
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), "true")
-            // Index tier rebalancing is disabled in stateless, so only canRemain can move shards of the index
+            // Index tier rebalancing is disabled in stateless
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .build();
         final var allocationService = createAllocationService(settings);
@@ -631,7 +648,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("index-node-1").numberOfOwningShardsForIndex(index), equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("index-node-2").numberOfOwningShardsForIndex(index), equalTo(2));
 
-        // Split the index to 8 shards, adding the unassigned targets the same way as ReshardIndexService does
+        // Split the index to 8 shards
         final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceShardCount, 2);
         final var split = reshardingMetadata.getSplit();
         final var splitIndexMetadata = IndexMetadata.builder(clusterState.metadata().getProject(projectId).index(index))
@@ -677,7 +694,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             empty()
         );
 
-        // Once the targets have started and the split has completed, the index is balanced across the three nodes again
+        // Once the split has completed, the index is balanced across the three nodes again
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         clusterState = ClusterState.builder(clusterState)
             .putProjectMetadata(

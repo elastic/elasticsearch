@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -116,11 +117,11 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "Decider is disabled for index level allocation filters.");
         }
 
-        // Moving a split source shard cancels its in-flight splits and makes its targets fail and retry until the move
-        // completes. Split targets also count towards the node's shards of the index, so we don't move shards of a
-        // resharding index for balance reasons until the split completes.
-        if (indexMetadata.getReshardingMetadata() != null) {
-            return allocation.decision(Decision.YES, NAME, "Decider is disabled for indices that are being resharded.");
+        // Moving a split source cancels its in-flight splits and makes its targets fail and retry until the move completes, so we
+        // don't move split sources for balance reasons until the split completes. Split targets can still be moved once started.
+        if (shardRouting.primary()
+            && IndexReshardingMetadata.isSplitSource(shardRouting.shardId(), indexMetadata.getReshardingMetadata())) {
+            return allocation.decision(Decision.YES, NAME, "Decider is disabled for split sources of indices that are being resharded.");
         }
 
         Index index = shardRouting.index();

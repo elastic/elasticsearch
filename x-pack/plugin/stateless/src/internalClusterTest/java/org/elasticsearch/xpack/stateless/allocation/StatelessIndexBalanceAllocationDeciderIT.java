@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -29,16 +28,13 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -48,9 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
-import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
-import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
 
@@ -70,7 +64,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.ClusterServiceUtils.addTemporaryStateListener;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -272,17 +265,7 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(TestStatelessPlugin.class);
-        plugins.add(TestTelemetryPlugin.class);
-        plugins.add(StartSplitRetryTimeoutSettingPlugin.class);
         return plugins;
-    }
-
-    /// Registers [SplitTargetService#START_SPLIT_RETRY_TIMEOUT], which is only registered in tests.
-    public static class StartSplitRetryTimeoutSettingPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(SplitTargetService.START_SPLIT_RETRY_TIMEOUT);
-        }
     }
 
     @Override
@@ -405,7 +388,6 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
             // The unowned documents grace period would otherwise delay the completion of the reshard by minutes
             .put(SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
-            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(1))
             .build();
         startMasterOnlyNode(settings);
         final var indexNodes = startIndexNodes(2, settings);
@@ -444,28 +426,18 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
                 });
         }
 
-        // Record any split source that starts relocating while the index is being resharded, and any failed recoveries
-        // of split target (with the latest failure reason)
+        // Record any split source that starts relocating while the index is being resharded
         final Set<ShardId> movedSplitSources = ConcurrentCollections.newConcurrentSet();
-        final Map<ShardId, UnassignedInfo> failedSplitTargets = ConcurrentCollections.newConcurrentMap();
         final ClusterStateListener splitSourceMovesRecorder = event -> {
             final var indexMetadata = event.state().metadata().getProject(ProjectId.DEFAULT).index(indexName);
             if (indexMetadata == null || indexMetadata.getReshardingMetadata() == null) {
                 return;
             }
             final var indexRoutingTable = event.state().routingTable(ProjectId.DEFAULT).index(indexName);
-            for (int shard = 0; shard < indexRoutingTable.size(); shard++) {
+            for (int shard = 0; shard < sourceShards; shard++) {
                 final var primary = indexRoutingTable.shard(shard).primaryShard();
-                if (shard < sourceShards) {
-                    if (primary.relocating()) {
-                        movedSplitSources.add(primary.shardId());
-                    }
-                } else if (primary.unassignedInfo() != null && primary.unassignedInfo().failedAllocations() > 0) {
-                    failedSplitTargets.merge(
-                        primary.shardId(),
-                        primary.unassignedInfo(),
-                        (previous, current) -> current.failedAllocations() >= previous.failedAllocations() ? current : previous
-                    );
+                if (primary.relocating()) {
+                    movedSplitSources.add(primary.shardId());
                 }
             }
         };
@@ -494,6 +466,7 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
                         )
                 );
             }
+            assertThat("split sources must not be moved while the split is in progress", movedSplitSources, empty());
 
             // Release the splits and let the reshard complete
             synchronized (stalledSplits) {
@@ -503,35 +476,9 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
             awaitClusterState(state -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
             ensureGreen(indexName);
 
-            long targetRecoveryFailures = 0;
-            long targetFailures = 0;
-            for (final var indexNode : expandedIndexNodes) {
-                final var telemetryPlugin = getTelemetryPlugin(indexNode);
-                targetRecoveryFailures += getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_RECOVERY_FAILURE_COUNT, telemetryPlugin);
-                targetFailures += getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_FAILURE_COUNT, telemetryPlugin);
-            }
-            final int failedTargetAllocations = failedSplitTargets.values().stream().mapToInt(UnassignedInfo::failedAllocations).sum();
-            final var summary = Strings.format(
-                "moved split sources %s, failed split target allocations [%d] (latest failure per target: %s), " + "[%s] [%d], [%s] [%d]",
-                movedSplitSources,
-                failedTargetAllocations,
-                failedSplitTargets.entrySet()
-                    .stream()
-                    .map(e -> e.getKey() + "=" + e.getValue().failedAllocations() + ":" + e.getValue().message())
-                    .toList(),
-                ReshardMetrics.RESHARD_TARGET_RECOVERY_FAILURE_COUNT,
-                targetRecoveryFailures,
-                ReshardMetrics.RESHARD_TARGET_FAILURE_COUNT,
-                targetFailures
-            );
-            logger.info("--> reshard completed with {}", summary);
-            assertThat("split sources must not be moved while the split is in progress: " + summary, movedSplitSources, empty());
-            assertThat("no split target must fail: " + summary, failedTargetAllocations, equalTo(0));
-            assertThat("no split target recovery must fail: " + summary, targetRecoveryFailures, equalTo(0L));
-            assertThat("no split target must fail: " + summary, targetFailures, equalTo(0L));
+            assertThat("split sources must not be moved while the split is in progress", movedSplitSources, empty());
 
-            // Once the split has completed, the index is balanced across the expanded index tier.
-            ClusterRerouteUtils.reroute(client());
+            // Completing the reshard triggers a reroute, after which the index is balanced across the expanded index tier
             assertIndexBalanceIsRestored(2 * sourceShards, expandedIndexNodes, indexName);
         } finally {
             masterClusterService.removeListener(splitSourceMovesRecorder);

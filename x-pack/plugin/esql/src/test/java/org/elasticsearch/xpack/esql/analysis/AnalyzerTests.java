@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Typed;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
@@ -148,6 +149,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -5599,6 +5601,47 @@ public class AnalyzerTests extends AnalyzerTestCase {
             FROM tdigest_standard_index
             | STATS c = COUNT(*) BY b = BUCKET(responseTime, 10, 0, 100, {"include_empty_buckets": true})
             """, containsString("does not support option [include_empty_buckets] for [tdigest] inputs"));
+    }
+
+    /**
+     * TYPED declares every type as supported, so ResolveUnionTypes builds a conversion entry per mapped
+     * type and its all-or-nothing check passes. A conversion that declines any mapped type refuses the
+     * whole query instead.
+     */
+    public void testTypedResolvesConflictedField() {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("union_index_1"));
+        typesToIndices.put("integer", Set.of("union_index_2"));
+
+        EsIndex index = new EsIndex(
+            "union_index*",
+            Map.of("id", new InvalidMappedField("id", typesToIndices)),
+            Map.of(
+                "union_index_1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_index_2",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
+            Map.of(),
+            Map.of()
+        );
+
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query("FROM union_index* | EVAL t = TYPED(id, \"integer\")");
+
+        // The function is folded into the union field, so the alias holds the synthetic attribute, not TYPED.
+        Eval eval = as(as(as(plan, Project.class).child(), Limit.class).child(), Eval.class);
+        Alias alias = as(eval.fields().getFirst(), Alias.class);
+        FieldAttribute converted = as(alias.child(), FieldAttribute.class);
+        verifyNameAndType(converted.name(), converted.dataType(), "$$id$converted_to$integer", INTEGER);
+
+        // One entry per mapped type, each pinned to that type, so the data node can pick by shard mapping.
+        UnionTypeEsField unionField = as(converted.field(), UnionTypeEsField.class);
+        List<DataType> legTypes = unionField.getConversionExpressions()
+            .stream()
+            .map(e -> as(e, Typed.class).field().dataType())
+            .sorted(Comparator.comparing(DataType::typeName))
+            .toList();
+        assertThat(legTypes, equalTo(List.of(INTEGER, KEYWORD)));
     }
 
     public void testProjectionForUnionTypeResolution() {

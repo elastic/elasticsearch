@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Typed;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -98,6 +99,7 @@ public class ScalarFunctionWritables {
         entries.add(EndsWith.ENTRY);
         entries.add(FieldExtract.ENTRY);
         entries.add(FromAggregateMetricDouble.ENTRY);
+        entries.add(Typed.ENTRY);
         entries.add(Greatest.ENTRY);
         entries.add(CopySign.ENTRY);
         entries.add(Hash.ENTRY);

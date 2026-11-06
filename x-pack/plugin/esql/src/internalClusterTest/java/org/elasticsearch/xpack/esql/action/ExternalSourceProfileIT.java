@@ -76,7 +76,7 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testExternalQueryProfileSelectionArePopulated() throws Exception {
+    public void testExternalQueryProfileFieldsArePopulated() throws Exception {
         Path parquetFile = writeParquetFile(300, 100);
         try {
             String dataset = registerDataset("profile", StoragePath.fileUri(parquetFile), Map.of());

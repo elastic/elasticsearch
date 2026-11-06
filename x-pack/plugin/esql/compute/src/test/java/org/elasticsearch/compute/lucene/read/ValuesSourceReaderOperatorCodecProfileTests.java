@@ -65,6 +65,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -594,6 +596,35 @@ public class ValuesSourceReaderOperatorCodecProfileTests extends ComputeTestCase
         }
     }
 
+    public void testAnOperatorMovedToAnotherThreadReopensItsReaderUnderTheSameProfile() throws Exception {
+        final StubLoader loader = new StubLoader();
+        final ValuesSourceReaderOperator.Factory factory = factory(Map.of("stub", loader), true, ProfileSelection.EVERYTHING);
+        final DriverContext driverContext = driverContext();
+        final ExecutorService first = Executors.newSingleThreadExecutor();
+        final ExecutorService second = Executors.newSingleThreadExecutor();
+        try (Operator operator = factory.get(driverContext)) {
+            first.submit(() -> run(operator, driverContext, 0, 3)).get();
+            assertFalse("the first worker keeps no scope bound", first.submit(TestCollectors::isBound).get());
+            final ValuesSourceReaderOperatorStatus afterFirst = status(operator);
+
+            second.submit(() -> run(operator, driverContext, 3, 8)).get();
+            assertFalse("the second worker keeps no scope bound", second.submit(TestCollectors::isBound).get());
+
+            final Map<String, Long> expected = Map.of("ColumNAR.test.stub_readers", 2L, "ColumNAR.test.stub_values", 8L);
+            assertThat("the second worker opened its own reader for the same operator", total(operator), equalTo(expected));
+            assertThat(pairs(operator), equalTo(Map.of(SHARD + "/" + segment() + "/stub", expected)));
+            assertThat(
+                "a status taken before the move does not change",
+                TestCollectors.toKeyedValues(afterFirst.codecReads().totals().get(CODEC)),
+                equalTo(Map.of("ColumNAR.test.stub_readers", 1L, "ColumNAR.test.stub_values", 3L))
+            );
+            assertThat("one detail serves the readers of both workers", loader.collectorsSeen, hasSize(1));
+        } finally {
+            terminate(first, second);
+        }
+        assertThat(loader.readersWithoutACollector.get(), equalTo(0));
+    }
+
     public void testAnOperatorBuiltAfterAnotherOneClosedStartsFromNothing() throws IOException {
         final ValuesSourceReaderOperator.Factory factory = factory(Map.of("stub", new StubLoader()), true, ProfileSelection.EVERYTHING);
         final DriverContext driverContext = driverContext();
@@ -824,10 +855,12 @@ public class ValuesSourceReaderOperatorCodecProfileTests extends ComputeTestCase
         }
     }
 
+    // NOTE: Like Lucene's doc values readers, a stub reader is used only on the thread that built it.
     private static final class StubReader implements BlockLoader.ColumnAtATimeReader, BlockLoader.RowStrideReader {
         private final Counter values;
         private final Timer time;
         private final StubLoader loader;
+        private final Thread creator = Thread.currentThread();
 
         StubReader(Counter values, Timer time, StubLoader loader) {
             this.values = values;
@@ -837,6 +870,7 @@ public class ValuesSourceReaderOperatorCodecProfileTests extends ComputeTestCase
 
         @Override
         public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered) {
+            assertSame("a stub reader is read on the thread that built it", creator, Thread.currentThread());
             if (time != null) {
                 loader.timedReads.incrementAndGet();
                 time.start();
@@ -869,6 +903,7 @@ public class ValuesSourceReaderOperatorCodecProfileTests extends ComputeTestCase
 
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) {
+            assertSame("a stub reader is read on the thread that built it", creator, Thread.currentThread());
             if (values != null) {
                 values.add(1);
             }
@@ -877,7 +912,7 @@ public class ValuesSourceReaderOperatorCodecProfileTests extends ComputeTestCase
 
         @Override
         public boolean canReuse(int startingDocID) {
-            return true;
+            return Thread.currentThread() == creator;
         }
 
         @Override

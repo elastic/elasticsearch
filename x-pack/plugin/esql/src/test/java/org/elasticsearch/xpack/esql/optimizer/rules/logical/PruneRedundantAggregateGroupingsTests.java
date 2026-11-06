@@ -105,6 +105,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
     }
 
     public void testDoesNotPruneGroupingFromLookupSubqueryEval() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         LogicalPlan analyzed = subqueryAnalyzer().query("""
             FROM test
             | LEFT OUTER JOIN (FROM test | EVAL flag = true | KEEP languages, flag) ON languages

@@ -360,6 +360,7 @@ public class EnsureDistributionTests extends ESTestCase {
     }
 
     public void testJoinChainOnSameKeyReusesPartitioning() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         PhysicalPlan plan = distributedPlan("""
             FROM test
             | LEFT OUTER JOIN (FROM test | KEEP emp_no, salary | RENAME salary AS s1) ON emp_no
@@ -387,6 +388,7 @@ public class EnsureDistributionTests extends ESTestCase {
     }
 
     public void testJoinChainOnDifferentKeysAddsExchangeForOuterJoin() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         PhysicalPlan plan = distributedPlan("""
             FROM test
             | LEFT OUTER JOIN (FROM test | KEEP emp_no, salary | RENAME salary AS s1) ON emp_no
@@ -448,6 +450,7 @@ public class EnsureDistributionTests extends ESTestCase {
     }
 
     public void testAggregationAfterJoinOnJoinKeyAddsItsOwnHashExchange() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         PhysicalPlan plan = distributedPlan("""
             FROM test
             | LEFT OUTER JOIN (FROM test | STATS total = SUM(salary) BY emp_no) ON emp_no
@@ -473,6 +476,7 @@ public class EnsureDistributionTests extends ESTestCase {
     }
 
     public void testJoinOnAggregatedInputsReusesExactPartitioning() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         PhysicalPlan plan = distributedPlan("""
             FROM test
             | STATS b = SUM(salary) BY emp_no
@@ -496,6 +500,7 @@ public class EnsureDistributionTests extends ESTestCase {
     }
 
     public void testLookupJoinAfterDistributedJoin() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         PhysicalPlan plan = distributedPlan("""
             FROM test
             | LEFT OUTER JOIN (FROM test | KEEP emp_no, salary) ON emp_no

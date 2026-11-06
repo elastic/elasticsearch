@@ -146,6 +146,7 @@ public class HoistProjectsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     public void testSubqueryLookupJoinKeepsItsTypeWhenHoistedPastShadowingProject() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         LogicalPlan plan = new HoistProjects().apply(substituted("""
             FROM test
             | EVAL language_name = 2 * salary

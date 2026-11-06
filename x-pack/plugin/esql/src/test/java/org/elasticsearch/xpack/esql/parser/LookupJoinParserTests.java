@@ -149,6 +149,7 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
     }
 
     public void testSubqueryTargetRejectsExpressionOn() {
+        assumeTrue("requires JOIN subquery capability", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         expectError(
             "FROM main | LEFT OUTER JOIN (FROM sub) ON left_key == right_key",
             "JOIN on a subquery only supports a list of fields in ON"

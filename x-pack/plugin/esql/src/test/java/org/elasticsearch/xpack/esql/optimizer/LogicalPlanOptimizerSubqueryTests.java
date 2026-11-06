@@ -191,6 +191,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testUnboundedSortInsideLookupSubqueryIsPruned() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         LogicalPlan plan = planSubquery("""
             FROM test
             | LEFT OUTER JOIN (FROM test | SORT emp_no | KEEP languages) ON languages
@@ -202,6 +203,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testUnboundedSortInsideInSubqueryWithinLookupSubqueryIsRejected() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         VerificationException exception = expectThrows(VerificationException.class, () -> planSubquery("""
             FROM test
             | LEFT OUTER JOIN (
@@ -216,6 +218,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testPropagateEvalFoldablesDoesNotCrossSubqueryLookupJoin() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         LogicalPlan analyzed = defaultAnalyzer().query("""
             ROW key = 2
             | LEFT OUTER JOIN (ROW key = 1, flag = true) ON key
@@ -231,6 +234,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testPruneConstantSortKeysDoesNotCrossSubqueryLookupJoin() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         LogicalPlan analyzed = defaultAnalyzer().query("""
             ROW key = 2
             | LEFT OUTER JOIN (ROW key = 1, flag = true) ON key
@@ -246,6 +250,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testSubqueryLookupJoinSurvivesLogicalAndLocalRuleSweeps() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         LogicalPlan analyzed = defaultAnalyzer().query("""
             FROM test
             | EVAL language_name = 2 * salary

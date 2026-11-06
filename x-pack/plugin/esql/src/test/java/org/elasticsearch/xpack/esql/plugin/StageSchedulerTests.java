@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
@@ -233,6 +234,7 @@ public class StageSchedulerTests extends ESTestCase {
     }
 
     private static StagedPlan plan(String query, String strategy, boolean shuffleAgg) {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         QueryPragmas pragmas = new QueryPragmas(
             Settings.builder()
                 .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 4)

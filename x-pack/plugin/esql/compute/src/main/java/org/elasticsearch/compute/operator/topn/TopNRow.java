@@ -36,8 +36,18 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
      * Values to reconstruct the row. When we reconstruct the row we read
      * from both the {@link #keys} and the {@link #values}. So this only contains
      * what is required to reconstruct the row that isn't already stored in {@link #keys}.
+     * Null once the values went to a value segment, see {@link #valueSegment}: the lane takes the builder and nulls it.
      */
-    final BreakingBytesRefBuilder values;
+    @Nullable
+    BreakingBytesRefBuilder values;
+
+    /**
+     * Where the values went when they no longer fit in memory: the segment of the operator's value store, or -1 while
+     * they are in {@link #values}; then the offset and the length of the values in that segment.
+     */
+    int valueSegment = -1;
+    long valueOffset;
+    int valueLength;
 
     /**
      * Reference counter for the shard this row belongs to, used for rows containing a
@@ -63,7 +73,23 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + keys.ramBytesUsed() + values.ramBytesUsed();
+        return SHALLOW_SIZE + keys.ramBytesUsed() + (values == null ? 0 : values.ramBytesUsed());
+    }
+
+    /**
+     * Whether the values live in a value segment rather than in {@link #values}.
+     */
+    boolean spilled() {
+        return valueSegment >= 0;
+    }
+
+    /**
+     * Gives a row whose values were handed over a builder again, for the next row's values to be extracted into.
+     */
+    void ensureValues(int preAllocatedValueSize) {
+        if (values == null) {
+            values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
+        }
     }
 
     @Override
@@ -74,7 +100,12 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
 
     void clear() {
         keys.clear();
-        values.clear();
+        if (values != null) {
+            values.clear();
+        }
+        valueSegment = -1;
+        valueOffset = 0;
+        valueLength = 0;
         clearRefCounters();
     }
 
@@ -120,7 +151,9 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
         b.append(keys.bytesRefView());
         b.append(", values=");
 
-        if (values.length() < 100) {
+        if (values == null) {
+            b.append("segment ").append(valueSegment).append('@').append(valueOffset).append('+').append(valueLength);
+        } else if (values.length() < 100) {
             b.append(values.bytesRefView());
         } else {
             b.append('[');

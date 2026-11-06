@@ -10,14 +10,22 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocOriginTable;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.spill.DriverSpillOperation;
+import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.compute.spill.SpillStatus;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -225,7 +233,9 @@ public class TopNOperator implements Operator, Accountable {
                 inputOrdering,
                 minCompetitive,
                 globalTopKMerge,
-                parallelWorkerConfig
+                parallelWorkerConfig,
+                driverContext,
+                null
             );
         }
 
@@ -339,6 +349,36 @@ public class TopNOperator implements Operator, Accountable {
 
     private final InputOrdering inputOrdering;
 
+    // ---- spilling: the value run, see TopNValueStore; every field below is the operator's thread's
+
+    /** The driver's context when the operator may spill its values, null otherwise: every path then runs as today. */
+    @Nullable
+    private final DriverContext driverContext;
+    /** The value store, this operator's own or the parallel operator's shared one; null when the query cannot spill. */
+    @Nullable
+    private final TopNValueStore valueStore;
+    private final boolean ownsStore;
+    /** This operator's lane of the store; present exactly when {@link #valueStore} is. */
+    @Nullable
+    private final TopNValueStore.Lane lane;
+    /** Whether the values of every row in the heap are in the store: the second regime, entered once and for good. */
+    private boolean spilling;
+    /** What the heap's rows hold in memory, the policy's own-state size. */
+    private long heapBytes;
+    /** Bytes of values in the segments that rows still reference, and that evicted rows left behind. */
+    private long liveValueBytes;
+    private long deadValueBytes;
+    private long rowsSpilled;
+    /** Whether a compaction failed: the operator then keeps its dead bytes rather than trying again. */
+    private boolean compactionRefused;
+    /**
+     * Rows admitted resident after the switch, while the lane had no writer or too much queued: a worker's lane takes
+     * pages without the operator's say, and a page may reach the parallel operator's merge target at any time. They go
+     * to the lane at the next page that finds it ready.
+     */
+    private int residentRows;
+    private boolean finished;
+
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -363,10 +403,18 @@ public class TopNOperator implements Operator, Accountable {
             inputOrdering,
             minCompetitiveSupplier,
             null,
+            null,
+            null,
             null
         );
     }
 
+    /**
+     * @param driverContext the driver's, for the value store's operations; null keeps the values in memory whatever the
+     *                      query's scope
+     * @param sharedStore the parallel operator's store, which a worker shares so that its rows keep their pointers
+     *                    through the merge; null for a store of this operator's own
+     */
     private TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -379,7 +427,9 @@ public class TopNOperator implements Operator, Accountable {
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier,
         @Nullable GlobalTopKMergeConfig globalTopKMergeConfig,
-        @Nullable ParallelWorkerConfig parallelWorkerConfig
+        @Nullable ParallelWorkerConfig parallelWorkerConfig,
+        @Nullable DriverContext driverContext,
+        @Nullable TopNValueStore sharedStore
     ) {
         TopNQueue inputQueue = null;
         SharedMinCompetitive minCompetitive = null;
@@ -421,11 +471,45 @@ public class TopNOperator implements Operator, Accountable {
             channelInKey[so.channel] = true;
         }
         this.parallelWorkerConfig = parallelWorkerConfig;
+        this.driverContext = driverContext;
+        QueryScope scope = driverContext == null ? null : driverContext.queryScope();
+        if (scope != null && scope.spillEnabled()) {
+            this.valueStore = sharedStore != null ? sharedStore : new TopNValueStore(driverContext, scope, "top-n-values");
+            this.ownsStore = sharedStore == null;
+            this.lane = valueStore.newLane();
+        } else {
+            this.valueStore = null;
+            this.ownsStore = false;
+            this.lane = null;
+        }
     }
 
     @Override
     public boolean needsInput() {
-        return output == null;
+        if (output != null || finished) {
+            return false;
+        }
+        if (lane == null) {
+            return true;
+        }
+        beforePage();
+        if (lane.compacting()) {
+            return false;
+        }
+        if (spilling == false) {
+            // the headroom was asked for and the budget is crossed already: the next page waits for it rather than
+            // growing the heap under pressure
+            return lane.capable() == false || lane.ready() || driverContext.queryScope().shouldSpill(heapBytes, 0) == false;
+        }
+        return lane.ready() && lane.appendsBlocked().listener().isDone();
+    }
+
+    /**
+     * The value store, for tests of what went to it.
+     */
+    @Nullable
+    TopNValueStore valueStore() {
+        return valueStore;
     }
 
     @Override
@@ -446,6 +530,10 @@ public class TopNOperator implements Operator, Accountable {
             if (inputQueue.topCount <= 0) {
                 return;
             }
+            if (lane != null) {
+                // a worker's lane, or the merge target's through the parallel operator, sees no needsInput before a page
+                beforePage();
+            }
             RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, channelInKey, page);
 
             for (int i = 0; i < page.getPositionCount(); i++) {
@@ -453,6 +541,7 @@ public class TopNOperator implements Operator, Accountable {
                     spare = new TopNRow(breaker, rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
                 } else {
                     spare.clear();
+                    spare.ensureValues(rowFiller.preAllocatedValueSize());
                 }
                 rowFiller.writeKey(i, spare);
 
@@ -461,7 +550,7 @@ public class TopNOperator implements Operator, Accountable {
                 // breaker), spare is not left in both the queue and the spare field (which would double-close).
                 if (inputQueue.size() < inputQueue.topCount) {
                     // Heap not yet full, just add elements
-                    rowFiller.writeValues(i, spare);
+                    admit(rowFiller, i, spare);
                     if (pendingGlobalKeys != null) {
                         pendingGlobalKeys.add(BytesRef.deepCopyOf(spare.keys.bytesRefView()));
                         if (pendingGlobalKeys.size() >= globalTopKMaxPendingKeys) {
@@ -469,12 +558,13 @@ public class TopNOperator implements Operator, Accountable {
                         }
                     }
                     inputQueue.add(spare);
+                    inserted(spare);
                     spare = null;
                     modified = true;
                 } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
                     // Heap full AND this node fits in it.
                     TopNRow nextSpare = inputQueue.top();
-                    rowFiller.writeValues(i, spare);
+                    admit(rowFiller, i, spare);
                     if (pendingGlobalKeys != null) {
                         pendingGlobalKeys.add(BytesRef.deepCopyOf(spare.keys.bytesRefView()));
                         if (pendingGlobalKeys.size() >= globalTopKMaxPendingKeys) {
@@ -482,6 +572,8 @@ public class TopNOperator implements Operator, Accountable {
                         }
                     }
                     inputQueue.updateTop(spare);
+                    inserted(spare);
+                    evicted(nextSpare);
                     spare = nextSpare;
                     modified = true;
                 } else if (inputOrdering == InputOrdering.SORTED) {
@@ -564,6 +656,20 @@ public class TopNOperator implements Operator, Accountable {
             }
             pendingGlobalKeys.clear();
         }
+        if (finished) {
+            return;
+        }
+        finished = true;
+        if (lane != null) {
+            // the rows still resident go to the lane when it can take them; then the lane's segment is sealed, and the
+            // result built once that and what else is in flight have landed
+            beforePage();
+            if (spilling && lane.compacting() == false && lane.ready()) {
+                spillResident();
+            }
+            lane.sealForGood();
+            return;
+        }
         if (output == null) {
             long start = System.nanoTime();
             output = buildResult();
@@ -578,18 +684,262 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return output != null && output.hasNext();
+        return (output != null && output.hasNext()) || (finished && output == null && lane != null);
+    }
+
+    @Override
+    public IsBlockedResult isBlocked() {
+        if (lane == null) {
+            return NOT_BLOCKED;
+        }
+        if (output instanceof SpilledResult spilled) {
+            return spilled.blocked();
+        }
+        if (finished) {
+            return output == null ? lane.blocked() : NOT_BLOCKED;
+        }
+        if (lane.compacting() || lane.pending()) {
+            return lane.blocked();
+        }
+        return spilling ? lane.appendsBlocked() : NOT_BLOCKED;
     }
 
     @Override
     public Page getOutput() {
-        if (output == null || output.hasNext() == false) {
+        if (output == null) {
+            if (lane == null || finished == false) {
+                return null;
+            }
+            landCompaction();
+            if (lane.compacting() || lane.settled() == false) {
+                return null;
+            }
+            checkLaneFailure();
+            long start = System.nanoTime();
+            output = buildResult();
+            emitNanos += System.nanoTime() - start;
+        }
+        if (output.hasNext() == false) {
+            return null;
+        }
+        if (output instanceof SpilledResult spilled && spilled.ready() == false) {
             return null;
         }
         Page ret = output.next();
         pagesEmitted++;
         rowsEmitted += ret.getPositionCount();
         return ret;
+    }
+
+    // ---- the value run
+
+    /**
+     * Fills the row's values: into its builder, or, once values no longer fit, through its builder into the lane's
+     * segment, the builder going to the codec and the row keeping a pointer. The switch is decided here, at the row's
+     * reservation point: by the policy, when the query would cross its budget with this row, or when the builder's
+     * allocation trips with headroom in hand. After the switch a row still stays resident while the lane has no
+     * writer, between a seal and the next writer, or has too much queued, and goes to the lane at the next page.
+     */
+    private void admit(RowFiller rowFiller, int position, TopNRow row) {
+        if (lane == null) {
+            rowFiller.writeValues(position, row);
+            return;
+        }
+        if (spilling == false) {
+            maybeSwitch(rowFiller.preAllocatedValueSize());
+        }
+        if (spilling == false) {
+            try {
+                rowFiller.writeValues(position, row);
+                return;
+            } catch (CircuitBreakingException e) {
+                if (lane.failure() != null || lane.capable() == false || lane.ready() == false) {
+                    throw e;
+                }
+                row.values.clear();
+                switchToValueRun();
+            }
+        }
+        rowFiller.writeValues(position, row);
+        if (lane.ready() && lane.appendsBlocked().listener().isDone() && spillValues(row)) {
+            return;
+        }
+        residentRows++;
+    }
+
+    /**
+     * The policy at the row's reservation point: headroom once the heap holds the own-state minimum or the query is
+     * half way to its budget, the switch once the budget would be crossed, with the headroom in hand.
+     */
+    private void maybeSwitch(long estimate) {
+        if (lane.failure() != null) {
+            // the headroom was refused: the values stay in memory and a later trip fails the query, as it does today
+            return;
+        }
+        QueryScope scope = driverContext.queryScope();
+        if (lane.capable() == false) {
+            if (heapBytes < scope.minSpillBytes() && scope.breaker().used() * 2 < scope.budgetBytes()) {
+                return;
+            }
+            lane.acquire();
+        }
+        if (lane.ready() && scope.shouldSpill(heapBytes, estimate)) {
+            switchToValueRun();
+        }
+    }
+
+    /**
+     * Enters the second regime: the heap's values go to the lane at once, their builders released as the codec is done
+     * with them.
+     */
+    private void switchToValueRun() {
+        spilling = true;
+        residentRows = inputQueue.size();
+        spillResident();
+    }
+
+    /**
+     * Sends the values of the rows admitted resident to the lane; the heap is walked only while it holds some, and the
+     * walk stops at a row the root view refuses, which stays resident for the next page.
+     */
+    private void spillResident() {
+        if (residentRows == 0) {
+            return;
+        }
+        for (TopNRow row : inputQueue) {
+            if (row.spilled() == false) {
+                long held = row.values.ramBytesUsed();
+                if (spillValues(row) == false) {
+                    return;
+                }
+                heapBytes -= held;
+                residentRows--;
+            }
+        }
+        assert residentRows == 0 : residentRows;
+        residentRows = 0;
+    }
+
+    /**
+     * The lane's housekeeping before a page, on the appender's thread: what the codec is done with goes, a landed
+     * compaction is published, a full segment rolls, a sealed lane gets its next writer, the rows admitted resident go
+     * to the lane once it is ready, and a compaction starts once the dead bytes outgrow the live ones.
+     */
+    private void beforePage() {
+        landCompaction();
+        if (spilling == false) {
+            return;
+        }
+        checkLaneFailure();
+        if (lane.compacting()) {
+            return;
+        }
+        if (lane.needsRoll()) {
+            lane.roll();
+        } else if (lane.capable() == false) {
+            // a compaction sealed the active segment: the next one starts here
+            lane.acquire();
+        }
+        if (lane.ready() && lane.appendsBlocked().listener().isDone()) {
+            spillResident();
+            if (shouldCompact()) {
+                compact();
+            }
+        }
+    }
+
+    /**
+     * Hands the row's values to the lane; false, with the row untouched, when the root view refuses to hold them in
+     * flight.
+     */
+    private boolean spillValues(TopNRow row) {
+        try {
+            lane.append(row, row.values);
+        } catch (CircuitBreakingException e) {
+            return false;
+        }
+        liveValueBytes += row.valueLength;
+        rowsSpilled++;
+        return true;
+    }
+
+    private void inserted(TopNRow row) {
+        heapBytes += row.ramBytesUsed();
+    }
+
+    private void evicted(TopNRow row) {
+        heapBytes -= row.ramBytesUsed();
+        if (row.spilled()) {
+            deadValueBytes += row.valueLength;
+            liveValueBytes -= row.valueLength;
+        } else if (spilling) {
+            residentRows--;
+        }
+    }
+
+    private boolean shouldCompact() {
+        return compactionRefused == false
+            && deadValueBytes > liveValueBytes
+            && deadValueBytes >= TopNValueStore.CHUNK_BYTES
+            && lane.quiescent();
+    }
+
+    private void compact() {
+        List<TopNRow> live = new ArrayList<>(inputQueue.size());
+        for (TopNRow row : inputQueue) {
+            if (row.spilled()) {
+                live.add(row);
+            }
+        }
+        lane.compact(live);
+    }
+
+    private void landCompaction() {
+        Boolean landed = lane.finishCompaction();
+        if (landed == null) {
+            return;
+        }
+        if (landed) {
+            deadValueBytes = 0;
+        } else {
+            compactionRefused = true;
+        }
+    }
+
+    private void checkLaneFailure() {
+        Exception failure = lane.failure();
+        if (failure != null) {
+            throw ExceptionsHelper.convertToRuntime(failure);
+        }
+    }
+
+    /**
+     * Seals this worker's lane for the parallel operator's merge; the rows keep their pointers into the store.
+     */
+    void sealForMerge() {
+        if (lane != null) {
+            lane.sealForGood();
+        }
+    }
+
+    /**
+     * Whether this worker's lane has nothing in flight, so that the merge may read its rows' values; lands what has.
+     * The rows still resident stay so: the merge reads them from their builders.
+     */
+    boolean laneSettled() {
+        if (lane == null) {
+            return true;
+        }
+        landCompaction();
+        if (lane.compacting() || lane.settled() == false) {
+            return false;
+        }
+        checkLaneFailure();
+        return true;
+    }
+
+    IsBlockedResult laneBlocked() {
+        return lane == null ? NOT_BLOCKED : lane.blocked();
     }
 
     @Override
@@ -620,7 +970,9 @@ public class TopNOperator implements Operator, Accountable {
             inputOrdering,
             minCompetitiveSupplier,
             globalTopKMergeConfig,
-            null
+            null,
+            driverContext,
+            valueStore
         );
     }
 
@@ -645,7 +997,9 @@ public class TopNOperator implements Operator, Accountable {
             output,
             minCompetitive,
             globalTopK,
-            originTable
+            originTable,
+            lane,
+            ownsStore ? valueStore : null
         );
         // Aggressively null these so they can be GCed more quickly, and so that close() is idempotent.
         spare = null;
@@ -687,7 +1041,10 @@ public class TopNOperator implements Operator, Accountable {
             pagesEmitted,
             rowsReceived,
             rowsEmitted,
-            minCompetitiveUpdates
+            minCompetitiveUpdates,
+            rowsSpilled,
+            ownsStore ? valueStore.compactions() : 0,
+            ownsStore ? valueStore.status() : SpillStatus.NONE
         );
     }
 
@@ -726,7 +1083,155 @@ public class TopNOperator implements Operator, Accountable {
         Collections.reverse(rows);
         inputQueue.close();
         inputQueue = null;
+        for (TopNRow row : rows) {
+            if (row.spilled()) {
+                return new SpilledResult(rows);
+            }
+        }
         return new Result(rows);
+    }
+
+    /**
+     * Read keys into the results. See {@link KeyExtractor} for the key layout.
+     */
+    private void readKeys(ResultBuilder[] builders, BytesRef keys) {
+        for (SortOrder so : sortOrders) {
+            if (keys.bytes[keys.offset] == so.nul()) {
+                // Discard the null byte.
+                keys.offset++;
+                keys.length--;
+                continue;
+            }
+            // Discard the non_null byte.
+            keys.offset++;
+            keys.length--;
+            // Read the key. This will modify offset and length for the next iteration.
+            builders[so.channel].decodeKey(keys, so.asc);
+        }
+        if (keys.length != 0) {
+            throw new IllegalArgumentException("didn't read all keys");
+        }
+    }
+
+    private static void readValues(ResultBuilder[] builders, BytesRef values) {
+        for (ResultBuilder builder : builders) {
+            builder.decodeValue(values);
+        }
+        if (values.length != 0) {
+            throw new IllegalArgumentException("didn't read all values");
+        }
+    }
+
+    private static long totalSize(ResultBuilder[] builders) {
+        long total = 0;
+        for (ResultBuilder b : builders) {
+            total += b.estimatedBytes();
+        }
+        return total;
+    }
+
+    /**
+     * The result of rows whose values are in the store, some or all: each page's values are gathered in physical order
+     * before the page is decoded in the rows' order, so the memory held is the keys plus one page's values. A page the
+     * jumbo bound cuts short leaves its gathered values for the next.
+     */
+    private class SpilledResult implements ReleasableIterator<Page> {
+        private final List<TopNRow> rows;
+        private int r;
+        @Nullable
+        private DriverSpillOperation<ReleasableBytesReference[]> gather;
+        /** The gathered values of {@code rows[valuesFrom, valuesFrom + values.length)}, consumed as pages are decoded. */
+        @Nullable
+        private ReleasableBytesReference[] values;
+        private int valuesFrom;
+
+        private SpilledResult(List<TopNRow> rows) {
+            this.rows = rows;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return r < rows.size();
+        }
+
+        /**
+         * Whether the next page's values are at hand; issues their gather otherwise.
+         */
+        boolean ready() {
+            if (values != null) {
+                return true;
+            }
+            if (gather == null) {
+                gather = valueStore.gather(rows, r, Math.min(rows.size(), r + maxPageRows));
+            }
+            if (gather.isDone() == false) {
+                return false;
+            }
+            Exception failure = gather.failure();
+            if (failure != null) {
+                gather = null;
+                throw ExceptionsHelper.convertToRuntime(failure);
+            }
+            values = gather.result();
+            valuesFrom = r;
+            gather = null;
+            return true;
+        }
+
+        IsBlockedResult blocked() {
+            return gather == null || gather.isDone() ? NOT_BLOCKED : gather.blocked();
+        }
+
+        @Override
+        public Page next() {
+            long start = System.nanoTime();
+            if (values == null) {
+                throw new IllegalStateException("the page's values are not gathered");
+            }
+            int size = Math.min(values.length - (r - valuesFrom), rows.size() - r);
+            if (size <= 0) {
+                throw new IllegalStateException("can't make empty pages. " + size + " must be > 0");
+            }
+            ResultBuilder[] builders = new ResultBuilder[elementTypes.size()];
+            try {
+                for (int b = 0; b < builders.length; b++) {
+                    builders[b] = ResultBuilder.resultBuilderFor(blockFactory, elementTypes.get(b), encoders.get(b), channelInKey[b], size);
+                }
+                int rEnd = r + size;
+                while (r < rEnd) {
+                    int v = r - valuesFrom;
+                    try (TopNRow row = rows.set(r++, null); ReleasableBytesReference gathered = values[v]) {
+                        values[v] = null;
+                        readKeys(builders, row.keys.bytesRefView());
+                        readValues(builders, gathered == null ? row.values.bytesRefView() : gathered.toBytesRef());
+                    }
+                    if (totalSize(builders) > jumboPageBytes) {
+                        break;
+                    }
+                }
+                if (r == valuesFrom + values.length) {
+                    values = null;
+                }
+                return new Page(ResultBuilder.buildAll(builders));
+            } finally {
+                Releasables.close(builders);
+                emitNanos += System.nanoTime() - start;
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(rows);
+            if (values != null) {
+                Releasables.closeExpectNoException(values);
+                values = null;
+            }
+            if (gather != null) {
+                DriverSpillOperation<ReleasableBytesReference[]> pending = gather;
+                gather = null;
+                pending.completion().addListener(ActionListener.wrap(Releasables::closeExpectNoException, e -> {}));
+            }
+        }
     }
 
     private class Result implements ReleasableIterator<Page> {
@@ -771,48 +1276,9 @@ public class TopNOperator implements Operator, Accountable {
             }
         }
 
-        private long totalSize(ResultBuilder[] builders) {
-            long total = 0;
-            for (ResultBuilder b : builders) {
-                total += b.estimatedBytes();
-            }
-            return total;
-        }
-
         @Override
         public void close() {
             Releasables.close(rows);
-        }
-
-        /**
-         * Read keys into the results. See {@link KeyExtractor} for the key layout.
-         */
-        private void readKeys(ResultBuilder[] builders, BytesRef keys) {
-            for (SortOrder so : sortOrders) {
-                if (keys.bytes[keys.offset] == so.nul()) {
-                    // Discard the null byte.
-                    keys.offset++;
-                    keys.length--;
-                    continue;
-                }
-                // Discard the non_null byte.
-                keys.offset++;
-                keys.length--;
-                // Read the key. This will modify offset and length for the next iteration.
-                builders[so.channel].decodeKey(keys, so.asc);
-            }
-            if (keys.length != 0) {
-                throw new IllegalArgumentException("didn't read all keys");
-            }
-        }
-
-        private void readValues(ResultBuilder[] builders, BytesRef values) {
-            for (ResultBuilder builder : builders) {
-                builder.decodeValue(values);
-            }
-            if (values.length != 0) {
-                throw new IllegalArgumentException("didn't read all values");
-            }
         }
     }
 }

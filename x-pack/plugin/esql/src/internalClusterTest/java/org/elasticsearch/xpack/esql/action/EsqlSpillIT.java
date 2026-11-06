@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -297,6 +298,68 @@ public class EsqlSpillIT extends AbstractEsqlIntegTestCase {
             }
             assertThat("rows went to disk: " + byStage, rowsSpilled, greaterThan(0L));
             assertThat("what went to disk came back", readBack, greaterThan(0L));
+        }
+        assertSpillDirectoriesEmpty();
+    }
+
+    /**
+     * The value run: {@code SORT ... | LIMIT} over rows wider than the budget allows the limit's rows to be, so the
+     * top-N operators keep their keys and send their values to segments, and read them back in the sort's order at the
+     * end. The results are those of a resident run and the spill directories are empty afterwards.
+     */
+    public void testSortLimitSpillsValuesAndCleansUp() throws Exception {
+        assumeTrue("the spill flag is on in snapshot builds", SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled());
+        String index = "spill_sort";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(Settings.builder().put("index.number_of_shards", between(1, 3)).put("index.number_of_replicas", 0))
+                .setMapping("key", "type=long", "value", "type=keyword")
+        );
+        int rows = between(2_000, 5_000);
+        int limit = between(500, 1_500);
+        Map<Long, String> valueOf = new HashMap<>();
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (long key = 0; key < rows; key++) {
+            String value = randomAlphaOfLengthBetween(200, 400);
+            valueOf.put(key, value);
+            bulk.add(client().prepareIndex(index).setSource("key", key, "value", value));
+        }
+        assertFalse(bulk.get().hasFailures());
+
+        // a budget every operator crosses at its first page and no own-state minimum
+        Settings pragmas = Settings.builder()
+            .put(QueryPragmas.SPILL_BUDGET.getKey(), "1kb")
+            .put(QueryPragmas.SPILL_MIN_BYTES.getKey(), "0b")
+            .put(QueryPragmas.PAGE_SIZE.getKey(), between(50, 500))
+            .build();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM " + index + " | SORT key DESC | LIMIT " + limit + " | KEEP key, value");
+        request.pragmas(new QueryPragmas(pragmas));
+        request.acceptedPragmaRisks(true);
+        request.profile(true);
+        try (EsqlQueryResponse response = run(request, TimeValue.timeValueMinutes(3))) {
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values, hasSize(limit));
+            for (int i = 0; i < limit; i++) {
+                long key = rows - 1 - i;
+                assertThat("row " + i + " is the next key down", values.get(i).get(0), equalTo(key));
+                assertThat("row " + i + " carries its value", values.get(i).get(1), equalTo(valueOf.get(key)));
+            }
+
+            long rowsSpilled = 0;
+            long readBack = 0;
+            for (DriverProfile driver : response.profile().drivers()) {
+                for (OperatorStatus operator : driver.operators()) {
+                    if (operator.status() instanceof TopNOperatorStatus status) {
+                        rowsSpilled += status.rowsSpilled();
+                        readBack += status.spill().readBackBytes();
+                    }
+                }
+            }
+            assertThat("values went to segments", rowsSpilled, greaterThan(0L));
+            assertThat("what went to segments came back", readBack, greaterThan(0L));
         }
         assertSpillDirectoriesEmpty();
     }

@@ -30,6 +30,11 @@ public final class AnalyzerRules {
         // transformUp (post-order) - that is first children and then the node
         // but with a twist; only if the tree is not resolved or analyzed
         @Override
+        public boolean appliesOnlyToTypeToken() {
+            return true;
+        }
+
+        @Override
         public final LogicalPlan apply(LogicalPlan plan) {
             return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t));
         }

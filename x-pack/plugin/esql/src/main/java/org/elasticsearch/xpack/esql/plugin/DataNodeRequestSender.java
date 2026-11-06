@@ -17,11 +17,15 @@ import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -505,6 +509,11 @@ abstract class DataNodeRequestSender {
      * to a situation where the column structure (i.e., matched data types) differs depending on the query.
      */
     void searchShards(Set<String> concreteIndices, ActionListener<TargetShards> listener) {
+        TargetShards local = resolveShardsLocally(concreteIndices);
+        if (local != null) {
+            listener.onResponse(local);
+            return;
+        }
         ActionListener<SearchShardsResponse> searchShardsListener = listener.map(resp -> {
             Map<String, DiscoveryNode> nodes = newHashMap(resp.getNodes().size());
             for (DiscoveryNode node : resp.getNodes()) {
@@ -540,6 +549,53 @@ abstract class DataNodeRequestSender {
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(searchShardsListener, SearchShardsResponse::new, searchExecutor)
         );
+    }
+
+    /**
+     * Resolves the target shards from the local cluster state when the search-shards round trip could not add anything:
+     * there is no can-match filter to skip shards with, no slice routing, and every index the query names is a concrete
+     * open index (so there are no alias filters to compute). Returns {@code null} to use the search-shards action instead.
+     */
+    private TargetShards resolveShardsLocally(Set<String> concreteIndices) {
+        if (requestFilter != null || slices.isRestricted() || Strings.isEmpty(clusterAlias) == false) {
+            return null;
+        }
+        try {
+            var project = projectResolver.getProjectState(clusterService.state());
+            for (String name : originalIndices.indices()) {
+                IndexMetadata indexMetadata = project.metadata().index(name);
+                if (indexMetadata == null
+                    || indexMetadata.getState() != IndexMetadata.State.OPEN
+                    || concreteIndices.contains(name) == false
+                    || project.metadata().getIndicesLookup().get(name) == null
+                    || project.metadata().getIndicesLookup().get(name).getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
+                    return null;
+                }
+            }
+            if (concreteIndices.size() != originalIndices.indices().length) {
+                return null;
+            }
+            var shardRoutings = clusterService.operationRouting()
+                .searchShards(project, concreteIndices.toArray(String[]::new), null, null, null, null, false);
+            Map<ShardId, TargetShard> shards = newHashMap(shardRoutings.size());
+            for (var shardRouting : shardRoutings) {
+                List<DiscoveryNode> allocatedNodes = new ArrayList<>();
+                for (ShardRouting routing : shardRouting.getShardRoutings()) {
+                    DiscoveryNode node = project.cluster().nodes().get(routing.currentNodeId());
+                    if (node != null) {
+                        allocatedNodes.add(node);
+                    }
+                }
+                shards.put(
+                    shardRouting.shardId(),
+                    new TargetShard(shardRouting.shardId(), allocatedNodes, AliasFilter.EMPTY, shardRouting.splitShardCountSummary())
+                );
+            }
+            return new TargetShards(shards, shards.size(), 0);
+        } catch (Exception e) {
+            // Anything unexpected (unassigned shards, concurrent index deletion) is left to the search-shards action to report.
+            return null;
+        }
     }
 
     /**

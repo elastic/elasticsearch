@@ -221,7 +221,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.singleValueQueryWarnings = singleValueQueryWarnings;
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
-            this.sliceQueue = LuceneSliceQueue.create(
+            this.sliceQueue = LuceneSliceQueue.createLazy(
                 contextsByShardId,
                 queryFunction,
                 dataPartitioning,
@@ -233,7 +233,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 minDocsPerSlice,
                 singleValueQueryWarnings
             );
-            this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
+            this.taskConcurrency = Math.min(sliceQueue.estimatedSlices(), taskConcurrency);
             this.needsScore = needsScore;
         }
 
@@ -301,6 +301,12 @@ public abstract class LuceneOperator extends SourceOperator {
                     sliceIndex = 0;
                     currentSlice = sliceQueue.nextSlice(currentSlice);
                     if (currentSlice == null) {
+                        SubscribableListener<Void> preparing = sliceQueue.awaitPreparation();
+                        if (preparing != null && preparing.isDone() == false) {
+                            // Another driver is still preparing a shard whose slices this driver may process: wait, don't finish.
+                            blocked = new IsBlockedResult(preparing, "shard being prepared by another driver");
+                            return null;
+                        }
                         releaseCurrentScorer();
                         doneCollecting = true;
                         return null;
@@ -537,8 +543,7 @@ public abstract class LuceneOperator extends SourceOperator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("shards = ")
-            .append(sliceQueue.partitioningStrategies().keySet().stream().sorted().collect(Collectors.joining(",", "[", "]")));
+        sb.append("shards = ").append(sliceQueue.shardIdentifiers().stream().sorted().collect(Collectors.joining(",", "[", "]")));
         sb.append(", maxPageSize = ").append(maxPageSize);
         describe(sb);
         sb.append("]");
@@ -648,7 +653,8 @@ public abstract class LuceneOperator extends SourceOperator {
             pagesEmitted = operator.pagesEmitted;
             rowsEmitted = operator.rowsEmitted;
             bytesRead = operator.totalBytesRead;
-            partitioningStrategies = operator.sliceQueue.partitioningStrategies();
+            // A snapshot: a lazy queue's map keeps growing as other drivers prepare shards.
+            partitioningStrategies = Map.copyOf(operator.sliceQueue.partitioningStrategies());
             minCompetitive = operator.minCompetitiveStatus();
         }
 

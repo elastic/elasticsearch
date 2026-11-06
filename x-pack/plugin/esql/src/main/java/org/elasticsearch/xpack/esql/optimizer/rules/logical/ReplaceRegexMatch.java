@@ -38,7 +38,8 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
         return replace(regexMatch, ctx);
     }
 
-    static Expression replace(RegexMatch<?> regexMatch, LogicalOptimizerContext ctx) {
+    /** The rewrite this rule applies to one regex match; also used by the planning fast path, which skips the rule engine. */
+    public static Expression replace(RegexMatch<?> regexMatch, LogicalOptimizerContext ctx) {
         Expression e = regexMatch;
         StringPattern pattern = regexMatch.pattern();
         boolean matchesAll;

@@ -165,6 +165,23 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
     }
 
+    private void openExchange(
+        boolean targetIsLocalNode,
+        Transport.Connection connection,
+        String childSessionId,
+        int exchangeBuffer,
+        ActionListener<Void> listener
+    ) {
+        if (targetIsLocalNode) {
+            ActionListener.completeWith(listener, () -> {
+                exchangeService.createSinkHandler(childSessionId, exchangeBuffer);
+                return null;
+            });
+            return;
+        }
+        ExchangeService.openExchange(transportService, connection, childSessionId, exchangeBuffer, searchExecutor, listener);
+    }
+
     void startComputeOnDataNodes(
         String sessionId,
         String clusterAlias,
@@ -219,12 +236,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 var childSessionId = computeService.newChildSession(sessionId);
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
-                ExchangeService.openExchange(
-                    transportService,
+                // When the target node is this node the sink is created in-process instead of over the transport.
+                final boolean targetIsLocalNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
+                openExchange(
+                    targetIsLocalNode,
                     connection,
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
-                    searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;

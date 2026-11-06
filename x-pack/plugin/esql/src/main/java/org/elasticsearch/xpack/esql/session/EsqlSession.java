@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
@@ -29,6 +33,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
@@ -54,6 +59,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
@@ -73,15 +79,27 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.BoundSemantics;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DateEsField;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -99,9 +117,22 @@ import org.elasticsearch.xpack.esql.dsltranslate.QueryDslFieldNameExtractor;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -114,6 +145,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -124,13 +156,21 @@ import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -141,8 +181,13 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -155,6 +200,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
@@ -166,6 +212,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -456,6 +503,32 @@ public class EsqlSession {
         // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,
         // execute — funnels through one place that emits the anonymized log on INTERNAL_SERVER_ERROR.
         listener = wrapForAnonymizedFailureLog(listener);
+        if (fastPathEligible(request)) {
+            FastPathParser.FastQuery fastQuery = FastPathParser.parse(request.query());
+            if (fastQuery != null) {
+                ActionListener<Versioned<Result>> finalListener = listener;
+                executeFastPath(request, executionInfo, planRunner, fastQuery, finalListener, () -> {
+                    // The fallback can be reached from the field caps response thread; the full pipeline runs on the search pool.
+                    threadPool.executor(ThreadPool.Names.SEARCH)
+                        .execute(
+                            ActionRunnable.wrap(
+                                finalListener,
+                                l -> planningCpu.meteredCpu(() -> parseAndExecute(request, executionInfo, planRunner, l))
+                            )
+                        );
+                });
+                return;
+            }
+        }
+        parseAndExecute(request, executionInfo, planRunner, listener);
+    }
+
+    private void parseAndExecute(
+        EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        PlanRunner planRunner,
+        ActionListener<Versioned<Result>> listener
+    ) {
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
@@ -578,6 +651,577 @@ public class EsqlSession {
             );
         }
         ExemplarsRewriter.verifyMetricsQuery(viewResolution.plan());
+    }
+
+    /**
+     * Cheap request-level checks for the direct planning fast path. Everything that can change what the full pipeline
+     * would plan (parameters, request filters, tables, request settings, views, datasets, cross-project mode) disables it.
+     */
+    private boolean fastPathEligible(EsqlQueryRequest request) {
+        return request.analyzeOnly() == false
+            && request.params().size() == 0
+            && request.params().namedParams().isEmpty()
+            && request.filter() == null
+            && request.tables().isEmpty()
+            && request.requestSettings().isEmpty()
+            && crossProjectModeDecider.crossProjectEnabled() == false
+            && projectMetadata != null
+            && projectMetadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).views().isEmpty()
+            && DatasetMetadata.get(projectMetadata).datasets().isEmpty();
+    }
+
+    /**
+     * Plans a {@link FastPathParser.FastQuery} directly: one field caps round trip, then the same optimized logical fragment and
+     * coordinator physical plan the full pipeline produces for these shapes, without running the analyzer or optimizer rule
+     * engines. Any field the query uses that is missing, of an unsupported type or ambiguous makes it fall back to the full
+     * pipeline through {@code fallback}; that only ever happens before anything observable (execution info, profile markers)
+     * has been touched.
+     */
+    private void executeFastPath(
+        EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        PlanRunner planRunner,
+        FastPathParser.FastQuery fastQuery,
+        ActionListener<Versioned<Result>> listener,
+        Runnable fallback
+    ) {
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterService.state().metadata().settings(),
+            clusterService.getSettings(),
+            request.requestSettings(),
+            null,
+            SettingsValidationContext.from(crossProjectModeDecider),
+            verifier.licenseState()
+        );
+        if (QuerySettings.UNMAPPED_FIELDS.get(resolved) != UnmappedResolution.DEFAULT
+            || ApproximationSettings.isOn(QuerySettings.APPROXIMATION.get(resolved))
+            || QuerySettings.EXEMPLARS.get(resolved).enabled()) {
+            fallback.run();
+            return;
+        }
+        Integer limit = fastQuery.limit();
+        if (limit == null) {
+            limit = analyzerSettings.resultTruncationDefaultSize();
+        } else if (limit == 0 || limit > analyzerSettings.resultTruncationMaxSize()) {
+            fallback.run();
+            return;
+        }
+        final int finalLimit = limit;
+        Set<String> fieldNames;
+        if (fastQuery.keep() == null) {
+            fieldNames = IndexResolver.ALL_FIELDS;
+        } else {
+            fieldNames = fastQuery.referencedFields();
+            if (fieldNames.isEmpty()) {
+                fieldNames = IndexResolver.INDEX_METADATA_FIELD; // only _source is kept: ask for the lightest field, like the full pipeline
+            }
+        }
+        indexResolver.resolveMainIndicesVersioned(
+            fastQuery.indexPattern(),
+            fieldNames,
+            null,
+            false,
+            localClusterMinimumVersion,
+            false,
+            false,
+            false,
+            false,
+            false,
+            indicesExpressionGrouper,
+            planningCpu.meteredCpu(ActionListener.wrap(resolution -> {
+                FastPathLogical logical = null;
+                Configuration configuration = null;
+                try {
+                    if (resolution.inner().isValid() && resolution.inner().failures().isEmpty()) {
+                        configuration = fastPathConfiguration(request, resolved);
+                        LogicalOptimizerContext optimizerContext = new LogicalOptimizerContext(
+                            configuration,
+                            configuration.newFoldContext(),
+                            resolution.minimumVersion(),
+                            flags
+                        );
+                        logical = fastPathLogical(fastQuery, finalLimit, resolution.inner().get(), optimizerContext);
+                    }
+                } catch (Exception e) {
+                    LOGGER.debug("fast path planning failed, falling back", e);
+                    logical = null;
+                }
+                if (logical == null) {
+                    fallback.run();
+                    return;
+                }
+                final Configuration finalConfiguration = configuration;
+                final FastPathLogical finalLogical = logical;
+                // Full text predicates get their query builders rewritten on the coordinator exactly like the full pipeline does
+                // (PreMapper): this is where a MATCH on a semantic_text field is intercepted and its inference endpoint resolved.
+                preMapper.preMapper(
+                    new Versioned<>(logical.fragment(), resolution.minimumVersion()),
+                    planningCpu.meteredCpu(ActionListener.wrap(rewrittenFragment -> {
+                        PhysicalPlan physicalPlan;
+                        try {
+                            physicalPlan = fastPathPhysical(finalLogical, rewrittenFragment);
+                        } catch (Exception e) {
+                            LOGGER.debug("fast path planning failed, falling back", e);
+                            fallback.run();
+                            return;
+                        }
+                        // Past this point a failure is the query's failure, never a reason to run the full pipeline as well.
+                        ActionListener.run(
+                            listener,
+                            l -> commitFastPath(
+                                request,
+                                executionInfo,
+                                planRunner,
+                                fastQuery,
+                                resolved,
+                                resolution,
+                                finalConfiguration,
+                                physicalPlan,
+                                l
+                            )
+                        );
+                    }, e -> {
+                        // Let the full pipeline produce the user facing error (e.g. a missing inference endpoint).
+                        LOGGER.debug("fast path query rewrite failed, falling back", e);
+                        fallback.run();
+                    }))
+                );
+            }, e -> {
+                // Let the full pipeline produce the user facing error for an unknown index or a field caps failure.
+                LOGGER.debug("fast path index resolution failed, falling back", e);
+                fallback.run();
+            }))
+        );
+    }
+
+    /**
+     * The point of no return of the fast path: records what the full pipeline would have recorded for this query (profile
+     * markers, telemetry, execution info) and runs the plan.
+     */
+    private void commitFastPath(
+        EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        PlanRunner planRunner,
+        FastPathParser.FastQuery fastQuery,
+        ResolvedSettings resolved,
+        Versioned<IndexResolution> resolution,
+        Configuration configuration,
+        PhysicalPlan physicalPlan,
+        ActionListener<Versioned<Result>> listener
+    ) {
+        // Committed: from here on the query is observable as a fast path query.
+        EsqlQueryProfile profile = executionInfo.queryProfile();
+        for (TimeSpanMarker marker : List.of(
+            profile.parsing(),
+            profile.viewResolution(),
+            profile.datasetResolution(),
+            profile.preAnalysis(),
+            profile.indicesResolutionMarker(),
+            profile.enrichResolutionMarker(),
+            profile.inferenceResolutionMarker(),
+            profile.analysis()
+        )) {
+            marker.start();
+            marker.stop();
+        }
+        profile.incFieldCapsCalls();
+        profile.setUnmappedResolution(UnmappedResolution.DEFAULT);
+        request.setResolvedSettings(resolved);
+        gatherFastPathTelemetry(fastQuery, physicalPlan, resolved);
+        // Registers the local cluster the way the full pipeline does before field caps (the parser rejects remote patterns).
+        EsqlCCSUtils.initCrossClusterState(
+            indicesExpressionGrouper,
+            verifier.licenseState(),
+            Set.of(new IndexPattern(Source.EMPTY, fastQuery.indexPattern())),
+            executionInfo
+        );
+        planSnapshot = planSnapshot.withSettings(resolved).withPhysical(physicalPlan);
+        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+        profile.planningCpuNanos(planningCpu.finish());
+        planRunner.columnMetadata(Map.of());
+        TransportVersion minimumVersion = resolution.minimumVersion();
+        planRunner.run(
+            PlanRunner.Role.OUTPUT,
+            physicalPlan,
+            configuration,
+            configuration.newFoldContext(),
+            request.profile() ? new PlanTimeProfile() : null,
+            listener.map(result -> attachAdditionalData(result, Map.of(), null, minimumVersion))
+        );
+    }
+
+    /**
+     * Records the same telemetry the full pipeline records for this query: command and function usage are gathered from the
+     * parsed shape of the query (FROM, WHERE, KEEP, SORT, LIMIT), which is what the full pipeline traverses, rather than from
+     * the optimized plan where KEEP has become a Project and SORT + LIMIT a TopN.
+     */
+    private void gatherFastPathTelemetry(FastPathParser.FastQuery fastQuery, PhysicalPlan physicalPlan, ResolvedSettings resolved) {
+        Source source = Source.EMPTY;
+        FragmentExec fragment = (FragmentExec) physicalPlan.collectFirstChildren(FragmentExec.class::isInstance).get(0);
+        EsRelation relation = (EsRelation) fragment.fragment().collectFirstChildren(EsRelation.class::isInstance).get(0);
+        Expression condition = fragment.fragment()
+            .collectFirstChildren(Filter.class::isInstance)
+            .stream()
+            .map(f -> ((Filter) f).condition())
+            .findFirst()
+            .orElse(null);
+        List<Order> orders = fragment.fragment()
+            .collectFirstChildren(TopN.class::isInstance)
+            .stream()
+            .map(t -> ((TopN) t).order())
+            .findFirst()
+            .orElse(List.of());
+        // The parsed shape, for the command and function telemetry the full pipeline gathers from the parsed plan.
+        List<NamedExpression> metadataFields = fastQuery.metadata().stream().map(name -> MetadataAttribute.create(source, name)).toList();
+        LogicalPlan parsedShape = new UnresolvedRelation(
+            source,
+            new IndexPattern(source, fastQuery.indexPattern()),
+            false,
+            metadataFields,
+            IndexMode.STANDARD,
+            null,
+            "FROM"
+        );
+        if (metadataFields.isEmpty() == false) {
+            parsedShape = new UnresolvedMetadata(source, parsedShape, metadataFields);
+        }
+        // The analyzed shape, for the feature metrics the analyzer and verifier gather after resolution.
+        LogicalPlan analyzedShape = relation;
+        if (condition != null) {
+            parsedShape = new Filter(source, parsedShape, condition);
+            analyzedShape = new Filter(source, analyzedShape, condition);
+        }
+        if (fastQuery.keep() != null) {
+            List<Attribute> kept = relation.output().stream().filter(a -> fastQuery.keep().contains(a.name())).toList();
+            parsedShape = new Keep(source, parsedShape, kept);
+            analyzedShape = new Keep(source, analyzedShape, kept);
+        }
+        if (orders.isEmpty() == false) {
+            parsedShape = new OrderBy(source, parsedShape, orders);
+            analyzedShape = new OrderBy(source, analyzedShape, orders);
+        }
+        if (fastQuery.limit() != null) {
+            Literal limit = Literal.integer(source, fastQuery.limit());
+            parsedShape = new Limit(source, limit, parsedShape);
+            analyzedShape = new Limit(source, limit, analyzedShape);
+        }
+        gatherPlanTelemetry(parsedShape, List.of(), resolved, Map.of());
+        if (metrics != null) {
+            BitSet bits = new BitSet(FeatureMetric.values().length);
+            if (fastQuery.limit() != null) {
+                bits.set(FeatureMetric.LIMIT.ordinal());
+            }
+            analyzedShape.forEachDown(p -> FeatureMetric.set(p, bits));
+            for (int i = bits.nextSetBit(0); i >= 0; i = bits.nextSetBit(i + 1)) {
+                metrics.inc(FeatureMetric.values()[i]);
+            }
+            Set<Class<?>> functions = new HashSet<>();
+            analyzedShape.forEachExpressionDown(Function.class, f -> functions.add(f.getClass()));
+            functions.forEach(metrics::incFunctionMetric);
+            metrics.incResolvedSettings(resolved);
+            metrics.incViewSettings(List.of());
+        }
+    }
+
+    private Configuration fastPathConfiguration(EsqlQueryRequest request, ResolvedSettings resolved) {
+        ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
+        return new Configuration(
+            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
+            request.locale() != null ? request.locale() : Locale.US,
+            null,
+            clusterName,
+            request.pragmas(),
+            analyzerSettings.resultTruncationMaxSize(),
+            analyzerSettings.resultTruncationDefaultSize(),
+            request.query(),
+            request.profile(),
+            request.tables(),
+            System.nanoTime(),
+            request.allowPartialResults(),
+            analyzerSettings.timeseriesResultTruncationMaxSize(),
+            analyzerSettings.timeseriesResultTruncationDefaultSize(),
+            resolved,
+            Map.of()
+        );
+    }
+
+    /**
+     * The optimized logical fragment of a fast path query plus what the coordinator plan on top of it needs.
+     */
+    private record FastPathLogical(
+        LogicalPlan fragment,
+        List<Order> orders,
+        Literal limit,
+        List<Attribute> fragmentOutput,
+        List<Attribute> output
+    ) {}
+
+    /**
+     * Builds the optimized logical fragment the full pipeline would produce for a fast path query, or {@code null} when a field
+     * it uses is not usable as is (missing, unsupported, ambiguous across indices, or of a type the fast path does not translate).
+     */
+    private static FastPathLogical fastPathLogical(
+        FastPathParser.FastQuery fastQuery,
+        int limit,
+        EsIndex esIndex,
+        LogicalOptimizerContext optimizerContext
+    ) {
+        Source source = Source.EMPTY;
+        List<Attribute> mapped = Analyzer.mappingAsAttributes(source, esIndex.mapping());
+        Map<String, FieldAttribute> byName = new HashMap<>();
+        for (Attribute attribute : mapped) {
+            if (attribute instanceof FieldAttribute fieldAttribute) {
+                if (isPlainField(fieldAttribute.field()) == false) {
+                    if (fastQuery.keep() == null) {
+                        return null; // every field is output, and this one needs the analyzer's treatment
+                    }
+                    continue;
+                }
+                byName.put(attribute.name(), fieldAttribute);
+            } else {
+                return null;
+            }
+        }
+        // The relation only carries the fields the plan reads, like the optimized plan does.
+        Set<String> referenced = fastQuery.referencedFields();
+        List<Attribute> relationAttributes = new ArrayList<>();
+        for (Attribute attribute : mapped) {
+            if (fastQuery.keep() == null || referenced.contains(attribute.name())) {
+                relationAttributes.add(attribute);
+            }
+        }
+        if (relationAttributes.isEmpty() && fastQuery.metadata().isEmpty()) {
+            return null; // an index without fields needs the analyzer's "no fields" handling
+        }
+        for (String name : referenced) {
+            FieldAttribute attribute = byName.get(name);
+            if (attribute == null || attribute.dataType() == DataType.OBJECT) {
+                return null;
+            }
+        }
+        // The analyzer appends the metadata attributes after the mapped fields, in the order requested; the optimizer then
+        // prunes the ones the plan does not read (a pruned _score means the data nodes do not score at all).
+        Map<String, Attribute> metadataByName = new HashMap<>();
+        for (String name : fastQuery.metadata()) {
+            Attribute attribute = MetadataAttribute.create(source, name).toAttribute();
+            metadataByName.put(name, attribute);
+            if (fastQuery.keep() == null
+                || fastQuery.keep().contains(name)
+                || fastQuery.sort().stream().anyMatch(k -> k.field().equals(name))) {
+                relationAttributes.add(attribute);
+            }
+        }
+        LogicalPlan plan = new EsRelation(
+            source,
+            esIndex.name(),
+            IndexMode.STANDARD,
+            esIndex.originalIndices(),
+            esIndex.concreteIndices(),
+            esIndex.indexProperties(),
+            relationAttributes.isEmpty() ? Analyzer.NO_FIELDS : relationAttributes
+        );
+        if (fastQuery.where() != null) {
+            Expression condition = fastPathCondition(fastQuery.where(), byName, optimizerContext);
+            if (condition == null) {
+                return null;
+            }
+            plan = new Filter(source, plan, condition);
+        }
+        Literal limitLiteral = Literal.integer(source, limit);
+        List<Order> orders = new ArrayList<>();
+        for (FastPathParser.SortKey key : fastQuery.sort()) {
+            Attribute attribute = byName.containsKey(key.field()) ? byName.get(key.field()) : metadataByName.get(key.field());
+            if (attribute == null) {
+                return null; // sorting on an unknown field is the analyzer's error to report
+            }
+            DataType type = attribute.dataType();
+            if (DataType.isString(type) == false && type.isNumeric() == false && type != DataType.BOOLEAN && type != DataType.DATETIME) {
+                return null;
+            }
+            if (type == DataType.TEXT) {
+                return null; // the analyzer rejects sorting on text fields
+            }
+            // _source fails the type check above; _id (keyword) and _score (double) sort like mapped fields of those types
+            Order.OrderDirection direction = key.ascending() ? Order.OrderDirection.ASC : Order.OrderDirection.DESC;
+            Order.NullsPosition nulls = key.nullsFirst() == null
+                ? (key.ascending() ? Order.NullsPosition.LAST : Order.NullsPosition.FIRST)
+                : (key.nullsFirst() ? Order.NullsPosition.FIRST : Order.NullsPosition.LAST);
+            orders.add(new Order(source, attribute, direction, nulls));
+        }
+        if (orders.isEmpty()) {
+            plan = new Limit(source, limitLiteral, plan);
+        } else {
+            plan = new TopN(source, plan, orders, limitLiteral, false);
+        }
+        List<Attribute> output;
+        List<Attribute> fragmentOutput;
+        if (fastQuery.keep() != null) {
+            List<Attribute> projections = new ArrayList<>();
+            for (String name : fastQuery.keep()) {
+                Attribute attribute = metadataByName.containsKey(name) ? metadataByName.get(name) : byName.get(name);
+                if (attribute == null) {
+                    return null; // KEEP of a metadata field that was not requested is the analyzer's error to report
+                }
+                projections.add(attribute);
+            }
+            output = projections;
+            // The fragment also ships what the coordinator's TopN sorts on, in relation order, like ProjectAwayColumns does.
+            Set<String> required = new HashSet<>(fastQuery.keep());
+            for (Order order : orders) {
+                required.add(((Attribute) order.child()).name());
+            }
+            fragmentOutput = relationAttributes.stream().filter(a -> required.contains(a.name())).toList();
+        } else {
+            output = relationAttributes;
+            fragmentOutput = relationAttributes;
+        }
+        // The full pipeline always projects inside the fragment (ProjectAwayColumns) and keeps a projection on top.
+        plan = new Project(source, plan, fragmentOutput);
+        return new FastPathLogical(plan, orders, limitLiteral, fragmentOutput, output);
+    }
+
+    /**
+     * The coordinator plan the full pipeline would produce on top of a (query builder rewritten) fast path fragment.
+     */
+    private static PhysicalPlan fastPathPhysical(FastPathLogical logical, LogicalPlan fragment) {
+        Source source = Source.EMPTY;
+        PhysicalPlan physical = new ExchangeExec(source, logical.fragmentOutput(), false, new FragmentExec(fragment));
+        physical = logical.orders().isEmpty()
+            ? new LimitExec(source, physical, logical.limit(), null)
+            : new TopNExec(source, physical, logical.orders(), logical.limit(), null).withSortedInput();
+        physical = new ProjectExec(source, physical, logical.output());
+        return EstimatesRowSize.estimateRowSize(0, physical);
+    }
+
+    /**
+     * Whether a field resolved the same way in every index, with a type the fast path can ship and translate as is. Anything
+     * else (type conflicts, union types, unsupported, unmapped-in-some-index, runtime function fields) needs the analyzer.
+     */
+    private static boolean isPlainField(EsField field) {
+        return field.getClass() == EsField.class
+            || field.getClass() == KeywordEsField.class
+            || field.getClass() == TextEsField.class
+            || field.getClass() == DateEsField.class;
+    }
+
+    private static Expression fastPathCondition(
+        FastPathParser.Cond cond,
+        Map<String, FieldAttribute> byName,
+        LogicalOptimizerContext optimizerContext
+    ) {
+        Configuration configuration = optimizerContext.configuration();
+        return switch (cond) {
+            case FastPathParser.And and -> {
+                Expression left = fastPathCondition(and.left(), byName, optimizerContext);
+                Expression right = fastPathCondition(and.right(), byName, optimizerContext);
+                yield left == null || right == null ? null : new And(and.source(), left, right);
+            }
+            case FastPathParser.Or or -> {
+                Expression left = fastPathCondition(or.left(), byName, optimizerContext);
+                Expression right = fastPathCondition(or.right(), byName, optimizerContext);
+                yield left == null || right == null ? null : new Or(or.source(), left, right);
+            }
+            case FastPathParser.Not not -> {
+                Expression child = fastPathCondition(not.child(), byName, optimizerContext);
+                yield child == null ? null : new Not(not.source(), child);
+            }
+            case FastPathParser.LikePred like -> {
+                FieldAttribute resolved = byName.get(like.field());
+                if (resolved == null || DataType.isString(resolved.dataType()) == false) {
+                    yield null;
+                }
+                Attribute field = resolved.withLocation(like.fieldSource());
+                WildcardLike wildcardLike;
+                try {
+                    wildcardLike = new WildcardLike(like.source(), field, new WildcardPattern(like.pattern()));
+                } catch (Exception e) {
+                    yield null; // an invalid pattern: the full parser reports it
+                }
+                // The logical optimizer's rewrite of a LIKE (equality, IsNotNull, StartsWith/EndsWith/Contains decompositions).
+                yield ReplaceRegexMatch.replace(wildcardLike, optimizerContext);
+            }
+            case FastPathParser.MatchPred match -> {
+                FieldAttribute resolved = byName.get(match.field());
+                if (resolved == null) {
+                    yield null;
+                }
+                Attribute field = resolved.withLocation(match.fieldSource());
+                // A string query on a string field, or a number on a numeric field; the other combinations the full
+                // pipeline accepts (a string query on any field type) are left to it.
+                Literal query = switch (match.lit().kind()) {
+                    case STRING -> DataType.isString(field.dataType()) ? Literal.keyword(match.source(), match.lit().text()) : null;
+                    case INTEGER, DECIMAL -> field.dataType().isNumeric() ? numericLiteral(match.source(), match.lit()) : null;
+                    case BOOLEAN -> null;
+                };
+                if (query == null) {
+                    yield null;
+                }
+                yield switch (match.kind()) {
+                    case OPERATOR -> new MatchOperator(match.source(), field, query);
+                    case MATCH -> new Match(match.source(), field, query, null, null);
+                    case MATCH_PHRASE -> new MatchPhrase(match.source(), field, query, null, null);
+                };
+            }
+            case FastPathParser.Cmp cmp -> {
+                FieldAttribute resolved = byName.get(cmp.field());
+                if (resolved == null) {
+                    yield null;
+                }
+                Attribute field = resolved.withLocation(cmp.fieldSource());
+                DataType type = field.dataType();
+                FastPathParser.Lit lit = cmp.lit();
+                Literal literal;
+                try {
+                    literal = switch (lit.kind()) {
+                        case STRING -> {
+                            if (type == DataType.KEYWORD) {
+                                yield Literal.keyword(cmp.source(), lit.text());
+                            }
+                            if (type == DataType.DATETIME || type == DataType.DATE_NANOS) {
+                                // The analyzer's implicit cast of a string literal compared to a date field (ImplicitCasting).
+                                yield new Literal(
+                                    cmp.source(),
+                                    EsqlDataTypeConverter.convert(new BytesRef(lit.text()), type, configuration),
+                                    type
+                                );
+                            }
+                            yield null;
+                        }
+                        case BOOLEAN -> type == DataType.BOOLEAN
+                            ? new Literal(cmp.source(), Booleans.parseBoolean(lit.text()), DataType.BOOLEAN)
+                            : null;
+                        case INTEGER -> type == DataType.INTEGER || type == DataType.LONG || type == DataType.DOUBLE
+                            ? numericLiteral(cmp.source(), lit)
+                            : null;
+                        case DECIMAL -> type == DataType.DOUBLE ? numericLiteral(cmp.source(), lit) : null;
+                    };
+                } catch (Exception e) {
+                    // An unparsable number or date: the full pipeline reports it.
+                    literal = null;
+                }
+                if (literal == null) {
+                    yield null;
+                }
+                ZoneId zoneId = DateUtils.UTC; // what the parser uses for comparisons
+                yield switch (cmp.op()) {
+                    case EQ -> new Equals(cmp.source(), field, literal, zoneId);
+                    case NEQ -> new Not(cmp.source(), new Equals(cmp.source(), field, literal, zoneId));
+                    case LT -> new LessThan(cmp.source(), field, literal, zoneId);
+                    case LTE -> new LessThanOrEqual(cmp.source(), field, literal, zoneId);
+                    case GT -> new GreaterThan(cmp.source(), field, literal, zoneId);
+                    case GTE -> new GreaterThanOrEqual(cmp.source(), field, literal, zoneId);
+                };
+            }
+        };
+    }
+
+    /** The literal the full parser builds for a number token: an integer when it fits, a long otherwise, a double with a dot. */
+    private static Literal numericLiteral(Source source, FastPathParser.Lit lit) {
+        if (lit.kind() == FastPathParser.Lit.Kind.DECIMAL) {
+            return Literal.fromDouble(source, Double.parseDouble(lit.text()));
+        }
+        long value = Long.parseLong(lit.text());
+        return value == (int) value ? Literal.integer(source, (int) value) : Literal.fromLong(source, value);
     }
 
     private void analyseAndExecute(

@@ -9,13 +9,17 @@ package org.elasticsearch.xpack.esql.rule;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
@@ -110,6 +114,27 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
     protected abstract Iterable<RuleExecutor.Batch<TreeType>> batches();
 
+    private static <T extends Node<T>> Set<Class<?>> nodeClasses(T plan) {
+        Set<Class<?>> classes = new HashSet<>();
+        plan.forEachDown(node -> classes.add(node.getClass()));
+        return classes;
+    }
+
+    private static Set<Class<?>> expressionClasses(QueryPlan<?> plan) {
+        Set<Class<?>> classes = new HashSet<>();
+        plan.forEachExpressionDown(Expression.class, expression -> classes.add(expression.getClass()));
+        return classes;
+    }
+
+    private static boolean holdsInstanceOf(Set<Class<?>> nodeClasses, Class<?> type) {
+        for (Class<?> nodeClass : nodeClasses) {
+            if (type.isAssignableFrom(nodeClass)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected final TreeType execute(TreeType plan) {
         TreeType currentPlan = plan;
 
@@ -132,8 +157,35 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             do {
                 hasChanged = false;
                 batchRuns++;
+                // The node and expression classes of the current tree, used to skip typed rules the tree holds nothing for;
+                // rebuilt after a change.
+                Set<Class<?>> nodeClasses = null;
+                Set<Class<?>> expressionClasses = null;
 
                 for (Rule<?, TreeType> rule : batch.rules) {
+                    if (rule.appliesOnlyToTypeToken()) {
+                        if (nodeClasses == null) {
+                            nodeClasses = nodeClasses(currentPlan);
+                        }
+                        if (holdsInstanceOf(nodeClasses, rule.typeToken()) == false) {
+                            if (log.isTraceEnabled()) {
+                                log.trace("Rule {} skipped, no [{}] in the plan", rule, rule.typeToken().getSimpleName());
+                            }
+                            continue;
+                        }
+                    }
+                    Class<?> expressionToken = rule.expressionTypeToken();
+                    if (expressionToken != null && currentPlan instanceof QueryPlan<?> queryPlan) {
+                        if (expressionClasses == null) {
+                            expressionClasses = expressionClasses(queryPlan);
+                        }
+                        if (holdsInstanceOf(expressionClasses, expressionToken) == false) {
+                            if (log.isTraceEnabled()) {
+                                log.trace("Rule {} skipped, no [{}] expression in the plan", rule, expressionToken.getSimpleName());
+                            }
+                            continue;
+                        }
+                    }
                     if (log.isTraceEnabled()) {
                         log.trace("About to apply rule {}", rule);
                     }
@@ -144,6 +196,8 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
                     if (Objects.equals(beforeRule, afterRule) == false) {
                         hasChanged = true;
+                        nodeClasses = null;
+                        expressionClasses = null;
                         if (lastAppliedRules.size() == LAST_APPLIED_RULES_TO_REPORT) {
                             lastAppliedRules.removeFirst();
                         }

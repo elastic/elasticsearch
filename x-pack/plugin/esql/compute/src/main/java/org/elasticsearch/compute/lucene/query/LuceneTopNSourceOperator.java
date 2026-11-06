@@ -436,6 +436,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             }
         }
 
+        if (isBlocked().listener().isDone() == false) {
+            // No scorer because the next slice is not ready yet (a segment being cached, a shard another driver is preparing):
+            // let the driver wait on it, the collection is not over.
+            return null;
+        }
         doneCollecting = true;
         startEmitting();
         return emit();

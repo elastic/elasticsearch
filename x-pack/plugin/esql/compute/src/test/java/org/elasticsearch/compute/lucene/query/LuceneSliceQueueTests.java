@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.test.ESTestCase;
@@ -53,9 +54,11 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests.simpleReader;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LuceneSliceQueueTests extends ESTestCase {
 
@@ -533,6 +536,164 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     var shardContext = shardContexts.get(i);
                     assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
                 }
+            }
+        }
+    }
+
+    /**
+     * A lazy queue builds a shard's slices the first time a driver asks and nothing is published yet, keeps that shard's
+     * first slice for the asking driver and publishes the rest; concurrent drivers hand every slice out exactly once.
+     */
+    public void testLazyQueue() throws IOException {
+        try (var directory = newDirectory()) {
+            try (var reader = simpleReader(directory, 20, 5)) {
+                int numShards = between(1, 8);
+                int queriesPerShard = between(1, 3);
+                List<ShardContext> shardContexts = new ArrayList<>();
+                for (int shard = 0; shard < numShards; shard++) {
+                    shardContexts.add(new LuceneSourceOperatorTests.MockShardContext(reader, shard));
+                }
+                List<LuceneSliceQueue.QueryAndTags> queries = new ArrayList<>();
+                for (int i = 0; i < queriesPerShard; i++) {
+                    queries.add(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of(i)));
+                }
+                LuceneSliceQueue queue = LuceneSliceQueue.createLazy(
+                    new IndexedByShardIdFromList<>(shardContexts),
+                    context -> queries,
+                    DataPartitioning.SHARD,
+                    (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                    LuceneOperator.SMALL_INDEX_BOUNDARY,
+                    between(1, 4),
+                    context -> ScoreMode.COMPLETE_NO_SCORES,
+                    LuceneSliceQueue.LeafSplitGuard.NEVER,
+                    LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                    QueryWarnings.NOOP
+                );
+                // Nothing is prepared before a driver asks, but the parallelism estimate is exact for SHARD partitioning.
+                assertThat(queue.totalSlices(), equalTo(0));
+                assertThat(queue.estimatedSlices(), equalTo(numShards * queriesPerShard));
+                assertThat(queue.partitioningStrategies().keySet(), empty());
+                // Mock shards share one identifier, so compare against the identifiers rather than the shard count.
+                Set<String> identifiers = new HashSet<>();
+                for (ShardContext shardContext : shardContexts) {
+                    identifiers.add(shardContext.shardIdentifier());
+                }
+                assertThat(queue.shardIdentifiers(), equalTo(identifiers));
+
+                // The first slice handed out is the first shard's query head; the rest of that shard is published.
+                LuceneSlice first = queue.nextSlice(null);
+                assertNotNull(first);
+                assertThat(first.shardContext(), sameInstance(shardContexts.get(0)));
+                assertThat(first.queryHead(), equalTo(true));
+                assertThat(queue.totalSlices(), equalTo(queriesPerShard));
+
+                // Concurrent drivers drain the rest, each slice exactly once, until every shard is prepared.
+                int drivers = between(1, 4);
+                Queue<LuceneSlice> taken = ConcurrentCollections.newQueue();
+                taken.add(first);
+                CyclicBarrier barrier = new CyclicBarrier(drivers);
+                Thread[] threads = new Thread[drivers];
+                for (int t = 0; t < drivers; t++) {
+                    threads[t] = new Thread(() -> {
+                        try {
+                            barrier.await(30, TimeUnit.SECONDS);
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                        LuceneSlice slice = null;
+                        while ((slice = queue.nextSlice(slice)) != null) {
+                            taken.add(slice);
+                        }
+                    });
+                    threads[t].start();
+                }
+                for (Thread thread : threads) {
+                    try {
+                        thread.join();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+                assertThat(queue.totalSlices(), equalTo(numShards * queriesPerShard));
+                assertThat(taken, hasSize(numShards * queriesPerShard));
+                Set<Integer> positions = new HashSet<>();
+                for (LuceneSlice slice : taken) {
+                    assertTrue("slice handed out twice: " + slice.slicePosition(), positions.add(slice.slicePosition()));
+                }
+                assertThat(queue.partitioningStrategies().keySet(), equalTo(identifiers));
+                assertNull(queue.nextSlice(null));
+            }
+        }
+    }
+
+    /**
+     * A driver that finds every shard claimed while another driver is still preparing one must wait for that preparation
+     * ({@link LuceneSliceQueue#awaitPreparation}) rather than finish: the slices it publishes are for any driver to take.
+     */
+    public void testLazyQueueWaitsForInFlightPreparation() throws Exception {
+        try (var directory = newDirectory()) {
+            try (var reader = simpleReader(directory, 20, 5)) {
+                List<ShardContext> shardContexts = List.of(
+                    new LuceneSourceOperatorTests.MockShardContext(reader, 0),
+                    new LuceneSourceOperatorTests.MockShardContext(reader, 1)
+                );
+                java.util.concurrent.CountDownLatch preparingShard1 = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.CountDownLatch releaseShard1 = new java.util.concurrent.CountDownLatch(1);
+                List<LuceneSliceQueue.QueryAndTags> queries = List.of(
+                    new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()),
+                    new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())
+                );
+                LuceneSliceQueue queue = LuceneSliceQueue.createLazy(new IndexedByShardIdFromList<>(shardContexts), context -> {
+                    if (context.index() == 1) {
+                        preparingShard1.countDown();
+                        try {
+                            assertTrue(releaseShard1.await(30, TimeUnit.SECONDS));
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                    return queries;
+                },
+                    DataPartitioning.SHARD,
+                    (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                    LuceneOperator.SMALL_INDEX_BOUNDARY,
+                    2,
+                    context -> ScoreMode.COMPLETE_NO_SCORES,
+                    LuceneSliceQueue.LeafSplitGuard.NEVER,
+                    LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                    QueryWarnings.NOOP
+                );
+                assertNull(queue.awaitPreparation());
+                // Driver A takes shard 0 and the first of its two slices; the second is published.
+                LuceneSlice a = queue.nextSlice(null);
+                assertNotNull(a);
+                assertThat(a.shardContext(), sameInstance(shardContexts.get(0)));
+                // Driver B takes the published slice, then claims shard 1 and stalls inside its preparation.
+                LuceneSlice b = queue.nextSlice(null);
+                assertNotNull(b);
+                assertThat(b.shardContext(), sameInstance(shardContexts.get(0)));
+                Thread driverB = new Thread(() -> {
+                    // B keeps shard 1's first slice; the second is published for whoever asks next.
+                    LuceneSlice slice = queue.nextSlice(b);
+                    assertNotNull(slice);
+                    assertThat(slice.shardContext(), sameInstance(shardContexts.get(1)));
+                });
+                driverB.start();
+                assertTrue(preparingShard1.await(30, TimeUnit.SECONDS));
+                // Driver A finds nothing published and every shard claimed: it must be told to wait, not to finish.
+                assertNull(queue.nextSlice(a));
+                var preparing = queue.awaitPreparation();
+                assertNotNull(preparing);
+                assertFalse(preparing.isDone());
+                releaseShard1.countDown();
+                safeAwait(preparing);
+                driverB.join();
+                // Once published, shard 1's second slice is there for driver A, and then the queue is final.
+                LuceneSlice fromShard1 = queue.nextSlice(a);
+                assertNotNull(fromShard1);
+                assertThat(fromShard1.shardContext(), sameInstance(shardContexts.get(1)));
+                assertNull(queue.nextSlice(fromShard1));
+                assertNull(queue.awaitPreparation());
             }
         }
     }

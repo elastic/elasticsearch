@@ -124,10 +124,14 @@ public class QueryWarnings {
      * own the warning (see {@code LuceneSliceQueue#create}). There is currently no well-defined owner
      * for warnings raised in that window, so they're dropped rather than attributed to a driver.
      *
-     * @throws IllegalStateException if this thread already has a binding
+     * Unlike the other bindings this one nests: a driver's binding may be active when a lazy
+     * {@link org.elasticsearch.compute.lucene.query.LuceneSliceQueue} prepares a shard on the driver's thread, and the
+     * driver's binding is restored when this one is released.
      */
     public Releasable bindDiscarding() {
-        return doBind(new ThreadState(null, null, true));
+        ThreadState previous = perThreadWarnings.get();
+        perThreadWarnings.set(new ThreadState(null, null, true));
+        return previous == null ? perThreadWarnings::remove : () -> perThreadWarnings.set(previous);
     }
 
     private Releasable doBind(ThreadState state) {

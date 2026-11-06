@@ -78,6 +78,24 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
+    /**
+     * Drop the rows that cannot be in the top groups of {@code STATS COUNT(*) BY key | SORT count DESC | LIMIT N}, before they are
+     * aggregated. Only used on a single node. See {@code SketchFilterOperator}.
+     */
+    public static final Setting<Boolean> SKETCH_FILTER = Setting.boolSetting("sketch_filter", false);
+
+    /** The number of sketch slots per driver for {@link #SKETCH_FILTER}. */
+    public static final Setting<Integer> SKETCH_FILTER_SLOTS = Setting.intSetting("sketch_filter_slots", 65536, 8);
+
+    /** The most candidate keys for which {@link #SKETCH_FILTER} still filters. */
+    public static final Setting<Integer> SKETCH_FILTER_MAX_CANDIDATES = Setting.intSetting("sketch_filter_max_candidates", 4096, 1);
+
+    /** The most bytes of pages that all drivers together buffer for {@link #SKETCH_FILTER}, before they give up and pass pages through. */
+    public static final Setting<ByteSizeValue> SKETCH_FILTER_MAX_BUFFER = Setting.byteSizeSetting(
+        "sketch_filter_max_buffer",
+        ByteSizeValue.ofGb(2)
+    );
+
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -286,7 +304,11 @@ public final class QueryPragmas implements Writeable {
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
-        SINGLE_NODE_OPTIMIZATIONS
+        SINGLE_NODE_OPTIMIZATIONS,
+        SKETCH_FILTER,
+        SKETCH_FILTER_SLOTS,
+        SKETCH_FILTER_MAX_CANDIDATES,
+        SKETCH_FILTER_MAX_BUFFER
 
     ).map(Setting::getKey).toList();
 
@@ -396,6 +418,22 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean singleNodeOptimizations() {
         return SINGLE_NODE_OPTIMIZATIONS.get(settings);
+    }
+
+    public boolean sketchFilter() {
+        return SKETCH_FILTER.get(settings);
+    }
+
+    public int sketchFilterSlots() {
+        return SKETCH_FILTER_SLOTS.get(settings);
+    }
+
+    public int sketchFilterMaxCandidates() {
+        return SKETCH_FILTER_MAX_CANDIDATES.get(settings);
+    }
+
+    public long sketchFilterMaxBufferBytes() {
+        return SKETCH_FILTER_MAX_BUFFER.get(settings).getBytes();
     }
 
     /**

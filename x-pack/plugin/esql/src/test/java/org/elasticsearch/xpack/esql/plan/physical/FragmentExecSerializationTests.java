@@ -22,7 +22,8 @@ public class FragmentExecSerializationTests extends AbstractPhysicalPlanSerializ
         LogicalPlan fragment = AbstractLogicalPlanSerializationTests.randomChild(depth);
         QueryBuilder esFilter = EsqlQueryRequestTests.randomQueryBuilder();
         int estimatedRowSize = between(0, Integer.MAX_VALUE);
-        return new FragmentExec(source, fragment, esFilter, estimatedRowSize);
+        Integer topCountLimit = randomBoolean() ? null : between(1, 1000);
+        return new FragmentExec(source, fragment, esFilter, estimatedRowSize, false, topCountLimit);
     }
 
     @Override
@@ -35,13 +36,15 @@ public class FragmentExecSerializationTests extends AbstractPhysicalPlanSerializ
         LogicalPlan fragment = instance.fragment();
         QueryBuilder esFilter = instance.esFilter();
         int estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 2)) {
+        Integer topCountLimit = instance.topCountLimit();
+        switch (between(0, 3)) {
             case 0 -> fragment = randomValueOtherThan(fragment, () -> AbstractLogicalPlanSerializationTests.randomChild(0));
             case 1 -> esFilter = randomValueOtherThan(esFilter, EsqlQueryRequestTests::randomQueryBuilder);
             case 2 -> estimatedRowSize = randomValueOtherThan(estimatedRowSize, () -> between(0, Integer.MAX_VALUE));
+            case 3 -> topCountLimit = randomValueOtherThan(topCountLimit, () -> randomBoolean() ? null : between(1, 1000));
             default -> throw new UnsupportedEncodingException();
         }
-        return new FragmentExec(instance.source(), fragment, esFilter, estimatedRowSize);
+        return new FragmentExec(instance.source(), fragment, esFilter, estimatedRowSize, false, topCountLimit);
     }
 
     @Override

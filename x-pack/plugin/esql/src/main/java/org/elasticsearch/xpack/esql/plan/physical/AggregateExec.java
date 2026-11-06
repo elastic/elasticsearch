@@ -47,6 +47,13 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
+    /**
+     * Local to one node and never serialized: when not {@code null}, only the {@code N} groups with the highest {@code COUNT(*)} are
+     * read from the output of this aggregation. See {@link FragmentExec#topCountLimit()}. It is set by the data node on the
+     * {@link AggregatorMode#INITIAL} aggregation after local planning, and is not part of the node's identity.
+     */
+    private Integer topCountLimit;
+
     public AggregateExec(
         Source source,
         PhysicalPlan child,
@@ -101,7 +108,9 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public AggregateExec replaceChild(PhysicalPlan newChild) {
-        return new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        return withTopCountLimitFrom(
+            new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize)
+        );
     }
 
     public List<? extends Expression> groupings() {
@@ -113,11 +122,36 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     public AggregateExec withAggregates(List<? extends NamedExpression> newAggregates) {
-        return new AggregateExec(source(), child(), groupings, newAggregates, mode, intermediateAttributes, estimatedRowSize);
+        return withTopCountLimitFrom(
+            new AggregateExec(source(), child(), groupings, newAggregates, mode, intermediateAttributes, estimatedRowSize)
+        );
     }
 
     public AggregateExec withMode(AggregatorMode newMode) {
-        return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize);
+        return withTopCountLimitFrom(
+            new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize)
+        );
+    }
+
+    /**
+     * The {@code N} of a {@code SORT count DESC | LIMIT N} that reads only the top groups of this aggregation, or {@code null}.
+     */
+    public Integer topCountLimit() {
+        return topCountLimit;
+    }
+
+    public AggregateExec withTopCountLimit(Integer limit) {
+        if (Objects.equals(limit, topCountLimit)) {
+            return this;
+        }
+        AggregateExec copy = new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        copy.topCountLimit = limit;
+        return copy;
+    }
+
+    private AggregateExec withTopCountLimitFrom(AggregateExec copy) {
+        copy.topCountLimit = topCountLimit;
+        return copy;
     }
 
     /**
@@ -137,7 +171,9 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     protected AggregateExec withEstimatedSize(int estimatedRowSize) {
-        return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        return withTopCountLimitFrom(
+            new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize)
+        );
     }
 
     public AggregatorMode getMode() {

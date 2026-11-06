@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +29,8 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         "FragmentExec",
         FragmentExec::new
     );
+
+    private static final TransportVersion ESQL_FRAGMENT_TOP_COUNT_LIMIT = TransportVersion.fromName("esql_fragment_top_count_limit");
 
     private final LogicalPlan fragment;
     private final QueryBuilder esFilter;
@@ -53,6 +56,14 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
      */
     private final boolean fromViewBranch;
 
+    /**
+     * When not {@code null}, this fragment is an aggregation that only the {@code N} groups with the highest {@code COUNT(*)} are
+     * read from, because a {@code SORT count DESC | LIMIT N} sits above it on the coordinator. The data node can use this to drop
+     * the rows of groups that cannot be in the top {@code N} before it aggregates them. It is set by the coordinator, in
+     * {@code MarkTopCountAggregations}, and only if every node in the cluster can read it.
+     */
+    private final Integer topCountLimit;
+
     public FragmentExec(LogicalPlan fragment) {
         this(fragment.source(), fragment, null, 0);
     }
@@ -72,11 +83,23 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
      * that a node's {@code info()} properties match its longest public constructor.
      */
     public FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, int estimatedRowSize, boolean fromViewBranch) {
+        this(source, fragment, esFilter, estimatedRowSize, fromViewBranch, null);
+    }
+
+    public FragmentExec(
+        Source source,
+        LogicalPlan fragment,
+        QueryBuilder esFilter,
+        int estimatedRowSize,
+        boolean fromViewBranch,
+        Integer topCountLimit
+    ) {
         super(source);
         this.fragment = fragment;
         this.esFilter = esFilter;
         this.estimatedRowSize = estimatedRowSize;
         this.fromViewBranch = fromViewBranch;
+        this.topCountLimit = topCountLimit;
     }
 
     private FragmentExec(StreamInput in) throws IOException {
@@ -85,6 +108,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         this.esFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.estimatedRowSize = in.readVInt();
         this.fromViewBranch = false; // coordinator-only; not serialised
+        this.topCountLimit = in.getTransportVersion().supports(ESQL_FRAGMENT_TOP_COUNT_LIMIT) ? in.readOptionalVInt() : null;
     }
 
     @Override
@@ -93,6 +117,11 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         out.writeNamedWriteable(fragment());
         out.writeOptionalNamedWriteable(esFilter());
         out.writeVInt(estimatedRowSize);
+        if (out.getTransportVersion().supports(ESQL_FRAGMENT_TOP_COUNT_LIMIT)) {
+            out.writeOptionalVInt(topCountLimit);
+        } else {
+            assert topCountLimit == null : "the coordinator must not set the limit if a node cannot read it";
+        }
     }
 
     @Override
@@ -112,9 +141,19 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         return estimatedRowSize;
     }
 
+    /** Whether a node with this transport version can read {@link #topCountLimit()}. */
+    public static boolean supportsTopCountLimit(TransportVersion version) {
+        return version.supports(ESQL_FRAGMENT_TOP_COUNT_LIMIT);
+    }
+
+    /** The {@code N} of a {@code SORT count DESC | LIMIT N} above this fragment, or {@code null}. See {@link #topCountLimit}. */
+    public Integer topCountLimit() {
+        return topCountLimit;
+    }
+
     @Override
     protected NodeInfo<FragmentExec> info() {
-        return NodeInfo.create(this, FragmentExec::new, fragment, esFilter, estimatedRowSize, fromViewBranch);
+        return NodeInfo.create(this, FragmentExec::new, fragment, esFilter, estimatedRowSize, fromViewBranch, topCountLimit);
     }
 
     @Override
@@ -129,7 +168,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
 
     /** Returns a copy of this fragment marked as originating from a view branch (see {@link #fromViewBranch}). */
     public FragmentExec asFromViewBranch() {
-        return fromViewBranch ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, true);
+        return fromViewBranch ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, true, topCountLimit);
     }
 
     @Override
@@ -137,24 +176,30 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         int estimatedRowSize = state.consumeAllFields(false);
         return Objects.equals(estimatedRowSize, this.estimatedRowSize)
             ? this
-            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
+            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch, topCountLimit);
     }
 
     public FragmentExec withFragment(LogicalPlan fragment) {
         return Objects.equals(fragment, this.fragment)
             ? this
-            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
+            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch, topCountLimit);
     }
 
     public FragmentExec withFilter(QueryBuilder filter) {
         return Objects.equals(filter, this.esFilter)
             ? this
-            : new FragmentExec(source(), fragment, filter, estimatedRowSize, fromViewBranch);
+            : new FragmentExec(source(), fragment, filter, estimatedRowSize, fromViewBranch, topCountLimit);
+    }
+
+    public FragmentExec withTopCountLimit(Integer limit) {
+        return Objects.equals(limit, this.topCountLimit)
+            ? this
+            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch, limit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fragment, esFilter, estimatedRowSize, fromViewBranch);
+        return Objects.hash(fragment, esFilter, estimatedRowSize, fromViewBranch, topCountLimit);
     }
 
     @Override
@@ -171,7 +216,8 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         return Objects.equals(fragment, other.fragment)
             && Objects.equals(esFilter, other.esFilter)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
-            && fromViewBranch == other.fromViewBranch;
+            && fromViewBranch == other.fromViewBranch
+            && Objects.equals(topCountLimit, other.topCountLimit);
     }
 
     @Override

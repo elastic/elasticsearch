@@ -362,6 +362,49 @@ public class BytesRefHashTests extends ESTestCase {
         }
     }
 
+    public void testFindCursor() {
+        try (
+            BytesRefHash hash = randomHash();
+            PagedBytesBuilder builder = new PagedBytesBuilder(
+                new MockPageCacheRecycler(Settings.EMPTY),
+                newLimitedBreaker(ByteSizeValue.ofMb(50)),
+                "test",
+                64
+            )
+        ) {
+            BytesRefBuilder ref = new BytesRefBuilder();
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            List<String> added = new ArrayList<>();
+            Set<String> unique = new HashSet<>();
+            int count = scaledRandomIntBetween(10, 797);
+            for (int i = 0; i < count; i++) {
+                String str = randomValueOtherThanMany(s -> s.length() == 0, () -> TestUtil.randomRealisticUnicodeString(random(), 1000));
+                ref.copyChars(str);
+                builder.clear();
+                builder.append(ref.get());
+                if (unique.add(str)) {
+                    long id = hash.add(builder.view(cursor));
+                    assertEquals(added.size(), id);
+                    added.add(str);
+                }
+            }
+            long size = hash.size();
+            for (int i = 0; i < added.size(); i++) {
+                ref.copyChars(added.get(i));
+                builder.clear();
+                builder.append(ref.get());
+                assertEquals("a present key answers its id", i, hash.find(builder.view(cursor)));
+                assertEquals("found through the cursor as through the ref", hash.find(ref.get()), hash.find(builder.view(cursor)));
+            }
+            String absent = randomValueOtherThanMany(unique::contains, () -> TestUtil.randomRealisticUnicodeString(random(), 1000) + "!");
+            ref.copyChars(absent);
+            builder.clear();
+            builder.append(ref.get());
+            assertEquals("an absent key is not inserted", -1L, hash.find(builder.view(cursor)));
+            assertEquals(size, hash.size());
+        }
+    }
+
     private void testAddCursor(CircuitBreaker breaker) {
         try (
             BytesRefHash hash = randomHash();

@@ -46,6 +46,7 @@ public class EsqlSearchShardsAction extends HandledTransportAction<SearchShardsR
 
     @Override
     protected void doExecute(Task task, SearchShardsRequest request, ActionListener<SearchShardsResponse> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
         searchShardsAction.searchShards(task, request, listener);
     }
 }

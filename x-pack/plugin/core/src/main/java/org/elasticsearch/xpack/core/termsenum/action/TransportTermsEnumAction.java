@@ -167,6 +167,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
     @Override
     protected void doExecute(Task task, TermsEnumRequest request, ActionListener<TermsEnumResponse> listener) {
+        assert Transports.assertNotTransportThread("terms enum");
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }

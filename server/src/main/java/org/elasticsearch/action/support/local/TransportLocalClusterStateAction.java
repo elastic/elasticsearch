@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
@@ -53,7 +54,8 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
         ClusterService clusterService,
         Executor executor
     ) {
-        super(actionName, actionFilters, taskManager, executor);
+        // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(actionName, actionFilters, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.executor = executor;
     }
@@ -78,15 +80,16 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
                 waitForClusterUnblock(task, request, listener, state, clusterBlockException);
             }
         } else {
-            ActionListener.run(listener, l -> innerDoExecute(task, request, l, state));
+            innerDoExecute(task, request, listener, state);
         }
     }
 
-    private void innerDoExecute(Task task, Request request, ActionListener<Response> listener, ClusterState state) throws Exception {
+    private void innerDoExecute(Task task, Request request, ActionListener<Response> listener, ClusterState state) {
         if (task instanceof CancellableTask cancellableTask && cancellableTask.notifyIfCancelled(listener)) {
             return;
         }
-        localClusterStateOperation(task, request, state, listener);
+        // Workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        executor.execute(ActionRunnable.wrap(listener, l -> localClusterStateOperation(task, request, state, l)));
     }
 
     private void waitForClusterUnblock(
@@ -122,8 +125,7 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
                     return;
                 }
                 logger.trace("retrying with cluster state version [{}]", state.version());
-                // ClusterStateObserver callbacks may run on the applier thread; hop back to the action executor.
-                executor.execute(ActionRunnable.wrap(listener, l -> innerDoExecute(task, request, l, state)));
+                innerDoExecute(task, request, listener, state);
             }
 
             @Override

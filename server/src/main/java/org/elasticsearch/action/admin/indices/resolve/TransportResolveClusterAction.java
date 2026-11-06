@@ -39,6 +39,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -96,6 +97,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
 
     @Override
     protected void doExecute(Task task, ResolveClusterActionRequest request, ActionListener<ResolveClusterActionResponse> listener) {
+        assert Transports.assertNotTransportThread("resolve/cluster");
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }

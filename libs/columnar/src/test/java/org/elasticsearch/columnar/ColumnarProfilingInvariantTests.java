@@ -46,6 +46,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -53,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -191,6 +193,48 @@ public class ColumnarProfilingInvariantTests extends ESTestCase {
                 assertThat(TestCollectors.toKeyedValues(dictionary.snapshot()).get("ColumNAR.readers.dictionary"), equalTo(1L));
                 assertThat(TestCollectors.toKeyedValues(dictionary.snapshot()).get("ColumNAR.readers.plain"), equalTo(0L));
                 assertThat(TestCollectors.toKeyedValues(plain.snapshot()).get("ColumNAR.chunks.decompressed"), greaterThan(0L));
+            }
+        }
+    }
+
+    public void testConcurrentScopesReadingOneSegmentKeepTheirOwnCounts() throws IOException {
+        final Layout layout = randomFrom(Layout.values());
+        final List<String> values = values(layout, between(1500, 3000), false);
+        try (Directory dir = newDirectory()) {
+            write(dir, layout, values, values.size());
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final ProfileCollector single = TestCollectors.countersOnly();
+                scan(openUnder(single, leaf));
+                final Map<String, Long> expected = TestCollectors.toKeyedValues(single.snapshot());
+                assertThat(expected.get("ColumNAR.readers.opened"), equalTo(1L));
+
+                // NOTE: The last task opens its reader with no scope bound, so profiled and unprofiled readers of the same
+                // segment and field are read at the same time.
+                final int profiled = between(2, 4);
+                final List<ProfileCollector> collectors = new ArrayList<>();
+                for (int i = 0; i < profiled; i++) {
+                    collectors.add(TestCollectors.countersOnly());
+                }
+                final CyclicBarrier opened = new CyclicBarrier(profiled + 1);
+                startInParallel(profiled + 1, task -> {
+                    try {
+                        final BinaryDocValues column = task < profiled
+                            ? openUnder(collectors.get(task), leaf)
+                            : leaf.getBinaryDocValues(FIELD);
+                        safeAwait(opened);
+                        scan(column);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+                for (int i = 0; i < profiled; i++) {
+                    assertThat(
+                        "scope " + i + " holds the work of its own reader and nothing else",
+                        TestCollectors.toKeyedValues(collectors.get(i).snapshot()),
+                        equalTo(expected)
+                    );
+                }
             }
         }
     }

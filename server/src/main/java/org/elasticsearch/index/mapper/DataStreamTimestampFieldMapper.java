@@ -119,8 +119,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         private static void validateTimestampSettings(DateFieldMapper.Builder dateBuilder) {
-            // Parameters, multi-fields, copy_to and synthetic_source_keep are the attributes a field can configure; the
-            // ones below are the only ones allowed, and only when they differ from their defaults do they count as set.
+            // A timestamp field can configure multi-fields, copy_to and synthetic_source_keep; all other
+            // configuration parameters need specific values to survive validation.
             Set<String> disallowed = new TreeSet<>();
             for (Parameter<?> parameter : dateBuilder.getParameters()) {
                 if (parameter.isConfigured() == false) {

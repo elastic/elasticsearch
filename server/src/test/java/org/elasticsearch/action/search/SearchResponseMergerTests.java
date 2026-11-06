@@ -259,12 +259,12 @@ public class SearchResponseMergerTests extends ESTestCase {
                 String clusterAlias = entry.getKey();
                 Index[] indices = entry.getValue();
                 int numFailures = randomIntBetween(1, 10);
-                ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
+                List<ShardSearchFailure> shardSearchFailures = new ArrayList<>(numFailures);
                 for (int j = 0; j < numFailures; j++) {
                     ShardId shardId = new ShardId(randomFrom(indices), j);
                     SearchShardTarget searchShardTarget = new SearchShardTarget(randomAlphaOfLength(6), shardId, clusterAlias);
                     ShardSearchFailure failure = new ShardSearchFailure(new IllegalArgumentException(), searchShardTarget);
-                    shardSearchFailures[j] = failure;
+                    shardSearchFailures.add(failure);
                     priorityQueue.add(Tuple.tuple(searchShardTarget, failure));
                 }
                 SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
@@ -320,14 +320,14 @@ public class SearchResponseMergerTests extends ESTestCase {
             PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
             for (int i = 0; i < numResponses; i++) {
                 int numFailures = randomIntBetween(1, 10);
-                ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
+                List<ShardSearchFailure> shardSearchFailures = new ArrayList<>(numFailures);
                 for (int j = 0; j < numFailures; j++) {
                     String index = "index-" + i;
                     ShardId shardId = new ShardId(index, index + "-uuid", j);
                     ElasticsearchException elasticsearchException = new ElasticsearchException(new IllegalArgumentException());
                     elasticsearchException.setShard(shardId);
                     ShardSearchFailure failure = new ShardSearchFailure(elasticsearchException);
-                    shardSearchFailures[j] = failure;
+                    shardSearchFailures.add(failure);
                     priorityQueue.add(Tuple.tuple(shardId, failure));
                 }
                 SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
@@ -383,12 +383,12 @@ public class SearchResponseMergerTests extends ESTestCase {
             List<ShardSearchFailure> expectedFailures = new ArrayList<>();
             for (int i = 0; i < numResponses; i++) {
                 int numFailures = randomIntBetween(1, 50);
-                ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
+                List<ShardSearchFailure> shardSearchFailures = new ArrayList<>(numFailures);
                 for (int j = 0; j < numFailures; j++) {
                     ShardSearchFailure shardSearchFailure = new ShardSearchFailure(
                         new ElasticsearchException(new IllegalArgumentException())
                     );
-                    shardSearchFailures[j] = shardSearchFailure;
+                    shardSearchFailures.add(shardSearchFailure);
                     expectedFailures.add(shardSearchFailure);
                 }
                 SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(

@@ -65,7 +65,7 @@ In order to set up, configure, and run a connector you’ll be moving between yo
 
 1. Satisfy any data source prerequisites (e.g., create an OAuth application).
 2. Create a connector.
-   - Use the UI. Search for "connectors" in the [global search field](docs-content://explore-analyze/find-and-organize/find-apps-and-objects.md).
+   - Use the UI. Search for **Content crawlers** {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` or **Content connectors** {applies_to}`stack: ga 9.0-9.6` in the [global search field](docs-content://explore-analyze/find-and-organize/find-apps-and-objects.md).
    - Use the API. Refer to [create connector API]({{es-apis}}/operation/operation-connector-post).
 3. Deploy the connector service:
     - [Option 1: Run with Docker](es-connectors-run-from-docker.md) (recommended)

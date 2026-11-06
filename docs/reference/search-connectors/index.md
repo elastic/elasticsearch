@@ -25,12 +25,12 @@ These connectors are written in Python and the source code is available in the [
 
 ## Setup modes [setup-modes]
 
-You can set up connectors in two ways. The availability of each setup mode is indicated on the connectors page in {{kib}}.
+You can set up connectors in two ways. The availability of each setup mode is indicated on the {{kib}} page for managing connectors.
 
 | | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
 |---|---|---|
 | **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
-| **Availability** | Any Elastic environment, including {{es-serverless}} | {{ecloud}} only, where the option is enabled on the connectors page (for example, for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md)) |
+| **Availability** | Any Elastic environment, including {{es-serverless}} | {{ecloud}} only, where the option is enabled on the page for managing connectors (for example, for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md)) |
 | **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
 | **Customization** | Supported | Not supported |
 

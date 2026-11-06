@@ -970,13 +970,16 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             });
         }
         if (fieldType == DataType.NULL) {
-            // NULL field is allowed, but the other arguments must still be valid for some BUCKET overload.
+            // NULL field is allowed, but the other arguments must still be valid for a single BUCKET overload:
+            // a time span takes date bounds, and a whole number takes either two numeric or two date bounds.
             return isType(
                 buckets,
                 dt -> isSupportedBucketsNumeric(dt) || DataType.isTemporalAmount(dt),
                 sourceText(),
                 SECOND,
-                "numeric",
+                "integer",
+                "long",
+                "double",
                 "date_period",
                 "time_duration"
             ).and(() -> {
@@ -986,8 +989,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 if (bucketsType.isRationalNumber()) {
                     return checkArgsCount(2);
                 }
-                return checkArgsCount(4).and(() -> isStringOrDateOrNumeric(from, sourceText(), THIRD))
-                    .and(() -> isStringOrDateOrNumeric(to, sourceText(), FOURTH));
+                return checkArgsCount(4).and(() -> {
+                    if (DataType.isTemporalAmount(bucketsType) == false && (from.dataType().isNumeric() || to.dataType().isNumeric())) {
+                        return isNumeric(from, sourceText(), THIRD).and(() -> isNumeric(to, sourceText(), FOURTH));
+                    }
+                    return isStringOrDate(from, sourceText(), THIRD).and(() -> isStringOrDate(to, sourceText(), FOURTH));
+                });
             });
         }
         return isType(field, e -> false, sourceText(), FIRST, "datetime", "numeric");
@@ -1041,19 +1048,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             "datetime",
             "date_nanos",
             "string"
-        );
-    }
-
-    private static TypeResolution isStringOrDateOrNumeric(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(
-            e,
-            dt -> DataType.isString(dt) || DataType.isMillisOrNanos(dt) || dt.isNumeric(),
-            operationName,
-            paramOrd,
-            "datetime",
-            "date_nanos",
-            "string",
-            "numeric"
         );
     }
 

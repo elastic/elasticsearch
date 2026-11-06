@@ -143,7 +143,7 @@ public class FieldSemanticsTests extends ESTestCase {
         IndexFieldCapabilities bytes = caps("bytes", "long", false, TimeSeriesParams.MetricType.COUNTER, Map.of("unit", "By"));
         FieldCapabilitiesResponse response = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
-                List.of(new FieldCapabilitiesIndexResponse("idx", "idx", Map.of("bytes", bytes), true, IndexMode.TIME_SERIES, 1, 1L, 1L))
+                List.of(new FieldCapabilitiesIndexResponse("idx", "idx", Map.of("bytes", bytes), true, IndexMode.TIME_SERIES, 1, 0, 1L, 1L))
             )
             .build();
         assertThat(resolve(response, true).get("bytes").metricType(), equalTo("counter"));

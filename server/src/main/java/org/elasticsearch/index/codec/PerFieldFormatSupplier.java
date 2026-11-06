@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
@@ -208,10 +209,13 @@ public class PerFieldFormatSupplier {
             if (mapper instanceof CompletionFieldMapper) {
                 return completionPostingsFormat;
             }
+            IndexSettings indexSettings = mapperService.getIndexSettings();
+            IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
             if (mapper instanceof IdFieldMapper
-                && mapperService.getIndexSettings()
-                    .getIndexVersionCreated()
-                    .between(IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT, IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)) {
+                && (indexVersion.between(
+                    IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT,
+                    IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT
+                ) || IndexSettings.createdInStateful95(indexVersion, indexSettings.isStateless()))) {
                 // The default posting format doesn't handle randomly generated IDs well during merging. Several cases have been reported
                 // where a single merge thread uses disproportionate jvm heap memory just for Lucene103BlockTreeTermsWriter.TermsWriter.
                 return es812PostingsFormat;
@@ -231,7 +235,8 @@ public class PerFieldFormatSupplier {
             // but based on dimension fields and timestamp field, so during indexing
             // version/seq_no/term needs to be looked up and having a bloom filter
             // can speed this up significantly.
-            return indexSettings.getMode().isTsdb()
+            return (indexSettings.getMode().isTsdb()
+                || IndexSettings.isBloomFilterIdFieldWithDataStreamTimestampEnabled(indexSettings.getNodeSettings()))
                 && IdFieldMapper.NAME.equals(field)
                 && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         } else {

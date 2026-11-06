@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -3020,7 +3021,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     notReadyRouting.addShard(
                         shardRouting.moveToUnassigned(
                             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-                            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                            RecoveryPriority.UNASSIGNED_EXPECTED
                         )
                     );
                 } else {

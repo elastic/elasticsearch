@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -79,6 +80,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 public class IndexResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(IndexResolver.class);
+
+    /**
+     * Once every node is on this version, an object is not a leaf: every coordinator resolves the column alike, and every data node
+     * tells from the mapping that an object holds no value.
+     */
+    private static final TransportVersion ESQL_OBJECTS_ARE_NOT_LEAVES = TransportVersion.fromName("esql_objects_are_not_leaves");
 
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
@@ -429,7 +436,12 @@ public class IndexResolver {
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
         boolean flattenedDataTypeEnabled
-    ) {}
+    ) {
+        /** Whether an object is not a leaf, so it neither maps its name nor gives a column its type. */
+        boolean objectsAreNotLeaves() {
+            return minTransportVersion != null && minTransportVersion.supports(ESQL_OBJECTS_ARE_NOT_LEAVES);
+        }
+    }
 
     // public for testing only
     public static IndexResolution mergedMappings(
@@ -447,7 +459,7 @@ public class IndexResolver {
         }
 
         // For each field name, store a list of the field caps responses from each index
-        var collectedFieldCaps = collectFieldCaps(fieldsInfo.caps, trackUnmappedFieldIndices);
+        var collectedFieldCaps = collectFieldCaps(fieldsInfo.caps, trackUnmappedFieldIndices, fieldsInfo.objectsAreNotLeaves());
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
@@ -540,7 +552,14 @@ public class IndexResolver {
         Map<String, Set<String>> fieldToMappedIndices
     ) {}
 
-    private static CollectedFieldCaps collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse, boolean trackUnmappedFieldIndices) {
+    /**
+     * @param objectsAreNotLeaves whether an object neither maps its name nor gives a column its type
+     */
+    private static CollectedFieldCaps collectFieldCaps(
+        FieldCapabilitiesResponse fieldCapsResponse,
+        boolean trackUnmappedFieldIndices,
+        boolean objectsAreNotLeaves
+    ) {
         Map<String, Integer> indexMappingHashToDuplicateCount = new HashMap<>();
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = new HashMap<>();
         Map<String, Set<String>> fieldToMappedIndices = trackUnmappedFieldIndices ? new HashMap<>() : null;
@@ -560,8 +579,18 @@ public class IndexResolver {
                     ).fieldCapabilities;
                     all.add(fc);
                 }
-                if (trackUnmappedFieldIndices) {
+                if (trackUnmappedFieldIndices && (objectsAreNotLeaves == false || isObject(fc) == false)) {
                     fieldToMappedIndices.computeIfAbsent(fc.name(), k -> new HashSet<>()).add(indexName);
+                }
+            }
+        }
+
+        if (objectsAreNotLeaves) {
+            // Where another index maps the name of an object as a field, the object only shapes the fields under it
+            for (IndexFieldCapabilitiesWithSourceHash caps : fieldsCaps.values()) {
+                List<IndexFieldCapabilities> all = caps.fieldCapabilities;
+                if (all.stream().anyMatch(fc -> isObject(fc) == false)) {
+                    all.removeIf(IndexResolver::isObject);
                 }
             }
         }
@@ -636,7 +665,7 @@ public class IndexResolver {
             }
             for (IndexFieldCapabilities fc : rest) {
                 if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType())) {
-                    return conflictingTypes(name, fullName, fieldsInfo.caps, indexDedupCache, timeSeriesFieldType);
+                    return conflictingTypes(name, fullName, fieldsInfo, indexDedupCache, timeSeriesFieldType);
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -689,7 +718,7 @@ public class IndexResolver {
         } else if (analyzer != null || fcs.stream().anyMatch(fc -> fc.indexAnalyzer() != null)) {
             // A non-null first analyzer that is not shared is already a conflict; otherwise look for any named peer.
             unknown = TextEsField.UnknownAnalyzer.CONFLICT;
-            groups = fieldsInfo.needsAnalyzerGroups() ? analyzerGroups(fullName, fieldsInfo.caps()) : null;
+            groups = fieldsInfo.needsAnalyzerGroups() ? analyzerGroups(fullName, fieldsInfo) : null;
         } else if (fcs.stream().anyMatch(IndexFieldCapabilities::indexLocalAnalyzer)) {
             unknown = TextEsField.UnknownAnalyzer.INDEX_LOCAL;
         } else {
@@ -699,11 +728,11 @@ public class IndexResolver {
     }
 
     /** Like {@link #conflictingTypes}, walks every index response since {@code fcs} is deduplicated by mapping hash. */
-    private static List<IndexAnalyzerGroup> analyzerGroups(String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
+    private static List<IndexAnalyzerGroup> analyzerGroups(String fullName, FieldsInfo fieldsInfo) {
         Map<String, IndexAnalyzerGroup.Analyzer> analyzerByIndex = new LinkedHashMap<>();
-        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
+        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
-            if (fc != null) {
+            if (fc != null && isLeaf(fc, fieldsInfo)) {
                 // IndexFieldCapabilities already normalizes the gap to the default when the name is null.
                 analyzerByIndex.put(
                     ir.getIndexName(),
@@ -795,15 +824,15 @@ public class IndexResolver {
     private static EsField conflictingTypes(
         String name,
         String fullName,
-        FieldCapabilitiesResponse fieldCapsResponse,
+        FieldsInfo fieldsInfo,
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
         @Nullable Map<Set<String>, Set<String>> indexDedupCache,
         EsField.TimeSeriesFieldType timeSeriesFieldType
     ) {
         Map<DataType, Set<String>> typesToIndices = new TreeMap<>();
-        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
+        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
-            if (fc != null) {
+            if (fc != null && isLeaf(fc, fieldsInfo)) {
                 DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
                 if (type == UNSUPPORTED) {
                     return unsupported(name, fc);
@@ -817,6 +846,14 @@ public class IndexResolver {
         Map<String, Set<String>> stringKeyed = new TreeMap<>();
         typesToIndices.forEach((type, indices) -> stringKeyed.put(type.typeName(), indices));
         return new InvalidMappedField(name, stringKeyed, timeSeriesFieldType);
+    }
+
+    private static boolean isObject(IndexFieldCapabilities fc) {
+        return ObjectMapper.CONTENT_TYPE.equals(fc.type());
+    }
+
+    private static boolean isLeaf(IndexFieldCapabilities fc, FieldsInfo fieldsInfo) {
+        return fieldsInfo.objectsAreNotLeaves() == false || isObject(fc) == false;
     }
 
     private static boolean useCompactInvalidMappedField(@Nullable TransportVersion minTransportVersion) {

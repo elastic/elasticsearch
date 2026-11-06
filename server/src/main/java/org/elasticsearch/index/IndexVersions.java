@@ -302,6 +302,7 @@ public class IndexVersions {
     public static final IndexVersion COLUMNAR_CODEC_NO_FEATURE_FLAG = def(9_127_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion TSID_PREFIXED_DIMENSIONS_HASH = def(9_128_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion HAASE_PHONETIK_ANCHORED_VARIATIONS = def(9_129_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion UNMAPPED_SINK_ON_STRICT_COLUMNAR = def(9_130_0_00, Version.LUCENE_10_5_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

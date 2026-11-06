@@ -58,11 +58,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
-<<<<<<< HEAD
 import java.util.function.Supplier;
-=======
 import java.util.stream.Stream;
->>>>>>> 3d981edc7b2185887d7649cdcc3293494056e0a5
 
 import static org.apache.lucene.store.MMapDirectory.SHARED_ARENA_MAX_PERMITS_SYSPROP;
 
@@ -314,13 +311,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                     // we might run into trouble with files that are pendingDelete in one directory but still
                     // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
                     // and intersect for perf reasons.
-<<<<<<< HEAD
-                    IndexInput in = delegate.openInput(name, context);
+                    IndexInput in = delegate.openInput(name, confineTempStoredFieldsIndex(name, context));
                     // after a failed direct open, the input is mmap's like any other
                     return directIOException == null ? contextSpecific(name, context, in) : in;
-=======
-                    return delegate.openInput(name, confineTempStoredFieldsIndex(name, context));
->>>>>>> 3d981edc7b2185887d7649cdcc3293494056e0a5
                 } else {
                     return super.openInput(name, context);
                 }

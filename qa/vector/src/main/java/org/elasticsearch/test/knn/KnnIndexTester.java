@@ -352,9 +352,7 @@ public class KnnIndexTester {
                         CuVSGPUSupport.instance().getTotalGpuMemory(),
                         graphDegree,
                         intermediateGraphDegree,
-                        args.onDiskRescore(),
-                        args.flatVectorThreshold(),
-                        args.onDiskMerge()
+                        args.flatVectorThreshold()
                     );
                     case 7 -> new ES92GpuHnswSQVectorsFormat(graphDegree, intermediateGraphDegree);
                     default -> throw new IllegalArgumentException(

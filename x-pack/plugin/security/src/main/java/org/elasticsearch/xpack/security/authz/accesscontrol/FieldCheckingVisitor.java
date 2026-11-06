@@ -14,12 +14,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-<<<<<<< HEAD
 import org.apache.lucene.util.automaton.ByteRunnable;
-=======
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
->>>>>>> 3d981edc7b2185887d7649cdcc3293494056e0a5
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.function.Supplier;

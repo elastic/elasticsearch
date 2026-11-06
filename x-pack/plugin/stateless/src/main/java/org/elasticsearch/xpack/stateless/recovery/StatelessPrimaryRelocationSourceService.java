@@ -103,6 +103,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         "stateless.cluster.primary_relocation.prewarm_wait_timeout",
         TimeValue.timeValueSeconds(5),
         TimeValue.ZERO,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -126,7 +127,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     private volatile TimeValue slowRelocationWarningThreshold;
     private volatile TimeValue idLookupRecencyThreshold;
     private volatile TimeValue preFlushSlowUploadQueueThreshold;
-    private final TimeValue prewarmWaitTimeout;
+    private volatile TimeValue prewarmWaitTimeout;
 
     public StatelessPrimaryRelocationSourceService(
         Settings settings,
@@ -162,7 +163,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING, value -> this.preFlushSlowUploadQueueThreshold = value);
-        this.prewarmWaitTimeout = PREWARM_WAIT_TIMEOUT_SETTING.get(settings);
+        clusterService.getClusterSettings().initializeAndWatch(PREWARM_WAIT_TIMEOUT_SETTING, value -> this.prewarmWaitTimeout = value);
     }
 
     /// Registers the shared recovery scheduling listeners (available via Guice when the transport action is constructed).

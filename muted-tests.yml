@@ -526,11 +526,6 @@ tests:
   - :test:framework:integTest
   method: testLeakingRecyclerBackedByteArrayIsDetected
   issue: https://github.com/elastic/elasticsearch/issues/164889
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
-  issue: https://github.com/elastic/elasticsearch/issues/164906
 - class: org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldTypeTests
   tasks:
   - :x-pack:plugin:spatial:test

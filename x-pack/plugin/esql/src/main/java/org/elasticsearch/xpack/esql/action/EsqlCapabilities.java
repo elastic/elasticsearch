@@ -2763,7 +2763,7 @@ public class EsqlCapabilities {
          * shapes that modify it rely on; the user always gets the keyword form. Also the release gate for that behavior.
          * Disabled until PromQL uses the typed column end to end.
          */
-        PROMQL_ENABLE_TIMESERIES_TYPE(false),
+        ENABLE_TSMD_DATA_TYPE(false),
 
         /**
          * Corrected output shape for PromQL {@code without}: a {@code without} over a concrete-output child (e.g.

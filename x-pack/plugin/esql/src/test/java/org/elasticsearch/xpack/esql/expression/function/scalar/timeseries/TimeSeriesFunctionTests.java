@@ -35,7 +35,7 @@ public class TimeSeriesFunctionTests extends ESTestCase {
     }
 
     public void testMetadataTypes() {
-        assumeTrue("requires functional time-series metadata", EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
+        assumeTrue("requires functional time-series metadata", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         var metadata = Literal.NULL;
         var label = label("pod");
         var set = new TimeSeriesSet(Source.EMPTY, metadata, label, label("a"));

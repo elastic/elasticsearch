@@ -427,9 +427,7 @@ public enum DataType implements Writeable {
      * Time-series metadata: a label dictionary that PromQL manipulates internally. Never reaches a response: PromQL
      * hands the user its keyword JSON form.
      */
-    TSMD_DATA_TYPE(
-        builder().esType("_timeseries").estimatedSize(1024).underConstruction(TransportVersion.fromName("promql_functional_timeseries"))
-    ),
+    TSMD_DATA_TYPE(builder().esType("_timeseries").estimatedSize(1024).underConstruction(TransportVersion.fromName("tsmd_data_type"))),
     PARTIAL_AGG(
         builder().esType("partial_agg")
             .estimatedSize(1024)

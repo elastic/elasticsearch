@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -141,6 +142,20 @@ public class IndexResolver {
         TransportVersion minimumVersion,
         ActionListener<IndexResolution> listener
     ) {
+        resolveLookupIndices(indexPattern, fieldNames, false, minimumVersion, listener);
+    }
+
+    /**
+     * Like {@link #resolveLookupIndices(String, Set, TransportVersion, ActionListener)}, also building the field semantics
+     * when {@code needsFieldSemantics}.
+     */
+    public void resolveLookupIndices(
+        String indexPattern,
+        Set<String> fieldNames,
+        boolean needsFieldSemantics,
+        TransportVersion minimumVersion,
+        ActionListener<IndexResolution> listener
+    ) {
         doResolveIndices(
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
@@ -150,6 +165,7 @@ public class IndexResolver {
             false,
             false,
             false, /* HIGHLIGHT only reads the analyzer groups of the main indices */
+            needsFieldSemantics,
             false,
             null,
             DO_NOT_GROUP,
@@ -188,6 +204,7 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
+        boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
@@ -201,6 +218,7 @@ public class IndexResolver {
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
             needsAnalyzerGroups,
+            needsFieldSemantics,
             trackUnmappedFieldIndices,
             null,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
@@ -233,6 +251,7 @@ public class IndexResolver {
             indexPattern,
             true, /* the derived data streams may not exist */
             minimumVersion,
+            false,
             false,
             false,
             false,
@@ -285,6 +304,7 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
+        boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         IndexViewOrigins indexViewOrigins,
@@ -300,6 +320,7 @@ public class IndexResolver {
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
             needsAnalyzerGroups,
+            needsFieldSemantics,
             trackUnmappedFieldIndices,
             routingInfoCapture,
             (innerIndexPattern, fieldCapabilitiesResponse) -> Maps.transformValues(
@@ -331,6 +352,7 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
+        boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         OriginalIndexExtractor originalIndexExtractor,
@@ -358,6 +380,7 @@ public class IndexResolver {
                 useDenseVectorWhenNotSupported,
                 hasTimeSeriesAggregation,
                 needsAnalyzerGroups,
+                needsFieldSemantics,
                 flattenedDataTypeEnabled.getAsBoolean()
             );
             LOGGER.debug(
@@ -423,6 +446,8 @@ public class IndexResolver {
      * @param needsAnalyzerGroups whether the query has a HIGHLIGHT that uses the mapping analyzers. When {@code false}, a text
      *                            field whose indices disagree on the analyzer does not record which index uses which, since
      *                            only HIGHLIGHT reads it and the index names can be many.
+     * @param needsFieldSemantics whether the query has a DESCRIBE, the only reader of {@link EsIndex#fieldSemantics()}.
+     *                            When {@code false}, they are not built.
      * @param flattenedDataTypeEnabled whether the {@code flattened} data type is enabled (the {@code esql.query.flattened.enabled}
      *                                 kill switch). When {@code false}, {@code flattened} fields are resolved as
      *                                 {@link DataType#UNSUPPORTED}, reverting to pre-flattened-support behavior.
@@ -435,8 +460,32 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
+        boolean needsFieldSemantics,
         boolean flattenedDataTypeEnabled
     ) {
+        public FieldsInfo(
+            FieldCapabilitiesResponse caps,
+            @Nullable TransportVersion minTransportVersion,
+            boolean currentBuildIsSnapshot,
+            boolean useAggregateMetricDoubleWhenNotSupported,
+            boolean useDenseVectorWhenNotSupported,
+            boolean hasTimeSeriesAggregation,
+            boolean needsAnalyzerGroups,
+            boolean flattenedDataTypeEnabled
+        ) {
+            this(
+                caps,
+                minTransportVersion,
+                currentBuildIsSnapshot,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported,
+                hasTimeSeriesAggregation,
+                needsAnalyzerGroups,
+                false,
+                flattenedDataTypeEnabled
+            );
+        }
+
         /** Whether an object is not a leaf, so it neither maps its name nor gives a column its type. */
         boolean objectsAreNotLeaves() {
             return minTransportVersion != null && minTransportVersion.supports(ESQL_OBJECTS_ARE_NOT_LEAVES);
@@ -467,6 +516,9 @@ public class IndexResolver {
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
         Map<String, EsField> rootFields = new HashMap<>();
+        Map<String, FieldSemantics> fieldSemantics = fieldsInfo.needsFieldSemantics()
+            ? Maps.newMapWithExpectedSize(names.length)
+            : Map.of();
         Map<Set<String>, Set<String>> indexDedupCache = useCompactInvalidMappedField(fieldsInfo.minTransportVersion())
             ? new HashMap<>()
             : null;
@@ -497,6 +549,9 @@ public class IndexResolver {
 
             var fieldCap = fieldsCaps.get(fullName);
             List<IndexFieldCapabilities> fcs = fieldCap.fieldCapabilities;
+            if (fieldsInfo.needsFieldSemantics()) {
+                fieldSemantics.put(fullName, FieldSemantics.from(fullName, fcs));
+            }
             EsField field = firstUnsupportedParent == null
                 ? createField(fieldsInfo, name, fullName, fcs, isAlias, indexDedupCache)
                 : new UnsupportedEsField(
@@ -517,7 +572,7 @@ public class IndexResolver {
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
         for (FieldCapabilitiesIndexResponse ir : indexResponses) {
             allEmpty &= ir.get().isEmpty();
-            indexProperties.put(ir.getIndexName(), new IndexProperties(ir.getIndexMode(), ir.getNumberOfShards()));
+            indexProperties.put(ir.getIndexName(), new IndexProperties(ir.getIndexMode(), ir.getNumberOfShards(), ir.getCreatedVersion()));
             var split = RemoteClusterAware.splitIndexName(ir.getIndexName());
             concreteIndices.computeIfAbsent(split.getClusterGroupingKey(), k -> new ArrayList<>()).add(split.indexExpression());
         }
@@ -537,7 +592,8 @@ public class IndexResolver {
             // FieldCapabilitiesResponse#resolvedLocally and FieldCapabilitiesResponse#resolvedRemotely
             // once all remotes support it (v9.3+)
             originalIndexExtractor.apply(indexPattern, fieldsInfo.caps),
-            concreteIndices
+            concreteIndices,
+            fieldSemantics
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
         return IndexResolution.valid(index, indexProperties.keySet(), failures);

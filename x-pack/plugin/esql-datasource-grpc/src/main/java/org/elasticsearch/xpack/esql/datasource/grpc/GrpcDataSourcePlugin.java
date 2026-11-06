@@ -42,6 +42,13 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
      */
     public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_GRPC_FEATURE_FLAG = new FeatureFlag("esql_external_datasources_grpc");
 
+    /**
+     * Gates the satellite protocol on top of the Flight connector: the capability handshake, plan fragments pushed to the server and the
+     * dataset settings that only a satellite understands. Snapshot-on, release-off; override in release with
+     * {@code -Des.esql_satellites_feature_flag_enabled=true}. When it is off a Flight server is read as a plain Level 0 server.
+     */
+    public static final FeatureFlag ESQL_SATELLITES_FEATURE_FLAG = new FeatureFlag("esql_satellites");
+
     static final TimeValue DEFAULT_CALL_TIMEOUT = TimeValue.timeValueSeconds(60);
 
     /**
@@ -199,7 +206,8 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
             new FlightConnectorFactory(
                 FLIGHT_CALL_TIMEOUT.get(settings),
                 new SatelliteDeclarationCache(FLIGHT_DECLARATION_TTL.get(settings)),
-                guard(settings)
+                guard(settings),
+                ESQL_SATELLITES_FEATURE_FLAG.isEnabled()
             )
         );
     }

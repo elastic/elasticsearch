@@ -61,6 +61,9 @@ class FlightConnectorFactory implements ConnectorFactory {
     /** What the satellites declared, kept for a short time so that a query does not repeat the capability round trip. */
     private final SatelliteDeclarationCache declarations;
 
+    /** Whether the satellite protocol is on (the {@code esql_satellites} feature flag); off, every Flight server is a plain one. */
+    private final boolean satellites;
+
     /** Without a declaration cache: every resolution reads the declaration, as the protocol describes. */
     FlightConnectorFactory() {
         this(GrpcDataSourcePlugin.DEFAULT_CALL_TIMEOUT, TimeValue.ZERO);
@@ -75,9 +78,15 @@ class FlightConnectorFactory implements ConnectorFactory {
     }
 
     FlightConnectorFactory(TimeValue callTimeout, SatelliteDeclarationCache declarations, FlightGuard hosts) {
+        this(callTimeout, declarations, hosts, true); // only the plugin reads the feature flag, so that a test does not depend on the build
+    }
+
+    /** @param satellites whether a server may be a satellite: when false it is read as a plain Level 0 server and no declaration is read */
+    FlightConnectorFactory(TimeValue callTimeout, SatelliteDeclarationCache declarations, FlightGuard hosts, boolean satellites) {
         this.callTimeout = callTimeout;
         this.declarations = declarations;
         this.guard = hosts;
+        this.satellites = satellites;
     }
 
     @Override
@@ -197,12 +206,21 @@ class FlightConnectorFactory implements ConnectorFactory {
             String declarationId = SatelliteDeclarationCache.validId(
                 arrowSchema.getCustomMetadata().get(SatelliteDeclarationCache.SCHEMA_METADATA_KEY)
             );
-            Map<String, Object> declaration = declarations.resolve(
-                endpoint + transport.cacheScope(),
-                target,
-                declarationId,
-                () -> fetchDeclaration(client, target, callTimeout)
-            );
+            Map<String, Object> declaration = null;
+            if (satellites) {
+                declaration = declarations.resolve(
+                    endpoint + transport.cacheScope(),
+                    target,
+                    declarationId,
+                    () -> fetchDeclaration(client, target, callTimeout)
+                );
+            } else if (optionsOf(config).isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "the dataset sets the source options "
+                        + optionsOf(config).keySet()
+                        + " but satellites are disabled (feature flag [esql_satellites])"
+                );
+            }
             Map<String, Object> stamp = declaration == null ? null : stamp(client, target, arrowSchema, declaration, callTimeout);
             checkOptions(optionsOf(config), stamp);
             Map<String, Object> resolvedConfig = Map.of("endpoint", endpoint, "target", target);

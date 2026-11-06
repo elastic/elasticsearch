@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.TimeSeriesMetadataFieldBlockLoader;
 import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -89,9 +88,9 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesFromKeyword;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -341,16 +340,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
         }
         if (unionTypes == null) {
-            if (attr instanceof TimeSeriesMetadataAttribute metadata && attr.dataType() == DataType.TIMESERIES_DATA_TYPE) {
-                return ValuesSourceReaderOperator.load(
-                    TimeSeriesMetadataFieldBlockLoader.fromDocValues(
-                        shardContext.ctx,
-                        metadata.excludedFields(),
-                        PromqlLabels::labelName,
-                        TimeSeriesMetadataEncoder::new
-                    )
-                );
-            }
             BlockLoader blockLoader = shardContext.blockLoader(
                 fieldName,
                 isUnsupported,
@@ -360,6 +349,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
+            if (attr instanceof TimeSeriesMetadataAttribute && attr.dataType() == DataType.TIMESERIES_DATA_TYPE) {
+                // Typed metadata is the keyword source form of the dimensions, converted as it is read
+                return ValuesSourceReaderOperator.loadAndConvert(
+                    blockLoader,
+                    new TypeConverter(new TimeSeriesFromKeyword(attr.source(), attr))
+                );
+            }
             return ValuesSourceReaderOperator.load(blockLoader);
         }
         Expression conversion = switch (unionTypes) {

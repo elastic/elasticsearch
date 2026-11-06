@@ -88,6 +88,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -439,11 +440,29 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         final long primaryTerm = localState.metadata().getProject().index(index).primaryTerm(shardId.id());
 
-        // check that failing unrelated allocation does not remove shard
-        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), FAIL_SILENT, primaryTerm, new Exception("dummy"));
+        final var key = IndicesClusterStateService.ShardAllocationKey.fromRouting(shardRouting);
+        final var inFlightTicket = indicesCSSvc.pendingAllocationStates.get(key);
+        assertThat(inFlightTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.InFlight.class));
+
+        // check that failing an unrelated allocation does not remove the shard, even when presented
+        // with this allocation's own live ticket: reinitializeReplicaShard's allocation id means the
+        // key computed from it can never match where that ticket actually lives.
+        indicesCSSvc.handleRecoveryFailure(
+            shardRouting.reinitializeReplicaShard(),
+            FAIL_SILENT,
+            primaryTerm,
+            new Exception("dummy"),
+            (IndicesClusterStateService.PendingAllocationState.InFlight) inFlightTicket
+        );
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
-        indicesCSSvc.handleRecoveryFailure(shardRouting, FAIL_SILENT, primaryTerm, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SILENT,
+            primaryTerm,
+            new Exception("dummy"),
+            (IndicesClusterStateService.PendingAllocationState.InFlight) inFlightTicket
+        );
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
     }
 
@@ -729,6 +748,13 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     private class RecordingIndicesService extends MockIndicesService {
         private Set<Index> deletedIndices = Collections.emptySet();
         private final Map<Index, IndexRemovalReason> removalReasons = new HashMap<>();
+
+        @Override
+        protected boolean autoCompleteRecovery() {
+            // These tests inspect the InFlight ticket immediately after shard creation, before recovery
+            // would have completed in production; auto-completing here would release it too early.
+            return false;
+        }
 
         @Override
         public synchronized void removeIndex(

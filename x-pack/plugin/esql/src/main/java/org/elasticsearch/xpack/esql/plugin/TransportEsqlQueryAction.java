@@ -154,7 +154,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
         QueryMetricsListener metricsCollector,
-        FederationLicense federationLicense
+        FederationLicense federationLicense,
+        ExternalWorkerReadiness externalWorkerReadiness
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -259,7 +260,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
             dataSourceModule.formatReaderRegistry(),
-            client
+            client,
+            externalWorkerReadiness
         );
 
         this.activityLogger = new QueryLogger<>(

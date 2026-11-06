@@ -142,6 +142,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     public static final String SHARD_BEING_RESTORED_REASON = "primary shard is being restored from a snapshot";
 
+    public static final String SHARD_BEING_RESHARDED_REASON = "cannot snapshot a shard during resharding";
+
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     public static final String NO_FEATURE_STATES_VALUE = "none";
@@ -218,8 +220,30 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    /**
+     * When {@code true}, any create-snapshot request that omits {@code encrypted_data} is rejected if the cluster
+     * contains encrypted project data, instead of silently excluding that data from the snapshot.
+     */
+    public static final Setting<Boolean> ENCRYPTED_DATA_REQUIRED_SETTING = Setting.boolSetting(
+        "snapshot.encrypted_data.required",
+        false,
+        value -> {
+            if (value && SnapshotEncryptedData.FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException(
+                    "[snapshot.encrypted_data.required] can only be enabled when the snapshot_encrypted_data feature flag is enabled"
+                );
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile int maxConcurrentOperations;
     private volatile boolean monotonicEndTime;
+
+    private volatile boolean encryptedDataRequired;
+
+    private SnapshotGlobalStateTransformer snapshotGlobalStateTransformer = SnapshotGlobalStateTransformer.NOOP;
 
     public SnapshotsService(
         Settings settings,
@@ -247,6 +271,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
             monotonicEndTime = SNAPSHOT_MONOTONIC_END_TIME_SETTING.get(settings);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_MONOTONIC_END_TIME_SETTING, b -> monotonicEndTime = b);
+            if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled()) {
+                encryptedDataRequired = ENCRYPTED_DATA_REQUIRED_SETTING.get(settings);
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(ENCRYPTED_DATA_REQUIRED_SETTING, b -> encryptedDataRequired = b);
+            }
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;
@@ -270,7 +299,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 // starts immediately, which means that no other task is currently updating it.
                 null
             ),
-            this::startExecutableClones,
+            this::runReadyShardClonesInCluster,
             (entry, minVersion) -> submitDeleteSnapshotsRepositoryDataWriteTask(
                 entry.projectId(),
                 entry.repoName(),
@@ -284,6 +313,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         );
 
         this.shardSnapshotUpdateCompletionHandler = this::handleShardSnapshotUpdateCompletion;
+    }
+
+    public void setSnapshotGlobalStateTransformer(SnapshotGlobalStateTransformer transformer) {
+        this.snapshotGlobalStateTransformer = Objects.requireNonNull(transformer);
+    }
+
+    private boolean missingRequiredEncryptedData(ProjectId projectId, Metadata metadata, @Nullable SnapshotEncryptedData encryptedData) {
+        return encryptedData == null && encryptedDataRequired && snapshotGlobalStateTransformer.containsEncryptedData(projectId, metadata);
     }
 
     @Override
@@ -332,6 +369,20 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         if (repository.isReadOnly()) {
             listener.onFailure(
                 new IllegalArgumentException("[" + repository.getMetadata().name() + "] cannot create snapshot in a readonly repository")
+            );
+            return;
+        }
+        if (request.encryptedData() != null && snapshotGlobalStateTransformer == SnapshotGlobalStateTransformer.NOOP) {
+            listener.onFailure(new IllegalArgumentException("[encrypted_data] is not supported by this cluster"));
+            return;
+        }
+        if (request.includeGlobalState()
+            && missingRequiredEncryptedData(projectId, clusterService.state().metadata(), request.encryptedData())) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "the cluster contains encrypted project data and [snapshot.encrypted_data.required] is true; "
+                        + "supply [encrypted_data] to include the data in the snapshot"
+                )
             );
             return;
         }
@@ -405,6 +456,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // Snapshot cloning
     // ------------------------------------------------------------------------------------------------------------------------------------
 
+    /// Clone a snapshot as requested by the given [CloneSnapshotRequest].
+    ///
+    /// @param listener Completed when the clone process completes. If this node stops being the elected master before the clone is
+    /// finalized, this listener may be completed exceptionally even while the clone continues running to its eventual
+    /// success.
     // TODO: It is worth revisiting the design choice of creating a placeholder entry in snapshots-in-progress here once we have a cache
     // for repository metadata and loading it has predictable performance
     public void cloneSnapshot(ProjectId projectId, CloneSnapshotRequest request, ActionListener<Void> listener) {
@@ -501,18 +557,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             public void clusterStateProcessed(ClusterState oldState, final ClusterState newState) {
                 logger.info("snapshot clone [{}] started", snapshot);
                 addSnapshotFinalizationListener(snapshot, listener.delegateFailureAndWrap((l, r) -> l.onResponse(null)));
-                startCloning(repository, newEntry);
+                createShardCloneEntries(repository, newEntry);
             }
         }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
     }
 
-    /**
-     * Determine the number of shards in each index of a clone operation and update the cluster state accordingly.
-     *
-     * @param repository     repository to run operation on
-     * @param cloneEntry     clone operation in the cluster state
-     */
-    private void startCloning(Repository repository, SnapshotsInProgress.Entry cloneEntry) {
+    /// Determine the number of shards in each index of a clone operation and populate the [SnapshotsInProgress.Entry] with its shard-level
+    /// work.
+    ///
+    /// @param cloneEntry Newly-created clone operation in the cluster state, containing no shard-level work yet.
+    private void createShardCloneEntries(Repository repository, SnapshotsInProgress.Entry cloneEntry) {
         final Collection<IndexId> indices = cloneEntry.indices().values();
         final SnapshotId sourceSnapshot = cloneEntry.source();
         final Snapshot targetSnapshot = cloneEntry.snapshot();
@@ -537,6 +591,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             allShardCountsListener
         );
         snapshotInfoListener.addListener(ActionListener.wrap(snapshotInfo -> {
+            if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() == false && snapshotInfo.hasEncryptedData()) {
+                throw new SnapshotException(
+                    targetSnapshot,
+                    "Can't clone snapshot [" + sourceSnapshot + "] because it contains encrypted data, which this cluster does not support"
+                );
+            }
             for (IndexId indexId : indices) {
                 if (RestoreService.failed(snapshotInfo, indexId.getName())) {
                     throw new SnapshotException(
@@ -616,11 +676,28 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         // shard snapshot state was based on all previous existing operations in progress
                         // TODO: If we could eventually drop the snapshot clone init phase we don't need this any longer
                         updatedEntries.add(updatedEntry);
-                        return SnapshotsServiceUtils.updateWithSnapshots(
+                        final ClusterState updatedState = SnapshotsServiceUtils.updateWithSnapshots(
                             currentState,
                             snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(projectId, repoName, updatedEntries),
                             null
                         );
+                        final SnapshotInfo source = snapshotInfoListener.result();
+                        if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() == false || source.encryptedDataType() == null) {
+                            return updatedState;
+                        }
+                        // Password not needed since it's already encrypted, only metadata needed (id and type) to know how to decrypt
+                        final var encryptedData = new SnapshotEncryptedData(
+                            source.encryptedDataType(),
+                            null,
+                            source.encryptedDataPasswordId()
+                        );
+                        return ClusterState.builder(updatedState)
+                            .putCustom(
+                                SnapshotsInProgressEncryptedData.TYPE,
+                                SnapshotsInProgressEncryptedData.get(updatedState)
+                                    .withAddedEntries(Map.of(cloneEntry.snapshot(), encryptedData))
+                            )
+                            .build();
                     }
                     return currentState;
                 }
@@ -643,7 +720,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             final RepositoryShardId repoShardId = indexClone.getKey();
                             final ShardSnapshotStatus shardStatusBefore = indexClone.getValue();
                             if (shardStatusBefore.state() == ShardState.INIT) {
-                                runReadyClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
+                                runReadyShardClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
                             } else if (shardStatusBefore.state() == ShardState.ABORTED) {
                                 createAndSubmitRequestToUpdateSnapshotState(
                                     target,
@@ -655,7 +732,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                         shardStatusBefore.generation(),
                                         shardStatusBefore.reason()
                                     ),
-                                    failedCloneUpdateListener(sourceSnapshot, target.getSnapshotId(), repoShardId)
+                                    failedShardCloneUpdateListener(sourceSnapshot, target.getSnapshotId(), repoShardId)
                                 );
                             }
                         }
@@ -743,38 +820,38 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         );
     }
 
-    /**
-     * Maybe kick off new shard clone operations for all repositories from all projects
-     */
-    private void startExecutableClones(SnapshotsInProgress snapshotsInProgress) {
+    /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in any repository.
+    private void runReadyShardClonesInCluster(SnapshotsInProgress snapshotsInProgress) {
         for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo()) {
-            startExecutableClones(entries);
+            runReadyShardClonesInEntries(entries);
         }
     }
 
-    /**
-     * Maybe kick off new shard clone operations for all repositories of the specified project
-     */
-    private void startExecutableClones(SnapshotsInProgress snapshotsInProgress, ProjectId projectId) {
+    /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in any repository from the
+    /// given project.
+    private void runReadyShardClonesInProject(SnapshotsInProgress snapshotsInProgress, ProjectId projectId) {
         for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo(projectId)) {
-            startExecutableClones(entries);
+            runReadyShardClonesInEntries(entries);
         }
     }
 
-    /**
-     * Maybe kick off new shard clone operations for the single specified project repository
-     */
-    private void startExecutableClones(SnapshotsInProgress snapshotsInProgress, ProjectRepo projectRepo) {
-        startExecutableClones(snapshotsInProgress.forRepo(Objects.requireNonNull(projectRepo)));
+    /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in the given repository.
+    private void runReadyShardClonesInRepository(SnapshotsInProgress snapshotsInProgress, ProjectRepo projectRepo) {
+        runReadyShardClonesInEntries(snapshotsInProgress.forRepo(Objects.requireNonNull(projectRepo)));
     }
 
-    private void startExecutableClones(List<SnapshotsInProgress.Entry> entries) {
+    /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in any of the given
+    /// [SnapshotsInProgress.Entry] entries.
+    ///
+    /// @param entries The entries to search for ready-to-run shard clones. In practice all callers today pass a value containing entries
+    /// from a single repository.
+    private void runReadyShardClonesInEntries(List<SnapshotsInProgress.Entry> entries) {
         for (SnapshotsInProgress.Entry entry : entries) {
             if (entry.isClone() && entry.state() == SnapshotsInProgress.State.STARTED) {
                 // this is a clone, see if new work is ready
                 for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> clone : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
                     if (clone.getValue().state() == ShardState.INIT) {
-                        runReadyClone(
+                        runReadyShardClone(
                             entry.snapshot(),
                             entry.source(),
                             clone.getValue(),
@@ -792,7 +869,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 clone.getValue().generation(),
                                 clone.getValue().reason()
                             ),
-                            failedCloneUpdateListener(entry.source(), entry.snapshot().getSnapshotId(), clone.getKey())
+                            failedShardCloneUpdateListener(entry.source(), entry.snapshot().getSnapshotId(), clone.getKey())
                         );
                     }
                 }
@@ -801,9 +878,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     // RepositoryShardId is unique across projects because RepositoryShardId.index().getId() is an UUID
-    private final Set<RepositoryShardId> currentlyCloning = Collections.synchronizedSet(new HashSet<>());
+    private final Set<RepositoryShardId> runningShardClones = Collections.synchronizedSet(new HashSet<>());
 
-    private void runReadyClone(
+    /// Start running the given shard-level clone task, which must be ready to start (i.e. in state [ShardState#INIT]) in the current
+    /// cluster state. Safe to call multiple times for each shard, as requests are deduplicated via [#runningShardClones].
+    private void runReadyShardClone(
         Snapshot target,
         SnapshotId sourceSnapshot,
         ShardSnapshotStatus shardStatusBefore,
@@ -812,7 +891,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     ) {
         final SnapshotId targetSnapshot = target.getSnapshotId();
         final String localNodeId = clusterService.localNode().getId();
-        if (currentlyCloning.add(repoShardId)) {
+        if (runningShardClones.add(repoShardId)) {
             repository.cloneShardSnapshot(
                 sourceSnapshot,
                 targetSnapshot,
@@ -837,7 +916,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                     failAllListenersOnMasterFailOver(e);
                                 }
                             ),
-                            () -> currentlyCloning.remove(repoShardId)
+                            () -> runningShardClones.remove(repoShardId)
                         )
                     ),
                     e -> createAndSubmitRequestToUpdateSnapshotState(
@@ -851,8 +930,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             "failed to clone shard snapshot"
                         ),
                         ActionListener.runBefore(
-                            failedCloneUpdateListener(sourceSnapshot, targetSnapshot, repoShardId),
-                            () -> currentlyCloning.remove(repoShardId)
+                            failedShardCloneUpdateListener(sourceSnapshot, targetSnapshot, repoShardId),
+                            () -> runningShardClones.remove(repoShardId)
                         )
                     )
                 )
@@ -860,7 +939,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    private ActionListener<Void> failedCloneUpdateListener(
+    /// @return a listener which handles the result of marking a shard clone operation as failed: if the operation was successfully marked
+    /// as failed then no further action is needed, whereas if the marking operation also failed then that indicates a master failover is
+    /// in progress.
+    private ActionListener<Void> failedShardCloneUpdateListener(
         SnapshotId sourceSnapshot,
         SnapshotId targetSnapshot,
         RepositoryShardId repoShardId
@@ -1242,7 +1324,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             // TODO: be more efficient here, we could collect newly ready shard clones as we compute them and then directly start them
             // instead of looping over all possible clones to execute
-            startExecutableClones(SnapshotsInProgress.get(newState), deleteEntry.projectId());
+            runReadyShardClonesInProject(SnapshotsInProgress.get(newState), deleteEntry.projectId());
         }
 
         /**
@@ -1429,8 +1511,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 externalChangesBatcher.processExternalChanges(
                     newMaster || SnapshotsServiceUtils.removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     snapshotsInProgress.nodeIdsForRemovalChanged(SnapshotsInProgress.get(event.previousState()))
-                        || (event.routingTableChanged()
-                            && SnapshotsServiceUtils.waitingShardsStartedOrUnassigned(snapshotsInProgress, event))
+                        || (event.routingTableChanged() && SnapshotsServiceUtils.waitingShardsNeedUpdate(snapshotsInProgress, event))
                 );
 
                 if (newMaster
@@ -1989,6 +2070,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ShardSnapshotStatus shardSnapshotStatus = SnapshotsServiceUtils.initShardSnapshotStatus(
                     generation,
                     shardRouting,
+                    initialState.metadata().getProject(entry.projectId()).index(index),
                     nodeIdRemovalPredicate,
                     entry.partial(),
                     restoreInProgress
@@ -2049,7 +2131,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
         // Likewise this state update may enable some new shard clones on any affected repository, so check them all.
         for (final var updatedRepository : updatedRepositories) {
-            startExecutableClones(snapshotsInProgress, updatedRepository);
+            runReadyShardClonesInRepository(snapshotsInProgress, updatedRepository);
         }
         // Also shard snapshot completions may free up some shards to move to other nodes, so we must trigger a reroute.
         if (updatedRepositories.isEmpty() == false) {
@@ -2164,6 +2246,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
 
             final Map<ProjectId, RegisteredPolicySnapshots.Builder> registeredPolicySnapshotsBuilders = new HashMap<>();
+            final Map<Snapshot, SnapshotEncryptedData> encryptedData = new HashMap<>();
             // Handle the tasks to create new snapshots (CreateSnapshotTask tasks).
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
@@ -2181,6 +2264,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         ).addIfSnapshotIsSLMInitiated(task.createSnapshotRequest.userMetadata(), task.snapshot.getSnapshotId());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
                             snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);
+                            if (task.createSnapshotRequest.encryptedData() != null && snapshotsInProgress.snapshot(task.snapshot) != null) {
+                                encryptedData.put(task.snapshot, task.createSnapshotRequest.encryptedData());
+                            }
                         } else {
                             // Repository data changed in between starting the task and executing this cluster state update.
                             // Register a callback to resubmit the task after the cluster state is successfully published.
@@ -2208,7 +2294,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             registeredPolicySnapshotsBuilders.forEach(
                 (projectId, builder) -> metadataBuilder.getProject(projectId).putCustom(RegisteredPolicySnapshots.TYPE, builder.build())
             );
-            return ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).metadata(metadataBuilder).build();
+            final ClusterState.Builder builder = ClusterState.builder(state)
+                .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
+                .metadata(metadataBuilder);
+            if (encryptedData.isEmpty() == false) {
+                builder.putCustom(
+                    SnapshotsInProgressEncryptedData.TYPE,
+                    SnapshotsInProgressEncryptedData.get(state).withAddedEntries(encryptedData)
+                );
+            }
+            return builder.build();
         }
 
         private SnapshotsInProgress createSnapshot(
@@ -2591,7 +2686,33 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             metadataListener.addListener(ActionListener.wrap(meta -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
-                final Metadata metaForSnapshot = metadataForSnapshot(entry, meta, projectId);
+                Metadata metaForSnapshot = metadataForSnapshot(entry, meta, projectId);
+                final SnapshotEncryptedData encryptedData = SnapshotsInProgressEncryptedData.get(clusterService.state()).get(snapshot);
+                SnapshotEncryptedData recordedEncryptedData = null;
+                if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled() && entry.includeGlobalState()) {
+                    if (entry.isClone()) {
+                        // a clone copies the source snapshot's global metadata, which is already in its snapshot form
+                        recordedEncryptedData = encryptedData;
+                    } else {
+                        if (missingRequiredEncryptedData(projectId, metaForSnapshot, encryptedData)) {
+                            throw new IllegalArgumentException(
+                                "the snapshot contains encrypted project data but no [encrypted_data] was supplied and "
+                                    + "[snapshot.encrypted_data.required] is true, so the snapshot was not written to the repository"
+                            );
+                        }
+                        final Metadata transformed = snapshotGlobalStateTransformer.transformForSnapshot(
+                            projectId,
+                            metaForSnapshot,
+                            encryptedData
+                        );
+                        if (transformed != metaForSnapshot) {
+                            recordedEncryptedData = encryptedData != null
+                                ? encryptedData
+                                : new SnapshotEncryptedData(SnapshotEncryptedData.TYPE_NONE, null, null);
+                        }
+                        metaForSnapshot = transformed;
+                    }
+                }
 
                 final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
                     finalIndices.size()
@@ -2640,7 +2761,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.includeGlobalState(),
                     entry.userMetadata(),
                     entry.startTime(),
-                    indexSnapshotDetails
+                    indexSnapshotDetails,
+                    recordedEncryptedData == null ? null : recordedEncryptedData.type(),
+                    recordedEncryptedData == null ? null : recordedEncryptedData.passwordId()
                 );
                 assert snapshotInfo.state() != null;
                 final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);

@@ -26,6 +26,7 @@ import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer.QuantEncoding;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
+import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -43,6 +44,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -124,6 +126,7 @@ public class VectorScorerOSQBenchmark {
     static final int NUM_QUERIES = 10;
 
     VectorScorerTestUtils.OSQVectorData[] binaryQueries;
+    ScoringQuery[] scoringQueries;
     float centroidDp;
 
     byte[] scratch;
@@ -218,10 +221,11 @@ public class VectorScorerOSQBenchmark {
 
     private float scoreFilteredIndividually(int queryIndex, int mask) throws IOException {
         float maxScore = Float.NEGATIVE_INFINITY;
-        var query = binaryQueries[queryIndex];
+        var queryData = binaryQueries[queryIndex];
+        ScoringQuery query = scoringQueries[queryIndex];
         for (int j = 0; j < BULK_SIZE; j++) {
             if (BulkMask.isSelected(mask, j)) {
-                float qcDist = scorer.quantizeScore(query.quantizedVector());
+                float qcDist = scorer.quantizeScore(query);
                 scratchScores[j] = qcDist;
             } else {
                 scratchScores[j] = 0;
@@ -242,10 +246,10 @@ public class VectorScorerOSQBenchmark {
         for (int b = 0; b < BULK_SIZE; b++) {
             if (BulkMask.isSelected(mask, b)) {
                 float score = scorer.applyCorrectionsIndividually(
-                    query.lowerInterval(),
-                    query.upperInterval(),
-                    query.quantizedComponentSum(),
-                    query.additionalCorrection(),
+                    queryData.lowerInterval(),
+                    queryData.upperInterval(),
+                    queryData.quantizedComponentSum(),
+                    queryData.additionalCorrection(),
                     similarityFunction,
                     centroidDp,
                     lowerIntervals[b],
@@ -282,6 +286,7 @@ public class VectorScorerOSQBenchmark {
         this.input = directory.openInput("vectors", IOContext.DEFAULT);
 
         this.binaryQueries = data.queries;
+        this.scoringQueries = Arrays.stream(data.queries).map(q -> new ScoringQuery(q.quantizedVector())).toArray(ScoringQuery[]::new);
         this.centroidDp = data.centroidDp;
 
         this.scratch = new byte[data.binaryIndexLength];
@@ -343,9 +348,10 @@ public class VectorScorerOSQBenchmark {
         // [BULK_SIZE x vectors | BULK_SIZE x lowerIntervals | ... | BULK_SIZE x additional].
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
+            ScoringQuery query = scoringQueries[j];
             for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
                 for (int b = 0; b < BULK_SIZE; b++) {
-                    scratchScores[b] = scorer.quantizeScore(binaryQueries[j].quantizedVector());
+                    scratchScores[b] = scorer.quantizeScore(query);
                 }
                 input.readFloats(lowerIntervals, 0, BULK_SIZE);
                 input.readFloats(upperIntervals, 0, BULK_SIZE);
@@ -378,9 +384,10 @@ public class VectorScorerOSQBenchmark {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
+            ScoringQuery query = scoringQueries[j];
             for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
                 scorer.scoreBulk(
-                    binaryQueries[j].quantizedVector(),
+                    query,
                     binaryQueries[j].lowerInterval(),
                     binaryQueries[j].upperInterval(),
                     binaryQueries[j].quantizedComponentSum(),
@@ -400,9 +407,10 @@ public class VectorScorerOSQBenchmark {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
+            ScoringQuery query = scoringQueries[j];
             for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
                 scorer.scoreBulkMasked(
-                    binaryQueries[j].quantizedVector(),
+                    query,
                     binaryQueries[j].lowerInterval(),
                     binaryQueries[j].upperInterval(),
                     binaryQueries[j].quantizedComponentSum(),
@@ -437,9 +445,10 @@ public class VectorScorerOSQBenchmark {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
+            ScoringQuery query = scoringQueries[j];
             for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
                 scorer.scoreBulkMasked(
-                    binaryQueries[j].quantizedVector(),
+                    query,
                     binaryQueries[j].lowerInterval(),
                     binaryQueries[j].upperInterval(),
                     binaryQueries[j].quantizedComponentSum(),
@@ -474,9 +483,10 @@ public class VectorScorerOSQBenchmark {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
+            ScoringQuery query = scoringQueries[j];
             for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
                 scorer.scoreBulkMasked(
-                    binaryQueries[j].quantizedVector(),
+                    query,
                     binaryQueries[j].lowerInterval(),
                     binaryQueries[j].upperInterval(),
                     binaryQueries[j].quantizedComponentSum(),

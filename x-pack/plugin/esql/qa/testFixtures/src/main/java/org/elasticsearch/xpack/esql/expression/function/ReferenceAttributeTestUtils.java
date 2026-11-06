@@ -52,7 +52,7 @@ public class ReferenceAttributeTestUtils {
         String name = randomAlphaOfLength(5);
         Supplier<DataType> randomType = () -> RandomDataTypeUtils.randomSerializableDataType(supportedOn);
         DataType type = onlyRepresentable
-            ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), randomType)
+            ? randomValueOtherThanMany(t -> false == DataType.isRepresentableInExpression(t), randomType)
             : randomType.get();
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();

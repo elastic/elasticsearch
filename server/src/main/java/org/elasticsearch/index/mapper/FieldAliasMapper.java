@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -18,6 +19,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 /**
  * A mapper for field aliases.
@@ -144,6 +146,16 @@ public final class FieldAliasMapper extends Mapper {
         public FieldAliasMapper build(MapperBuilderContext context) {
             String fullName = context.buildFullName(leafName());
             return new FieldAliasMapper(leafName(), fullName, path);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject(leafName()).field("type", CONTENT_TYPE).field(Names.PATH, path).endObject();
+        }
+
+        @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            consumer.accept(fullPath(parentPath), this);
         }
 
         @Override

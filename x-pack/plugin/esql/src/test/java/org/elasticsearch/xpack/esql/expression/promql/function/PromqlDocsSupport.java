@@ -76,9 +76,14 @@ public final class PromqlDocsSupport {
         + "/prometheus-compatibility.md#prometheus-compatibility-vector-matching), aren't supported yet.";
 
     /** The comparison operand combinations {{es}} rejects, shared by every comparison operator. */
-    private static final String COMPARISON_NOT_SUPPORTED_YET = "Comparing two instant vectors, such as `x > y`, a scalar as "
-        + "the first operand, such as `100 < x`, a second operand that isn't a number literal, such as `x > time()`, and a "
-        + "comparison inside another expression, such as `(x > 100) + 1` or `count(x > 100)`, aren't supported yet. "
+    private static final String COMPARISON_NOT_SUPPORTED_YET = "{applies_to}`stack: preview =9.4, ga 9.5-9.6` Comparing two "
+        + "instant vectors, such as `x > y`, a scalar as the first operand, such as `100 < x`, a second operand that isn't a "
+        + "number literal, such as `x > time()`, and a comparison inside another expression, such as `(x > 100) + 1` or "
+        + "`count(x > 100)`, aren't supported yet.\n\n"
+        + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A function as the first operand of a filter, such as "
+        + "`time() <= x`, `scalar()` of a vector as the second operand, such as `x > scalar(y)`, two different metrics stored as "
+        + "separate series with a `__name__` dimension, such as `a > b`, and a comparison inside another expression, such as "
+        + "`(x > 100) + 1` or `count(x > 100)`, aren't supported yet. "
         + "Refer to [{{prom}} compatibility]("
         + DOCS_ROOT
         + "/prometheus-compatibility.md#prometheus-compatibility-comparison-binary-operators).";

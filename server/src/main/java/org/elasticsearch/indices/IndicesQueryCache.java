@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -254,8 +255,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
-    /** Clear all entries that belong to the given index. */
-    public void clearIndex(String index) {
+    /** Clear all entries that belong to the given index, whatever name its shards carry. */
+    public void clearIndex(Index index) {
         final Set<Object> coreCacheKeys = shardKeyMap.getCoreKeysForIndex(index);
         for (Object coreKey : coreCacheKeys) {
             cache.clearCoreCacheKey(coreKey);

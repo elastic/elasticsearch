@@ -749,6 +749,13 @@ listed here as the places where names hide:
   so renaming the source before the target allocated made the reroute throw and
   left the target unallocated (`RenameIndexResizeIT#testRenameSourceBeforeCloneCanAllocate`
   holds allocation off to hit that window).
+- `ShardCoreKeyMap` grouping the segments of the query cache by the index name in the
+  reader's shard id, which a reader keeps from when its shard was created, while
+  `IndexQueryCache` cleared by the name its index service was created with. After a
+  rename the shards that existed before it and those allocated since carry different
+  names, so `POST _cache/clear?query=true` missed the entries of one of the two. The
+  map and `IndicesQueryCache#clearIndex` now use the `Index`, which is equal by UUID
+  (`IndicesQueryCacheTests#testClearIndexAfterARenameRemovesTheEntriesOfShardsUnderEitherName`).
 - Bulk item responses reporting the name the index had when the bulk was
   routed, because the shard response was built from the request's shard id.
 - Name-string lookups fed from a shard id (T2): the replication reroute

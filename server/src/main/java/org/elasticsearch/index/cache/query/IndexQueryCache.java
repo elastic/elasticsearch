@@ -42,7 +42,7 @@ public class IndexQueryCache implements QueryCache {
     @Override
     public void clear(String reason) {
         logger.debug("full cache clear for [{}], reason [{}]", index, reason);
-        indicesQueryCache.clearIndex(index.getName());
+        indicesQueryCache.clearIndex(index);
     }
 
     @Override

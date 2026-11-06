@@ -18,6 +18,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -127,7 +129,7 @@ public class ShardCoreKeyMapTests extends ESTestCase {
                 index1Keys.add(ctx.reader().getCoreCacheHelper().getKey());
             }
         }
-        index1Keys.removeAll(map.getCoreKeysForIndex("index1"));
+        index1Keys.removeAll(map.getCoreKeysForIndex(new Index("index1", "_na_")));
         assertEquals(Collections.emptySet(), index1Keys);
 
         reader1.close();
@@ -143,4 +145,47 @@ public class ShardCoreKeyMapTests extends ESTestCase {
         dir3.close();
     }
 
+    /** The shards of a renamed index carry two names, and are one index. */
+    public void testShardsUnderTwoNamesOfOneIndexAreFoundTogether() throws IOException {
+        final String uuid = randomAlphaOfLength(22);
+        Directory dir1 = newDirectory();
+        RandomIndexWriter w1 = new RandomIndexWriter(random(), dir1);
+        w1.addDocument(new Document());
+        Directory dir2 = newDirectory();
+        RandomIndexWriter w2 = new RandomIndexWriter(random(), dir2);
+        w2.addDocument(new Document());
+        Directory dir3 = newDirectory();
+        RandomIndexWriter w3 = new RandomIndexWriter(random(), dir3);
+        w3.addDocument(new Document());
+
+        ElasticsearchDirectoryReader beforeRename = ElasticsearchDirectoryReader.wrap(w1.getReader(), new ShardId("old", uuid, 0));
+        ElasticsearchDirectoryReader afterRename = ElasticsearchDirectoryReader.wrap(w2.getReader(), new ShardId("new", uuid, 1));
+        ElasticsearchDirectoryReader other = ElasticsearchDirectoryReader.wrap(w3.getReader(), new ShardId("old", "another-uuid", 0));
+
+        ShardCoreKeyMap map = new ShardCoreKeyMap();
+        final Set<Object> expected = new HashSet<>();
+        for (ElasticsearchDirectoryReader reader : Arrays.asList(beforeRename, afterRename)) {
+            for (LeafReaderContext ctx : reader.leaves()) {
+                map.add(ctx.reader());
+                expected.add(ctx.reader().getCoreCacheHelper().getKey());
+            }
+        }
+        for (LeafReaderContext ctx : other.leaves()) {
+            map.add(ctx.reader());
+        }
+
+        // by either name, and by the UUID alone, and not the index that only shares a name
+        assertEquals(expected, map.getCoreKeysForIndex(new Index("old", uuid)));
+        assertEquals(expected, map.getCoreKeysForIndex(new Index("new", uuid)));
+        assertEquals(expected, map.getCoreKeysForIndex(new Index("anything", uuid)));
+
+        beforeRename.close();
+        afterRename.close();
+        other.close();
+        w1.close();
+        w2.close();
+        w3.close();
+        assertEquals(0, map.size());
+        IOUtils.close(dir1, dir2, dir3);
+    }
 }

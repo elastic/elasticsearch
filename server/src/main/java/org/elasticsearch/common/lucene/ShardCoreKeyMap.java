@@ -12,6 +12,7 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
@@ -38,7 +39,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ShardCoreKeyMap {
 
     private final Map<IndexReader.CacheKey, ShardId> coreKeyToShard;
-    private final Map<String, Set<IndexReader.CacheKey>> indexToCoreKey;
+    /**
+     * The core keys of each index. The index is the key rather than its name: the readers of a shard keep the name that the shard had
+     * when it was created, so an index that was renamed has shards under two names, and an {@link Index} is equal by its UUID.
+     */
+    private final Map<Index, Set<IndexReader.CacheKey>> indexToCoreKey;
 
     public ShardCoreKeyMap() {
         coreKeyToShard = new ConcurrentHashMap<>();
@@ -47,7 +52,7 @@ public final class ShardCoreKeyMap {
 
     /**
      * Register a {@link LeafReader}. This is necessary so that the core cache
-     * key of this reader can be found later using {@link #getCoreKeysForIndex(String)}.
+     * key of this reader can be found later using {@link #getCoreKeysForIndex(Index)}.
      */
     public void add(LeafReader reader) {
         final IndexReader.CacheHelper cacheHelper = reader.getCoreCacheHelper();
@@ -75,7 +80,7 @@ public final class ShardCoreKeyMap {
         if (shardId == null) {
             throw new IllegalArgumentException("Could not extract shard id from " + reader);
         }
-        final String index = shardId.getIndexName();
+        final Index index = shardId.getIndex();
         synchronized (this) {
             if (coreKeyToShard.containsKey(coreKey)) {
                 return;
@@ -129,7 +134,7 @@ public final class ShardCoreKeyMap {
     /**
      * Get the set of core cache keys associated with the given index.
      */
-    public synchronized Set<Object> getCoreKeysForIndex(String index) {
+    public synchronized Set<Object> getCoreKeysForIndex(Index index) {
         final Set<IndexReader.CacheKey> objects = indexToCoreKey.get(index);
         if (objects == null) {
             return Collections.emptySet();

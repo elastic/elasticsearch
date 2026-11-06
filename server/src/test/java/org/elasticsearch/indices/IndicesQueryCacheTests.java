@@ -32,7 +32,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.IndexShard;
@@ -406,6 +408,74 @@ public class IndicesQueryCacheTests extends ESTestCase {
     // with an empty cache gets closed. In that particular case, the eviction
     // callback is called with a number of evicted entries equal to 0
     // see https://github.com/elastic/elasticsearch/issues/15043
+    /**
+     * The readers of a shard keep the name the shard had when it was created, so after an index is renamed its shards can be found under
+     * two names: those that existed before carry the old one, and those allocated since carry the new one. Clearing the cache of the
+     * index has to remove the entries of both.
+     */
+    public void testClearIndexAfterARenameRemovesTheEntriesOfShardsUnderEitherName() throws IOException {
+        final String uuid = randomAlphaOfLength(22);
+        Directory dir1 = newDirectory();
+        IndexWriter w1 = new IndexWriter(dir1, newIndexWriterConfig());
+        w1.addDocument(new Document());
+        DirectoryReader r1 = DirectoryReader.open(w1);
+        w1.close();
+        ShardId beforeRename = new ShardId("old-name", uuid, 0);
+        r1 = ElasticsearchDirectoryReader.wrap(r1, beforeRename);
+        IndexSearcher s1 = new IndexSearcher(r1);
+        s1.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+
+        Directory dir2 = newDirectory();
+        IndexWriter w2 = new IndexWriter(dir2, newIndexWriterConfig());
+        w2.addDocument(new Document());
+        DirectoryReader r2 = DirectoryReader.open(w2);
+        w2.close();
+        ShardId afterRename = new ShardId("new-name", uuid, 1);
+        r2 = ElasticsearchDirectoryReader.wrap(r2, afterRename);
+        IndexSearcher s2 = new IndexSearcher(r2);
+        s2.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+
+        Settings settings = Settings.builder()
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
+        IndicesQueryCache cache = new IndicesQueryCache(settings);
+        s1.setQueryCache(cache);
+        s2.setQueryCache(cache);
+        // another index, whose entries must stay
+        Directory dir3 = newDirectory();
+        IndexWriter w3 = new IndexWriter(dir3, newIndexWriterConfig());
+        w3.addDocument(new Document());
+        DirectoryReader r3 = DirectoryReader.open(w3);
+        w3.close();
+        ShardId otherIndex = new ShardId("other", randomAlphaOfLength(22), 0);
+        r3 = ElasticsearchDirectoryReader.wrap(r3, otherIndex);
+        IndexSearcher s3 = new IndexSearcher(r3);
+        s3.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+        s3.setQueryCache(cache);
+
+        assertEquals(1, s1.count(new DummyQuery(0)));
+        assertEquals(1, s2.count(new DummyQuery(0)));
+        assertEquals(1, s3.count(new DummyQuery(0)));
+        assertEquals(1L, cache.getStats(beforeRename, () -> 0L).getCacheSize());
+        assertEquals(1L, cache.getStats(afterRename, () -> 0L).getCacheSize());
+        assertEquals(1L, cache.getStats(otherIndex, () -> 0L).getCacheSize());
+
+        // the index cache of an index service holds the index as it was when the service was created
+        new IndexQueryCache(new Index("old-name", uuid), cache).clear("test");
+
+        assertEquals("entries of a shard that carries the old name", 0L, cache.getStats(beforeRename, () -> 0L).getCacheSize());
+        assertEquals("entries of a shard allocated after the rename", 0L, cache.getStats(afterRename, () -> 0L).getCacheSize());
+        assertEquals("entries of another index", 1L, cache.getStats(otherIndex, () -> 0L).getCacheSize());
+
+        // closing the readers drops the entries that are left
+        IOUtils.close(r1, dir1, r2, dir2, r3, dir3);
+        cache.onClose(beforeRename);
+        cache.onClose(afterRename);
+        cache.onClose(otherIndex);
+        cache.close();
+    }
+
     public void testStatsOnEviction() throws IOException {
         Directory dir1 = newDirectory();
         IndexWriter w1 = new IndexWriter(dir1, newIndexWriterConfig());

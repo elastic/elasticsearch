@@ -534,3 +534,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
   method: testCaseInsensitiveEquality {UNMAPPED_CONTAINER}
   issue: https://github.com/elastic/elasticsearch/issues/164863
+- class: org.elasticsearch.test.test.CircuitBreakerForMockArraysIT
+  tasks:
+  - :test:framework:integTest
+  method: testLeakingRecyclerBackedByteArrayIsDetected
+  issue: https://github.com/elastic/elasticsearch/issues/164889

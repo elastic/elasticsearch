@@ -221,11 +221,13 @@ class S3Service extends AbstractLifecycleComponent {
             s3clientBuilder.addPlugin(LegacyMd5Plugin.create());
         }
 
-        if (clientSettings.unsafelyOmitOptionalRequestBodyChecksums) {
-            // Only set when asked. A builder-level value beats the env var, system property and profile file, so setting it
-            // unconditionally would override operators who already use AWS_REQUEST_CHECKSUM_CALCULATION as a workaround.
-            s3clientBuilder.requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
-        }
+        // Always set, never left for the SDK to resolve. A value set on the builder beats AWS_REQUEST_CHECKSUM_CALCULATION, the system
+        // property and the profile file, so this setting alone decides, whatever the node's environment says.
+        s3clientBuilder.requestChecksumCalculation(
+            clientSettings.unsafelyOmitOptionalRequestBodyChecksums
+                ? RequestChecksumCalculation.WHEN_REQUIRED
+                : RequestChecksumCalculation.WHEN_SUPPORTED
+        );
 
         return s3clientBuilder;
     }

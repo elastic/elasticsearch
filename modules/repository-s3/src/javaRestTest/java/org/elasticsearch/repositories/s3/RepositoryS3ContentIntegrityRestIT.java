@@ -35,14 +35,15 @@ import org.junit.rules.TestRule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
-import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.assertNoChecksumRequestHeaders;
-import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.assertSomeChecksumRequestHeader;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
@@ -88,6 +89,28 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             }
         }
         TEST_CONFIGS = List.copyOf(testConfigs);
+    }
+
+    /** The request headers that declare a checksum or a checksum trailer, in a stable order so a failure message is readable. */
+    private static List<String> checksumRequestHeaderNames(Set<String> requestHeaderNames) {
+        return requestHeaderNames.stream().filter(headerName -> {
+            final var lowerCaseName = headerName.toLowerCase(Locale.ROOT);
+            return lowerCaseName.startsWith("x-amz-checksum-")
+                || lowerCaseName.equals("x-amz-trailer")
+                || lowerCaseName.equals("x-amz-sdk-checksum-algorithm");
+        }).sorted().toList();
+    }
+
+    private static void assertNoChecksumRequestHeaders(Set<String> requestHeaderNames) {
+        assertThat("unexpected checksum headers", checksumRequestHeaderNames(requestHeaderNames), empty());
+    }
+
+    private static void assertSomeChecksumRequestHeader(Set<String> requestHeaderNames) {
+        assertThat(
+            "expected a checksum header or trailer declaration in " + requestHeaderNames,
+            checksumRequestHeaderNames(requestHeaderNames),
+            not(empty())
+        );
     }
 
     private static final class ContentIntegrityS3HttpFixture extends S3HttpFixture {

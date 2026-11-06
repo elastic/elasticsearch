@@ -232,43 +232,25 @@ public class S3ClientSettingsTests extends ESTestCase {
         );
     }
 
-    public void testUnsafelyOmitOptionalRequestBodyChecksumsCanBeExplicitlyFalse() {
-        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.off.unsafely_omit_optional_request_body_checksums", false).build()
-        );
-        assertFalse(settings.get("off").unsafelyOmitOptionalRequestBodyChecksums);
-        // an explicit value warns even when it's the default, so the operator knows to remove it
-        assertWarnings(
-            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.off.unsafely_omit_optional_request_body_checksums")
-        );
-    }
-
-    public void testUnsafelyOmitOptionalRequestBodyChecksumsCanBeEnabledPerRepository() {
-        final S3ClientSettings defaults = S3ClientSettings.load(Settings.EMPTY).get("default");
-        assertFalse(defaults.unsafelyOmitOptionalRequestBodyChecksums);
-        final S3ClientSettings refined = defaults.refine(
+    /** A repository can turn the setting on or off whatever its client has, so the override has to be read in both directions. */
+    public void testRepositorySettingOverridesTheClientSettingBothWays() {
+        final S3ClientSettings clientOff = S3ClientSettings.load(Settings.EMPTY).get("default");
+        final S3ClientSettings repositoryOn = clientOff.refine(
             Settings.builder().put("unsafely_omit_optional_request_body_checksums", true).build()
         );
-        assertTrue(refined.unsafelyOmitOptionalRequestBodyChecksums);
-        assertNotSame(defaults, refined);
-        assertWarnings(
-            Strings.format(
-                REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT,
-                "s3.client.placeholder.unsafely_omit_optional_request_body_checksums"
-            )
-        );
-    }
+        assertFalse(clientOff.unsafelyOmitOptionalRequestBodyChecksums);
+        assertTrue(repositoryOn.unsafelyOmitOptionalRequestBodyChecksums);
+        assertNotSame(clientOff, repositoryOn);
 
-    public void testUnsafelyOmitOptionalRequestBodyChecksumsCanBeDisabledPerRepository() {
         final S3ClientSettings clientOn = S3ClientSettings.load(
             Settings.builder().put("s3.client.default.unsafely_omit_optional_request_body_checksums", true).build()
         ).get("default");
-        assertTrue(clientOn.unsafelyOmitOptionalRequestBodyChecksums);
-        final S3ClientSettings refined = clientOn.refine(
+        final S3ClientSettings repositoryOff = clientOn.refine(
             Settings.builder().put("unsafely_omit_optional_request_body_checksums", false).build()
         );
-        assertFalse(refined.unsafelyOmitOptionalRequestBodyChecksums);
-        assertNotSame(clientOn, refined);
+        assertTrue(clientOn.unsafelyOmitOptionalRequestBodyChecksums);
+        assertFalse(repositoryOff.unsafelyOmitOptionalRequestBodyChecksums);
+        assertNotSame(clientOn, repositoryOff);
         assertWarnings(
             Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.default.unsafely_omit_optional_request_body_checksums"),
             Strings.format(

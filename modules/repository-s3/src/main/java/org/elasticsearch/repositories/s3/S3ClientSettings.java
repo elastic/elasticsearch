@@ -190,8 +190,8 @@ final class S3ClientSettings {
      * one, as if {@code AWS_REQUEST_CHECKSUM_CALCULATION=when_required} was set, but for this client alone. Those checksums help to catch
      * corrupted uploads, so skipping them is unsafe and not something we recommend. Some third-party stores that claim to be S3-compatible
      * reject the checksum headers on uploads though, so this is a temporary workaround for them. It doesn't change the checksum on
-     * {@code DeleteObjects}, which the API requires. When {@code false} the SDK is left to resolve the behaviour itself, so the
-     * environment variable, the system property and the profile file still apply.
+     * {@code DeleteObjects}, which the API requires. {@code S3Service} always sets the value on the client, so the environment variable,
+     * the system property and the profile file have no effect on S3 repositories.
      */
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // temporary workaround for non-compliant stores, must be removed in v10
     static final Setting.AffixSetting<Boolean> UNSAFELY_OMIT_OPTIONAL_REQUEST_BODY_CHECKSUMS = Setting.affixKeySetting(

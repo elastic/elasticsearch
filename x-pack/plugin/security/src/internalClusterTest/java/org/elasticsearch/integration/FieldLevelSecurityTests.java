@@ -95,17 +95,21 @@ import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -773,10 +777,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         );
     }
 
-    public void testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls() throws IOException {
-        // This test documents the current behaviour, and shouldn't necessarily be taken as documentation of the _desired_ behaviour.
-        // Broadly: when a user creates a percolator query, their FLS policy gets baked into the query, so other users with different
-        // policies get restricted in the same way.
+    public void testPercolatorConstantKeywordQueryDependsOnExecutingUsersFls() throws IOException {
         assertAcked(
             indicesAdmin().prepareCreate("query_index")
                 .setMapping("query", "type=percolator", "field1", "type=constant_keyword,value=prod", "field2", "type=text")
@@ -808,13 +809,117 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
                 .prepareSearch("query_index")
                 .setQuery(percolateQuery),
-            "unrestricted-writer"
+            "unrestricted-writer",
+            "restricted-writer"
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(percolateQuery)
+        );
+    }
+
+    public void testPercolateQueryWithFlsRestrictedConstantKeyword() throws IOException {
+        assertAcked(
+            indicesAdmin().prepareCreate("query_index")
+                .setMapping("query", "type=percolator", "field1", "type=constant_keyword,value=prod", "field2", "type=text")
+        );
+
+        var negatedQuery = """
+            {
+              "query": {
+                "bool": {
+                  "must_not": [
+                    {"term": {"field1": "prod"}}
+                  ]
+                }
+              }
+            }""";
+        var existsQuery = """
+            {
+              "query": {
+                "exists": {
+                  "field": "field1"
+                }
+              }
+            }""";
+
+        for (var query : Map.of("negated", negatedQuery, "exists", existsQuery).entrySet()) {
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareIndex("query_index")
+                .setId(query.getKey())
+                .setSource(query.getValue(), XContentType.JSON)
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+        }
+
+        var percolateQuery = new PercolateQueryBuilder(
+            "query",
+            BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field2", "value2").endObject()),
+            XContentType.JSON
+        );
+
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(percolateQuery),
+            "exists"
         );
         assertSearchHitsWithoutFailures(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("query_index")
                 .setQuery(percolateQuery),
-            "unrestricted-writer"
+            "negated"
+        );
+
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(QueryBuilders.constantScoreQuery(percolateQuery)),
+            "exists"
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(QueryBuilders.constantScoreQuery(percolateQuery)),
+            "negated"
+        );
+    }
+
+    public void testPercolateDocWithIncorrectConstantKeywordValueDoesNotRevealHiddenValue() throws IOException {
+        assertAcked(
+            indicesAdmin().prepareCreate("query_index")
+                .setMapping("query", "type=percolator", "field1", "type=constant_keyword,value=prod", "field2", "type=text")
+        );
+
+        var percolatorQuery = """
+            {"query": {"term": {"field1": "prod"}}}""";
+
+        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+            .prepareIndex("query_index")
+            .setId("1")
+            .setSource(percolatorQuery, XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        var percolateQuery = new PercolateQueryBuilder(
+            "query",
+            BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field1", "wrong").endObject()),
+            XContentType.JSON
+        );
+
+        assertFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(percolateQuery),
+            RestStatus.BAD_REQUEST,
+            allOf(
+                containsString(
+                    "[constant_keyword] field [field1] only accepts values that are equal to the value defined in the mappings, "
+                        + "but got [wrong]"
+                ),
+                not(containsString("prod"))
+            )
         );
     }
 
@@ -2707,5 +2812,36 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             assertThat(i.getFailure(), nullValue());
             assertThat(i.status(), equalTo(RestStatus.CREATED));
         }
+    }
+
+    public void testColumnarGeoShapeRespectsFieldLevelSecurity() {
+        assertAcked(
+            indicesAdmin().prepareCreate("doc_index")
+                .setMapping("field1", "type=text", "field2", "type=geo_shape")
+                .setSettings(Settings.builder().put("index.mode", "columnar").build())
+        );
+        prepareIndex("doc_index").setId("1")
+            .setSource("field1", "visible", "field2", "POINT (12.34 56.78)")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))).prepareSearch("doc_index"),
+            response -> {
+                assertHitCount(response, 1);
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.get("field1"), equalTo("visible"));
+                assertThat(source.get("field2"), equalTo("POINT (12.34 56.78)"));
+            }
+        );
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user9", USERS_PASSWD))).prepareSearch("doc_index"),
+            response -> {
+                assertHitCount(response, 1);
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.get("field1"), equalTo("visible"));
+                assertThat(source.get("field2"), nullValue());
+            }
+        );
     }
 }

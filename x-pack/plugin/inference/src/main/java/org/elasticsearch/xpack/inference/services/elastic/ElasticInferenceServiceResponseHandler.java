@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-import org.apache.http.Header;
+import org.apache.hc.core5.http.Header;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
@@ -31,7 +31,7 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
 
     @Override
     public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
         if (statusCode == 500 || statusCode == 503) {
             return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 400) {

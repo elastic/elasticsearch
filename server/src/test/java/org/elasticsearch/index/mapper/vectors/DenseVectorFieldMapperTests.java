@@ -31,6 +31,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -73,6 +74,7 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
@@ -605,7 +607,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 checker,
                 "index_options",
                 indexedMapping::build,
-                b -> b.field("index_options", Map.of("type", "int4_flat", "m", 32)),
+                b -> b.field("index_options", Map.of("type", "int4_flat")),
                 b -> b.field("index_options", Map.of("type", newType))
             );
         }
@@ -901,7 +903,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
         };
 
-        assertParsing.accept(null, IvfAutoCalibrationProfile.DISABLED);
+        assertParsing.accept(null, IvfAutoCalibrationProfile.ISO_SIZING);
         assertParsing.accept(true, IvfAutoCalibrationProfile.ISO_SIZING);
         assertParsing.accept(false, IvfAutoCalibrationProfile.DISABLED);
         for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
@@ -985,6 +987,45 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             merge(recovered, MapperService.MergeReason.MAPPING_RECOVERY, mappingSource);
             assertEquals(
                 testCase.v2(),
+                getIndexOptions(recovered, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+        }
+    }
+
+    public void testAutoCalibrateDefaultByIndexVersion() throws IOException {
+        IndexVersion enabledByDefaultVersion = IndexVersions.DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT;
+        IndexVersion lastDisabledByDefaultVersion = IndexVersionUtils.getPreviousVersion(enabledByDefaultVersion);
+        List<Tuple<IndexVersion, IvfAutoCalibrationProfile>> testCases = List.of(
+            Tuple.tuple(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE, lastDisabledByDefaultVersion),
+                IvfAutoCalibrationProfile.DISABLED
+            ),
+            Tuple.tuple(lastDisabledByDefaultVersion, IvfAutoCalibrationProfile.DISABLED),
+            Tuple.tuple(enabledByDefaultVersion, IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple(IndexVersionUtils.randomVersionOnOrAfter(enabledByDefaultVersion), IvfAutoCalibrationProfile.ISO_SIZING)
+        );
+
+        for (Tuple<IndexVersion, IvfAutoCalibrationProfile> testCase : testCases) {
+            IndexVersion version = testCase.v1();
+            IvfAutoCalibrationProfile expectedProfile = testCase.v2();
+            String message = "index version [" + version + "]";
+            MapperService mapperService = createMapperService(version, EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(null));
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
+            assertEquals(message, expectedProfile, indexOptions.autoCalibrationProfile());
+            assertEquals(message, expectedProfile != IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrate());
+
+            // The default is not persisted, so recovery must re-derive it from the index version
+            String mappingSource = mapperService.documentMapper().mappingSource().string();
+            assertThat(message, mappingSource, not(containsString("auto_calibrate")));
+            MapperService recovered = new TestMapperServiceBuilder().indexVersion(version).settings(EXPERIMENTAL_FEATURES_ENABLED).build();
+            merge(recovered, MapperService.MergeReason.MAPPING_RECOVERY, mappingSource);
+            assertEquals(
+                message,
+                expectedProfile,
                 getIndexOptions(recovered, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
             );
         }
@@ -1137,7 +1178,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testAutoCalibrateWithAsh() throws IOException {
         assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
 
-        for (Object value : List.of(false, "disabled")) {
+        // null means unset, which defaults to disabled for ash
+        for (Object value : Arrays.asList(null, false, "disabled")) {
             MapperService mapperService = createMapperService(
                 EXPERIMENTAL_FEATURES_ENABLED,
                 autoCalibrateMapping(value, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH)
@@ -1430,7 +1472,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testDefaultsUnderVectordbColumnarIndexMode() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> new DenseVectorMappingBuilder().dims(8).build(b)));
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
@@ -1439,7 +1480,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testExplicitElementTypeOverridesVectordbColumnarModeDefault() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -2923,6 +2963,17 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    /** The post-filter threshold is user-settable, so it must reject anything outside [0, 1], including NaN. */
+    public void testPostFilterSelectivityThresholdValidation() {
+        Setting<Float> setting = DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD;
+        assertEquals(PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD, setting.get(Settings.EMPTY), 0f);
+        float valid = randomFloatBetween(0f, 1f, true);
+        assertEquals(valid, setting.get(Settings.builder().put(setting.getKey(), valid).build()), 0f);
+        for (String invalid : List.of("-0.1", "1.1", "NaN")) {
+            expectThrows(IllegalArgumentException.class, () -> setting.get(Settings.builder().put(setting.getKey(), invalid).build()));
+        }
     }
 
     /** {@code on_disk_merge} can be flipped by a mapping update: the index type stays the same, so the update is not rejected. */

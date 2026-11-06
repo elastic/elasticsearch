@@ -129,6 +129,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
             APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
             OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH,
+            OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS,
             OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE,
             OtelSdkSettings.TELEMETRY_TRACING_MAX_QUEUE_SIZE,
             OtelSdkSettings.TELEMETRY_TRACING_MAX_BATCH_SIZE,

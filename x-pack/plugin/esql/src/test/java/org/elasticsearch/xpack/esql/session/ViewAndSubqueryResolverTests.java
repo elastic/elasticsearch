@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -36,6 +37,8 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.view.InMemoryViewResolver;
@@ -805,8 +808,8 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         return metrics.stats().get("features." + FeatureMetric.IN_SUBQUERY);
     }
 
-    private LogicalPlan parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName).plan();
+    private EsqlStatement parse(String query, String viewName) {
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     private void addView(String name, String query) {

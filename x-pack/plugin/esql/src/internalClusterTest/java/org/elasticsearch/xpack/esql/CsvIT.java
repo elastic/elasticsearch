@@ -153,7 +153,14 @@ public class CsvIT extends ESTestCase {
     private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
     private static final String ML_ANOMALIES_DATASET = ".ml-anomalies-shared";
-    private static final Set<String> GROUPS_WITH_VIEWS = Set.of("views", "approximation", "unmapped-load", "metadata-views-and-subqueries");
+    private static final Set<String> GROUPS_WITH_VIEWS = Set.of(
+        "views",
+        "approximation",
+        "unmapped-load",
+        "unmapped-load-all",
+        "metadata-views-and-subqueries",
+        "named_subquery"
+    );
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;

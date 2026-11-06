@@ -46,6 +46,8 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('shutdown'))
   internalClusterTestImplementation project(':modules:data-streams')
   internalClusterTestImplementation project(':modules:mapper-extras')
+  internalClusterTestImplementation project(':modules:lang-painless')
+  internalClusterTestImplementation project(':modules:lang-painless:spi')
   internalClusterTestImplementation project(xpackModule('esql'))
   internalClusterTestImplementation project(xpackModule('esql-core'))
   internalClusterTestImplementation project(':x-pack:plugin:encryption')

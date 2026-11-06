@@ -28,7 +28,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.PerFieldFormatSupplier;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -650,7 +649,6 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
      */
     public void testOriginalValuesAreAColumnarPayloadColumn() throws IOException {
         assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat());
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         final String dvFieldName = SemanticTextField.getOriginalValuesFieldName("field");
         for (SourceFieldMapper.Mode mode : List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED)) {
             final Settings settings = Settings.builder()
@@ -659,7 +657,6 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
                 .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
                 .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
                 .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), mode)
-                .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
                 .build();
             final MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping(this::minimalMapping));
             final PerFieldFormatSupplier formats = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);

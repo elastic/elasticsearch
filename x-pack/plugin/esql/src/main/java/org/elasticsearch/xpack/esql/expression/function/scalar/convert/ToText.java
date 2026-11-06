@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -211,7 +213,9 @@ public class ToText extends AbstractConvertFunction
                 }
             }
             if (resolvesToMappedFieldAttribute(plan, field())) {
-                failures.add(fail(field(), "{}", analyzerOnMappedFieldMessage(field().sourceText())));
+                // Name the field and point at this call rather than at the field's source: a column merged by a
+                // subquery UNION is sourced from the whole FROM clause.
+                failures.add(fail(this, "{}", analyzerOnMappedFieldMessage(Expressions.name(field()))));
             }
         };
     }
@@ -251,6 +255,11 @@ public class ToText extends AbstractConvertFunction
         Holder<Attribute> current = new Holder<>((Attribute) input);
         Holder<Boolean> mapped = new Holder<>(false);
         plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+            // FILLNULL keeps the id of a column it fills until the optimizer expands it, but the column is no longer the field below.
+            if (p instanceof FillNull fillNull && fillNull.fills(current.get())) {
+                breakEarly.set(true);
+                return;
+            }
             List<? extends NamedExpression> aliases;
             if (p instanceof Project project) {
                 aliases = project.projections();

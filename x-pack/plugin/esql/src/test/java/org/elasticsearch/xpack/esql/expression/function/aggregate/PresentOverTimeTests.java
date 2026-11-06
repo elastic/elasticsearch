@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,10 +38,11 @@ public class PresentOverTimeTests extends AbstractAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // TODO Use PresentTests.parameters() once absent over time allows for dense_vectors
+        // TODO Use PresentTests.parameters() once present over time allows for date_range, double_range, flattened
         ArrayList<TestCaseSupplier> suppliers = new ArrayList<>();
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo denseVectorAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.7.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -62,6 +64,7 @@ public class PresentOverTimeTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.denseVectorCases(1, 1000).stream().map(s -> s.withAppliesTo(denseVectorAppliesTo)).toList(),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
                 .stream()
                 .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
@@ -82,9 +85,9 @@ public class PresentOverTimeTests extends AbstractAggregationTestCase {
             DataType.BOOLEAN,
             DataType.CARTESIAN_POINT,
             DataType.CARTESIAN_SHAPE,
-            DataType.DATE_NANOS,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.DOUBLE,
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,
@@ -98,12 +101,19 @@ public class PresentOverTimeTests extends AbstractAggregationTestCase {
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.TDIGEST
         );
+        Map<DataType, List<FunctionAppliesTo>> noRowsAppliesTo = Map.of(
+            DataType.EXPONENTIAL_HISTOGRAM,
+            List.of(histogramPreviewAppliesTo, histogramGaAppliesTo),
+            DataType.TDIGEST,
+            List.of(histogramPreviewAppliesTo, histogramGaAppliesTo),
+            DataType.DENSE_VECTOR,
+            List.of(denseVectorAppliesTo)
+        );
         for (var dataType : types) {
-            var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
-                ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
-                    .withAppliesTo(histogramPreviewAppliesTo)
-                    .withAppliesTo(histogramGaAppliesTo)
-                : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
+            var field = withAppliesTo(
+                TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field"),
+                noRowsAppliesTo.getOrDefault(dataType, List.of())
+            );
             suppliers.add(
                 new TestCaseSupplier(
                     "No rows (" + dataType + ")",
@@ -115,6 +125,13 @@ public class PresentOverTimeTests extends AbstractAggregationTestCase {
 
         // "No rows" expects 0 here instead of null
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
+    }
+
+    private static TestCaseSupplier.TypedData withAppliesTo(TestCaseSupplier.TypedData data, List<FunctionAppliesTo> appliesTo) {
+        for (var tag : appliesTo) {
+            data = data.withAppliesTo(tag);
+        }
+        return data;
     }
 
     @Override

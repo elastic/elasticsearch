@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.stateless.utils.WaitForVersion;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -99,6 +100,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -148,6 +150,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /// Controls uploads of VBCC based on the size. A VBCC that is bigger than the threshold is uploaded after appending the latest commit.
+    /// Size of VBCC does not include copied generational files, see
+    /// [VirtualBatchedCompoundCommit#sizeInBytesExcludingCopiedGenerationalFiles].
+    /// Note that a smaller VBCC can be uploaded based on the `max_commits` and `max_age` settings.
     public static final Setting<ByteSizeValue> STATELESS_UPLOAD_MAX_SIZE = Setting.byteSizeSetting(
         "stateless.upload.max_size",
         ByteSizeValue.ofMb(15),
@@ -443,18 +449,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// completes it.
     ///
     /// @throws AlreadyClosedException if the shard commit state is already closed
-    public void installUploadBoundListener(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
-        assert assertIndexingBlocked(shardId);
-        getSafe(shardsCommitsStates, shardId).installUploadBoundListener(uploadBoundListener);
+    public void installUploadBoundListener(IndexShard shard, SubscribableListener<Long> uploadBoundListener) {
+        assert assertIndexingBlocked(shard);
+        getSafe(shardsCommitsStates, shard.shardId()).installUploadBoundListener(uploadBoundListener);
     }
 
-    private boolean assertIndexingBlocked(ShardId shardId) {
-        final var indexService = indicesService.indexService(shardId.getIndex());
-        assert indexService != null : shardId + " index service expected to be non-null";
-        final var shard = indexService.getShardOrNull(shardId.id());
-        assert shard != null : shardId + " shard expected to be non-null";
+    private boolean assertIndexingBlocked(IndexShard shard) {
+        assert shard != null : "shard expected to be non-null";
         assert shard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
-            : shardId + " installUploadBoundListener must be called while holding all operation permits";
+            : shard.shardId() + " installUploadBoundListener must be called while holding all operation permits";
         return true;
     }
 
@@ -963,6 +966,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
         metrics.recordBccUpload(
             virtualBcc.getTotalSizeInBytes(),
+            virtualBcc.headersSizeInBytes(),
+            virtualBcc.replicatedContentSizeInBytes(),
+            virtualBcc.copiedGenerationalFilesSizeInBytes(),
             virtualBcc.size(),
             threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(),
             Iterators.map(
@@ -1480,6 +1486,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     Set<String> getAllSearchNodesRetainingCommitsForShard(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         return commitState.getAllSearchNodesRetainingCommits();
+    }
+
+    // Visible for testing
+    String describeBlobRetention(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId).describeBlobRetention();
     }
 
     /**
@@ -2184,7 +2195,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
-            return virtualBcc.getTotalSizeInBytes() >= bccUploadMaxSizeInBytes
+            return virtualBcc.sizeInBytesExcludingCopiedGenerationalFiles() >= bccUploadMaxSizeInBytes
+                // This check is intended to catch a theoretical "runaway" scenario where copied generational files could accumulate
+                // and produce very large commits.
+                || virtualBcc.getTotalSizeInBytes() >= bccUploadMaxSizeInBytes * 4
                 || virtualBcc.getPendingCompoundCommits().size() >= bccMaxAmountOfCommits;
         }
 
@@ -2389,7 +2403,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             .getPrimaryTermAndGeneration()
                             .onOrBefore(uploadedBcc.primaryTermAndGeneration())
                     )
-                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> new BlobFileRanges(entry.getValue().blobLocation())));
+                    .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue().blobLocation())));
 
             assert uploadedFilesBlobLocations.values()
                 .stream()
@@ -3207,9 +3221,28 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (uploadedGenerationNotified.getAndAccumulate(commitNotificationGeneration, Math::max) > commitNotificationGeneration) {
                 // no need to process backwards commit notifications
                 // (but would be safe - and we rely on it, this check is just an optimistic check)
+                logger.debug(
+                    () -> format(
+                        "%s ignoring backwards uploaded commit notification response for commit generation [%s]",
+                        shardId,
+                        commitNotificationGeneration
+                    )
+                );
                 return;
             }
 
+            logger.debug(
+                () -> format(
+                    "%s processing uploaded commit notification response: bcc [%s], cc [%s], search nodes eligible for removal %s, "
+                        + "BCCs reported in use %s, BCC dependencies of the notified commit %s",
+                    shardId,
+                    bccNotificationGeneration,
+                    commitNotificationGeneration,
+                    new TreeSet<>(searchNodes),
+                    new TreeSet<>(primaryTermAndGenerationsInUse),
+                    new TreeSet<>(notificationCommitBCCDependencies)
+                )
+            );
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
                 // we are allowed to shrink the set of search nodes for any generation <= notificationGeneration, since after the
                 // notification generation has been refreshed on the search shard, we know that the shard will never add more use of any
@@ -3221,6 +3254,30 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     blobReference.removeSearchNodes(searchNodes, bccNotificationGeneration, notificationCommitBCCDependencies);
                 }
             }
+        }
+
+        /**
+         * Explains, for every tracked BCC blob of this shard, what currently keeps it alive. Meant for diagnostics of blobs that are
+         * retained longer than expected.
+         */
+        String describeBlobRetention() {
+            final var blobs = List.copyOf(primaryTermAndGenToBlobReference.values());
+            final var latestUploaded = latestUploadedBcc;
+            final var latestCommitReferences = latestUploaded == null
+                ? null
+                : commitReferencesInfos.get(latestUploaded.lastCompoundCommit().primaryTermAndGeneration());
+            final var sb = new StringBuilder();
+            sb.append(shardId)
+                .append(" latestUploadedBcc=")
+                .append(latestUploaded == null ? null : latestUploaded.primaryTermAndGeneration())
+                .append(" latestCommitReferencedBCCs=")
+                .append(latestCommitReferences == null ? null : new TreeSet<>(latestCommitReferences.referencedBCCs()))
+                .append(" uploadedGenerationNotified=")
+                .append(uploadedGenerationNotified.get());
+            blobs.stream()
+                .sorted(Comparator.comparing(BlobReference::getPrimaryTermAndGeneration))
+                .forEach(blob -> sb.append("\n  ").append(blob.describeRetention(blobs)));
+            return sb.toString();
         }
 
         /**
@@ -3247,6 +3304,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         void onRemoveNodesFromCluster(Set<String> removedNodeIds) {
             var bccGenerationAndDependencies = getUploadedNotifiedGenerationAndDependencies();
+            logger.debug(
+                () -> format(
+                    "%s removing nodes %s that left the cluster from tracked blobs, uploaded notified bcc [%s] with dependencies %s",
+                    shardId,
+                    new TreeSet<>(removedNodeIds),
+                    bccGenerationAndDependencies.v1(),
+                    new TreeSet<>(bccGenerationAndDependencies.v2())
+                )
+            );
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
                 blobReference.removeSearchNodes(removedNodeIds, bccGenerationAndDependencies.v1(), bccGenerationAndDependencies.v2());
             }
@@ -3325,17 +3391,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // Consider minimum pending generation also available to search, since we are in the process of uploading it and search
             // node may have seen it before we process that the upload succeeded. This is also reasonable, because only timing
             // means it is not yet considered uploaded here.
-            // TODO: exclude paused pending-upload BCCs from latestUploading.
-            // See https://github.com/elastic/elasticsearch/pull/160420#discussion_r4243167856
+            // A pending generation above the relocation upload bound is paused and never uploaded by this node. A search
+            // shard registering at that generation may have seen a same-term commit uploaded by the relocation target,
+            // which must not be treated as available by the relocation source. In that case, the registration then fails
+            // with RecoveryCommitTooNewException and is retried against the target.
             Optional<VirtualBatchedCompoundCommit> latestUploading = pendingUploadBccGenerations.values()
                 .stream()
+                .filter(pending -> pauseUpload(pending.commit().getMaxGeneration()) == false)
                 .min(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
             var latestUploaded = this.latestUploadedBcc;
             if (latestUploaded == null) {
                 throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
             }
-            // onOrAfter (really just "on", see next if block) means the shard *is* uploaded, since the search shard saw it
+            // onOrAfter, but only "on" gets through the next `if` block. The search shard read `compoundCommitGeneration`
+            // from the object store, so if the last compound commit of `latestUploading` matches it, then `latestUploading`
+            // has already been uploaded even if we have not yet processed the upload completion. "After" is technically
+            // possible, e.g. when this primary is relocating and the search shard read a commit uploaded by the relocation
+            // target, but the next `if` block then rejects it.
             AbstractBatchedCompoundCommit availableBcc = latestUploading.map(o -> (AbstractBatchedCompoundCommit) o)
                 .filter(bcc -> compoundCommitGeneration.onOrAfter(bcc.lastCompoundCommit().primaryTermAndGeneration()))
                 .orElse(latestUploaded);
@@ -3932,6 +4005,37 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + ","
                     + refCount()
                     + "]";
+            }
+
+            /**
+             * Explains everything that currently keeps this blob alive. The blob is deleted once its ref count drops to zero, and the
+             * ref count is held by: the local Lucene commits stored in it (localCommitsRemaining), the local readers
+             * (localReadersClosed), the search nodes (searchNodes, CLOSED once released), the generational files it tracks
+             * (generationalFilesRemaining), and by the blobs that depend on it (referencedByBlobs).
+             *
+             * @param allBlobs all the blobs tracked for this shard, used to find the blobs depending on this one
+             */
+            String describeRetention(Collection<BlobReference> allBlobs) {
+                final var localCommits = localCommitsRef.get();
+                final var searchNodes = searchNodesRef.get();
+                final var generationalFiles = generationalFilesRef.get();
+                final var dependsOn = references;
+                final var referencedBy = allBlobs.stream().filter(other -> other != this).filter(other -> {
+                    final var otherReferences = other.references;
+                    return otherReferences != null && otherReferences.contains(this);
+                }).map(BlobReference::getPrimaryTermAndGeneration).sorted().toList();
+                return format(
+                    "%s refCount=%s localCommitsRemaining=%s localReadersClosed=%s searchNodes=%s generationalFilesRemaining=%s "
+                        + "dependsOn=%s referencedByBlobs=%s",
+                    primaryTermAndGeneration,
+                    refCount(),
+                    localCommits == null ? "RELEASED" : new TreeSet<>(localCommits),
+                    readersClosed.get(),
+                    searchNodes == null ? "CLOSED" : new TreeSet<>(searchNodes),
+                    generationalFiles == null ? "NONE" : new TreeSet<>(generationalFiles),
+                    dependsOn == null ? "RELEASED" : dependsOn.stream().map(BlobReference::getPrimaryTermAndGeneration).sorted().toList(),
+                    referencedBy
+                );
             }
         }
 

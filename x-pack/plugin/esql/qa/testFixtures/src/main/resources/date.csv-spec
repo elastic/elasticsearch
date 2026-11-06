@@ -2425,3 +2425,19 @@ FROM employees
 emp_no:integer | hire_date:date
 10001          | 1986-06-26T00:00:00.000Z
 ;
+
+dateTruncSingleBucketKeepsNullsForMissingField
+required_capability: fix_round_to_pushdown_single_point_null_bucket
+
+// All sample_data timestamps fall into one month, so the query-and-tags pushdown of the
+// DATE_TRUNC-derived ROUND_TO sees a single rounding point. The employees docs have no @timestamp
+// field and must keep a null DATE_TRUNC result instead of being tagged with the bucket value.
+FROM sample_data, employees
+| STATS t = MIN(DATE_TRUNC(1 month, @timestamp)), c = COUNT(*) BY missing = @timestamp IS NULL
+| SORT missing
+;
+
+t:datetime               | c:long | missing:boolean
+2023-10-01T00:00:00.000Z | 7      | false
+null                     | 100    | true
+;

@@ -14,7 +14,7 @@ lexer grammar FillNull;
 // and pushing PROJECT_MODE leaves the exact mode stack KEEP / DROP produce, so PROJECT_PIPE / PROJECT_RP
 // (the latter needed for FORK branches) behave identically.
 //
-DEV_FILLNULL : {this.isDevVersion()}? 'fillnull' -> pushMode(FILLNULL_MODE);
+DEV_FILLNULL : 'fillnull' {this.isDevVersion()}? -> pushMode(FILLNULL_MODE);
 
 mode FILLNULL_MODE;
 FILLNULL_PIPE : PIPE -> type(PIPE), popMode;

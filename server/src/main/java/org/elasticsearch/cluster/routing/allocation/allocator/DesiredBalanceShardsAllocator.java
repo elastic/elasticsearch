@@ -317,6 +317,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
         var index = indexGenerator.incrementAndGet();
         logger.debug("Executing allocate for [{}]", index);
+        // This captures the listener even if the surrounding cluster state update fails (e.g. it is not committed because the master
+        // steps down). The listener is then still completed by a later convergence or failed by onNoLongerMaster, so callers must
+        // handle it completing independently of the outcome of the cluster state update.
         pendingListenersQueue.add(index, listener);
         // This can only run on master, so unset not-master if exists
         if (currentDesiredBalanceRef.compareAndSet(DesiredBalance.NOT_MASTER, DesiredBalance.BECOME_MASTER_INITIAL)) {

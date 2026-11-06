@@ -57,6 +57,8 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -665,8 +667,18 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         }
     }
 
+    /**
+     * The pre-join plan arrives over the wire and is planned here with the lookup optimizers. An external source has
+     * no place in it: {@code LOOKUP JOIN} against a dataset is refused at analysis, so a plan carrying one was not
+     * built by a coordinator, and nothing on this path authorizes or rebinds a dataset. Refused before any planning
+     * rule sees it, with the same refusal the compute handlers give such a plan.
+     */
     @Override
     protected void doLookup(LookupRequest request, CancellableTask task, ActionListener<AbstractLookupService.LookupResponse> listener) {
+        if (ExternalSourceDatasets.hasExternalNode(request.rightPreJoinPlan)) {
+            listener.onFailure(ExternalSourceAuthorizer.unexpectedShape("a lookup join"));
+            return;
+        }
         if (request.getClientToServerId() != null) {
             doLookupStreaming(request, task, listener);
         } else {

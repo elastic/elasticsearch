@@ -67,6 +67,7 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTING_FLAT = new NodeFeature("semantic_text.highlighter.flat_index_options");
     private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
     private static final NodeFeature SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX = new NodeFeature("semantic.exists_query_auto_prefilter_fix");
+    private static final NodeFeature SEMANTIC_AUTO_PREFILTER_RECURSION_FIX = new NodeFeature("semantic.auto_prefilter_recursion_fix");
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
     public static final NodeFeature INFERENCE_CCM_CACHE = new NodeFeature("inference.ccm.cache");
@@ -82,6 +83,7 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature INFERENCE_CCM_ENABLEMENT_SERVICE = new NodeFeature("inference.ccm.enablement_service");
 
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
+    public static final NodeFeature DECISION_TASK_TYPE = new NodeFeature("inference.decision_task_type");
     public static final NodeFeature DOCUMENT_EXTRACTION_TASK_TYPE = new NodeFeature("inference.document_extraction_task_type");
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
 
@@ -126,6 +128,7 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
             INFERENCE_CCM_ENABLEMENT_SERVICE,
             EMBEDDING_TASK_TYPE,
+            DECISION_TASK_TYPE,
             DOCUMENT_EXTRACTION_TASK_TYPE,
             ENDPOINT_METADATA_FIELD,
             INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION,
@@ -195,6 +198,7 @@ public class InferenceFeatures implements FeatureSpecification {
                 TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX,
                 ENDPOINT_METADATA_CLUSTER_STATE_SUBSET,
                 SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX,
+                SEMANTIC_AUTO_PREFILTER_RECURSION_FIX,
                 INFERENCE_CHAT_COMPLETION_TEMPLATE
             )
         );

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161633
+pr: 162638
+summary: Keep the null bucket in single-point `ROUND_TO` pushdown
+type: bug

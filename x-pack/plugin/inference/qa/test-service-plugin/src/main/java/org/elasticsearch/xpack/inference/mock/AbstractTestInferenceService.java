@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
+import org.elasticsearch.inference.DecisionRequest;
 import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -123,6 +124,16 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return new TestServiceModel(config, secrets);
+    }
+
+    @Override
+    public void decisionInfer(Model model, DecisionRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        listener.onFailure(
+            new ElasticsearchStatusException(
+                TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                RestStatus.BAD_REQUEST
+            )
+        );
     }
 
     @Override

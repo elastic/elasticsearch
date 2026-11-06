@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-import org.apache.http.StatusLine;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicHttpResponse;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
@@ -139,11 +138,8 @@ public class ElasticInferenceServiceCompletionResponseHandlerTests extends ESTes
     }
 
     private static HttpResult httpResult(int statusCode, String body, BasicHeader... headers) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
         // A real BasicHttpResponse rather than a mock so that getFirstHeader(...) behaves for the Retry-After assertions.
-        var httpResponse = new BasicHttpResponse(statusLine);
+        var httpResponse = new BasicHttpResponse(statusCode);
         for (var header : headers) {
             httpResponse.addHeader(header);
         }

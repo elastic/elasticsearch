@@ -45,20 +45,25 @@ public class FieldDataTests extends ESTestCase {
         }
     }
 
+    // These tests do not exercise the doc id iterator, so build the singleton without one.
+    private static SortedNumericLongValues singletonLongsWithoutDocIdIterator(LongValues values) {
+        return SortedNumericLongValues.singleton(values, null);
+    }
+
     public void testSortableLongBitsToDoubles() throws IOException {
         final double value = randomDouble();
         final long valueBits = NumericUtils.doubleToSortableLong(value);
 
         LongValues values = new DummyValues(valueBits);
 
-        SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.singleton(values));
+        SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(singletonLongsWithoutDocIdIterator(values));
         DoubleValues asDoubles = SortedNumericDoubleValues.unwrapSingleton(asMultiDoubles);
         assertNotNull(asDoubles);
         assertTrue(asDoubles.advanceExact(0));
         assertEquals(value, asDoubles.doubleValue(), 0);
 
         values = new DummyValues(valueBits);
-        asMultiDoubles = FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.singleton(values));
+        asMultiDoubles = FieldData.sortableLongBitsToDoubles(singletonLongsWithoutDocIdIterator(values));
         LongValues backToLongs = SortedNumericLongValues.unwrapSingleton(FieldData.toSortableLongBits(asMultiDoubles));
         assertSame(values, backToLongs);
 
@@ -88,7 +93,7 @@ public class FieldDataTests extends ESTestCase {
     public void testCastToDoubleSingleton() throws IOException {
         final long value = randomLong();
         LongValues values = new DummyValues(value);
-        SortedNumericDoubleValues asMultiDoubles = FieldData.castToDouble(SortedNumericLongValues.singleton(values));
+        SortedNumericDoubleValues asMultiDoubles = FieldData.castToDouble(singletonLongsWithoutDocIdIterator(values));
         // a singleton input should produce a singleton output, not just the right values
         DoubleValues asDoubles = SortedNumericDoubleValues.unwrapSingleton(asMultiDoubles);
         assertNotNull(asDoubles);
@@ -202,6 +207,109 @@ public class FieldDataTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@link FieldData#sortableLongBitsToDoubles} on a singleton that is not already a converted view
+     * wraps it, and must hand back the very same {@link SortedNumericDoubleValues#docIdIterator()}.
+     */
+    public void testSortableLongBitsToDoublesPreservesDocIdIteratorSingleton() {
+        final DocIdSetIterator iterator = DocIdSetIterator.all(1);
+        SortedNumericLongValues singleton = SortedNumericLongValues.singleton(new DummyValues(randomLong()), iterator);
+        SortedNumericDoubleValues asDoubles = FieldData.sortableLongBitsToDoubles(singleton);
+        assertNotNull(SortedNumericDoubleValues.unwrapSingleton(asDoubles));
+        assertSame(iterator, asDoubles.docIdIterator());
+    }
+
+    /**
+     * {@link FieldData#sortableLongBitsToDoubles} on a singleton that came from
+     * {@link FieldData#toSortableLongBits} unwraps the original doubles, and must still hand back the same iterator.
+     */
+    public void testSortableLongBitsToDoublesPreservesDocIdIteratorSingletonRoundTrip() {
+        final DocIdSetIterator iterator = DocIdSetIterator.all(1);
+        SortedNumericLongValues asLongs = FieldData.toSortableLongBits(singletonDoubles(iterator));
+        SortedNumericDoubleValues asDoubles = FieldData.sortableLongBitsToDoubles(asLongs);
+        assertNotNull(SortedNumericDoubleValues.unwrapSingleton(asDoubles));
+        assertSame(iterator, asDoubles.docIdIterator());
+    }
+
+    /**
+     * {@link FieldData#sortableLongBitsToDoubles} on multi-valued input that is not already a converted view
+     * wraps it, and must hand back the very same iterator.
+     */
+    public void testSortableLongBitsToDoublesPreservesDocIdIteratorMultiValued() {
+        final DocIdSetIterator iterator = DocIdSetIterator.all(1);
+        SortedNumericDoubleValues asDoubles = FieldData.sortableLongBitsToDoubles(multiLongs(iterator));
+        assertNull(SortedNumericDoubleValues.unwrapSingleton(asDoubles));
+        assertSame(iterator, asDoubles.docIdIterator());
+    }
+
+    /**
+     * {@link FieldData#sortableLongBitsToDoubles} on multi-valued input that came from
+     * {@link FieldData#toSortableLongBits} unwraps the original doubles, and must still hand back the same iterator.
+     */
+    public void testSortableLongBitsToDoublesPreservesDocIdIteratorMultiValuedRoundTrip() {
+        final DocIdSetIterator iterator = DocIdSetIterator.all(1);
+        SortedNumericLongValues asLongs = FieldData.toSortableLongBits(multiDoubles(iterator));
+        SortedNumericDoubleValues asDoubles = FieldData.sortableLongBitsToDoubles(asLongs);
+        assertNull(SortedNumericDoubleValues.unwrapSingleton(asDoubles));
+        assertSame(iterator, asDoubles.docIdIterator());
+    }
+
+    /**
+     * {@link FieldData#toSortableLongBits} on a singleton that is not already a converted view
+     * wraps it, and must hand back the very same {@link SortedNumericLongValues#docIdIterator()}.
+     */
+    public void testToSortableLongBitsPreservesDocIdIteratorSingleton() {
+        final DocIdSetIterator iterator = DocIdSetIterator.all(1);
+        SortedNumericLongValues asLongs = FieldData.toSortableLongBits(singletonDoubles(iterator));
+        assertNotNull(SortedNumericLongValues.unwrapSingleton(asLongs));
+        assertSame(iterator, asLongs.docIdIterator());
+    }
+
+    /**
+     * {@link FieldData#toSortableLongBits} on a singleton that came from {@link FieldData#sortableLongBitsToDoubles}
+     * unwraps the original longs, and must still hand back the same iterator.
+     */
+    public void testToSortableLongBitsPreservesDocIdIteratorSingletonRoundTrip() {
+        final DocIdSetIterator iterator = DocIdSetIterator.all(1);
+        SortedNumericLongValues original = SortedNumericLongValues.singleton(new DummyValues(randomLong()), iterator);
+        SortedNumericLongValues asLongs = FieldData.toSortableLongBits(FieldData.sortableLongBitsToDoubles(original));
+        assertNotNull(SortedNumericLongValues.unwrapSingleton(asLongs));
+        assertSame(iterator, asLongs.docIdIterator());
+    }
+
+    /**
+     * {@link FieldData#toSortableLongBits} on multi-valued input that is not already a converted view
+     * wraps it, and must hand back the very same iterator.
+     */
+    public void testToSortableLongBitsPreservesDocIdIteratorMultiValued() {
+        final DocIdSetIterator iterator = DocIdSetIterator.all(1);
+        SortedNumericLongValues asLongs = FieldData.toSortableLongBits(multiDoubles(iterator));
+        assertNull(SortedNumericLongValues.unwrapSingleton(asLongs));
+        assertSame(iterator, asLongs.docIdIterator());
+    }
+
+    /**
+     * {@link FieldData#toSortableLongBits} on multi-valued input that came from
+     * {@link FieldData#sortableLongBitsToDoubles} unwraps the original longs, and must still hand back the same iterator.
+     */
+    public void testToSortableLongBitsPreservesDocIdIteratorMultiValuedRoundTrip() {
+        final DocIdSetIterator iterator = DocIdSetIterator.all(1);
+        SortedNumericLongValues asLongs = FieldData.toSortableLongBits(FieldData.sortableLongBitsToDoubles(multiLongs(iterator)));
+        assertNull(SortedNumericLongValues.unwrapSingleton(asLongs));
+        assertSame(iterator, asLongs.docIdIterator());
+    }
+
+    /**
+     * The empty doubles have no documents, so the iterator they expose must be empty too, rather than missing.
+     */
+    public void testEmptySortedNumericDoublesHasEmptyDocIdIterator() throws IOException {
+        SortedNumericDoubleValues empty = FieldData.emptySortedNumericDoubles();
+        DocIdSetIterator iterator = empty.docIdIterator();
+        assertNotNull(iterator);
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
+        assertFalse(empty.advanceExact(0));
+    }
+
     public void testDoublesToSortableLongBits() throws IOException {
         final double value = randomDouble();
         final long valueBits = NumericUtils.doubleToSortableLong(value);
@@ -218,7 +326,9 @@ public class FieldDataTests extends ESTestCase {
             }
         };
 
-        SortedNumericLongValues asMultiLongs = FieldData.toSortableLongBits(FieldData.singleton(values));
+        SortedNumericLongValues asMultiLongs = FieldData.toSortableLongBits(
+            SortedNumericDoubleValues.singletonWithoutDocIdIterator(values)
+        );
         LongValues asLongs = SortedNumericLongValues.unwrapSingleton(asMultiLongs);
         assertNotNull(asLongs);
         assertTrue(asLongs.advanceExact(0));
@@ -326,5 +436,60 @@ public class FieldDataTests extends ESTestCase {
 
         assertTrue(replaced.advanceExact(5));
         assertEquals(1.4, replaced.doubleValue(), 0d);
+    }
+
+    // A minimal genuinely multi-valued (non-singleton) long view that reports the given iterator.
+    private static SortedNumericLongValues multiLongs(DocIdSetIterator iterator) {
+        return new SortedNumericLongValues(iterator) {
+            @Override
+            public boolean advanceExact(int target) {
+                return true;
+            }
+
+            @Override
+            public long nextValue() {
+                return 0L;
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+        };
+    }
+
+    // A minimal genuinely multi-valued (non-singleton) double view that reports the given iterator.
+    private static SortedNumericDoubleValues multiDoubles(DocIdSetIterator iterator) {
+        return new SortedNumericDoubleValues(iterator) {
+            @Override
+            public boolean advanceExact(int target) {
+                return true;
+            }
+
+            @Override
+            public double nextValue() {
+                return 0d;
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+        };
+    }
+
+    // A minimal singleton double view that reports the given iterator.
+    private static SortedNumericDoubleValues singletonDoubles(DocIdSetIterator iterator) {
+        return SortedNumericDoubleValues.singleton(new DoubleValues() {
+            @Override
+            public boolean advanceExact(int doc) {
+                return true;
+            }
+
+            @Override
+            public double doubleValue() {
+                return 0d;
+            }
+        }, iterator);
     }
 }

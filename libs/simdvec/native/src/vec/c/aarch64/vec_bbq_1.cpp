@@ -539,6 +539,9 @@ EXPORT void vec_dotd2q4_bulk_sparse(
 static inline int64_t dotd4q4_inner(const int8_t* a, const int8_t* q, const int32_t length) {
     constexpr int doc_bits = 4;
     constexpr int query_bits = 4;
+    constexpr int u64_bytes = sizeof(uint64_t);
+    constexpr int u32_bytes = sizeof(uint32_t);
+    constexpr int u16_bytes = sizeof(uint16_t);
     constexpr int chunk_size = sizeof(uint8x16_t);
     const int32_t bit_length = length / 4;
     int64_t sum = 0;
@@ -572,7 +575,21 @@ static inline int64_t dotd4q4_inner(const int8_t* a, const int8_t* q, const int3
     }
 
     // fewer than 16 bytes are left: at most one step each of 8, 4, 2 and 1 bytes
-    scalar_tail(r, bit_length, [&](auto load) { dot_striped_scalar<doc_bits, query_bits>(sum, a, q, bit_length, r, load); });
+    if (bit_length - r >= u64_bytes) {
+        dot_striped_scalar<doc_bits, query_bits, u64_bytes>(sum, a, q, bit_length, r);
+        r += u64_bytes;
+    }
+    if (bit_length - r >= u32_bytes) {
+        dot_striped_scalar<doc_bits, query_bits, u32_bytes>(sum, a, q, bit_length, r);
+        r += u32_bytes;
+    }
+    if (bit_length - r >= u16_bytes) {
+        dot_striped_scalar<doc_bits, query_bits, u16_bytes>(sum, a, q, bit_length, r);
+        r += u16_bytes;
+    }
+    if (r < bit_length) {
+        dot_striped_scalar<doc_bits, query_bits, 1>(sum, a, q, bit_length, r);
+    }
     return sum;
 }
 
@@ -599,6 +616,9 @@ static inline void dotd4q4_inner_bulk(
     constexpr int batches = 2;
     constexpr int doc_bits = 4;
     constexpr int query_bits = 4;
+    constexpr int u64_bytes = sizeof(uint64_t);
+    constexpr int u32_bytes = sizeof(uint32_t);
+    constexpr int u16_bytes = sizeof(uint16_t);
     constexpr int chunk_size = sizeof(uint8x16_t);
     const int32_t bit_length = length / 4;
 
@@ -649,12 +669,29 @@ static inline void dotd4q4_inner_bulk(
         // its plane, so none reads past the end of a vector (with sparse addresses, a vector can end right
         // before an unmapped page).
         int r = blk;
-        const auto scalar_step = [&](auto load) {
+        if (bit_length - r >= u64_bytes) {
             apply_indexed<batches>([&](auto B) {
-                dot_striped_scalar<doc_bits, query_bits>(res[B], (const int8_t*)as[B], query, bit_length, r, load);
+                dot_striped_scalar<doc_bits, query_bits, u64_bytes>(res[B], (const int8_t*)as[B], query, bit_length, r);
             });
-        };
-        scalar_tail(r, bit_length, scalar_step);
+            r += u64_bytes;
+        }
+        if (bit_length - r >= u32_bytes) {
+            apply_indexed<batches>([&](auto B) {
+                dot_striped_scalar<doc_bits, query_bits, u32_bytes>(res[B], (const int8_t*)as[B], query, bit_length, r);
+            });
+            r += u32_bytes;
+        }
+        if (bit_length - r >= u16_bytes) {
+            apply_indexed<batches>([&](auto B) {
+                dot_striped_scalar<doc_bits, query_bits, u16_bytes>(res[B], (const int8_t*)as[B], query, bit_length, r);
+            });
+            r += u16_bytes;
+        }
+        if (r < bit_length) {
+            apply_indexed<batches>([&](auto B) {
+                dot_striped_scalar<doc_bits, query_bits, 1>(res[B], (const int8_t*)as[B], query, bit_length, r);
+            });
+        }
         apply_indexed<batches>([&](auto B) {
             results[out_mapper(offsets, c + B)] = (f32_t)res[B];
         });

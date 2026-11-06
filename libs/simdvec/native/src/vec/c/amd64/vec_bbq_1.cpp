@@ -182,6 +182,9 @@ static inline int64_t dotd2q4_inner_avx2(const int8_t* a, const int8_t* q, const
 static inline int64_t dotd4q4_inner_avx2(const int8_t* a, const int8_t* q, const int32_t length) {
     constexpr int doc_bits = 4;
     constexpr int query_bits = 4;
+    constexpr int u64_bytes = sizeof(uint64_t);
+    constexpr int u32_bytes = sizeof(uint32_t);
+    constexpr int u16_bytes = sizeof(uint16_t);
     constexpr int m128_bytes = sizeof(__m128i);
     const int32_t bit_length = length / 4;
 
@@ -243,7 +246,21 @@ static inline int64_t dotd4q4_inner_avx2(const int8_t* a, const int8_t* q, const
     int64_t sum = mm256_reduce_epi64<_mm_add_epi64>(total);
 
     // fewer than 16 bytes are left: at most one step each of 8, 4, 2 and 1 bytes
-    scalar_tail(r, bit_length, [&](auto load) { dot_striped_scalar<doc_bits, query_bits>(sum, a, q, bit_length, r, load); });
+    if (bit_length - r >= u64_bytes) {
+        dot_striped_scalar<doc_bits, query_bits, u64_bytes>(sum, a, q, bit_length, r);
+        r += u64_bytes;
+    }
+    if (bit_length - r >= u32_bytes) {
+        dot_striped_scalar<doc_bits, query_bits, u32_bytes>(sum, a, q, bit_length, r);
+        r += u32_bytes;
+    }
+    if (bit_length - r >= u16_bytes) {
+        dot_striped_scalar<doc_bits, query_bits, u16_bytes>(sum, a, q, bit_length, r);
+        r += u16_bytes;
+    }
+    if (r < bit_length) {
+        dot_striped_scalar<doc_bits, query_bits, 1>(sum, a, q, bit_length, r);
+    }
     return sum;
 }
 

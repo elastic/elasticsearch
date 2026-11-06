@@ -80,9 +80,10 @@ public final class QueryPragmas implements Writeable {
 
     /**
      * Drop the rows that cannot be in the top groups of {@code STATS COUNT(*) BY key | SORT count DESC | LIMIT N}, before they are
-     * aggregated. Only used on a single node. See {@code SketchFilterOperator}.
+     * aggregated. On by default. It only applies to that shape of query, with one {@code long} key, on a single node and a single
+     * shard; any other query is planned as before. Set it to {@code false} to switch it off. See {@code SketchFilterOperator}.
      */
-    public static final Setting<Boolean> SKETCH_FILTER = Setting.boolSetting("sketch_filter", false);
+    public static final Setting<Boolean> SKETCH_FILTER = Setting.boolSetting("sketch_filter", true);
 
     /** The number of sketch slots per driver for {@link #SKETCH_FILTER}. */
     public static final Setting<Integer> SKETCH_FILTER_SLOTS = Setting.intSetting("sketch_filter_slots", 65536, 8);

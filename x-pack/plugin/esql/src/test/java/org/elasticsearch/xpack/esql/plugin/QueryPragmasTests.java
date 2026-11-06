@@ -27,6 +27,11 @@ public class QueryPragmasTests extends ESTestCase {
         assertThat(pragmas.timeSeriesTargetChunkRows(10_000), equalTo(4_096));
     }
 
+    public void testSketchFilterIsOnByDefaultAndCanBeSwitchedOff() {
+        assertTrue(new QueryPragmas(Settings.EMPTY).sketchFilter());
+        assertFalse(new QueryPragmas(Settings.builder().put(QueryPragmas.SKETCH_FILTER.getKey(), false).build()).sketchFilter());
+    }
+
     public void testTimeSeriesTargetChunkRowsIsValidPragmaName() {
         assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey()));
     }

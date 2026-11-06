@@ -9,15 +9,21 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
 
 public class QueriesTests extends ESTestCase {
 
@@ -41,6 +47,37 @@ public class QueriesTests extends ESTestCase {
                 new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.MUST).add(Queries.ALL_DOCS_INSTANCE, Occur.MUST_NOT).build()
             )
         );
+    }
+
+    public void testMinimumShouldMatchSeesThroughReanalyzingTextQuery() {
+        final BooleanQuery bool = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "a")), Occur.SHOULD)
+            .add(new TermQuery(new Term("foo", "b")), Occur.SHOULD)
+            .build();
+        final boolean scansEveryDocument = randomBoolean();
+        final ReanalyzingTextQuery wrapped = new ReanalyzingTextQuery(
+            bool,
+            ctx -> doc -> List.of(),
+            new StandardAnalyzer(),
+            scansEveryDocument
+        );
+        final Query expected = new ReanalyzingTextQuery(
+            Queries.applyMinimumShouldMatch(bool, "2"),
+            ctx -> doc -> List.of(),
+            new StandardAnalyzer(),
+            scansEveryDocument
+        );
+
+        assertEquals(expected, Queries.maybeApplyMinimumShouldMatch(wrapped, "2"));
+        assertEquals(new ConstantScoreQuery(expected), Queries.maybeApplyMinimumShouldMatch(new ConstantScoreQuery(wrapped), "2"));
+
+        // Nothing to apply leaves the query as it is.
+        assertSame(wrapped, Queries.maybeApplyMinimumShouldMatch(wrapped, null));
+        assertSame(wrapped, Queries.maybeApplyMinimumShouldMatch(wrapped, "0"));
+        final ReanalyzingTextQuery term = wrapped.withQuery(new TermQuery(new Term("foo", "a")));
+        assertSame(term, Queries.maybeApplyMinimumShouldMatch(term, "2"));
+        // A constant score query around anything but the wrapper is left alone, as before.
+        final Query constantBool = new ConstantScoreQuery(bool);
+        assertSame(constantBool, Queries.maybeApplyMinimumShouldMatch(constantBool, "2"));
     }
 
     public void testFixNegativeQuery() {

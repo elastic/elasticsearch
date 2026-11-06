@@ -132,29 +132,44 @@ public class BulkOperationTests extends ESTestCase {
     private final String fsRolloverDataStreamName = "my_failure_store_to_be_rolled_over_data_stream";
     private final String fsBySettingsDataStreamName = "my_failure_store_enabled_by_setting_data_stream";
 
+    /** Backing index settings (as {@link DataStreamTestHelper} builds them) that opt in to x-content batch encoding. */
+    private static Settings.Builder batchIndexingBackingSettings() {
+        return settings(IndexVersion.current()).put("index.hidden", true).put(IndexSettings.BATCH_INDEXING.getKey(), true);
+    }
+
     private final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
         .settings(
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                // x-content batch encoding is per-index; opt in so the batch-mode tests exercise it
+                .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 .build()
         )
         .build();
     private final IndexMetadata ds1BackingIndex1 = DataStreamTestHelper.createBackingIndex(dataStreamName, 1, millis)
+        .settings(batchIndexingBackingSettings())
         .numberOfShards(2)
+        .numberOfReplicas(1)
         .build();
     private final IndexMetadata ds1BackingIndex2 = DataStreamTestHelper.createBackingIndex(dataStreamName, 2, millis + 1)
+        .settings(batchIndexingBackingSettings())
         .numberOfShards(2)
+        .numberOfReplicas(1)
         .build();
     private final IndexMetadata ds2BackingIndex1 = DataStreamTestHelper.createBackingIndex(fsDataStreamName, 1, millis)
+        .settings(batchIndexingBackingSettings())
         .numberOfShards(2)
+        .numberOfReplicas(1)
         .build();
     private final IndexMetadata ds2FailureStore1 = DataStreamTestHelper.createFailureStore(fsDataStreamName, 1, millis)
         .numberOfShards(1)
         .build();
     private final IndexMetadata ds3BackingIndex1 = DataStreamTestHelper.createBackingIndex(fsRolloverDataStreamName, 1, millis)
+        .settings(batchIndexingBackingSettings())
         .numberOfShards(2)
+        .numberOfReplicas(1)
         .build();
     private final IndexMetadata ds3FailureStore1 = DataStreamTestHelper.createFailureStore(fsRolloverDataStreamName, 1, millis)
         .numberOfShards(1)
@@ -163,7 +178,9 @@ public class BulkOperationTests extends ESTestCase {
         .numberOfShards(1)
         .build();
     private final IndexMetadata ds4BackingIndex1 = DataStreamTestHelper.createBackingIndex(fsBySettingsDataStreamName, 1, millis)
+        .settings(batchIndexingBackingSettings())
         .numberOfShards(2)
+        .numberOfReplicas(1)
         .build();
     private final IndexMetadata ds4FailureStore1 = DataStreamTestHelper.createFailureStore(fsBySettingsDataStreamName, 1, millis)
         .numberOfShards(1)

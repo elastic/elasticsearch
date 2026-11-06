@@ -35,6 +35,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.NoHardLinksDirectory;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.SelfAccountingIndexInput;
 import org.elasticsearch.index.store.StoreMetrics;
@@ -76,7 +77,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.store.Store.CORRUPTED_MARKER_NAME_PREFIX;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
-public class IndexDirectory extends ByteSizeDirectory {
+public class IndexDirectory extends ByteSizeDirectory implements NoHardLinksDirectory {
 
     private static final Logger logger = LogManager.getLogger(IndexDirectory.class);
 

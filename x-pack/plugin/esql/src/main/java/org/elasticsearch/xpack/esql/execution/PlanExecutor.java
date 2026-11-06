@@ -296,7 +296,7 @@ public class PlanExecutor {
             promqlFunctionRegistry,
             analysisRegistry,
             mapper,
-            verifier,
+            request.analyzeOnly() ? verifier.withoutMetrics() : verifier,
             metrics,
             planTelemetry,
             indicesExpressionGrouper,
@@ -304,31 +304,35 @@ public class PlanExecutor {
             services.plannerSettings().get(),
             services
         );
-        QueryMetric clientId = QueryMetric.fromString("rest");
-        metrics.total(clientId);
-
-        var begin = System.nanoTime();
         ActionListener<Versioned<Result>> releasingListener = bindPlanningReservation(
             services,
             executionInfo,
             externalSourceResolver,
             listener
         );
-        ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin, client),
-            ex -> onQueryFailure(
-                request,
-                session.planSnapshot().settings(),
-                releasingListener,
-                ex,
-                clientId,
-                planTelemetry,
-                executionInfo,
-                begin,
-                client,
-                externalSourceResolver
-            )
-        );
+        ActionListener<Versioned<Result>> executeListener = releasingListener;
+
+        if (request.analyzeOnly() == false) {
+            QueryMetric clientId = QueryMetric.fromString("rest");
+            metrics.total(clientId);
+            var begin = System.nanoTime();
+            executeListener = wrap(
+                x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin, client),
+                ex -> onQueryFailure(
+                    request,
+                    session.planSnapshot().settings(),
+                    releasingListener,
+                    ex,
+                    clientId,
+                    planTelemetry,
+                    executionInfo,
+                    begin,
+                    client,
+                    externalSourceResolver
+                )
+            );
+        }
+
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
         ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, cancellation, l));
@@ -378,7 +382,7 @@ public class PlanExecutor {
             partial,
             null
         );
-        queryLog.onQueryPhase(result, request.queryDescription());
+        queryLog.onQueryPhase(result, request.queryDescription(), request.viewSettings());
         // record routing usage telemetry
         usageService.getProjectRoutingUsageHolder()
             .recordEsql(
@@ -414,7 +418,7 @@ public class PlanExecutor {
             false,
             ex
         );
-        queryLog.onQueryFailure(request.queryDescription(), settings, ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(request.queryDescription(), settings, request.viewSettings(), ex, System.nanoTime() - begin);
         // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
         if (cacheService != null && ExternalException.hasCondition(ex, ExternalException.Condition.OBJECT_CHANGED)) {
             // The object was rewritten after the listing this query used was cached. Drop the entries this query read, so the

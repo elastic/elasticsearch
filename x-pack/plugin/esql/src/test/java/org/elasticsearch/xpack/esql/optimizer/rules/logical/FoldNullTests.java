@@ -102,6 +102,13 @@ public class FoldNullTests extends ESTestCase {
         return new FoldNull().rule(e, unboundLogicalOptimizerContext());
     }
 
+    /**
+     * Applies the rule bottom-up, like the optimizer does, so folded children are visible to their parents.
+     */
+    private Expression foldNullUp(Expression e) {
+        return e.transformUp(this::foldNull);
+    }
+
     public void testBasicNullFolding() {
         assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), NULL, TEST_CFG)));
         assertNullLiteral(foldNull(new Round(EMPTY, NULL, null)));
@@ -311,6 +318,53 @@ public class FoldNullTests extends ESTestCase {
         assertEquals(add.dataType(), folded.dataType());
     }
 
+    // A null-propagating function over a NULL-typed COALESCE, CASE or MV_UNION must fold to null: its evaluator has no
+    // NULL branch, so leaving it in the plan throws once any rule folds it.
+    public void testNullPropagatingFunctionOverNullTypedCoalesceIsFolded() {
+        Coalesce coalesce = nullTypedCoalesce();
+        assertNullLiteral(foldNull(new Mul(EMPTY, coalesce, L(2))));
+        assertNullLiteral(foldNull(new Div(EMPTY, coalesce, L(2))));
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), coalesce, TEST_CFG)));
+        assertNullLiteral(foldNull(new DateExtract(EMPTY, Literal.keyword(EMPTY, "year"), coalesce, TEST_CFG)));
+        assertNullLiteral(foldNull(new ToString(EMPTY, coalesce, TEST_CFG)));
+        assertNullLiteral(foldNull(new MvSlice(EMPTY, coalesce, L(0), L(1))));
+        assertNullLiteral(foldNull(new Bucket(EMPTY, coalesce, NULL, NULL, NULL, NULL, TEST_CFG)));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedCaseIsFolded() {
+        Case caseExpr = new Case(EMPTY, TRUE, List.of(NULL, NULL));
+        assertNullLiteral(foldNull(new Mul(EMPTY, caseExpr, L(2))));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedMvUnionIsFolded() {
+        MvUnion union = new MvUnion(EMPTY, NULL, NULL);
+        assertNullLiteral(foldNull(new Mul(EMPTY, union, L(2))));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedCoalesceKeepsExpressionType() {
+        Mul mul = new Mul(EMPTY, nullTypedCoalesce(), L(2));
+        Literal folded = as(foldNull(mul), Literal.class);
+        assertNull(folded.value());
+        assertEquals(INTEGER, folded.dataType());
+    }
+
+    // Only a NULL-typed argument proves the result is null; a COALESCE with a typed branch can still produce a value.
+    public void testNullPropagatingFunctionOverTypedCoalesceIsNotFolded() {
+        Mul mul = new Mul(EMPTY, new Coalesce(EMPTY, NULL, List.of(getFieldAttribute("a", INTEGER))), L(2));
+        assertEquals(mul, foldNull(mul));
+    }
+
+    public void testNullTypedCoalesceDoesNotFoldAggregateOrCategorize() {
+        Max max = new Max(EMPTY, nullTypedCoalesce());
+        assertEquals(max, foldNull(max));
+        Categorize categorize = new Categorize(EMPTY, nullTypedCoalesce(), NULL);
+        assertEquals(categorize, foldNull(categorize));
+    }
+
+    private static Coalesce nullTypedCoalesce() {
+        return new Coalesce(EMPTY, NULL, List.of(NULL));
+    }
+
     public void testEqualsNullSuggestsIsNull() {
         var field = getFieldAttribute("emp_no").withLocation(new Source(1, 19, "emp_no"));
         Equals equals = new Equals(new Source(1, 19, "emp_no == NULL"), field, NULL);
@@ -329,36 +383,17 @@ public class FoldNullTests extends ESTestCase {
         var field = getFieldAttribute("emp_no").withLocation(new Source(1, 24, "emp_no"));
         Equals equals = new Equals(new Source(1, 24, "emp_no == NULL"), field, NULL);
         Not not = new Not(new Source(1, 19, "NOT (emp_no == NULL)"), equals);
-        assertNullLiteral(foldNull(not));
+        assertNullLiteral(foldNullUp(not));
         assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
-    }
-
-    public void testInAllNullListSuggestsIsNull() {
-        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
-        In in = new In(new Source(1, 12, "emp_no IN (NULL, NULL)"), field, List.of(NULL, NULL));
-        assertSame(in, foldNull(in));
-        assertEquals("emp_no IS NULL", in.nullMisuseAlternative());
-    }
-
-    public void testInNullValueHasNoAlternative() {
-        var field = getFieldAttribute("emp_no");
-        In in = new In(new Source(1, 12, "NULL IN (emp_no, 1)"), NULL, List.of(field, L(1)));
-        assertNullLiteral(foldNull(in));
-        assertNull(in.nullMisuseAlternative());
-    }
-
-    public void testInValueAndNullDoesNotFold() {
-        var field = getFieldAttribute("emp_no");
-        In in = new In(EMPTY, field, List.of(L(1), NULL));
-        assertSame(in, foldNull(in));
-        assertNull(in.nullMisuseAlternative());
     }
 
     public void testNotInAllNullListSuggestsIsNotNull() {
         var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
         In in = new In(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), field, List.of(NULL, NULL));
         Not not = new Not(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), in);
-        assertNullLiteral(foldNull(not));
+        // FoldNull leaves the all-NULL IN to ConstantFolding (see ConstantFoldingTests#testInAllNullListSuggestsIsNull),
+        // so on its own it does not fold the NOT either.
+        assertSame(not, foldNullUp(not));
         assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
     }
 

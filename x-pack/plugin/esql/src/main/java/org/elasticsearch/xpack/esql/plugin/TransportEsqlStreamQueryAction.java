@@ -368,8 +368,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(versionedResult -> {
-                transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, null);
                 Result result = versionedResult.inner();
+                TransportEsqlQueryAction.failIfCancelled(task, result);
+                transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, null);
                 markPartialFromCompletionInfo(result);
                 resultRef.set(result);
                 if (streamStarted.get() == false) {
@@ -489,8 +490,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         String[] fieldNames = new String[output.size()];
         for (int i = 0; i < output.size(); i++) {
             Attribute terminal = aliasSources.resolve(output.get(i), output.get(i));
-            if (terminal instanceof FieldAttribute fa
-                && (terminal instanceof UnsupportedAttribute) == false
+            if (terminal instanceof FieldAttribute fa && (terminal instanceof UnsupportedAttribute) == false
+            // field_caps only sees mappings, so it cannot vouch that a field loaded from _source is empty
+                && fa.isPotentiallyUnmapped() == false
                 && fa.field().isAggregatable()
                 && FIELD_CAPS_EMPTINESS_IS_TRUSTWORTHY.contains(fa.dataType())) {
                 fieldNames[i] = fa.fieldName().string();

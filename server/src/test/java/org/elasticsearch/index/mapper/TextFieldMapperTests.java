@@ -216,7 +216,6 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
 
-        // norms can be set from true to false, but not vice versa
         checker.registerConflictCheck("norms", fieldMapping(b -> {
             b.field("type", "text");
             b.field("norms", false);
@@ -224,13 +223,13 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.field("type", "text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck("norms", b -> {
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
             b.field("type", "text");
             b.field("norms", true);
-        }, b -> {
+        }), fieldMapping(b -> {
             b.field("type", "text");
             b.field("norms", false);
-        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
+        }));
 
     }
 
@@ -278,6 +277,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "text");
+    }
+
+    public void testExplicitDocValuesFalseMatchesDefault() throws IOException {
+        assertExplicitDocValuesFalseMatchesDisabledDefault();
     }
 
     public void testDefaults() throws IOException {
@@ -1279,6 +1282,32 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         // the parent keyword field should store in doc values
         FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
+    }
+
+    /**
+     * Before {@code KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED} the default of {@code store} depends on whether a keyword
+     * multi-field can hold the original value. A normalized keyword that skips storing it can, so the builder serialization
+     * has to agree with the mapper serialization about it.
+     */
+    public void testNormalizedKeywordMultiFieldSkippingOriginalValueOnOldIndex() throws IOException {
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("normalizer", "lowercase");
+            b.field("normalizer_skip_store_original_value", true);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+        DocumentMapper mapper = createMapperService(IndexVersions.IGNORED_SOURCE_COALESCED_ENTRIES, indexSettings, () -> true, mapping)
+            .documentMapper();
+        assertFalse(((TextFieldMapper) mapper.mappers().getMapper("name")).fieldType().isStored());
+        // mappings persisted before this keyword counted as compatible have an explicit store, and keep it
+        assertThat(mapper.mappingSource().string(), containsString("\"store\":false"));
     }
 
     public void testDoesNotDelegateSyntheticSourceForNormalizedKeywordMultiFieldWhenStoreOriginalValue() throws IOException {
@@ -2658,7 +2687,6 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testNormsEnabledWhenIndexModeIsVectordbColumnar() throws IOException {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
         XContentBuilder mapping = mapping(b -> b.startObject("potato").field("type", "text").endObject());
         DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
@@ -2685,7 +2713,6 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsVectordbColumnar() throws IOException {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.VECTORDB_COLUMNAR);
     }
 
@@ -2725,7 +2752,6 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultIndexOptionsIsPositionsWhenIndexModeIsVectordbColumnar() throws IOException {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         // vectordb_columnar is search-optimized, so it keeps the "positions" default rather than dropping to "docs".
         Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(indexSettings, mapping(b -> b.startObject("field").field("type", "text").endObject()))

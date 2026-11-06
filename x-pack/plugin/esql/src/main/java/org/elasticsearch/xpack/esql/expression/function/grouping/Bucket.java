@@ -391,14 +391,30 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 params = { "date", "date_period|time_duration", "date|date_nanos|STRING", "date|date_nanos|STRING" },
                 returnType = "date"
             ),
+            @Signature(
+                params = { "date", "date_period|time_duration", "date|date_nanos|STRING", "date|date_nanos|STRING", "object" },
+                returnType = "date"
+            ),
             @Signature(params = { "date", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING" }, returnType = "date"),
+            @Signature(
+                params = { "date", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING", "object" },
+                returnType = "date"
+            ),
             @Signature(params = { "date_nanos", "date_period|time_duration" }, returnType = "date_nanos"),
             @Signature(
                 params = { "date_nanos", "date_period|time_duration", "date|date_nanos|STRING", "date|date_nanos|STRING" },
                 returnType = "date_nanos"
             ),
             @Signature(
+                params = { "date_nanos", "date_period|time_duration", "date|date_nanos|STRING", "date|date_nanos|STRING", "object" },
+                returnType = "date_nanos"
+            ),
+            @Signature(
                 params = { "date_nanos", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING" },
+                returnType = "date_nanos"
+            ),
+            @Signature(
+                params = { "date_nanos", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING", "object" },
                 returnType = "date_nanos"
             ),
             // unsigned_long works as a numeric field and as a from/to bound. It is not a valid buckets/count/span argument.
@@ -409,6 +425,15 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                     "integer|long",
                     "integer|long|double|unsigned_long",
                     "integer|long|double|unsigned_long" },
+                returnType = "double"
+            ),
+            @Signature(
+                params = {
+                    "integer|long|double|unsigned_long",
+                    "integer|long",
+                    "integer|long|double|unsigned_long",
+                    "integer|long|double|unsigned_long",
+                    "object" },
                 returnType = "double"
             ),
             // Histograms are bucketed like numbers, but return the non-empty double_range buckets.
@@ -511,6 +536,15 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                     inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:""",
                 file = "bucket",
                 tag = "bucketWithOffset"
+            ),
+            @Example(
+                description = """
+                    By default, `BUCKET` only returns buckets that contain at least one row. Set the
+                    `include_empty_buckets` option to `true` to also return the empty buckets in the `from`..`to` range,
+                    filled with default aggregate values:""",
+                file = "bucket_include_empty_buckets",
+                tag = "docsBucketIncludeEmptyBuckets",
+                applies_to = "stack: ga 9.6.0"
             ),
             @Example(
                 description = """

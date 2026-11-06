@@ -17,6 +17,7 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -24,6 +25,12 @@ public class BucketErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(BucketTests.parameters());
+    }
+
+    @Override
+    protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
+        // Don't fuzz the options position by type, as options are validated by Options.resolve, not by positional type.
+        return super.testCandidates(cases.stream().filter(c -> c.types().size() <= 4).toList(), valid);
     }
 
     @Override

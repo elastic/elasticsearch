@@ -600,7 +600,7 @@ public class DatasetRewriterTests extends ESTestCase {
         rootBranches.put("outer_view", outer);
         BranchPlan plan = new BranchPlan(Source.EMPTY, rootBranches, Map.of("outer_view", BranchIdentity.view("outer_view")), List.of());
 
-        ViewQuerySettings datasetsOn = new ViewQuerySettings(UnmappedResolution.DEFAULT, false, true);
+        ViewQuerySettings datasetsOn = new ViewQuerySettings(UnmappedResolution.DEFAULT, false, true, Set.of("wildcards_match_datasets"));
         LogicalPlan outerOn = rewriteDatasetsUnsecured(plan, project, RESOLVER, false, Map.of("outer_view", datasetsOn));
         assertSame(caller, outerOn.children().get(0));
         assertThat(outerOn.children().get(1).children().get(0), instanceOf(UnresolvedExternalRelation.class));

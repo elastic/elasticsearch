@@ -1,0 +1,5 @@
+area: Aggregations
+issues: []
+pr: 162573
+summary: Hash each term once for each segment in terms aggs on single-valued ColumNAR keyword fields
+type: enhancement

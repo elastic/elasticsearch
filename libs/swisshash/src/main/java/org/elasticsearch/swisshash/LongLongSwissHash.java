@@ -16,6 +16,8 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -23,6 +25,7 @@ import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -825,6 +828,16 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
         final int[] partitionCounts;
         final long[][] partitionKeys;
 
+        /**
+         * The keys of one partition read back from {@link #writePartition}; the other partitions are empty.
+         */
+        private LongLongPartitionedHashKeys(int partition, long[] keys, int count) {
+            partitionKeys = new long[NUM_PARTITIONS][];
+            partitionKeys[partition] = keys;
+            partitionCounts = new int[NUM_PARTITIONS];
+            partitionCounts[partition] = count;
+        }
+
         LongLongPartitionedHashKeys(CircuitBreaker breaker, int estimatePartitionCount) {
             estimatePartitionCount = ArrayUtil.oversize(estimatePartitionCount, Long.BYTES * 2);
             long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) NUM_PARTITIONS * estimatePartitionCount * Long.BYTES * 2;
@@ -887,6 +900,16 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
         }
 
         @Override
+        public void writePartition(int partition, StreamOutput out) throws IOException {
+            final int count = partitionCounts[partition];
+            final long[] keys = partitionKeys[partition];
+            out.writeVInt(count);
+            for (int i = 0; i < count * 2; i++) {
+                out.writeLong(keys[i]);
+            }
+        }
+
+        @Override
         public void releaseAll(CircuitBreaker breaker) {
             long bytes = (long) NUM_PARTITIONS * Integer.BYTES;
             for (long[] sub : partitionKeys) {
@@ -895,6 +918,31 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
                 }
             }
             breaker.addWithoutBreaking(-bytes);
+        }
+    }
+
+    /**
+     * Reads one partition's keys written by {@link PartitionedHashKeys#writePartition}: an instance holding that
+     * partition alone, charged to {@code breaker} as a split's keys are, which {@link #combinePartition} takes as any
+     * other.
+     */
+    public static PartitionedHashKeys readPartitionKeys(StreamInput in, int partition, CircuitBreaker breaker) throws IOException {
+        final int count = in.readVInt();
+        final long bytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) count * 2 * Long.BYTES;
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "LongLongSwissHash#partition");
+        boolean success = false;
+        try {
+            final long[] keys = new long[count * 2];
+            for (int i = 0; i < keys.length; i++) {
+                keys[i] = in.readLong();
+            }
+            PartitionedHashKeys result = new LongLongPartitionedHashKeys(partition, keys, count);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                breaker.addWithoutBreaking(-bytes);
+            }
         }
     }
 

@@ -11,6 +11,8 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -41,6 +43,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -585,6 +588,11 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         public void releaseAll(CircuitBreaker breaker) {
             delegate.releaseAll(breaker);
         }
+
+        @Override
+        public void writePartition(int partition, StreamOutput out) throws IOException {
+            delegate.writePartition(partition, out);
+        }
     }
 
     @Override
@@ -607,6 +615,20 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
             return swiss.combinePartition(withSeenNull.delegate, partitionIndex, resultIds);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public void writePartitionKeys(PartitionedHashTable.PartitionedHashKeys keys, int partition, StreamOutput out) throws IOException {
+        PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
+        out.writeBoolean(withSeenNull.seenNull);
+        withSeenNull.delegate.writePartition(partition, out);
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedHashKeys readPartitionKeys(StreamInput in, int partition, CircuitBreaker breaker)
+        throws IOException {
+        boolean seenNull = in.readBoolean();
+        return new PartitionedHashKeysWithSeenNull(BytesRefSwissHash.readPartitionKeys(in, partition, breaker), seenNull);
     }
 
     @Override

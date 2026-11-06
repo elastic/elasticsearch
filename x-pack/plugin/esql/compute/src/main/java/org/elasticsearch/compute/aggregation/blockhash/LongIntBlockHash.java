@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -27,6 +29,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.swisshash.LongLongSwissHash;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -595,6 +598,11 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
         public void releaseAll(CircuitBreaker breaker) {
             delegate.releaseAll(breaker);
         }
+
+        @Override
+        public void writePartition(int partition, StreamOutput out) throws IOException {
+            delegate.writePartition(partition, out);
+        }
     }
 
     @Override
@@ -613,6 +621,19 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
             return swiss.combinePartition(withSeenBlocks.delegate, partitionIndex, resultIds);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public void writePartitionKeys(PartitionedHashKeys keys, int partition, StreamOutput out) throws IOException {
+        PartitionedHashKeysWithSeenBlocks withSeenBlocks = (PartitionedHashKeysWithSeenBlocks) keys;
+        out.writeBoolean(withSeenBlocks.seenBlocks);
+        withSeenBlocks.delegate.writePartition(partition, out);
+    }
+
+    @Override
+    public PartitionedHashKeys readPartitionKeys(StreamInput in, int partition, CircuitBreaker breaker) throws IOException {
+        boolean seenBlocks = in.readBoolean();
+        return new PartitionedHashKeysWithSeenBlocks(LongLongSwissHash.readPartitionKeys(in, partition, breaker), seenBlocks);
     }
 
     @Override

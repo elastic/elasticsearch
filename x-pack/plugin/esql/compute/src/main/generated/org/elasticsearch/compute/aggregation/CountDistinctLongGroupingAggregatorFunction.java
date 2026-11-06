@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.io.IOException;
 import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
@@ -11,6 +12,7 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -387,6 +389,17 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
         CountDistinctLongAggregator.combineIntermediate(state, dstIds[i], values.get(i, scratch));
       }
     }
+  }
+
+  @Override
+  public boolean supportsPartitionCodec() {
+    return true;
+  }
+
+  @Override
+  public GroupingAggregatorFunction.PartitionedState readPartition(StreamInput in, int partition,
+      CircuitBreaker breaker) throws IOException {
+    return state.readPartition(in, partition, breaker);
   }
 
   @Override

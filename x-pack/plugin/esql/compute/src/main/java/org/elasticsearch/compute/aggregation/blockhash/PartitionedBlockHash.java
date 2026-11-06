@@ -7,10 +7,15 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.swisshash.SwissHashFactory;
+
+import java.io.IOException;
 
 /**
  * An extension of {@link BlockHash} to support partitioning.
@@ -39,4 +44,25 @@ public abstract class PartitionedBlockHash extends BlockHash implements Partitio
     }
 
     public abstract void clear();
+
+    /**
+     * Whether this hash writes and reads back one partition of its keys; a hash without a codec keeps its generations
+     * resident, which is the first version's answer for time series.
+     */
+    public boolean supportsPartitionCodec() {
+        return true;
+    }
+
+    /**
+     * Writes one partition of keys this hash split, as {@link #readPartitionKeys} reads them back: this hash's own
+     * wrapper state first, the nulls it folds into the keys, then the library's raw keys, so that a restored partition
+     * is indistinguishable from a resident one to {@link #combinePartition}.
+     */
+    public abstract void writePartitionKeys(PartitionedHashKeys keys, int partition, StreamOutput out) throws IOException;
+
+    /**
+     * Reads one partition written by {@link #writePartitionKeys}, into keys holding that partition alone, charged to
+     * {@code breaker} as a split's keys are.
+     */
+    public abstract PartitionedHashKeys readPartitionKeys(StreamInput in, int partition, CircuitBreaker breaker) throws IOException;
 }

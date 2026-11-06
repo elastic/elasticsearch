@@ -88,6 +88,7 @@ public class GroupingAggregatorImplementer {
     private static final List<ClassName> GROUP_IDS_CLASSES = List.of(INT_ARRAY_BLOCK, INT_BIG_ARRAY_BLOCK, INT_VECTOR);
     private static final ClassName PARTITIONED_STATE = GROUPING_AGGREGATOR_FUNCTION.nestedClass("PartitionedState");
     private static final ClassName PARTITION_SPLITTER = GROUPING_AGGREGATOR_FUNCTION.nestedClass("PartitionSplitter");
+    private static final ClassName STREAM_INPUT = ClassName.get("org.elasticsearch.common.io.stream", "StreamInput");
 
     private final TypeElement declarationType;
     private final List<TypeMirror> warnExceptions;
@@ -111,6 +112,7 @@ public class GroupingAggregatorImplementer {
     private final boolean processNulls;
     private final boolean supportsPartitioning;
     private final boolean hasCombinePartition;
+    private final boolean hasReadPartition;
     /**
      * True when partition values are {@code BytesRefSequence} and must be merged via
      * {@code combineIntermediate} rather than {@code combine}. This applies when the state
@@ -196,6 +198,12 @@ public class GroupingAggregatorImplementer {
                 requireType(ArrayTypeName.of(TypeName.INT)),
                 requireType(TypeName.INT)
             )
+        ) != null;
+        this.hasReadPartition = optionalStaticMethod(
+            declarationType,
+            requireType(PARTITIONED_STATE),
+            requireName("readPartition"),
+            requireArgs(requireType(STREAM_INPUT), requireType(TypeName.INT), requireType(CIRCUIT_BREAKER))
         ) != null;
         this.useIntermediateForPartitions = supportsPartitioning
             && aggState.declaredType().isPrimitive() == false
@@ -317,6 +325,8 @@ public class GroupingAggregatorImplementer {
             builder.addMethod(supportPartitioning());
             builder.addMethod(createPartitioningSplitter());
             builder.addMethod(combinePartition());
+            builder.addMethod(supportsPartitionCodec());
+            builder.addMethod(readPartition());
         }
         builder.addMethod(toStringMethod());
         builder.addMethod(close());
@@ -951,6 +961,36 @@ public class GroupingAggregatorImplementer {
             .addParameter(TypeName.INT, "size")
             .addStatement("state.ensureCapacity(size)")
             .build();
+    }
+
+    private MethodSpec supportsPartitionCodec() {
+        return MethodSpec.methodBuilder("supportsPartitionCodec")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(TypeName.BOOLEAN)
+            .addStatement("return true")
+            .build();
+    }
+
+    /**
+     * The declaration's static {@code readPartition} when it has one, the state's otherwise: the pair of the
+     * partitioned state's {@code writePartition}.
+     */
+    private MethodSpec readPartition() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("readPartition")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .addParameter(STREAM_INPUT, "in")
+            .addParameter(TypeName.INT, "partition")
+            .addParameter(CIRCUIT_BREAKER, "breaker")
+            .addException(ClassName.get("java.io", "IOException"))
+            .returns(PARTITIONED_STATE);
+        if (hasReadPartition) {
+            builder.addStatement("return $T.readPartition(in, partition, breaker)", declarationType);
+        } else {
+            builder.addStatement("return state.readPartition(in, partition, breaker)");
+        }
+        return builder.build();
     }
 
     private MethodSpec combinePartition() {

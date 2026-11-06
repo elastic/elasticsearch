@@ -4,12 +4,14 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.io.IOException;
 import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -437,6 +439,17 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
         MinLongAggregator.combine(state, dstIds[i], values[i]);
       }
     }
+  }
+
+  @Override
+  public boolean supportsPartitionCodec() {
+    return true;
+  }
+
+  @Override
+  public GroupingAggregatorFunction.PartitionedState readPartition(StreamInput in, int partition,
+      CircuitBreaker breaker) throws IOException {
+    return state.readPartition(in, partition, breaker);
   }
 
   @Override

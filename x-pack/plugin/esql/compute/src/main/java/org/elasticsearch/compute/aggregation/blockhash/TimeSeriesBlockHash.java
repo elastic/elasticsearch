@@ -11,6 +11,8 @@ import com.carrotsearch.hppc.IntIntHashMap;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -131,6 +133,22 @@ public final class TimeSeriesBlockHash extends PartitionedBlockHash {
         public void releaseAll(CircuitBreaker breaker) {
             delegate.releaseAll(breaker);
         }
+    }
+
+    @Override
+    public boolean supportsPartitionCodec() {
+        // the first version does not spill time series aggregations
+        return false;
+    }
+
+    @Override
+    public void writePartitionKeys(PartitionedHashKeys keys, int partition, StreamOutput out) {
+        throw new UnsupportedOperationException("time series keys have no partition codec");
+    }
+
+    @Override
+    public PartitionedHashKeys readPartitionKeys(StreamInput in, int partition, CircuitBreaker breaker) {
+        throw new UnsupportedOperationException("time series keys have no partition codec");
     }
 
     @Override

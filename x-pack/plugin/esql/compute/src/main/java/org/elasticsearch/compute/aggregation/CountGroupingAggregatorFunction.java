@@ -11,6 +11,8 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -25,6 +27,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -566,6 +569,51 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         final int[][] ints;
         final long[][] longs;
 
+        /**
+         * One partition read back from {@link #writePartition}; the other partitions are empty. {@code breaker} has
+         * been charged what {@link #releaseAll} returns for this shape.
+         */
+        private CountPartitionedState(int partition, int[] partitionInts, long[] partitionLongs) {
+            this.baseBytes = baseBytes();
+            if (partitionInts != null) {
+                this.ints = new int[NUM_PARTITIONS][];
+                this.ints[partition] = partitionInts;
+                this.longs = null;
+            } else {
+                this.ints = null;
+                this.longs = new long[NUM_PARTITIONS][];
+                this.longs[partition] = partitionLongs;
+            }
+        }
+
+        private static long baseBytes() {
+            return BASE_RAM_USAGE + RamUsageEstimator.alignObjectSize(
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * NUM_PARTITIONS
+            );
+        }
+
+        static long bytesForPartition(int count, boolean useInts) {
+            return baseBytes() + (useInts ? bytesUsedByIntArray(count) : bytesUsedByLongArray(count));
+        }
+
+        @Override
+        public void writePartition(int partition, int count, StreamOutput out) throws IOException {
+            out.writeBoolean(ints != null);
+            out.writeVInt(count);
+            // fixed width, so that a record's size is the size of what a read charges
+            if (ints != null) {
+                final int[] counts = ints[partition];
+                for (int i = 0; i < count; i++) {
+                    out.writeInt(counts[i]);
+                }
+            } else {
+                final long[] counts = longs[partition];
+                for (int i = 0; i < count; i++) {
+                    out.writeLong(counts[i]);
+                }
+            }
+        }
+
         CountPartitionedState(CircuitBreaker breaker, boolean useInts, int partitionSize) {
             this.baseBytes = BASE_RAM_USAGE + RamUsageEstimator.alignObjectSize(
                 (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * NUM_PARTITIONS
@@ -712,6 +760,42 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     @Override
     public PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
         return new CountPartitionSplitter(breaker);
+    }
+
+    @Override
+    public boolean supportsPartitionCodec() {
+        return true;
+    }
+
+    @Override
+    public PartitionedState readPartition(StreamInput in, int partition, CircuitBreaker breaker) throws IOException {
+        final boolean useInts = in.readBoolean();
+        final int count = in.readVInt();
+        final long bytes = CountPartitionedState.bytesForPartition(count, useInts);
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "CountPartitionedState");
+        boolean success = false;
+        try {
+            int[] ints = null;
+            long[] longs = null;
+            if (useInts) {
+                ints = new int[count];
+                for (int i = 0; i < count; i++) {
+                    ints[i] = in.readInt();
+                }
+            } else {
+                longs = new long[count];
+                for (int i = 0; i < count; i++) {
+                    longs[i] = in.readLong();
+                }
+            }
+            PartitionedState result = new CountPartitionedState(partition, ints, longs);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                breaker.addWithoutBreaking(-bytes);
+            }
+        }
     }
 
     @Override

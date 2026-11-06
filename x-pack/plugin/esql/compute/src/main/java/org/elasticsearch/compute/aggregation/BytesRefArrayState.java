@@ -11,6 +11,8 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.ObjectArray;
@@ -21,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
@@ -207,6 +210,36 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         private final int[] partitionCounts;
         private boolean[][] seen;
 
+        /**
+         * One partition read back from a write; the other partitions are empty. {@code breaker} has been charged what
+         * {@link #releaseAll} returns for this shape.
+         */
+        private FlatBytesRefPartitionedState(int partition, byte[] data, int[] offsets, int count, boolean[] partitionSeen) {
+            baseBytes = baseBytes(partitionSeen != null);
+            partitionDataUsed = new int[NUM_PARTITIONS];
+            partitionDataUsed[partition] = offsets[count];
+            partitionCounts = new int[NUM_PARTITIONS];
+            partitionCounts[partition] = count;
+            partitionData = new byte[NUM_PARTITIONS][];
+            partitionData[partition] = data;
+            partitionOffsets = new int[NUM_PARTITIONS][];
+            partitionOffsets[partition] = offsets;
+            seen = partitionSeen != null ? new boolean[NUM_PARTITIONS][] : null;
+            if (seen != null) {
+                seen[partition] = partitionSeen;
+            }
+        }
+
+        private static long baseBytes(boolean trackSeen) {
+            return BASE_RAM_USAGE + bytesUsedByIntPage(NUM_PARTITIONS) + bytesUsedByIntPage(NUM_PARTITIONS) + bytesUsedByPointerPage(
+                NUM_PARTITIONS
+            ) + bytesUsedByPointerPage(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPointerPage(NUM_PARTITIONS) : 0);
+        }
+
+        static long bytesForPartition(int dataBytes, int count, boolean trackSeen) {
+            return baseBytes(trackSeen) + dataBytes + bytesUsedByIntPage(count + 1) + (trackSeen ? bytesUsedBySeenPage(count) : 0);
+        }
+
         FlatBytesRefPartitionedState(CircuitBreaker breaker, int avgKeysPerPartition, int avgBytesPerPartition, boolean trackSeen) {
             final int initialBytes = ArrayUtil.oversize(Math.max(avgBytesPerPartition, 1), 1);
             final int initialOffsets = ArrayUtil.oversize(Math.max(avgKeysPerPartition + 1, 2), Integer.BYTES);
@@ -231,6 +264,16 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         @Override
         public boolean hasAllValues(int partition) {
             return seen == null;
+        }
+
+        @Override
+        public void writePartition(int partition, int count, StreamOutput out) throws IOException {
+            writeValues(
+                out,
+                new BytesRefSequence.Flat(partitionData[partition], partitionOffsets[partition], count),
+                count,
+                seen == null ? null : seen[partition]
+            );
         }
 
         @Override
@@ -311,6 +354,11 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         @Override
         public boolean hasAllValues(int partition) {
             return seen == null;
+        }
+
+        @Override
+        public void writePartition(int partition, int count, StreamOutput out) throws IOException {
+            writeValues(out, new BytesRefSequence.Paged(partitionArrays[partition]), count, seen == null ? null : seen[partition]);
         }
 
         @Override
@@ -519,6 +567,76 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
     GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
         return new BytesRefPartitionSplitter(breaker);
+    }
+
+    /**
+     * One partition of values in the flat form, which both forms write: the seen flag, the count, the bytes in all,
+     * the bytes of every value in order, the offset of each value and the end, then the seen flags.
+     */
+    static void writeValues(StreamOutput out, BytesRefSequence values, int count, boolean[] partitionSeen) throws IOException {
+        final BytesRef scratch = new BytesRef();
+        out.writeBoolean(partitionSeen != null);
+        out.writeVInt(count);
+        int total = 0;
+        for (int i = 0; i < count; i++) {
+            total += values.get(i, scratch).length;
+        }
+        out.writeVInt(total);
+        for (int i = 0; i < count; i++) {
+            BytesRef value = values.get(i, scratch);
+            out.writeBytes(value.bytes, value.offset, value.length);
+        }
+        int offset = 0;
+        for (int i = 0; i < count; i++) {
+            out.writeVInt(offset);
+            offset += values.get(i, scratch).length;
+        }
+        out.writeVInt(offset);
+        if (partitionSeen != null) {
+            for (int i = 0; i < count; i++) {
+                out.writeBoolean(partitionSeen[i]);
+            }
+        }
+    }
+
+    /**
+     * Reads one partition written by {@link #writeValues} into the flat form, charged to {@code breaker}.
+     */
+    GroupingAggregatorFunction.PartitionedState readPartition(StreamInput in, int partition, CircuitBreaker breaker) throws IOException {
+        final boolean trackSeen = in.readBoolean();
+        final int count = in.readVInt();
+        final int total = in.readVInt();
+        final long bytes = FlatBytesRefPartitionedState.bytesForPartition(total, count, trackSeen);
+        breaker.addEstimateBytesAndMaybeBreak(bytes, PARTITION_LABEL);
+        boolean success = false;
+        try {
+            final byte[] data = new byte[total];
+            in.readBytes(data, 0, total);
+            final int[] offsets = new int[count + 1];
+            for (int i = 0; i <= count; i++) {
+                offsets[i] = in.readVInt();
+            }
+            boolean[] partitionSeen = null;
+            if (trackSeen) {
+                partitionSeen = new boolean[count];
+                for (int i = 0; i < count; i++) {
+                    partitionSeen[i] = in.readBoolean();
+                }
+            }
+            GroupingAggregatorFunction.PartitionedState result = new FlatBytesRefPartitionedState(
+                partition,
+                data,
+                offsets,
+                count,
+                partitionSeen
+            );
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                breaker.addWithoutBreaking(-bytes);
+            }
+        }
     }
 
     BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {

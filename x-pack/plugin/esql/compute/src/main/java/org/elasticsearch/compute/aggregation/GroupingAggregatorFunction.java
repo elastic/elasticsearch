@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantNullBlock;
@@ -19,6 +21,8 @@ import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
+
+import java.io.IOException;
 
 /**
  * Applies some grouping function like {@code min} or {@code avg} to many values,
@@ -272,6 +276,32 @@ public interface GroupingAggregatorFunction extends Releasable {
          * This must happen after all {@link #releasePartition} calls have completed.
          */
         void releaseAll(CircuitBreaker breaker);
+
+        /**
+         * Writes one partition's state, the {@code count} groups the keys of that partition say, so that the function
+         * reads it back through {@link GroupingAggregatorFunction#readPartition} as a state holding that partition
+         * alone. The default refuses: a family without a codec reports {@link #supportsPartitionCodec} false and keeps
+         * its generations resident.
+         */
+        default void writePartition(int partition, int count, StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " has no partition codec");
+        }
+    }
+
+    /**
+     * Whether this function writes and reads back one partition of its state, which is what lets a generation of it
+     * spill; false for a family without a codec, whose generations stay resident.
+     */
+    default boolean supportsPartitionCodec() {
+        return false;
+    }
+
+    /**
+     * Reads one partition written by {@link PartitionedState#writePartition}, into a state holding that partition
+     * alone, charged to {@code breaker}; what comes back is what {@link #combinePartition} takes.
+     */
+    default PartitionedState readPartition(StreamInput in, int partition, CircuitBreaker breaker) throws IOException {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " has no partition codec");
     }
 
     /** Splits grouping aggregation state alongside partitioned hash keys. */

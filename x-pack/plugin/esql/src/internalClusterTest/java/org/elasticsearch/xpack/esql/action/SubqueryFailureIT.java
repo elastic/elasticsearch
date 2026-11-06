@@ -474,7 +474,7 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             """;
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query)).close());
         Throwable cause = ex;
-        while (cause != null && (cause.getMessage() == null || cause.getMessage().contains("different index mode") == false)) {
+        while (cause != null && (cause.getMessage() == null || cause.getMessage().contains("multiple index modes") == false)) {
             cause = cause.getCause();
         }
         assertThat(
@@ -482,7 +482,7 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             cause,
             org.hamcrest.Matchers.notNullValue()
         );
-        assertThat(cause.getMessage(), containsString("index pattern 'ok'"));
+        assertThat(cause.getMessage(), containsString("Index pattern [ok]"));
         assertThat(cause.getMessage(), containsString("time_series"));
         assertThat(cause.getMessage(), containsString("standard"));
     }

@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
@@ -1187,7 +1188,7 @@ public class EsqlSession {
                             yield null;
                         }
                         case BOOLEAN -> type == DataType.BOOLEAN
-                            ? new Literal(cmp.source(), Boolean.parseBoolean(lit.text()), DataType.BOOLEAN)
+                            ? new Literal(cmp.source(), Booleans.parseBoolean(lit.text()), DataType.BOOLEAN)
                             : null;
                         case INTEGER -> type == DataType.INTEGER || type == DataType.LONG || type == DataType.DOUBLE
                             ? numericLiteral(cmp.source(), lit)

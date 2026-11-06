@@ -830,6 +830,41 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    /**
+     * A {@code null} field matches every BUCKET overload, but the remaining arguments must still form a valid call to one of them.
+     */
+    public void testBucketCallsOnNullField() {
+        defaultAnalyzer().query("from test | stats c = count(*) by bucket(null, 5.)");
+        defaultAnalyzer().query("from test | stats c = count(*) by bucket(null, 5)");
+        defaultAnalyzer().query("from test | stats c = count(*) by bucket(null, 20, 0, 100)");
+        defaultAnalyzer().query("from test | stats c = count(*) by bucket(null, 1 hour)");
+        defaultAnalyzer().query("from test | stats c = count(*) by bucket(null, 1 hour, \"2021-01-01\", \"2022-01-01\")");
+        defaultAnalyzer().query("from test | stats c = count(*) by bucket(null, 20, \"2021-01-01\", \"2022-01-01\")");
+
+        defaultAnalyzer().error(
+            "from test | stats c = count(*) by bucket(null, 1 hour, 0, 100)",
+            containsString(
+                "third argument of [bucket(null, 1 hour, 0, 100)] must be [datetime, date_nanos or string], found value [0] type [integer]"
+            )
+        );
+
+        defaultAnalyzer().error(
+            "from test | stats c = count(*) by bucket(null, 20, 0, \"2021-01-01\")",
+            containsString(
+                "fourth argument of [bucket(null, 20, 0, \"2021-01-01\")] must be [numeric], "
+                    + "found value [\"2021-01-01\"] type [keyword]"
+            )
+        );
+
+        defaultAnalyzer().error(
+            "from test | stats c = count(*) by bucket(null, 20::unsigned_long)",
+            containsString(
+                "second argument of [bucket(null, 20::unsigned_long)] must be [integer, long, double, date_period or time_duration], "
+                    + "found value [20::unsigned_long] type [unsigned_long]"
+            )
+        );
+    }
+
     public void testAggsWithInvalidGrouping() {
         defaultAnalyzer().error(
             "from test| stats max(languages) + languages by l = languages % 3",

@@ -23,9 +23,10 @@ import java.util.Set;
  *   of the canonical WHERE, KEEP, SORT, LIMIT order: WHERE and SORT must precede LIMIT (after a LIMIT they would apply to the
  *   truncated rows), and a WHERE or SORT after KEEP may only reference kept fields.
  * </pre>
- * where {@code m} is one of {@code _source}, {@code _id} and {@code _score}, and {@code cond} is a boolean combination ({@code AND}, {@code OR}, {@code NOT}, parentheses) of
- * {@code field op literal} comparisons, {@code MATCH(field, "text")} and {@code field : "text"} (or a number in place of the
- * text, for numeric fields), {@code MATCH_PHRASE(field, "text")}, and {@code field [NOT] LIKE "pattern"} with a single pattern.
+ * where {@code m} is one of {@code _source}, {@code _id} and {@code _score}, and {@code cond} is a boolean combination
+ * ({@code AND}, {@code OR}, {@code NOT}, parentheses) of {@code field op literal} comparisons, {@code MATCH(field, "text")} and
+ * {@code field : "text"} (or a number in place of the text, for numeric fields), {@code MATCH_PHRASE(field, "text")}, and
+ * {@code field [NOT] LIKE "pattern"} with a single pattern.
  * <p>
  * Anything else returns {@code null} so the caller falls back to the full ANTLR parser. The recognizer only has to be
  * precise about what it accepts: the result is a tiny AST that the session turns into the same optimized plan the full

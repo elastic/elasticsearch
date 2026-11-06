@@ -45,7 +45,8 @@ public class FastPathParserTests extends ESTestCase {
 
     public void testFullShape() {
         FastQuery q = FastPathParser.parse(
-            "from docs-*, other | where match(body, \"lucene\") and (id > 5 or not category == \"x\") | keep id, category | sort id desc nulls last, category | limit 10"
+            "from docs-*, other | where match(body, \"lucene\") and (id > 5 or not category == \"x\") "
+                + "| keep id, category | sort id desc nulls last, category | limit 10"
         );
         assertThat(q.indexPattern(), equalTo("docs-*,other"));
         assertThat(q.where(), instanceOf(And.class));

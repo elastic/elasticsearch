@@ -272,7 +272,8 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
             "\n{}",
             String.format(
                 Locale.ROOT,
-                "LATENCY [%s]%n  %-20s %10s %10s %10s%n  %-20s %10.3f %10.3f %10.3f%n  %-20s %10.3f %10.3f %10.3f%n  %-20s %10.3f %10.3f %10.3f%n  %-20s %10.3f %10.3f %10.3f",
+                "LATENCY [%s]%n  %-20s %10s %10s %10s%n  %-20s %10.3f %10.3f %10.3f%n  %-20s %10.3f %10.3f %10.3f%n"
+                    + "  %-20s %10.3f %10.3f %10.3f%n  %-20s %10.3f %10.3f %10.3f",
                 name,
                 "",
                 "min ms",

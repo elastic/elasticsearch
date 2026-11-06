@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -1988,6 +1989,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                throw new UnsupportedOperationException("this builder is only here to observe the context it is built under");
+            }
+
+            @Override
+            public void collectFieldBuilders(String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
                 throw new UnsupportedOperationException("this builder is only here to observe the context it is built under");
             }
         });

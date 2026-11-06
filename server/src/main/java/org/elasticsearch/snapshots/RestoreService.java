@@ -130,7 +130,10 @@ import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_ID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 
@@ -2102,6 +2105,28 @@ public final class RestoreService implements ClusterStateApplier {
                 return true;
             }
         }));
+        if (indexMetadata.isSearchableSnapshot()) {
+            // Preserve the backing snapshot identity, including missing UUIDs for old-format repositories.
+            for (String key : List.of(
+                SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY,
+                SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY,
+                SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY,
+                SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY,
+                SEARCHABLE_SNAPSHOT_INDEX_ID_SETTING_KEY,
+                SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY
+            )) {
+                if (Objects.equals(settings.get(key), settingsBuilder.get(key)) == false) {
+                    throw new SnapshotRestoreException(
+                        snapshot,
+                        format(
+                            "cannot change or remove setting [%s] when restoring searchable snapshot index %s",
+                            key,
+                            indexMetadata.getIndex()
+                        )
+                    );
+                }
+            }
+        }
         settingsBuilder.remove(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey());
         return builder.settings(settingsBuilder).build();
     }

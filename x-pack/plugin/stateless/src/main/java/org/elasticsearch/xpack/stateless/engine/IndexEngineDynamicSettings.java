@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.engine;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Holds dynamic settings for {@link IndexEngine}.
@@ -27,6 +28,10 @@ public class IndexEngineDynamicSettings {
 
     private volatile long mergeForceRefreshSizeBytes;
     private volatile int mergeBacklogThrottleFactor;
+    // Zero unless the setting is registered: test cluster settings that don't register it keep the archive cleanup immediate.
+    private volatile TimeValue liveVersionMapArchiveTestAckDelay = TimeValue.ZERO;
+    // Null unless the setting is registered: the engine then keeps the value it was created with.
+    private volatile Boolean liveVersionMapWritesSkipArchive;
 
     public IndexEngineDynamicSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
@@ -34,6 +39,33 @@ public class IndexEngineDynamicSettings {
             value -> this.mergeForceRefreshSizeBytes = value.getBytes()
         );
         clusterSettings.initializeAndWatch(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR, value -> this.mergeBacklogThrottleFactor = value);
+        if (clusterSettings.isDynamicSetting(IndexEngine.LIVE_VERSION_MAP_ARCHIVE_TEST_ACK_DELAY.getKey())) {
+            clusterSettings.initializeAndWatch(
+                IndexEngine.LIVE_VERSION_MAP_ARCHIVE_TEST_ACK_DELAY,
+                value -> this.liveVersionMapArchiveTestAckDelay = value
+            );
+        }
+        if (clusterSettings.isDynamicSetting(IndexEngine.LIVE_VERSION_MAP_WRITES_SKIP_ARCHIVE_ENABLED.getKey())) {
+            clusterSettings.initializeAndWatch(
+                IndexEngine.LIVE_VERSION_MAP_WRITES_SKIP_ARCHIVE_ENABLED,
+                value -> this.liveVersionMapWritesSkipArchive = value
+            );
+        }
+    }
+
+    /**
+     * Returns whether writes and get-for-update currently skip the live version map archive, or {@code null} if the setting isn't
+     * registered.
+     */
+    public Boolean liveVersionMapWritesSkipArchive() {
+        return liveVersionMapWritesSkipArchive;
+    }
+
+    /**
+     * Returns the current test-only delay before archive cleanup after all search copies acked a commit.
+     */
+    public TimeValue liveVersionMapArchiveTestAckDelay() {
+        return liveVersionMapArchiveTestAckDelay;
     }
 
     /**

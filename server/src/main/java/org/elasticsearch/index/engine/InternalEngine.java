@@ -1242,7 +1242,7 @@ public class InternalEngine extends Engine {
 
         // With writesSkipArchive, writes do not need the archive: its entries are already in the internal reader that a miss falls
         // through to.
-        return versionMap.writesSkipArchive() ? versionMap.getForWriteUnderLock(id) : versionMap.getUnderLock(id);
+        return writesSkipArchive() ? versionMap.getForWriteUnderLock(id) : versionMap.getUnderLock(id);
     }
 
     private boolean canOptimizeAddDocument(Index index) {
@@ -4433,9 +4433,7 @@ public class InternalEngine extends Engine {
                     uid = Uid.encodeId(id);
                 }
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
-                    final VersionValue curr = versionMap.writesSkipArchive()
-                        ? versionMap.getForWriteUnderLock(uid)
-                        : versionMap.getUnderLock(uid);
+                    final VersionValue curr = writesSkipArchive() ? versionMap.getForWriteUnderLock(uid) : versionMap.getUnderLock(uid);
                     if (curr == null || compareOpToVersionMapOnSeqNo(id, seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
                         if (isTombstone) {
                             // use 0L for the start time so we can prune this delete tombstone quickly
@@ -4522,6 +4520,14 @@ public class InternalEngine extends Engine {
      */
     protected LiveVersionMap.Options liveVersionMapOptions() {
         return LiveVersionMap.Options.DEFAULT;
+    }
+
+    /**
+     * Whether writes and get-for-update skip the live version map archive. Read on every lookup, so an override can switch it at
+     * runtime: both ways are correct, since an archived entry is already in the internal reader that a miss falls through to.
+     */
+    protected boolean writesSkipArchive() {
+        return versionMap.writesSkipArchive();
     }
 
     protected LiveVersionMapArchive getLiveVersionMapArchive() {

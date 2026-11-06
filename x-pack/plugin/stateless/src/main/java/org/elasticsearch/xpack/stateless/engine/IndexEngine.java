@@ -164,21 +164,24 @@ public class IndexEngine extends InternalEngine {
         Setting.Property.NodeScope
     );
 
-    /** Static. Writes and get-for-update do not look up the live version map archive. Valid with every archive variant. */
+    /** Dynamic. Writes and get-for-update do not look up the live version map archive. Valid with every archive variant. */
     public static final Setting<Boolean> LIVE_VERSION_MAP_WRITES_SKIP_ARCHIVE_ENABLED = Setting.boolSetting(
         "stateless.live_version_map.writes_skip_archive.enabled",
         false,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     /**
-     * Static, test only. Delays the archive cleanup that runs once all search copies acked a commit, to simulate search copies that
+     * Dynamic, test only. Delays the archive cleanup that runs once all search copies acked a commit, to simulate search copies that
      * ack late. Search copies, {@code _refresh} and commit release are not delayed: only the archive holds its maps for longer.
+     * Defaults to 300s on this measurement branch, so a node holds the archive without any configuration.
      */
     public static final Setting<TimeValue> LIVE_VERSION_MAP_ARCHIVE_TEST_ACK_DELAY = Setting.timeSetting(
-        "stateless.live_version_map.archive.test_ack_delay",
+        "stateless.live_version_map_test_ack_delay",
+        TimeValue.timeValueSeconds(300),
         TimeValue.ZERO,
-        TimeValue.ZERO,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -988,9 +991,16 @@ public class IndexEngine extends InternalEngine {
         return ((StatelessLiveVersionMapArchiveApi) getLiveVersionMapArchive()).cachedStats();
     }
 
+    @Override
+    protected boolean writesSkipArchive() {
+        // Null while the super constructor runs, before this engine's fields are set.
+        final Boolean dynamic = indexEngineDynamicSettings == null ? null : indexEngineDynamicSettings.liveVersionMapWritesSkipArchive();
+        return dynamic != null ? dynamic : super.writesSkipArchive();
+    }
+
     public void commitSuccess(long generation) {
         final var archive = (StatelessLiveVersionMapArchiveApi) getLiveVersionMapArchive();
-        final TimeValue delay = LIVE_VERSION_MAP_ARCHIVE_TEST_ACK_DELAY.get(config().getIndexSettings().getNodeSettings());
+        final TimeValue delay = indexEngineDynamicSettings.liveVersionMapArchiveTestAckDelay();
         if (delay.millis() == 0) {
             archive.afterUnpromotablesRefreshed(generation);
         } else {

@@ -25,8 +25,8 @@ import java.util.function.LongSupplier;
  *
  * <p>A reader keeps the recorder it got when it opened. Work done after the binding is closed, for example the
  * decompression of a block during iteration, thus goes to the collector of the request that opened the reader. This
- * requires that a reader belongs to one scope and is not shared. The doc values producer builds a new reader for each
- * request for a column, and no caller keeps one. A reader cache breaks this requirement.
+ * requires that the reader, and every component that keeps the recorder, works only for that request. The module
+ * documentation states the ownership rule.
  *
  * <p>A collector, its details and their handles have one writer at a time. Registration, recording and
  * {@link #snapshot()} need exclusive access, or a completed handoff that orders the writes. Take a snapshot between

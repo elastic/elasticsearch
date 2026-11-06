@@ -34,8 +34,11 @@
  *   <li>The frontend binds a scope with {@link org.elasticsearch.codec.profiler.Scopes#bind} around the code that opens
  *   readers. The scope returns a collector, or a detail collector, for each reader. It can create the collectors
  *   before the binding or when the first reader asks.</li>
- *   <li>The codec calls {@link org.elasticsearch.codec.profiler.Scopes#current} once when it opens a reader. It keeps
- *   the returned recorder for the life of the reader. The result is null when no scope is bound.</li>
+ *   <li>The codec calls {@link org.elasticsearch.codec.profiler.Scopes#current} once in each accessor that returns an
+ *   object to its caller, for example a doc values instance. It keeps the returned recorder for the life of that
+ *   object, and passes it to each component the object builds later, such as a decoder or a dictionary cursor. Those
+ *   components do not call {@code Scopes.current} again, because the binding may be closed or belong to another
+ *   execution by then. The result is null when no scope is bound.</li>
  *   <li>When the codec builds a component that records, it asks the recorder for its counters and timers. Asking
  *   registers the metric.</li>
  *   <li>On the read path the codec calls {@code add}, {@code start} and {@code stop}. Work done after the binding is
@@ -68,16 +71,22 @@
  *   {@link org.elasticsearch.codec.profiler.Timer#INERT} and records no counts. That read path reads no clock and
  *   allocates nothing for profiling. The only cost is one thread-local lookup when the reader opens.</li>
  *   <li>A collector, its details and their handles have one writer at a time. A snapshot needs the same exclusive
- *   access, or a completed handoff. Calls of one timer must not overlap. Assertions check only the timer calls, and
+ *   access, or a completed handoff. Calls of one timer metric must not overlap in a collector and its details, even
+ *   when two readers or two details make them. Assertions check only the timer calls, and
  *   that a binding is closed innermost first on the thread that bound it. The single writer and the access of a
  *   snapshot are the caller's responsibility.</li>
+ *   <li>A collector can move to another thread between calls, after a handoff that orders the writes, for example
+ *   when a driver moves an operator. A Lucene doc values instance cannot move: it is used only on the thread that
+ *   built it. The frontend therefore opens a new reader on the new thread, under the same scope. A timed call starts
+ *   and stops on one thread.</li>
  *   <li>A recorder and the handles taken from it belong to the execution whose scope was bound when the reader opened.
  *   Only an object whose instrumented work all belongs to that execution may keep them, for example a reader that one
  *   execution opens and no other execution uses. A component that serves several executions, such as a cache in the
  *   doc values producer, never keeps them: it records with the handles of the caller it works for. A reader cache
  *   that hands one reader to several executions breaks this rule, and so does a merge that takes the scope of an
  *   unrelated execution bound on its thread. Work that no execution-owned object performs, for example in a shared
- *   background component, cannot be attributed to an execution by this module.</li>
+ *   background component, cannot be attributed to an execution by this module. Opening a producer, checking integrity
+ *   and merging are not the work of an execution, so a codec takes no recorder for them.</li>
  *   <li>The frontend decides what to profile, binds scopes, owns the collectors, takes the snapshots and attributes
  *   them to shards, segments and fields. The codec declares metrics, gets its recorder and records. Each side sees the
  *   other only through this module.</li>

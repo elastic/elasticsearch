@@ -262,7 +262,8 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
-        final FieldPath fieldPath = FieldPath.of(path, getAccessPattern());
+        final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
+        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
@@ -272,7 +273,7 @@ public final class IngestDocument {
             if (context == null) {
                 return false;
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
-                switch (getAccessPattern()) {
+                switch (accessPattern) {
                     case CLASSIC -> context = map.get(pathElement);
                     case FLEXIBLE -> {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND);
@@ -306,7 +307,7 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof Map<?, ?> map) {
-                switch (getAccessPattern()) {
+                switch (accessPattern) {
                     case CLASSIC -> context = map.get(pathElement);
                     case FLEXIBLE -> {
                         @SuppressWarnings("unchecked")
@@ -342,7 +343,7 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof List<?> list) {
-                if (getAccessPattern() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                     // Flexible access pattern cannot yet access array values, new syntax must be added.
                     // Handle this as if the path element was not parsable as an integer in the classic mode
                     return false;
@@ -374,7 +375,7 @@ public final class IngestDocument {
         } else if (context instanceof Map<?, ?> map) {
             return map.containsKey(leafKey);
         } else if (context instanceof List<?> list) {
-            if (getAccessPattern() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+            if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                 // Flexible access pattern cannot yet access array values, new syntax must be added.
                 // Handle this as if the path element was not parsable as an integer in the classic mode
                 return false;

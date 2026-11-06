@@ -9,20 +9,23 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
-import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.process.CommandLineArgumentProvider;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Passes the DRA snapshot pins of a bwc build ({@code -Dtests.bwc.mode} and {@code -Dtests.bwc.dra.hash.<branch>}) on
- * to the JVM of a test task that uses bwc distributions. Only the build reads them to pick the snapshots; the test JVM
- * needs them so that {@code ReproduceInfoPrinter} puts them in the reproduce line, which otherwise would build each
- * branch's current tip from source instead of the snapshot that failed.
+ * Passes the DRA builds that a bwc test task's versions resolved to on to its test JVM, as the arguments that select
+ * exactly those builds: {@code -Dtests.bwc.mode=dra} and {@code -Dtests.bwc.dra.hash.<branch>=<hash>}.
+ * {@code ReproduceInfoPrinter} puts them in the reproduce line, so a repro runs against the snapshots that failed,
+ * however this build chose them (known-good, latest, auto), without looking them up again.
  *
- * <p>They are non-input properties: the distributions they select are already inputs of the task.
+ * <p>A version built from source gets no pin, and a task without any pinned version gets no arguments.
  */
 public final class BwcSnapshotPins {
 
@@ -31,14 +34,51 @@ public final class BwcSnapshotPins {
 
     private BwcSnapshotPins() {}
 
-    public static void forward(Test task, ProviderFactory providers) {
-        SystemPropertyCommandLineArgumentProvider nonInputProperties = task.getExtensions()
-            .getByType(SystemPropertyCommandLineArgumentProvider.class);
-        String mode = providers.systemProperty(MODE).getOrNull();
-        if (mode != null) {
-            nonInputProperties.systemProperty(MODE, mode);
+    /**
+     * Pins {@code version} (on {@code branch}) for {@code task} to the DRA build the bwc project of that version resolved.
+     */
+    public static void pin(Test task, String version, String branch) {
+        Provider<BwcSnapshotBuildsService> builds = BwcSnapshotBuildsService.register(task.getProject().getGradle());
+        Arguments arguments = null;
+        for (CommandLineArgumentProvider provider : task.getJvmArgumentProviders()) {
+            if (provider instanceof Arguments existing) {
+                arguments = existing;
+            }
         }
-        Map<String, String> hashes = new TreeMap<>(providers.systemPropertiesPrefixedBy(DRA_HASH_PREFIX).get());
-        hashes.forEach(nonInputProperties::systemProperty);
+        if (arguments == null) {
+            arguments = new Arguments();
+            task.getJvmArgumentProviders().add(arguments);
+        }
+        arguments.buildIdsByBranch.put(branch, builds.flatMap(service -> service.buildId(version)));
+    }
+
+    /**
+     * Not inputs of the task: the distributions they select already are.
+     */
+    static class Arguments implements CommandLineArgumentProvider {
+
+        private final Map<String, Provider<String>> buildIdsByBranch = new TreeMap<>();
+
+        @Internal
+        public Map<String, Provider<String>> getBuildIdsByBranch() {
+            return buildIdsByBranch;
+        }
+
+        @Override
+        public Iterable<String> asArguments() {
+            List<String> pins = new ArrayList<>();
+            buildIdsByBranch.forEach((branch, buildId) -> {
+                String id = buildId.getOrElse("");
+                int dash = id.lastIndexOf('-');
+                if (dash > 0) {
+                    pins.add("-D" + DRA_HASH_PREFIX + branch + "=" + id.substring(dash + 1));
+                }
+            });
+            if (pins.isEmpty()) {
+                return pins;
+            }
+            pins.add(0, "-D" + MODE + "=dra");
+            return pins;
+        }
     }
 }

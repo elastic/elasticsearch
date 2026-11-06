@@ -9,9 +9,10 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Project;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.process.CommandLineArgumentProvider;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.After;
 
@@ -23,45 +24,94 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 
 /**
- * A bwc test JVM needs the DRA snapshot pins the build ran with, so that its reproduce line runs against the same
- * snapshots. The pins are system properties of the Gradle JVM here, as they are when CI passes them with -D.
+ * A bwc test JVM gets the DRA builds the build resolved for its bwc versions, so that its reproduce line runs against
+ * the same snapshots without looking up the known-good store or the latest build again.
  */
 public class BwcSnapshotPinsTests {
 
-    private static final List<String> PROPERTIES = List.of("tests.bwc.mode", "tests.bwc.dra.hash.9.4", "tests.bwc.dra.hash.8.19");
-
     @After
     public void clearPins() {
-        PROPERTIES.forEach(System::clearProperty);
+        System.clearProperty("tests.bwc.dra.hash.9.4");
     }
 
     @org.junit.Test
-    public void testForwardsModeAndHashesToTheTestJvm() {
-        System.setProperty("tests.bwc.mode", "auto");
-        System.setProperty("tests.bwc.dra.hash.9.4", "bbbb2222");
-        System.setProperty("tests.bwc.dra.hash.8.19", "aaaa1111");
+    public void testPinsEachResolvedBuildOfTheTasksVersions() {
+        Project project = ProjectBuilder.builder().build();
+        Provider<BwcSnapshotBuildsService> builds = BwcSnapshotBuildsService.register(project.getGradle());
+        builds.get().register("9.4.10", project.provider(() -> "9.4.10-3710ab3e"));
+        builds.get().register("8.19.8", project.provider(() -> "8.19.8-aaaa1111"));
+        builds.get().register("9.5.2", project.provider(() -> "9.5.2-bbbb2222"));
+        Test task = bwcTestTask(project);
+
+        BwcSnapshotPins.pin(task, "9.4.10", "9.4");
+        BwcSnapshotPins.pin(task, "8.19.8", "8.19");
+        BwcSnapshotPins.pin(task, "9.4.10", "9.4");
 
         assertThat(
-            forwardedArguments(),
-            contains("-Dtests.bwc.mode=auto", "-Dtests.bwc.dra.hash.8.19=aaaa1111", "-Dtests.bwc.dra.hash.9.4=bbbb2222")
+            jvmArguments(task),
+            contains("-Dtests.bwc.mode=dra", "-Dtests.bwc.dra.hash.8.19=aaaa1111", "-Dtests.bwc.dra.hash.9.4=3710ab3e")
         );
     }
 
     @org.junit.Test
-    public void testForwardsNothingWithoutPins() {
-        assertThat(forwardedArguments(), empty());
+    public void testLeavesOutVersionsBuiltFromSource() {
+        Project project = ProjectBuilder.builder().build();
+        Provider<BwcSnapshotBuildsService> builds = BwcSnapshotBuildsService.register(project.getGradle());
+        builds.get().register("9.4.10", project.provider(() -> "9.4.10-3710ab3e"));
+        builds.get().register("8.19.8", project.provider(() -> ""));
+        Test task = bwcTestTask(project);
+
+        BwcSnapshotPins.pin(task, "9.4.10", "9.4");
+        BwcSnapshotPins.pin(task, "8.19.8", "8.19");
+
+        assertThat(jvmArguments(task), contains("-Dtests.bwc.mode=dra", "-Dtests.bwc.dra.hash.9.4=3710ab3e"));
     }
 
-    private static List<String> forwardedArguments() {
+    @org.junit.Test
+    public void testPinsNothingWhenEveryVersionIsBuiltFromSource() {
         Project project = ProjectBuilder.builder().build();
-        Test task = project.getTasks().register("v9.4.10#bwcTest", Test.class).get();
-        SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
-        task.getExtensions().add("nonInputProperties", nonInputProperties);
+        BwcSnapshotBuildsService.register(project.getGradle()).get().register("9.4.10", project.provider(() -> ""));
+        Test task = bwcTestTask(project);
 
-        BwcSnapshotPins.forward(task, project.getProviders());
+        BwcSnapshotPins.pin(task, "9.4.10", "9.4");
+        // a version no bwc project resolves, such as a released one
+        BwcSnapshotPins.pin(task, "9.3.0", "9.3");
 
+        assertThat(jvmArguments(task), empty());
+    }
+
+    @org.junit.Test
+    public void testReadsBuildsRegisteredAfterTheTaskIsConfigured() {
+        Project project = ProjectBuilder.builder().build();
+        Test task = bwcTestTask(project);
+
+        BwcSnapshotPins.pin(task, "9.4.10", "9.4");
+        BwcSnapshotBuildsService.register(project.getGradle()).get().register("9.4.10", project.provider(() -> "9.4.10-3710ab3e"));
+
+        assertThat(jvmArguments(task), contains("-Dtests.bwc.mode=dra", "-Dtests.bwc.dra.hash.9.4=3710ab3e"));
+    }
+
+    @org.junit.Test
+    public void testDoesNotForwardTheBuildsOwnPins() {
+        System.setProperty("tests.bwc.dra.hash.9.4", "cccc3333");
+        Project project = ProjectBuilder.builder().build();
+        BwcSnapshotBuildsService.register(project.getGradle()).get().register("9.4.10", project.provider(() -> "9.4.10-3710ab3e"));
+        Test task = bwcTestTask(project);
+
+        BwcSnapshotPins.pin(task, "9.4.10", "9.4");
+
+        assertThat(jvmArguments(task), contains("-Dtests.bwc.mode=dra", "-Dtests.bwc.dra.hash.9.4=3710ab3e"));
+    }
+
+    private static Test bwcTestTask(Project project) {
+        return project.getTasks().register("v9.4.10#bwcTest", Test.class).get();
+    }
+
+    private static List<String> jvmArguments(Test task) {
         List<String> arguments = new ArrayList<>();
-        nonInputProperties.asArguments().forEach(arguments::add);
+        for (CommandLineArgumentProvider provider : task.getJvmArgumentProviders()) {
+            provider.asArguments().forEach(arguments::add);
+        }
         return arguments;
     }
 }

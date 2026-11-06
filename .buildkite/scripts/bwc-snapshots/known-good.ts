@@ -7,7 +7,10 @@
 //
 //   gs://$BWC_KNOWN_GOOD_BUCKET/$BWC_KNOWN_GOOD_PREFIX/<branch>.json
 //
-// With BWC_KNOWN_GOOD_BUCKET unset the store is disabled and bwc jobs behave as before (moving tip, -Dtests.bwc.mode=auto).
+// PR and merge-queue bwc jobs run with -Dtests.bwc.mode=dra, in which Gradle reads this store itself (anonymously: the
+// bucket is publicly readable) and falls back to the latest DRA build of a branch without a usable record. This module
+// promotes builds and leaves versions without a known-good build out of those jobs. With BWC_KNOWN_GOOD_BUCKET unset
+// the generator does no gating.
 
 import { readFileSync } from "fs";
 import { resolve } from "path";
@@ -196,42 +199,32 @@ export const pinArgs = (buildIds: Record<string, string>): string =>
 export const knownGoodBuildIds = (pins: VersionPin[]): Record<string, string> =>
   Object.fromEntries(pins.flatMap((pin) => (pin.knownGood ? [[pin.branch, pin.knownGood.build_id]] : [])));
 
-export type SnapshotBwcPins = {
-  /** Gradle arguments for the known-good pins, with a leading space; "" for none */
-  pinArgs: string;
-  /** Versions to test: those with a known-good build, plus the current version. Undefined means all (no gating). */
-  includedVersions?: string[];
-};
-
 /**
- * Pins and gating for PR and merge-queue bwc jobs. A version without a known-good build is left out until intake
- * promotes one. Fails open: if the store is disabled or unreachable, every version is tested at the moving tip as
- * before, rather than silently losing bwc coverage.
+ * Gating for PR and merge-queue bwc jobs: the versions to test, which are those with a known-good build plus the
+ * current version. A version without one is left out until intake promotes one. Fails open: if the store is disabled
+ * or unreachable, returns undefined and every version is tested, rather than silently losing bwc coverage.
  */
-export const loadSnapshotBwcPins = async (
+export const loadIncludedSnapshotBwcVersions = async (
   versions: string[],
   store: KnownGoodStore | undefined,
   dra: Dra,
   current: string = currentVersion(),
-): Promise<SnapshotBwcPins> => {
+): Promise<string[] | undefined> => {
   if (!store) {
-    console.log("BWC_KNOWN_GOOD_BUCKET is not set; bwc snapshot jobs test the moving branch tips");
-    return { pinArgs: "" };
+    console.log("BWC_KNOWN_GOOD_BUCKET is not set; every bwc snapshot version is tested");
+    return undefined;
   }
   try {
     const pins = await resolvePins(versions, current, store, dra);
     for (const pin of pins.filter((p) => !p.current)) {
       console.log(
-        `bwc ${pin.version}: ${pin.knownGood ? `pinned to ${pin.knownGood.build_id}` : "no known-good build, left out until one is promoted"}`,
+        `bwc ${pin.version}: ${pin.knownGood ? `known-good build ${pin.knownGood.build_id}` : "no known-good build, left out until one is promoted"}`,
       );
     }
-    return {
-      pinArgs: pinArgs(knownGoodBuildIds(pins)),
-      includedVersions: pins.filter((pin) => pin.current || pin.knownGood).map((pin) => pin.version),
-    };
+    return pins.filter((pin) => pin.current || pin.knownGood).map((pin) => pin.version);
   } catch (e) {
-    console.log(`Could not read known-good bwc builds from ${store.location}, testing the moving branch tips: ${e}`);
-    return { pinArgs: "" };
+    console.log(`Could not read known-good bwc builds from ${store.location}, testing every version: ${e}`);
+    return undefined;
   }
 };
 

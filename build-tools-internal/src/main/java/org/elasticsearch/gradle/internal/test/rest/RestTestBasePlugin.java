@@ -263,7 +263,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         (isReleased ? BWC_RELEASED_DISTRIBUTION_SYSPROP_PREFIX : BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX) + versionString,
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
-                    BwcSnapshotPins.forward(task, providerFactory);
+                    if (isReleased == false) {
+                        // so that a failure's reproduce line runs against the snapshot this build resolved
+                        BwcSnapshotPins.pin(task, versionString, bwcVersions.unreleasedInfo(version).branch());
+                    }
 
                     if (version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
                         // If we are upgrade testing older versions we also need to upgrade to 7.last
@@ -295,7 +298,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX + versionString,
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
-                    BwcSnapshotPins.forward(task, providerFactory);
                     return null;
                 }
             });

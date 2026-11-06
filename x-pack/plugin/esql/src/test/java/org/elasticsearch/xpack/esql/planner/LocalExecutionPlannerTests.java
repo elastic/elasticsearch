@@ -1907,7 +1907,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null  // client - not needed for these tests
         );
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -209,6 +210,7 @@ public class ComputeService {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ClusterService clusterService;
@@ -256,6 +258,7 @@ public class ComputeService {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
+        this.client = transportActionServices.client();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
@@ -2013,6 +2016,13 @@ public class ComputeService {
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
+            // The planner's client is used solely by the coordinator-local EQL source, which delegates one
+            // EqlSearchAction. Assign the compute task as that search's parent so cancelling the ES|QL query
+            // cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
+            var eqlDelegateClient = new ParentTaskAssigningClient(
+                client,
+                task.taskInfo(transportService.getLocalNode().getId(), false).taskId()
+            );
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
             // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
             // snapshots cannot disagree on anything that is read.
@@ -2041,7 +2051,8 @@ public class ComputeService {
                 computeExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                eqlDelegateClient
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

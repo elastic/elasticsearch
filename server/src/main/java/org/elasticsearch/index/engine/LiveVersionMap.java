@@ -22,9 +22,10 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Maps _uid value to its version information. */
+/// Maps a document id to the latest version of this document.
 public final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
+    /// A per-document lock that needs to be held while working with the map.
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
     private final LiveVersionMapArchive archive;
@@ -38,29 +39,36 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     public static final class VersionLookup {
-
-        /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones,
-         *  we only account for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh would not
-         *  clear this from RAM. */
+        /// Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones,
+        /// we only account for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh will not
+        /// clear tombstone version.
         final AtomicLong ramBytesUsed = new AtomicLong();
 
         private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
         private final Map<BytesRef, VersionValue> map;
 
-        // each version map has a notion of safe / unsafe which allows us to apply certain optimization in the auto-generated ID usecase
-        // where we know that documents can't have any duplicates so we can skip the version map entirely. This reduces
-        // the memory pressure significantly for this use-case where we often get a massive amount of small document (metrics).
-        // if the version map is in safeAccess mode we track all version in the version map. yet if a document comes in that needs
-        // safe access but we are not in this mode we force a refresh and make the map as safe access required. All subsequent ops will
-        // respect that and fill the version map. The nice part here is that we are only really requiring this for a single ID and since
-        // we hold the ID lock in the engine while we do all this it's safe to do it globally unlocked.
-        // NOTE: these values can both be non-volatile since it's ok to read a stale value per doc ID. We serialize changes in the engine
-        // that will prevent concurrent updates to the same document ID and therefore we can rely on the happens-before guanratee of the
-        // map reference itself.
+        /// Each version lookup has a notion of being unsafe which means that a version was skipped and not added to it.
+        /// This is useful when using auto-generated document ids (e.g. storing metrics) because we know that there won't ever be
+        /// duplicate documents and as such we don't really need versions.
+        ///
+        /// An unsafe version lookup can be converted to safe using [#enforceSafeAccess] and performing a refresh.
+        /// In safe access mode all versions are recorded in the version lookup.
+        /// However, if safe access is no longer required versions can be skipped from the map (see [#maybePutIndexUnderLock])
+        /// and it will be marked unsafe again.
+        ///
+        /// Note how this is not volatile. This is because we are concerned with this value on a per-id basis.
+        /// Per-id writes and reads take a per-id lock, write of `unsafe` happens before releasing a per-id lock,
+        /// releasing a per-id lock happens before acquiring it during the next operation.
+        /// So it is not possible _per id_ to see `unsafe` as false if any unsafe operations were performed which is what we need.
+        ///
+        /// An operation on _different_ id can set `unsafe` to `true` which may not be visible, but again,
+        /// this won't impact correctness of any operations.
         private boolean unsafe;
 
-        // minimum timestamp of delete operations that were made while this map was active. this is used to make sure they are kept in
-        // the tombstone
+        /// Minimum timestamp of delete operations applied to this map (see [#updateMinDeletedTimestamp]).
+        /// This is used to check if a tombstone (in [#tombstones]) is referring to a version that was not yet applied in Lucene.
+        /// Such a tombstone can't be deleted, since its version information is already removed from version lookups
+        /// and Lucene still contains stale document.
         private final AtomicLong minDeleteTimestamp = new AtomicLong(Long.MAX_VALUE);
 
         // Modifies the map of this instance by merging with the given VersionLookup
@@ -146,11 +154,12 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     private static final class Maps {
-
-        // All writes (adds and deletes) go into here:
+        /// Records the most recent writes (a change to a particular document).
         final VersionLookup current;
 
-        // Used while refresh is running, and to hold adds/deletes until refresh finishes. We read from both current and old on lookup:
+        /// This lookup contains all versions that will be available using an internal searcher after the refresh.
+        /// But _during_ a refresh they are still needed, and we read from both `current` and `old`.
+        /// Once the refresh is complete `old` can be removed.
         final VersionLookup old;
 
         // this is not volatile since we don't need to maintain a happens before relationship across doc IDs so it's enough to
@@ -179,9 +188,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
                 || (mapHasNotSeenAnyOperations && previousMapsNeededSafeAccess);
         }
 
-        /**
-         * Builds a new map for the refresh transition this should be called in beforeRefresh()
-         */
+        /// Builds a new map for the refresh transition. This should be called in [beforeRefresh()].
         Maps buildTransitionMap() {
             return new Maps(
                 new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())),
@@ -190,16 +197,12 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             );
         }
 
-        /**
-         * similar to `invalidateOldMap` but used only for the `unsafeKeysMap` used for assertions
-         */
+        /// Similar to [invalidateOldMap] but used only on the `unsafeKeysMap` which is used for assertions.
         Maps invalidateOldMapForAssert() {
             return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
         }
 
-        /**
-         * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
-         */
+        /// Builds a new map that invalidates the old map but maintains the current. This should be called in [#afterRefresh].
         Maps invalidateOldMap(LiveVersionMapArchive archive) {
             archive.afterRefresh(old);
             return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
@@ -228,90 +231,88 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
     }
 
-    // All deletes also go here, and delete "tombstones" are retained after refresh:
+    /// Tracks the version that deleted the document (a tombstone).
+    /// Tombstones are stored separately because they need to be preserved even after a refresh.
+    /// This is because it is possible to receive a put operation after a delete operation
+    /// (e.g. when using external versions or receiving replicated operations out of order on a replica).
+    /// In this case the put should not be successful and to do that we need to know the
+    /// version of the delete operation to compare it to the version of the put.
+    /// If we didn't preserve tombstones the following could happen:
+    /// 1. Deletion is recorded only in `current`
+    /// 2. A refresh happens and cleans up `current`
+    /// 3. Now there is nothing in the version map and in Lucene and a put can succeed.
+    ///
+    /// See [pruneTombstones] for removal logic.
     private final Map<BytesRef, DeleteVersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private volatile Maps maps = new Maps();
-    // we maintain a second map that only receives the updates that we skip on the actual map (unsafe ops)
-    // this map is only maintained if assertions are enabled
+    /// A second map that only receives the updates that are not stored in the actual map (unsafe operations.)
+    /// This map is only maintained if assertions are enabled.
     private volatile Maps unsafeKeysMap = new Maps();
 
-    /**
-     * Bytes consumed for each BytesRef UID:
-     * In this base value, we account for the {@link BytesRef} object itself as
-     * well as the header of the byte[] array it holds, and some lost bytes due
-     * to object alignment. So consumers of this constant just have to add the
-     * length of the byte[] (assuming it is not shared between multiple
-     * instances).
-     */
-    private static final long BASE_BYTES_PER_BYTESREF =
-        // shallow memory usage of the BytesRef object
-        RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) +
-        // header of the byte[] array
-            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER +
-            // with an alignment size (-XX:ObjectAlignmentInBytes) of 8 (default),
-            // there could be between 0 and 7 lost bytes, so we account for 3
-            // lost bytes on average
-            3;
+    /// Bytes consumed for each BytesRef UID.
+    /// In this base value, we account for the [BytesRef] object itself as well as the header of the byte[] array it holds,
+    /// and some lost bytes due to object alignment.
+    /// So consumers of this constant just have to add the length of the byte[] (assuming it is not shared between multiple instances).
+    private static final long BASE_BYTES_PER_BYTESREF = RamUsageEstimator.shallowSizeOfInstance(BytesRef.class)
+        // With an alignment size (-XX:ObjectAlignmentInBytes) of 8 (default), there could be between 0 and 7 lost bytes,
+        // so we account for 3 lost bytes on average.
+        + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 3;
 
-    /**
-     * Bytes used by having CHM point to a key/value.
-     */
+    /// Estimate of the footprint of a single entry in a `ConcurrentHashMap`.
     private static final long BASE_BYTES_PER_CHM_ENTRY;
 
     static {
-        // use the same impl as the Maps does
+        // We use `newConcurrentMapWithAggressiveConcurrency` in the implementation so use it for estimations too.
         Map<Integer, Integer> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
         map.put(0, 0);
         long chmEntryShallowSize = RamUsageEstimator.shallowSizeOf(map.entrySet().iterator().next());
-        // assume a load factor of 50%
-        // for each entry, we need two object refs, one for the entry itself
-        // and one for the free space that is due to the fact hash tables can
-        // not be fully loaded
+        // Assume a hash table load factor of 50%
+        // We count two object references per entry, one for the actual entry itself and one for the free space
+        // in the hash table that exists due to the load factor.
         BASE_BYTES_PER_CHM_ENTRY = chmEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
 
-    /**
-     * Tracks bytes used by tombstones (deletes)
-     */
     private final AtomicLong ramBytesUsedForTombstones = new AtomicLong();
 
     @Override
     public void beforeRefresh() throws IOException {
-        // Start sending all updates after this point to the new
-        // map. While reopen is running, any lookup will first
-        // try this new map, then fallback to old, then to the
-        // current searcher:
+        // We are about to perform a refresh meaning that all document versions stored in the `current`
+        // will be visible using an internal searcher.
+        // We don't know what is the exact "cutoff" point of documents that will be included in the refresh
+        // since we only see the "before" and "after" refresh state.
+        // So we proactively move all `current` documents to `old` _before_ refresh so that we can be completely sure
+        // that _all_ of them are included in the refresh.
+        // This allows us to drop `old` after the refresh.
+        //
+        // Some of the versions that will be inserted right after this call will also be included in the refresh
+        // but there is nothing incorrect about this.
+        // These versions will be present in `current` and read from it.
+
         maps = maps.buildTransitionMap();
         assert (unsafeKeysMap = unsafeKeysMap.buildTransitionMap()) != null;
-        // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
-        // line and this one, but that should be minor, and the error won't accumulate over time:
     }
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
-        // We can now drop old because these operations are now visible via the newly opened searcher. Even if didRefresh is false, which
-        // means Lucene did not actually open a new reader because it detected no changes, it's possible old has some entries in it, which
-        // is fine: it means they were actually already included in the previously opened reader, so we can still safely drop them in that
-        // case. This is because we assign new maps (in beforeRefresh) slightly before Lucene actually flushes any segments for the
-        // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact
-        // reflected in the previous reader. We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
+        // As explained in `beforeRefresh()` everything that is stored in `old` is now visible through the internal searcher
+        // and we can drop `old`.
+        // Even if `didRefresh` is false, which means Lucene did not actually open a new reader because it detected no changes,
+        // it's possible `old` has some entries in it. This is because we create a new `current` lookup _before_ the refresh, and
+        // so writes are recorded in `current` even though they are already refreshed.
+        // If there are no more writes, during next refresh `current` moves to `old` but there is nothing to refresh.
 
         maps = maps.invalidateOldMap(archive);
         assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMapForAssert()) != null;
-
     }
 
-    /**
-     * Returns the live version (add or delete) for this uid.
-     */
+    /// Returns the live version (put or delete) for this uid.
     VersionValue getUnderLock(final BytesRef uid) {
         return getUnderLock(uid, maps);
     }
 
     private VersionValue getUnderLock(final BytesRef uid, Maps currentMaps) {
         assert assertKeyedLockHeldByCurrentThread(uid);
-        // First try to get the "live" value:
         VersionValue value = currentMaps.current.get(uid);
         if (value != null) {
             return value;
@@ -322,8 +323,10 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return value;
         }
 
-        // We first check the tombstone then the archive since the archive accumulates ids from the old map, and we
-        // makes sure in `putDeleteUnderLock` the old map does not hold an entry that is in tombstone, archive also wouldn't have them.
+        // We first check the tombstones, then the archive, since the archive accumulates versions from the old map even beyond refresh.
+        // We clean up `current` and `old` in `putDeleteUnderLock` so we can trust them above, but we don't clean up the archive
+        // (it is needed for archive logic).
+        // Therefore, tombstones have priority over archive or we could read a stale version from the archive.
         value = tombstones.get(uid);
         if (value != null) {
             return value;
@@ -352,11 +355,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return maps.current.isUnsafe() || maps.old.isUnsafe() || archive.isUnsafe();
     }
 
-    /**
-     * Returns the committed segment generation that contains every unsafe operation this map has no record of,
-     * or -1 if the live maps are unsafe (their operations are not committed yet) or no committed generation
-     * covers the archive's unsafe operations. See {@link LiveVersionMapArchive#safeGenerationForGets}.
-     */
+    /// Returns the committed segment generation that contains every unsafe operation this map has no record of,
+    /// or -1 if the live maps are unsafe (their operations are not committed yet) or no committed generation
+    /// covers the archive's unsafe operations. See [LiveVersionMapArchive#safeGenerationForGets].
     long safeGenerationForGets(long lastCommittedGeneration) {
         Maps maps = this.maps;
         if (maps.current.isUnsafe() || maps.old.isUnsafe()) {
@@ -365,6 +366,8 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return archive.safeGenerationForGets(lastCommittedGeneration);
     }
 
+    /// Signals that the map should record versions rather than skip them as an optimization.
+    /// See [maybePutIndexUnderLock].
     void enforceSafeAccess() {
         maps.needsSafeAccess = true;
     }
@@ -373,9 +376,12 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return maps.isSafeAccessMode();
     }
 
-    /**
-     * Adds this uid/version to the pending adds map iff the map needs safe access.
-     */
+    /// Adds this uid/version to the map iff the map needs safe access.
+    /// In some modes of operations, there are no updates/deletes/realtime gets (e.g. storing metrics).
+    /// To optimize such a workflow we allow to skip storing a version in the map.
+    /// However, if at some point an operation that does need versions happens,
+    /// it shouldn't trust the map.
+    /// This is what the `unsafe` flag means and `markAsUnsafe` sets it.
     void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         Maps maps = this.maps;
@@ -383,8 +389,10 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             putIndexUnderLock(uid, version);
         } else {
             // Even though we don't store a record of the indexing operation (and mark as unsafe),
-            // we should still remove any previous delete for this uuid (avoid accidental accesses).
-            // Not this should not hurt performance because the tombstone is small (or empty) when unsafe is relevant.
+            // we should still remove any previous delete for this uuid.
+            // Latest version is removed from `current` and `old` in `putDeleteUnderLock` and
+            // if we didn't do that `getUnderLock` would read a stale entry from `tombstones`.
+            // Note that this should not hurt performance because the tombstones map is small (or empty) when unsafe is relevant.
             removeTombstoneUnderLock(uid);
             maps.current.markAsUnsafe();
             assert putAssertionMap(uid, version);
@@ -414,10 +422,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
     private void putTombstone(BytesRef uid, DeleteVersionValue version) {
         long uidRamBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
-        // Also enroll the delete into tombstones, and account for its RAM usage too:
         final VersionValue prevTombstone = tombstones.put(uid, version);
         long ramBytes = (BASE_BYTES_PER_CHM_ENTRY + version.ramBytesUsed() + uidRamBytesUsed);
-        // Deduct tombstones bytes used for the version we just removed or replaced:
+        // Deduct bytes used for the tombstone version we just removed or replaced.
         if (prevTombstone != null) {
             ramBytes -= (BASE_BYTES_PER_CHM_ENTRY + prevTombstone.ramBytesUsed() + uidRamBytesUsed);
         }
@@ -427,9 +434,6 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
     }
 
-    /**
-     * Removes this uid from the pending deletes map.
-     */
     void removeTombstoneUnderLock(BytesRef uid) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         long uidRamBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
@@ -445,29 +449,38 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // check if the value is old enough and safe to be removed
         final boolean isTooOld = versionValue.time < maxTimestampToPrune;
         final boolean isSafeToPrune = versionValue.seqNo <= maxSeqNoToPrune;
-        // version value can't be removed it's
-        // not yet flushed to lucene i.e. it's part of this current maps object
+        // Version value can't be removed if it was executed while the current map was active, meaning that it is not present in Lucene.
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
         final boolean isNotTrackedByArchive = versionValue.time < archive.getMinDeleteTimestamp();
         return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps && isNotTrackedByArchive;
     }
 
-    /**
-     * Try to prune tombstones whose timestamp is less than maxTimestampToPrune and seqno at most the maxSeqNoToPrune.
-     */
+    /// Try to prune tombstones whose timestamp is less than `maxTimestampToPrune` and seqNo is at most the maxSeqNoToPrune.
     void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : tombstones.entrySet()) {
-            // we do check before we actually lock the key - this way we don't need to acquire the lock for tombstones that are not
-            // prune-able. If the tombstone changes concurrently we will re-read and step out below since if we can't collect it now w
-            // we won't collect the tombstone below since it must be newer than this one.
+            // Perform a check before acquiring the lock. This way we don't need to acquire the lock for tombstones that are not
+            // prune-able.
+            // It is possible that the entry changes in the meantime. However, if we can't prune the current tombstone
+            // then we won't be able to prune the changed one as well since it must be newer than this one.
             if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, entry.getValue())) {
                 final BytesRef uid = entry.getKey();
                 try (Releasable lock = keyedLock.tryAcquire(uid)) {
-                    // we use tryAcquire here since this is a best effort and we try to be least disruptive
-                    // this method is also called under lock in the engine under certain situations such that this can lead to deadlocks
-                    // if we do use a blocking acquire. see #28714
-                    if (lock != null) { // did we get the lock?
-                        // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
+                    // Tombstone pruning is best-effort so we use `tryAcquire` to not disrupt currently ongoing operations.
+                    //
+                    // This method is also called from refresh via `InternalEngine#maybePruneDeletes()`.
+                    // During a realtime get or update, if the map is unsafe, a refresh is performed
+                    // (e.g. in `InternalEngine#getVersionForRead`) while holding a document `uid` lock
+                    // and synchronized on `versionMap`.
+                    // So it is possible that:
+                    // 1. thread A is performing a refresh holding document `uid1` lock and `versionMap` lock
+                    // 2. thread B performs another operation, acquires document `uid2` lock, sees that the map is unsafe,
+                    // and waits for `versionMap` lock
+                    // 3. during a refresh initiated by thread A, `pruneTombstones` is called
+                    // 4. this loop tries to acquire document `uid2` lock
+                    // 5. deadlock
+                    // See #28714.
+                    if (lock != null) {
+                        // Must re-get it here, vs using entry.getValue(), in case the uid was changed/deleted since we pulled the iterator.
                         final DeleteVersionValue versionValue = tombstones.get(uid);
                         if (versionValue != null) {
                             if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, versionValue)) {
@@ -480,15 +493,13 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
     }
 
-    /**
-     * Called when this index is closed.
-     */
+    /// Called when this shard is closed.
     synchronized void clear() {
         maps = new Maps();
         tombstones.clear();
         // NOTE: we can't zero this here, because a refresh thread could be calling InternalEngine.pruneDeletedTombstones at the same time,
         // and this will lead to an assert trip. Presumably it's fine if our ramBytesUsedForTombstones is non-zero after clear since the
-        // index is being closed:
+        // shard is being closed.
         // ramBytesUsedForTombstones.set(0);
     }
 

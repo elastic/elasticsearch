@@ -7,44 +7,27 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testclusters.RunTask
+import org.elasticsearch.gradle.internal.run.InternalRunPlugin
+import org.elasticsearch.gradle.internal.run.RunTask
 
-// gradle has an open issue of failing applying plugins in
-// precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
-// apply plugin: 'elasticsearch.internal-testclusters'
-
-testClusters.register("runTask") {
-    testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
-    if (providers.systemProperty('run.distribution').getOrElse('default') == 'default') {
-      String licenseType = providers.systemProperty("run.license_type").getOrElse("basic")
-      if (licenseType == 'trial') {
-        setting 'xpack.ml.enabled', 'true'
-        setting 'xpack.graph.enabled', 'true'
-        setting 'xpack.watcher.enabled', 'true'
-        setting 'xpack.license.self_generated.type', 'trial'
-      } else if (licenseType != 'basic') {
-        throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
-      }
-      // Not enabled by default in the build, otherwise all integration tests will download the databases from our geoip download service:
-      systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
-      setting 'xpack.security.enabled', 'true'
-      keystore 'bootstrap.password', 'password'
-      keystore 'cluster.state.encryption.password.local-dev', 'local-dev-password'
-      keystore 'cluster.state.encryption.active_password_id', 'local-dev'
-      user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
-      numberOfNodes = 1
-      // Arrow memory allocator needs access to java.nio internals
-      jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
-      // UninitializedArrays needs reflective access to jdk.internal.misc.Unsafe
-      jvmArgs '--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED'
-    }
-}
+project.pluginManager.apply(InternalRunPlugin)
 
 tasks.register("run", RunTask) {
-  useCluster testClusters.named("runTask")
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
-
   impliesSubProjects = true
+
+  setting 'xpack.security.enabled', 'true'
+  // Not enabled by default in the build, otherwise all integration tests will download the databases from our geoip download service:
+  systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
+  keystore 'bootstrap.password', 'password'
+  keystore 'cluster.state.encryption.password.local-dev', 'local-dev-password'
+  keystore 'cluster.state.encryption.active_password_id', 'local-dev'
+  user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+  jvmArgs(
+    // Arrow memory allocator needs access to java.nio internals
+    '--add-opens=java.base/java.nio=ALL-UNNAMED',
+    // UninitializedArrays needs reflective access to jdk.internal.misc.Unsafe
+    '--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED'
+  )
 }

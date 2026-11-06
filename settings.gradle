@@ -121,6 +121,7 @@ List projects = [
   'test:fixtures:url-fixture',
   'test:logger-usage',
   'test:test-clusters',
+  'test:test-clusters-cli',
   'test:x-content',
   'test:yaml-rest-runner',
   'test:metadata-extractor',

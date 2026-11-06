@@ -20,6 +20,8 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.search.profile.CodecReadAttribution;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -195,7 +197,7 @@ public class ProfileScorerTests extends ESTestCase {
         Query query = Queries.ALL_DOCS_INSTANCE;
         Weight fakeWeight = new FakeWeight(query);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
-        ProfileWeight profileWeight = new ProfileWeight(query, fakeWeight, profile);
+        ProfileWeight profileWeight = new ProfileWeight(query, fakeWeight, profile, ProfileSelection.NONE, CodecReadAttribution.NO_CHARGE);
         assertEquals(42f, profileWeight.scorer(null).getMaxScore(DocIdSetIterator.NO_MORE_DOCS), 0f);
         assertEquals(42, profileWeight.matches(null, 1).getMatches("some_field").startPosition());
         assertEquals("fake_description", profileWeight.explain(null, 1).getDescription());
@@ -228,7 +230,7 @@ public class ProfileScorerTests extends ESTestCase {
         Query query = Queries.ALL_DOCS_INSTANCE;
         Weight fakeWeight = new FakeWeight(query);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
-        ProfileWeight profileWeight = new ProfileWeight(query, fakeWeight, profile);
+        ProfileWeight profileWeight = new ProfileWeight(query, fakeWeight, profile, ProfileSelection.NONE, CodecReadAttribution.NO_CHARGE);
         ScorerSupplier scorerSupplier = profileWeight.scorerSupplier(null);
         scorerSupplier.setTopLevelScoringClause();
         assertEquals(42, scorerSupplier.cost());

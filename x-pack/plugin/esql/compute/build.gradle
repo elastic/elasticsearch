@@ -16,6 +16,7 @@ base {
 }
 
 dependencies {
+  testImplementation(testFixtures(project(':libs:codec-profiler')))
   compileOnly project(':server')
   compileOnly project('ann')
   compileOnly project(xpackModule('core'))

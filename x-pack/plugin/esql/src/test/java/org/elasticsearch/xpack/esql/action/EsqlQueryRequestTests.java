@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -59,6 +60,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.search.profile.CodecReadProfilingTestUtils.assumeCodecReadProfilingEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
@@ -109,6 +111,90 @@ public class EsqlQueryRequestTests extends ESTestCase {
         for (int i = 0; i < params.size(); i++) {
             assertEquals(params.get(i), request.params().get(i + 1));
         }
+    }
+
+    public void testProfileAcceptsABoolean() throws IOException {
+        assertProfile("true", true, ProfileSelection.NONE);
+        assertProfile("false", false, ProfileSelection.NONE);
+        assertProfile("\"true\"", true, ProfileSelection.NONE);
+        final EsqlQueryRequest unprofiled = parseEsqlQueryRequest("{\"query\": \"FROM test\"}", randomBoolean());
+        assertFalse(unprofiled.profile());
+        assertThat(unprofiled.profileSelection(), equalTo(ProfileSelection.NONE));
+    }
+
+    public void testTheProfileObjectIsReadOnlyWithCodecReadProfiling() throws IOException {
+        final String json = "{\"query\": \"FROM test\", \"profile\": {\"fields\": [\"host.name\"]}}";
+        if (ProfileSelection.CODEC_READ_PROFILING_FEATURE_FLAG.isEnabled()) {
+            final EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+            assertTrue(request.profile());
+            assertThat(request.profileSelection(), equalTo(ProfileSelection.of(null, ProfileSelection.Names.of(List.of("host.name")))));
+        } else {
+            final XContentParseException e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequest(json, randomBoolean()));
+            assertThat("rejected as before codec read profiling existed", e.getMessage(), containsString("profile"));
+        }
+        assertThat(
+            EsqlCapabilities.Cap.CODEC_READ_PROFILING.isEnabled(),
+            equalTo(ProfileSelection.CODEC_READ_PROFILING_FEATURE_FLAG.isEnabled())
+        );
+    }
+
+    public void testProfileAcceptsAnObject() throws IOException {
+        assumeCodecReadProfilingEnabled();
+        assertProfile("{}", true, ProfileSelection.NONE);
+        assertProfile("{\"segments\": []}", true, ProfileSelection.NONE);
+        assertProfile("{\"segments\": \"_all\"}", true, ProfileSelection.of(ProfileSelection.Names.EVERY, null));
+        assertProfile("{\"segments\": \"_all\", \"fields\": \"_all\"}", true, ProfileSelection.EVERYTHING);
+        assertProfile(
+            "{\"fields\": [\"host.name\", \"region\"]}",
+            true,
+            ProfileSelection.of(null, ProfileSelection.Names.of(List.of("host.name", "region")))
+        );
+        assertProfile(
+            "{\"segments\": [\"_4\"], \"fields\": \"_all\"}",
+            true,
+            ProfileSelection.of(ProfileSelection.Names.of(List.of("_4")), ProfileSelection.Names.EVERY)
+        );
+        assertProfile(
+            "{\"segments\": \"_all\", \"fields\": [\"host.*\"]}",
+            true,
+            ProfileSelection.of(ProfileSelection.Names.EVERY, ProfileSelection.Names.of(List.of("host.*")))
+        );
+    }
+
+    public void testProfileRejectsAPatternAndUnknownOptions() {
+        for (String profile : List.of(
+            "{\"segments\": \"*\"}",
+            "{\"segments\": {}}",
+            "{\"segments\": {\"_1\": {}}}",
+            "{\"fields\": \"host.*\"}",
+            "{\"fields\": 1}",
+            "{\"fields\": [1]}",
+            "{\"metrics\": [\"a\"]}",
+            "[\"host.name\"]",
+            "1"
+        )) {
+            final String json = "{\"query\": \"FROM test\", \"profile\": " + profile + "}";
+            expectThrows(XContentParseException.class, () -> parseEsqlQueryRequest(json, randomBoolean()));
+        }
+    }
+
+    public void testTheProfileSelectionSurvivesACopyOfTheRequest() throws IOException {
+        assumeCodecReadProfilingEnabled();
+        final EsqlQueryRequest request = parseEsqlQueryRequest(
+            "{\"query\": \"FROM test\", \"profile\": {\"segments\": [\"_1\"], \"fields\": [\"a\"]}}",
+            randomBoolean()
+        );
+        assertThat(
+            new EsqlQueryRequest(request).profileSelection(),
+            equalTo(ProfileSelection.of(ProfileSelection.Names.of(List.of("_1")), ProfileSelection.Names.of(List.of("a"))))
+        );
+    }
+
+    private static void assertProfile(String profile, boolean enabled, ProfileSelection selection) throws IOException {
+        final String json = "{\"query\": \"FROM test\", \"profile\": " + profile + "}";
+        final EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(profile, request.profile(), equalTo(enabled));
+        assertThat(profile, request.profileSelection(), equalTo(selection));
     }
 
     public void testNamedParams() throws IOException {

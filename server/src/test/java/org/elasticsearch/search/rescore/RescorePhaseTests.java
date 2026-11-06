@@ -41,6 +41,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.FilteredSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
@@ -152,7 +153,7 @@ public class RescorePhaseTests extends IndexShardTestCase {
             indexDocs(dir);
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 ContextIndexSearcher searcher = newContextIndexSearcher(reader);
-                Profilers profilers = new Profilers(searcher);
+                Profilers profilers = new Profilers(searcher, ProfileSelection.NONE);
                 TopDocs firstPass = firstPass(searcher, profilers);
                 List<RescoreContext> rescorers = List.of(queryRescoreContext(1, "c"), queryRescoreContext(2, "b"));
                 try (SearchContext context = new ProfilingSearchContext(searcher, profilers, rescorers)) {
@@ -189,7 +190,7 @@ public class RescorePhaseTests extends IndexShardTestCase {
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 ContextIndexSearcher searcher = newContextIndexSearcher(reader);
                 boolean profile = randomBoolean();
-                Profilers profilers = profile ? new Profilers(searcher) : null;
+                Profilers profilers = profile ? new Profilers(searcher, ProfileSelection.NONE) : null;
                 TopDocs firstPass = profile
                     ? firstPass(searcher, profilers)
                     : new TopDocs(new TotalHits(2, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1f) });
@@ -241,7 +242,7 @@ public class RescorePhaseTests extends IndexShardTestCase {
             indexDocs(dir);
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 ContextIndexSearcher searcher = newContextIndexSearcher(reader);
-                Profilers profilers = new Profilers(searcher);
+                Profilers profilers = new Profilers(searcher, ProfileSelection.NONE);
                 TopDocs firstPass = firstPass(searcher, profilers);
                 class TimingOutRescorer implements Rescorer {
                     @Override

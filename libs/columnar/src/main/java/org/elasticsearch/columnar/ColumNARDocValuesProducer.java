@@ -26,6 +26,14 @@ import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.codec.profiler.Counter;
+import org.elasticsearch.codec.profiler.CounterMetric;
+import org.elasticsearch.codec.profiler.Metric;
+import org.elasticsearch.codec.profiler.MetricRecorder;
+import org.elasticsearch.codec.profiler.Scopes;
+import org.elasticsearch.codec.profiler.Timer;
+import org.elasticsearch.codec.profiler.TimerMetric;
+import org.elasticsearch.codec.profiler.TimingPolicy;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnReader;
@@ -35,6 +43,7 @@ import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -47,7 +56,54 @@ import java.util.Map;
  */
 final class ColumNARDocValuesProducer extends DocValuesProducer {
 
+    static final CounterMetric READERS_OPENED = CounterMetric.of(
+        "ColumNAR",
+        "readers",
+        "opened",
+        Metric.Unit.COUNT,
+        "Columns opened for reading, once for each request for a column. Readers are not reused across requests. It equals "
+            + "readers.plain plus readers.dictionary plus readers.numeric."
+    );
+
+    static final CounterMetric PLAIN_READERS_OPENED = CounterMetric.of(
+        "ColumNAR",
+        "readers",
+        "plain",
+        Metric.Unit.COUNT,
+        "String columns opened for reading that store their values one after another, without a dictionary."
+    );
+
+    static final CounterMetric DICTIONARY_READERS_OPENED = CounterMetric.of(
+        "ColumNAR",
+        "readers",
+        "dictionary",
+        Metric.Unit.COUNT,
+        "String columns opened for reading that name their values with ordinals into a dictionary."
+    );
+
+    static final CounterMetric NUMERIC_READERS_OPENED = CounterMetric.of(
+        "ColumNAR",
+        "readers",
+        "numeric",
+        Metric.Unit.COUNT,
+        "Numeric columns opened for reading."
+    );
+
+    static final TimerMetric READER_OPEN_TIME = TimerMetric.of(
+        "ColumNAR",
+        "readers",
+        "open_time_nanos",
+        TimingPolicy.EXACT,
+        "Elapsed wall-clock time of requests for a column, measured exactly. It covers building the reader and nothing the reader "
+            + "does afterwards. It is not CPU time and it can include waits for data."
+    );
+
+    private static final Map<String, Boolean> WITH_SKIP_INDEX = Map.of("skip_index", true);
+    private static final Map<String, Boolean> WITHOUT_SKIP_INDEX = Map.of("skip_index", false);
+
     private final int maxDoc;
+    /** The name of the segment, which identifies its readers in a profile. */
+    private final String segmentName;
     private final IndexInput data;
     private final IndexInput addressing;
     private final IndexInput lengths;
@@ -62,6 +118,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     ColumNARDocValuesProducer(SegmentReadState state) throws IOException {
         this.maxDoc = state.segmentInfo.maxDoc();
+        this.segmentName = state.segmentInfo.name;
 
         String metaName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -120,7 +177,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
                 ColumNARDocValuesFormat.SKIP_CODEC,
                 metaVersion
             );
-            inputs = new ColumnInputs(data, addressing, lengths, navigation);
+            inputs = new ColumnInputs(data, addressing, lengths, navigation, null);
             success = true;
         } finally {
             if (success == false) {
@@ -174,25 +231,141 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     @Override
     public BinaryDocValues getBinary(FieldInfo field) throws IOException {
-        Column column = columns.get(field.number);
-        if (column == null) {
-            throw new IllegalStateException("field [" + field.name + "] is not a ColumNAR column");
-        }
-        // The metadata a column carries follows from its type, so the two always agree; the sealed
-        // interface is what lets a second column type arrive without another shape here.
-        return switch (column.metadata()) {
-            case NumericColumnMetadata numeric -> numericBinary(numeric);
-            case StringColumnMetadata string -> stringBinary(string, column.singleValued());
+        final Column column = columnOf(field);
+        return openBinary(column, Scopes.current(ColumnarFormat.NAME, segmentName, field.name, factsOf(column.metadata())));
+    }
+
+    // NOTE: Merge readers get no recorder, also when the merge runs on a thread where a query bound a scope.
+    @Override
+    public DocValuesProducer getMergeInstance() {
+        return new DocValuesProducer() {
+            @Override
+            public BinaryDocValues getBinary(FieldInfo field) throws IOException {
+                return openBinary(columnOf(field), null);
+            }
+
+            @Override
+            public NumericDocValues getNumeric(FieldInfo field) {
+                return ColumNARDocValuesProducer.this.getNumeric(field);
+            }
+
+            @Override
+            public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
+                return ColumNARDocValuesProducer.this.getSortedNumeric(field);
+            }
+
+            @Override
+            public SortedDocValues getSorted(FieldInfo field) {
+                return ColumNARDocValuesProducer.this.getSorted(field);
+            }
+
+            @Override
+            public SortedSetDocValues getSortedSet(FieldInfo field) {
+                return ColumNARDocValuesProducer.this.getSortedSet(field);
+            }
+
+            @Override
+            public DocValuesSkipper getSkipper(FieldInfo field) {
+                return ColumNARDocValuesProducer.this.getSkipper(field);
+            }
+
+            @Override
+            public void checkIntegrity() throws IOException {
+                ColumNARDocValuesProducer.this.checkIntegrity();
+            }
+
+            @Override
+            public DocValuesProducer getMergeInstance() {
+                return this;
+            }
+
+            @Override
+            public void close() {}
         };
     }
 
-    private BinaryDocValues stringBinary(StringColumnMetadata metadata, boolean singleValued) throws IOException {
-        StringColumnReader reader = StringColumnReader.open(metadata, inputs, skipIndex);
+    private Column columnOf(FieldInfo field) {
+        final Column column = columns.get(field.number);
+        if (column == null) {
+            throw new IllegalStateException("field [" + field.name + "] is not a ColumNAR column");
+        }
+        return column;
+    }
+
+    private BinaryDocValues openBinary(Column column, @Nullable MetricRecorder metrics) throws IOException {
+        // NOTE: Every call builds a new reader. A reader reports to the recorder it got when it opened, so a shared
+        // reader would report the work of one scope to another. The open is measured here because no reader
+        // component exists before it.
+        final ColumnInputs scoped;
+        final Counter opened;
+        final Counter layout;
+        final Timer openTime;
+        if (metrics == null) {
+            scoped = inputs;
+            opened = null;
+            layout = null;
+            openTime = Timer.INERT;
+        } else {
+            opened = metrics.counter(READERS_OPENED);
+            layout = layoutCounter(metrics, column.metadata());
+            scoped = inputs.withMetrics(metrics);
+            openTime = metrics.timer(READER_OPEN_TIME);
+        }
+        final BinaryDocValues reader;
+        openTime.start();
+        try {
+            // The metadata a column carries follows from its type, so the two always agree; the sealed
+            // interface is what lets a second column type arrive without another shape here.
+            reader = switch (column.metadata()) {
+                case NumericColumnMetadata numeric -> numericBinary(numeric, scoped);
+                case StringColumnMetadata string -> stringBinary(string, column.singleValued(), scoped);
+            };
+        } finally {
+            openTime.stop();
+        }
+        if (opened != null) {
+            opened.add(1);
+            layout.add(1);
+        }
+        return reader;
+    }
+
+    /** The layout counter for {@code metadata}. It also registers the other layout counters, so all three are present. */
+    private static Counter layoutCounter(MetricRecorder metrics, ColumnMetadata metadata) {
+        final Counter plain = metrics.counter(PLAIN_READERS_OPENED);
+        final Counter dictionary = metrics.counter(DICTIONARY_READERS_OPENED);
+        final Counter numeric = metrics.counter(NUMERIC_READERS_OPENED);
+        return switch (metadata) {
+            case NumericColumnMetadata ignored -> numeric;
+            case StringColumnMetadata.Dictionary ignored -> dictionary;
+            case StringColumnMetadata.Plain ignored -> plain;
+        };
+    }
+
+    /**
+     * The facts a profile reports about the stored column: {@code skip_index}, whether the column has the ColumNAR skip
+     * index. The fact says that the index exists, not that a read used it.
+     */
+    private static Map<String, Boolean> factsOf(ColumnMetadata metadata) {
+        return hasSkipIndex(metadata) ? WITH_SKIP_INDEX : WITHOUT_SKIP_INDEX;
+    }
+
+    /** Whether a column has ColumNAR's own skip index: a numeric column's, or the one over a dictionary column's ordinals. */
+    private static boolean hasSkipIndex(ColumnMetadata metadata) {
+        return switch (metadata) {
+            case NumericColumnMetadata numeric -> numeric.skipper() != null;
+            case StringColumnMetadata.Dictionary dictionary -> dictionary.ordinals().skipper() != null;
+            case StringColumnMetadata.Plain plain -> false;
+        };
+    }
+
+    private BinaryDocValues stringBinary(StringColumnMetadata metadata, boolean singleValued, ColumnInputs scoped) throws IOException {
+        StringColumnReader reader = StringColumnReader.open(metadata, scoped, skipIndex);
         return new ColumnarStringBinaryDocValues(reader, reader.iterator(), singleValued);
     }
 
-    private BinaryDocValues numericBinary(NumericColumnMetadata metadata) throws IOException {
-        NumericColumnReader reader = new NumericColumnReader(metadata, inputs);
+    private BinaryDocValues numericBinary(NumericColumnMetadata metadata, ColumnInputs scoped) throws IOException {
+        NumericColumnReader reader = new NumericColumnReader(metadata, scoped);
         ColumnIterator iterator = reader.iterator();
         return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), skipIndex);
     }

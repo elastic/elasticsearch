@@ -43,6 +43,7 @@ import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -279,12 +280,12 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         IndexSearcher searcher = newSearcher(reader, true, false);
         searcher.search(rescoreKnnVectorQuery, numDocs);
 
-        QueryProfiler queryProfiler = new QueryProfiler();
+        QueryProfiler queryProfiler = new QueryProfiler(ProfileSelection.NONE);
         rescoreKnnVectorQuery.profile(queryProfiler);
 
         long expectedVectorOpsCount = numDocs;
         if (innerQuery instanceof QueryProfilerProvider queryProfilerProvider) {
-            QueryProfiler anotherProfiler = new QueryProfiler();
+            QueryProfiler anotherProfiler = new QueryProfiler(ProfileSelection.NONE);
             queryProfilerProvider.profile(anotherProfiler);
             assertThat(anotherProfiler.getVectorOpsCount(), greaterThan(0L));
             expectedVectorOpsCount += anotherProfiler.getVectorOpsCount();

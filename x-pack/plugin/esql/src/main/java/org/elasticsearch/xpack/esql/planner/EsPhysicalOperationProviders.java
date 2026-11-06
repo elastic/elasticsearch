@@ -71,6 +71,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -216,19 +217,28 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final QueryWarnings singleValueQueryWarnings;
 
+    /**
+     * The segments and fields that the codec read profile breaks down, or null when codec reads are not profiled: the
+     * query is not profiled or the {@code codec_read_profiling} feature flag is disabled on this node.
+     */
+    @Nullable
+    private final ProfileSelection profile;
+
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         PlannerSettings plannerSettings,
         LongSupplier directoryBytesRead,
-        QueryWarnings singleValueQueryWarnings
+        QueryWarnings singleValueQueryWarnings,
+        @Nullable ProfileSelection profile
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
         this.directoryBytesRead = directoryBytesRead;
         this.singleValueQueryWarnings = singleValueQueryWarnings;
+        this.profile = profile;
     }
 
     @Override
@@ -248,7 +258,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             s -> new ValuesSourceReaderOperator.ShardContext(
                 s.searcher().getIndexReader(),
                 s::newSourceLoader,
-                s.storedFieldsSequentialProportion()
+                s.storedFieldsSequentialProportion(),
+                s.shardIdentifier()
             )
         );
         boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= plannerSettings.reuseColumnLoadersThreshold();
@@ -263,7 +274,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 docChannel,
                 plannerSettings.sourceReservationFactor(),
                 docSequenceThreshold,
-                directoryBytesRead
+                directoryBytesRead,
+                profile
             ),
             layout.build()
         );
@@ -280,7 +292,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             s -> new ValuesSourceReaderOperator.ShardContext(
                 s.searcher().getIndexReader(),
                 s::newSourceLoader,
-                s.storedFieldsSequentialProportion()
+                s.storedFieldsSequentialProportion(),
+                s.shardIdentifier()
             )
         );
         ValuesSourceReaderOperator.Factory valuesSourceReader = new ValuesSourceReaderOperator.Factory(
@@ -291,7 +304,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             0, // delegate a single doc-block to the reader
             plannerSettings.sourceReservationFactor(),
             context.queryPragmas().docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold()),
-            directoryBytesRead
+            directoryBytesRead,
+            profile
         );
         int docChannel = source.layout.get(readDimsExec.docAttribute().id()).channel();
         int tsidChannel = source.layout.get(readDimsExec.tsidAttribute().id()).channel();

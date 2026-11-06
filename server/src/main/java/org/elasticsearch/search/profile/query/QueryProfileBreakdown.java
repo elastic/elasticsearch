@@ -10,8 +10,11 @@
 package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
+import org.elasticsearch.search.profile.CodecReads;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,6 +25,9 @@ import java.util.Map;
 public final class QueryProfileBreakdown extends AbstractProfileBreakdown<QueryTimingType> {
 
     private Integer rescorer;
+
+    /** The codec reads of each weight built for this node. A query can build more than one weight. */
+    private final List<CodecReadProfiling> codecReads = new ArrayList<>();
 
     /** Sole constructor. */
     public QueryProfileBreakdown() {
@@ -35,6 +41,13 @@ public final class QueryProfileBreakdown extends AbstractProfileBreakdown<QueryT
         this.rescorer = rescorer;
     }
 
+    /** Adds the codec reads of one weight. They are merged with the others when the profile result is built. */
+    void addCodecReads(CodecReadProfiling reads) {
+        synchronized (codecReads) {
+            codecReads.add(reads);
+        }
+    }
+
     @Override
     protected Map<String, Object> toDebugMap() {
         Map<String, Object> debug = super.toDebugMap();
@@ -44,5 +57,16 @@ public final class QueryProfileBreakdown extends AbstractProfileBreakdown<QueryT
         Map<String, Object> withRescorer = new HashMap<>(debug);
         withRescorer.put("rescorer", rescorer);
         return withRescorer;
+    }
+
+    @Override
+    protected CodecReads toCodecReads() {
+        final List<CodecReads> parts = new ArrayList<>();
+        synchronized (codecReads) {
+            for (CodecReadProfiling reads : codecReads) {
+                parts.add(reads.snapshot());
+            }
+        }
+        return parts.isEmpty() ? CodecReads.EMPTY : CodecReads.merge(parts);
     }
 }

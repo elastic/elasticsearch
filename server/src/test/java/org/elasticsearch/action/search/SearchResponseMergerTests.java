@@ -600,7 +600,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         );
         SearchProfileShardResult shardResult = new SearchProfileShardResult(
             new SearchProfileQueryPhaseResult(List.of(), new AggregationProfileShardResult(List.of())),
-            randomBoolean() ? null : new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())
+            randomBoolean() ? null : new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of(), Map.of(), Map.of(), Map.of())
         );
         return Map.of(target.toString(), shardResult);
     }

@@ -17,11 +17,15 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.codec.profiler.Timer;
+import org.elasticsearch.codec.profiler.TimerMetric;
+import org.elasticsearch.codec.profiler.TimingPolicy;
 import org.elasticsearch.columnar.numeric.NumericColumnReader;
 import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -104,6 +108,40 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     private PageBudget budget = PageBudget.UNLIMITED;
     private boolean budgetBound;
 
+    static final TimerMetric PAGE_CALL_TIME = TimerMetric.of(
+        "ColumNAR",
+        "pages",
+        "call_time_nanos",
+        TimingPolicy.EXACT,
+        "Elapsed wall-clock time of the calls that ask a string column for a page of values, measured exactly, whatever the call "
+            + "did. It covers the whole call: finding the documents' values, the fetches, inflations and dictionary lookups that "
+            + "have metrics of their own, the work that has none, building the page, and the consumer's own work on the page it is "
+            + "handed. A call that declined the page, which hands nothing over, and a call that threw are included, so its calls "
+            + "can outnumber the pages counted by pages.as_ordinals and pages.as_values. It is not CPU time and it can include "
+            + "waits for data. It contains the time of the nested metrics, so do not add it to theirs."
+    );
+
+    static final TimerMetric BYTE_LENGTHS_CALL_TIME = TimerMetric.of(
+        "ColumNAR",
+        "pages",
+        "byte_lengths_call_time_nanos",
+        TimingPolicy.EXACT,
+        "Elapsed wall-clock time of the calls that ask a string column for the byte lengths of a page of values, as BYTE_LENGTH "
+            + "does, measured exactly. It covers the whole call, including the fetches, inflations and dictionary lookups that have "
+            + "metrics of their own, and a call that threw. No page is handed over, so these calls are not in "
+            + "pages.call_time_nanos and move no page counter. It is not CPU time."
+    );
+
+    /** The counters of the form each page is handed over in, or null when the reader is not profiled. */
+    @Nullable
+    private final ProfiledStringBlockSink.Counters pageFormCounters;
+
+    /** Times the calls for a page; {@link Timer#INERT} when the reader is not profiled or its collector measures no time. */
+    private final Timer pageTimer;
+
+    /** Times the calls for byte lengths; {@link Timer#INERT} when the reader is not profiled or its collector measures no time. */
+    private final Timer lengthsTimer;
+
     /** The running extreme, held so comparing one value against another survives the buffer being reused. */
     private final BytesRefBuilder extremeSoFar = new BytesRefBuilder();
 
@@ -120,6 +158,9 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         this.blockSize = blockSize;
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), inputs.addressing());
         this.addresses = meta.hasValueAddresses() ? new SlotAddressReader(meta.addressing(), meta.numDocsWithField(), inputs) : null;
+        this.pageFormCounters = inputs.metrics() == null ? null : new ProfiledStringBlockSink.Counters(inputs.metrics());
+        this.pageTimer = inputs.metrics() == null ? Timer.INERT : inputs.metrics().timer(PAGE_CALL_TIME);
+        this.lengthsTimer = inputs.metrics() == null ? Timer.INERT : inputs.metrics().timer(BYTE_LENGTHS_CALL_TIME);
     }
 
     /** A reader for {@code meta}, which decides whether the column has a dictionary to read through. */
@@ -1305,7 +1346,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * @return false when the page cannot be served this way and the caller should read the documents one at
      *         a time; true when {@code sink} was called exactly once
      */
-    public boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink) throws IOException {
+    public final boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink) throws IOException {
         return readBlock(docs, offset, count, sink, PageBudget.UNLIMITED);
     }
 
@@ -1313,19 +1354,29 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * As above, charging {@code budget} before the page's storage grows. The storage is reused between pages
      * and only grows, so a page no larger than one already served is charged nothing.
      */
-    public boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink, PageBudget budget) throws IOException {
+    public final boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink, PageBudget budget) throws IOException {
+        pageTimer.start();
+        try {
+            return loadPage(docs, offset, count, sink, budget);
+        } finally {
+            pageTimer.stop();
+        }
+    }
+
+    private boolean loadPage(int[] docs, int offset, int count, StringBlockSink sink, PageBudget budget) throws IOException {
         assert budgetBound == false || this.budget == budget
             : "a reader's page storage outlives the call that grew it, so it answers to one budget for its life";
         this.budgetBound = true;
         this.budget = budget;
+        final StringBlockSink target = pageFormCounters == null ? sink : new ProfiledStringBlockSink(sink, pageFormCounters);
         if (count == 0) {
-            appendGathered(sink, 0, null, 0);
+            appendGathered(target, 0, null, 0);
             return true;
         }
         growPageDocs(count);
         // A document with no value arrives holding none.
         ranksOfAll(docs, offset, count);
-        return appendPage(count, sink);
+        return appendPage(count, target);
     }
 
     /**
@@ -1334,7 +1385,17 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * {@code lengths}. The documents are resolved a page at a time and no value is decoded where the column keeps its
      * lengths apart.
      */
-    public void readByteLengths(int[] docs, int offset, int count, int[] counts, int[] lengths, PageBudget budget) throws IOException {
+    public final void readByteLengths(int[] docs, int offset, int count, int[] counts, int[] lengths, PageBudget budget)
+        throws IOException {
+        lengthsTimer.start();
+        try {
+            loadByteLengths(docs, offset, count, counts, lengths, budget);
+        } finally {
+            lengthsTimer.stop();
+        }
+    }
+
+    private void loadByteLengths(int[] docs, int offset, int count, int[] counts, int[] lengths, PageBudget budget) throws IOException {
         assert budgetBound == false || this.budget == budget
             : "a reader's page storage outlives the call that grew it, so it answers to one budget for its life";
         this.budgetBound = true;

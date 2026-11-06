@@ -127,6 +127,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
@@ -2522,7 +2523,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.minimumScore(source.minScore());
         }
         if (source.profile()) {
-            context.setProfilers(new Profilers(context.searcher()));
+            context.setProfilers(new Profilers(context.searcher(), ProfileSelection.ifEnabled(source.profileSelection())));
         }
         if (source.timeout() != null) {
             context.timeout(source.timeout());

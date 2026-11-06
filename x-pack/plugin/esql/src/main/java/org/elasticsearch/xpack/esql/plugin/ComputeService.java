@@ -57,6 +57,7 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -2006,7 +2007,8 @@ public class ComputeService {
             searchService.getIndicesService().getAnalysis(),
             plannerSettings,
             directoryBytesRead,
-            singleValueQueryWarnings
+            singleValueQueryWarnings,
+            context.configuration().profile() ? ProfileSelection.ifEnabled(context.configuration().profileSelection()) : null
         );
 
         try {

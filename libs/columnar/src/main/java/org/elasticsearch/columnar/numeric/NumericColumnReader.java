@@ -38,7 +38,7 @@ public final class NumericColumnReader {
     private final LongValues blockOffsets;
     private final LongValues valueAddresses;
     private final long valuesOffset;
-    private final NumericBlockEncoder encoder;
+    private final NumericBlockDecoder decoder;
     private final long[] blockBuffer;
 
     /** A block holds a power of two values, so the block a value is in and where it sits are shifts. */
@@ -55,14 +55,14 @@ public final class NumericColumnReader {
         assert (meta.blockSize() & (meta.blockSize() - 1)) == 0 : "values per block must be a power of two, got " + meta.blockSize();
         this.blockShift = Integer.numberOfTrailingZeros(meta.blockSize());
         this.blockMask = meta.blockSize() - 1;
-        this.blockBytesCodec = BlockBytesCodec.forId(meta.blockBytesCodecId());
+        this.blockBytesCodec = BlockBytesCodec.forReading(meta.blockBytesCodecId(), inputs.metrics());
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), addressing);
         this.data = data.clone();
         if (meta.numDocsWithField() == 0) {
             this.blockOffsets = null;
             this.valueAddresses = null;
             this.valuesOffset = 0;
-            this.encoder = null;
+            this.decoder = null;
             this.blockBuffer = new long[0];
             return;
         }
@@ -84,7 +84,7 @@ public final class NumericColumnReader {
             : null;
         this.valuesOffset = meta.valuesOffset();
         NumericPipeline pipeline = NumericPipeline.Registry.rebuild(meta.terminalId(), meta.transformIds(), meta.blockSize());
-        this.encoder = new NumericBlockEncoder(pipeline, meta.blockSize());
+        this.decoder = NumericBlockDecoder.forReading(pipeline, meta.blockSize(), inputs.metrics());
         this.blockBuffer = new long[meta.blockSize()];
     }
 
@@ -153,7 +153,7 @@ public final class NumericColumnReader {
         DataInput blockData = blockBytesCodec.read(data, length);
         // Full blocks hold blockSize values; the last block holds the remainder.
         int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
-        encoder.decode(blockData, valueCount, blockBuffer);
+        decoder.decode(blockData, valueCount, blockBuffer);
         cachedBlock = block;
     }
 

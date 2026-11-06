@@ -22,7 +22,7 @@ import java.util.Arrays;
  * so stages can be added later without breaking already-written data. A whole block is decoded on any
  * random access.
  */
-public final class NumericBlockEncoder {
+public final class NumericBlockEncoder implements NumericBlockDecoder {
 
     private final NumericPipeline pipeline;
     private final BlockTransform[] transforms;
@@ -81,6 +81,7 @@ public final class NumericBlockEncoder {
     }
 
     /** Decodes the first {@code valueCount} values of a block encoded with {@link #encode}. */
+    @Override
     public void decode(DataInput in, int valueCount, long[] out) throws IOException {
         assert out.length == numericBlockSize : out.length;
         assert valueCount >= 1 && valueCount <= numericBlockSize : valueCount;

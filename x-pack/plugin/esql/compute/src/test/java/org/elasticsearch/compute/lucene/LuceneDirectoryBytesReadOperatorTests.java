@@ -197,13 +197,14 @@ public class LuceneDirectoryBytesReadOperatorTests extends ComputeTestCase {
                 return ValuesSourceReaderOperator.load(loader);
             })),
             new IndexedByShardIdFromSingleton<>(
-                new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
+                new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2, "test:0")
             ),
             true,
             0,
             1.0,
             500,
-            directoryBytesRead
+            directoryBytesRead,
+            null
         );
     }
 

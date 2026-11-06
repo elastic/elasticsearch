@@ -136,7 +136,7 @@ public final class ColumnTestFiles {
                 ColumnarCodecUtil.checkHeader(in[i], CODEC, segmentId, "");
             }
             success = true;
-            return new Inputs(new ColumnInputs(in[0], in[1], in[2], in[3]), in[4]);
+            return new Inputs(new ColumnInputs(in[0], in[1], in[2], in[3], null), in[4]);
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(in);

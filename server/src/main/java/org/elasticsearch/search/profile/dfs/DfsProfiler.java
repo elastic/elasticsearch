@@ -9,8 +9,10 @@
 
 package org.elasticsearch.search.profile.dfs;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
@@ -18,6 +20,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This class collects profiling information for the dfs phase and
@@ -31,9 +34,16 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
     private long totalTime;
 
     private final List<QueryProfiler> knnQueryProfilers = new ArrayList<>();
+    @Nullable
+    private final ProfileSelection codecReadSelection;
 
-    public DfsProfiler() {
+    /**
+     * @param codecReadSelection the codec read selection of the kNN query nodes, or null when codec reads are not
+     *                           profiled for this shard
+     */
+    public DfsProfiler(@Nullable ProfileSelection codecReadSelection) {
         super(DfsTimingType.class);
+        this.codecReadSelection = codecReadSelection;
     }
 
     public void start() {
@@ -51,7 +61,7 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
     }
 
     public QueryProfiler addQueryProfiler() {
-        QueryProfiler queryProfiler = new QueryProfiler();
+        QueryProfiler queryProfiler = new QueryProfiler(codecReadSelection);
         knnQueryProfilers.add(queryProfiler);
         return queryProfiler;
     }
@@ -63,7 +73,10 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
             toBreakdownMap(),
             toDebugMap(),
             totalTime,
-            List.of()
+            List.of(),
+            Map.of(),
+            Map.of(),
+            Map.of()
         );
         if (knnQueryProfilers.size() > 0) {
             final List<QueryProfileShardResult> queryProfileShardResult = new ArrayList<>(knnQueryProfilers.size());

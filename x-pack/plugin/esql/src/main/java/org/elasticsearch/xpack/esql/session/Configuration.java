@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -50,6 +51,7 @@ public class Configuration implements Writeable {
      */
     public static final TransportVersion ESQL_VIEW_QUERIES = TransportVersion.fromName("esql_view_queries");
 
+    private static final TransportVersion CODEC_READ_PROFILING = TransportVersion.fromName("codec_read_profiling");
     private static final TransportVersion ESQL_EXPLAIN_ONLY = TransportVersion.fromName("esql_explain_only");
 
     private static final TransportVersion ESQL_RESOLVED_SETTINGS = TransportVersion.fromName("esql_resolved_settings");
@@ -81,6 +83,7 @@ public class Configuration implements Writeable {
     private final boolean profile;
     private final boolean allowPartialResults;
     private final boolean explainOnly;
+    private final ProfileSelection profileSelection;
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
@@ -134,7 +137,8 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            false
+            false,
+            ProfileSelection.NONE
         );
     }
 
@@ -159,7 +163,8 @@ public class Configuration implements Writeable {
         int resultTruncationDefaultSizeTimeseries,
         ResolvedSettings resolvedSettings,
         Map<String, String> viewQueries,
-        boolean explainOnly
+        boolean explainOnly,
+        ProfileSelection profileSelection
     ) {
         this.now = now;
         this.username = username;
@@ -180,6 +185,7 @@ public class Configuration implements Writeable {
         this.viewQueries = viewQueries;
         assert viewQueries != null;
         this.explainOnly = explainOnly;
+        this.profileSelection = Objects.requireNonNull(profileSelection);
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -228,6 +234,9 @@ public class Configuration implements Writeable {
         } else {
             this.explainOnly = false;
         }
+        this.profileSelection = in.getTransportVersion().supports(CODEC_READ_PROFILING)
+            ? ProfileSelection.readFrom(in)
+            : ProfileSelection.NONE;
         if (readLegacySettings) {
             // project_routing is intentionally not synthesized here — data nodes never had it on the wire.
             this.resolvedSettings = synthesizeResolvedFromLegacy(zi, legacyApproximation);
@@ -285,6 +294,10 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().supports(ESQL_EXPLAIN_ONLY)) {
             out.writeBoolean(explainOnly);
+        }
+        // NOTE: A node without this transport version has no codec read profiling. It profiles the rest of the query as before.
+        if (out.getTransportVersion().supports(CODEC_READ_PROFILING)) {
+            profileSelection.writeTo(out);
         }
         if (writeLegacySettings == false) {
             resolvedSettings.writeTo(out);
@@ -379,6 +392,11 @@ public class Configuration implements Writeable {
         return profile;
     }
 
+    /** The segments and fields that the codec read profile breaks down. It has an effect only when {@link #profile()} is set. */
+    public ProfileSelection profileSelection() {
+        return profileSelection;
+    }
+
     /**
      * Whether this request can return partial results instead of failing fast on failures
      */
@@ -468,7 +486,8 @@ public class Configuration implements Writeable {
             && allowPartialResults == that.allowPartialResults
             && Objects.equals(resolvedSettings, that.resolvedSettings)
             && viewQueries.equals(that.viewQueries)
-            && explainOnly == that.explainOnly;
+            && explainOnly == that.explainOnly
+            && profileSelection.equals(that.profileSelection);
     }
 
     @Override
@@ -489,7 +508,8 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            explainOnly
+            explainOnly,
+            profileSelection
         );
     }
 
@@ -519,6 +539,8 @@ public class Configuration implements Writeable {
             + '\''
             + ", profile="
             + profile
+            + ", profileSelection="
+            + profileSelection
             + ", tables="
             + tables
             + ", allowPartialResults="

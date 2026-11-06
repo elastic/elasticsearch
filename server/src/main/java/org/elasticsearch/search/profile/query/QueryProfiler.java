@@ -12,6 +12,7 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.AbstractProfiler;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.Timer;
 
 import static java.util.Objects.requireNonNull;
@@ -36,8 +37,22 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
 
     private long vectorOpsCount;
 
-    public QueryProfiler() {
+    @Nullable
+    private final ProfileSelection codecReadSelection;
+
+    /**
+     * @param codecReadSelection the codec read selection of the query nodes, or null when codec reads are not profiled
+     *                           for this shard; see {@link org.elasticsearch.search.profile.CodecReadAttribution}
+     */
+    public QueryProfiler(@Nullable ProfileSelection codecReadSelection) {
         super(new InternalQueryProfileTree());
+        this.codecReadSelection = codecReadSelection;
+    }
+
+    /** The codec read selection, or null when codec reads are not profiled for this shard. */
+    @Nullable
+    public ProfileSelection codecReadSelection() {
+        return codecReadSelection;
     }
 
     /**

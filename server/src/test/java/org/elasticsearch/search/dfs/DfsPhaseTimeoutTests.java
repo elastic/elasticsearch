@@ -48,6 +48,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
@@ -212,7 +213,7 @@ public class DfsPhaseTimeoutTests extends IndexShardTestCase {
     public void testExecuteWithProfilersSetsProfileResult() throws Exception {
         ContextIndexSearcher cis = newContextSearcher(reader);
         DfsSearchResult dfsResult = new DfsSearchResult(null, null, null);
-        Profilers profilers = new Profilers(cis);
+        Profilers profilers = new Profilers(cis, ProfileSelection.NONE);
 
         try (TestSearchContext context = new TestSearchContext(createSearchExecutionContext(), indexShard, cis) {
             @Override

@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
@@ -167,7 +168,7 @@ public class DfsPhaseTests extends IndexShardTestCase {
             assertEquals(k, dfsKnnResults.scoreDocs().length);
 
             // run with profiling enabled
-            Profilers profilers = new Profilers(searcher);
+            Profilers profilers = new Profilers(searcher, ProfileSelection.NONE);
             dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
             SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = profilers.getDfsProfiler().buildDfsPhaseResults();

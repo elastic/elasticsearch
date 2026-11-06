@@ -73,6 +73,14 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     }
 
     /**
+     * The codec reads of this node. Empty by default; only query nodes record codec reads. See
+     * {@link CodecReadAttribution}.
+     */
+    protected CodecReads toCodecReads() {
+        return CodecReads.EMPTY;
+    }
+
+    /**
      * @return the total sum of timers approximate times across all timing types
      */
     public final long toNodeTime() {

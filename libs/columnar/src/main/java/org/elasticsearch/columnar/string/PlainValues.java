@@ -357,7 +357,7 @@ final class PlainValues {
                 meta.starts().dataOffset(),
                 meta.starts().dataLength()
             );
-            this.lengths = new LongBlocks.Reader(meta.lengths(), inputs.lengths(), inputs.navigation());
+            this.lengths = new LongBlocks.Reader(meta.lengths(), inputs.lengths(), inputs.navigation(), inputs.metrics());
             this.slotStarts = new long[lengthBlockSize];
             this.slotLengths = new int[lengthBlockSize];
             this.codes = new long[lengthBlockSize];

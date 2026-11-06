@@ -186,7 +186,7 @@ public class ChunkedBytesTests extends ESTestCase {
                     final int seed = t;
                     final Thread worker = new Thread(() -> {
                         try {
-                            final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
+                            final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav, null));
                             final Random random = new Random(seed);
                             start.await();
                             byte[] scratch = new byte[0];
@@ -243,7 +243,7 @@ public class ChunkedBytesTests extends ESTestCase {
                     IndexInput in = dir.openInput("corrupt.bin", IOContext.DEFAULT);
                     IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
                 ) {
-                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
+                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav, null));
                     byte[] scratch = new byte[0];
                     for (int i = 0; i < values.size(); i++) {
                         final int span = (int) (offsets[i + 1] - offsets[i]);
@@ -284,8 +284,8 @@ public class ChunkedBytesTests extends ESTestCase {
                 IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
                 IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
             ) {
-                final ChunkedBytesReader first = index.open(new ColumnInputs(in, null, null, nav));
-                final ChunkedBytesReader second = index.open(new ColumnInputs(in, null, null, nav));
+                final ChunkedBytesReader first = index.open(new ColumnInputs(in, null, null, nav, null));
+                final ChunkedBytesReader second = index.open(new ColumnInputs(in, null, null, nav, null));
                 byte[] a = new byte[0];
                 byte[] b = new byte[0];
                 // Interleaved, and from opposite ends, so one reader's seeks would derail the other's.
@@ -435,7 +435,7 @@ public class ChunkedBytesTests extends ESTestCase {
                         IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
                         IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
                     ) {
-                        final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
+                        final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav, null));
                         final BytesRef span = new BytesRef();
                         final String label = "codec=" + codec + " target=" + target;
                         for (int i = 0; i < values.size(); i++) {
@@ -476,7 +476,7 @@ public class ChunkedBytesTests extends ESTestCase {
                     IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
                 ) {
                     final BytesRef span = new BytesRef("untouched");
-                    index.open(new ColumnInputs(in, null, null, nav)).span(0, 0, span);
+                    index.open(new ColumnInputs(in, null, null, nav, null)).span(0, 0, span);
                     assertEquals("codec=" + codec, 0, span.length);
                 }
             }
@@ -498,7 +498,7 @@ public class ChunkedBytesTests extends ESTestCase {
                     IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
                     IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
                 ) {
-                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
+                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav, null));
                     final BytesRef span = new BytesRef();
                     for (int i = 0; i < values.size(); i++) {
                         final int length = (int) (offsets[i + 1] - offsets[i]);
@@ -529,7 +529,7 @@ public class ChunkedBytesTests extends ESTestCase {
                     IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
                     IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
                 ) {
-                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
+                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav, null));
                     final int maxPiece = codec.isIdentity() ? 32 * 1024 : target;
                     for (int probe = 0; probe < 2 * values.size(); probe++) {
                         final int i = probe < values.size() ? probe : between(0, values.size() - 1);
@@ -556,7 +556,7 @@ public class ChunkedBytesTests extends ESTestCase {
                     IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
                     IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
                 ) {
-                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
+                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav, null));
                     final BytesRef span = new BytesRef();
                     reader.span(offsets[0], (int) (offsets[1] - offsets[0]), span);
                     assertArrayEquals(values.get(0), Arrays.copyOfRange(span.bytes, span.offset, span.offset + span.length));
@@ -766,7 +766,7 @@ public class ChunkedBytesTests extends ESTestCase {
             IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
             IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
         ) {
-            final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
+            final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav, null));
             byte[] scratch = new byte[0];
 
             // In order: the access pattern a scan uses, and the one the chunk cache is built for.

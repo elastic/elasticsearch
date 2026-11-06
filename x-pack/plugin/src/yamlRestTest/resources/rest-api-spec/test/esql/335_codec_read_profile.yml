@@ -1,0 +1,102 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ codec_read_profiling ]
+      reason: "codec read profiling of columnar indices required"
+
+  - do:
+      indices.create:
+        index: codec_read_profile
+        body:
+          settings:
+            index.mode: columnar
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              kw:
+                type: keyword
+              other:
+                type: keyword
+
+  - do:
+      bulk:
+        index: codec_read_profile
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "kw": "a", "other": "x" }
+          - { "index": { } }
+          - { "kw": "b", "other": "y" }
+          - { "index": { } }
+          - { "kw": "a", "other": "z" }
+
+# NOTE: The drivers of a profile come in no fixed order, so these tests pin the request contract; the response shape
+# of each selection is pinned by CodecReadProfileIT.
+---
+"every selection mode is accepted":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM codec_read_profile | STATS c = COUNT(*) BY kw | SORT kw | LIMIT 10'
+          profile: { segments: [ _0, "codec_read_profile:0/_0" ], fields: [ kw ], count_nested_docs: true }
+
+  - match: { columns.0.name: c }
+  - match: { values.0: [ 2, a ] }
+  - match: { values.1: [ 1, b ] }
+  - is_true: profile.drivers
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM codec_read_profile | STATS c = COUNT(*) BY kw | SORT kw | LIMIT 10'
+          profile: { segments: _all, fields: _all }
+
+  - match: { values.0: [ 2, a ] }
+  - is_true: profile.drivers
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM codec_read_profile | STATS c = COUNT(*) BY kw | SORT kw | LIMIT 10'
+          profile: { segments: [ ], fields: [ ] }
+
+  - match: { values.0: [ 2, a ] }
+  - is_true: profile.drivers
+
+---
+"invalid selections are refused":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM codec_read_profile | LIMIT 1'
+          profile: { segments: { _0: { } } }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM codec_read_profile | LIMIT 1'
+          profile: { fields: "*" }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM codec_read_profile | LIMIT 1'
+          profile: { segments: [ 1 ] }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM codec_read_profile | LIMIT 1'
+          profile: { columns: [ kw ] }

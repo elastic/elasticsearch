@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.FetchProfiler;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
@@ -30,8 +31,16 @@ public final class Profilers {
     private DfsProfiler dfsProfiler;
     private final List<RescoreProfiler> rescoreProfilers = new ArrayList<>();
 
-    public Profilers(ContextIndexSearcher searcher) {
-        this.queryProfiler = new QueryProfiler();
+    @Nullable
+    private final ProfileSelection codecReadSelection;
+
+    /**
+     * @param codecReadSelection the codec read selection of the query nodes, or null when codec reads are not profiled
+     *                           for this shard; see {@link CodecReadAttribution}
+     */
+    public Profilers(ContextIndexSearcher searcher, @Nullable ProfileSelection codecReadSelection) {
+        this.codecReadSelection = codecReadSelection;
+        this.queryProfiler = new QueryProfiler(codecReadSelection);
         searcher.setProfiler(this.queryProfiler);
     }
 
@@ -51,7 +60,7 @@ public final class Profilers {
      */
     public DfsProfiler getDfsProfiler() {
         if (dfsProfiler == null) {
-            dfsProfiler = new DfsProfiler();
+            dfsProfiler = new DfsProfiler(codecReadSelection);
         }
         return dfsProfiler;
     }

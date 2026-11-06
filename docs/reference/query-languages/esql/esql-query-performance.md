@@ -455,6 +455,61 @@ When running an {{esql}} query through the [ES|QL query API](https://www.elastic
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` An operator that reads values reports `bytes_decoded`, the bytes the values it decoded spell, next to `bytes_read`, the bytes they were read from. The ratio is how far the stored bytes expanded into values, and dividing `bytes_decoded` by that operator's `process_nanos` gives the rate they were read at. Both the field value read and an external dataset read report it.
 
+#### Profile codec reads [esql-profile-codec-reads]
+
+```{applies_to}
+stack: preview 9.7
+serverless: preview
+```
+
+When a query reads fields stored by a codec that supports read profiling, such as the [columnar](/reference/elasticsearch/columnar/index.md) doc values format, each `ValuesSourceReaderOperator` in the profile reports what the codec did for it: how many readers it opened, how many blocks and chunks it fetched and inflated, and how long that took. Use it to find out whether the time an operator spends loading values goes into reading column data, and which field and segment it belongs to.
+
+Start with the totals, which cost the least, then name what you suspect, and ask for full detail only when nothing is suspected yet:
+
+1. Profile with `"profile": true`. The status of each `ValuesSourceReaderOperator` has a `totals` object with the totals of that operator, keyed by codec:
+
+    ```console
+    POST /_query
+    {
+      "query": "FROM logs-* | STATS count = COUNT(*) BY agent.version, agent.hostname",
+      "profile": true
+    }
+    ```
+
+    Suppose `totals.ColumNAR.blocks.fetch_time_nanos` is `{"value": 48000000, "unit": "ns", "estimated": true, "total_calls": 41000, "sampled_calls": 2100}` and `blocks.fetched` is large compared with `readers.opened`: block fetches dominate. The totals don't say which field or segment is responsible.
+
+2. Name the suspected field. The status then also has a `fields` object with the totals of that field over every segment the operator read it in, and no segment is listed:
+
+    ```console
+    POST /_query
+    {
+      "query": "FROM logs-* | STATS count = COUNT(*) BY agent.version, agent.hostname",
+      "profile": { "fields": [ "agent.hostname" ] }
+    }
+    ```
+
+3. To see which segments the cost comes from, ask for every segment and the field. Each segment is listed with its totals, its description, and the counts of the field in it:
+
+    ```console
+    POST /_query
+    {
+      "query": "FROM logs-* | STATS count = COUNT(*) BY agent.version, agent.hostname",
+      "profile": { "segments": "_all", "fields": [ "agent.hostname" ] }
+    }
+    ```
+
+    The response keys each segment as `<index>:<shard>/<segment>`, since Lucene names segments within one shard only and many shards have a segment `_4`. To look at one of them on its own, name it by that key, `{"segments": [".ds-logs-k8-application.log-default-2026.11.05-000001:0/_4"]}`, or name `_4` to select it in every shard.
+
+The `segments` and `fields` options work as in the [search profile](/reference/elasticsearch/rest-apis/search-profile.md#profiling-codec-reads): each is `"_all"` or an array of exact names. Each dimension expands only when it is asked for: segments never list fields, and fields never list segments. A name reports the totals of what it names and what identifies it; `"_all"` reports every segment, or every field, with its description. Selecting both doesn't narrow either: a named field counts every segment and a named segment every field, and the counts of the field within the segment are listed inside the segment. A field is named as the index knows it, so the reads of a field loaded from `_source` are reported under `_source`. Each selected field and segment measures most of its calls while it has few, so `"_all"` on a query that reads many fields in many segments carries the most instrumentation overhead.
+
+A segment is always listed with its `index` and `shard`. With `"segments": "_all"`, it also describes itself: `max_doc`, `num_docs`, `lucene_codec`, `lucene_version`, `compound_file` and, for a sorted index, `index_sort`, one entry per sort key with its `field`, `type`, `order`, `mode` and `missing` (`first` or `last`), as in the `index.sort.*` settings. `root_docs` and `nested_docs` count top-level and nested documents. They're free for a segment without nested documents. For a segment with them, counting reads the parent field, so add `"count_nested_docs": true` to the `profile` object to ask for it. Without it, such a segment has no `root_docs` and no `nested_docs`. Under `field_infos`, the segment shows what its field infos hold as a whole: `count`, `doc_values_count`, `doc_values_formats` (how many fields each doc values format serves), `has_norms`, `has_points`, `has_vectors`, and the soft-deletes and parent fields. With `"fields": "_all"`, a field shows under `field_info` what the field infos hold about it, such as `doc_values_type`, `index_options`, `postings_format` and `sort_field` with its `sort_position`. Its `column` shows `skip_index`, whether the stored column has the codec's own skip index. That says the index exists, not that a read used it: for the columnar format only a term, prefix or range match on a dictionary column navigates it, and a numeric column's skip index has no metrics. Every `metrics` object, like `totals`, is keyed by codec. These are descriptions, not measurements, and a description that can't be read reliably is left out.
+
+`totals` always counts the work of every field and segment of the operator, whatever was selected. The counts under `segments` and `fields` are part of the totals, not added to them. With every segment selected, the counters, the `total_calls` of every time, and the times that aren't estimated of the segments add up to the totals exactly, and so do those of the fields with every field selected. Estimated times don't, because each selected field and segment samples its own calls. Counters are numbers. A time is an object with its `value` in nanoseconds, whether it is `estimated`, and its `total_calls`. A time is estimated when some of its calls were not measured and were valued at the mean of those that were. An estimated time also has `sampled_calls`, the number of measured calls. That describes coverage, not accuracy. Times nest, so don't add them up. A page call contains everything the page needed, including the reads that have times of their own and the work of the consumer that receives the page, and a block fetch contains the decompression of the block. Byte counters count each fetch or read when it happens, so they describe read activity, not the size of a column, and they aren't disk or network I/O. For the columnar format, the metrics are listed in the Javadoc of `org.elasticsearch.columnar`, which also says which times contain which.
+
+A query runs one operator for each slice of its data, so add the totals of all of them to get the total of the query. Codec times are part of the operator's `process_nanos`, on the same thread. They aren't related to the driver's `read_nanos` and `read_cpu_nanos`, which measure external sources, and as wall-clock times they compare with `driver_nanos`, not with `cpu_nanos`.
+
+Codec read profiling has a cost and can change the timing of what it measures. The memory of the selected fields and segments counts towards the [request circuit breaker](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql) while the query runs, so a very large selection can trip it. The overhead follows the number of calls of the selected fields and how many of those are measured, not the number of fields selected: one busy field can cost more than many idle ones. Times of very short operations, such as dictionary lookups, carry the most overhead. Only the operator that loads field values reports codec reads: filters pushed down to Lucene, aggregations and sorting do not.
+
 ### Query logging
 
 ```{applies_to}

@@ -78,6 +78,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
@@ -1203,7 +1204,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public static ProfileResult fetchProfile(boolean profiled) {
-        return profiled ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), FETCH_PROFILE_TIME, List.of()) : null;
+        return profiled
+            ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), FETCH_PROFILE_TIME, List.of(), Map.of(), Map.of(), Map.of())
+            : null;
     }
 
     public void testFetchTimeoutWithPartialResults() throws IOException {
@@ -1796,7 +1799,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
             @Override
             public Profilers getProfilers() {
-                return profileEnabled ? new Profilers(contextIndexSearcher) : null;
+                return profileEnabled ? new Profilers(contextIndexSearcher, ProfileSelection.NONE) : null;
             }
         };
         searchContext.addReleasable(searchContext.fetchResult()::decRef);

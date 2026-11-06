@@ -17,9 +17,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
+import java.util.function.LongConsumer;
 
 /**
  * Weight wrapper that will compute how much time it takes to build the
@@ -30,19 +34,42 @@ public final class ProfileWeight extends Weight {
 
     private final Weight subQueryWeight;
     private final QueryProfileBreakdown profile;
+    /** Null when codec reads are not profiled for this shard. Then no scope is bound. */
+    @Nullable
+    private final CodecReadProfiling codecReads;
 
-    public ProfileWeight(Query query, Weight subQueryWeight, QueryProfileBreakdown profile) {
+    /**
+     * @param selection the codec read selection, or null when codec reads are not profiled for this shard
+     * @param charge    called with the bytes of the details before they are allocated; see
+     *                  {@link org.elasticsearch.search.profile.CodecReadAttribution}
+     */
+    public ProfileWeight(
+        Query query,
+        Weight subQueryWeight,
+        QueryProfileBreakdown profile,
+        @Nullable ProfileSelection selection,
+        LongConsumer charge
+    ) {
         super(query);
         this.subQueryWeight = subQueryWeight;
         this.profile = profile;
+        if (selection == null) {
+            this.codecReads = null;
+        } else {
+            this.codecReads = new CodecReadProfiling(selection, charge);
+            profile.addCodecReads(codecReads);
+        }
     }
 
     @Override
     public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
         final Timer timer = profile.getNewTimer(QueryTimingType.BUILD_SCORER);
+        // NOTE: A query can open its readers in scorerSupplier or in get. Both calls bind the same scope, so the readers
+        // report to this node. A nested node binds its own scope inside this one, and the innermost binding wins.
+        final CodecReadProfiling.Leaf codecScope = codecReads == null ? null : codecReads.leaf(context == null ? null : context.reader());
         timer.start();
         final ScorerSupplier subQueryScorerSupplier;
-        try {
+        try (Releasable ignored = codecScope == null ? null : codecScope.bind()) {
             subQueryScorerSupplier = subQueryWeight.scorerSupplier(context);
         } finally {
             timer.stop();
@@ -57,7 +84,7 @@ public final class ProfileWeight extends Weight {
             @Override
             public Scorer get(long loadCost) throws IOException {
                 timer.start();
-                try {
+                try (Releasable ignored = codecScope == null ? null : codecScope.bind()) {
                     return new ProfileScorer(subQueryScorerSupplier.get(loadCost), profile);
                 } finally {
                     timer.stop();
@@ -102,7 +129,7 @@ public final class ProfileWeight extends Weight {
     public int count(LeafReaderContext context) throws IOException {
         Timer timer = profile.getNewTimer(QueryTimingType.COUNT_WEIGHT);
         timer.start();
-        try {
+        try (Releasable ignored = codecReads == null ? null : codecReads.leaf(context == null ? null : context.reader()).bind()) {
             return subQueryWeight.count(context);
         } finally {
             timer.stop();

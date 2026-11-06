@@ -44,6 +44,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -137,6 +138,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
     public static final TransportVersion SEARCH_SOURCE_EMBEDDINGS_FIELDS = TransportVersion.fromName("search_source_embeddings_fields");
+    private static final TransportVersion CODEC_READ_PROFILING = TransportVersion.fromName("codec_read_profiling");
 
     /**
      * A static factory method to construct a new search source.
@@ -209,6 +211,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<SearchExtBuilder> extBuilders = Collections.emptyList();
 
     private boolean profile = false;
+
+    private ProfileSelection profileSelection = ProfileSelection.NONE;
 
     private CollapseBuilder collapse = null;
 
@@ -286,6 +290,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 in.readOrderedMap(StreamInput::readString, i -> i.readOptionalEnum(VectorType.class))
             );
         }
+        if (in.getTransportVersion().supports(CODEC_READ_PROFILING)) {
+            profileSelection = ProfileSelection.readFrom(in);
+        }
     }
 
     @Override
@@ -362,6 +369,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeBoolean(skipInnerHits);
         if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
             out.writeMap(fetchEmbeddingsFields, StreamOutput::writeOptionalEnum);
+        }
+        // NOTE: An older node does not get the selection. Only the codec read breakdown is lost, not the rest of the profile.
+        if (out.getTransportVersion().supports(CODEC_READ_PROFILING)) {
+            profileSelection.writeTo(out);
         }
     }
 
@@ -843,6 +854,20 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Sets the codec read selection of the profile. It has an effect only when the request is profiled. The codec
+     * totals do not depend on it. Defaults to {@link ProfileSelection#NONE}.
+     */
+    public SearchSourceBuilder profileSelection(ProfileSelection profileSelection) {
+        this.profileSelection = Objects.requireNonNull(profileSelection, "profileSelection");
+        return this;
+    }
+
+    /** The codec read selection of the profile. */
+    public ProfileSelection profileSelection() {
+        return profileSelection;
+    }
+
+    /**
      * Gets the bytes representing the rescore builders for this request.
      */
     @SuppressWarnings("rawtypes")
@@ -1309,6 +1334,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.knnSearch = knnSearch;
         rewrittenBuilder.rankBuilder = rankBuilder;
         rewrittenBuilder.profile = profile;
+        rewrittenBuilder.profileSelection = profileSelection;
         rewrittenBuilder.subSearchSourceBuilders = subSearchSourceBuilders;
         rewrittenBuilder.rescoreBuilders = rescoreBuilders;
         rewrittenBuilder.scriptFields = scriptFields;
@@ -1615,13 +1641,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         if (runtimeMappings.size() > 0) {
                             searchUsage.trackSectionUsage(RUNTIME_MAPPINGS_FIELD.getPreferredName());
                         }
-                    } else {
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                            parser.getTokenLocation()
-                        );
-                    }
+                    } else if (ProfileSelection.CODEC_READ_PROFILING_FEATURE_FLAG.isEnabled()
+                        && PROFILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            profile = true;
+                            profileSelection = ProfileSelection.parseProfileObject(parser);
+                        } else {
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                parser.getTokenLocation()
+                            );
+                        }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     storedFieldsContext = StoredFieldsContext.fromXContent(STORED_FIELDS_FIELD.getPreferredName(), parser);
@@ -1827,7 +1857,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (profile) {
-            builder.field("profile", true);
+            if (profileSelection.isNone()) {
+                builder.field(PROFILE_FIELD.getPreferredName(), true);
+            } else {
+                builder.field(PROFILE_FIELD.getPreferredName());
+                profileSelection.toXContent(builder);
+            }
         }
 
         if (fetchSourceContext != null) {
@@ -2210,6 +2245,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             version,
             seqNoAndPrimaryTerm,
             profile,
+            profileSelection,
             extBuilders,
             collapse,
             trackTotalHitsUpTo,
@@ -2257,6 +2293,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(version, other.version)
             && Objects.equals(seqNoAndPrimaryTerm, other.seqNoAndPrimaryTerm)
             && Objects.equals(profile, other.profile)
+            && Objects.equals(profileSelection, other.profileSelection)
             && Objects.equals(extBuilders, other.extBuilders)
             && Objects.equals(collapse, other.collapse)
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)

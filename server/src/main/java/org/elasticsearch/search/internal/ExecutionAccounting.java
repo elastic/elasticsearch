@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -29,6 +30,8 @@ final class ExecutionAccounting implements Releasable {
     @Nullable
     private volatile CircuitBreaker breaker;
     private final AtomicReference<LeafExecutionAccounting> leaves = new AtomicReference<>();
+    /** The bytes charged for the life of the searcher. They are released when this closes. */
+    private final AtomicLong searcherBytes = new AtomicLong();
 
     ExecutionAccounting(int leafCount) {
         this.leafCount = leafCount;
@@ -55,6 +58,24 @@ final class ExecutionAccounting implements Releasable {
         if (accounting != null) {
             accounting.charge(ctx, bytes, label);
         }
+    }
+
+    /**
+     * Charges {@code bytes} until this closes, independent of the leaf. When the breaker trips, nothing is recorded. Does
+     * nothing without a breaker.
+     */
+    void chargeSearcher(long bytes, String label) {
+        final CircuitBreaker current = breaker;
+        if (current == null) {
+            return;
+        }
+        current.addEstimateBytesAndMaybeBreak(bytes, label);
+        searcherBytes.addAndGet(bytes);
+    }
+
+    /** Test-only */
+    long searcherBytes() {
+        return searcherBytes.get();
     }
 
     Releasable enterLeaf(LeafReaderContext ctx) {
@@ -86,6 +107,11 @@ final class ExecutionAccounting implements Releasable {
         LeafExecutionAccounting accounting = leaves.getAndSet(null);
         if (accounting != null) {
             accounting.close();
+        }
+        final long charged = searcherBytes.getAndSet(0);
+        final CircuitBreaker current = breaker;
+        if (charged > 0 && current != null) {
+            current.addWithoutBreaking(-charged);
         }
     }
 }

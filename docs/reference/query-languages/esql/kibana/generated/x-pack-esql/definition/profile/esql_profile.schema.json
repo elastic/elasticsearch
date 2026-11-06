@@ -1528,6 +1528,52 @@
         },
         "rows_emitted" : {
           "type" : "integer"
+        },
+        "totals" : {
+          "type" : "object",
+          "additionalProperties" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "object",
+              "additionalProperties" : {
+                "anyOf" : [
+                  {
+                    "type" : "integer"
+                  },
+                  {
+                    "type" : "object",
+                    "additionalProperties" : {
+                      "anyOf" : [
+                        {
+                          "type" : "integer"
+                        },
+                        {
+                          "type" : "string"
+                        },
+                        {
+                          "type" : "boolean"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "segments" : {
+          "type" : "object",
+          "additionalProperties" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          }
+        },
+        "fields" : {
+          "type" : "object",
+          "additionalProperties" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          }
         }
       },
       "required" : [

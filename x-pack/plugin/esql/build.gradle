@@ -125,6 +125,7 @@ dependencies {
       transitive = false
   }
   internalClusterTestImplementation project(":modules:user-agent")
+  internalClusterTestImplementation(testFixtures(project(':libs:codec-profiler')))
   internalClusterTestImplementation project(":modules:ip-location")
   internalClusterTestImplementation(testArtifact(project(":modules:ip-location")))
   internalClusterTestImplementation(testArtifact(project(":modules:ip-location"), "internalClusterTest"))

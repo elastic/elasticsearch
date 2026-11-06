@@ -65,6 +65,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -850,7 +851,7 @@ public class KnnSearcher {
                 BENCHMARK_POST_FILTERING_THRESHOLD
             );
         }
-        QueryProfiler profiler = new QueryProfiler();
+        QueryProfiler profiler = new QueryProfiler(ProfileSelection.NONE);
         TopDocs docs = searcher.search(knnQuery, searchParameters.topK());
         assert knnQuery instanceof QueryProfilerProvider : "this knnQuery doesn't support profiling";
         QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;
@@ -933,7 +934,7 @@ public class KnnSearcher {
         if (searchParameters.overSamplingFactor() > 1f && testConfiguration.autoCalibrate() == false) {
             knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, resultK, overSampledTopK, knnQuery);
         }
-        QueryProfiler profiler = new QueryProfiler();
+        QueryProfiler profiler = new QueryProfiler(ProfileSelection.NONE);
         TopDocs docs = searcher.search(knnQuery, searchParameters.topK());
         assert knnQuery instanceof QueryProfilerProvider : "this knnQuery doesn't support profiling";
         QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;

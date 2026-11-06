@@ -35,6 +35,8 @@ jacoco {
 }
 
 dependencies {
+  testImplementation(testFixtures(project(':libs:codec-profiler')))
+  internalClusterTestImplementation(testFixtures(project(':libs:codec-profiler')))
 
   api project(':libs:core')
   api project(':libs:logging')

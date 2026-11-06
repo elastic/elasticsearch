@@ -13,9 +13,11 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.codec.profiler.MetricRecorder;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -173,19 +175,20 @@ public final class LongBlocks {
         private final Metadata meta;
         private final IndexInput data;
         private final BlockBytesCodec blockBytesCodec;
-        private final NumericBlockEncoder encoder;
+        private final NumericBlockDecoder decoder;
         private final org.apache.lucene.util.LongValues blockOffsets;
         private final long[] blockBuffer;
 
         private long cachedBlock = -1;
 
-        public Reader(Metadata meta, IndexInput data, IndexInput navigation) throws IOException {
+        public Reader(Metadata meta, IndexInput data, IndexInput navigation, @Nullable MetricRecorder metrics) throws IOException {
             this.meta = meta;
             this.data = data.clone();
-            this.blockBytesCodec = BlockBytesCodec.forId(meta.blockBytesCodecId());
-            this.encoder = new NumericBlockEncoder(
+            this.blockBytesCodec = BlockBytesCodec.forReading(meta.blockBytesCodecId(), metrics);
+            this.decoder = NumericBlockDecoder.forReading(
                 NumericPipeline.Registry.rebuild(meta.terminalId(), meta.transformIds(), meta.blockSize()),
-                meta.blockSize()
+                meta.blockSize(),
+                metrics
             );
             this.blockBuffer = new long[meta.blockSize()];
             this.blockOffsets = MonotonicReader.open(
@@ -216,7 +219,7 @@ public final class LongBlocks {
             final DataInput blockData = blockBytesCodec.read(data, (int) (end - start));
             // Full blocks hold blockSize values; the last block holds the remainder.
             final int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - blockIndex * meta.blockSize());
-            encoder.decode(blockData, valueCount, blockBuffer);
+            decoder.decode(blockData, valueCount, blockBuffer);
             cachedBlock = blockIndex;
             return blockBuffer;
         }

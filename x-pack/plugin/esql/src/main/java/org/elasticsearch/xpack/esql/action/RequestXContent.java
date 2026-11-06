@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -123,10 +124,32 @@ final class RequestXContent {
         );
         parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
-        parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
+        if (ProfileSelection.CODEC_READ_PROFILING_FEATURE_FLAG.isEnabled()) {
+            parser.declareField(
+                (p, request, c) -> parseProfile(p, request),
+                PROFILE_FIELD,
+                ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING
+            );
+        } else {
+            parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
+        }
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
         declareRegistryAliases(parser);
         parser.declareField((p, request, c) -> parseSettingsObject(p, request), SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
+    }
+
+    /**
+     * Reads {@code profile} as a boolean, or as an object that turns profiling on and selects the codec read breakdown.
+     * See {@link ProfileSelection} for the object form.
+     */
+    private static void parseProfile(XContentParser parser, EsqlQueryRequest request) throws IOException {
+        // NOTE: A string is read as a boolean, as the boolean form always accepted. ProfileSelection.parseProfileObject rejects an array.
+        if (parser.currentToken().isValue()) {
+            request.profile(parser.booleanValue());
+        } else {
+            request.profile(true);
+            request.profileSelection(ProfileSelection.parseProfileObject(parser));
+        }
     }
 
     /** Declares one parser per registered body alias. Nested-path aliases throw at parser-build time. */

@@ -657,14 +657,16 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 new ValuesSourceReaderOperator.ShardContext(
                     shardContext.searcher().getIndexReader(),
                     shardContext::newSourceLoader,
-                    EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY)
+                    EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY),
+                    shardContext.shardIdentifier()
                 )
             ),
             true,
             0,
             PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
             PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
-            directoryBytesRead
+            directoryBytesRead,
+            null
         );
     }
 

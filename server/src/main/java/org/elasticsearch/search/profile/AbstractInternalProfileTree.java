@@ -151,13 +151,17 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // calculating the same times over and over...but worth the effort?
         String type = getTypeFromElement(element);
         String description = getDescriptionFromElement(element);
+        final CodecReads codecReads = breakdown.toCodecReads();
         return new ProfileResult(
             type,
             description,
             breakdown.toBreakdownMap(),
             breakdown.toDebugMap(),
             breakdown.toNodeTime(),
-            childrenProfileResults
+            childrenProfileResults,
+            codecReads.renderTotals(),
+            codecReads.renderSegments(),
+            codecReads.renderFields()
         );
     }
 

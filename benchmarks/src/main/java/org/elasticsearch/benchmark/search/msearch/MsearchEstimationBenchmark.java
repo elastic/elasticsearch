@@ -225,7 +225,10 @@ public class MsearchEstimationBenchmark {
                 Map.of("score", 12345L, "next_doc", 6789L, "compute_max_score", 2000L),
                 Map.of(),
                 21134L,
-                List.of()
+                List.of(),
+                Map.of(),
+                Map.of(),
+                Map.of()
             );
             CollectorResult collector = new CollectorResult("SimpleTopScoreDocCollector", "search top docs", 5000L, List.of());
             QueryProfileShardResult queryShardResult = new QueryProfileShardResult(List.of(queryResult), 1000L, collector, null);
@@ -239,7 +242,10 @@ public class MsearchEstimationBenchmark {
                 Map.of("next_reader", 100L, "load_source", 2000L, "load_stored_fields", 500L),
                 Map.of(),
                 2600L,
-                List.of()
+                List.of(),
+                Map.of(),
+                Map.of(),
+                Map.of()
             );
             SearchProfileShardResult shardResult = new SearchProfileShardResult(queryPhase, fetchPhaseResult);
             Map<String, SearchProfileShardResult> shards = new HashMap<>();

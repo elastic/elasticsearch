@@ -91,6 +91,16 @@ public final class RescoreProfiler {
 
     public ProfileResult buildResult() {
         Map<String, Long> breakdownMap = breakdown == null ? Map.of() : breakdown.toBreakdownMap();
-        return new ProfileResult(type, description, breakdownMap, toDebugMap(), timer.getApproximateTiming(), List.of());
+        return new ProfileResult(
+            type,
+            description,
+            breakdownMap,
+            toDebugMap(),
+            timer.getApproximateTiming(),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
     }
 }

@@ -196,11 +196,12 @@ public class OperatorTests extends MapperServiceTestCase {
                 ),
                 new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
-                }, 0.8)),
+                }, 0.8, "test:0")),
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
-                () -> 0L
+                () -> 0L,
+                null
             );
             List<Page> pages = new ArrayList<>();
             DriverContext driverContext = driverContext();

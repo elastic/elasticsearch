@@ -580,7 +580,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             }
             SearchHit[] hits = searchHits.toArray(SearchHits.EMPTY);
             ProfileResult profileResult = profile && searchHits.size() > 0
-                ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), randomNonNegativeLong(), List.of())
+                ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), randomNonNegativeLong(), List.of(), Map.of(), Map.of(), Map.of())
                 : null;
             fetchSearchResult.shardResult(new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore), profileResult);
             fetchResults.set(shardIndex, fetchSearchResult);

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.truncate.TruncateIndexAction;
 import org.elasticsearch.action.admin.indices.truncate.TruncateIndexRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -63,6 +65,27 @@ public class TruncateIndexStatelessIT extends AbstractStatelessPluginIntegTestCa
         final int docsAfter = between(5, 15);
         indexDocsAndRefresh(indexName, docsAfter);
         assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHits(true), docsAfter);
+    }
+
+    /**
+     * After a truncate, the indexing shard must not find the discarded documents when it looks up ids for versioning.
+     */
+    public void testIdCanBeReusedAfterTruncate() throws Exception {
+        startMasterAndIndexNode();
+        startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final var before = client().prepareIndex(indexName).setId("1").setSource("field", "before").setRefreshPolicy(IMMEDIATE).get();
+        assertThat(before.getVersion(), equalTo(1L));
+
+        assertAllSuccessful(truncate(indexName));
+
+        final var after = client().prepareIndex(indexName).setId("1").setSource("field", "after").setRefreshPolicy(IMMEDIATE).get();
+        assertThat(after.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        assertThat(after.getVersion(), equalTo(1L));
+        assertThat(client().prepareGet(indexName, "1").get().getSource().get("field"), equalTo("after"));
     }
 
     /**

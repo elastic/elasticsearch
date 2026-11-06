@@ -1580,7 +1580,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             result = 31 * result + Arrays.hashCode(grantedFields);
             result = 31 * result + Arrays.hashCode(deniedFields);
             result = 31 * result + (query != null ? query.hashCode() : 0);
-            result = 31 * result + matchName.hashCode();
+            result = 31 * result + matchName.ordinal();
             return result;
         }
 

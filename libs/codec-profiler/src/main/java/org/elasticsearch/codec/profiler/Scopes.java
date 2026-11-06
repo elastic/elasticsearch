@@ -21,7 +21,7 @@ import java.util.Map;
  */
 public final class Scopes {
 
-    private static final ThreadLocal<Scope> BOUND = new ThreadLocal<>();
+    private static final ThreadLocal<Binding> BOUND = new ThreadLocal<>();
 
     private Scopes() {}
 
@@ -31,9 +31,9 @@ public final class Scopes {
      * scope. Close a binding on the thread that bound it, innermost first.
      */
     public static Binding bind(Scope scope) {
-        final Scope previous = BOUND.get();
-        BOUND.set(scope);
-        return new Binding(scope, previous);
+        final Binding binding = new Binding(scope, BOUND.get());
+        BOUND.set(binding);
+        return binding;
     }
 
     /**
@@ -46,8 +46,8 @@ public final class Scopes {
      */
     @Nullable
     public static MetricRecorder current(String codec, String segment, String field, Map<String, Boolean> facts) {
-        final Scope scope = BOUND.get();
-        return scope == null ? null : scope.metrics(codec, segment, field, facts);
+        final Binding binding = BOUND.get();
+        return binding == null ? null : binding.scope.metrics(codec, segment, field, facts);
     }
 
     /** A scope whose readers all report to {@code metrics}. */
@@ -62,14 +62,14 @@ public final class Scopes {
 
     /** A scope bound on a thread. Closing it restores the scope bound before it. A second close does nothing. */
     public static final class Binding implements AutoCloseable {
-        private final Scope bound;
+        private final Scope scope;
         @Nullable
-        private final Scope previous;
+        private final Binding previous;
         private final Thread owner = Thread.currentThread();
         private boolean closed;
 
-        private Binding(Scope bound, @Nullable Scope previous) {
-            this.bound = bound;
+        private Binding(Scope scope, @Nullable Binding previous) {
+            this.scope = scope;
             this.previous = previous;
         }
 
@@ -79,7 +79,7 @@ public final class Scopes {
                 return;
             }
             assert Thread.currentThread() == owner : "a binding is closed on the thread that bound it";
-            assert BOUND.get() == bound : "bindings are closed innermost first";
+            assert BOUND.get() == this : "bindings are closed innermost first";
             closed = true;
             if (previous == null) {
                 BOUND.remove();

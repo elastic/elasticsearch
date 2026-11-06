@@ -319,6 +319,18 @@ public class ProfileCollectorTests extends ESTestCase {
         assertFalse(Scopes.isBound());
     }
 
+    public void testTwoBindingsOfOneScopeAreStillClosedInnermostFirst() {
+        final Scope scope = Scopes.eager(TestCollectors.elapsed());
+        final Binding outer = Scopes.bind(scope);
+        final Binding inner = Scopes.bind(scope);
+        final AssertionError e = expectThrows(AssertionError.class, outer::close);
+        assertThat(e.getMessage(), equalTo("bindings are closed innermost first"));
+        inner.close();
+        assertTrue("the outer binding is still open", Scopes.isBound());
+        outer.close();
+        assertFalse(Scopes.isBound());
+    }
+
     public void testABindingIsClosedOnTheThreadThatBoundIt() throws Exception {
         final Binding binding = Scopes.bind(Scopes.eager(TestCollectors.elapsed()));
         final ExecutorService executor = Executors.newSingleThreadExecutor();

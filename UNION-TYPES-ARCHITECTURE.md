@@ -424,8 +424,19 @@ the blocks don't do. Sparse maps directly; dense is the optimisation. Arrow's un
 is fully typed in the schema rather than opaque bytes, and it is a schema-level commitment, so a
 consumer either handles unions or fails before any data arrives.
 
-**We will add transport versioning**, since both the type and the block cross the wire between
-coordinator and data nodes and between clusters.
+**We will add transport versioning for the type**, since it crosses the wire between coordinator and
+data nodes and between clusters. The type has it already: it is declared under construction against a
+transport version, so it exists only in snapshot builds.
+
+The block needs no version of its own, and that is worth being exact about, because the first
+justification offered for it was wrong. It is not that the type's gate protects the block: a plan is
+not always in front of a page, and `DataType.writeTo` only throws toward a non-snapshot peer, so
+toward a snapshot peer the refusal is reader-side rather than writer-side. What makes the block safe
+is simpler. A block names its element type on the wire as a code, and a node that does not have the
+union code fails decoding that code before it reads any of the block's body. The two compound blocks
+that do carry a version guard, tdigest and exponential histogram, carry it only because they had
+readers in the field before multi-value support was added to them. A genuinely new element type needs
+no guard, which is why the long-range and double-range blocks have none either.
 
 **We will change the dataset path separately, and it needs its own mechanism.** Dataset files never
 produce a conflict today, because `SchemaReconciliation` resolves disagreement before planning, so none

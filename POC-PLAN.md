@@ -55,17 +55,31 @@ the plan and the response, and `ColumnInfoImpl.originalTypes` already ships that
 conflicted column. Two legs may share an element type while differing logically, so a leg is addressed
 by index and never by its element type.
 
+**The block carries no transport version of its own, deliberately.** A block names its element type on
+the wire as a code, and a node without the union code fails decoding that code before reading the
+block's body, so there is nothing a version guard would add. Tdigest and exponential histogram guard
+`writeMultiValueMetadata` only because they had readers in the field before multi-value support
+reached them; the long-range and double-range blocks, both newer, have no guard. The commit message
+for the block justified this by the data type's own under-construction gate, which is wrong: a page
+does not always have a plan in front of it, and `DataType.writeTo` throws only toward a non-snapshot
+peer.
+
 **Declared leg types are serialized, not derived.** A leg can arrive as a `ConstantNullBlock` whose own
 element type is `NULL`, which is what happens when a union is assembled from per-leg blocks and one leg
 matched no row. So `writeTo` writes the declared types and `readFrom` reads them back. Deriving them
 from the leg blocks instead fails exactly one test. A leg built through the builder does keep its own
 element type even when all its positions are null, so only the assembled case needs this.
 
-**The block is single-valued in this increment.** `AbstractDelegatingCompoundBlock` throws
+**Multi-valued union columns are refused late, not prevented.** A multi-valued union can be built,
+serialized and shipped; `AbstractDelegatingCompoundBlock` throws
 `Not yet implemented for multi-valued blocks` from `filter`, `slice`, `keepMask` and `expand` when
-`firstValueIndexes != null`, for tdigest and exponential histogram as much as for a union.
-`UnionBlockTests.testMultivaluedFilterIsRefused` holds that line visible. Multivalue is a change to
-that shared base class, benefiting three block types, and it is its own increment.
+`firstValueIndexes != null`, so such a column fails at the first of those downstream rather than at
+construction. That is loud but late, and it is what tdigest and exponential histogram do too, since
+`beginPositionEntry` is final on the shared builder and none of them refuse it.
+`UnionBlockTests.testMultivaluedFilterIsRefused` holds that line visible. Supporting multivalue
+properly is a change to that shared base class, benefiting three block types, and it is its own
+increment. An earlier version of this line said the block "is single-valued", which overstated what
+anything enforces.
 
 **A union block builder cannot come from `ElementType` alone**, since it needs the leg types, exactly
 as `COMPOSITE` cannot. So `ElementType.UNION`'s builder supplier throws and

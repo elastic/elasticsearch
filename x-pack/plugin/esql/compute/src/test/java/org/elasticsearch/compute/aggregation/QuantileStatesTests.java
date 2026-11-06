@@ -322,6 +322,74 @@ public class QuantileStatesTests extends ComputeTestCase {
     }
 
     /**
+     * PromQL defines {@code quantile} with a φ outside [0, 1] as ∓Inf for every step with observations, rather than
+     * dropping the series. Prometheus 3.13.1 pins the same behavior for {@code quantile_over_time}.
+     */
+    public void testOutOfRangePercentileYieldsInfinityInNonFiniteMode() {
+        var blockFactory = blockFactory();
+        var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (var state = new QuantileStates.SingleState(blockFactory.breaker(), -50.0, DEFAULT_COMPRESSION, true)) {
+            state.add(1.0);
+            try (Block result = state.evaluatePercentile(driverContext)) {
+                assertFalse(result.isNull(0));
+                assertThat(((DoubleBlock) result).getDouble(0), equalTo(Double.NEGATIVE_INFINITY));
+            }
+        }
+        try (var state = new QuantileStates.SingleState(blockFactory.breaker(), 150.0, DEFAULT_COMPRESSION, true)) {
+            state.add(1.0);
+            try (Block result = state.evaluatePercentile(driverContext)) {
+                assertFalse(result.isNull(0));
+                assertThat(((DoubleBlock) result).getDouble(0), equalTo(Double.POSITIVE_INFINITY));
+            }
+        }
+        // A step with no observations holds no value, out-of-range φ or not.
+        try (var state = new QuantileStates.SingleState(blockFactory.breaker(), 150.0, DEFAULT_COMPRESSION, true)) {
+            try (Block result = state.evaluatePercentile(driverContext)) {
+                assertTrue(result.isNull(0));
+            }
+        }
+    }
+
+    /**
+     * Native ES|QL {@code PERCENTILE} keeps its documented behavior: an out-of-range parameter nulls the result.
+     */
+    public void testOutOfRangePercentileStaysNullInStrictMode() {
+        var blockFactory = blockFactory();
+        var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (var state = new QuantileStates.SingleState(blockFactory.breaker(), 150.0, DEFAULT_COMPRESSION)) {
+            state.add(1.0);
+            try (Block result = state.evaluatePercentile(driverContext)) {
+                assertTrue(result.isNull(0));
+            }
+        }
+    }
+
+    /**
+     * The same PromQL rule holds per group: φ outside [0, 1] is ∓Inf for every group with observations, while a
+     * group with none stays null — nulling an observed group would drop that series from the range query.
+     */
+    public void testOutOfRangePercentileYieldsInfinityPerGroupInNonFiniteMode() {
+        var blockFactory = blockFactory();
+        var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (
+            var state = new QuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), -50.0, DEFAULT_COMPRESSION, true);
+            IntVector selected = blockFactory.newIntArrayVector(new int[] { 0, 1, 2 }, 3)
+        ) {
+            state.add(0, 1.0);
+            state.add(2, Double.POSITIVE_INFINITY);
+
+            try (Block result = state.evaluatePercentile(selected, driverContext)) {
+                assertFalse(result.isNull(0));
+                assertThat(((DoubleBlock) result).getDouble(0), equalTo(Double.NEGATIVE_INFINITY));
+                assertTrue("group with no observations must stay null", result.isNull(1));
+                // A non-finite observation counts too, so the group holds a value even with an empty digest.
+                assertFalse(result.isNull(2));
+                assertThat(((DoubleBlock) result).getDouble(2), equalTo(Double.NEGATIVE_INFINITY));
+            }
+        }
+    }
+
+    /**
      * The per-group tallies must travel with their own group. Merging a serialized group into a different group id
      * would otherwise attribute the infinities to the wrong series.
      */

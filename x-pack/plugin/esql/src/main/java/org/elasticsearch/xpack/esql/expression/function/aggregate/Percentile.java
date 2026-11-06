@@ -171,6 +171,17 @@ public class Percentile extends NumericAggregate implements SurrogateExpression,
         this.allowNonFinite = allowNonFinite;
     }
 
+    public Percentile(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression percentile,
+        boolean allowNonFinite
+    ) {
+        this(source, field, filter, window, percentile, QuantileStates.DEFAULT_COMPRESSION, allowNonFinite);
+    }
+
     private Percentile(StreamInput in) throws IOException {
         super(in);
         this.percentile = parameters().getFirst();

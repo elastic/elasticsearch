@@ -479,11 +479,6 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
             case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
-            case TIMESERIES_DATA_TYPE -> new BlockArrowFormatter.TransformedBytesRef(
-                type,
-                MinorType.VARCHAR,
-                ValueConversions::timeSeriesToJson
-            );
             case GEOHASH -> TO_BE_IMPLEMENTED_MARKER;
             case GEOHEX -> TO_BE_IMPLEMENTED_MARKER;
             case GEOTILE -> TO_BE_IMPLEMENTED_MARKER;
@@ -501,6 +496,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case TIME_DURATION -> null;
             case DOC_DATA_TYPE -> null;
             case PARTIAL_AGG -> null;
+            case TIMESERIES_DATA_TYPE -> null;
 
         };
     }

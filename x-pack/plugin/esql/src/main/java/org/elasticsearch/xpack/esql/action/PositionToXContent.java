@@ -31,7 +31,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.core.util.TimeSeriesMetadata;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -88,13 +87,6 @@ public abstract class PositionToXContent {
 
     public static PositionToXContent positionToXContent(ColumnInfoImpl columnInfo, Block block, ZoneId zoneId, BytesRef scratch) {
         return switch (columnInfo.type()) {
-            case TIMESERIES_DATA_TYPE -> new PositionToXContent(block) {
-                @Override
-                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                    throws IOException {
-                    return builder.value(TimeSeriesMetadata.render(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
-                }
-            };
             case LONG, COUNTER_LONG -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
@@ -303,8 +295,8 @@ public abstract class PositionToXContent {
                     return builder.value(TimeSeriesIdFieldMapper.encodeTsid(bytesRef));
                 }
             };
-            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG ->
-                throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
+            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG,
+                TIMESERIES_DATA_TYPE -> throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
         };
     }
 }

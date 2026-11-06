@@ -423,7 +423,10 @@ public enum DataType implements Writeable {
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
-    /** Time-series metadata: a label dictionary manipulated by scalar functions, rendered as its JSON display form. */
+    /**
+     * Time-series metadata: a label dictionary that PromQL manipulates internally. Never reaches a response: PromQL
+     * hands the user its keyword JSON form.
+     */
     TIMESERIES_DATA_TYPE(
         builder().esType("_timeseries").estimatedSize(1024).underConstruction(TransportVersion.fromName("promql_functional_timeseries"))
     ),
@@ -835,7 +838,8 @@ public enum DataType implements Writeable {
         SCALED_FLOAT,
         HALF_FLOAT,
         PARTIAL_AGG,
-        DOC_DATA_TYPE
+        DOC_DATA_TYPE,
+        TIMESERIES_DATA_TYPE
     );
 
     /**

@@ -27,7 +27,6 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -87,7 +86,7 @@ public class RepositoryS3RequestChecksumEnvVarIgnoredRestIT extends ESRestTestCa
                 if (request.isPutObjectRequest() && isCopy == false) {
                     putObjectCount.incrementAndGet();
                     final var headerNames = exchange.getRequestHeaders().keySet();
-                    if (headerNames.stream().noneMatch(RepositoryS3RequestChecksumEnvVarIgnoredRestIT::isChecksumRequestHeader)) {
+                    if (headerNames.stream().noneMatch(AbstractRepositoryS3RestTestCase::isChecksumRequestHeader)) {
                         uploadsWithoutChecksum.add("PutObject with headers " + headerNames);
                     }
                 }
@@ -95,11 +94,6 @@ public class RepositoryS3RequestChecksumEnvVarIgnoredRestIT extends ESRestTestCa
             };
         }
     };
-
-    private static boolean isChecksumRequestHeader(String headerName) {
-        final var lowerCaseName = headerName.toLowerCase(Locale.ROOT);
-        return lowerCaseName.startsWith("x-amz-checksum-") || lowerCaseName.equals("x-amz-trailer");
-    }
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")

@@ -35,7 +35,6 @@ import org.junit.rules.TestRule;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -91,14 +90,9 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         TEST_CONFIGS = List.copyOf(testConfigs);
     }
 
-    /** The request headers that declare a checksum or a checksum trailer, in a stable order so a failure message is readable. */
+    /// The request headers that declare a checksum, in a stable order so a failure message is readable.
     private static List<String> checksumRequestHeaderNames(Set<String> requestHeaderNames) {
-        return requestHeaderNames.stream().filter(headerName -> {
-            final var lowerCaseName = headerName.toLowerCase(Locale.ROOT);
-            return lowerCaseName.startsWith("x-amz-checksum-")
-                || lowerCaseName.equals("x-amz-trailer")
-                || lowerCaseName.equals("x-amz-sdk-checksum-algorithm");
-        }).sorted().toList();
+        return requestHeaderNames.stream().filter(AbstractRepositoryS3RestTestCase::isChecksumRequestHeader).sorted().toList();
     }
 
     private static void assertNoChecksumRequestHeaders(Set<String> requestHeaderNames) {
@@ -158,8 +152,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 }
                 if (request.isMultiObjectDeleteRequest()) {
                     // The SDK treats the checksum on DeleteObjects as required, so omitting the optional ones must not remove it
-                    assertThat(exchange.getRequestHeaders().getFirst("x-amz-checksum-crc32"), notNullValue());
-                    assertThat(exchange.getRequestHeaders().getFirst("x-amz-sdk-checksum-algorithm"), equalTo("CRC32"));
+                    assertSomeChecksumRequestHeader(exchange.getRequestHeaders().keySet());
                 }
                 if (testConfig.alwaysSignRequests) {
                     assertThat(

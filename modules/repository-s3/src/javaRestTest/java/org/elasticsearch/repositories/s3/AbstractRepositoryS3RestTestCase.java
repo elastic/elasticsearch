@@ -24,6 +24,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -113,6 +114,14 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
 
     protected static String getIdentifierPrefix(String testSuiteName) {
         return testSuiteName + "-" + Integer.toString(Murmur3HashFunction.hash(testSuiteName + System.getProperty("tests.seed")), 16) + "-";
+    }
+
+    /// Whether a request header declares a checksum, a checksum trailer or the algorithm for one.
+    static boolean isChecksumRequestHeader(String headerName) {
+        final var lowerCaseName = headerName.toLowerCase(Locale.ROOT);
+        return lowerCaseName.startsWith("x-amz-checksum-")
+            || lowerCaseName.equals("x-amz-trailer")
+            || lowerCaseName.equals("x-amz-sdk-checksum-algorithm");
     }
 
     private TestRepository newTestRepository() {

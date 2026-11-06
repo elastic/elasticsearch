@@ -210,7 +210,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         [%s] setting was deprecated in Elasticsearch and will be removed in a future release. \
         See the breaking changes documentation for the next major version.""";
 
-    public void testUnsafelyOmitOptionalRequestBodyChecksumsIsOffByDefaultAndWarnsNothing() {
+    public void testUnsafelyOmitOptionalRequestBodyChecksumsIsOffByDefaultAndDoesNotWarn() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.EMPTY);
         assertFalse(settings.get("default").unsafelyOmitOptionalRequestBodyChecksums);
         // a client that exists but never mentions the setting must not warn either
@@ -305,7 +305,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         );
     }
 
-    /** The setting is deprecated at critical level from the start, so it must also be flagged as a breaking change. */
+    /** The setting is deprecated at critical level and not as a plain warning from the start, so the upgrade assistant reports it. */
     public void testUnsafelyOmitOptionalRequestBodyChecksumsIsADeprecatedCriticalSetting() {
         final Setting<Boolean> setting = S3ClientSettings.UNSAFELY_OMIT_OPTIONAL_REQUEST_BODY_CHECKSUMS.getConcreteSettingForNamespace(
             "other"

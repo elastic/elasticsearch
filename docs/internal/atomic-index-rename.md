@@ -425,8 +425,8 @@ snapshots hold their own copy of the data until they are deleted.
 ### T6. Security authorizes both names and holds a rename to the rule for aliases
 
 A `rename_index` action reports both the current and the new name through
-`indices()`, so the caller needs `manage` on both, as `indices:admin/aliases`
-requires. That is not enough on its own, and it is not the same bar as creating
+`indices()`, so the caller needs the aliases privilege (`indices:admin/aliases`,
+which `manage` and `all` include) on both. That is not enough on its own, and it is not the same bar as creating
 the destination and deleting the source: those two do not carry the data across,
 and a rename does. A user with `manage` on `secret-*` and `read` and `manage` on
 `public-*` could move `secret-1` to `public-secret-1` and read it there, or move
@@ -441,6 +441,19 @@ the user may be authorized for it. A custom authorization engine is given the
 source and the new name, as it is for an alias. A user with `manage` on both names
 and nothing else on either, the case that remains, can still rename.
 `RenameIndexSecurityTests` covers the model, including the refusals.
+
+Decided: a rename is not additionally required to hold `indices:admin/create` on
+the new name or `indices:admin/delete` on the source. It stays authorized by the
+aliases action, the subset rule and the document and field level security refusal
+above. The named index privileges make this a small difference: `manage` is
+`indices:admin/*` and so already includes create and delete, and `all` includes
+everything, so only a role with a raw `indices:admin/aliases` grant can rename
+without holding the other two. It is also what an aliases request does today for
+`remove_index`, which deletes an index and is authorized by the aliases action
+alone, so requiring delete for a rename only would have been inconsistent. A
+dedicated rename action or privilege was left out as a larger API change. Whether
+ILM, which runs steps under the identity of the user who last wrote the policy,
+needs more once it adopts rename is a question for that change.
 
 For a data stream backing index, `manage` on the data stream covers the
 source name, as any backing index privilege does; the destination name does

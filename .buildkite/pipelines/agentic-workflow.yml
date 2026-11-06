@@ -87,13 +87,14 @@ steps:
     command: archimedes ci
 
   # lucene-merge-conflicts compiles in-process (unlike analysis, which fans out
-  # reproduction). Longer timeout than the 90-minute resolve step. Agent image /
-  # machine / disk come from ARCHIMEDES_AGENT_*; update-branch.yml sets
-  # ARCHIMEDES_AGENT_MACHINE_TYPE to n4-standard-16.
+  # reproduction). Worst case is resolve 20 + compile 50 + compile-fix 50 plus
+  # prepare/finish/checkout; 150 covers that. Agent image / machine / disk come
+  # from ARCHIMEDES_AGENT_*; update-branch.yml sets ARCHIMEDES_AGENT_MACHINE_TYPE
+  # to n4-standard-16.
   - label: ":robot_face: Archimedes — lucene-merge-conflicts"
     key: archimedes-lucene-merge
     if: build.env("WORKFLOW") == "lucene-merge-conflicts"
-    timeout_in_minutes: 120
+    timeout_in_minutes: 150
     env:
       USE_ARCHIMEDES: "true"
       ARCHIMEDES_SESSION_DIR: "/tmp/archimedes-sessions"

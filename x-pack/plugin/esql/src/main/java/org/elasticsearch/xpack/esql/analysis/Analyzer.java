@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -1675,7 +1676,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (i < aggsIndexLimit) { // Skip resolving references to groupings in the aggs if no groupings are resolved yet.
                         maybeResolvedAgg = (NamedExpression) maybeResolvedAgg.transformUp(UnresolvedAttribute.class, ua -> {
                             Expression ne = ua;
-                            Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                            // The implicit @timestamp of an aggregation is the @timestamp of the rows it aggregates. A grouping
+                            // named @timestamp must not shadow it, unlike an explicit reference to @timestamp.
+                            Attribute maybeResolved = ua instanceof UnresolvedTimestamp
+                                ? maybeResolveAttribute(ua, childrenOutput)
+                                : maybeResolveAttribute(ua, resolvedList);
                             // An item in aggregations can reference to groupings explicitly, if groupings are not resolved yet and
                             // maybeResolved is not resolved, return the original UnresolvedAttribute, so that it has another chance
                             // to get resolved in the next iteration.
@@ -2244,14 +2249,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     || (subPlanColumns.equals(mergeColumns) == false
                         && subqueryReferencingIndexWithEmptyMapping(mergePlan, logicalPlan, mergeColumns) == false)) {
                     changed = true;
-                    List<Attribute> newOutput = new ArrayList<>();
-                    for (String attrName : mergeColumns) {
-                        for (Attribute subAttr : logicalPlan.output()) {
-                            if (attrName.equals(subAttr.name())) {
-                                newOutput.add(subAttr);
-                            }
-                        }
-                    }
+                    List<Attribute> newOutput = alignToMergeColumns(mergeColumns, logicalPlan.output());
                     if (mergeColumns.isEmpty()) {
                         // When mergeColumns is empty (all branches only have no-fields), resolveKeep with empty
                         // projections would resolve to all child output including no-fields. Create a Project with
@@ -2292,6 +2290,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     )
                     : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
             );
+        }
+
+        /**
+         * Picks the attributes of a merge branch's output in {@code mergeColumns} order. The branch output is indexed by name once
+         * so the cost is linear in the schema width: a merge over thousands of columns would otherwise rescan the branch output for
+         * every merge column, saturating the analysis thread pool (#163560). A plan's output never repeats a name, so each merge
+         * column matches at most one branch attribute.
+         */
+        static List<Attribute> alignToMergeColumns(List<String> mergeColumns, List<Attribute> branchOutput) {
+            Map<String, Attribute> branchAttributesByName = HashMap.newHashMap(branchOutput.size());
+            for (Attribute attr : branchOutput) {
+                Attribute previous = branchAttributesByName.put(attr.name(), attr);
+                assert previous == null : "duplicate attribute name [" + attr.name() + "] in merge branch output " + branchOutput;
+            }
+            List<Attribute> aligned = new ArrayList<>(mergeColumns.size());
+            for (String name : mergeColumns) {
+                Attribute match = branchAttributesByName.get(name);
+                if (match != null) {
+                    aligned.add(match);
+                }
+            }
+            return aligned;
         }
 
         /*

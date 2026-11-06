@@ -26,6 +26,7 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
@@ -106,8 +107,8 @@ public class ExchangeIdIT extends AbstractEsqlIntegTestCase {
          * driver. Descriptions cannot: a FORK has a {@code data} plan for each branch.
          */
         private final Map<String, Map<String, Object>> exchangeByNodeId = new HashMap<>();
-        /** The id of every node of every plan, exchange or not. */
-        private final Set<String> nodeIds = new HashSet<>();
+        /** The type of every node of every plan, exchange or not, by node id. */
+        private final Map<String, String> nodeTypes = new HashMap<>();
 
         void addPlan(PlanProfile plan) {
             collect(XContentHelper.convertToMap(JsonXContent.jsonXContent, plan.planJson(), false), exchangeByNodeId);
@@ -116,16 +117,14 @@ public class ExchangeIdIT extends AbstractEsqlIntegTestCase {
         void checkOperators(DriverProfile driver) {
             for (OperatorStatus operator : driver.operators()) {
                 if (operator.planNodeId() != null) {
-                    assertTrue(
-                        "["
-                            + operator.operator()
-                            + "] of ["
-                            + driver.description()
-                            + "] reports plan node "
-                            + operator.planNodeId()
-                            + ", which no plan JSON has",
-                        nodeIds.contains(operator.planNodeId())
-                    );
+                    String nodeType = nodeTypes.get(operator.planNodeId());
+                    String where = "[" + operator.operator() + "] of [" + driver.description() + "]";
+                    assertNotNull(where + " reports plan node " + operator.planNodeId() + ", which no plan JSON has", nodeType);
+                    // An aggregation under an exchange sink is planned by the sink, so it can end up reporting the sink's id
+                    if (operator.operator().startsWith("HashAggregationOperator")
+                        || operator.operator().startsWith("AggregationOperator")) {
+                        assertThat(where + " is built from a [" + nodeType + "]", nodeType, endsWith("AggregateExec"));
+                    }
                 }
                 boolean exchangeOperator = operator.operator().startsWith("ExchangeSinkOperator")
                     || operator.operator().startsWith("ExchangeSourceOperator");
@@ -146,7 +145,7 @@ public class ExchangeIdIT extends AbstractEsqlIntegTestCase {
         }
 
         private void collect(Map<String, Object> node, Map<String, Map<String, Object>> exchangeByNodeId) {
-            nodeIds.add((String) node.get("id"));
+            nodeTypes.put((String) node.get("id"), (String) node.get("type"));
             String type = (String) node.get("type");
             boolean sink = "ExchangeSinkExec".equals(type);
             boolean source = "ExchangeSourceExec".equals(type);

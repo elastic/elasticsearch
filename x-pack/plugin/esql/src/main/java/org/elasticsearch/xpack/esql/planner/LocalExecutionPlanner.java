@@ -1006,7 +1006,9 @@ public class LocalExecutionPlanner {
         PhysicalOperation source;
         if (child instanceof AggregateExec aggregate) {
             // allow partitioned output if both partial and final on the same node
-            source = planAggregation(aggregate, context, context.singleNodeOptimizations());
+            // This does not go through plan(), which tags the operators of a node with its id. Left untagged they would take the id of the
+            // sink, and PROFILE would report the aggregation as an operator of the exchange sink.
+            source = planAggregation(aggregate, context, context.singleNodeOptimizations()).tagPlanNode(aggregate.planId().toString());
         } else {
             source = plan(child, context);
         }
@@ -3057,7 +3059,7 @@ public class LocalExecutionPlanner {
             builder.startArray("operators");
             operatorToXContent(builder, "source", sourceOperatorFactory, sourcePlanNodeId, exchangeIdsByPlanNode);
             for (int i = 0; i < intermediateOperatorFactories.size(); i++) {
-                // Other operators can carry the id of an exchange node, because its planning builds them, but they are not part of it
+                // Only the source and the sink are part of an exchange
                 operatorToXContent(builder, "operator", intermediateOperatorFactories.get(i), intermediatePlanNodeIds.get(i), Map.of());
             }
             operatorToXContent(builder, "sink", sinkOperatorFactory, sinkPlanNodeId, exchangeIdsByPlanNode);
@@ -3259,8 +3261,8 @@ public class LocalExecutionPlanner {
         }
 
         /**
-         * The exchange of the driver's source and sink operators, when their plan node is one side of an exchange. Other operators
-         * can carry the id of an exchange node too, because the node's planning builds them, but they are not part of the exchange.
+         * The exchange of the driver's source and sink operators, when their plan node is one side of an exchange. Only those two are
+         * part of the exchange, so no other operator is given the id, whichever plan node it reports.
          */
         private Map<Operator, String> exchangeIdsOf(Map<Operator, String> planNodeIds, SourceOperator source, SinkOperator sink) {
             Map<Operator, String> exchangeIds = new IdentityHashMap<>();

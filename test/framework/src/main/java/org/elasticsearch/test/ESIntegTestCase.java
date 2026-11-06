@@ -46,6 +46,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
@@ -92,11 +93,14 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -833,21 +837,105 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Creates one or more indices and asserts that the indices are acknowledged.
      */
     public final void createIndex(String... names) {
-        assertAcked(Arrays.stream(names).map(this::prepareCreate).toArray(CreateIndexRequestBuilder[]::new));
+        createIndex(true, names);
+    }
+
+    /**
+     * Creates one or more indices and asserts that the indices are acknowledged.
+     */
+    public final void createIndex(boolean rename, String... names) {
+        for (var name : names) {
+            createIndex(name, null, rename);
+        }
     }
 
     /**
      * creates an index with the given setting
      */
     public final void createIndex(String name, Settings indexSettings) {
-        assertAcked(prepareCreate(name).setSettings(indexSettings));
+        createIndex(name, indexSettings, true);
+    }
+
+    /**
+     * creates an index with the given setting
+     */
+    /**
+     * Whether {@link #createIndex} creates each index under a temporary name and renames it to the requested one, so that the
+     * test exercises an index rename. Tests that observe engine or commit level events filtered by index name, or that watch an
+     * index by its final name from the moment it is created, override this to return {@code false}: those observers see the
+     * creation-time name (see docs/internal/atomic-index-rename.md, T4).
+     */
+    protected boolean renameIndexOnCreate() {
+        return true;
+    }
+
+    public final void createIndex(String name, Settings indexSettings, boolean rename) {
+        // We don't rename the index if the name matches an index template or if the name starts with special characters.
+        final var clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final String template = MetadataIndexTemplateService.findV2Template(clusterState.metadata().getProject(), name, true);
+        if (rename == false
+            || renameIndexOnCreate() == false
+            || template != null
+            || name.startsWith(".")
+            || name.startsWith("<")
+            || blocksMetadataWrites(indexSettings)) {
+            final var createIndexRequestBuilder = prepareCreate(name);
+            if (indexSettings != null) {
+                createIndexRequestBuilder.setSettings(indexSettings);
+            }
+            assertAcked(createIndexRequestBuilder);
+            return;
+        }
+        // Create a temporary index
+        final var tempName = "temp_" + name.substring(0, Math.min(name.length(), MetadataCreateIndexService.MAX_INDEX_NAME_BYTES - 5));
+        final var createIndexRequestBuilder = prepareCreate(tempName);
+        if (indexSettings != null) {
+            createIndexRequestBuilder.setSettings(indexSettings);
+        }
+        assertAcked(createIndexRequestBuilder);
+        ensureYellowAndNoInitializingShards(tempName);
+
+        // Rename the temporary index to the desired name
+        assertAcked(client().admin().indices().aliases(renameIndexRequest(tempName, name)).actionGet());
+    }
+
+    /**
+     * Whether the index would be created with an API block that forbids metadata writes, such as {@code index.blocks.read_only}.
+     * Such an index cannot be renamed, by design, so {@link #createIndex} creates it under its final name directly.
+     */
+    private static boolean blocksMetadataWrites(@Nullable Settings indexSettings) {
+        if (indexSettings == null) {
+            return false;
+        }
+        for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
+            if (block.getBlock().contains(ClusterBlockLevel.METADATA_WRITE) && indexSettings.getAsBoolean(block.settingName(), false)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * An {@code _aliases} request with a single {@code rename_index} action, renaming {@code currentName} to {@code newName}.
+     */
+    public static IndicesAliasesRequest renameIndexRequest(String currentName, String newName) {
+        return new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+            IndicesAliasesRequest.AliasActions.renameIndex().index(currentName).newIndex(newName)
+        );
     }
 
     /**
      * creates an index with the given shard and replica counts
      */
     public final void createIndex(String name, int shards, int replicas) {
-        createIndex(name, indexSettings(shards, replicas).build());
+        createIndex(name, shards, replicas, true);
+    }
+
+    /**
+     * creates an index with the given shard and replica counts
+     */
+    public final void createIndex(String name, int shards, int replicas, boolean rename) {
+        createIndex(name, indexSettings(shards, replicas).build(), rename);
     }
 
     /**

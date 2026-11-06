@@ -46,6 +46,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests for the {@link ClusterChangedEvent} class.
@@ -163,6 +164,43 @@ public class ClusterChangedEventTests extends ESTestCase {
             final ClusterState newState = executeIndicesChangesTest(previousState, quantity);
             previousState = newState; // serves as the base cluster state for the next iteration
         }
+    }
+
+    /**
+     * An index whose name changes but whose UUID stays the same is reported as renamed, not as deleted and created, however
+     * many other changes happen in the same event. Re-creating an index under an old name with a new UUID is still a deletion.
+     */
+    public void testIndicesRenamed() {
+        final ClusterState previousState = createState(3, randomBoolean(), initialIndices);
+        final Index renamedFrom = randomFrom(initialIndices);
+        final Index renamedTo = new Index(renamedFrom.getName() + "-renamed", renamedFrom.getUUID());
+        final Index deleted = randomValueOtherThan(renamedFrom, () -> randomFrom(initialIndices));
+        final Index recreated = new Index(deleted.getName(), UUIDs.randomBase64UUID());
+
+        final var previousProject = previousState.metadata().projects().values().iterator().next();
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(previousProject);
+        projectBuilder.remove(renamedFrom.getName());
+        projectBuilder.put(createIndexMetadata(renamedTo), true);
+        projectBuilder.remove(deleted.getName());
+        projectBuilder.put(createIndexMetadata(recreated), true);
+        final ClusterState newState = ClusterState.builder(previousState)
+            .stateUUID(UUIDs.randomBase64UUID())
+            .metadata(Metadata.builder(previousState.metadata()).put(projectBuilder))
+            .build();
+
+        final ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
+        assertThat(event.indicesRenamed(), hasSize(1));
+        assertThat(event.indicesRenamed().get(0).previous(), equalTo(renamedFrom));
+        assertThat(event.indicesRenamed().get(0).current().getIndex(), equalTo(renamedTo));
+        assertThat(event.indicesDeleted(), containsInAnyOrder(deleted));
+
+        // nothing is renamed when the previous state was not recovered or belongs to another cluster
+        assertThat(new ClusterChangedEvent("_na_", newState, createNonInitializedState(3, randomBoolean())).indicesRenamed(), empty());
+        final ClusterState otherCluster = ClusterState.builder(newState)
+            .metadata(Metadata.builder(newState.metadata()).clusterUUID(UUIDs.randomBase64UUID()))
+            .build();
+        assertThat(new ClusterChangedEvent("_na_", otherCluster, previousState).indicesRenamed(), empty());
+        assertThat(new ClusterChangedEvent("_na_", otherCluster, previousState).indicesDeleted(), empty());
     }
 
     /**

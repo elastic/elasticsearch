@@ -40,17 +40,18 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
+        // TODO: remove these temporary privilege changes
         return super.configRoles() + "\n" + Strings.format("""
             %s:
               cluster: [ ALL ]
               indices:
                 - names: 'missing'
                   privileges: [ 'indices:admin/create', 'indices:admin/auto_create', 'indices:admin/delete' ]
-                - names: ['/index.*/']
+                - names: ['/(temp_)?index.*/']
                   privileges: [ manage ]
-                - names: ['/test.*/']
+                - names: ['/(temp_)?test.*/']
                   privileges: [ manage, write ]
-                - names: '/test.*/'
+                - names: '/(temp_)?test.*/'
                   privileges: [ read ]
             """, SecuritySettingsSource.TEST_ROLE);
     }

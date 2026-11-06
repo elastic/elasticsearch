@@ -129,6 +129,48 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         assertThat(result.getFilter().run("some_random_regular_field"), is(false));
     }
 
+    /**
+     * The reader keeps the name the shard had when it was created ("_index"), while a request is authorized for the name the index has
+     * now. The restrictions of the current name have to be applied, not skipped for want of an entry under the old one.
+     */
+    public void testPermissionsAreFoundByTheCurrentNameOfARenamedIndex() {
+        assertThat(wrapperOfRenamedIndex("renamed", "renamed").apply(esIn), instanceOf(FieldSubsetReader.FieldSubsetDirectoryReader.class));
+    }
+
+    /** A request that was routed before the rename still carries the old name, which is the name of the reader. */
+    public void testPermissionsAreFoundByTheNameOfTheReaderWhenTheRequestUsesTheOldName() {
+        assertThat(wrapperOfRenamedIndex("renamed", "_index").apply(esIn), instanceOf(FieldSubsetReader.FieldSubsetDirectoryReader.class));
+    }
+
+    /** No entry under either name means that the request does not cover the index, as it always has. */
+    public void testReaderIsNotWrappedWhenTheRequestCoversNeitherName() {
+        assertThat(wrapperOfRenamedIndex("renamed", "unrelated").apply(esIn), sameInstance(esIn));
+    }
+
+    private SecurityIndexReaderWrapper wrapperOfRenamedIndex(String currentName, String authorizedName) {
+        var searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
+        when(searchExecutionContext.getIndexSettings()).thenReturn(ESTestCase.defaultIndexSettings());
+        return new SecurityIndexReaderWrapper(
+            id -> searchExecutionContext,
+            null,
+            securityContext,
+            licenseState,
+            scriptService,
+            () -> currentName
+        ) {
+            @Override
+            protected IndicesAccessControl getIndicesAccessControl() {
+                IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
+                    new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
+                    DocumentPermissions.allowAll(),
+                    false
+                );
+                return new IndicesAccessControl(true, Map.of(authorizedName, indexAccessControl));
+            }
+        };
+    }
+
     public void testWrapReaderWhenFeatureDisabled() {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {

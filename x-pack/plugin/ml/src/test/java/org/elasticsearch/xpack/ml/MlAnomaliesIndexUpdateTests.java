@@ -117,7 +117,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
         );
 
         Metadata.Builder metadata = Metadata.builder();
@@ -510,7 +510,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
         );
 
         for (var jobId : jobs) {

@@ -456,7 +456,10 @@ class BulkPrimaryExecutionContext {
         for (int i = 0; i < responses.length; i++) {
             responses[i] = requests[i].getPrimaryResponse();
         }
-        return new BulkShardResponse(request.shardId(), responses);
+        // The item responses are written without a shard id of their own and read back with the one of this response, so it must
+        // be the primary's, which carries the name the index has now. The request's shard id carries the name the index had when
+        // the request was routed, which after a rename can be the name of a different index.
+        return new BulkShardResponse(primary.shardId(), responses);
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {

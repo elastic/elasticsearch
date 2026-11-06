@@ -164,13 +164,15 @@ public class RejectionActionIT extends ESIntegTestCase {
         final int numberOfShards = 3;
         for (int i = 0; i < 2; i++) {
             String index = i == 0 ? "rejection-local" : "rejection-remote";
+            // Skip the test-framework rename: the plugin below hooks the index by the name it is created with.
             createIndex(
                 index,
                 Settings.builder()
                     .put("index.number_of_shards", numberOfShards)
                     .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.require._name", dataNodes.get(i))
-                    .build()
+                    .build(),
+                false
             );
             ensureGreen(index);
             for (int shard = 0; shard < numberOfShards; shard++) {

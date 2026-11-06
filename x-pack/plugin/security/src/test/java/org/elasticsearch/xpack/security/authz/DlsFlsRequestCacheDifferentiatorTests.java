@@ -103,4 +103,51 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         assertThat(out.position(), equalTo(0L));
     }
 
+    private DlsFlsRequestCacheDifferentiator differentiatorWithCurrentName(String currentName) {
+        return new DlsFlsRequestCacheDifferentiator(
+            licenseState,
+            new SetOnce<>(new SecurityContext(Settings.EMPTY, threadContext)),
+            new SetOnce<>(mock(ScriptService.class)),
+            shardId -> currentName
+        );
+    }
+
+    /**
+     * A request routed before a rename carries the old name of the index, while the access control holds the name the data node
+     * resolved, which is the current one when the request went through an alias. The key has to describe the restrictions anyway.
+     */
+    public void testWillWriteCacheKeyUnderTheCurrentNameOfARenamedIndex() throws IOException {
+        when(shardSearchRequest.shardId()).thenReturn(new ShardId("old-name", randomAlphaOfLength(10), randomIntBetween(0, 3)));
+        differentiatorWithCurrentName(randomFrom(dlsIndexName, flsIndexName, dlsFlsIndexName)).accept(shardSearchRequest, out);
+        assertThat(out.position(), greaterThan(0L));
+    }
+
+    /** The key is the same whichever of the two names the access control has the entry under. */
+    public void testCacheKeyIsTheSameUnderEitherNameOfARenamedIndex() throws IOException {
+        final String name = randomFrom(dlsIndexName, flsIndexName, dlsFlsIndexName);
+        final StreamOutput byCurrentName = new BytesStreamOutput();
+        when(shardSearchRequest.shardId()).thenReturn(new ShardId("old-name", randomAlphaOfLength(10), 0));
+        differentiatorWithCurrentName(name).accept(shardSearchRequest, byCurrentName);
+
+        final StreamOutput byRequestedName = new BytesStreamOutput();
+        when(shardSearchRequest.shardId()).thenReturn(new ShardId(name, randomAlphaOfLength(10), 0));
+        differentiatorWithCurrentName(name).accept(shardSearchRequest, byRequestedName);
+
+        assertThat(byCurrentName.position(), greaterThan(0L));
+        assertThat(byCurrentName.position(), equalTo(byRequestedName.position()));
+    }
+
+    /** With an entry under neither name, a renamed index gets a key that stands for every restriction in the access control. */
+    public void testWillWriteCacheKeyForEveryDlsOrFlsWhenARenamedIndexHasNoEntryUnderEitherName() throws IOException {
+        when(shardSearchRequest.shardId()).thenReturn(new ShardId("old-name", randomAlphaOfLength(10), 0));
+        differentiatorWithCurrentName("renamed-name").accept(shardSearchRequest, out);
+        assertThat(out.position(), greaterThan(0L));
+    }
+
+    /** An index that was not renamed is not covered by the access control, as it always was: nothing is written. */
+    public void testWillDoNothingForAnIndexThatWasNotRenamedAndIsNotInTheAccessControl() throws IOException {
+        when(shardSearchRequest.shardId()).thenReturn(new ShardId(indexName, randomAlphaOfLength(10), 0));
+        differentiatorWithCurrentName(indexName).accept(shardSearchRequest, out);
+        assertThat(out.position(), equalTo(0L));
+    }
 }

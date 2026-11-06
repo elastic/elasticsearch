@@ -10,18 +10,22 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -109,11 +113,25 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField ADD = new ParseField("add");
         private static final ParseField REMOVE = new ParseField("remove");
         private static final ParseField REMOVE_INDEX = new ParseField("remove_index");
+        private static final ParseField RENAME_INDEX = new ParseField("rename_index");
+        private static final ParseField NEW_INDEX = new ParseField("new_index");
+
+        /**
+         * The first transport version whose nodes understand {@link Type#RENAME_INDEX}. Older nodes reject the action type byte, so
+         * a request carrying a rename is refused with a clear message before it is sent to such a node.
+         */
+        private static final TransportVersion RENAME_INDEX_ALIAS_ACTION = TransportVersion.fromName("rename_index_alias_action");
 
         public enum Type {
             ADD((byte) 0, AliasActions.ADD),
             REMOVE((byte) 1, AliasActions.REMOVE),
-            REMOVE_INDEX((byte) 2, AliasActions.REMOVE_INDEX);
+            REMOVE_INDEX((byte) 2, AliasActions.REMOVE_INDEX),
+            /**
+             * Renames an index in place, keeping its UUID, shards, settings, mappings, aliases and blocks. The rename is applied in
+             * the same cluster state update as the other actions of the request, after any {@link #REMOVE_INDEX} and alias
+             * changes, so that an index can take over the name of an index deleted by the same request.
+             */
+            RENAME_INDEX((byte) 3, AliasActions.RENAME_INDEX);
 
             private final byte value;
             private final String fieldName;
@@ -136,6 +154,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     case 0 -> ADD;
                     case 1 -> REMOVE;
                     case 2 -> REMOVE_INDEX;
+                    case 3 -> RENAME_INDEX;
                     default -> throw new IllegalArgumentException("No type for action [" + value + "]");
                 };
             }
@@ -160,6 +179,14 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
          */
         public static AliasActions removeIndex() {
             return new AliasActions(AliasActions.Type.REMOVE_INDEX);
+        }
+
+        /**
+         * Build a new {@link AliasAction} to rename an index. Set the current name with {@link #index(String)} and the new name with
+         * {@link #newIndex(String)}.
+         */
+        public static AliasActions renameIndex() {
+            return new AliasActions(AliasActions.Type.RENAME_INDEX);
         }
 
         private static ObjectParser<AliasActions, Factory> parser(String name, Supplier<AliasActions> supplier) {
@@ -197,7 +224,12 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             REMOVE_INDEX.getPreferredName(),
             AliasActions::removeIndex
         );
+        private static final ObjectParser<AliasActions, Factory> RENAME_INDEX_PARSER = parser(
+            RENAME_INDEX.getPreferredName(),
+            AliasActions::renameIndex
+        );
         static {
+            RENAME_INDEX_PARSER.declareString(AliasActions::newIndex, NEW_INDEX);
             ADD_PARSER.declareObject(AliasActions::filter, (parser, m) -> {
                 try {
                     return parser.mapOrdered();
@@ -235,10 +267,17 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             PARSER.declareObject(optionalConstructorArg(), ADD_PARSER, ADD);
             PARSER.declareObject(optionalConstructorArg(), REMOVE_PARSER, REMOVE);
             PARSER.declareObject(optionalConstructorArg(), REMOVE_INDEX_PARSER, REMOVE_INDEX);
+            PARSER.declareObject(optionalConstructorArg(), RENAME_INDEX_PARSER, RENAME_INDEX);
         }
 
         private final AliasActions.Type type;
         private String[] indices;
+        /**
+         * The new name of the index, for {@link Type#RENAME_INDEX} only. It is reported through {@link #indices()} next to the
+         * current name so that it is authorized like the current name is (security checks both), and it travels in the same
+         * array on the wire.
+         */
+        private String newIndex;
         private String[] aliases = Strings.EMPTY_ARRAY;
         private String[] originalAliases = Strings.EMPTY_ARRAY;
         private String filter;
@@ -259,6 +298,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         public AliasActions(StreamInput in) throws IOException {
             type = AliasActions.Type.fromValue(in.readByte());
             indices = in.readStringArray();
+            if (type == Type.RENAME_INDEX) {
+                assert indices.length == 2 : Arrays.toString(indices);
+                newIndex = indices[1];
+                indices = new String[] { indices[0] };
+            }
             aliases = in.readStringArray();
             filter = in.readOptionalString();
             routing = in.readOptionalString();
@@ -272,8 +316,13 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (type == Type.RENAME_INDEX && out.getTransportVersion().supports(RENAME_INDEX_ALIAS_ACTION) == false) {
+                throw new IllegalArgumentException(
+                    "cannot send a [" + RENAME_INDEX.getPreferredName() + "] alias action to a node that does not support renaming indices"
+                );
+            }
             out.writeByte(type.value());
-            out.writeStringArray(indices);
+            out.writeStringArray(indices());
             out.writeStringArray(aliases);
             out.writeOptionalString(filter);
             out.writeOptionalString(routing);
@@ -292,6 +341,25 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         void validate() {
             if (indices == null) {
                 throw new IllegalArgumentException("One of [index] or [indices] is required");
+            }
+            if (type == Type.RENAME_INDEX) {
+                if (indices.length != 1) {
+                    throw new IllegalArgumentException("[" + RENAME_INDEX.getPreferredName() + "] takes a single [index]");
+                }
+                if (Strings.hasText(newIndex) == false) {
+                    throw new IllegalArgumentException("[" + NEW_INDEX.getPreferredName() + "] is required");
+                }
+                if (indices[0].equals(newIndex)) {
+                    throw new IllegalArgumentException("[index] and [" + NEW_INDEX.getPreferredName() + "] must differ");
+                }
+                for (String name : indices()) {
+                    if (Regex.isSimpleMatchPattern(name) || Metadata.ALL.equals(name)) {
+                        throw new IllegalArgumentException(
+                            "[" + RENAME_INDEX.getPreferredName() + "] does not support wildcards, got [" + name + "]"
+                        );
+                    }
+                }
+                return;
             }
             if (type != AliasActions.Type.REMOVE_INDEX && (aliases == null || aliases.length == 0)) {
                 throw new IllegalArgumentException("One of [alias] or [aliases] is required");
@@ -315,8 +383,41 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     throw new IllegalArgumentException("[indices] can't contain empty string");
                 }
             }
+            if (type == Type.RENAME_INDEX) {
+                // the pair reported by indices() comes back here after security has resolved (and authorized) both names
+                if (indices.length == 2) {
+                    this.indices = new String[] { indices[0] };
+                    this.newIndex = indices[1];
+                    return this;
+                }
+                if (indices.length != 1) {
+                    throw new IllegalArgumentException("[" + RENAME_INDEX.getPreferredName() + "] takes a single [index]");
+                }
+            }
             this.indices = indices;
             return this;
+        }
+
+        /**
+         * Set the new name of the index to rename. Only valid for {@link Type#RENAME_INDEX}.
+         */
+        public AliasActions newIndex(String newIndex) {
+            if (type != Type.RENAME_INDEX) {
+                throw new IllegalArgumentException("[" + NEW_INDEX.getPreferredName() + "] is unsupported for [" + type + "]");
+            }
+            if (false == Strings.hasLength(newIndex)) {
+                throw new IllegalArgumentException("[" + NEW_INDEX.getPreferredName() + "] can't be empty string");
+            }
+            this.newIndex = newIndex;
+            return this;
+        }
+
+        /**
+         * The new name of the index for a {@link Type#RENAME_INDEX} action, null for the other types.
+         */
+        @Nullable
+        public String newIndex() {
+            return newIndex;
         }
 
         /**
@@ -334,7 +435,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
          * Aliases to use with this action.
          */
         public AliasActions aliases(String... aliases) {
-            if (type == AliasActions.Type.REMOVE_INDEX) {
+            if (type == AliasActions.Type.REMOVE_INDEX || type == Type.RENAME_INDEX) {
                 throw new IllegalArgumentException("[aliases] is unsupported for [" + type + "]");
             }
             if (aliases == null || aliases.length == 0) {
@@ -354,7 +455,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
          * Set the alias this action is operating on.
          */
         public AliasActions alias(String alias) {
-            if (type == AliasActions.Type.REMOVE_INDEX) {
+            if (type == AliasActions.Type.REMOVE_INDEX || type == Type.RENAME_INDEX) {
                 throw new IllegalArgumentException("[alias] is unsupported for [" + type + "]");
             }
             if (false == Strings.hasLength(alias)) {
@@ -504,8 +605,15 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return type == Type.REMOVE;
         }
 
+        /**
+         * The indices this action acts on. For {@link Type#RENAME_INDEX} this is the current name followed by the new name: the
+         * new name does not exist yet, but the caller must be allowed to manage it, as for creating an index under that name.
+         */
         @Override
         public String[] indices() {
+            if (type == Type.RENAME_INDEX && indices != null && newIndex != null) {
+                return new String[] { indices[0], newIndex };
+            }
             return indices;
         }
 
@@ -523,7 +631,14 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.startObject(type.fieldName);
-            if (null != indices && 0 != indices.length) {
+            if (type == Type.RENAME_INDEX) {
+                if (null != indices && 0 != indices.length) {
+                    builder.field(INDEX.getPreferredName(), indices[0]);
+                }
+                if (null != newIndex) {
+                    builder.field(NEW_INDEX.getPreferredName(), newIndex);
+                }
+            } else if (null != indices && 0 != indices.length) {
                 builder.array(INDICES.getPreferredName(), indices);
             }
             if (0 != aliases.length) {
@@ -568,6 +683,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 + type
                 + ",indices="
                 + Arrays.toString(indices)
+                + ",newIndex="
+                + newIndex
                 + ",aliases="
                 + Arrays.deepToString(aliases)
                 + ",filter="
@@ -596,6 +713,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             AliasActions other = (AliasActions) obj;
             return Objects.equals(type, other.type)
                 && Arrays.equals(indices, other.indices)
+                && Objects.equals(newIndex, other.newIndex)
                 && Arrays.equals(aliases, other.aliases)
                 && Objects.equals(filter, other.filter)
                 && Objects.equals(routing, other.routing)
@@ -611,6 +729,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return Objects.hash(
                 type,
                 Arrays.hashCode(indices),
+                newIndex,
                 Arrays.hashCode(aliases),
                 filter,
                 routing,

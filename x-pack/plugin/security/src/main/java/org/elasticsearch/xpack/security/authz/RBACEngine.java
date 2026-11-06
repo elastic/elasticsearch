@@ -35,6 +35,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -482,7 +483,11 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
-        if (metadata.hasIndex(shardId.getIndex()) == false) {
+        // Strict by name and uuid: ProjectMetadata#hasIndex(Index) falls back to the uuid so that a stale name still finds a
+        // renamed index, but authorization has just been granted for the *name* in the shard id, so a shard id that pairs an
+        // authorized name with another index's uuid must be rejected rather than resolved to that other index.
+        final IndexMetadata indexMetadata = metadata.index(shardId.getIndexName());
+        if (indexMetadata == null || indexMetadata.getIndexUUID().equals(shardId.getIndex().getUUID()) == false) {
             logger.warn(
                 Strings.format(
                     "bad request of type [%s], request's stated indices %s are authorized but specified internal shard "

@@ -310,21 +310,46 @@ public class SnapshotsServiceUtils {
         );
     }
 
+    /**
+     * The metadata a snapshot is finalized with. A snapshot identifies each index by the name it had when the snapshot started, which
+     * is also the name of its repository {@link IndexId}: shards are written under that id, and it cannot change while they are. An
+     * index renamed since then is therefore looked up by UUID, and stored under the name the snapshot knows it by, as are the data
+     * streams that contain it, so that the snapshot is an image of the cluster as the snapshot saw it: restoring it gives the
+     * names it started with, and a name that another index has taken over in the meantime does not mix the two up.
+     */
     public static ProjectMetadata projectForSnapshot(SnapshotsInProgress.Entry snapshot, ProjectMetadata project) {
+        // each index of the snapshot as the cluster has it now, and as the snapshot names it
+        final Map<String, IndexMetadata> metadataBySnapshotName = metadataBySnapshotName(snapshot, project);
+        final Map<Index, Index> snapshotNames = new HashMap<>();
+        for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
+            final Index startedAs = snapshot.isClone() ? null : snapshot.indexByName(entry.getKey());
+            snapshotNames.put(entry.getValue().getIndex(), startedAs == null ? entry.getValue().getIndex() : startedAs);
+        }
+        // The names that an index of the snapshot gets back although it no longer has them. An alias with one of these names, which
+        // can only have been added since the snapshot started, would clash with the index in the view, so it is left out of it.
+        final Set<String> relabelled = relabelledNames(metadataBySnapshotName);
         final ProjectMetadata.Builder builder;
         if (snapshot.includeGlobalState() == false) {
             // Create a new project state that only includes the index data
             builder = ProjectMetadata.builder(project.id());
-            for (IndexId index : snapshot.indices().values()) {
-                final IndexMetadata indexMetadata = project.index(index.getName());
-                if (indexMetadata == null) {
-                    assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
-                } else {
-                    builder.put(indexMetadata, false);
-                }
-            }
         } else {
             builder = ProjectMetadata.builder(project);
+            // an index that has been renamed would otherwise be present twice, and its old name may denote another index
+            for (IndexMetadata indexMetadata : metadataBySnapshotName.values()) {
+                builder.remove(indexMetadata.getIndex().getName());
+            }
+            if (relabelled.isEmpty() == false) {
+                for (IndexMetadata other : project.indices().values()) {
+                    final IndexMetadata withoutClashes = withoutAliasesNamed(other, relabelled);
+                    if (withoutClashes != other && builder.get(other.getIndex().getName()) != null) {
+                        builder.put(withoutClashes, false);
+                    }
+                }
+            }
+        }
+        for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
+            final IndexMetadata indexMetadata = entry.getValue();
+            builder.put(named(indexMetadata, entry.getKey(), relabelled), false);
         }
         // Only keep those data streams in the metadata that were actually requested by the initial snapshot create operation and that have
         // all their indices contained in the snapshot
@@ -336,6 +361,13 @@ public class SnapshotsServiceUtils {
                 assert snapshot.partial()
                     : "Data stream [" + dataStreamName + "] was deleted during a snapshot but snapshot was not partial.";
             } else {
+                for (Map.Entry<Index, Index> renamed : snapshotNames.entrySet()) {
+                    if (renamed.getKey().getName().equals(renamed.getValue().getName()) == false
+                        && (dataStream.getIndices().contains(renamed.getKey())
+                            || dataStream.getFailureIndices().contains(renamed.getKey()))) {
+                        dataStream = dataStream.renameIndex(renamed.getKey(), renamed.getValue());
+                    }
+                }
                 final DataStream reconciled = dataStream.snapshot(indicesInSnapshot, builder);
                 if (reconciled != null) {
                     dataStreams.put(dataStreamName, reconciled);
@@ -343,6 +375,79 @@ public class SnapshotsServiceUtils {
             }
         }
         return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, project.dataStreamAliases())).build();
+    }
+
+    /**
+     * Each index of the snapshot as the cluster has it now, by the name the snapshot knows it by. The index is found by UUID, since a
+     * rename may have changed its name or given the old one to another index. A clone has no live indices: its project is made of the
+     * source snapshot's metadata, under the repository names.
+     */
+    private static Map<String, IndexMetadata> metadataBySnapshotName(SnapshotsInProgress.Entry snapshot, ProjectMetadata project) {
+        final Map<String, IndexMetadata> result = new HashMap<>();
+        for (IndexId indexId : snapshot.indices().values()) {
+            final Index startedAs = snapshot.isClone() ? null : snapshot.indexByName(indexId.getName());
+            final IndexMetadata indexMetadata = startedAs == null ? project.index(indexId.getName()) : project.index(startedAs);
+            if (indexMetadata == null) {
+                assert snapshot.partial() : "Index [" + indexId + "] was deleted during a snapshot but snapshot was not partial.";
+            } else {
+                result.put(indexId.getName(), indexMetadata);
+            }
+        }
+        return result;
+    }
+
+    private static Set<String> relabelledNames(Map<String, IndexMetadata> metadataBySnapshotName) {
+        final Set<String> relabelled = new HashSet<>();
+        for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
+            if (entry.getValue().getIndex().getName().equals(entry.getKey()) == false) {
+                relabelled.add(entry.getKey());
+            }
+        }
+        return relabelled;
+    }
+
+    /**
+     * The names of the indices whose metadata {@link #projectForSnapshot} changes beyond giving it the name the snapshot knows it by,
+     * by leaving out aliases that would clash. Such metadata is not what the cluster has, yet carries the same versions, which the
+     * repository deduplicates by, so it must not be reused for a later snapshot; see {@code BlobStoreRepository}.
+     */
+    public static Set<String> indicesWithAdjustedMetadata(SnapshotsInProgress.Entry snapshot, ProjectMetadata project) {
+        final Map<String, IndexMetadata> metadataBySnapshotName = metadataBySnapshotName(snapshot, project);
+        final Set<String> relabelled = relabelledNames(metadataBySnapshotName);
+        final Set<String> adjusted = new HashSet<>();
+        if (relabelled.isEmpty() == false) {
+            for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
+                for (String alias : entry.getValue().getAliases().keySet()) {
+                    if (relabelled.contains(alias)) {
+                        adjusted.add(entry.getKey());
+                        break;
+                    }
+                }
+            }
+        }
+        return adjusted;
+    }
+
+    /**
+     * {@code indexMetadata} under {@code name}, without the aliases named in {@code clashingAliases}. The aliases are removed before
+     * the metadata is built, because building it already rejects an alias that has the name of its own index.
+     */
+    private static IndexMetadata named(IndexMetadata indexMetadata, String name, Set<String> clashingAliases) {
+        final boolean renamed = indexMetadata.getIndex().getName().equals(name) == false;
+        IndexMetadata.Builder builder = renamed ? IndexMetadata.builder(indexMetadata).index(name) : null;
+        for (String alias : clashingAliases) {
+            if (indexMetadata.getAliases().containsKey(alias)) {
+                if (builder == null) {
+                    builder = IndexMetadata.builder(indexMetadata);
+                }
+                builder.removeAlias(alias);
+            }
+        }
+        return builder == null ? indexMetadata : builder.build();
+    }
+
+    private static IndexMetadata withoutAliasesNamed(IndexMetadata indexMetadata, Set<String> names) {
+        return named(indexMetadata, indexMetadata.getIndex().getName(), names);
     }
 
     /**
@@ -1005,6 +1110,39 @@ public class SnapshotsServiceUtils {
         String repoName,
         boolean partial
     ) {
+        return shards(
+            snapshotsInProgress,
+            deletionsInProgress,
+            currentState,
+            indices,
+            useShardGenerations,
+            repositoryData,
+            repoName,
+            partial,
+            null
+        );
+    }
+
+    /**
+     * As {@link #shards(SnapshotsInProgress, SnapshotDeletionsInProgress, ProjectState, Collection, boolean, RepositoryData, String,
+     * boolean)}, for indices that may no longer have the name they were resolved under.
+     *
+     * @param indexByRepositoryName the index that each of {@code indices} was resolved to when its snapshot started, for assigning
+     *                              the shards of a snapshot that is already in progress, whose index may have been renamed since; the
+     *                              index is then found by UUID. {@code null} for a snapshot that is just starting, whose indices are
+     *                              found by name.
+     */
+    public static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(
+        SnapshotsInProgress snapshotsInProgress,
+        SnapshotDeletionsInProgress deletionsInProgress,
+        ProjectState currentState,
+        Collection<IndexId> indices,
+        boolean useShardGenerations,
+        RepositoryData repositoryData,
+        String repoName,
+        boolean partial,
+        @Nullable Function<String, Index> indexByRepositoryName
+    ) {
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
         final InFlightShardSnapshotStates inFlightShardStates = InFlightShardSnapshotStates.forEntries(
@@ -1015,12 +1153,15 @@ public class SnapshotsServiceUtils {
         for (IndexId index : indices) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
-            IndexMetadata indexMetadata = currentState.metadata().index(indexName);
+            final Index startedAs = indexByRepositoryName == null ? null : indexByRepositoryName.apply(indexName);
+            IndexMetadata indexMetadata = startedAs == null
+                ? currentState.metadata().index(indexName)
+                : currentState.metadata().index(startedAs);
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
                 builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), SnapshotsInProgress.ShardSnapshotStatus.MISSING);
             } else {
-                final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexName);
+                final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexMetadata.getIndex());
                 assert indexRoutingTable != null;
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                     final ShardId shardId = indexRoutingTable.shard(i).shardId();
@@ -1042,7 +1183,8 @@ public class SnapshotsServiceUtils {
                         shardRepoGeneration = null;
                     }
                     final SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus;
-                    if (readyToExecute == false || inFlightShardStates.isActive(shardId.getIndexName(), shardId.id())) {
+                    // in-flight operations are tracked by repository name, which is not the index's current name once it was renamed
+                    if (readyToExecute == false || inFlightShardStates.isActive(indexName, shardId.id())) {
                         shardSnapshotStatus = SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED;
                     } else {
                         shardSnapshotStatus = initShardSnapshotStatus(
@@ -1195,9 +1337,19 @@ public class SnapshotsServiceUtils {
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
                 if (entry.partial() == false && entry.isClone() == false) {
                     for (String indexName : entry.indices().keySet()) {
-                        IndexMetadata indexMetadata = projectState.metadata().index(indexName);
-                        if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
-                            result.computeIfAbsent(entry.snapshot(), k -> new HashSet<>()).add(indexMetadata.getIndex());
+                        // The entry knows the index by the name it had when the snapshot started, which a rename may have changed or
+                        // given to another index, so what counts is the index it recorded, matched by UUID.
+                        final Index snapshotIndex = entry.indexByName(indexName);
+                        if (snapshotIndex == null) {
+                            // an entry that has no shards yet has recorded no index, only the name it resolved
+                            final IndexMetadata indexMetadata = projectState.metadata().index(indexName);
+                            if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
+                                result.computeIfAbsent(entry.snapshot(), k -> new HashSet<>()).add(indexMetadata.getIndex());
+                            }
+                        } else if (indicesToCheck.contains(snapshotIndex)) {
+                            final IndexMetadata indexMetadata = projectState.metadata().index(snapshotIndex);
+                            result.computeIfAbsent(entry.snapshot(), k -> new HashSet<>())
+                                .add(indexMetadata == null ? snapshotIndex : indexMetadata.getIndex());
                         }
                     }
                 }

@@ -1146,6 +1146,43 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
+     * Returns a copy of this data stream in which {@code existingIndex}, a backing or failure index including either write index,
+     * is replaced by {@code renamedIndex}. Unlike {@link #replaceBackingIndex} this is a rename, not a swap for an index holding
+     * different data: both indices must share a UUID, and the generation is kept, because the generation counts rollovers and
+     * names the next backing index, neither of which a rename changes.
+     *
+     * @throws IllegalArgumentException if the UUIDs differ or {@code existingIndex} is not part of this data stream
+     */
+    public DataStream renameIndex(Index existingIndex, Index renamedIndex) {
+        if (existingIndex.getUUID().equals(renamedIndex.getUUID()) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot rename index [%s] to [%s] in data stream [%s] because the index uuids differ",
+                    existingIndex.getName(),
+                    renamedIndex.getName(),
+                    name
+                )
+            );
+        }
+        int position = backingIndices.indices.indexOf(existingIndex);
+        if (position != -1) {
+            List<Index> indices = new ArrayList<>(backingIndices.indices);
+            indices.set(position, renamedIndex);
+            return copy().setBackingIndices(backingIndices.copy().setIndices(indices).build()).build();
+        }
+        position = failureIndices.indices.indexOf(existingIndex);
+        if (position != -1) {
+            List<Index> indices = new ArrayList<>(failureIndices.indices);
+            indices.set(position, renamedIndex);
+            return copy().setFailureIndices(failureIndices.copy().setIndices(indices).build()).build();
+        }
+        throw new IllegalArgumentException(
+            String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", existingIndex.getName(), name)
+        );
+    }
+
+    /**
      * Replaces the specified failure store index with a new index and returns a new {@code DataStream} instance with
      * the modified backing indices. An {@code IllegalArgumentException} is thrown if the index to be replaced
      * is not a failure store index for this data stream or if it is the {@code DataStream}'s failure store write index.
@@ -2173,13 +2210,36 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             DataStreamIndices that = (DataStreamIndices) o;
             return rolloverOnWrite == that.rolloverOnWrite
                 && Objects.equals(namePrefix, that.namePrefix)
-                && Objects.equals(indices, that.indices)
+                && sameIndices(indices, that.indices)
                 && Objects.equals(autoShardingEvent, that.autoShardingEvent);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(namePrefix, indices, rolloverOnWrite, autoShardingEvent);
+            int result = Objects.hash(namePrefix, rolloverOnWrite, autoShardingEvent);
+            for (Index index : indices) {
+                result = 31 * result + index.hashCode();
+                result = 31 * result + index.getName().hashCode();
+            }
+            return result;
+        }
+
+        /**
+         * {@link Index#equals} compares UUIDs only, so that an index keeps its identity across a rename. For a data stream the names
+         * of its indices are part of its state, and cluster state diffs rely on {@code equals} to decide whether a data stream
+         * changed, so a renamed index must make the data stream unequal to its previous version. Otherwise the diff would carry
+         * nothing and every other node would keep pointing the data stream at the old name.
+         */
+        private static boolean sameIndices(List<Index> a, List<Index> b) {
+            if (a.size() != b.size()) {
+                return false;
+            }
+            for (int i = 0; i < a.size(); i++) {
+                if (a.get(i).equals(b.get(i)) == false || a.get(i).getName().equals(b.get(i).getName()) == false) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public static class Builder {

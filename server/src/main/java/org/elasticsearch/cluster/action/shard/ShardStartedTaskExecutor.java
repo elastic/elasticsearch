@@ -166,8 +166,10 @@ public class ShardStartedTaskExecutor implements ClusterStateTaskExecutor<ShardS
                         shardRoutingsToBeApplied.add(matched);
                         seenShardRoutings.add(matched);
 
-                        // expand the timestamp range(s) recorded in the index metadata if needed
-                        final Index index = startedShardEntry.shardId.getIndex();
+                        // expand the timestamp range(s) recorded in the index metadata if needed. The index is taken from the matched
+                        // routing rather than from the entry, whose shard id may carry the name the index had when the recovery
+                        // started, before a rename.
+                        final Index index = matched.index();
                         ClusterStateTimeRanges clusterStateTimeRanges = updatedTimestampRanges.get(index);
                         IndexLongFieldRange currentTimestampMillisRange = clusterStateTimeRanges == null
                             ? null

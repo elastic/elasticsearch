@@ -939,9 +939,14 @@ public abstract class TransportReplicationAction<
             setPhase(task, "routing");
             final ClusterState state = observer.setAndGetObservedState();
             final Optional<ProjectMetadata> project = state.metadata().lookupProject(request.shardId().getIndex());
+            // The shard id carries the name the index had when the request was routed. The index may have been renamed since, and
+            // that name may now belong to another index, so the index is resolved first, by UUID if the name no longer matches, and
+            // the blocks checked are those of the index the request is for rather than of whichever index now has that name.
+            final IndexMetadata indexMetadata = project.map(p -> p.index(request.shardId().getIndex())).orElse(null);
+            final String indexName = indexMetadata != null ? indexMetadata.getIndex().getName() : request.shardId().getIndexName();
 
             final ClusterBlockException blockException = project.map(
-                projectMetadata -> blockExceptions(state, projectMetadata.id(), request.shardId().getIndexName())
+                projectMetadata -> blockExceptions(state, projectMetadata.id(), indexName)
             ).orElse(null);
             if (blockException != null) {
                 if (blockException.retryable()) {
@@ -951,7 +956,6 @@ public abstract class TransportReplicationAction<
                     finishAsFailed(blockException);
                 }
             } else {
-                final IndexMetadata indexMetadata = project.map(p -> p.index(request.shardId().getIndex())).orElse(null);
                 if (indexMetadata == null) {
                     // ensure that the cluster state on the node is at least as high as the node that decided that the index was there
                     if (state.version() < request.routedBasedOnClusterVersion()) {

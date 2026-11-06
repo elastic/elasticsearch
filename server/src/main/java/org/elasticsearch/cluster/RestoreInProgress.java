@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.ToXContent;
@@ -75,6 +76,45 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             .forEach(entry -> builder.append("{").append(entry.getKey()).append("}{").append(entry.getValue().snapshot).append("},"));
         builder.setCharAt(builder.length() - 1, ']');
         return builder.toString();
+    }
+
+    /**
+     * Returns a copy in which every restore of {@code previous} tracks it as {@code current} (the same index under a new name), or
+     * this instance if no restore includes it. Called from the cluster state update that renames an index, so that a restore in
+     * flight completes under the index's current name.
+     */
+    public RestoreInProgress withRenamedIndex(Index previous, Index current) {
+        assert previous.getUUID().equals(current.getUUID()) : "rename must keep the uuid: " + previous + " -> " + current;
+        Builder builder = null;
+        for (Entry entry : entries.values()) {
+            if (entry.shards().keySet().stream().noneMatch(shardId -> previous.equals(shardId.getIndex()))) {
+                continue;
+            }
+            final List<String> indices = entry.indices()
+                .stream()
+                .map(name -> name.equals(previous.getName()) ? current.getName() : name)
+                .toList();
+            final Map<ShardId, ShardRestoreStatus> shards = Maps.newHashMapWithExpectedSize(entry.shards().size());
+            for (Map.Entry<ShardId, ShardRestoreStatus> shard : entry.shards().entrySet()) {
+                final ShardId shardId = shard.getKey();
+                shards.put(previous.equals(shardId.getIndex()) ? new ShardId(current, shardId.id()) : shardId, shard.getValue());
+            }
+            if (builder == null) {
+                builder = new Builder(this);
+            }
+            builder.add(
+                new Entry(
+                    entry.uuid(),
+                    entry.snapshot(),
+                    entry.state(),
+                    entry.quiet(),
+                    indices,
+                    Map.copyOf(shards),
+                    entry.reportShardRestoring()
+                )
+            );
+        }
+        return builder == null ? this : builder.build();
     }
 
     public Entry get(String restoreUUID) {

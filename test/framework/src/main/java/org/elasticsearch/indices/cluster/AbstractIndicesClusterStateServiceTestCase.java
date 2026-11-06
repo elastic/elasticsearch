@@ -242,6 +242,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
+        public void renameIndex(Index index, IndexMetadata newIndexMetadata) {
+            // The mock index service tests the applier's shard bookkeeping; renames are covered by RenameIndexIT.
+            throw new UnsupportedOperationException("renaming is not supported by the mock indices service");
+        }
+
+        @Override
         public synchronized void removeIndex(
             Index index,
             IndexRemovalReason reason,

@@ -450,6 +450,28 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         writeToThin(out);
     }
 
+    /**
+     * Returns a copy of this routing entry whose {@link ShardId} points at {@code index}. Used when an index is renamed: the
+     * UUID of {@code index} must match the UUID of the current index, only the name changes.
+     */
+    public ShardRouting updateIndex(Index index) {
+        assert index.getUUID().equals(shardId.getIndex().getUUID()) : "rename must keep the index uuid: " + shardId + " -> " + index;
+        return new ShardRouting(
+            new ShardId(index, shardId.id()),
+            currentNodeId,
+            relocatingNodeId,
+            primary,
+            state,
+            recoverySource,
+            recoveryPriority,
+            unassignedInfo,
+            relocationFailureInfo,
+            allocationId,
+            expectedShardSize,
+            role
+        );
+    }
+
     public ShardRouting updateUnassigned(UnassignedInfo unassignedInfo, RecoverySource recoverySource) {
         assert this.unassignedInfo != null : "can only update unassigned info if it is already set";
         assert this.unassignedInfo.delayed() || (unassignedInfo.delayed() == false) : "cannot transition from non-delayed to delayed";

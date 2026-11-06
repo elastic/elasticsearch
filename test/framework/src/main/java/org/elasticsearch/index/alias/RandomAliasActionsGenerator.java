@@ -34,6 +34,11 @@ public final class RandomAliasActionsGenerator {
 
     public static AliasActions randomAliasAction(boolean useStringAsFilter) {
         AliasActions action = new AliasActions(randomFrom(AliasActions.Type.values()));
+        if (action.actionType() == AliasActions.Type.RENAME_INDEX) {
+            // a rename names exactly one index and its new name, and takes no aliases or options
+            return action.index("index-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT))
+                .newIndex("renamed-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT));
+        }
         if (randomBoolean()) {
             action.index(randomAlphaOfLength(5));
         } else {

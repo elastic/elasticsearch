@@ -154,8 +154,8 @@ public abstract class Engine implements Closeable {
     private static final long BKD_READER_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BKDReader.class);
     private static final long BKD_CONFIG_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BKDConfig.class);
 
-    protected final ShardId shardId;
-    protected final Logger logger;
+    protected volatile ShardId shardId;
+    protected volatile Logger logger;
     protected final EngineConfig engineConfig;
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -222,6 +222,18 @@ public abstract class Engine implements Closeable {
         } else {
             return IndexVersion.fromId(Integer.parseInt(esVersion));
         }
+    }
+
+    /**
+     * Points the engine at the renamed index: only the name changes, the UUID is the same. The engine's own logger and shard id are
+     * replaced; subclasses carry the rename to the components they own, such as the translog and the merge scheduler, so that their
+     * log lines and thread names carry the new shard id. Objects that copied the shard id or the logger at construction keep the old
+     * one, which is cosmetic since the UUID is what identifies the shard.
+     */
+    public void renameTo(org.elasticsearch.index.Index index) {
+        assert index.getUUID().equals(shardId.getIndex().getUUID()) : "rename must keep the index uuid: " + shardId + " -> " + index;
+        this.shardId = new ShardId(index, shardId.id());
+        this.logger = Loggers.getLogger(Engine.class, shardId);
     }
 
     public final EngineConfig config() {

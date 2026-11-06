@@ -15,6 +15,7 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -498,9 +499,19 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
         @Override
         protected ShardsIterator shards(ProjectState state, InternalRequest request) {
-            return state.routingTable()
-                .shardRoutingTable(request.concreteIndex(), request.request().getShard().id())
-                .activeInitializingShardsRandomIt();
+            // Route by the index that the name in the request resolved to, because that is the name that was authorized. The shard id
+            // is only trusted if it agrees: one that pairs an authorized name with another index's UUID, or that carries the name the
+            // leader had before a rename, must not be followed to an index that was never authorized. The follower finds the leader's
+            // current name by UUID itself and sends the request again under it.
+            final ShardId shardId = request.request().getShard();
+            final String concreteIndex = request.concreteIndex();
+            final IndexMetadata resolved = state.metadata().index(concreteIndex);
+            if (resolved == null
+                || (ClusterState.UNKNOWN_UUID.equals(shardId.getIndex().getUUID()) == false
+                    && resolved.getIndexUUID().equals(shardId.getIndex().getUUID()) == false)) {
+                throw new IndexNotFoundException(shardId.getIndex());
+            }
+            return state.routingTable().shardRoutingTable(concreteIndex, shardId.id()).activeInitializingShardsRandomIt();
         }
 
         @Override

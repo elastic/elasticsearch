@@ -5403,4 +5403,36 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return () -> Math.max(1, queueSize / Math.max(1, RECOVERING_SHARDS_ON_NODE.get()));
         }
     }
+
+    /**
+     * Applies an index rename to this shard under {@link #mutex}, the lock that {@link #updateShardState} also takes, so that the
+     * shard id and the routing entry change together and never interleave with a routing update from another cluster state.
+     * Only this shard and its {@link ShardGetService} are renamed; the {@link Store}, {@link org.elasticsearch.index.translog.Translog},
+     * {@link ReplicationTracker} and the caches keep the shard id they were created with. They use it only in log and exception
+     * messages, and they compare shard ids by UUID, so the stale name there is cosmetic.
+     */
+    @Override
+    public void renameTo(Index newIndex) {
+        synchronized (mutex) {
+            // logged under the old prefix, so that someone reading the log by the old name finds the pointer to the new one
+            logger.info("renaming shard [{}] to [{}]; its log lines carry the new shard id from here on", shardId, newIndex.getName());
+            super.renameTo(newIndex);
+            getService.renameTo(newIndex);
+            store.renameTo(newIndex);
+            replicationTracker.renameTo(newIndex);
+            shardBitsetFilterCache.renameTo(newIndex);
+            shardWarmerService.renameTo(newIndex);
+            // an engine created after this point takes the new shard id from newEngineConfig(); one created concurrently with the
+            // rename may keep the old id in its loggers until it is replaced, which is cosmetic
+            final Engine engine = getEngineOrNull();
+            if (engine != null) {
+                engine.renameTo(newIndex);
+            }
+            this.shardRouting = this.shardRouting.updateIndex(newIndex);
+            final RecoveryState currentRecoveryState = this.recoveryState;
+            if (currentRecoveryState != null) {
+                currentRecoveryState.updateIndex(newIndex);
+            }
+        }
+    }
 }

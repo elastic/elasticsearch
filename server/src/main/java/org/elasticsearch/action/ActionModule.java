@@ -350,6 +350,7 @@ import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.RestReloadAnalyzersAction;
 import org.elasticsearch.rest.action.admin.indices.RestRemoveIndexBlockAction;
+import org.elasticsearch.rest.action.admin.indices.RestRenameIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
 import org.elasticsearch.rest.action.admin.indices.RestResolveClusterAction;
 import org.elasticsearch.rest.action.admin.indices.RestResolveIndexAction;
@@ -901,6 +902,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestIndicesAliasesAction());
         registerHandler.accept(new RestCreateIndexAction());
         registerHandler.accept(new RestResizeHandler.RestShrinkIndexAction());
+        registerHandler.accept(new RestRenameIndexAction());
         registerHandler.accept(new RestResizeHandler.RestSplitIndexAction());
         registerHandler.accept(new RestResizeHandler.RestCloneIndexAction());
         registerHandler.accept(new RestRolloverIndexAction());

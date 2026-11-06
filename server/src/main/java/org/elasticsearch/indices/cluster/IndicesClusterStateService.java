@@ -392,6 +392,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         updateFailedShardsCache(state);
 
+        renameIndices(event); // must run before anything that compares local index services with the cluster state by name
+
         deleteIndices(event); // also deletes shards of deleted indices
 
         removeIndicesAndShards(event); // also removes shards of removed indices
@@ -629,7 +631,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // NO_LONGER_ASSIGNED, which would result in search contexts continuing to operate on data the user is attempting to
                 // replace.
                 reason = REOPENED;
-            } else if (localRoutingNode == null || localRoutingNode.hasIndex(index) == false) {
+            } else if (localRoutingNode == null || localRoutingNode.hasIndex(index.getUUID()) == false) {
                 // if the cluster change indicates a brand new cluster, we only want
                 // to remove the in-memory structures for the index and not delete the
                 // contents on disk because the index will later be re-imported as a
@@ -767,6 +769,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Applies index renames to the local index services. A renamed index keeps its UUID and its shards; only the name the local
+     * {@link IndexService} and its shards report changes. This runs before {@link #deleteIndices} and
+     * {@link #removeIndicesAndShards}, which would otherwise mistake the renamed index for a deleted or unassigned one.
+     */
+    private void renameIndices(final ClusterChangedEvent event) {
+        for (ClusterChangedEvent.RenamedIndex renamedIndex : event.indicesRenamed()) {
+            logger.debug("renaming index [{}] to [{}]", renamedIndex.previous().getName(), renamedIndex.current().getIndex());
+            indicesService.renameIndex(renamedIndex.previous(), renamedIndex.current());
         }
     }
 
@@ -1636,6 +1650,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          *                       anymore - can be null in case the whole project got deleted while there were still indices in it
          */
         void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, @Nullable ProjectMetadata currentProject);
+
+        /**
+         * Applies a rename of {@code index} (found by UUID) to {@code newIndexMetadata.getIndex()} to the in-memory state of this
+         * node, without closing or recovering any shard.
+         */
+        void renameIndex(Index index, IndexMetadata newIndexMetadata);
 
         /**
          * Removes the given index from this service and releases all associated resources. Persistent parts of the index

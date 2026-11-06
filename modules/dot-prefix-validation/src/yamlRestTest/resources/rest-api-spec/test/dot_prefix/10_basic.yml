@@ -233,3 +233,44 @@ teardown:
   - do:
       indices.delete_index_template:
         name: my-template
+
+---
+"Renaming an index to a dot-prefixed name is deprecated unless x-elastic-product-origin set":
+  - requires:
+      cluster_features: ["index.rename"]
+      reason: "index rename is only available once every node supports it"
+      test_runner_features: ["warnings", "headers"]
+
+  - do:
+      indices.create:
+        index: source1
+  - do:
+      indices.create:
+        index: source2
+  - do:
+      indices.create:
+        index: source3
+
+  # the destination is checked, as it is when an index is created
+  - do:
+      warnings:
+        - "Index [.renamed1] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source1, new_index: .renamed1 }
+
+  - do:
+      headers: { X-elastic-product-origin: kibana }
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source2, new_index: .renamed2 }
+
+  # a name without a dot does not warn, and neither does adding an alias with one
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source3, new_index: plain_renamed }
+            - add: { index: source3, alias: .alias_with_a_dot, is_hidden: true }

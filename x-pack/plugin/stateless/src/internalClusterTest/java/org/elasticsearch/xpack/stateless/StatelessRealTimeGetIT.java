@@ -95,6 +95,12 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase {
 
+    @Override
+    protected boolean renameIndexOnCreate() {
+        // commit notifications are matched by the index name in the commit, which is the creation-time name
+        return false;
+    }
+
     @Before
     public void init() {
         startMasterOnlyNode();

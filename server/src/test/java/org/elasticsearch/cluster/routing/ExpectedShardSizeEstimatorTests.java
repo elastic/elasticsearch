@@ -176,6 +176,44 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         );
     }
 
+    public void testExpectedSizeAfterCloneSourceRenamed() {
+
+        var sourceShardSize = randomLongBetween(100, 1000);
+        var source = newShardRouting(new ShardId("renamed", "source-uuid", 0), randomIdentifier(), true, ShardRoutingState.STARTED);
+        var target = shardRoutingBuilder(new ShardId("target", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
+            .build();
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                metadata(
+                    IndexMetadata.builder("renamed")
+                        .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "source-uuid")),
+                    IndexMetadata.builder("target")
+                        .settings(
+                            indexSettings(IndexVersion.current(), 1, 0) //
+                                .put(INDEX_RESIZE_SOURCE_NAME_KEY, "source") //
+                                .put(INDEX_RESIZE_SOURCE_UUID_KEY, "source-uuid")
+                        )
+                )
+            )
+            .routingTable(
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(source.index()).addShard(source))
+                    .add(IndexRoutingTable.builder(target.index()).addShard(target))
+            )
+            .build();
+
+        var clusterInfo = createClusterInfo(source, sourceShardSize);
+        var allocation = TestRoutingAllocationFactory.forClusterState(state).clusterInfo(clusterInfo).build();
+
+        assertThat(getExpectedShardSize(target, defaultValue, allocation), equalTo(sourceShardSize));
+        assertFalse(
+            "Should NOT reserve space when using fs hardlink for clone/shrink/split",
+            shouldReserveSpaceForInitializingShard(target, state.metadata())
+        );
+    }
+
     private static IndexMetadata.Builder index(String name) {
         return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0));
     }

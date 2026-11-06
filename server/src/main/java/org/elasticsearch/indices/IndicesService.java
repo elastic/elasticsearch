@@ -1082,6 +1082,30 @@ public class IndicesService extends AbstractLifecycleComponent
         });
     }
 
+    /**
+     * Applies an index rename to the in-memory state of this node: the {@link IndexService} (found by UUID, so the stale name in
+     * {@code index} does not matter) and all of its shards start reporting the new name. The service stays in {@link #indices},
+     * which is keyed by UUID, and nothing on disk changes because data paths are keyed by UUID too. Pending deletes are keyed by
+     * {@link Index}, which compares by UUID, so they are re-keyed only to keep the recorded name current.
+     */
+    public void renameIndex(final Index index, IndexMetadata newIndexMetadata) {
+        synchronized (this) {
+            IndexService service = indices.get(index.getUUID());
+            if (service == null) {
+                // the index is not allocated on this node, there is nothing to rename
+                logger.debug("index [{}] renamed to [{}] but is not allocated on this node", index, newIndexMetadata.getIndex());
+                return;
+            }
+            service.renameTo(newIndexMetadata);
+        }
+        synchronized (pendingDeletes) {
+            var pending = pendingDeletes.remove(index);
+            if (pending != null) {
+                pendingDeletes.put(newIndexMetadata.getIndex(), pending);
+            }
+        }
+    }
+
     @Override
     public void removeIndex(
         final Index index,
@@ -1382,7 +1406,8 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public void deleteShardStore(String reasonText, ShardId shardId, ClusterState clusterState, IndexRemovalReason reason)
         throws IOException, ShardLockObtainFailedException {
-        final IndexMetadata metadata = clusterState.getMetadata().getProject().indices().get(shardId.getIndexName());
+        // by Index rather than by name: the shard id may carry the name the index had when this deletion was requested
+        final IndexMetadata metadata = clusterState.getMetadata().getProject().index(shardId.getIndex());
 
         final IndexSettings indexSettings = buildIndexSettings(metadata);
         ShardDeletionCheckResult shardDeletionCheckResult = canDeleteShardContent(shardId, indexSettings);
@@ -1483,7 +1508,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param indexSettings the shards's relevant {@link IndexSettings}. This is required to access the indexes settings etc.
      */
     public ShardDeletionCheckResult canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
-        assert shardId.getIndex().equals(indexSettings.getIndex());
+        assert shardId.getIndex().equals(indexSettings.getIndex()); // compares by UUID, so holds across renames
         final IndexService indexService = indexService(shardId.getIndex());
         final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
         if (isAllocated) {

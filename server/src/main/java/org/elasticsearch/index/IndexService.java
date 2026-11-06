@@ -326,6 +326,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             && indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
     }
 
+    /**
+     * Applies an index rename: installs the renamed {@link IndexMetadata} (same UUID, new name) as the current metadata, so that
+     * {@link #index()} and {@link IndexSettings#getIndex()} report the new name, and renames every allocated shard.
+     */
+    public void renameTo(IndexMetadata newIndexMetadata) {
+        updateMetadata(indexSettings.getIndexMetadata(), newIndexMetadata);
+        for (var indexShard : shards.values()) {
+            indexShard.renameTo(index());
+        }
+    }
+
     public enum IndexCreationContext {
         CREATE_INDEX,
         METADATA_VERIFICATION,

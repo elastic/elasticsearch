@@ -26,7 +26,9 @@ import org.elasticsearch.cluster.metadata.AliasAction.AddDataStreamAlias;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -35,7 +37,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexFeatures;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
@@ -57,7 +63,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.unmodifiableList;
 
 /**
- * Add/remove aliases action
+ * Add/remove aliases action, which also removes and renames indices atomically with the alias changes of the same request.
  */
 public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, IndicesAliasesResponse> {
 
@@ -70,6 +76,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RequestValidators<IndicesAliasesRequest> requestValidators;
     private final SystemIndices systemIndices;
+    private final FeatureService featureService;
 
     @Inject
     public TransportIndicesAliasesAction(
@@ -81,7 +88,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         final ProjectResolver projectResolver,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final RequestValidators<IndicesAliasesRequest> requestValidators,
-        final SystemIndices systemIndices
+        final SystemIndices systemIndices,
+        final FeatureService featureService
     ) {
         super(
             NAME,
@@ -98,6 +106,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
+        this.featureService = featureService;
     }
 
     @Override
@@ -132,6 +141,18 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         for (AliasActions action : actions) {
             int numAliasesRemoved = 0;
             List<String> resolvedIndices = new ArrayList<>();
+
+            if (action.actionType() == AliasActions.Type.RENAME_INDEX) {
+                // neither name is an expression: the current name must be an index that exists, the new name must not exist yet
+                final String currentName = action.indices()[0];
+                final String newName = action.newIndex();
+                validateRename(state, projectMetadata, currentName, newName);
+                // the request validators that plugins register guard the aliases of an index (for example a CCR follower's, which
+                // are replicated from its leader); a rename leaves the aliases alone, so they are not consulted
+                finalActions.add(new AliasAction.RenameIndex(currentName, newName));
+                actionResults.add(AliasActionResult.buildSuccess(List.of(currentName), action));
+                continue;
+            }
 
             List<String> concreteDataStreams = indexNameExpressionResolver.dataStreamNames(
                 state,
@@ -278,6 +299,45 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             logger.debug("failed to perform aliases", e);
             l.onFailure(e);
         }));
+    }
+
+    /**
+     * The checks of a rename that do not depend on the cluster state the rename is eventually applied to: every node must support
+     * renames, the current name must be a regular (non-system) index rather than an alias or a data stream, and the new name must
+     * be a well-formed name that is not a system index name. Whether the new name is free is checked by the executor, against the
+     * state produced by the other actions of the request: a rename may take over the name of an index that the same request
+     * removes.
+     */
+    private void validateRename(ClusterState state, ProjectMetadata projectMetadata, String currentName, String newName) {
+        if (featureService.clusterHasFeature(state, IndexFeatures.INDEX_RENAME) == false) {
+            throw new IllegalStateException(
+                "cannot rename index ["
+                    + currentName
+                    + "] because not all nodes in the cluster support renaming indices; "
+                    + "upgrade all nodes to a version that supports ["
+                    + IndexFeatures.INDEX_RENAME.id()
+                    + "]"
+            );
+        }
+        final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(currentName);
+        if (indexAbstraction == null) {
+            throw new IndexNotFoundException(currentName);
+        }
+        if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
+            throw new IllegalArgumentException(
+                "cannot rename [" + currentName + "] because it is " + indexAbstraction.getType().getDisplayName() + ", not an index"
+            );
+        }
+        final IndexMetadata indexMetadata = projectMetadata.index(currentName);
+        if (indexMetadata.isSystem()) {
+            throw new IllegalArgumentException("cannot rename system index [" + currentName + "]");
+        }
+        if (systemIndices.isSystemName(newName)) {
+            throw new IllegalArgumentException(
+                "cannot rename index [" + currentName + "] to [" + newName + "] because that is a system index name"
+            );
+        }
+        MetadataCreateIndexService.validateIndexOrAliasName(newName, InvalidIndexNameException::new);
     }
 
     private static String[] concreteAliases(AliasActions action, ProjectMetadata metadata, String concreteIndex) {

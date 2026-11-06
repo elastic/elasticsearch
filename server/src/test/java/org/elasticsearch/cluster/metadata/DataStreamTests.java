@@ -14,9 +14,11 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -1125,6 +1127,87 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 )
             )
         );
+    }
+
+    public void testRenameIndex() {
+        DataStream original = createRandomDataStream();
+        // any backing index, including the write index
+        int position = randomIntBetween(0, original.getIndices().size() - 1);
+        Index existing = original.getIndices().get(position);
+        Index renamed = new Index(existing.getName() + "-renamed", existing.getUUID());
+
+        DataStream updated = original.renameIndex(existing, renamed);
+        assertThat(updated.getName(), equalTo(original.getName()));
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
+        assertThat(updated.getIndices().get(position).getName(), equalTo(renamed.getName()));
+        assertThat(updated.getIndices().get(position).getUUID(), equalTo(existing.getUUID()));
+        assertThat(updated.getFailureIndices(), equalTo(original.getFailureIndices()));
+        for (int i = 0; i < original.getIndices().size(); i++) {
+            if (i != position) {
+                assertThat(updated.getIndices().get(i).getName(), equalTo(original.getIndices().get(i).getName()));
+            }
+        }
+        if (position == original.getIndices().size() - 1) {
+            assertThat(updated.getWriteIndex().getName(), equalTo(renamed.getName()));
+        }
+    }
+
+    /**
+     * A rename keeps the index UUID and {@link Index#equals} ignores the name, so the data stream must compare unequal on its own,
+     * or the cluster state diff would not carry the rename to other nodes.
+     */
+    public void testRenameIndexChangesEqualityAndDiff() throws IOException {
+        DataStream original = createRandomDataStream();
+        int position = randomIntBetween(0, original.getIndices().size() - 1);
+        Index existing = original.getIndices().get(position);
+        Index renamed = new Index(existing.getName() + "-renamed", existing.getUUID());
+        DataStream updated = original.renameIndex(existing, renamed);
+
+        assertNotEquals(original, updated);
+        assertNotEquals(original.hashCode(), updated.hashCode());
+
+        Diff<DataStream> diff = updated.diff(original);
+        DataStream applied = diff.apply(original);
+        assertThat(applied.getIndices().get(position).getName(), equalTo(renamed.getName()));
+        assertThat(applied.getIndices().get(position).getUUID(), equalTo(existing.getUUID()));
+        assertEquals(updated, applied);
+
+        // and through the wire
+        BytesStreamOutput out = new BytesStreamOutput();
+        diff.writeTo(out);
+        Diff<DataStream> readDiff = DataStream.readDiffFrom(out.bytes().streamInput());
+        assertThat(readDiff.apply(original).getIndices().get(position).getName(), equalTo(renamed.getName()));
+    }
+
+    public void testRenameFailureIndex() {
+        DataStream original = createRandomDataStream();
+        int position = randomIntBetween(0, original.getFailureIndices().size() - 1);
+        Index existing = original.getFailureIndices().get(position);
+        Index renamed = new Index(existing.getName() + "-renamed", existing.getUUID());
+
+        DataStream updated = original.renameIndex(existing, renamed);
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
+        assertThat(updated.getIndices(), equalTo(original.getIndices()));
+        assertThat(updated.getFailureIndices().get(position).getName(), equalTo(renamed.getName()));
+        assertThat(updated.getFailureIndices().get(position).getUUID(), equalTo(existing.getUUID()));
+    }
+
+    public void testRenameIndexRejectsDifferentUuidOrUnknownIndex() {
+        DataStream original = createRandomDataStream();
+        Index existing = original.getWriteIndex();
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> original.renameIndex(existing, new Index(existing.getName() + "-renamed", UUIDs.randomBase64UUID(random())))
+        );
+        assertThat(e.getMessage(), containsString("index uuids differ"));
+
+        Index unknown = new Index("unknown", UUIDs.randomBase64UUID(random()));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> original.renameIndex(unknown, new Index("unknown-renamed", unknown.getUUID()))
+        );
+        assertThat(e.getMessage(), containsString("is not part of data stream"));
     }
 
     public void testReplaceFailureIndex() {

@@ -13,6 +13,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -115,6 +116,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private final String[] visibleClosedIndices;
 
     private volatile SortedMap<String, IndexAbstraction> indicesLookup;
+    /**
+     * Lazily built view of {@link #indices} keyed by index UUID. Not serialized; built on first use on every node that needs it,
+     * which today is only the cluster state applier when it has to tell a renamed index apart from a deleted one.
+     */
+    private volatile ImmutableOpenMap<String, IndexMetadata> indicesByUuid;
     private final Map<String, MappingMetadata> mappingsByHash;
 
     private final IndexVersion oldestIndexVersion;
@@ -506,9 +512,14 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      * @param index An {@link Index} object that may or may not exist in the cluster.
      * @return {@code true} if an index exists with the same name and UUID as the given index object, {@code false} otherwise.
      */
+    /**
+     * Index lookups by {@link Index} resolve by name first and fall back to the UUID. The fallback is what keeps every component
+     * that captured an {@link Index} before a rename (shards, translog and commit services, recovery state, listeners) working
+     * after it: the name they hold is stale, the UUID is not. The fallback only runs when the name lookup misses, so the common
+     * path costs nothing extra.
+     */
     public boolean hasIndex(Index index) {
-        IndexMetadata metadata = index(index.getName());
-        return metadata != null && metadata.getIndexUUID().equals(index.getUUID());
+        return index(index) != null;
     }
 
     /** Returns true iff existing index has the same {@link IndexMetadata} instance */
@@ -534,7 +545,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         if (metadata != null && metadata.getIndexUUID().equals(index.getUUID())) {
             return metadata;
         }
-        return null;
+        // the name is stale or taken by another index: the index may still exist under a different name, see hasIndex(Index).
+        // The placeholder uuid identifies nothing, so it never resolves to another index.
+        return ClusterState.UNKNOWN_UUID.equals(index.getUUID()) ? null : indexByUuid(index.getUUID());
     }
 
     /**
@@ -550,6 +563,13 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      */
     public IndexMetadata getIndexSafe(Index index) {
         IndexMetadata metadata = index(index.getName());
+        if (metadata != null && metadata.getIndexUUID().equals(index.getUUID()) == false) {
+            // the name now belongs to another index; the one asked for may still exist under a different name
+            final IndexMetadata byUuid = ClusterState.UNKNOWN_UUID.equals(index.getUUID()) ? null : indexByUuid(index.getUUID());
+            if (byUuid != null) {
+                return byUuid;
+            }
+        }
         if (metadata != null) {
             if (metadata.getIndexUUID().equals(index.getUUID())) {
                 return metadata;
@@ -561,7 +581,44 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 )
             );
         }
+        final IndexMetadata byUuid = ClusterState.UNKNOWN_UUID.equals(index.getUUID()) ? null : indexByUuid(index.getUUID());
+        if (byUuid != null) {
+            return byUuid;
+        }
         throw new IndexNotFoundException(index, id);
+    }
+
+    /**
+     * @return the metadata of the index with the given UUID, whatever its current name, or {@code null} if no such index exists in
+     * this project. This is how a renamed index (same UUID, new name) is recognised across cluster states.
+     */
+    @Nullable
+    public IndexMetadata indexByUuid(String indexUuid) {
+        ImmutableOpenMap<String, IndexMetadata> lookup = indicesByUuid;
+        if (lookup == null) {
+            lookup = buildIndicesByUuid();
+        }
+        return lookup.get(indexUuid);
+    }
+
+    private synchronized ImmutableOpenMap<String, IndexMetadata> buildIndicesByUuid() {
+        ImmutableOpenMap<String, IndexMetadata> lookup = indicesByUuid;
+        if (lookup != null) {
+            return lookup;
+        }
+        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices.size());
+        for (IndexMetadata indexMetadata : indices.values()) {
+            if (ClusterState.UNKNOWN_UUID.equals(indexMetadata.getIndexUUID())) {
+                // the placeholder uuid identifies nothing; tests share it between indices, and Index#equals compares such
+                // indices by name, so they are never looked up by uuid
+                continue;
+            }
+            final IndexMetadata previous = builder.put(indexMetadata.getIndexUUID(), indexMetadata);
+            assert previous == null : "duplicate index uuid [" + indexMetadata.getIndexUUID() + "] for " + indexMetadata.getIndex();
+        }
+        lookup = builder.build();
+        indicesByUuid = lookup;
+        return lookup;
     }
 
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {

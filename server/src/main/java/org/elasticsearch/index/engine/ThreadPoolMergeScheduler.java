@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -68,9 +69,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         Setting.Property.NodeScope,
         Setting.Property.Deprecated
     );
-    private final ShardId shardId;
+    private volatile ShardId shardId;
     private final MergeSchedulerConfig config;
-    protected final Logger logger;
+    protected volatile Logger logger;
     private final MergeTracking mergeTracking;
     private final MergeMetrics mergeMetrics;
     private final IndexMode indexMode;
@@ -137,6 +138,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     @Override
     public MergeStats stats() {
         return mergeTracking.stats();
+    }
+
+    @Override
+    public void renameTo(Index index) {
+        assert index.getUUID().equals(shardId.getIndex().getUUID()) : "rename must keep the index uuid: " + shardId + " -> " + index;
+        this.shardId = new ShardId(index, shardId.id());
+        this.logger = Loggers.getLogger(getClass(), shardId);
     }
 
     @Override

@@ -48,13 +48,16 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
+        // TODO: remove these temporary privilege changes
+        // createIndex creates an index under a temporary name and renames it, and a rename may not give a user more access than the
+        // index has, so the temporary name has to be readable exactly where the final one is
         return super.configRoles() + "\n" + Strings.format("""
             %s:
               cluster: [ ALL ]
               indices:
                 - names: '*'
                   privileges: [ manage, write ]
-                - names: ['/test.*/', '/-alias.*/']
+                - names: ['/(temp_)?test.*/', '/-alias.*/']
                   privileges: [ read ]
             """, SecuritySettingsSource.TEST_ROLE);
     }

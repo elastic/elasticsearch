@@ -1,0 +1,211 @@
+---
+setup:
+  - requires:
+      cluster_features: ["index.rename"]
+      reason: "index rename is only available once every node supports it"
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            index.number_of_shards: 2
+          mappings:
+            properties:
+              foo:
+                type: keyword
+          aliases:
+            source_alias: {}
+  - do:
+      index:
+        index: source
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+---
+"Rename an index keeps its documents, mappings and aliases":
+  - do:
+      indices.rename:
+        index: source
+        target: target
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      indices.get:
+        index: source
+
+  - do:
+      search:
+        index: target
+        body:
+          query:
+            match: { foo: "hello world" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._index: target }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      indices.get_mapping:
+        index: target
+  - match: { target.mappings.properties.foo.type: keyword }
+
+  - do:
+      indices.get_alias:
+        name: source_alias
+  - is_true: target.aliases.source_alias
+
+  - do:
+      search:
+        index: source_alias
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._index: target }
+
+  - do:
+      index:
+        index: target
+        id:    "2"
+        body:  { "foo": "after rename" }
+        refresh: true
+  - do:
+      count:
+        index: target
+  - match: { count: 2 }
+
+---
+"Rename to an existing index name fails":
+  - do:
+      indices.create:
+        index: other
+  - do:
+      catch: /already exists/
+      indices.rename:
+        index: source
+        target: other
+
+---
+"Rename a missing index fails":
+  - do:
+      catch: missing
+      indices.rename:
+        index: does_not_exist
+        target: whatever
+
+---
+"Rename through the aliases API, taking over the name of an index removed in the same request":
+  - do:
+      indices.get:
+        index: source
+  - set: { source.settings.index.uuid: source_uuid }
+  - do:
+      indices.create:
+        index: other
+        body:
+          aliases:
+            other_alias: {}
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source, new_index: other }
+            - remove_index: { index: other }
+            - add: { index: source, alias: other_alias }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      indices.get:
+        index: source
+  - do:
+      indices.get:
+        index: other
+  - match: { other.settings.index.uuid: $source_uuid }
+  - match: { other.settings.index.provided_name: other }
+  - is_true: other.aliases.source_alias
+  - is_true: other.aliases.other_alias
+
+  - do:
+      search:
+        index: other_alias
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._index: other }
+
+---
+"Swap in a reindexed copy under the original name, as the design document describes":
+  - do:
+      indices.create:
+        index: my_index
+  - do:
+      index:
+        index: my_index
+        id: "1"
+        body: { version: old }
+        refresh: true
+  - do:
+      indices.create:
+        index: my_index_reindexed
+  - do:
+      index:
+        index: my_index_reindexed
+        id: "1"
+        body: { version: new }
+        refresh: true
+  - do:
+      indices.get:
+        index: my_index_reindexed
+  - set: { my_index_reindexed.settings.index.uuid: reindexed_uuid }
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove_index: { index: my_index }
+            - add: { index: my_index_reindexed, alias: my_alias }
+            - rename_index: { index: my_index_reindexed, new_index: my_index }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      indices.get:
+        index: my_index_reindexed
+  - do:
+      indices.get:
+        index: my_index
+  - match: { my_index.settings.index.uuid: $reindexed_uuid }
+  - is_true: my_index.aliases.my_alias
+
+  - do:
+      search:
+        index: my_alias
+        body:
+          query: { match: { version: new } }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._index: my_index }
+
+---
+"Rename actions are validated":
+  - do:
+      catch: bad_request
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: "sour*", new_index: target }
+  - do:
+      catch: bad_request
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source }
+  - do:
+      catch: bad_request
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source, new_index: target, alias: nope }
+  - do:
+      catch: bad_request
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source_alias, new_index: target }

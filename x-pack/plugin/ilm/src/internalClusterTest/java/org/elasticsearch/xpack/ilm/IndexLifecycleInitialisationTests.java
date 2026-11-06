@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -197,6 +198,43 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 .getLifecycleExecutionState();
             assertThat(lifecycleState.step(), equalTo("complete"));
         });
+    }
+
+    /**
+     * Lifecycle execution state lives in the index metadata and follows a rename; the policy must carry on under the new name.
+     */
+    public void testRenameIndexWhileWaitingOnStep() throws Exception {
+        internalCluster().startNode();
+        assertAcked(
+            client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy)).get()
+        );
+        assertAcked(indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet());
+        awaitIndexExists("test");
+        // the mock step waits for the index.lifecycle.test.complete setting
+        assertBusy(() -> assertThat(lifecycleStateOf("test").step(), equalTo(ObservableClusterStateWaitStep.NAME)));
+
+        client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest("test", "test-renamed")).actionGet();
+        assertThat(lifecycleStateOf("test-renamed").step(), equalTo(ObservableClusterStateWaitStep.NAME));
+
+        updateIndexSettings(Settings.builder().put("index.lifecycle.test.complete", true), "test-renamed");
+        assertBusy(() -> assertThat(lifecycleStateOf("test-renamed").step(), equalTo("complete")));
+
+        final ExplainLifecycleResponse explain = client().execute(
+            ExplainLifecycleAction.INSTANCE,
+            new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices("test-renamed")
+        ).get();
+        assertThat(explain.getIndexResponses().get("test-renamed").managedByILM(), equalTo(true));
+        assertThat(explain.getIndexResponses().get("test-renamed").getStep(), equalTo("complete"));
+    }
+
+    private LifecycleExecutionState lifecycleStateOf(String index) {
+        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .getMetadata()
+            .getProject(ProjectId.DEFAULT)
+            .index(index)
+            .getLifecycleExecutionState();
     }
 
     public void testNoOpPolicyUpdates() throws Exception {
@@ -592,7 +630,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public Result isConditionMet(Index index, ProjectState currentState) {
-            boolean complete = currentState.metadata().index("test").getSettings().getAsBoolean("index.lifecycle.test.complete", false);
+            // look the index up by Index rather than by a fixed name: the index may have been renamed since the step was queued
+            boolean complete = currentState.metadata().index(index).getSettings().getAsBoolean("index.lifecycle.test.complete", false);
             return new Result(complete, null);
         }
     }

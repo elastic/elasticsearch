@@ -630,7 +630,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
+                // one uuid per index: indices are identified by uuid, so sharing one would make them the same index
+                .put(IndexMetadata.SETTING_INDEX_UUID, "uuid-" + indexName)
         );
 
         return indexMetadata;

@@ -1442,7 +1442,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
                                 repositoryData,
                                 repoName,
-                                entry.partial()
+                                entry.partial(),
+                                entry::indexByName
                             );
                             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder = ImmutableOpenMap
                                 .builder(entry.shards());
@@ -2776,6 +2777,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         metaForSnapshot,
                         snapshotInfo,
                         entry.version(),
+                        SnapshotsServiceUtils.indicesWithAdjustedMetadata(entry, meta.getProject(projectId)),
                         ActionListener.runBefore(ActionListener.wrap(updatedRepositoryData -> {
                             assert snapshotInfoStateInvariant : snapshot + " FAILED without future deletion";
                             // get a hold of the listeners for this snapshot here and store them in the future so they can be used

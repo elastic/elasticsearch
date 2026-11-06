@@ -291,6 +291,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String RESHARDED_METADATA_IDENTIFIER_PREFIX = "resharded-";
 
     /**
+     * Prefix of the identifier of index metadata that finalization adjusted, for instance by leaving out an alias that clashes with a
+     * name the index got back. See {@link FinalizeSnapshotContext#indicesWithAdjustedMetadata()}.
+     */
+    public static final String ADJUSTED_METADATA_IDENTIFIER_PREFIX = "adjusted-";
+
+    /**
      * @param repositoryGeneration The numeric generation of the {@link RepositoryData} blob.
      * @return The name of the blob holding the corresponding {@link RepositoryData}.
      */
@@ -1934,6 +1940,34 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * An index metadata blob is found through its identifier alone, but lives in the container of one {@link IndexId}, so an
+     * identifier can only be shared by the snapshots of one index id. The identifier is built from the index UUID and the versions of
+     * its metadata, and an index normally has one id, but a renamed index can be snapshotted under two: a snapshot that was running
+     * when it was renamed is finalized under the id it started with, with the index's metadata as it is at that point, and the next
+     * snapshot is taken under the id of the new name, with the same metadata. The identifier is then already taken by a blob in the
+     * other container, and reusing it would point this index at a blob that is not in its container.
+     *
+     * @return {@code identifier} if no blob has it yet or if the snapshots of {@code indexId} already use it, and an identifier
+     *         specific to {@code indexId} otherwise
+     */
+    private static String identifierForContainer(RepositoryData repositoryData, IndexId indexId, String identifier) {
+        final IndexMetaDataGenerations generations = repositoryData.indexMetaDataGenerations();
+        if (generations.getIndexMetaBlobId(identifier) == null) {
+            return identifier;
+        }
+        if (indexId.equals(repositoryData.getIndices().get(indexId.getName()))) {
+            // the latest snapshot of the index is the one most likely to hold the same metadata
+            final List<SnapshotId> snapshots = repositoryData.getSnapshots(indexId);
+            for (int i = snapshots.size() - 1; i >= 0; i--) {
+                if (identifier.equals(generations.snapshotIndexMetadataIdentifier(snapshots.get(i), indexId))) {
+                    return identifier;
+                }
+            }
+        }
+        return identifier + "-" + indexId.getId();
+    }
+
     @Override
     public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
@@ -2022,7 +2056,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 finalizeSnapshotContext.updatedShardGenerations().liveIndices()
                             );
                             if (writeIndexGens) {
-                                if (possiblyAdjustedMetadata.isPresent()) {
+                                final boolean adjustedByFinalization = finalizeSnapshotContext.indicesWithAdjustedMetadata()
+                                    .contains(index.getName());
+                                if (possiblyAdjustedMetadata.isPresent() || adjustedByFinalization) {
                                     // We have adjusted the index metadata and because of that we shouldn't ever deduplicate/reuse it.
                                     //
                                     // It's possible that we are already using the latest identifier
@@ -2043,10 +2079,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     // If multiple snapshots in a row need to adjust the metadata they'll all enter this block
                                     // and write a separate blob every time.
 
-                                    String customIdentifier = RESHARDED_METADATA_IDENTIFIER_PREFIX + UUIDs.base64UUID();
+                                    String customIdentifier = (possiblyAdjustedMetadata.isPresent()
+                                        ? RESHARDED_METADATA_IDENTIFIER_PREFIX
+                                        : ADJUSTED_METADATA_IDENTIFIER_PREFIX) + UUIDs.base64UUID();
                                     String metadataBlobUUID = UUIDs.base64UUID();
                                     INDEX_METADATA_FORMAT.write(
-                                        possiblyAdjustedMetadata.get(),
+                                        possiblyAdjustedMetadata.orElse(indexMetaData),
                                         indexContainer(index),
                                         metadataBlobUUID,
                                         compress
@@ -2054,7 +2092,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     metadataWriteResult.indexMetas().put(index, customIdentifier);
                                     metadataWriteResult.indexMetaIdentifiers().put(customIdentifier, metadataBlobUUID);
                                 } else {
-                                    final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
+                                    final String identifiers = identifierForContainer(
+                                        existingRepositoryData,
+                                        index,
+                                        IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData)
+                                    );
                                     String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
                                     if (metaUUID == null) {
                                         // We don't yet have this version of the metadata so we write it

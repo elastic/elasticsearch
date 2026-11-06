@@ -51,7 +51,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
- * Service responsible for submitting add and remove aliases requests
+ * Service responsible for submitting add and remove aliases requests, and the index removals and renames that travel with them
  */
 public class MetadataIndexAliasesService {
 
@@ -129,9 +129,16 @@ public class MetadataIndexAliasesService {
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(currentProjectMetadata);
             // Run the remaining alias actions
             final Set<String> maybeModifiedIndices = new HashSet<>();
+            // Renames run last, after the alias actions, so that the names in the request all refer to the state before it
+            final List<AliasAction.RenameIndex> renames = new ArrayList<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
                     // Handled above
+                    continue;
+                }
+                if (action.renameIndex()) {
+                    // Handled below
+                    renames.add((AliasAction.RenameIndex) action);
                     continue;
                 }
 
@@ -212,8 +219,17 @@ public class MetadataIndexAliasesService {
                 // even though changes happened, they resulted in 0 actual changes to metadata
                 // i.e. remove and add the same alias to the same index
                 if (updatedMetadata.equalsAliases(currentProjectMetadata) == false) {
-                    return ClusterState.builder(currentState).putProjectMetadata(updatedMetadata).build();
+                    currentState = ClusterState.builder(currentState).putProjectMetadata(updatedMetadata).build();
                 }
+            }
+            // Each rename sees the state produced by the actions before it, so a rename can take over the name of an index that
+            // the same request removed, and two renames in one request chain
+            for (AliasAction.RenameIndex rename : renames) {
+                currentState = MetadataRenameIndexService.renameIndex(
+                    currentState.projectState(projectId),
+                    rename.getIndex(),
+                    rename.getNewIndex()
+                );
             }
             return currentState;
         } finally {

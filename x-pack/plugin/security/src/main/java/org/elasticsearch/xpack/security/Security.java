@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -78,6 +79,7 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -649,6 +651,8 @@ public class Security extends Plugin
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterServiceReference = new SetOnce<>();
+    private final SetOnce<ProjectResolver> projectResolverReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
     private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<BulkPutRoleRequestBuilderFactory> bulkPutRoleRequestBuilderFactory = new SetOnce<>();
@@ -877,6 +881,8 @@ public class Security extends Plugin
         SystemIndices coreSystemIndices,
         UsageService usageService
     ) throws Exception {
+        clusterServiceReference.set(clusterService);
+        projectResolverReference.set(projectResolver);
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null, null));
@@ -1230,7 +1236,12 @@ public class Security extends Plugin
         dlsFlsEnabled.set(XPackSettings.DLS_FLS_ENABLED.get(settings));
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
             new ResizeRequestInterceptor(threadPool, auditTrailService, dlsFlsEnabled.get()),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get()),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get(), indexName -> {
+                final var abstraction = projectResolver.getProjectMetadata(clusterService.state()).getIndicesLookup().get(indexName);
+                return abstraction != null && abstraction.getParentDataStream() != null
+                    ? abstraction.getParentDataStream().getName()
+                    : null;
+            }),
             new DatasetDatasourceRequestInterceptor(threadPool.getThreadContext(), auditTrailService)
         );
 
@@ -1238,7 +1249,7 @@ public class Security extends Plugin
             requestInterceptors.addAll(
                 Arrays.asList(
                     new SearchRequestInterceptor(threadPool),
-                    new ShardSearchRequestInterceptor(threadPool),
+                    new ShardSearchRequestInterceptor(threadPool, this::currentIndexName),
                     new UpdateRequestInterceptor(threadPool),
                     new BulkShardRequestInterceptor(threadPool),
                     new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
@@ -1866,7 +1877,14 @@ public class Security extends Plugin
                     // complete mapping, independently of the user's field-level permissions.
                     context.setFieldVisibilityPredicate(FieldPredicate.ACCEPT_ALL);
                     return context;
-                }, dlsBitsetCache.get(), securityContext.get(), getLicenseState(), indexService.getScriptService()));
+                },
+                    dlsBitsetCache.get(),
+                    securityContext.get(),
+                    getLicenseState(),
+                    indexService.getScriptService(),
+                    // the index may be renamed while the shard's reader keeps the name it was created with
+                    () -> indexService.index().getName()
+                ));
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully
@@ -2804,7 +2822,22 @@ public class Security extends Plugin
         if (enabled == false) {
             return null;
         }
-        return new DlsFlsRequestCacheDifferentiator(getLicenseState(), securityContext, scriptServiceReference);
+        return new DlsFlsRequestCacheDifferentiator(getLicenseState(), securityContext, scriptServiceReference, this::currentIndexName);
+    }
+
+    /**
+     * The name that the index of a shard has now, found by its UUID because a request can still carry the name the index had before it
+     * was renamed, or {@code null} if the index is gone or the node has not been set up yet.
+     */
+    @Nullable
+    private String currentIndexName(ShardId shardId) {
+        final ClusterService clusterService = clusterServiceReference.get();
+        final ProjectResolver projectResolver = projectResolverReference.get();
+        if (clusterService == null || projectResolver == null) {
+            return null;
+        }
+        final IndexMetadata indexMetadata = projectResolver.getProjectMetadata(clusterService.state()).index(shardId.getIndex());
+        return indexMetadata == null ? null : indexMetadata.getIndex().getName();
     }
 
     @Override

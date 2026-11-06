@@ -41,6 +41,11 @@ public class AliasActionsTests extends ESTestCase {
         if (type == AliasActions.Type.REMOVE_INDEX) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(type).validate());
             assertEquals("One of [index] or [indices] is required", e.getMessage());
+        } else if (type == AliasActions.Type.RENAME_INDEX) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(type).validate());
+            assertEquals("One of [index] or [indices] is required", e.getMessage());
+            e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(type).index(randomAlphaOfLength(5)).validate());
+            assertEquals("[new_index] is required", e.getMessage());
         } else {
             Exception e = expectThrows(
                 IllegalArgumentException.class,
@@ -83,7 +88,11 @@ public class AliasActionsTests extends ESTestCase {
     }
 
     public void testEmptyAlias() {
-        AliasActions.Type type = randomValueOtherThan(AliasActions.Type.REMOVE_INDEX, () -> randomFrom(AliasActions.Type.values()));
+        // removing or renaming an index takes no aliases at all
+        AliasActions.Type type = randomValueOtherThanMany(
+            t -> t == AliasActions.Type.REMOVE_INDEX || t == AliasActions.Type.RENAME_INDEX,
+            () -> randomFrom(AliasActions.Type.values())
+        );
         Exception e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(type).alias(null));
         assertEquals("[alias] can't be empty string", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(type).alias(""));
@@ -277,6 +286,68 @@ public class AliasActionsTests extends ESTestCase {
         }
     }
 
+    public void testParseRenameIndex() throws IOException {
+        XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
+        b.startObject();
+        {
+            b.startObject("rename_index");
+            {
+                b.field("index", "old");
+                b.field("new_index", "new");
+            }
+            b.endObject();
+        }
+        b.endObject();
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
+            assertEquals(AliasActions.Type.RENAME_INDEX, action.actionType());
+            assertEquals("new", action.newIndex());
+            // both names are reported so that both are authorized
+            assertArrayEquals(new String[] { "old", "new" }, action.indices());
+            assertArrayEquals(new String[0], action.aliases());
+        }
+    }
+
+    public void testRenameIndexValidation() {
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().index("old").validate()).getMessage(),
+            equalTo("[new_index] is required")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().index("old").newIndex("old").validate())
+                .getMessage(),
+            equalTo("[index] and [new_index] must differ")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().index("old*").newIndex("new").validate())
+                .getMessage(),
+            equalTo("[rename_index] does not support wildcards, got [old*]")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().index("old").newIndex("_all").validate())
+                .getMessage(),
+            equalTo("[rename_index] does not support wildcards, got [_all]")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().indices("a", "b", "c")).getMessage(),
+            equalTo("[rename_index] takes a single [index]")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().alias("x")).getMessage(),
+            equalTo("[alias] is unsupported for [RENAME_INDEX]")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.add().newIndex("x")).getMessage(),
+            equalTo("[new_index] is unsupported for [ADD]")
+        );
+        // security hands the authorized pair back through indices()
+        AliasActions action = AliasActions.renameIndex().index("old").newIndex("new");
+        action.indices(action.indices());
+        action.validate();
+        assertEquals("new", action.newIndex());
+        assertArrayEquals(new String[] { "old", "new" }, action.indices());
+    }
+
     public void testParseIndexAndIndicesThrowsError() throws IOException {
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject();
@@ -319,12 +390,15 @@ public class AliasActionsTests extends ESTestCase {
 
     public void testRoundTrip() throws IOException {
         AliasActions action = new AliasActions(randomFrom(AliasActions.Type.values()));
-        if (randomBoolean()) {
+        if (action.actionType() == AliasActions.Type.RENAME_INDEX) {
+            // a rename names one index and its new name, nothing else
+            action.index(randomAlphaOfLength(5)).newIndex(randomAlphaOfLength(6));
+        } else if (randomBoolean()) {
             action.index(randomAlphaOfLength(5));
         } else {
             action.indices(generateRandomStringArray(5, 5, false, false));
         }
-        if (action.actionType() != AliasActions.Type.REMOVE_INDEX) {
+        if (action.actionType() != AliasActions.Type.REMOVE_INDEX && action.actionType() != AliasActions.Type.RENAME_INDEX) {
             if (randomBoolean()) {
                 action.alias(randomAlphaOfLength(5));
             } else {

@@ -78,6 +78,12 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginIntegTestCase {
 
+    @Override
+    protected boolean renameIndexOnCreate() {
+        // asserts the index name reported by the search engine, which is the creation-time name
+        return false;
+    }
+
     private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofKb(4);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(2);
 

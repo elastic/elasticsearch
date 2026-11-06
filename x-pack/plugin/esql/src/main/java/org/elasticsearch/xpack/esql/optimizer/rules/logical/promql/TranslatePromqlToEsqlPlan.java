@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesA
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 
 /**
  * Translates PromQL logical plan into ESQL plan. Runs before {@link TranslateTimeSeriesAggregate} to convert
@@ -27,9 +26,10 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
  *           \_ Aggregate[avg(sum_result), groupBy=[step]]
  *                 \_ TimeSeriesAggregate[sum(rate(value)), groupBy=[step, cluster]]
  * </pre>
- * Mechanism: a {@link TranslationContext} per command; recursive descent via {@link PromqlPlan#translate} where every
- * PromQL node produces an {@code IntermediateResult} its parent composes, and {@link TranslationContext#translateFinal}
- * stitches the top-level forms (single branch, {@code or} union) into finished tables.
+ * Mechanism: a {@code TranslationContext} per command; recursive descent via {@link PromqlPlan#translate} where every
+ * PromQL node produces an {@code IntermediateResult} its parent composes, and {@link PromqlCommand#translate}
+ * stitches the top-level forms (single branch, {@code or} union) into finished tables. The plan reads its labels through
+ * references that {@link PruneUnresolvedPromqlAttributeRefs} binds right after.
  */
 public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.ParameterizedAnalyzerRule<PromqlCommand, AnalyzerContext> {
 
@@ -40,6 +40,6 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     @Override
     protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
-        return new TranslationContext(cmd, context).translateFinal();
+        return cmd.translate(context);
     }
 }

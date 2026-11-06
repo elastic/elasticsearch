@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -65,9 +66,6 @@ import java.util.function.Predicate;
  * {@link TimeSeriesUnset} only), or to null for a label no series has; anything else is not supported.
  */
 public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-
-    /** Same wire name emitters use for empty signatures; kept local so this PR does not touch plan operators. */
-    private static final String EMPTY_SIGNATURE_KEY = "$empty_prom_sig";
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -297,12 +295,15 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
         }
 
         /**
-         * The initial aggregate collapses the source per series. A label it keys by, or can push down, is a dimension column;
-         * one the source lacks is dropped from the keys. The source reads its metadata without the labels it leaves out.
+         * The initial aggregate collapses the source per series. A label it keys by or carries is a field column, dimension or
+         * not: a non-dimension field is a label of the series that its metadata does not hold, so carrying it beside the
+         * metadata keys by it too, as Prometheus keys by every label a WITHOUT leaves in. One the source lacks is dropped
+         * from the keys. The source reads its metadata without the labels it leaves out.
          */
         private LogicalPlan resolveCollapse(TimeSeriesAggregate node, List<UnresolvedPromqlAttribute> needs) {
             Alias value = (Alias) node.aggregates().getFirst();
-            Keys keys = keys(grain(node.groupings(), value), needs, true);
+            Grain grain = grain(node.groupings(), value);
+            Keys keys = keys(grain, needs, true);
             LogicalPlan raw = node.child();
             LogicalPlan child = raw;
             Source source = node.source();
@@ -334,7 +335,7 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
                 }
             }
             for (UnresolvedPromqlAttribute label : keys.labels()) {
-                Attribute column = PromqlLabels.getLabel(raw, label.name());
+                Attribute column = PromqlLabels.getField(raw, label.name());
                 if (column != null) {
                     groupKeys.add(column);
                 }
@@ -581,7 +582,7 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
                     nulls.add(metadata);
                     column = metadata.toAttribute();
                 }
-                if (column == null && typed && EMPTY_SIGNATURE_KEY.equals(ref.name())) {
+                if (column == null && typed && VectorBinaryOperator.EMPTY_SIGNATURE_KEY.equals(ref.name())) {
                     // the signature slot of an operand without metadata: the empty label set, which an opaque sibling's
                     // view equals once it has no label left outside the named key slots
                     UnresolvedPromqlAttribute read = ownByName.get(ref.name());

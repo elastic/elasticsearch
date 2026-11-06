@@ -32,8 +32,8 @@ public class StatelessPluginSettingsTests extends ESTestCase {
                 .build()
         );
         Settings searchNodeSettings = searchNodeStateless.additionalSettings();
-        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("90%"));
-        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("250GB"));
+        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("8gb"));
+        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("-1"));
 
         StatelessPlugin searchNodeStatelessWithManualSetting = new TestUtils.StatelessPluginWithTrialLicense(
             Settings.builder()
@@ -55,6 +55,50 @@ public class StatelessPluginSettingsTests extends ESTestCase {
         Settings indexNodeSettings = indexNodeStateless.additionalSettings();
         assertThat(indexNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("50%"));
         assertThat(indexNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("-1"));
+    }
+
+    public void testStatelessDefaultSharedCacheGhostSizeRatio() {
+        final String role = randomFrom(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.INDEX_ROLE).roleName();
+        StatelessPlugin statelessNode = new TestUtils.StatelessPluginWithTrialLicense(
+            Settings.builder()
+                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), role)
+                .build()
+        );
+        assertThat(SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.get(statelessNode.additionalSettings()), equalTo(1.0f));
+
+        StatelessPlugin statelessNodeWithManualSetting = new TestUtils.StatelessPluginWithTrialLicense(
+            Settings.builder()
+                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), role)
+                .put(SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.getKey(), 0f)
+                .build()
+        );
+        assertFalse(
+            SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.exists(statelessNodeWithManualSetting.additionalSettings())
+        );
+    }
+
+    public void testStatelessDefaultSharedCacheProbationSizeRatio() {
+        final String role = randomFrom(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.INDEX_ROLE).roleName();
+        StatelessPlugin statelessNode = new TestUtils.StatelessPluginWithTrialLicense(
+            Settings.builder()
+                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), role)
+                .build()
+        );
+        assertThat(SharedBlobCacheService.SHARED_CACHE_PROBATION_SIZE_RATIO_SETTING.get(statelessNode.additionalSettings()), equalTo(0.1f));
+
+        StatelessPlugin statelessNodeWithManualSetting = new TestUtils.StatelessPluginWithTrialLicense(
+            Settings.builder()
+                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), role)
+                .put(SharedBlobCacheService.SHARED_CACHE_PROBATION_SIZE_RATIO_SETTING.getKey(), 0f)
+                .build()
+        );
+        assertFalse(
+            SharedBlobCacheService.SHARED_CACHE_PROBATION_SIZE_RATIO_SETTING.exists(statelessNodeWithManualSetting.additionalSettings())
+        );
     }
 
     public void testDiskUsageBalanceFactorSettingIsZeroForStateless() {

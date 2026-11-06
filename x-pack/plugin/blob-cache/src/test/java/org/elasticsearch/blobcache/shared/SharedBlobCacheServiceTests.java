@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheMetrics.RegionFillOrigin;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
@@ -5515,6 +5516,507 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 ),
                 cacheFile.toString()
             );
+        }
+    }
+
+    private static Settings refetchTrackingSettings(float ghostSizeRatio) {
+        return Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put(SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.getKey(), ghostSizeRatio)
+            .put("path.home", createTempDir())
+            .build();
+    }
+
+    private static List<Measurement> regionFetches(RecordingMeterRegistry registry, boolean refetch) {
+        return registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BlobCacheMetrics.BLOB_CACHE_REGION_FETCH_TOTAL)
+            .stream()
+            .filter(m -> m.attributes().get(BlobCacheMetrics.REFETCH_ATTRIBUTE_KEY).equals(refetch))
+            .toList();
+    }
+
+    private static List<Measurement> pressureEvictions(RecordingMeterRegistry registry) {
+        return registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BlobCacheMetrics.BLOB_CACHE_PRESSURE_EVICTED_REGIONS_TOTAL);
+    }
+
+    public void testRegionFetchesAreNotRecordedWithoutGhostTable() throws IOException {
+        final Settings settings = refetchTrackingSettings(0f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            for (int region = 0; region < 6; region++) {
+                cacheService.get(cacheKey, size(600), region, irrelevantTimestamp());
+            }
+            cacheService.get(cacheKey, size(600), 0, irrelevantTimestamp());
+            assertThat(
+                recordingMeterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, BlobCacheMetrics.BLOB_CACHE_REGION_FETCH_TOTAL),
+                empty()
+            );
+            // pressure evictions are recorded whether or not the ghost table is enabled
+            assertThat(pressureEvictions(recordingMeterRegistry), hasSize(2));
+        }
+    }
+
+    public void testRefetchIsDetectedAfterPressureEviction() throws IOException {
+        final Settings settings = refetchTrackingSettings(1f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            for (int region = 0; region < 5; region++) {
+                cacheService.get(cacheKey, size(500), region, irrelevantTimestamp());
+            }
+            assertThat(cacheService.freeRegionCount(), is(0));
+            assertThat(regionFetches(recordingMeterRegistry, false), hasSize(5));
+
+            // a forced warm of another blob takes the slot of the oldest region, region 0
+            final var otherKey = generateCacheKey();
+            cacheService.get(otherKey, size(100), 0, irrelevantTimestamp(), RegionFillOrigin.ForcedSpeculative);
+            assertThat(pressureEvictions(recordingMeterRegistry), hasSize(1));
+            assertThat(regionFetches(recordingMeterRegistry, false), hasSize(6));
+            assertThat(
+                regionFetches(recordingMeterRegistry, false).getLast().attributes().get(BlobCacheMetrics.FILL_ORIGIN_ATTRIBUTE_KEY),
+                is(RegionFillOrigin.ForcedSpeculative.name())
+            );
+
+            // reading region 0 again evicts region 1 and is reported as a re-fetch caused by the forced warm
+            cacheService.get(cacheKey, size(500), 0, irrelevantTimestamp());
+            final var refetches = regionFetches(recordingMeterRegistry, true);
+            assertThat(refetches, hasSize(1));
+            assertThat(
+                refetches.getFirst().attributes().get(BlobCacheMetrics.FILL_ORIGIN_ATTRIBUTE_KEY),
+                is(RegionFillOrigin.Demand.name())
+            );
+            assertThat(
+                refetches.getFirst().attributes().get(BlobCacheMetrics.EVICTED_BY_ATTRIBUTE_KEY),
+                is(RegionFillOrigin.ForcedSpeculative.name())
+            );
+            // the eviction of region 1 to make room for region 0 happened after the eviction of region 0
+            final var distances = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_REFETCH_EVICTION_DISTANCE);
+            assertThat(distances, hasSize(1));
+            assertThat(distances.getFirst().getDouble(), is(1.0 / 5));
+            final var ages = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_REFETCH_AGE);
+            assertThat(ages, hasSize(1));
+            // the histograms can be split by the kind of fill that caused the eviction, like the counter
+            for (var histogramMeasurement : List.of(distances.getFirst(), ages.getFirst())) {
+                assertThat(
+                    histogramMeasurement.attributes().get(BlobCacheMetrics.EVICTED_BY_ATTRIBUTE_KEY),
+                    is(RegionFillOrigin.ForcedSpeculative.name())
+                );
+                assertThat(
+                    histogramMeasurement.attributes().get(BlobCacheMetrics.FILL_ORIGIN_ATTRIBUTE_KEY),
+                    is(RegionFillOrigin.Demand.name())
+                );
+            }
+
+            // the ghost is consumed by the re-fetch: evicting and re-reading region 1 is a re-fetch, but not region 0 twice
+            cacheService.get(cacheKey, size(500), 1, irrelevantTimestamp());
+            assertThat(regionFetches(recordingMeterRegistry, true), hasSize(2));
+            assertThat(regionFetches(recordingMeterRegistry, false), hasSize(6));
+        }
+    }
+
+    public void testForcedEvictionsAreNotRefetches() throws IOException {
+        final Settings settings = refetchTrackingSettings(1f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            cacheService.get(cacheKey, size(100), 0, irrelevantTimestamp());
+            assertThat(cacheService.forceEvict(cacheKey::equals), is(1));
+            cacheService.get(cacheKey, size(100), 0, irrelevantTimestamp());
+            assertThat(regionFetches(recordingMeterRegistry, false), hasSize(2));
+            assertThat(regionFetches(recordingMeterRegistry, true), empty());
+            assertThat(pressureEvictions(recordingMeterRegistry), empty());
+        }
+    }
+
+    public void testPressureEvictionsReportWhetherRegionsWereReaccessed() throws IOException {
+        final Settings settings = refetchTrackingSettings(1f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long blobLength = size(500);
+            // regions 0 and 1 are filled by demand reads, regions 2 and 3 by warming, region 4 by a demand read
+            cacheService.get(cacheKey, blobLength, 0, irrelevantTimestamp());
+            cacheService.get(cacheKey, blobLength, 1, irrelevantTimestamp());
+            cacheService.get(cacheKey, blobLength, 2, irrelevantTimestamp(), RegionFillOrigin.Speculative);
+            cacheService.get(cacheKey, blobLength, 3, irrelevantTimestamp(), RegionFillOrigin.ForcedSpeculative);
+            cacheService.get(cacheKey, blobLength, 4, irrelevantTimestamp());
+
+            // a read of region 0 within the re-access window is part of the access that filled it
+            cacheService.get(cacheKey, blobLength, 0, irrelevantTimestamp());
+            // any demand read of a warmed region is a re-access, a warming request is not
+            cacheService.get(cacheKey, blobLength, 2, irrelevantTimestamp());
+            cacheService.get(cacheKey, blobLength, 3, irrelevantTimestamp(), RegionFillOrigin.Speculative);
+            // a read of region 1 after the re-access window is a re-access
+            final long reaccessWindowMillis = SharedBlobCacheService.SHARED_CACHE_REACCESS_WINDOW_SETTING.get(settings).millis();
+            taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + reaccessWindowMillis, () -> {});
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+            cacheService.get(cacheKey, blobLength, 1, irrelevantTimestamp());
+
+            // evict all five regions, oldest first
+            final var otherKey = generateCacheKey();
+            for (int region = 0; region < 5; region++) {
+                cacheService.get(otherKey, blobLength, region, irrelevantTimestamp());
+            }
+            final var evictions = pressureEvictions(recordingMeterRegistry);
+            assertThat(evictions, hasSize(5));
+            assertThat(
+                evictions.stream().map(m -> m.attributes().get(BlobCacheMetrics.REACCESSED_ATTRIBUTE_KEY)).toList(),
+                equalTo(List.of(false, true, true, false, false))
+            );
+            assertThat(
+                evictions.stream().map(m -> m.attributes().get(BlobCacheMetrics.FILL_ORIGIN_ATTRIBUTE_KEY)).toList(),
+                equalTo(
+                    List.of(
+                        RegionFillOrigin.Demand.name(),
+                        RegionFillOrigin.Demand.name(),
+                        RegionFillOrigin.Speculative.name(),
+                        RegionFillOrigin.ForcedSpeculative.name(),
+                        RegionFillOrigin.Demand.name()
+                    )
+                )
+            );
+        }
+    }
+
+    /**
+     * A cache of 10 regions with a probation tier of 3 regions, or none if {@code probationSizeRatio} is 0.
+     */
+    private SharedBlobCacheService<TestCacheKey> createProbationCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        DeterministicTaskQueue taskQueue,
+        RecordingMeterRegistry recordingMeterRegistry,
+        EvictionPolicy<TestCacheKey> evictionPolicy
+    ) {
+        return new SharedBlobCacheService<>(
+            environment,
+            settings,
+            taskQueue.getThreadPool(),
+            taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+            new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER),
+            evictionPolicy
+        );
+    }
+
+    private static Settings probationSettings(float probationSizeRatio) {
+        return Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1000)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put(SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.getKey(), 1f)
+            .put(SharedBlobCacheService.SHARED_CACHE_PROBATION_SIZE_RATIO_SETTING.getKey(), probationSizeRatio)
+            .put("path.home", createTempDir())
+            .build();
+    }
+
+    /** Fills the 10 regions of the cache with the regions of one blob, at frequency 1. */
+    private static List<SharedBlobCacheService.CacheFileRegion<TestCacheKey>> fillCache(
+        SharedBlobCacheService<TestCacheKey> cacheService,
+        TestCacheKey cacheKey
+    ) {
+        final List<SharedBlobCacheService.CacheFileRegion<TestCacheKey>> regions = new ArrayList<>();
+        for (int region = 0; region < 10; region++) {
+            regions.add(cacheService.get(cacheKey, size(1000), region, irrelevantTimestamp()));
+        }
+        assertThat(cacheService.freeRegionCount(), is(0));
+        return regions;
+    }
+
+    private static void advanceTimeBeyondReaccessWindow(DeterministicTaskQueue taskQueue, Settings settings) {
+        final long reaccessWindowMillis = SharedBlobCacheService.SHARED_CACHE_REACCESS_WINDOW_SETTING.get(settings).millis();
+        taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + reaccessWindowMillis, () -> {});
+        taskQueue.advanceTime();
+    }
+
+    private static List<Object> probationPromotionReasons(RecordingMeterRegistry registry) {
+        return registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BlobCacheMetrics.BLOB_CACHE_PROBATION_PROMOTED_TOTAL)
+            .stream()
+            .map(m -> m.attributes().get(BlobCacheMetrics.PROBATION_PROMOTION_ATTRIBUTE_KEY))
+            .toList();
+    }
+
+    public void testProbationEvictsOldestRegionNotReaccessed() throws IOException {
+        final Settings settings = probationSettings(0.3f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = createProbationCacheService(
+                environment,
+                settings,
+                taskQueue,
+                recordingMeterRegistry,
+                new DefaultEvictionPolicy<>()
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            // region 0 is filled by a warm, the others by demand reads
+            final List<SharedBlobCacheService.CacheFileRegion<TestCacheKey>> regions = new ArrayList<>();
+            regions.add(cacheService.get(cacheKey, size(1000), 0, irrelevantTimestamp(), RegionFillOrigin.Speculative));
+            for (int region = 1; region < 10; region++) {
+                regions.add(cacheService.get(cacheKey, size(1000), region, irrelevantTimestamp()));
+            }
+
+            // a demand read of the warmed region is a re-access, a read of region 2 within the re-access window is not...
+            cacheService.get(cacheKey, size(1000), 0, irrelevantTimestamp());
+            cacheService.get(cacheKey, size(1000), 2, irrelevantTimestamp());
+            // ... but a read of region 1 after the window is
+            advanceTimeBeyondReaccessWindow(taskQueue, settings);
+            cacheService.get(cacheKey, size(1000), 1, irrelevantTimestamp());
+
+            // the probation tier (frequency 1) is over its cap of 3: regions 0 and 1 are promoted and region 2 is evicted
+            cacheService.get(generateCacheKey(), size(100), 0, irrelevantTimestamp());
+            assertFalse(regions.get(0).isEvicted());
+            assertFalse(regions.get(1).isEvicted());
+            assertTrue(regions.get(2).isEvicted());
+            assertThat(cacheService.getFreq(regions.get(0)), is(2));
+            assertThat(cacheService.getFreq(regions.get(1)), is(2));
+            assertThat(regions.get(1).maxReachedFreq(), is(2));
+            assertThat(probationPromotionReasons(recordingMeterRegistry), equalTo(List.of("Reaccessed", "Reaccessed")));
+
+            // the next fill evicts the next region of the probation tier, region 3
+            cacheService.get(generateCacheKey(), size(100), 0, irrelevantTimestamp());
+            assertTrue(regions.get(3).isEvicted());
+            assertFalse(regions.get(0).isEvicted());
+            assertFalse(regions.get(1).isEvicted());
+        }
+    }
+
+    public void testProbationPromotesRegionsProtectedByEvictionPolicy() throws IOException {
+        final Settings settings = probationSettings(0.3f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        final var protectedKey = generateCacheKey();
+        final EvictionPolicy<TestCacheKey> protectingPolicy = new EvictionPolicy<>() {
+            @Override
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
+                return region -> region.key().equals(protectedKey) == false;
+            }
+
+            @Override
+            public void onCached(CacheRegion<TestCacheKey> region) {}
+
+            @Override
+            public void onEvicted(CacheRegion<TestCacheKey> region) {}
+        };
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = createProbationCacheService(environment, settings, taskQueue, recordingMeterRegistry, protectingPolicy)
+        ) {
+            final var protected0 = cacheService.get(protectedKey, size(200), 0, irrelevantTimestamp());
+            final var protected1 = cacheService.get(protectedKey, size(200), 1, irrelevantTimestamp());
+            final var otherKey = generateCacheKey();
+            final List<SharedBlobCacheService.CacheFileRegion<TestCacheKey>> others = new ArrayList<>();
+            for (int region = 0; region < 8; region++) {
+                others.add(cacheService.get(otherKey, size(800), region, irrelevantTimestamp()));
+            }
+
+            cacheService.get(generateCacheKey(), size(100), 0, irrelevantTimestamp());
+            assertThat(cacheService.getFreq(protected0), is(2));
+            assertThat(cacheService.getFreq(protected1), is(2));
+            assertTrue(others.get(0).isEvicted());
+            assertThat(probationPromotionReasons(recordingMeterRegistry), equalTo(List.of("Protected", "Protected")));
+        }
+    }
+
+    public void testProbationWithinCapEvictsFromMainTierFirst() throws IOException {
+        final Settings settings = probationSettings(0.3f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = createProbationCacheService(
+                environment,
+                settings,
+                taskQueue,
+                recordingMeterRegistry,
+                new DefaultEvictionPolicy<>()
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var regions = fillCache(cacheService, cacheKey);
+            advanceTimeBeyondReaccessWindow(taskQueue, settings);
+            for (int region = 0; region < 7; region++) {
+                cacheService.get(cacheKey, size(1000), region, irrelevantTimestamp());
+            }
+
+            // promoting regions 0 to 6 brings the probation tier within its cap, so the oldest region of the main tier is evicted
+            cacheService.get(generateCacheKey(), size(100), 0, irrelevantTimestamp());
+            assertThat(probationPromotionReasons(recordingMeterRegistry), hasSize(7));
+            assertTrue(regions.get(0).isEvicted());
+            for (int region = 1; region < 10; region++) {
+                assertFalse(regions.get(region).isEvicted());
+            }
+        }
+    }
+
+    public void testProbationFallsBackToMainTierWhenProbationRegionsAreInUse() throws IOException {
+        final Settings settings = probationSettings(0.3f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = createProbationCacheService(
+                environment,
+                settings,
+                taskQueue,
+                recordingMeterRegistry,
+                new DefaultEvictionPolicy<>()
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var regions = fillCache(cacheService, cacheKey);
+            advanceTimeBeyondReaccessWindow(taskQueue, settings);
+            cacheService.get(cacheKey, size(1000), 0, irrelevantTimestamp());
+            for (int region = 1; region < 10; region++) {
+                assertTrue(regions.get(region).tryIncRef());
+            }
+            try {
+                // region 0 is promoted, every other region is in use: the promoted region is the only one that can be evicted
+                cacheService.get(generateCacheKey(), size(100), 0, irrelevantTimestamp());
+                assertTrue(regions.get(0).isEvicted());
+                for (int region = 1; region < 10; region++) {
+                    assertFalse(regions.get(region).isEvicted());
+                }
+            } finally {
+                for (int region = 1; region < 10; region++) {
+                    regions.get(region).decRef();
+                }
+            }
+        }
+    }
+
+    public void testGhostRescueSkipsProbation() throws IOException {
+        final boolean probationEnabled = randomBoolean();
+        final Settings settings = probationSettings(probationEnabled ? 0.3f : 0f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = createProbationCacheService(
+                environment,
+                settings,
+                taskQueue,
+                recordingMeterRegistry,
+                new DefaultEvictionPolicy<>()
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var regions = fillCache(cacheService, cacheKey);
+            cacheService.get(generateCacheKey(), size(100), 0, irrelevantTimestamp());
+            assertTrue(regions.get(0).isEvicted());
+
+            final var refetched = cacheService.get(cacheKey, size(1000), 0, irrelevantTimestamp());
+            assertThat(regionFetches(recordingMeterRegistry, true), hasSize(1));
+            assertThat(cacheService.getFreq(refetched), is(probationEnabled ? 2 : 1));
+        }
+    }
+
+    public void testProbationDisabledKeepsFrequencyLevels() throws IOException {
+        final Settings settings = probationSettings(0f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = createProbationCacheService(
+                environment,
+                settings,
+                taskQueue,
+                recordingMeterRegistry,
+                new DefaultEvictionPolicy<>()
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var regions = fillCache(cacheService, cacheKey);
+            advanceTimeBeyondReaccessWindow(taskQueue, settings);
+            for (int region = 0; region < 7; region++) {
+                cacheService.get(cacheKey, size(1000), region, irrelevantTimestamp());
+            }
+            // without probation, re-accessed regions stay at frequency 1 and the oldest one is evicted as before
+            cacheService.get(generateCacheKey(), size(100), 0, irrelevantTimestamp());
+            assertTrue(regions.get(0).isEvicted());
+            for (int region = 1; region < 10; region++) {
+                assertThat(cacheService.getFreq(regions.get(region)), is(1));
+            }
+            assertThat(probationPromotionReasons(recordingMeterRegistry), empty());
+        }
+    }
+
+    public void testBestEffortFillsSkipYoungRegionsWithProbation() throws IOException {
+        final boolean probationEnabled = randomBoolean();
+        final Settings settings = probationSettings(probationEnabled ? 0.3f : 0f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = createProbationCacheService(
+                environment,
+                settings,
+                taskQueue,
+                recordingMeterRegistry,
+                new DefaultEvictionPolicy<>()
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            fillCache(cacheService, cacheKey);
+            // bring every region to frequency 0, the only one best-effort fills may evict from
+            assertThat(cacheService.demoteAll(cacheKey.shardId()), is(10));
+
+            final var warmKey = generateCacheKey();
+            assertThat(cacheService.maybeEvictLeastUsed(warmKey, size(100), 0), is(probationEnabled == false));
+            advanceTimeBeyondReaccessWindow(taskQueue, settings);
+            assertTrue(cacheService.maybeEvictLeastUsed(warmKey, size(100), 0));
         }
     }
 

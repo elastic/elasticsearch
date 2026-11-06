@@ -25,6 +25,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -593,7 +594,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 boolean isSliceOnlyField = builtIn.equals(SliceKeyFieldMapper.NAME);
                 boolean isSliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
                 boolean isAbsentUnmappedSink = builtIn.equals(FlattenedFieldMapper.UNMAPPED_SINK_NAME)
-                    && mapperService.getIndexSettings().isFlattenedUnmappedFieldsEnabled() == false;
+                    && UnmappedSinkFieldMapper.isEnabled(mapperService.getIndexSettings()) == false;
 
                 if ((isTimeSeriesField && isTimeSeriesMode == false)
                     || (isSliceOnlyField && isSliceEnabled == false)

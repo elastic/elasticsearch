@@ -1985,6 +1985,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
                 return incoming;
             }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                throw new UnsupportedOperationException("this builder is only here to observe the context it is built under");
+            }
         });
         NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
         assertNotNull(nestedObjectMapper.getMapper("name"));

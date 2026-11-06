@@ -1295,10 +1295,6 @@ public class LocalExecutionPlanner {
         if (PlannerUtils.toElementType(sortField.dataType()) != ElementType.LONG) {
             return null;
         }
-        // The range query of these fields doesn't read the ES|QL encoding of the bound
-        if (sortField.dataType() == DataType.DATE_NANOS || sortField.dataType() == DataType.UNSIGNED_LONG) {
-            return null;
-        }
         if (topNExec.limit() == null || topNExec.limit().foldable() == false) {
             return null;
         }

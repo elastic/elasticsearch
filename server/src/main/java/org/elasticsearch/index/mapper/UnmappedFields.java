@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -63,23 +64,27 @@ public final class UnmappedFields {
     }
 
     /**
-     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. It
-     * returns {@code false} when the index mode is strict columnar and unmapped fields are not routed to the flattened
-     * {@code _unmapped} field, when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
+     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. When the
+     * index mode is strict columnar, only fields absorbed by the flattened {@code _unmapped} sink are read, so it
+     * returns {@code false} when the index has no sink, when no mapping the index has or had can keep an unmapped field (the
+     * sink absorbs only under a root {@code dynamic: flattened}, which can), or when no segment has the sink's keyed field. Otherwise,
+     * it returns {@code false} when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
      * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
      * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
      * has an {@code _ignored} field. When the segments cannot be inspected it returns {@code true} unless the index mode
      * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still hold
-     * no unmapped field. It returns {@code true} when a segment has the keyed field of the {@code _unmapped} sink, whatever the source.
+     * no unmapped field.
      */
     public boolean mayExist() {
-        if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
-            return false;
+        if (indexSettings.getMode().isStrictColumnar()) {
+            // The mapping checks come first: a sink whose root's dynamic was never flattened absorbed nothing, and inspecting the segments
+            // collects the name of every field in every segment. With dynamic: flattened, the segments still tell whether it absorbed.
+            return UnmappedSinkFieldMapper.isEnabled(indexSettings)
+                && (indexSettings.retainsUnmappedFields() || mappingLookup.getMapping().getRoot().canRetainUnmappedFields())
+                && (existsInSegments == null
+                    || existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX));
         }
         if (existsInSegments == null) {
-            return true;
-        }
-        if (existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX)) {
             return true;
         }
         if (mappingLookup.isSourceSynthetic()) {

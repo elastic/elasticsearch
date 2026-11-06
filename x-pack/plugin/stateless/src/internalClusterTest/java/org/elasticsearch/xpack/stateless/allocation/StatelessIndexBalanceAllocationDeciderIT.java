@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -24,18 +27,32 @@ import org.elasticsearch.cluster.routing.allocation.allocator.NodeSorters;
 import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
+import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
+import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
+import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
+import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
+import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,12 +60,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.ClusterServiceUtils.addTemporaryStateListener;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -250,7 +272,23 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(TestStatelessPlugin.class);
+        plugins.add(TestTelemetryPlugin.class);
+        plugins.add(StartSplitRetryTimeoutSettingPlugin.class);
         return plugins;
+    }
+
+    /// Registers [SplitTargetService#START_SPLIT_RETRY_TIMEOUT], which is only registered in tests.
+    public static class StartSplitRetryTimeoutSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(SplitTargetService.START_SPLIT_RETRY_TIMEOUT);
+        }
+    }
+
+    @Override
+    protected boolean addMockFsRepository() {
+        // Use the FS repository because it supports the blob copy that reshard splits rely on
+        return false;
     }
 
     public static class TestWeightFunction extends WeightFunction {
@@ -360,6 +398,144 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
             .toList();
         // The nodes should eventually all have a roughly even spread of the index shards
         assertIndexBalanceIsRestored(numberOfShards, expandedSearchNodes, indexName);
+    }
+
+    public void testSplitSourcesAreNotMovedForIndexBalanceOnClusterScaleUpDuringReshard() throws Exception {
+        final var settings = Settings.builder()
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
+            // The unowned documents grace period would otherwise delay the completion of the reshard by minutes
+            .put(SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+        startMasterOnlyNode(settings);
+        final var indexNodes = startIndexNodes(2, settings);
+
+        // Each node gets half of the sources and, once the split starts, half of the targets.
+        final int sourceShards = 4;
+        final var indexName = randomIndexName();
+        createIndex(indexName, sourceShards, 0);
+        indexDocs(indexName, between(1, 50));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        // Stall the start split requests on the split sources, so that the split targets stay in CLONE
+        final var stallSplits = new AtomicBoolean(true);
+        final var stalledSplits = new ConcurrentLinkedQueue<Runnable>();
+        final var allSplitsStalled = new CountDownLatch(sourceShards);
+        for (final var indexNode : indexNodes) {
+            final var executor = internalCluster().getInstance(ThreadPool.class, indexNode).generic();
+            MockTransportService.getInstance(indexNode)
+                .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
+                    final Runnable runSplit = () -> executor.execute(() -> {
+                        try {
+                            handler.messageReceived(request, channel, task);
+                        } catch (Exception e) {
+                            channel.sendResponse(e);
+                        }
+                    });
+                    synchronized (stalledSplits) {
+                        if (stallSplits.get()) {
+                            stalledSplits.add(runSplit);
+                            allSplitsStalled.countDown();
+                            return;
+                        }
+                    }
+                    runSplit.run();
+                });
+        }
+
+        // Record any split source that starts relocating while the index is being resharded, and any failed recoveries
+        // of split target (with the latest failure reason)
+        final Set<ShardId> movedSplitSources = ConcurrentCollections.newConcurrentSet();
+        final Map<ShardId, UnassignedInfo> failedSplitTargets = ConcurrentCollections.newConcurrentMap();
+        final ClusterStateListener splitSourceMovesRecorder = event -> {
+            final var indexMetadata = event.state().metadata().getProject(ProjectId.DEFAULT).index(indexName);
+            if (indexMetadata == null || indexMetadata.getReshardingMetadata() == null) {
+                return;
+            }
+            final var indexRoutingTable = event.state().routingTable(ProjectId.DEFAULT).index(indexName);
+            for (int shard = 0; shard < indexRoutingTable.size(); shard++) {
+                final var primary = indexRoutingTable.shard(shard).primaryShard();
+                if (shard < sourceShards) {
+                    if (primary.relocating()) {
+                        movedSplitSources.add(primary.shardId());
+                    }
+                } else if (primary.unassignedInfo() != null && primary.unassignedInfo().failedAllocations() > 0) {
+                    failedSplitTargets.merge(
+                        primary.shardId(),
+                        primary.unassignedInfo(),
+                        (previous, current) -> current.failedAllocations() >= previous.failedAllocations() ? current : previous
+                    );
+                }
+            }
+        };
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        masterClusterService.addListener(splitSourceMovesRecorder);
+        try {
+            safeGet(client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)));
+            safeAwait(allSplitsStalled);
+
+            // Scale up the index tier, which halves the threshold, then reroute
+            final var expandedIndexNodes = Stream.concat(indexNodes.stream(), startIndexNodes(2, settings).stream()).toList();
+            ensureStableCluster(expandedIndexNodes.size() + 1);
+            ClusterRerouteUtils.reroute(client());
+
+            // The original nodes hold all the sources and targets, so at least one of them is over the threshold of the expanded tier
+            {
+                final var state = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+                final var index = state.routingTable(ProjectId.DEFAULT).index(indexName).getIndex();
+                final int expandedThreshold = Math.ceilDiv(2 * sourceShards, expandedIndexNodes.size());
+                assertTrue(
+                    indexNodes.stream()
+                        .anyMatch(
+                            indexNode -> state.getRoutingNodes()
+                                .node(getNodeId(indexNode))
+                                .numberOfOwningShardsForIndex(index) > expandedThreshold
+                        )
+                );
+            }
+
+            // Release the splits and let the reshard complete
+            synchronized (stalledSplits) {
+                stallSplits.set(false);
+            }
+            stalledSplits.forEach(Runnable::run);
+            awaitClusterState(state -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
+            ensureGreen(indexName);
+
+            long targetRecoveryFailures = 0;
+            long targetFailures = 0;
+            for (final var indexNode : expandedIndexNodes) {
+                final var telemetryPlugin = getTelemetryPlugin(indexNode);
+                targetRecoveryFailures += getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_RECOVERY_FAILURE_COUNT, telemetryPlugin);
+                targetFailures += getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_FAILURE_COUNT, telemetryPlugin);
+            }
+            final int failedTargetAllocations = failedSplitTargets.values().stream().mapToInt(UnassignedInfo::failedAllocations).sum();
+            final var summary = Strings.format(
+                "moved split sources %s, failed split target allocations [%d] (latest failure per target: %s), " + "[%s] [%d], [%s] [%d]",
+                movedSplitSources,
+                failedTargetAllocations,
+                failedSplitTargets.entrySet()
+                    .stream()
+                    .map(e -> e.getKey() + "=" + e.getValue().failedAllocations() + ":" + e.getValue().message())
+                    .toList(),
+                ReshardMetrics.RESHARD_TARGET_RECOVERY_FAILURE_COUNT,
+                targetRecoveryFailures,
+                ReshardMetrics.RESHARD_TARGET_FAILURE_COUNT,
+                targetFailures
+            );
+            logger.info("--> reshard completed with {}", summary);
+            assertThat("split sources must not be moved while the split is in progress: " + summary, movedSplitSources, empty());
+            assertThat("no split target must fail: " + summary, failedTargetAllocations, equalTo(0));
+            assertThat("no split target recovery must fail: " + summary, targetRecoveryFailures, equalTo(0L));
+            assertThat("no split target must fail: " + summary, targetFailures, equalTo(0L));
+
+            // Once the split has completed, the index is balanced across the expanded index tier.
+            ClusterRerouteUtils.reroute(client());
+            assertIndexBalanceIsRestored(2 * sourceShards, expandedIndexNodes, indexName);
+        } finally {
+            masterClusterService.removeListener(splitSourceMovesRecorder);
+        }
     }
 
     private void assertIndexBalanceIsRestored(int numberOfShards, List<String> expandedNodeSet, String indexName) {

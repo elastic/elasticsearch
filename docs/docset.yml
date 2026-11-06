@@ -118,3 +118,4 @@ subs:
   connectors-app:   "Connectors"
   content-crawlers-app:   "Content crawlers"
   es-labs:   "Elasticsearch Labs"
+  vectordb:   "Vector Database"

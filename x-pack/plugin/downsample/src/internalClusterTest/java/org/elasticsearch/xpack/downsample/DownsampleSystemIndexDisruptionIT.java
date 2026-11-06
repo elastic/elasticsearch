@@ -42,6 +42,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.downsample.DownsampleShardPersistentTaskExecutor.DelegatingAction;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleOrchestrator;
@@ -58,6 +60,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -91,10 +94,23 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
     private static final DateHistogramInterval INTERVAL = DateHistogramInterval.HOUR;
     private static final int DOC_COUNT = 300;
 
+    /** The node the test reads the state from, {@code null} for any node; set while a partition leaves some nodes with a stale view. */
+    private volatile String readViaNode;
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(ParkingPlugin.class);
+        return plugins;
+    }
+
+    /**
+     * The partition test cuts nodes off from each other, which {@link NetworkDisruption} does through {@link MockTransportService}.
+     */
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getMockPlugins());
+        plugins.add(MockTransportService.TestPlugin.class);
         return plugins;
     }
 
@@ -118,6 +134,7 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
         ParkingPlugin.parked.clear();
         ParkingPlugin.stateWriteParkingNodes.clear();
         ParkingPlugin.parkedStateWrites.clear();
+        readViaNode = null;
     }
 
     /**
@@ -263,10 +280,13 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
     }
 
     /**
-     * The master releases a task of a node whose run is still going (as it does when it believes the node is gone, e.g. after a
-     * network partition), and that run goes on concurrently with the new one of whichever node claims the task next: it is fenced
-     * (its writes fail on the epoch, or its poller confirms the task is no longer its), and the target still holds every bucket
-     * exactly once, since both runs create the same documents and the second creation of a bucket is rejected.
+     * The master releases a task of a node whose run is still going, and that run goes on concurrently with the new one of whichever
+     * node claims the task next: it is fenced (its writes fail on the epoch, or its poller confirms the task is no longer its), and
+     * the target still holds every bucket exactly once, since both runs create the same documents and the second creation of a
+     * bucket is rejected.
+     * <p>
+     * The master's decision is made directly through the state store, the node is never actually cut off from the cluster; see
+     * {@link #testRunOnPartitionedNodeIsFencedWithoutDuplicates} for the same situation caused by a real network partition.
      */
     public void testReassignedRunIsFencedWithoutDuplicates() throws Exception {
         String master = internalCluster().startMasterOnlyNode();
@@ -295,6 +315,67 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
         assertThat("released, then claimed", completed.epoch(), equalTo(running.doc().epoch() + 2));
         assertCompleteTarget(1);
         assertBusy(() -> assertThat("the fenced run stopped", activeRuns(taskNode), equalTo(0)));
+    }
+
+    /**
+     * The node running a shard task is cut off from the rest of the cluster by a network partition, while its run is still alive.
+     * The master removes the node and releases the task, the other node holding a copy of the source shard claims it and the
+     * operation completes while the partition lasts. When the partition heals and the old run is let go, it is a stale run
+     * that must be fenced: it does not take the task back, and the target still holds every bucket exactly once.
+     */
+    public void testRunOnPartitionedNodeIsFencedWithoutDuplicates() throws Exception {
+        List<String> masters = internalCluster().startMasterOnlyNodes(3);
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        createSource(1, 1);
+        ParkingPlugin.parkingNodes.addAll(dataNodes);
+
+        // via a master-eligible node: it stays on the majority side of the partition
+        ActionFuture<AcknowledgedResponse> downsample = requestDownsample(randomFrom(masters));
+        assertBusy(() -> assertThat(ParkingPlugin.parked, hasSize(1)));
+        ShardTaskDoc running = shardTasks(1).get(0).doc();
+        assertThat(running.status(), equalTo(ShardTaskStatus.DOWNSAMPLING));
+        String taskNode = nodeName(running.assignedNode());
+        String otherNode = dataNodes.stream().filter(n -> n.equals(taskNode) == false).findFirst().orElseThrow();
+
+        // The target index is built without replicas, so losing the node that holds a target shard fails the operation. Keep the
+        // target away from the node that is about to be cut off: this test is about the shard task.
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", taskNode), TARGET);
+        assertBusy(() -> assertThat(targetShardNodes(), everyItem(equalTo(otherNode))));
+        // the node that takes over is not parked; the parked run of the partitioned node stays parked until the partition heals
+        ParkingPlugin.parkingNodes.remove(otherNode);
+
+        Set<String> majority = new HashSet<>(masters);
+        majority.add(otherNode);
+        NetworkDisruption partition = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(Set.of(taskNode), majority),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(partition);
+        partition.startDisrupting();
+        // the state is read from the majority side only: the node that was cut off holds a stale view
+        readViaNode = randomFrom(masters);
+        ensureStableCluster(majority.size(), readViaNode);
+
+        assertTrue(downsample.actionGet(TimeValue.timeValueMinutes(2)).isAcknowledged());
+        ShardTaskDoc completed = shardTasks(1).get(0).doc();
+        assertThat(completed.status(), equalTo(ShardTaskStatus.COMPLETED));
+        assertThat(nodeName(completed.assignedNode()), equalTo(otherNode));
+        assertThat(completed.epoch(), greaterThan(running.epoch()));
+        assertThat("a partition is not a failed attempt", completed.attempt(), equalTo(0));
+        assertThat(indexTask().phase(), equalTo(IndexTaskPhase.DONE));
+
+        // the partition heals and the stale run of the node that was cut off goes on
+        partition.stopDisrupting();
+        ensureStableCluster(masters.size() + dataNodes.size());
+        readViaNode = null;
+        ParkingPlugin.release();
+
+        assertBusy(() -> assertThat("the stale run stopped", activeRuns(taskNode), equalTo(0)));
+        ShardTaskDoc afterHeal = shardTasks(1).get(0).doc();
+        assertThat("the stale run did not take the task back", afterHeal.runId(), equalTo(completed.runId()));
+        assertThat(afterHeal.epoch(), equalTo(completed.epoch()));
+        assertThat(afterHeal.status(), equalTo(ShardTaskStatus.COMPLETED));
+        assertCompleteTarget(1);
     }
 
     // ---- helpers ----
@@ -393,11 +474,16 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
      * Reads only, so any node's store does (the master view only checks mastership on writes).
      */
     private DownsampleStateStore store() {
-        return internalCluster().getInstance(DownsampleStateStore.class);
+        return readViaNode == null
+            ? internalCluster().getInstance(DownsampleStateStore.class)
+            : internalCluster().getInstance(DownsampleStateStore.class, readViaNode);
     }
 
     private String nodeName(String nodeId) {
-        return internalCluster().clusterService().state().nodes().get(nodeId).getName();
+        return (readViaNode == null ? internalCluster().clusterService() : internalCluster().clusterService(readViaNode)).state()
+            .nodes()
+            .get(nodeId)
+            .getName();
     }
 
     private List<String> targetShardNodes() {

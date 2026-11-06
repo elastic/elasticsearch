@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.compute.spill.QueryBreaker;
 import org.elasticsearch.compute.spill.QueryScope;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
@@ -219,6 +220,17 @@ public class DriverContext {
     @Nullable
     public QueryScope queryScope() {
         return queryScope;
+    }
+
+    /**
+     * The driver's view of the query breaker, which carries its reservation credit, so that an operator can reserve
+     * before a page and have the page's allocations consume the reservation; null without a query scope.
+     */
+    @Nullable
+    public QueryBreaker.View queryView() {
+        return blockFactory.breaker() instanceof LocalCircuitBreaker local && local.parentBreaker() instanceof QueryBreaker.View view
+            ? view
+            : null;
     }
 
     public void releaseChildBlockFactory(BlockFactory childFactory) {

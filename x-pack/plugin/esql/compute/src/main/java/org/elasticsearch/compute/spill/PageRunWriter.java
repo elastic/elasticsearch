@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 
 /**
- * The page run: a framed run whose records are pages, written with the engine's page codec at the writer's transport
+ * The page run: a framed run whose records are pages, written with {@link SpillPages} at the writer's transport
  * version. A page is handed over whole: the writer takes its own reference and releases it once the page's bytes are in
  * the stream, so the operator may drop the page at once and its memory goes back when the last reference does.
  */
@@ -33,7 +33,7 @@ public final class PageRunWriter {
     public void append(int partition, Page page, ActionListener<Long> listener) {
         page.allowPassingToDifferentDriver();
         Page copy = page.shallowCopy();
-        writer.append(partition, copy::writeTo, copy::releaseBlocks, listener);
+        writer.append(partition, out -> SpillPages.write(copy, out), copy::releaseBlocks, listener);
     }
 
     public void finish(ActionListener<FramedRun> listener) {

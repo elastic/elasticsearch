@@ -10,14 +10,19 @@ package org.elasticsearch.compute.test;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.compute.spill.spi.SpillStore;
+import org.elasticsearch.compute.test.spill.MemorySpillStore;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.MapMatcher;
@@ -34,6 +39,8 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -248,6 +255,72 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     protected final DriverContext crankyDriverContext() {
         BlockFactory blockFactory = crankyBlockFactory();
         return registerDriverContext(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+    }
+
+    private record SpillingScope(QueryScope scope, QueryScope.Lease lease, QueryScope.DriverAllocation allocation, SpillStore store) {}
+
+    private final List<SpillingScope> spillingScopes = new ArrayList<>();
+
+    /**
+     * The context of a driver in a query that spills to {@code store} on this node, built the way the planner builds one:
+     * a view of the query breaker, a local breaker over it and a child of the query's block factory, so that the
+     * driver's blocks and arrays consume one reservation. {@code budget} is the query's soft limit and
+     * {@code minSpillBytes} the own-state minimum below which an operator never spills; zero makes every operator
+     * spill as soon as the budget is crossed. The scope is closed after the test, which is when its spilled data goes.
+     */
+    protected final DriverContext spillingDriverContext(
+        ByteSizeValue budget,
+        long minSpillBytes,
+        SpillStore store,
+        Executor codecExecutor
+    ) {
+        BlockFactory node = blockFactory();
+        QueryScope scope = QueryScope.create(
+            "query-" + spillingScopes.size(),
+            node,
+            budget.getBytes(),
+            minSpillBytes,
+            store,
+            codecExecutor,
+            ignored -> {}
+        );
+        QueryScope.Lease lease = scope.tryAcquire();
+        LocalCircuitBreaker.SizeSettings settings = new LocalCircuitBreaker.SizeSettings(
+            ByteSizeValue.ofKb(4).getBytes(),
+            ByteSizeValue.ofKb(16).getBytes()
+        );
+        QueryScope.DriverAllocation allocation = scope.newDriverAllocation(settings);
+        spillingScopes.add(new SpillingScope(scope, lease, allocation, store));
+        return registerDriverContext(
+            new DriverContext(allocation.bigArrays(), allocation.blockFactory(), settings, "spilling driver", scope)
+        );
+    }
+
+    /**
+     * Closes the scopes of {@link #spillingDriverContext} and waits for their spilled data to go, before the breakers are
+     * checked. A subclass whose scopes complete on a pool of its own calls this before it stops the pool; the call is
+     * idempotent.
+     */
+    @After
+    public final void closeSpillingScopes() throws Exception {
+        List<SpillingScope> closing = new ArrayList<>(spillingScopes);
+        spillingScopes.clear();
+        for (SpillingScope spilling : closing) {
+            spilling.allocation().close();
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            spilling.scope().addCloseListener(closed);
+            spilling.lease().close();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (closed.isDone() == false) {
+                // a store that holds its completions needs them released for the close to land
+                if (spilling.store() instanceof MemorySpillStore memory && memory.releaseAll() > 0) {
+                    continue;
+                }
+                assertTrue("the spilling scope did not close in time", System.nanoTime() < deadline);
+                Thread.sleep(1);
+            }
+            closed.get();
+        }
     }
 
     private DriverContext registerDriverContext(DriverContext driverContext) {

@@ -12,6 +12,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -42,12 +43,33 @@ public class GroupKeyEncoder implements Accountable, Releasable {
     private final PagedBytesCursor cursorScratch = new PagedBytesCursor();
 
     public GroupKeyEncoder(int[] groupChannels, List<ElementType> elementTypes, PagedBytesBuilder row) {
+        this(groupChannels, keyTypes(groupChannels, elementTypes), row);
+    }
+
+    private GroupKeyEncoder(int[] groupChannels, ElementType[] keyTypes, PagedBytesBuilder row) {
         this.groupChannels = groupChannels;
-        this.elementTypes = new ElementType[groupChannels.length];
-        for (int i = 0; i < groupChannels.length; i++) {
-            this.elementTypes[i] = elementTypes.get(groupChannels[i]);
-        }
+        this.elementTypes = keyTypes;
         this.row = row;
+    }
+
+    private static ElementType[] keyTypes(int[] groupChannels, List<ElementType> elementTypes) {
+        ElementType[] keyTypes = new ElementType[groupChannels.length];
+        for (int i = 0; i < groupChannels.length; i++) {
+            keyTypes[i] = elementTypes.get(groupChannels[i]);
+        }
+        return keyTypes;
+    }
+
+    /**
+     * An encoder of the same keys with scratch of its own from {@code blockFactory}, for an operator replaying a
+     * spilled partition.
+     */
+    public GroupKeyEncoder copy(BlockFactory blockFactory) {
+        return new GroupKeyEncoder(
+            groupChannels,
+            elementTypes,
+            new PagedBytesBuilder(blockFactory.bigArrays().recycler(), blockFactory.breaker(), "group-key-encoder", 64)
+        );
     }
 
     /**

@@ -14,6 +14,9 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -28,8 +31,24 @@ public final class PageRunReader implements Releasable {
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
     private final TransportVersion version;
+    @Nullable
+    private final IndexedByShardId<? extends RefCounted> shardRefs;
 
     public PageRunReader(FramedRunReader reader, int partition, BlockFactory blockFactory, CircuitBreaker breaker) {
+        this(reader, partition, blockFactory, breaker, null);
+    }
+
+    /**
+     * @param shardRefs the node's shard references, for the document references the pages may hold; null when the
+     *                  writer saw none
+     */
+    public PageRunReader(
+        FramedRunReader reader,
+        int partition,
+        BlockFactory blockFactory,
+        CircuitBreaker breaker,
+        @Nullable IndexedByShardId<? extends RefCounted> shardRefs
+    ) {
         if (reader.header().kind() != FramedRunLayout.KIND_PAGE) {
             throw new IllegalArgumentException("run is of kind [" + reader.header().kind() + "], not a page run");
         }
@@ -37,6 +56,7 @@ public final class PageRunReader implements Releasable {
         this.blockFactory = blockFactory;
         this.breaker = breaker;
         this.version = reader.transportVersion();
+        this.shardRefs = shardRefs;
     }
 
     public boolean hasNext() {
@@ -68,7 +88,7 @@ public final class PageRunReader implements Releasable {
         breaker.addEstimateBytesAndMaybeBreak(reserve, "spill page decode");
         try (BlockStreamInput in = new BlockStreamInput(payload.streamInput(), blockFactory)) {
             in.setTransportVersion(version);
-            return new Page(in);
+            return SpillPages.read(in, shardRefs);
         } finally {
             breaker.addWithoutBreaking(-reserve);
         }

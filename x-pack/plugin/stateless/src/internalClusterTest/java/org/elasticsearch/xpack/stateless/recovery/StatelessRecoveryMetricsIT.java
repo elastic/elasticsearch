@@ -69,8 +69,10 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
 
     public void testRecoveryMetricPublicationOnIndexingShardRelocation() throws Exception {
         startMasterOnlyNode();
-        // the relocation of a hollow shard does not read from the object store, which delayRecovery relies on
-        final var indexingNodeSettings = Settings.builder().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build();
+        // transferring the hollow commit metadata skips the object store reads on the target, which delayRecovery relies on
+        final var indexingNodeSettings = Settings.builder()
+            .put(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false)
+            .build();
         var indexingNode1 = startIndexNode(indexingNodeSettings);
         var indexingNode2 = startIndexNode(indexingNodeSettings);
 

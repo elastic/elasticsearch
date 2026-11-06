@@ -82,7 +82,7 @@ import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING;
-import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.everyItem;
@@ -635,8 +635,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        // the relocation of a hollow shard does not read from the object store
-        final var indexNodeSettings = Settings.builder().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build();
+        // transferring the hollow commit metadata skips the object store reads on the target
+        final var indexNodeSettings = Settings.builder().put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false).build();
         final String masterNode = startMasterAndIndexNode(indexNodeSettings);
         final String indexNode1 = startIndexNode(indexNodeSettings);
         final String searchNode = startSearchNode();
@@ -745,8 +745,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         final var settings = Settings.builder()
             .put("s3.client.test.max_retries", 0) // disable sdk client retries
             .put("s3.client.test.tenacious_retries.enabled", true)
-            // the relocation of a hollow shard does not read from the object store
-            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // transferring the hollow commit metadata skips the object store reads on the target
+            .put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false)
             .build();
 
         final String masterNode = startMasterAndIndexNode(settings);

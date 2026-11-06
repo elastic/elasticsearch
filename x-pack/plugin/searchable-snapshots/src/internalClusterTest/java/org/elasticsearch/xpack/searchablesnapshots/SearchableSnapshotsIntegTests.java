@@ -813,7 +813,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.getKey(),
             SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.getKey()
         );
-        final Settings identitySettings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "mounted")
+        final Settings identitySettings = indicesAdmin().prepareGetSettings("mounted")
             .get()
             .getIndexToSettings()
             .get("mounted")
@@ -863,11 +863,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(response.getRestoreInfo().failedShards(), equalTo(0));
         assertEquals(
             identitySettings,
-            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "mounted")
-                .get()
-                .getIndexToSettings()
-                .get("mounted")
-                .filter(identityKeys::contains)
+            indicesAdmin().prepareGetSettings("mounted").get().getIndexToSettings().get("mounted").filter(identityKeys::contains)
         );
     }
 

@@ -56,8 +56,8 @@ public final class ColumnGroupResolver {
 
         /**
          * The nearest mapped ancestor is a plain field mapper, i.e. the document nests values beneath a leaf field.
-         * The sequential path rejects this as a document parsing error, so callers must fall back to it rather than
-         * treat the leaf as unmapped — under a {@code dynamic: false} prefix that would silently drop the value.
+         * The sequential path rejects this as a document parsing error or, with subobjects disabled, flattens the object into
+         * dotted fields, so callers must fall back to it rather than treat the leaf as unmapped, which could silently drop the value.
          *
          * @param ownerPath the conflicting mapper's full dotted path
          */

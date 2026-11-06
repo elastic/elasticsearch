@@ -125,7 +125,7 @@ evaluation
 // duration is a single literal: `foo offset 5m > 1` compares the offset selector with 1, and arithmetic
 // over the duration needs parentheses, as in `foo offset (5m - 1m)`
 offset
-    : OFFSET MINUS? (constant | LP duration RP)
+    : OFFSET (PLUS | MINUS)? (constant | LP duration RP)
     ;
 
 // do timeunit validation and break-down inside the parser

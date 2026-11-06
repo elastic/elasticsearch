@@ -2000,6 +2000,7 @@ public class PromqlBaseParser extends ParserConfig {
       return getRuleContext(DurationContext.class,0);
     }
     public TerminalNode RP() { return getToken(PromqlBaseParser.RP, 0); }
+    public TerminalNode PLUS() { return getToken(PromqlBaseParser.PLUS, 0); }
     public TerminalNode MINUS() { return getToken(PromqlBaseParser.MINUS, 0); }
     @SuppressWarnings("this-escape")
     public OffsetContext(ParserRuleContext parent, int invokingState) {
@@ -2033,10 +2034,18 @@ public class PromqlBaseParser extends ParserConfig {
       setState(255);
       _errHandler.sync(this);
       _la = _input.LA(1);
-      if (_la==MINUS) {
+      if (_la==PLUS || _la==MINUS) {
         {
         setState(254);
-        match(MINUS);
+        _la = _input.LA(1);
+        if ( !(_la==PLUS || _la==MINUS) ) {
+        _errHandler.recoverInline(this);
+        }
+        else {
+          if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+          _errHandler.reportMatch(this);
+          consume();
+        }
         }
       }
 
@@ -2789,7 +2798,7 @@ public class PromqlBaseParser extends ParserConfig {
     "\u00fa\u0001\u0000\u0000\u0000\u00fa\u00fc\u0001\u0000\u0000\u0000\u00fb"+
     "\u00f3\u0001\u0000\u0000\u0000\u00fb\u00f7\u0001\u0000\u0000\u0000\u00fc"+
     "#\u0001\u0000\u0000\u0000\u00fd\u00ff\u0005\u001a\u0000\u0000\u00fe\u0100"+
-    "\u0005\u0002\u0000\u0000\u00ff\u00fe\u0001\u0000\u0000\u0000\u00ff\u0100"+
+    "\u0007\u0000\u0000\u0000\u00ff\u00fe\u0001\u0000\u0000\u0000\u00ff\u0100"+
     "\u0001\u0000\u0000\u0000\u0100\u0106\u0001\u0000\u0000\u0000\u0101\u0107"+
     "\u0003*\u0015\u0000\u0102\u0103\u0005\"\u0000\u0000\u0103\u0104\u0003"+
     "&\u0013\u0000\u0104\u0105\u0005#\u0000\u0000\u0105\u0107\u0001\u0000\u0000"+

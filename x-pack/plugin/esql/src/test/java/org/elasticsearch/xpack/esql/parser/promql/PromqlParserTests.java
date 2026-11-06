@@ -713,6 +713,33 @@ public class PromqlParserTests extends ESTestCase {
         assertModifiers(set.left(), Duration.ofMinutes(5), at);
     }
 
+    /** Explicit positive offset signs must preserve the selector's precedence, just like negative signs. */
+    public void testExplicitPositiveOffsets() {
+        for (String offset : List.of("+5m", "+300", "+(6m - 1m)")) {
+            String selector = "foo offset " + offset;
+            assertModifiers(parse("PROMQL index=test step=5m " + selector).promqlPlan(), Duration.ofMinutes(5), null);
+
+            VectorBinaryComparison comparison = as(
+                parse("PROMQL index=test step=5m " + selector + " > 120").promqlPlan(),
+                VectorBinaryComparison.class
+            );
+            assertThat(comparison.op(), equalTo(VectorBinaryComparison.ComparisonOp.GT));
+            assertModifiers(comparison.left(), Duration.ofMinutes(5), null);
+
+            VectorBinaryArithmetic power = as(
+                parse("PROMQL index=test step=5m " + selector + " ^ 2").promqlPlan(),
+                VectorBinaryArithmetic.class
+            );
+            assertThat(power.op(), equalTo(VectorBinaryArithmetic.ArithmeticOp.POW));
+            assertModifiers(power.left(), Duration.ofMinutes(5), null);
+
+            for (String query : List.of("foo @ 100 offset " + offset, selector + " @ 100")) {
+                comparison = as(parse("PROMQL index=test step=5m " + query + " > 120").promqlPlan(), VectorBinaryComparison.class);
+                assertModifiers(comparison.left(), Duration.ofMinutes(5), 100_000L);
+            }
+        }
+    }
+
     private static void assertModifiers(LogicalPlan plan, Duration offset, Long at) {
         InstantSelector selector = as(plan, InstantSelector.class);
         assertThat(selector.evaluation().offsetDuration(), equalTo(offset));

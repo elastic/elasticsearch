@@ -836,12 +836,26 @@ public class PlanFetchTests extends ESTestCase {
         }
     }
 
-    /** Rows from a remote cluster cannot be fetched yet, the plan stays eager. */
-    public void testRemoteClusterStaysEager() {
+    /** The fetch reads the documents of a remote cluster with the index expressions the query wrote for that cluster. */
+    public void testRemoteClusterGetsTheFetch() {
         FetchPhaseOutcomes outcomes = new FetchPhaseOutcomes();
-        PhysicalPlan plan = topNPlan(List.of(field("first_name", DataType.KEYWORD)), Map.of("remote", List.of("idx")));
-        assertThat(new PlanFetch(outcomes).apply(plan, context(EsqlFlags.withFetchPhase(true))), sameInstance(plan));
-        assertThat(outcomes.all().getFirst().outcome(), equalTo(Outcome.INELIGIBLE_REMOTE_CLUSTER));
+        Map<String, List<String>> remote = Map.of("remote", List.of("idx"));
+        PhysicalPlan plan = topNPlan(List.of(field("first_name", DataType.KEYWORD)), remote, remote);
+        PhysicalPlan planned = new PlanFetch(outcomes).apply(plan, context(EsqlFlags.withFetchPhase(true)));
+        assertThat(outcomes.all().getFirst().outcome(), equalTo(Outcome.APPLIED));
+        assertThat(single(planned, FetchExec.class).originalIndices(), equalTo(remote));
+    }
+
+    /** One fetch reads the documents of the local cluster and of a remote cluster, each with its own index expressions. */
+    public void testLocalAndRemoteClustersShareTheFetch() {
+        Map<String, List<String>> indices = Map.of("", List.of("logs-*", "-logs-old"), "remote", List.of("logs-*"));
+        PhysicalPlan plan = topNPlan(
+            List.of(field("first_name", DataType.KEYWORD)),
+            Map.of("", List.of("logs-1"), "remote", List.of("logs-2")),
+            indices
+        );
+        PhysicalPlan planned = new PlanFetch(new FetchPhaseOutcomes()).apply(plan, context(EsqlFlags.withFetchPhase(true)));
+        assertThat(single(planned, FetchExec.class).originalIndices(), equalTo(indices));
     }
 
     /** A local TopN only cuts the rows of one node, so it cannot be the data node half of the coordinator cut. */
@@ -1005,6 +1019,17 @@ public class PlanFetchTests extends ESTestCase {
      * hand for fields and relations the analyzer cannot produce in a unit test.
      */
     private static PhysicalPlan topNPlan(List<Attribute> returned, Map<String, List<String>> concreteIndices) {
+        return topNPlan(returned, concreteIndices, Map.of("", List.of("idx")));
+    }
+
+    /**
+     * @param originalIndices the index expressions the query wrote for each cluster
+     */
+    private static PhysicalPlan topNPlan(
+        List<Attribute> returned,
+        Map<String, List<String>> concreteIndices,
+        Map<String, List<String>> originalIndices
+    ) {
         Attribute sort = field("sort", DataType.LONG);
         List<Order> order = sortOn(sort);
         List<Attribute> relationOutput = new ArrayList<>(returned);
@@ -1013,7 +1038,7 @@ public class PlanFetchTests extends ESTestCase {
             Source.EMPTY,
             "idx",
             IndexMode.STANDARD,
-            Map.of("", List.of("idx")),
+            originalIndices,
             concreteIndices,
             Map.of("idx", new IndexProperties(IndexMode.STANDARD, 0)),
             relationOutput

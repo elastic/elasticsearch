@@ -26,10 +26,13 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 // TODO consolidate me with RemoteClusterSecurityDataStreamEsqlRcs2IT
 public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClusterSecurityTestCase {
@@ -77,6 +80,7 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
         setupAdditionalUsersAndRoles();
 
         doTestDataStreamsWithFlsAndDls();
+        doTestTheFetchPhaseWithFlsAndDls();
     }
 
     private void setupAdditionalUsersAndRoles() throws IOException {
@@ -132,6 +136,66 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
               "roles" : ["%s"]
             }""", PASS, roleName));
         assertOK(performRequestAgainstFulfillingCluster(putUserRequest));
+    }
+
+    /**
+     * The fetch phase loads the columns of the winners from the data nodes of the remote cluster, under the roles the user
+     * has there, so it returns what the same query returns without it: the documents DLS lets through, with the fields FLS
+     * grants. The pragma that turns it on needs a snapshot build.
+     */
+    static void doTestTheFetchPhaseWithFlsAndDls() throws IOException {
+        if (Build.current().isSnapshot() == false) {
+            return;
+        }
+        for (String user : List.of("logs_foo_all", "logs_foo_16_only", "logs_foo_after_2021", "fls_user_logs_pattern")) {
+            for (String index : List.of("logs-foo", "logs-*")) {
+                String command = "FROM my_remote_cluster:" + index + " | SORT data_stream.namespace | LIMIT 2";
+                Map<String, Object> eager = entityAsMap(runESQLCommandAgainstQueryCluster(user, command, false));
+                Map<String, Object> fetched = entityAsMap(runESQLCommandAgainstQueryCluster(user, command, true));
+                String query = "[" + command + "] as [" + user + "]";
+                assertThat(query, fetched.get("columns"), equalTo(eager.get("columns")));
+                assertThat(query, fetched.get("values"), equalTo(eager.get("values")));
+                if (((List<?>) eager.get("values")).isEmpty() == false) {
+                    assertThat(query + " fetches from the remote data nodes", fetchRequests(fetched), greaterThan(0));
+                }
+                assertThat(query + " without the fetch phase", fetchRequests(eager), equalTo(0));
+            }
+        }
+    }
+
+    /**
+     * Runs {@code command} as {@code user}, with the fetch phase on or off, and the profile on.
+     */
+    static Response runESQLCommandAgainstQueryCluster(String user, String command, boolean fetchPhase) throws IOException {
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", command);
+        json.field("profile", true);
+        json.field("accept_pragma_risks", true);
+        json.startObject("pragma").field("fetch_phase", fetchPhase).endObject();
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(org.elasticsearch.common.Strings.toString(json));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        request.addParameter("error_trace", "true");
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+        return response;
+    }
+
+    /**
+     * The fetch requests the coordinator sent, one per node and batch, from the status of its fetch operators.
+     */
+    private static int fetchRequests(Map<String, Object> response) {
+        int requests = 0;
+        for (Object driver : (List<?>) ((Map<?, ?>) response.get("profile")).get("drivers")) {
+            for (Object operator : (List<?>) ((Map<?, ?>) driver).get("operators")) {
+                if (String.valueOf(((Map<?, ?>) operator).get("operator")).startsWith("FetchOperator")) {
+                    requests += ((List<?>) ((Map<?, ?>) ((Map<?, ?>) operator).get("status")).get("requests")).size();
+                }
+            }
+        }
+        return requests;
     }
 
     static Response runESQLCommandAgainstQueryCluster(String user, String command) throws IOException {

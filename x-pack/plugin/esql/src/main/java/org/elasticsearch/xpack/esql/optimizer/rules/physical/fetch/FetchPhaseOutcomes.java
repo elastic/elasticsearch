@@ -78,7 +78,7 @@ public final class FetchPhaseOutcomes {
         return switch (outcome) {
             case DISABLED_FEATURE_FLAG, DISABLED_SETTING -> false;
             case ENABLED, DISABLED_PRAGMA, MIXED_VERSION_FALLBACK, APPLIED, INELIGIBLE_SHAPE, INELIGIBLE_NO_DEFERRABLE_FIELDS,
-                INELIGIBLE_REMOTE_CLUSTER, INCONSISTENT_PROJECTION -> true;
+                INCONSISTENT_PROJECTION -> true;
         };
     }
 }

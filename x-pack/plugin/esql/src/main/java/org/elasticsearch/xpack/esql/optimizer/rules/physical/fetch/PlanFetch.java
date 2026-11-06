@@ -51,14 +51,10 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-
-import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
 
 /**
  * Plans the fetch phase for a {@code LIMIT} or {@code TopN} that the data nodes and the coordinator both apply.
@@ -442,9 +438,7 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         if (relation.indexMode() != IndexMode.STANDARD && relation.indexMode() != IndexMode.TIME_SERIES) {
             return ineligible("[" + relation.indexMode() + "] relation");
         }
-        if (isLocal(relation) == false) {
-            return new Declined(Outcome.INELIGIBLE_REMOTE_CLUSTER, "the relation reads a remote cluster");
-        }
+        // the data nodes of remote clusters keep their contexts for this coordinator too, and the fetch reaches them
         return new Branch(cut, exchange, fragment, fragmentRoot, relation);
     }
 
@@ -559,19 +553,6 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
                 && limitBy.groupings().equals(fragmentLimitBy.groupings());
         }
         return false;
-    }
-
-    private static boolean isLocal(EsRelation relation) {
-        if (relation.concreteIndices().isEmpty()) {
-            return Arrays.stream(relation.indexPattern().split(",")).map(String::trim).noneMatch(PlanFetch::isRemoteIndexExpression);
-        }
-        return relation.concreteIndices().size() == 1
-            && relation.concreteIndices().containsKey(LOCAL_CLUSTER_GROUP_KEY)
-            && relation.concreteIndices().get(LOCAL_CLUSTER_GROUP_KEY).isEmpty() == false;
-    }
-
-    private static boolean isRemoteIndexExpression(String indexExpression) {
-        return indexExpression.startsWith("-") ? isRemoteIndexName(indexExpression.substring(1)) : isRemoteIndexName(indexExpression);
     }
 
     private static PhysicalPlan rewrite(PhysicalPlan plan, Candidate candidate) {

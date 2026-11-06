@@ -48,7 +48,6 @@ public class FetchPhaseOutcomesTests extends ESTestCase {
             Outcome.APPLIED,
             Outcome.INELIGIBLE_SHAPE,
             Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS,
-            Outcome.INELIGIBLE_REMOTE_CLUSTER,
             Outcome.INCONSISTENT_PROJECTION }) {
             FetchPhaseOutcomes outcomes = new FetchPhaseOutcomes();
             outcomes.record(outcome, null);

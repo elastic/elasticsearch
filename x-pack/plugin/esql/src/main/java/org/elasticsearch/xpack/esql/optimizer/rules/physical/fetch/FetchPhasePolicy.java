@@ -55,8 +55,6 @@ public record FetchPhasePolicy(EsqlFlags.FetchPhaseMode mode, @Nullable Boolean 
         INELIGIBLE_SHAPE,
         /** Every column the query needs after the cut is needed before it too, or cannot be fetched. */
         INELIGIBLE_NO_DEFERRABLE_FIELDS,
-        /** The rows come from a remote cluster. */
-        INELIGIBLE_REMOTE_CLUSTER,
         /** The plan does not match what the analysis expects from the earlier rules. A planner bug. */
         INCONSISTENT_PROJECTION
     }

@@ -115,6 +115,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
         if (queryMaxAnalyzedOffset != null) {
             off = new LimitedOffsetsEnum(off, queryMaxAnalyzedOffset.getNotNull());
         }
+        off = new BoundedTermOffsetsEnum(off);
         return super.highlightOffsetsEnums(off);
     }
 }

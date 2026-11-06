@@ -37,7 +37,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
@@ -45,6 +47,7 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ResourceLoader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -56,6 +59,8 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.text.BreakIterator;
 import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -263,6 +268,31 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             new PrefixQuery(new Term("text", "qui")),
             new WildcardQuery(new Term("text", "qu*ck")),
             new FuzzyQuery(new Term("text", "quack")) }) {
+            assertOffsetSourceAndSnippet(content, query, false, UnifiedHighlighter.OffsetSource.ANALYSIS, expectedSnippet);
+            assertOffsetSourceAndSnippet(content, query, true, UnifiedHighlighter.OffsetSource.POSTINGS, expectedSnippet);
+        }
+    }
+
+    /**
+     * A multi-term query labels its automaton with the query text, and the offsets enum reports
+     * that label as the match term. A query whose string form exceeds {@code BytesRefHash}'s
+     * limit must not fail the whole search with {@code MaxBytesLengthExceededException}: the
+     * label is bounded to a stable digest and the snippet is unchanged (#164903).
+     */
+    public void testMultiTermQueryWithOversizedLabelDoesNotFail() throws Exception {
+        final String content = "The quick brown fox.";
+        final String expectedSnippet = "The <b>quick</b> brown fox.";
+
+        List<BytesRef> terms = new ArrayList<>();
+        terms.add(new BytesRef("quick")); // the term that actually matches the content
+        for (int i = 0; i < 5_000; i++) {
+            terms.add(new BytesRef("id-" + i + "-padding-padding-padding-padding"));
+        }
+        Query hugeTerms = new TermInSetQuery("text", terms);
+
+        Query hugeRegexp = new RegexpQuery(new Term("text", "quick|zzz" + "z".repeat(40_000)));
+
+        for (Query query : new Query[] { hugeTerms, hugeRegexp }) {
             assertOffsetSourceAndSnippet(content, query, false, UnifiedHighlighter.OffsetSource.ANALYSIS, expectedSnippet);
             assertOffsetSourceAndSnippet(content, query, true, UnifiedHighlighter.OffsetSource.POSTINGS, expectedSnippet);
         }

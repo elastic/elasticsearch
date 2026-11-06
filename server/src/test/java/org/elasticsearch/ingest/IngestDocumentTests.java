@@ -1726,6 +1726,37 @@ public class IngestDocumentTests extends ESTestCase {
         });
     }
 
+    /**
+     * Looking for a field that isn't there, and not minding, should not allocate, whichever access pattern is in use. (The flexible one has
+     * to describe an incomplete result in order to remove a field, but there is no use for that when it is only getting one.)
+     */
+    public void testIgnoredMissingFieldDoesNotAllocateMoreForFlexibleThanClassic() throws Exception {
+        var threads = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+        assumeTrue("thread allocation measurement is not supported", threads.isThreadAllocatedMemorySupported());
+        final long threadId = Thread.currentThread().threadId();
+        final int iterations = 200_000;
+        long[] bytesPerCall = new long[2];
+        IngestPipelineFieldAccessPattern[] patterns = { CLASSIC, FLEXIBLE };
+        for (int p = 0; p < patterns.length; p++) {
+            final int index = p;
+            doWithAccessPattern(patterns[p], (doc) -> {
+                for (int i = 0; i < iterations; i++) { // warm up, so that the JIT has compiled it
+                    doc.getFieldValue("nonsense", Object.class, true);
+                }
+                long before = threads.getThreadAllocatedBytes(threadId);
+                for (int i = 0; i < iterations; i++) {
+                    doc.getFieldValue("nonsense", Object.class, true);
+                }
+                bytesPerCall[index] = (threads.getThreadAllocatedBytes(threadId) - before) / iterations;
+            });
+        }
+        assertThat(
+            "classic [" + bytesPerCall[0] + "] and flexible [" + bytesPerCall[1] + "] bytes per call",
+            bytesPerCall[1],
+            lessThanOrEqualTo(bytesPerCall[0])
+        );
+    }
+
     public void testRemoveInnerField() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("fizz.buzz");

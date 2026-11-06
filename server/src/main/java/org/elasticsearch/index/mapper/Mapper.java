@@ -170,7 +170,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          * @param parentPath the full path of the object or field this builder is in, or null if it is a child of the root
          * @param consumer   receives each field builder with its full path
          */
-        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {}
+        public abstract void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer);
 
         /**
          * The full path of this builder given the full path of its container

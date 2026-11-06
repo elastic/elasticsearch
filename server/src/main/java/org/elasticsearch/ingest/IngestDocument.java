@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -1144,7 +1143,8 @@ public final class IngestDocument {
      * pipelines are in progress for this doc for the sake of backwards compatibility
      */
     public IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
-        return Optional.ofNullable(accessPatternStack.peek()).orElse(IngestPipelineFieldAccessPattern.CLASSIC);
+        final IngestPipelineFieldAccessPattern current = accessPatternStack.peek();
+        return current != null ? current : IngestPipelineFieldAccessPattern.CLASSIC;
     }
 
     /**

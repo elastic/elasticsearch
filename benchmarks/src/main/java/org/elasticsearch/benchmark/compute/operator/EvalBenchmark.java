@@ -10,6 +10,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -28,9 +29,11 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusedEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -66,6 +69,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -101,6 +106,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Warmup(iterations = 5)
@@ -142,6 +148,88 @@ public class EvalBenchmark {
             @Override
             void checkExpected(Page actual) {
                 checkAddDoubleExpected(this, actual);
+            }
+        },
+        ADD_MUL_SEPARATE("add_mul_separate") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return addFieldsEvaluator();
+            }
+
+            @Override
+            List<Operator> operators() {
+                return List.of(new EvalOperator(driverContext, evaluator()), new EvalOperator(driverContext, multiplySumEvaluator()));
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkAddMulExpected(this, actual);
+            }
+        },
+        ADD_MUL_NESTED("add_mul_nested") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return nestedAddMulEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkAddMulExpected(this, actual);
+            }
+        },
+        ADD_MUL_NESTED_FUSED("add_mul_nested_fused") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return nestedAddMulFusedEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkAddMulExpected(this, actual);
+            }
+        },
+        COMPLEX_EXPRESSION_BASELINE("complex_expression_baseline") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return complexExpressionBaseline();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkComplexExpressionExpected(this, actual);
+            }
+        },
+        COMPLEX_EXPRESSION_FUSED("complex_expression_fused") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return complexExpressionFused();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkComplexExpressionExpected(this, actual);
+            }
+        },
+        COMPLEX_EXPRESSION_INLINE("complex_expression_inline") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return new ComplexExpressionEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkComplexExpressionExpected(this, actual);
+            }
+        },
+        ADD_MUL_FUSED("add_mul_fused") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return new FusedAddMulEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkAddMulExpected(this, actual);
             }
         },
         CASE_1_EAGER("case_1_eager") {
@@ -778,6 +866,10 @@ public class EvalBenchmark {
 
         abstract ExpressionEvaluator evaluator();
 
+        List<Operator> operators() {
+            return List.of(new EvalOperator(driverContext, evaluator()));
+        }
+
         abstract void checkExpected(Page actual);
     }
 
@@ -822,20 +914,12 @@ public class EvalBenchmark {
         Logger log = LogManager.getLogger(EvalBenchmark.class);
         for (Operation operation : Operation.values()) {
             log.info("self testing {}", operation);
-            run(operation);
+            run(operation).close();
         }
     }
 
     @Param
     public Operation operation;
-
-    private static Operator operator(Operation operation) {
-        return new EvalOperator(driverContext, evaluator(operation));
-    }
-
-    private static ExpressionEvaluator evaluator(Operation operation) {
-        return operation.evaluator();
-    }
 
     private static ExpressionEvaluator absEvaluator() {
         FieldAttribute longField = longField();
@@ -858,6 +942,133 @@ public class EvalBenchmark {
             new Add(Source.EMPTY, doubleField, new Literal(Source.EMPTY, 1D, DataType.DOUBLE), configuration()),
             layout(doubleField)
         ).get(driverContext);
+    }
+
+    private static ExpressionEvaluator addFieldsEvaluator() {
+        FieldAttribute a = longField();
+        FieldAttribute b = longField();
+        FieldAttribute c = longField();
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new Add(Source.EMPTY, a, b, configuration()), layout(a, b, c)).get(driverContext);
+    }
+
+    private static ExpressionEvaluator multiplySumEvaluator() {
+        FieldAttribute a = longField();
+        FieldAttribute b = longField();
+        FieldAttribute c = longField();
+        FieldAttribute sum = longField();
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new Mul(Source.EMPTY, sum, c), layout(a, b, c, sum)).get(driverContext);
+    }
+
+    private static ExpressionEvaluator nestedAddMulEvaluator() {
+        FieldAttribute a = longField();
+        FieldAttribute b = longField();
+        FieldAttribute c = longField();
+        Expression sum = new Add(Source.EMPTY, a, b, configuration());
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new Mul(Source.EMPTY, sum, c), layout(a, b, c)).get(driverContext);
+    }
+
+    private static ExpressionEvaluator nestedAddMulFusedEvaluator() {
+        FieldAttribute a = longField();
+        FieldAttribute b = longField();
+        FieldAttribute c = longField();
+        Expression sum = new Add(Source.EMPTY, a, b, configuration());
+        var evalFactory = EvalMapper.toEvaluator(FOLD_CONTEXT, new Mul(Source.EMPTY, sum, c), layout(a, b, c));
+        return FusedEvaluator.Factory.tryFuse(evalFactory).get().get(driverContext);
+    }
+
+    private static ExpressionEvaluator.Factory complexExpressionBaselineFactory() {
+        Literal one = new Literal(Source.EMPTY, 1.0, DataType.DOUBLE);
+        FieldAttribute price = doubleField();
+        Literal discount = new Literal(Source.EMPTY, 0.15, DataType.DOUBLE);
+        FieldAttribute taxRate = doubleField();
+        FieldAttribute shippingFee = doubleField();
+
+        Expression discountedPrice = new Mul(Source.EMPTY, price, new Sub(Source.EMPTY, one, discount, configuration(), true), true);
+        Expression taxAmount = new Mul(Source.EMPTY, discountedPrice, taxRate, true);
+        Expression amountCharged = new Add(
+            Source.EMPTY,
+            new Add(Source.EMPTY, discountedPrice, taxAmount, configuration(), true),
+            shippingFee,
+            configuration(),
+            true
+        );
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, amountCharged, layout(price, taxRate, shippingFee));
+    }
+
+    private static ExpressionEvaluator complexExpressionBaseline() {
+        return complexExpressionBaselineFactory().get(driverContext);
+    }
+
+    private static ExpressionEvaluator complexExpressionFused() {
+        ExpressionEvaluator.Factory evalFactory = complexExpressionBaselineFactory();
+        Optional<FusedEvaluator.Factory> fusedEvalFactory = FusedEvaluator.Factory.tryFuse(evalFactory);
+        return fusedEvalFactory.get().get(driverContext);
+    }
+
+    /**
+     * Benchmark-only fast path for dense, single-valued longs whose intermediate and final results do not overflow.
+     * Uses the same result builder as the generated long arithmetic evaluators, but never materializes the sum block.
+     */
+    private static class ComplexExpressionEvaluator implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FusedAddMulEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            DoubleVector price = page.<DoubleBlock>getBlock(0).asVector();
+            DoubleVector taxRate = page.<DoubleBlock>getBlock(1).asVector();
+            DoubleVector shippingFee = page.<DoubleBlock>getBlock(2).asVector();
+            try (DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(page.getPositionCount())) {
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    double discountedPrice = Mul.processDoubles(price.getDouble(p),
+                        Sub.processDoubles(1.0, 0.15, true), true);
+                    double taxAmount = discountedPrice * taxRate.getDouble(p);
+                    double amountCharged = Add.processDoubles(
+                        Add.processDoubles(discountedPrice, taxAmount, true),
+                        shippingFee.getDouble(p),
+                        true
+                    );
+                    result.appendDouble(amountCharged);
+                }
+                return result.build();
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Benchmark-only fast path for dense, single-valued longs whose intermediate and final results do not overflow.
+     * Uses the same result builder as the generated long arithmetic evaluators, but never materializes the sum block.
+     */
+    private static class FusedAddMulEvaluator implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FusedAddMulEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            LongVector a = page.<LongBlock>getBlock(0).asVector();
+            LongVector b = page.<LongBlock>getBlock(1).asVector();
+            LongVector c = page.<LongBlock>getBlock(2).asVector();
+            try (LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(page.getPositionCount())) {
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    result.appendLong(Math.multiplyExact(Math.addExact(a.getLong(p), b.getLong(p)), c.getLong(p)));
+                }
+                return result.build();
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static ExpressionEvaluator caseEvaluator(boolean lazy) {
@@ -1372,6 +1583,52 @@ public class EvalBenchmark {
         }
     }
 
+    private static double complexPrice(int i) {
+        return 10.0 + i % 1000;
+    }
+
+    private static double complexTaxRate(int i) {
+        return 0.05 + (i % 7) * 0.01;
+    }
+
+    private static double complexShippingFee(int i) {
+        return 1.5 + i % 11;
+    }
+
+    /**
+     * Shared by COMPLEX_EXPRESSION_BASELINE, _FUSED and _INLINE, which all compute
+     * {@code price * (1 - 0.15) * (1 + taxRate) + shippingFee}. The arithmetic mirrors the evaluators operation for
+     * operation so results are bit-for-bit identical and can be compared exactly.
+     */
+    private static void checkComplexExpressionExpected(Operation operation, Page actual) {
+        if (actual.getBlockCount() != 4 || actual.getPositionCount() != BLOCK_LENGTH) {
+            throw new AssertionError("[" + operation + "] unexpected output shape: " + actual);
+        }
+        DoubleVector result = actual.<DoubleBlock>getBlock(3).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            double discountedPrice = complexPrice(i) * (1.0 - 0.15);
+            double taxAmount = discountedPrice * complexTaxRate(i);
+            double expected = discountedPrice + taxAmount + complexShippingFee(i);
+            if (result.getDouble(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getDouble(i) + "]");
+            }
+        }
+    }
+
+    private static void checkAddMulExpected(Operation operation, Page actual) {
+        int expectedBlockCount = operation == Operation.ADD_MUL_SEPARATE ? 5 : 4;
+        if (actual.getBlockCount() != expectedBlockCount || actual.getPositionCount() != BLOCK_LENGTH) {
+            throw new AssertionError("[" + operation + "] unexpected output shape: " + actual);
+        }
+        LongVector result = actual.<LongBlock>getBlock(expectedBlockCount - 1).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            long expected = Math.multiplyExact(Math.addExact(i * 100_000L, 17L - i * 3L), i % 13 - 6L);
+            if (result.getLong(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+            }
+        }
+    }
+
     private static void checkCaseExpected(Operation operation, Page actual, boolean lazy) {
         LongVector f1 = actual.<LongBlock>getBlock(0).asVector();
         LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
@@ -1709,6 +1966,20 @@ public class EvalBenchmark {
 
     private static Page page(Operation operation) {
         return switch (operation) {
+            case ADD_MUL_SEPARATE, ADD_MUL_NESTED, ADD_MUL_FUSED, ADD_MUL_NESTED_FUSED -> {
+                try (
+                    var a = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                    var b = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                    var c = blockFactory.newLongBlockBuilder(BLOCK_LENGTH)
+                ) {
+                    for (int i = 0; i < BLOCK_LENGTH; i++) {
+                        a.appendLong(i * 100_000L);
+                        b.appendLong(17L - i * 3L);
+                        c.appendLong(i % 13 - 6L);
+                    }
+                    yield new Page(a.build(), b.build(), c.build());
+                }
+            }
             case TSTEP_5_EQUAL, TSTEP_7_EQUAL, TBUCKET_5_EQUAL, TSTEP_99_EQUAL, TBUCKET_99_EQUAL, TSTEP_64_EQUAL, TBUCKET_64_EQUAL,
                 TSTEP_1024_EQUAL, TBUCKET_1024_EQUAL, TBUCKET_7_EQUAL, TBUCKET_5_NONEQUAL, TBUCKET_7_NONEQUAL, TBUCKET_99_NONEQUAL,
                 TBUCKET_1024_NONEQUAL -> bucketPage();
@@ -1726,6 +1997,20 @@ public class EvalBenchmark {
                     builder.appendLong(i);
                 }
                 yield new Page(builder.build());
+            }
+            case COMPLEX_EXPRESSION_BASELINE, COMPLEX_EXPRESSION_FUSED, COMPLEX_EXPRESSION_INLINE -> {
+                try (
+                    var price = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
+                    var taxRate = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
+                    var shippingFee = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH)
+                ) {
+                    for (int i = 0; i < BLOCK_LENGTH; i++) {
+                        price.appendDouble(complexPrice(i));
+                        taxRate.appendDouble(complexTaxRate(i));
+                        shippingFee.appendDouble(complexShippingFee(i));
+                    }
+                    yield new Page(price.build(), taxRate.build(), shippingFee.build());
+                }
             }
             case ADD_DOUBLE -> {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
@@ -1971,21 +2256,39 @@ public class EvalBenchmark {
     @Benchmark
     @OperationsPerInvocation(1024 * BLOCK_LENGTH)
     public void run(Blackhole bh) {
-        bh.consume(run(operation));
+        try (Page output = run(operation)) {
+            bh.consume(output);
+        }
     }
 
-    private static Object run(Operation operation) {
-        try (var operator = operator(operation)) {
-            Page page = page(operation);
+    private static Page run(Operation operation) {
+        List<Operator> operators = operation.operators();
+        try (var ignored = Releasables.wrap(operators); Page page = page(operation)) {
             Page output = null;
-            for (int i = 0; i < 1024; i++) {
-                operator.addInput(page);
-                output = operator.getOutput();
+            try {
+                for (int i = 0; i < 1024; i++) {
+                    Releasables.close(output);
+                    output = null;
+                    // Operators transfer ownership of their input blocks to their output page.
+                    // Retain the fixture so each iteration can reuse it after releasing the previous output.
+                    for (int b = 0; b < page.getBlockCount(); b++) {
+                        page.getBlock(b).incRef();
+                    }
+                    Page input = page;
+                    for (Operator operator : operators) {
+                        operator.addInput(input);
+                        input = operator.getOutput();
+                    }
+                    output = input;
+                }
+                // We only check the last one.
+                checkExpected(operation, output);
+                Page result = output;
+                output = null;
+                return result;
+            } finally {
+                Releasables.close(output);
             }
-            // We only check the last one
-            checkExpected(operation, output);
-
-            return output;
         }
     }
 }

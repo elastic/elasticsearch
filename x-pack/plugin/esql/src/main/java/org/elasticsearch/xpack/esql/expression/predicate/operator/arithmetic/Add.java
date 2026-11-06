@@ -202,7 +202,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     }
 
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
-    static double processDoubles(double lhs, double rhs, @Fixed(includeInToString = false) boolean allowNonFinite) {
+    public static double processDoubles(double lhs, double rhs, @Fixed(includeInToString = false) boolean allowNonFinite) {
         double result = lhs + rhs;
         return allowNonFinite ? result : NumericUtils.asFiniteNumber(result);
     }

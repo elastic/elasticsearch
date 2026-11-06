@@ -789,8 +789,9 @@ public class PlannerUtils {
             case DENSE_VECTOR -> ElementType.FLOAT;
             case DATE_RANGE -> ElementType.LONG_RANGE;
             case DOUBLE_RANGE -> ElementType.DOUBLE_RANGE;
-            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
-                .illegalDataType(dataType);
+            // UNION has no block yet; throw loudly rather than map it to a block that loses the type.
+            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, UNION ->
+                throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 

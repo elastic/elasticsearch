@@ -205,6 +205,15 @@ public enum DataType implements Writeable {
      */
     UNSUPPORTED(builder().typeName("UNSUPPORTED").estimatedSize(1024).supportedOnAllNodes()),
     /**
+     * A field whose type differs between the sources a query spans. Each source maps it to exactly one
+     * type; the multi-typedness belongs to the result, so this type is derived per query and never
+     * declared or stored. Values keep the type their source gave them, which is why it is excluded from
+     * {@link #isRepresentableInExpression} beside counters and {@code _source}: it renders, and it is
+     * destructured per type before anything operates on it.
+     */
+    UNION(builder().esType("union").estimatedSize(1024).underConstruction(DataTypesTransportVersions.INDEX_SOURCE)),
+
+    /**
      * Fields that are always {@code null}, usually created with constant
      * {@code null} values.
      */
@@ -849,7 +858,7 @@ public enum DataType implements Writeable {
      * wherever a representable value is expected.
      */
     public static boolean isRepresentableInExpression(DataType t) {
-        return isRepresentableInOutput(t) && t.isCounter() == false && t != SOURCE && t != UNSUPPORTED;
+        return isRepresentableInOutput(t) && t.isCounter() == false && t != SOURCE && t != UNSUPPORTED && t != UNION;
     }
 
     public static boolean isCounter(DataType t) {

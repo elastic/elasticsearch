@@ -211,7 +211,9 @@ public final class ResponseValueUtils {
             case DENSE_VECTOR -> (block, offset, scratch) -> ((FloatBlock) block).getFloat(offset);
             case FLATTENED -> (block, offset, scratch) -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case NULL, UNSUPPORTED -> (block, offset, scratch) -> null;
-            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG ->
+            // Rendering a union means reading the sub-block that is non-null at this offset and delegating to that
+            // type's extractor. That needs the block, so until it exists this throws rather than render nulls.
+            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG, UNION ->
                 throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }

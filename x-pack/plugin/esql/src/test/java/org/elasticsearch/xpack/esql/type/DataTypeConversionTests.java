@@ -537,6 +537,24 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(10, conversion.convert(10));
     }
 
+    /**
+     * The union type renders but is never accepted as an expression value. Both halves matter: with no
+     * {@code esType} it would render as "unsupported" rather than itself, and if it were representable in
+     * expressions every function resolving through that predicate would accept it and then fail deeper in.
+     */
+    public void testUnionRendersButIsNotAnExpressionValue() {
+        assertEquals("union", DataType.UNION.outputType());
+        assertEquals(DataType.UNION, DataType.fromEs("union"));
+        assertEquals(DataType.UNION, DataType.fromTypeName("union"));
+
+        assertTrue(DataType.isRepresentableInOutput(DataType.UNION));
+        assertFalse(DataType.isRepresentableInExpression(DataType.UNION));
+
+        // Counters are the precedent for exactly this pair.
+        assertTrue(DataType.isRepresentableInOutput(DataType.COUNTER_LONG));
+        assertFalse(DataType.isRepresentableInExpression(DataType.COUNTER_LONG));
+    }
+
     public void testEsDataTypes() {
         for (DataType type : DataType.types()) {
             assertEquals(type, DataType.fromTypeName(type.typeName()));

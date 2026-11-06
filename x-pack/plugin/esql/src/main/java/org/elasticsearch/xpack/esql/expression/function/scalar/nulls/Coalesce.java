@@ -238,8 +238,9 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             case DATE_RANGE -> CoalesceLongRangeEvaluator.toEvaluator(toEvaluator, children());
             case DOUBLE_RANGE -> CoalesceDoubleRangeEvaluator.toEvaluator(toEvaluator, children());
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
+            // A union is destructured per type before anything coalesces it, so it never reaches here.
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> throw new UnsupportedOperationException(
+                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, UNION -> throw new UnsupportedOperationException(
                     dataType() + " can't be coalesced"
                 );
         };

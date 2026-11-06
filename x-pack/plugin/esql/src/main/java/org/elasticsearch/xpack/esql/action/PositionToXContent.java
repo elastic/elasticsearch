@@ -295,7 +295,8 @@ public abstract class PositionToXContent {
                     return builder.value(TimeSeriesIdFieldMapper.encodeTsid(bytesRef));
                 }
             };
-            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG ->
+            // A union renders per row from the sub-block that is non-null; that needs the block, so it throws for now.
+            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG, UNION ->
                 throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
         };
     }

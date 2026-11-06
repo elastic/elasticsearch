@@ -182,6 +182,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService;
+import org.elasticsearch.xpack.stateless.engine.HollowCommitMetadata;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -1815,7 +1816,12 @@ public class StatelessPlugin extends Plugin
 
                 IndexDirectory indexDirectory = IndexDirectory.unwrapDirectory(newConfig.getStore().directory());
                 assert indexDirectory != null : "expected an IndexDirectory";
-                indexDirectory.setLastCommittedSegmentInfosSupplier(engine::getLastCommittedSegmentInfos);
+                indexDirectory.setLastCommittedSegmentInfosSupplier(
+                    // A hollow engine may have been opened without segment infos, and loading them reads through this directory
+                    engine instanceof HollowIndexEngine hollowEngine
+                        ? hollowEngine::getLastCommittedSegmentInfosIfLoaded
+                        : engine::getLastCommittedSegmentInfos
+                );
 
                 return engine;
             } else {
@@ -1875,7 +1881,13 @@ public class StatelessPlugin extends Plugin
             && IndexEngine.isLastCommitHollow(segmentCommitInfos)
             && existingBlobContainer) {
             logger.debug(() -> shardId + " using hollow engine for shard [generation: " + segmentCommitInfos.getGeneration() + "]");
-            return new HollowIndexEngine(newConfig, getCommitService(), hollowShardsService.get(), segmentCommitInfos);
+            return new HollowIndexEngine(
+                newConfig,
+                getCommitService(),
+                hollowShardsService.get(),
+                HollowCommitMetadata.of(segmentCommitInfos),
+                segmentCommitInfos
+            );
         }
 
         return newIndexEngine(

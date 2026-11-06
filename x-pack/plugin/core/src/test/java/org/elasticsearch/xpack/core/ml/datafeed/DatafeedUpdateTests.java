@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggreg
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -127,9 +129,6 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
-        }
-        if (randomBoolean()) {
-            builder.setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
             builder.setIndicesOptions(
@@ -539,6 +538,36 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    public void testMaxConsecutiveExtractionFailuresIsOnTheWireBeforeRemovedTransportVersion() throws IOException {
+        TransportVersion beforeRemoved = TransportVersionUtils.getPreviousVersion(
+            DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED
+        );
+        assertTrue(beforeRemoved.supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES));
+        DatafeedUpdate update = new DatafeedUpdate.Builder("foo").setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100)).build();
+
+        DatafeedUpdate deserialized = copyInstance(update, beforeRemoved);
+
+        assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(update.getMaxConsecutiveExtractionFailures()));
+    }
+
+    public void testMaxConsecutiveExtractionFailuresIsNotOnTheWireFromRemovedTransportVersion() throws IOException {
+        TransportVersion removed = DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED;
+        DatafeedUpdate withField = new DatafeedUpdate.Builder("foo").setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100)).build();
+        DatafeedUpdate withoutField = new DatafeedUpdate.Builder("foo").build();
+
+        // main and 9.5 read nothing for this field from this version on, so it must not contribute any bytes
+        assertThat(serialize(withField, removed), equalTo(serialize(withoutField, removed)));
+        assertThat(copyInstance(withField, removed).getMaxConsecutiveExtractionFailures(), is(nullValue()));
+    }
+
+    private static BytesReference serialize(DatafeedUpdate update, TransportVersion version) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version);
+            update.writeTo(output);
+            return output.bytes();
+        }
     }
 
     public void testApplyMaxConsecutiveExtractionFailures() {

@@ -37,7 +37,7 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
         DataType type = onlyRepresentable
             ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), randomType)
             : randomType.get();
-        Nullability nullability = randomFrom(Nullability.values());
+        Nullability nullability = randomFrom(Nullability.TRUE, Nullability.FALSE);
         boolean synthetic = randomBoolean();
         return new ReferenceAttribute(source, qualifier, name, type, nullability, new NameId(), synthetic);
     }
@@ -60,7 +60,7 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
             case 0 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
             case 1 -> name = randomAlphaOfLength(name.length() + 1);
             case 2 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
-            case 3 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
+            case 3 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.TRUE, Nullability.FALSE));
             case 4 -> id = new NameId();
             case 5 -> synthetic = false == synthetic;
         }

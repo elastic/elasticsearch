@@ -93,6 +93,14 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING = new NodeFeature(
         "search.vectors.nested_knn_inner_hits_match_query_phase_scoring"
     );
+    /**
+     * Test-only gate for REST tests asserting that a kNN query inside a {@code nested} query applies a filtered alias
+     * to root documents. Older nodes built the alias filter in the kNN query's nested scope, so it failed to match if the alias filter
+     * used a nested query.
+     */
+    public static final NodeFeature KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE = new NodeFeature(
+        "search.vectors.knn_nested_alias_filter_root_scope"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -125,7 +133,8 @@ public final class SearchFeatures implements FeatureSpecification {
             DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
             FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
             NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
-            COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX
+            COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
+            KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE
         );
     }
 }

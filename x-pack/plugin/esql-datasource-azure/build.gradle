@@ -34,7 +34,7 @@ dependencies {
   implementation 'com.azure:azure-core-http-netty:1.15.3'
   implementation "io.projectreactor.netty:reactor-netty-core:1.2.18"
   implementation "io.projectreactor.netty:reactor-netty-http:1.2.18"
-  implementation "io.projectreactor:reactor-core:3.7.19"
+  implementation "io.projectreactor:reactor-core:3.8.7"
   // Netty - must be bundled as plugin classloader is isolated from server
   implementation "io.netty:netty-buffer:${versions.netty}"
   implementation "io.netty:netty-codec:${versions.netty}"

@@ -158,4 +158,10 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     protected boolean supportsDocValuesSkippers() {
         return false;
     }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: A murmur3 field does not support range queries.
+        return false;
+    }
 }

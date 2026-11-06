@@ -13,8 +13,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -30,12 +28,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVector
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.search.vectors.DenseVectorQuery;
-import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
-import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
-import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -155,44 +149,11 @@ public class SemanticTextChunkUtils {
     private static List<Query> extractDenseVectorQueries(DenseVectorFieldType fieldType, Query querySection) {
         // TODO: Handle knn section when semantic text field can be used.
         List<Query> queries = new ArrayList<>();
-        querySection.visit(new QueryVisitor() {
-            @Override
-            public boolean acceptField(String field) {
-                return fieldType.name().equals(field);
-            }
-
-            @Override
-            public void consumeTerms(Query query, Term... terms) {
-                super.consumeTerms(query, terms);
-            }
-
-            private void visitLeaf(Query query, Float similarity) {
-                if (query instanceof KnnFloatVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity, null));
-                } else if (query instanceof KnnByteVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity, null));
-                } else if (query instanceof MatchAllDocsQuery) {
-                    queries.add(Queries.ALL_DOCS_INSTANCE);
-                } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity, null));
-                } else if (query instanceof IVFKnnFloatVectorQuery ivfQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity, null));
-                } else if (query instanceof RescoreKnnVectorQuery rescoreQuery) {
-                    visitLeaf(rescoreQuery.innerQuery(), similarity);
-                } else if (query instanceof VectorSimilarityQuery similarityQuery) {
-                    visitLeaf(similarityQuery.getInnerKnnQuery(), similarityQuery.getSimilarity());
-                }
-            }
-
-            @Override
-            public void visitLeaf(Query query) {
-                visitLeaf(query, null);
-            }
-        });
+        querySection.visit(new DenseVectorQueryExtractor(fieldType, queries, null));
         return queries;
     }
 
-    public static List<Query> extractSparseVectorQueries(SparseVectorFieldMapper.SparseVectorFieldType fieldType, Query querySection) {
+    private static List<Query> extractSparseVectorQueries(SparseVectorFieldMapper.SparseVectorFieldType fieldType, Query querySection) {
         List<Query> queries = new ArrayList<>();
         querySection.visit(new QueryVisitor() {
             @Override

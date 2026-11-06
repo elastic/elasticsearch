@@ -135,7 +135,7 @@ public class IntervalQueryBuilder extends LeafQueryBuilder<IntervalQueryBuilder>
             }
         }
         if (fieldType instanceof TextFamilyFieldType tfft) {
-            return new IntervalQuery(field, sourceProvider.getSource(context, tfft));
+            return new IntervalQuery(field, new ExpansionLimitIntervalsSource(sourceProvider.getSource(context, tfft)));
         }
         throw new IllegalArgumentException(
             "Can only use interval queries on text fields - not on [" + field + "] which is of type [" + fieldType.typeName() + "]"

@@ -23,12 +23,15 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.action.admin.indices.RestSimulateTemplateAction.SIMULATE_TEMPLATE_SHARD_COUNT_FIX;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSimulateIndexTemplateAction extends BaseRestHandler {
+    private static final Set<String> CAPABILITIES = Set.of(SIMULATE_TEMPLATE_SHARD_COUNT_FIX);
 
     @Override
     public List<Route> routes() {
@@ -65,5 +68,10 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
             simulateIndexTemplateRequest,
             new RestToXContentListener<>(channel)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 }

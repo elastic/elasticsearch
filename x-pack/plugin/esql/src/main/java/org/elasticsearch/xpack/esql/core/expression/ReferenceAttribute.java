@@ -66,7 +66,7 @@ public final class ReferenceAttribute extends TypedAttribute {
                 // We used to always serialize a null qualifier here, so do the same for bwc.
                 out.writeOptionalString(null);
             }
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
         }
@@ -85,7 +85,7 @@ public final class ReferenceAttribute extends TypedAttribute {
         if (in.getTransportVersion().supports(ESQL_QUALIFIERS_IN_ATTRIBUTES) == false) {
             in.readOptionalString();
         }
-        Nullability nullability = in.readEnum(Nullability.class);
+        Nullability nullability = Nullability.readFrom(in);
         NameId id = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
 

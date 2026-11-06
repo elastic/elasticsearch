@@ -17,7 +17,6 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 import java.util.Set;
@@ -102,7 +101,7 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
                          "ts":  { "type": "date", "store": true }
                        }
                      }
-            """, XContentType.JSON));
+            """));
         index(indexName, "id_1_0", Map.of(collapseField, "value1", "ts", 0));
         index(indexName, "id_1_1", Map.of(collapseField, "value1", "ts", 1));
         index(indexName, "id_2_0", Map.of(collapseField, "value2", "ts", 2));

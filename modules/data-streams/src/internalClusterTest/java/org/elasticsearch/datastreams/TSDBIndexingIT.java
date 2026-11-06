@@ -695,7 +695,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 }
               }
             }
-            """, XContentType.JSON);
+            """);
         assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
         if (indexDimensionsTsidStrategyEnabled) {
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
@@ -721,7 +721,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 }
               ]
             }
-            """, XContentType.JSON);
+            """);
         ActionFuture<AcknowledgedResponse> putMappingFuture = client().execute(TransportPutMappingAction.TYPE, putMappingRequest);
         if (indexDimensionsTsidStrategyEnabled) {
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);

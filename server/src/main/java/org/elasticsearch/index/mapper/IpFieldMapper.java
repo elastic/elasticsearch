@@ -29,6 +29,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -188,16 +189,25 @@ public class IpFieldMapper extends FieldMapper {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return docValuesParameters.get().enabled() ? IndexType.archivedPoints() : IndexType.NONE;
             }
-            if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+            if (timeSeriesSkippersHonorIndexAndDocValues(indexSettings.getIndexVersionCreated()) == false
+                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                // NOTE: older time series indices ignored [index] and [doc_values], so their segments have skippers and no points
                 return IndexType.skippers();
             }
             if (indexed.get() == false && docValuesParameters.get().enabled()) {
+                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                    return IndexType.skippers();
+                }
                 if (indexSettings.useDocValuesSkipper()
                     && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
                     return IndexType.skippers();
                 }
             }
             return IndexType.points(indexed.get(), docValuesParameters.get().enabled());
+        }
+
+        private static boolean timeSeriesSkippersHonorIndexAndDocValues(IndexVersion indexVersionCreated) {
+            return indexVersionCreated.onOrAfter(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4);
         }
 
         @Override

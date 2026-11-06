@@ -208,4 +208,9 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     protected boolean supportsDocValuesSkippers() {
         return false;
     }
+
+    @Override
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { "1.0.0", "2.0.0", "3.0.0" };
+    }
 }

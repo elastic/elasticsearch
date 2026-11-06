@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.async.AsyncResultsTestUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -37,6 +38,12 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(AsyncSearch.class);
+    }
+
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        AsyncResultsTestUtils.awaitAsyncTasksAndDeleteResultsIndex();
+        super.beforeIndexDeletion();
     }
 
     public void testSearchUsageStats() throws IOException {

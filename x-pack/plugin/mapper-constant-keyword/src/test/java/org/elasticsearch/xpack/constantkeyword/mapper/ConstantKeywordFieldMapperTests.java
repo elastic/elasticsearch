@@ -94,8 +94,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
 
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", "bar"))));
         assertEquals(
-            "[constant_keyword] field [field] only accepts values that are equal to the value defined in the mappings [foo], "
-                + "but got [bar]",
+            "[constant_keyword] field [field] only accepts values that are equal to the value defined in the mappings, but got [bar]",
             e.getCause().getMessage()
         );
     }

@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
@@ -232,7 +233,17 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
             inputs.getRequest()
         );
         try {
-            var manager = createRequestManager(updatedChatCompletionModel);
+            var request = inputs.getRequest();
+            // Reasoning is translated to Gemini's thinkingConfig and thought signatures, which only apply to Google's
+            // own models. The other Model Garden providers have their own request entities and would ignore the reasoning. When we've
+            // implemented the translation for those providers we can remove this check
+            if (updatedChatCompletionModel.getServiceSettings().provider() != GoogleModelGardenProvider.GOOGLE
+                && request.containsChatCompletionReasoning()) {
+                throwUnsupportedReasoningUnifiedCompletionOperation(name());
+            }
+
+            var excludeReasoning = request.reasoning() != null && Boolean.TRUE.equals(request.reasoning().exclude());
+            var manager = createRequestManager(updatedChatCompletionModel, excludeReasoning);
             var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
             var action = new SenderExecutableAction(getSender(), manager, errorMessage);
             action.execute(inputs, timeout, listener);
@@ -242,15 +253,29 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
     }
 
     /**
+     * Gemini exposes reasoning through {@code generationConfig.thinkingConfig} and thought signatures, both of which
+     * this service translates. Model Garden providers other than {@link GoogleModelGardenProvider#GOOGLE} are rejected
+     * in {@link #doUnifiedCompletionInfer} instead, since this hook cannot see the model.
+     */
+    @Override
+    protected boolean supportsChatCompletionReasoning() {
+        return true;
+    }
+
+    /**
      * Helper method to create a GenericRequestManager with a specified response handler.
      * @param model The GoogleVertexAiChatCompletionModel to be used for requests.
+     * @param excludeReasoning whether to suppress reasoning blocks in the response.
      * @return A GenericRequestManager configured with the provided response handler.
      */
-    private GenericRequestManager<UnifiedChatInput> createRequestManager(GoogleVertexAiChatCompletionModel model) {
+    private GenericRequestManager<UnifiedChatInput> createRequestManager(
+        GoogleVertexAiChatCompletionModel model,
+        boolean excludeReasoning
+    ) {
         return new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             model,
-            model.getServiceSettings().provider().getChatCompletionResponseHandler(),
+            model.getServiceSettings().provider().getChatCompletionResponseHandler(excludeReasoning),
             unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, model),
             UnifiedChatInput.class
         );

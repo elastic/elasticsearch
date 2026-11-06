@@ -171,7 +171,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         maxEmptySearches = in.readOptionalInt();
         indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
         this.runtimeMappings = in.readBoolean() ? in.readGenericMap() : null;
-        maxConsecutiveExtractionFailures = in.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+        maxConsecutiveExtractionFailures = DatafeedConfig.maxConsecutiveExtractionFailuresOnWire(in.getTransportVersion())
             ? in.readOptionalInt()
             : null;
     }
@@ -221,7 +221,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)) {
+        if (DatafeedConfig.maxConsecutiveExtractionFailuresOnWire(out.getTransportVersion())) {
             out.writeOptionalInt(maxConsecutiveExtractionFailures);
         }
     }

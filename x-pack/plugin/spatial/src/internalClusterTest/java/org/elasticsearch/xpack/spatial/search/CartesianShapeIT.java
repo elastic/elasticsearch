@@ -12,7 +12,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
@@ -62,7 +61,7 @@ public class CartesianShapeIT extends CartesianShapeIntegTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> indicesAdmin().preparePutMapping("test").setSource(update, XContentType.JSON).get()
+            () -> indicesAdmin().preparePutMapping("test").setSource(update).get()
         );
         assertThat(e.getMessage(), containsString("unknown parameter [strategy] on mapper [shape] of type [shape]"));
     }

@@ -52,6 +52,7 @@ distribution/packages/src @elastic/es-delivery
 distribution/docker/src @elastic/es-delivery
 
 # Core/Infra
+.libra @elastic/es-core-infra
 distribution/tools @elastic/es-core-infra
 libs/entitlement @elastic/es-core-infra
 libs/logging @elastic/es-core-infra

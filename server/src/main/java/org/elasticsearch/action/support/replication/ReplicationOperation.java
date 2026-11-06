@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
@@ -386,12 +387,14 @@ public class ReplicationOperation<
         try {
             primary.updateLocalCheckpointForShard(shard.allocationId().getId(), localCheckpointSupplier.getAsLong());
             primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), globalCheckpointSupplier.getAsLong());
-        } catch (final AlreadyClosedException e) {
-            // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
-        } catch (final Exception e) {
+        } catch (final AlreadyClosedException | IndexShardClosedException e) {
+            // the index was deleted, this shard was closed, or this shard was never activated after a relocation; fall through and finish
+            // normally
+        } catch (final Exception updateFailure) {
             threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
+                    e.addSuppressed(updateFailure);
                     assert false : e;
                 }
 
@@ -401,9 +404,27 @@ public class ReplicationOperation<
                 }
 
                 @Override
+                public void onRejection(Exception e) {
+                    if (e instanceof EsRejectedExecutionException rejectedException && rejectedException.isExecutorShutdown()) {
+                        logger.debug(
+                            () -> format(
+                                "node is shutting down, not failing primary after update checkpoints failure for replica %s",
+                                shard
+                            ),
+                            updateFailure
+                        );
+                    } else {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
                 protected void doRun() {
                     // fail the primary but fall through and let the rest of operation processing complete
-                    primary.failShard(String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard), e);
+                    primary.failShard(
+                        String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard),
+                        updateFailure
+                    );
                 }
 
                 @Override
@@ -455,6 +476,26 @@ public class ReplicationOperation<
                     @Override
                     public boolean isForceExecution() {
                         return true;
+                    }
+
+                    @Override
+                    public void onRejection(Exception e) {
+                        // If the node is shutting down, follow the same path as nodeIsClosing above
+                        if (e instanceof EsRejectedExecutionException rejectedException && rejectedException.isExecutorShutdown()) {
+                            l.onFailure(
+                                new RetryOnPrimaryException(
+                                    primary.routingEntry().shardId(),
+                                    String.format(
+                                        Locale.ROOT,
+                                        "node with primary [%s] is shutting down while failing replica shard",
+                                        primary.routingEntry()
+                                    ),
+                                    failure
+                                )
+                            );
+                        } else {
+                            onFailure(e);
+                        }
                     }
 
                     @Override

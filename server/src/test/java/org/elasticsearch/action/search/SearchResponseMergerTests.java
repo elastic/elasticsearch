@@ -9,11 +9,24 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -21,15 +34,24 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
@@ -42,9 +64,11 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.Text;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -56,6 +80,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -691,6 +716,132 @@ public class SearchResponseMergerTests extends ESTestCase {
                 mergedResponse.decRef();
             }
         }
+    }
+
+    public void testMergeReleasesRemoteTopHitsNetworkBuffer() throws IOException {
+        assertMergeReleasesRemoteTopHitsNetworkBuffer(Integer.MAX_VALUE);
+    }
+
+    public void testFailedMergeReleasesRemoteTopHitsNetworkBuffer() throws IOException {
+        // 2 outer buckets plus the 3 inner buckets of the first one fit, the inner buckets of the second one trip the limit
+        assertMergeReleasesRemoteTopHitsNetworkBuffer(5);
+    }
+
+    /**
+     * A remote cluster's response is read straight off the inbound network buffer, so the _source of every top_hits hit is a retained
+     * slice of that buffer: a single hit that is never released pins the whole message.
+     */
+    private void assertMergeReleasesRemoteTopHitsNetworkBuffer(int maxBuckets) throws IOException {
+        List<SearchHits> topHits = new ArrayList<>();
+        List<StringTerms.Bucket> clusterBuckets = new ArrayList<>();
+        for (int c = 0; c < 2; c++) {
+            List<StringTerms.Bucket> indexBuckets = new ArrayList<>();
+            for (int i = 0; i < 3; i++) {
+                SearchHit hit = new SearchHit(i, "doc-" + c + "-" + i);
+                hit.sourceRef(new BytesArray("{\"size_in_bytes\":" + i + "}"));
+                SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+                topHits.add(hits);
+                TopDocs topDocs = new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(i, 1.0f) });
+                InternalTopHits topHitsAgg = new InternalTopHits("hits", 0, 1, new TopDocsAndMaxScore(topDocs, 1.0f), hits, null);
+                indexBuckets.add(bucket("index-" + i, 1, topHitsAgg));
+            }
+            clusterBuckets.add(bucket("cluster-" + c, indexBuckets.size(), terms("index", indexBuckets)));
+        }
+        SearchResponse original = new SearchResponse(
+            SearchHits.empty(null, Float.NaN),
+            InternalAggregations.from(terms("clusters", clusterBuckets)),
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            null,
+            topHits
+        );
+        BytesStreamOutput out = new BytesStreamOutput();
+        try {
+            original.writeTo(out);
+        } finally {
+            original.decRef();
+        }
+
+        AtomicBoolean networkBufferReleased = new AtomicBoolean();
+        ReleasableBytesReference networkBuffer = new ReleasableBytesReference(out.bytes(), () -> networkBufferReleased.set(true));
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
+        SearchResponse remoteResponse;
+        try (StreamInput in = new NamedWriteableAwareStreamInput(networkBuffer.streamInput(), registry)) {
+            remoteResponse = new SearchResponse(in);
+        } finally {
+            networkBuffer.decRef();
+        }
+        assertFalse(networkBufferReleased.get());
+
+        AggregatorFactories.Builder requestedAggs = new AggregatorFactories.Builder().addAggregator(
+            new TermsAggregationBuilder("clusters").subAggregation(
+                new TermsAggregationBuilder("index").subAggregation(new TopHitsAggregationBuilder("hits"))
+            )
+        );
+        AggregationReduceContext.Builder reduceContextBuilder = new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction(Collection<SearchHits> topHitsToRelease) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction(Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForFinal(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    null,
+                    () -> false,
+                    requestedAggs,
+                    new MultiBucketConsumerService.MultiBucketConsumer(maxBuckets, new NoopCircuitBreaker("test")),
+                    topHitsToRelease
+                );
+            }
+        };
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(0, 10, 0, new SearchTimeProvider(0, 0, () -> 0), reduceContextBuilder)
+        ) {
+            merger.add(remoteResponse);
+            remoteResponse.decRef();
+            if (maxBuckets == Integer.MAX_VALUE) {
+                merger.getMergedResponse(SearchResponse.Clusters.EMPTY).decRef();
+            } else {
+                expectThrows(
+                    MultiBucketConsumerService.TooManyBucketsException.class,
+                    () -> merger.getMergedResponse(SearchResponse.Clusters.EMPTY)
+                );
+            }
+        }
+        assertTrue("the remote response's network buffer was never released", networkBufferReleased.get());
+    }
+
+    private static StringTerms.Bucket bucket(String key, long docCount, InternalAggregation subAgg) {
+        return new StringTerms.Bucket(new BytesRef(key), docCount, InternalAggregations.from(subAgg), false, 0, DocValueFormat.RAW);
+    }
+
+    private static StringTerms terms(String name, List<StringTerms.Bucket> buckets) {
+        return new StringTerms(
+            name,
+            BucketOrder.key(true),
+            BucketOrder.count(false),
+            10,
+            1,
+            null,
+            DocValueFormat.RAW,
+            10,
+            false,
+            0,
+            buckets,
+            0L
+        );
     }
 
     public void testMergeSearchHits() throws InterruptedException {

@@ -25,6 +25,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.indices.TermsLookup;
@@ -41,6 +43,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -49,6 +52,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
     private List<Object> randomTerms;
     private String termsPath;
+    private final AtomicInteger lookupGetCount = new AtomicInteger();
+    private List<Object> lookupTermsOverride;
 
     @Before
     public void randomTerms() {
@@ -197,11 +202,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     public GetResponse executeGet(GetRequest getRequest) {
+        lookupGetCount.incrementAndGet();
+        List<Object> terms = lookupTermsOverride != null ? lookupTermsOverride : randomTerms;
         String json;
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
-            builder.array(termsPath, randomTerms.toArray(Object[]::new));
+            builder.array(termsPath, terms.toArray(Object[]::new));
             builder.endObject();
             json = Strings.toString(builder);
         } catch (IOException ex) {
@@ -277,6 +284,48 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             expected = new TermsQueryBuilder(TEXT_FIELD_NAME, nonNullTerms);
         }
         assertEquals(expected, rewriteAndFetch(termsQueryBuilder, createSearchExecutionContext()));
+    }
+
+    public void testIdenticalTermsLookupsAreFetchedOnce() throws IOException {
+        // Several clauses referencing the same document (same index, id, path and routing) must resolve the lookup with a
+        // single get request, rather than one fetch per clause.
+        TermsLookup lookup = new TermsLookup("lookup_index", "1", termsPath);
+        BoolQueryBuilder query = new BoolQueryBuilder();
+        int clauses = randomIntBetween(2, 8);
+        for (int i = 0; i < clauses; i++) {
+            query.should(new TermsQueryBuilder(TEXT_FIELD_NAME, lookup));
+        }
+        lookupGetCount.set(0);
+        rewriteAndFetch(query, createSearchExecutionContext());
+        assertEquals("identical terms lookups must be fetched once", 1, lookupGetCount.get());
+
+        // Lookups that differ (here by id) are resolved independently.
+        BoolQueryBuilder distinctLookups = new BoolQueryBuilder().should(
+            new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("lookup_index", "1", termsPath))
+        ).should(new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("lookup_index", "2", termsPath)));
+        lookupGetCount.set(0);
+        rewriteAndFetch(distinctLookups, createSearchExecutionContext());
+        assertEquals("distinct terms lookups must be fetched separately", 2, lookupGetCount.get());
+    }
+
+    public void testTermsLookupExceedingMaxTermsCountIsRejectedDuringRewrite() {
+        // A lookup that resolves to more values than index.max_terms_count must be rejected while it is resolved on the
+        // coordinating node, before the values are expanded across clauses and serialized to the data nodes.
+        int maxTermsCount = IndexSettings.MAX_TERMS_COUNT_SETTING.get(Settings.EMPTY);
+        List<Object> tooManyTerms = new ArrayList<>(maxTermsCount + 1);
+        for (int i = 0; i <= maxTermsCount; i++) {
+            tooManyTerms.add(i);
+        }
+        lookupTermsOverride = tooManyTerms;
+
+        TermsQueryBuilder query = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rewriteAndFetch(query, createQueryRewriteContext())
+        );
+        assertThat(e.getMessage(), containsString("The number of terms [" + (maxTermsCount + 1) + "]"));
+        assertThat(e.getMessage(), containsString("exceeded the allowed maximum of [" + maxTermsCount + "]"));
+        assertThat(e.getMessage(), containsString(IndexSettings.MAX_TERMS_COUNT_SETTING.getKey()));
     }
 
     public void testGeo() throws Exception {

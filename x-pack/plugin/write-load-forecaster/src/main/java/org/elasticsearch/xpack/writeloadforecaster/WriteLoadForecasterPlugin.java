@@ -109,10 +109,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
             this.clusterInfoService = clusterInfoService;
             this.clusterInfoService.addListener(this::onNewClusterInfo);
 
-            clusterSettings.initializeAndWatch(
-                CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING,
-                clusterInfoForecasterEnabled -> handleChangedWriteLoadForecaster(clusterInfoForecasterEnabled)
-            );
+            clusterSettings.initializeAndWatch(CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING, this::handleChangedWriteLoadForecaster);
         }
 
         private void handleChangedWriteLoadForecaster(boolean clusterInfoForecasterEnabled) {

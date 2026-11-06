@@ -1006,4 +1006,15 @@ public class DateFieldMapperTests extends MapperTestCase {
             )
         );
     }
+
+    @Override
+    protected List<CheckedConsumer<XContentBuilder, IOException>> fieldMappingsForIndexSortRangeTest() {
+        return List.of(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }, b -> {
+            minimalMapping(b);
+            b.field("index", true);
+        });
+    }
 }

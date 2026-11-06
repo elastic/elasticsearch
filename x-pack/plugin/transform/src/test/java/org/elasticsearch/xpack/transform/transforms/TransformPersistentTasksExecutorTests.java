@@ -923,7 +923,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             scheduler,
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
-            projectId -> false
+            projectId -> false,
+            Clock.systemUTC()
         );
     }
 

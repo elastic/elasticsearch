@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
@@ -48,7 +49,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
     static final NodeFeature IVF_FORMAT_CLUSTER_FEATURE = new NodeFeature("mapper.ivf_format_cluster_feature");
     static final NodeFeature IVF_NESTED_SUPPORT = new NodeFeature("mapper.ivf_nested_support");
-    static final NodeFeature BBQ_DISK_SUPPORT = new NodeFeature("mapper.bbq_disk_support");
+    public static final NodeFeature BBQ_DISK_SUPPORT = new NodeFeature("mapper.bbq_disk_support");
     static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
     static final NodeFeature PATTERN_TEXT = new NodeFeature("mapper.patterned_text");
     static final NodeFeature IGNORED_SOURCE_FIELDS_PER_ENTRY = new NodeFeature("mapper.ignored_source_fields_per_entry");
@@ -94,9 +95,11 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.analyzer-wrapper.reloadable_search_analyzer"
     );
 
+    public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
+        var features = Sets.newHashSet(
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
             IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
@@ -147,7 +150,6 @@ public class MapperFeatures implements FeatureSpecification {
             MV_MIN_FUNCTION_FUSE_TO_LOAD,
             MV_MAX_FUNCTION_FUSE_TO_LOAD,
             TDIGEST_TYPE,
-            TEXT_FIELD_DOC_VALUES,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
             DOC_VALUES_MULTI_VALUE,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
@@ -157,7 +159,12 @@ public class MapperFeatures implements FeatureSpecification {
             IGNORED_VALUES_STORED_IN_BINARY_DV,
             KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
             KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
-            ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER
+            ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
+            PUT_MAPPING_NO_TYPES_CHECK
         );
+        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+            features.add(TEXT_FIELD_DOC_VALUES);
+        }
+        return Set.copyOf(features);
     }
 }

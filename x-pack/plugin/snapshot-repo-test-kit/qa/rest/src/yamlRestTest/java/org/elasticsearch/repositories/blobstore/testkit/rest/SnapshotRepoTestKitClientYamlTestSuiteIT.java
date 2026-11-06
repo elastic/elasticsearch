@@ -7,6 +7,7 @@
 
 package org.elasticsearch.repositories.blobstore.testkit.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -14,7 +15,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 public class SnapshotRepoTestKitClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public SnapshotRepoTestKitClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public SnapshotRepoTestKitClientYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

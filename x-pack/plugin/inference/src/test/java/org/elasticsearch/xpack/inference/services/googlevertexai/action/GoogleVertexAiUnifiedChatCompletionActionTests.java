@@ -164,7 +164,7 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(exception).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(sender, provider, provider.getChatCompletionResponseHandler());
+        var action = createAction(sender, provider, provider.getChatCompletionResponseHandler(false));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(createUnifiedChatInput(List.of("test query")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -182,7 +182,7 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(sender, provider, provider.getChatCompletionResponseHandler());
+        var action = createAction(sender, provider, provider.getChatCompletionResponseHandler(false));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(createUnifiedChatInput(List.of("test query")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);

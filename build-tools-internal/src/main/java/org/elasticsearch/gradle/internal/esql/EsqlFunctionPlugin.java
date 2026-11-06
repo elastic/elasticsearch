@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal.esql;
 
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.PlatformUtils;
 import org.gradle.api.Action;
@@ -38,6 +37,7 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
@@ -58,7 +58,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         boolean isCi = loadBuildParams(project).get().getCi();
 
         var dependencies = project.getDependencies();

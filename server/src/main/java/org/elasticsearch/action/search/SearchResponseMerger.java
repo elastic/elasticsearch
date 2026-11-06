@@ -206,10 +206,11 @@ public final class SearchResponseMerger implements Releasable {
         setTopDocsShardIndex(shards, topDocsList);
         TopDocs topDocs = mergeTopDocs(topDocsList, size, from);
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
+        List<SearchHits> topHitsToRelease = null;
         try {
             setSuggestShardIndex(shards, groupedSuggestions);
             Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-            final List<SearchHits> topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null) ? null : new ArrayList<>();
+            topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null) ? null : new ArrayList<>();
             InternalAggregations reducedAggs = aggs.isEmpty()
                 ? InternalAggregations.EMPTY
                 : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction(topHitsToRelease));
@@ -218,7 +219,7 @@ public final class SearchResponseMerger implements Releasable {
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
             Arrays.sort(shardFailures, FAILURES_COMPARATOR);
             long tookInMillis = searchTimeProvider.buildTookInMillis();
-            return new SearchResponse(
+            SearchResponse mergedResponse = new SearchResponse(
                 mergedSearchHits,
                 reducedAggs,
                 suggest,
@@ -236,8 +237,14 @@ public final class SearchResponseMerger implements Releasable {
                 null,
                 topHitsToRelease
             );
+            topHitsToRelease = null;
+            return mergedResponse;
         } finally {
             mergedSearchHits.decRef();
+            // the reduce took a ref on every top_hits hit it kept, and remote hits pin the inbound network buffer until released
+            if (topHitsToRelease != null) {
+                topHitsToRelease.forEach(SearchHits::decRef);
+            }
         }
     }
 

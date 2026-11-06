@@ -60,7 +60,9 @@ public final class Booleans {
         if (isTrue(value)) {
             return true;
         }
-        throw new IllegalArgumentException("Failed to parse value [" + value + "] as only [true] or [false] are allowed.");
+        throw new IllegalArgumentException(
+            "Failed to parse value [" + Strings.truncateForError(value) + "] as only [true] or [false] are allowed."
+        );
     }
 
     private static boolean hasText(CharSequence str) {

@@ -34,6 +34,15 @@ public class PhaseTimingsTests extends ESTestCase {
         assertThat(timings.summary(), equalTo("CREATE_TARGET [100ms], RUN_SHARDS [1s], FINALIZE_SETTINGS [50ms]"));
     }
 
+    public void testClockOfAnotherNodeAheadOfThisOne() {
+        IndexTaskDoc requested = newIndexTask("target");
+        // the operation was requested on a node whose clock is ahead of this master's
+        PhaseTimings timings = new PhaseTimings(requested, requested.createdAt() - 50);
+        timings.transition(IndexTaskPhase.RUN_SHARDS, requested.createdAt() - 10);
+        assertThat(timings.durations(), equalTo(Map.of(IndexTaskPhase.CREATE_TARGET, 0L)));
+        assertThat(timings.summary(), equalTo("CREATE_TARGET [0s]"));
+    }
+
     public void testOperationFirstSeenAfterAFailover() {
         IndexTaskDoc running = newIndexTask("target").targetCreated(randomUUID());
         long now = running.createdAt() + 10_000;

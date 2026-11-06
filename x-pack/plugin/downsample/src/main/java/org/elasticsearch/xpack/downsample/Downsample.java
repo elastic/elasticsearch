@@ -37,6 +37,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
+import org.elasticsearch.xpack.downsample.explain.ExplainDownsampleAction;
+import org.elasticsearch.xpack.downsample.explain.RestExplainDownsampleAction;
+import org.elasticsearch.xpack.downsample.explain.TransportExplainDownsampleAction;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleOrchestrator;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateIndex;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore;
@@ -71,6 +74,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
     public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler(DownsampleAction.INSTANCE, TransportDownsampleAction.class),
+            new ActionHandler(ExplainDownsampleAction.INSTANCE, TransportExplainDownsampleAction.class),
             new ActionHandler(
                 DownsampleShardPersistentTaskExecutor.DelegatingAction.INSTANCE,
                 DownsampleShardPersistentTaskExecutor.DelegatingAction.TA.class
@@ -84,7 +88,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestDownsampleAction());
+        return List.of(new RestDownsampleAction(), new RestExplainDownsampleAction());
     }
 
     @Override

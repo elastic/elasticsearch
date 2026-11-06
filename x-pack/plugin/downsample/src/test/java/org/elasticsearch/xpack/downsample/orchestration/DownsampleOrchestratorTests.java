@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -31,6 +32,8 @@ import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.downsample.Downsample;
 import org.elasticsearch.xpack.downsample.DownsampleShardIndexerException;
+import org.elasticsearch.xpack.downsample.explain.ExplainDownsampleAction;
+import org.elasticsearch.xpack.downsample.explain.IndexDownsampleExplanation;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore.Versioned;
 import org.junit.Before;
 
@@ -326,6 +329,87 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
 
         assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.FAILED)));
         assertThat(indexTask().doc().lastError(), containsString("deadline"));
+    }
+
+    // ---- explain ----
+
+    /**
+     * The explain API shows where the operation stands, as a whole and per shard, while it runs and once it is done; indices that
+     * are not downsampled are left out.
+     */
+    public void testExplainShowsProgressOfTheIndexAndItsShards() throws Exception {
+        requestDownsample(createSource(2));
+        List<Versioned<ShardTaskDoc>> unassigned = awaitShardTasks(2, ShardTaskStatus.UNASSIGNED);
+        assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.RUN_SHARDS)));
+        Versioned<ShardTaskDoc> running = claim(unassigned.get(0));
+        running = nodeWrite(
+            running,
+            running.doc().withProgress(Map.of("total_shard_doc_count", 10, "docs_processed", 4, "in_num_docs_received", 4)),
+            running.doc().epoch()
+        );
+
+        IndexDownsampleExplanation inProgress = explainOne(TARGET);
+        assertThat(inProgress.state(), equalTo("in_progress"));
+        assertThat(inProgress.operation().phase(), equalTo(IndexTaskPhase.RUN_SHARDS));
+        assertThat(inProgress.sourceIndex(), equalTo(SOURCE));
+        assertThat(
+            inProgress.shardCounts(),
+            equalTo(
+                Map.of(ShardTaskStatus.UNASSIGNED, 1, ShardTaskStatus.RUNNING, 1, ShardTaskStatus.COMPLETED, 0, ShardTaskStatus.FAILED, 0)
+            )
+        );
+        assertThat(inProgress.progress().get("docs_processed"), equalTo(4L));
+        assertThat(inProgress.progress().get("docs_processed_percentage"), equalTo(40.0));
+        ShardTaskDoc shard0 = inProgress.shards().get(0);
+        assertThat(shard0.status(), equalTo(ShardTaskStatus.RUNNING));
+        assertThat(shard0.assignedNode(), equalTo(store.forLocalNode().nodeId()));
+        String json = Strings.toString(inProgress);
+        assertThat(json, containsString("\"state\":\"in_progress\""));
+        assertThat(json, containsString("\"phase\":\"run_shards\""));
+        assertThat(json, containsString("\"shards_summary\":{\"total\":2,\"unassigned\":1,\"running\":1,\"completed\":0,\"failed\":0}"));
+
+        nodeWrite(
+            running,
+            running.doc().completed(Map.of("total_shard_doc_count", 10, "docs_processed", 10, "in_num_docs_received", 10)),
+            running.doc().epoch()
+        );
+        Versioned<ShardTaskDoc> second = claim(shardTasks(2).get(1));
+        nodeWrite(second, second.doc().completed(Map.of("total_shard_doc_count", 6, "docs_processed", 6)), second.doc().epoch());
+        assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.DONE)));
+
+        IndexDownsampleExplanation done = explainOne(TARGET);
+        assertThat(done.state(), equalTo("completed"));
+        assertThat(done.downsampleStatus(), equalTo(IndexMetadata.DownsampleTaskStatus.SUCCESS));
+        assertThat(done.shardCounts().get(ShardTaskStatus.COMPLETED), equalTo(2));
+        assertThat(done.progress().get("docs_processed_percentage"), equalTo(100.0));
+
+        // all indices: the source is not a downsampled index
+        ExplainDownsampleAction.Response all = client().execute(
+            ExplainDownsampleAction.INSTANCE,
+            new ExplainDownsampleAction.Request(TEST_REQUEST_TIMEOUT)
+        ).actionGet(TEST_REQUEST_TIMEOUT);
+        assertThat(all.indices().stream().map(IndexDownsampleExplanation::index).toList(), equalTo(List.of(TARGET)));
+
+        // only the downsamples of the given sources
+        assertThat(explainSourceIndices(SOURCE), equalTo(List.of(TARGET)));
+        assertThat(explainSourceIndices("other-source"), equalTo(List.of()));
+    }
+
+    private List<String> explainSourceIndices(String... sourceIndices) {
+        ExplainDownsampleAction.Response response = client().execute(
+            ExplainDownsampleAction.INSTANCE,
+            new ExplainDownsampleAction.Request(TEST_REQUEST_TIMEOUT).sourceIndices(sourceIndices)
+        ).actionGet(TEST_REQUEST_TIMEOUT);
+        return response.indices().stream().map(IndexDownsampleExplanation::index).toList();
+    }
+
+    private IndexDownsampleExplanation explainOne(String index) {
+        ExplainDownsampleAction.Response response = client().execute(
+            ExplainDownsampleAction.INSTANCE,
+            new ExplainDownsampleAction.Request(TEST_REQUEST_TIMEOUT).indices(index)
+        ).actionGet(TEST_REQUEST_TIMEOUT);
+        assertThat(response.indices(), hasSize(1));
+        return response.indices().get(0);
     }
 
     // ---- helpers ----

@@ -36,7 +36,8 @@ final class PhaseTimings {
 
     synchronized void transition(IndexTaskPhase next, long now) {
         if (next != phase) {
-            durations.merge(phase, now - phaseStartedAt, Long::sum);
+            // the operation was requested on another node, whose clock may be ahead of this one
+            durations.merge(phase, Math.max(0, now - phaseStartedAt), Long::sum);
             phase = next;
             phaseStartedAt = now;
         }

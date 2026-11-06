@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +94,12 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
      * be stale: each one is checked again, and the claim is a compare-and-set.
      */
     private final Deque<Versioned<ShardTaskDoc>> claimCandidates = new ArrayDeque<>();
+    /**
+     * The epoch at which this node claimed each task whose run is over, until the near real time search catches up. Until then the
+     * search still shows such a task unassigned, at the epoch before the claim: claiming it again would fail, and the stale hits
+     * would take the place of the tasks that can be claimed. A task the master released since is at a higher epoch.
+     */
+    private final Map<RunKey, Long> claimedEpochs = new ConcurrentHashMap<>();
     private volatile TimeValue pollInterval;
     private volatile Scheduler.Cancellable scheduledPoll;
 
@@ -270,7 +277,8 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
                 ActionListener<Void> ref = refs.acquire();
                 // the search is near real time: ask for more than the free slots, so the hits of tasks this node claimed already
                 // (they still look unassigned) do not hide the claimable ones
-                node.findClaimableShardTasks(projectId, localIndices, freeSlots + maxConcurrentRuns, ActionListener.wrap(found -> {
+                int size = freeSlots + maxConcurrentRuns + claimedEpochs.size();
+                node.findClaimableShardTasks(projectId, localIndices, size, ActionListener.wrap(found -> {
                     claimable.addAll(found);
                     ref.onResponse(null);
                 }, e -> {
@@ -289,6 +297,13 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
         synchronized (claimable) {
             ordered = claimable.stream().sorted(OLDEST_FIRST).toList();
         }
+        // forget the claims the search caught up with: the task no longer shows up unassigned, or shows up released since
+        Map<RunKey, Long> hitEpochs = new HashMap<>();
+        ordered.forEach(t -> hitEpochs.put(new RunKey(t.doc().projectId(), t.doc().id()), t.doc().epoch()));
+        claimedEpochs.entrySet().removeIf(claimed -> {
+            Long hitEpoch = hitEpochs.get(claimed.getKey());
+            return hitEpoch == null || hitEpoch >= claimed.getValue();
+        });
         synchronized (claimCandidates) {
             claimCandidates.clear();
             claimCandidates.addAll(ordered);
@@ -313,6 +328,11 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
             ShardTaskDoc doc = task.doc();
             RunKey key = new RunKey(doc.projectId(), doc.id());
             if (runs.containsKey(key)) {
+                continue;
+            }
+            Long claimedEpoch = claimedEpochs.get(key);
+            if (claimedEpoch != null && doc.epoch() < claimedEpoch) {
+                // a stale hit of a task this node claimed already
                 continue;
             }
             String ineligible = DownsampleStateStore.whyCannotClaim(state, node.nodeId(), doc);
@@ -357,7 +377,11 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
     }
 
     private void runFinished(ShardTaskRun finished) {
-        runs.remove(new RunKey(finished.projectId(), finished.docId()), finished);
+        RunKey key = new RunKey(finished.projectId(), finished.docId());
+        runs.remove(key, finished);
+        if (finished.isClaim() && finished.hasStarted()) {
+            claimedEpochs.put(key, finished.epoch());
+        }
         if (lifecycle.stoppedOrClosed()) {
             return;
         }

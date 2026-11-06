@@ -1,0 +1,68 @@
+{
+  "indices.explain_downsample": {
+    "documentation": {
+      "url": null,
+      "description": "Explain the progress of the downsampling of indices, for the whole index and for every shard"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_downsample/explain",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/{index}/_downsample/explain",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of the downsampled indices, data streams or wildcard expressions to explain"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "source_index": {
+        "type": "list",
+        "description": "A comma-separated list of source index names: only the downsamples of these indices are explained"
+      },
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open,hidden",
+        "description": "Whether wildcard expressions should get expanded to open, closed, or hidden indices (default: open and hidden, since downsampled indices are hidden until the downsampling succeeds)"
+      },
+      "ignore_unavailable": {
+        "type": "boolean",
+        "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+      },
+      "allow_no_indices": {
+        "type": "boolean",
+        "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices"
+      },
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for waiting for a cluster state that is not blocked"
+      }
+    }
+  }
+}

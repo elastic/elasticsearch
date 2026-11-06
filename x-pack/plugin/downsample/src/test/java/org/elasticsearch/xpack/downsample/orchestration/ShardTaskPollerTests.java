@@ -250,6 +250,25 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
     }
 
     /**
+     * When a run finishes, the node looks again right away, before the state index is refreshed: the search still shows the tasks
+     * this node just completed as unassigned. Those stale hits must neither take the free slot (their claim would fail) nor hide
+     * the tasks that can be claimed, so every task gets claimed without waiting for the next poll.
+     */
+    public void testStaleHitsOfOwnClaimsDoNotStallTheNode() throws Exception {
+        poller = newPoller(1);
+        List<Versioned<ShardTaskDoc>> tasks = List.of(unassignedTask(0), unassignedTask(1), unassignedTask(2));
+        poll();
+        for (int i = 0; i < tasks.size(); i++) {
+            ShardTaskRun run = awaitStarted(i + 1);
+            assertThat(run.docId(), equalTo(tasks.get(i).doc().id()));
+            // the run finishing triggers the next look, without a refresh of the state index
+            completeRun(i, l -> l.onResponse(null));
+        }
+        assertBusy(() -> assertThat(count(tasks, ShardTaskStatus.COMPLETED), equalTo(3L)));
+        assertThat(started, hasSize(3));
+    }
+
+    /**
      * Tasks are claimed oldest operation first, so the operations requested first finish first.
      */
     public void testClaimsOldestFirst() throws Exception {

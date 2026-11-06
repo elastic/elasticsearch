@@ -53,6 +53,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -241,37 +242,7 @@ public class DownsampleStateStore {
             int numberOfShards,
             ActionListener<List<Optional<Versioned<ShardTaskDoc>>>> listener
         ) {
-            MultiGetRequest request = new MultiGetRequest().realtime(true);
-            for (int shard = 0; shard < numberOfShards; shard++) {
-                request.add(INDEX_NAME, DownsampleStateIndex.shardTaskId(targetIndex, targetIndexUuid, shard));
-            }
-            inProject(projectId, listener.<MultiGetResponse>delegateFailureAndWrap((l, response) -> {
-                List<Optional<Versioned<ShardTaskDoc>>> docs = new ArrayList<>(numberOfShards);
-                for (MultiGetItemResponse item : response.getResponses()) {
-                    if (item.isFailed()) {
-                        if (ExceptionsHelper.unwrapCause(item.getFailure().getFailure()) instanceof IndexNotFoundException) {
-                            docs.add(Optional.empty());
-                            continue;
-                        }
-                        throw item.getFailure().getFailure();
-                    }
-                    GetResponse get = item.getResponse();
-                    docs.add(
-                        get.isExists()
-                            ? Optional.of(
-                                versioned(
-                                    projectId,
-                                    get.getSourceAsBytesRef(),
-                                    ShardTaskDoc::fromXContent,
-                                    get.getSeqNo(),
-                                    get.getPrimaryTerm()
-                                )
-                            )
-                            : Optional.empty()
-                    );
-                }
-                l.onResponse(docs);
-            }), l -> client.multiGet(request, l));
+            DownsampleStateStore.this.getShardTasks(projectId, targetIndex, targetIndexUuid, numberOfShards, listener);
         }
 
         public void updateShardTask(Versioned<ShardTaskDoc> current, ShardTaskDoc next, ActionListener<Versioned<ShardTaskDoc>> listener) {
@@ -466,6 +437,97 @@ public class DownsampleStateStore {
         ProjectMetadata project = state.metadata().projects().get(projectId);
         IndexMetadata indexMetadata = project == null ? null : project.index(name);
         return indexMetadata != null && indexMetadata.getIndexUUID().equals(uuid);
+    }
+
+    /**
+     * Reads for anyone allowed to see the state of the downsample operations, e.g. the explain API. Real time, on any node.
+     */
+    public ReadView forReaders() {
+        return new ReadView();
+    }
+
+    public final class ReadView {
+
+        private ReadView() {}
+
+        /**
+         * The index task documents of the given target indices, by target index name; a target without one is left out.
+         */
+        public void getIndexTasks(
+            ProjectId projectId,
+            Collection<String> targetIndices,
+            ActionListener<Map<String, Versioned<IndexTaskDoc>>> listener
+        ) {
+            List<String> ids = targetIndices.stream().map(DownsampleStateIndex::indexTaskId).toList();
+            multiGet(projectId, ids, IndexTaskDoc::fromXContent, listener.map(found -> {
+                Map<String, Versioned<IndexTaskDoc>> byTarget = new HashMap<>();
+                found.forEach(task -> task.ifPresent(t -> byTarget.put(t.doc().targetIndex(), t)));
+                return byTarget;
+            }));
+        }
+
+        /**
+         * See {@link MasterView#getShardTasks}.
+         */
+        public void getShardTasks(
+            ProjectId projectId,
+            String targetIndex,
+            String targetIndexUuid,
+            int numberOfShards,
+            ActionListener<List<Optional<Versioned<ShardTaskDoc>>>> listener
+        ) {
+            DownsampleStateStore.this.getShardTasks(projectId, targetIndex, targetIndexUuid, numberOfShards, listener);
+        }
+    }
+
+    private void getShardTasks(
+        ProjectId projectId,
+        String targetIndex,
+        String targetIndexUuid,
+        int numberOfShards,
+        ActionListener<List<Optional<Versioned<ShardTaskDoc>>>> listener
+    ) {
+        List<String> ids = new ArrayList<>(numberOfShards);
+        for (int shard = 0; shard < numberOfShards; shard++) {
+            ids.add(DownsampleStateIndex.shardTaskId(targetIndex, targetIndexUuid, shard));
+        }
+        multiGet(projectId, ids, ShardTaskDoc::fromXContent, listener);
+    }
+
+    /**
+     * Real time read of several documents, one entry per id, empty if the document (or the state index) does not exist.
+     */
+    private <T extends StateDoc> void multiGet(
+        ProjectId projectId,
+        List<String> ids,
+        CheckedFunction<XContentParser, T, IOException> parser,
+        ActionListener<List<Optional<Versioned<T>>>> listener
+    ) {
+        if (ids.isEmpty()) {
+            listener.onResponse(List.of());
+            return;
+        }
+        MultiGetRequest request = new MultiGetRequest().realtime(true);
+        ids.forEach(id -> request.add(INDEX_NAME, id));
+        inProject(projectId, listener.<MultiGetResponse>delegateFailureAndWrap((l, response) -> {
+            List<Optional<Versioned<T>>> docs = new ArrayList<>(ids.size());
+            for (MultiGetItemResponse item : response.getResponses()) {
+                if (item.isFailed()) {
+                    if (ExceptionsHelper.unwrapCause(item.getFailure().getFailure()) instanceof IndexNotFoundException) {
+                        docs.add(Optional.empty());
+                        continue;
+                    }
+                    throw item.getFailure().getFailure();
+                }
+                GetResponse get = item.getResponse();
+                docs.add(
+                    get.isExists()
+                        ? Optional.of(versioned(projectId, get.getSourceAsBytesRef(), parser, get.getSeqNo(), get.getPrimaryTerm()))
+                        : Optional.empty()
+                );
+            }
+            l.onResponse(docs);
+        }), l -> client.multiGet(request, l));
     }
 
     private static void ensureSameDoc(StateDoc current, StateDoc next) {

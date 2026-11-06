@@ -317,9 +317,9 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
             List<Attribute> before = plan.output();
             List<Attribute> after = result.output();
             assert before.size() == after.size() && Expressions.names(before).equals(Expressions.names(after))
-                : "FILLNULL expansion changed the output from " + before + " to " + after;
+                : "expanding FILLNULL changed the output of [" + plan.nodeName() + "] from " + before + " to " + after;
             assert before.stream().map(Attribute::dataType).toList().equals(after.stream().map(Attribute::dataType).toList())
-                : "FILLNULL expansion changed the output types from " + before + " to " + after;
+                : "expanding FILLNULL changed the output types of [" + plan.nodeName() + "] from " + before + " to " + after;
             for (int i = 0; i < before.size(); i++) {
                 if (before.get(i).id().equals(after.get(i).id()) == false) {
                     replacedInOutput.put(before.get(i).id(), after.get(i));

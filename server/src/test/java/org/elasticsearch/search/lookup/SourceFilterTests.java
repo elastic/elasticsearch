@@ -64,7 +64,6 @@ public class SourceFilterTests extends ESTestCase {
     public void testEscapedDotsStillMatchFlatField() {
         SourceFilter filter = new SourceFilter(new String[] { "w\\.0.0\\.t" }, new String[] {});
         assertFilteringPathsAgree(filter, Map.of("w.0.0.t", "flat", "other", "ignored"), Map.of("w.0.0.t", "flat"));
-        assertTrue(filter.isExplicitlyIncluded("w.0.0.t"));
         assertFalse(filter.isPathFiltered("w.0.0.t", false));
         assertTrue(filter.isPathFiltered("other", false));
     }
@@ -92,8 +91,8 @@ public class SourceFilterTests extends ESTestCase {
             Map.of("\\", Map.of("nested_value", "kept", "other", "ignored"), "w.0.0.t", "flat", "other", "ignored"),
             Map.of("\\", Map.of("nested_value", "kept"), "w.0.0.t", "flat")
         );
-        assertTrue(filter.isExplicitlyIncluded("\\.nested_value"));
-        assertTrue(filter.isExplicitlyIncluded("w.0.0.t"));
+        assertFalse(filter.isPathFiltered("\\.nested_value", false));
+        assertFalse(filter.isPathFiltered("w.0.0.t", false));
     }
 
     public void testEscapedDotsWithBackslashParentExclude() {
@@ -154,8 +153,6 @@ public class SourceFilterTests extends ESTestCase {
         Map<String, Object> expected = Map.of("foo\\", Map.of("bar", 1), "foo.bar", 2, "foo", Map.of("bar", 3));
         assertFilteringPathsAgree(filter, document, expected);
         assertFilteringPathsAgree(new SourceFilter(filter.getIncludes(), filter.getExcludes()), document, expected);
-        assertTrue(filter.isExplicitlyIncluded("foo\\.bar"));
-        assertTrue(filter.isExplicitlyIncluded("foo.bar"));
         assertFalse(filter.isPathFiltered("foo\\.bar", false));
         assertFalse(filter.isPathFiltered("foo.bar", false));
     }

@@ -13,12 +13,16 @@ import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesActio
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.ShardResponseReservation;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -132,8 +136,16 @@ public class RenameIndexRequestCacheTests extends SecurityIntegTestCase {
                 transportService.getConnection(transportService.getLocalNode()),
                 request,
                 task,
+                new ShardResponseReservation(
+                    internalCluster().getInstance(CircuitBreakerService.class, nodeName).getBreaker(CircuitBreaker.REQUEST),
+                    ShardResponseReservation.BREAKER_LABEL,
+                    future::onFailure
+                ),
                 // the connection is to this node, so the result is the server's own object, which it releases once the listener returns
-                ActionListener.wrap(result -> future.onResponse(result.queryResult().getTotalHits().value()), future::onFailure),
+                ActionListener.<SearchPhaseResult>wrap(
+                    result -> future.onResponse(result.queryResult().getTotalHits().value()),
+                    future::onFailure
+                ),
                 bytes -> {},
                 bytes -> {}
             );

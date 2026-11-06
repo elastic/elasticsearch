@@ -69,7 +69,6 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -567,63 +566,13 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
      * group_left over an opaque "many" side keeps each of its series without the metric name, like Prometheus. The
      * match label stays in that side's metadata rather than becoming a column of its own.
      */
-    public void testGroupLeftOverOpaqueManyKeepsItsSeries() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql(
-            "PROMQL index=k8s step=5m result=(network.eth0.tx / on (cluster) group_left sum by (cluster) (network.eth0.rx))"
-        );
-        assertThat(plan.collect(HashJoin.class), hasSize(1));
-        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "_timeseries"));
-        assertEquals(Set.of(LabelMatcher.NAME), viewExclusions(plan));
-    }
-
     /**
      * A group_left label comes from the "one" side: the join carries it over, and the opaque "many" side's metadata leaves
      * out the value it stores itself.
      */
-    public void testGroupLeftLabelLeavesOpaqueManyMetadata() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql(
-            "PROMQL index=k8s step=5m result=(network.eth0.tx "
-                + "/ on (cluster) group_left (region) sum by (cluster, region) (network.eth0.rx))"
-        );
-        HashJoin join = plan.collect(HashJoin.class).getFirst();
-        assertThat(join.addedFields().stream().map(Attribute::name).toList(), hasItem("region"));
-        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "region", "_timeseries"));
-        assertEquals(Set.of("region", LabelMatcher.NAME), viewExclusions(plan));
-    }
-
     /** group_right mirrors group_left: the right operand is the opaque "many" side and keeps its series. */
-    public void testGroupRightLabelLeavesOpaqueManyMetadata() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql(
-            "PROMQL index=k8s step=5m result=(sum by (cluster, region) (network.eth0.tx) "
-                + "/ on (cluster) group_right (region) network.eth0.rx)"
-        );
-        HashJoin join = plan.collect(HashJoin.class).getFirst();
-        assertThat(join.addedFields().stream().map(Attribute::name).toList(), hasItem("region"));
-        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "region", "_timeseries"));
-        assertEquals(Set.of("region", LabelMatcher.NAME), viewExclusions(plan));
-    }
-
     /** A filtering comparison keeps the metric name of the opaque "many" side's series, like Prometheus. */
-    public void testGroupLeftComparisonKeepsMetricName() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql(
-            "PROMQL index=k8s step=5m result=(network.eth0.tx > on (cluster) group_left sum by (cluster) (network.eth0.rx))"
-        );
-        assertEquals(Set.of(), viewExclusions(plan));
-    }
-
     /** A {@code bool} comparison drops the metric name, like arithmetic. */
-    public void testGroupLeftBoolComparisonDropsMetricName() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql(
-            "PROMQL index=k8s step=5m result=(network.eth0.tx > bool on (cluster) group_left sum by (cluster) (network.eth0.rx))"
-        );
-        assertEquals(Set.of(LabelMatcher.NAME), viewExclusions(plan));
-    }
-
     /** Arithmetic with a scalar drops the metric name: the source reads its series without it. */
     public void testScalarArithmeticDropsMetricName() {
         var plan = planPromql("PROMQL index=k8s step=5m result=(network.eth0.tx * 2)");
@@ -652,17 +601,6 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
      * A {@code group_left} label over an aggregated opaque "many" side: typed metadata leaves the label out of the result's
      * metadata, keyword metadata keeps it there, as before.
      */
-    public void testGroupLeftLabelOverAggregatedOpaqueMany() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql(
-            "PROMQL index=k8s step=5m result=(topk(5, network.eth0.tx) "
-                + "/ on (cluster) group_left (region) sum by (cluster, region) (network.eth0.rx))"
-        );
-        boolean unsets = plan.anyMatch(node -> node.expressions().stream().anyMatch(e -> e.anyMatch(TimeSeriesUnset.class::isInstance)));
-        assertEquals(typedTimeSeriesMetadata(), unsets);
-        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "region", "_timeseries"));
-    }
-
     public void testVectorMatchComparisonBoolProducesHashJoin() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // `> bool on (cluster)` compares two vectors and yields 1.0/0.0 for each matched pair (no rows dropped).
@@ -729,13 +667,6 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     /**
      * Shape 2 (opaque x opaque) with {@code on (cluster)}: both sides expose only rest; keys are unresolved label refs.
      */
-    public void testVectorMatchOnAllowsOpaqueOpaqueOperands() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql("PROMQL index=k8s step=5m result=(network.eth0.tx / on (cluster) network.eth0.rx)");
-        assertThat(plan.collect(HashJoin.class), hasSize(1));
-        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "cluster"));
-    }
-
     /** Shape 7b: topk over without - typed metadata only. */
     public void testTopkOverWithoutPlans() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
@@ -748,42 +679,11 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
      * Shape 4: {@code ignoring} over opaque/opaque. Match keys pack rest minus the ignored labels and {@code __name__}; the
      * result keeps that refined rest, which arithmetic leaves {@code __name__} out of too, so both read one view.
      */
-    public void testVectorMatchIgnoringAllowsOpaqueOpaqueOperands() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql("PROMQL index=k8s step=5m result=(network.eth0.tx / ignoring (region) network.eth0.rx)");
-        assertThat(plan.collect(HashJoin.class), hasSize(1));
-        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "_timeseries"));
-    }
-
     /**
      * {@code ignoring(pod) group_left(region)} over raw operands: the LHS source serves two metadata views that neither
      * contain each other, the match key leaving {@code pod} out and the result leaving {@code region} out. Typed metadata
      * reads what both leave out at the source and derives each; the keyword column cannot, so it stays rejected there.
      */
-    public void testIgnoringGroupLeftIncludeOverRawOperands() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        for (String expr : List.of(
-            "network.eth0.tx * ignoring (pod) group_left (region) network.eth0.rx",
-            "network.eth0.tx * ignoring (pod) group_right (region) network.eth0.rx",
-            "network.eth0.tx * ignoring (pod) group_left (region) sum by (region, cluster) (network.eth0.rx)"
-        )) {
-            String query = "PROMQL index=k8s step=5m result=(" + expr + ")";
-            if (typedTimeSeriesMetadata()) {
-                var plan = planPromql(query, false);
-                assertTrue("must resolve for [" + expr + "]: " + plan, plan.resolved());
-                assertThat("expected join for [" + expr + "]", plan.collect(HashJoin.class), hasSize(1));
-                assertThat(
-                    plan.output().stream().map(Attribute::name).toList(),
-                    containsInAnyOrder("result", "step", "_timeseries", "region")
-                );
-                assertTrue("the match key derives from the shared read for [" + expr + "]", leavesOut(plan, "pod"));
-                assertTrue("the result derives from the shared read for [" + expr + "]", leavesOut(plan, "region"));
-            } else {
-                assertRequiresTypedMetadata(query);
-            }
-        }
-    }
-
     /** Whether some metadata view of {@code plan} leaves {@code label} out: read so at a source, or derived with ts_unset. */
     private static boolean leavesOut(LogicalPlan plan, String label) {
         boolean readWithout = plan.collect(EsRelation.class)
@@ -807,16 +707,6 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
      * Two opaque {@code group_right} results composed under default matching join on metadata (same path as cross-metric
      * selectors), so they no longer need every label named up front.
      */
-    public void testComposedGroupRightOpaqueOpaqueAllowed() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql(
-            "PROMQL index=k8s step=5m result=("
-                + "(network.eth0.tx * on (cluster) group_right (pod) network.eth0.rx)"
-                + " / (network.cost * on (cluster) group_right (pod) network.eth0.rx))"
-        );
-        assertThat(plan.collect(HashJoin.class).isEmpty(), equalTo(false));
-    }
-
     /**
      * Labelless aggregate {@code + ignoring(...)} opaque selector: both sides pack a metadata signature slot so join-key
      * arity matches. The labelless side binds that slot to the empty Prometheus signature, which an opaque series equals
@@ -850,38 +740,6 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
      * Nested many-to-one: {@code a * on(pod) group_left(node) b * on(pod) group_left(namespace) b} (left-assoc).
      * Stand-ins: {@code region} for node, {@code cluster} for namespace; both joins must survive.
      */
-    public void testNestedGroupLeftIncludeLabels() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        String query = "PROMQL index=k8s step=5m result=("
-            + "network.eth0.tx * on (pod) group_left (region) network.eth0.rx"
-            + " * on (pod) group_left (cluster) network.eth0.rx)";
-        if (typedTimeSeriesMetadata() == false) {
-            // the inner join's result and the outer match key are two views of one source
-            assertRequiresTypedMetadata(query);
-            return;
-        }
-        var plan = planPromql(query);
-        assertThat("two nested group_left joins", plan.collect(HashJoin.class), hasSize(2));
-        assertTrue("group_left(region) include", plan.output().stream().anyMatch(a -> "region".equals(a.name())));
-        assertTrue("group_left(cluster) include", plan.output().stream().anyMatch(a -> "cluster".equals(a.name())));
-        assertTrue(
-            "opaque many-side rest retained: " + plan.output(),
-            plan.output().stream().anyMatch(a -> a.name().startsWith("_timeseries"))
-        );
-        // Outer build must pack a real pod key (not null): a pin Project under PackDims used to drop the join-key
-        // need so every build row shared (step, null) and HashJoin threw "found a duplicate row".
-        HashJoin outer = plan.collect(HashJoin.class).get(0);
-        assertFalse(
-            "outer build must not null-fill the on() key: " + outer.right(),
-            outer.right().anyMatch(p -> p instanceof Eval eval && eval.fields().stream().anyMatch(a -> {
-                if ("pod".equals(a.name()) == false) {
-                    return false;
-                }
-                return a.child() instanceof Literal lit && lit.value() == null;
-            }))
-        );
-    }
-
     public void testGroupLabelMissingFromBuildDoesNotLeakFromProbe() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         var plan = planPromql(

@@ -86,6 +86,7 @@ import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.sketch.KeyColumns;
 import org.elasticsearch.compute.operator.sketch.SketchFilterOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
@@ -794,15 +795,27 @@ public class LocalExecutionPlanner {
             || MarkTopCountAggregations.countStarAttribute(aggregate) == null) {
             return source;
         }
-        Attribute key = Expressions.attribute(aggregate.groupings().getFirst());
-        var keyChannel = key == null ? null : source.layout.get(key.id());
-        if (keyChannel == null) {
-            return source;
+        List<Attribute> keyAttributes = MarkTopCountAggregations.keyAttributes(aggregate);
+        int[] channels = new int[keyAttributes.size()];
+        for (int i = 0; i < channels.length; i++) {
+            var channel = source.layout.get(keyAttributes.get(i).id());
+            if (channel == null) {
+                return source;
+            }
+            channels[i] = channel.channel();
+        }
+        KeyColumns key;
+        if (channels.length == 2) {
+            key = KeyColumns.intPairKey(channels[0], channels[1]);
+        } else if (PlannerUtils.toElementType(keyAttributes.getFirst().dataType()) == ElementType.INT) {
+            key = KeyColumns.intKey(channels[0]);
+        } else {
+            key = KeyColumns.longKey(channels[0]);
         }
         QueryPragmas pragmas = context.queryPragmas();
         return source.with(
             new SketchFilterOperator.Factory(
-                keyChannel.channel(),
+                key,
                 pragmas.sketchFilterSlots(),
                 topCountLimit,
                 pragmas.sketchFilterMaxCandidates(),

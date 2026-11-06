@@ -70,8 +70,12 @@ public class SketchFilterIT extends AbstractEsqlIntegTestCase {
     private record Result(List<List<Object>> rows, long received, long emitted, int filters) {}
 
     private Result run(String index, boolean sketchFilter) {
+        return runQuery(String.format(java.util.Locale.ROOT, QUERY, index), sketchFilter);
+    }
+
+    private Result runQuery(String query, boolean sketchFilter) {
         EsqlQueryRequest request = new EsqlQueryRequest();
-        request.query(String.format(java.util.Locale.ROOT, QUERY, index));
+        request.query(query);
         request.profile(true);
         request.acceptedPragmaRisks(true);
         request.pragmas(
@@ -115,6 +119,43 @@ public class SketchFilterIT extends AbstractEsqlIntegTestCase {
         Result plain = run("skewed", false);
         assertThat(plain.filters, equalTo(0));
         Result filtered = run("skewed", true);
+        assertThat("the filter should be planned for every data driver", filtered.filters, greaterThan(0));
+        assertThat(filtered.rows, equalTo(plain.rows));
+        assertThat(filtered.received, equalTo((long) docs));
+        assertThat("most rows should be dropped before the aggregation", filtered.emitted, lessThan(filtered.received / 2));
+    }
+
+    /**
+     * The shape of ClickBench q30: two integer key columns, {@code COUNT(*)} next to other aggregates, a sort on the count. The two keys
+     * are packed into one long, and the other aggregates of every key that is kept must be exact.
+     */
+    public void testTwoIntegerKeysAndOtherAggregates() {
+        client().admin()
+            .indices()
+            .prepareCreate("pairs")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1))
+            .setMapping("a", "type=integer", "b", "type=short", "v", "type=short")
+            .get();
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        int docs = 0;
+        for (int heavy = 0; heavy < 10; heavy++) {
+            for (int i = 0; i < 600 + heavy * 90; i++) {
+                bulk.add(client().prepareIndex("pairs").setSource("a", -1_000_000 - heavy, "b", heavy, "v", randomIntBetween(0, 100)));
+                docs++;
+            }
+        }
+        for (int i = 0; i < 20_000; i++) {
+            bulk.add(
+                client().prepareIndex("pairs")
+                    .setSource("a", randomIntBetween(-500, 500), "b", randomIntBetween(0, 3000), "v", randomIntBetween(0, 100))
+            );
+            docs++;
+        }
+        assertFalse(bulk.get().hasFailures());
+        String query = "FROM pairs | STATS c = COUNT(*), s = SUM(v), m = MAX(v), av = AVG(v) BY a, b | SORT c DESC | LIMIT 10";
+        Result plain = runQuery(query, false);
+        assertThat(plain.filters, equalTo(0));
+        Result filtered = runQuery(query, true);
         assertThat("the filter should be planned for every data driver", filtered.filters, greaterThan(0));
         assertThat(filtered.rows, equalTo(plain.rows));
         assertThat(filtered.received, equalTo((long) docs));

@@ -17,17 +17,20 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Tells the data nodes that a {@code STATS COUNT(*) BY key} is only read through {@code SORT count DESC | LIMIT N}.
@@ -37,8 +40,8 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
  * result of the query does not change. See {@code SketchFilterOperator}.
  * <p>
  * The rule stamps {@code N} on the {@link FragmentExec} below the aggregation. It does so only when the query has exactly this shape
- * (a single sort on the descending count, optionally through a projection that only renames, over a {@code COUNT(*)} with one
- * {@code long} grouping), when the pragma is on, and when every node can read the stamp.
+ * (a single sort on the descending count, optionally through projections that only rename and evals that do not define it, over
+ * a {@code COUNT(*)} with grouping columns that can be packed into a {@code long}), when the pragma is on, and when every node can read the stamp.
  */
 public class MarkTopCountAggregations extends PhysicalOptimizerRules.ParameterizedOptimizerRule<TopNExec, PhysicalOptimizerContext> {
     /** The largest {@code N} that is worth filtering for. The proof needs the N-th group to be far above the noise. */
@@ -79,9 +82,22 @@ public class MarkTopCountAggregations extends PhysicalOptimizerRules.Parameteriz
         }
         Attribute sorted = Expressions.attribute(order.child());
         PhysicalPlan child = topN.child();
-        if (sorted != null && child instanceof ProjectExec project) {
-            sorted = resolveThrough(project, sorted);
-            child = project.child();
+        // Walk down to the aggregation. A projection may only rename the sorted column, and an EVAL (for example the quotient that
+        // AVG becomes) must not define it.
+        while (sorted != null) {
+            if (child instanceof ProjectExec project) {
+                sorted = resolveThrough(project, sorted);
+                child = project.child();
+            } else if (child instanceof EvalExec eval) {
+                for (Alias field : eval.fields()) {
+                    if (field.toAttribute().semanticEquals(sorted)) {
+                        return null;
+                    }
+                }
+                child = eval.child();
+            } else {
+                break;
+            }
         }
         if (sorted == null || child instanceof AggregateExec == false) {
             return null;
@@ -114,28 +130,50 @@ public class MarkTopCountAggregations extends PhysicalOptimizerRules.Parameteriz
     }
 
     /**
-     * If {@code aggregate} computes only one {@code COUNT(*)} (no filter) for one grouping key that is stored as a {@code long}, return
+     * The grouping columns of {@code aggregate} if they can be packed into one {@code long} without collisions: one {@code long}
+     * column, one {@code int} column, or two {@code int} columns. Otherwise {@code null}. See {@code KeyColumns}.
+     */
+    @Nullable
+    public static List<Attribute> keyAttributes(AggregateExec aggregate) {
+        final List<? extends Expression> groupings = aggregate.groupings();
+        if (groupings.isEmpty() || groupings.size() > 2) {
+            return null;
+        }
+        final List<Attribute> attributes = new ArrayList<>(groupings.size());
+        for (Expression grouping : groupings) {
+            Attribute attribute = Expressions.attribute(grouping);
+            if (attribute == null) {
+                return null;
+            }
+            attributes.add(attribute);
+        }
+        final ElementType first = PlannerUtils.toElementType(attributes.getFirst().dataType());
+        if (attributes.size() == 1) {
+            return first == ElementType.LONG || first == ElementType.INT ? attributes : null;
+        }
+        return first == ElementType.INT && PlannerUtils.toElementType(attributes.get(1).dataType()) == ElementType.INT ? attributes : null;
+    }
+
+    /**
+     * If {@code aggregate} has exactly one {@code COUNT(*)} (no filter) and grouping columns that {@link #keyAttributes} accepts, return
      * the attribute of that count. Otherwise return {@code null}. The data node uses it to check that it can filter.
+     * <p>
+     * Other aggregates next to the count are fine. The filter only drops the rows of keys that cannot be in the top {@code N}, and keeps
+     * all rows of every other key, so every aggregate of a key that is kept is computed from all of its rows.
      */
     @Nullable
     public static Attribute countStarAttribute(AggregateExec aggregate) {
-        if (aggregate.groupings().size() != 1) {
-            return null;
-        }
-        Attribute grouping = Expressions.attribute(aggregate.groupings().getFirst());
-        if (grouping == null || PlannerUtils.toElementType(grouping.dataType()) != ElementType.LONG) {
+        if (keyAttributes(aggregate) == null) {
             return null;
         }
         Attribute count = null;
         for (NamedExpression named : aggregate.aggregates()) {
             Expression unwrapped = Alias.unwrap(named);
-            if (unwrapped instanceof AggregateFunction function) {
-                if (count != null || function instanceof Count == false) {
-                    return null;
-                }
-                Count countFunction = (Count) function;
-                if (countFunction.hasFilter() || countFunction.field() instanceof Literal == false) {
-                    return null;
+            if (unwrapped instanceof Count countFunction
+                && countFunction.hasFilter() == false
+                && countFunction.field() instanceof Literal) {
+                if (count != null) {
+                    return null; // two COUNT(*): not worth the question which one is sorted
                 }
                 count = named.toAttribute();
             }

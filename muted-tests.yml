@@ -246,6 +246,11 @@ tests:
   tasks:
   - :x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/164747
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
+  method: test {yaml=synonyms/110_synonyms_invalid/Reload index with an invalid synonym rule with lenient set to false}
+  issue: https://github.com/elastic/elasticsearch/issues/164897
 
 # Examples:
 #

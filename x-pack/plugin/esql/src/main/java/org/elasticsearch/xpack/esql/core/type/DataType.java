@@ -428,7 +428,7 @@ public enum DataType implements Writeable {
      * hands the user its keyword JSON form.
      */
     TIMESERIES_DATA_TYPE(
-        builder().esType("_timeseries").estimatedSize(1024).underConstruction(TransportVersion.fromName("promql_functional_timeseries"))
+        builder().esType("_timeseries").estimatedSize(1024).underConstruction(TransportVersion.fromName("timeseries_data_type"))
     ),
     PARTIAL_AGG(
         builder().esType("partial_agg")

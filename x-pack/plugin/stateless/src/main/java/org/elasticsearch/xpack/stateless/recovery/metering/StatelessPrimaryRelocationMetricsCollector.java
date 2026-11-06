@@ -29,6 +29,8 @@ public class StatelessPrimaryRelocationMetricsCollector {
         "es.recovery.shard.primary.relocation.acquire_permits.time";
     public static final String RELOCATION_SECOND_FLUSH_TIME_METRIC_IN_SECONDS = "es.recovery.shard.primary.relocation.second_flush.time";
     public static final String RELOCATION_HANDOFF_TIME_METRIC_IN_SECONDS = "es.recovery.shard.primary.relocation.handoff.time";
+    public static final String RELOCATION_INDEXING_BLOCKED_TIME_METRIC_IN_SECONDS =
+        "es.recovery.shard.primary.relocation.indexing_blocked.time";
     public static final String RELOCATION_TARGET_PRE_RECOVERY_TIME_METRIC_IN_SECONDS =
         "es.recovery.shard.primary.relocation.target.pre_recovery.time";
     public static final String RELOCATION_TARGET_READ_INDEXING_SHARD_STATE_TIME_METRIC_IN_SECONDS =
@@ -66,6 +68,7 @@ public class StatelessPrimaryRelocationMetricsCollector {
     private final DoubleHistogram relocationAcquirePermitsDurationMetric;
     private final DoubleHistogram relocationSecondFlushDurationMetric;
     private final DoubleHistogram relocationHandoffDurationMetric;
+    private final DoubleHistogram relocationIndexingBlockedDurationMetric;
     private final DoubleHistogram relocationTargetPreRecoveryDurationMetric;
     private final DoubleHistogram relocationTargetReadIndexingShardStateDurationMetric;
     private final DoubleHistogram relocationTargetOpenEngineDurationMetric;
@@ -90,6 +93,12 @@ public class StatelessPrimaryRelocationMetricsCollector {
         relocationHandoffDurationMetric = meterRegistry.registerDoubleHistogram(
             RELOCATION_HANDOFF_TIME_METRIC_IN_SECONDS,
             "Round-trip duration of the primary relocation handoff context phase, measured on the source",
+            "seconds"
+        );
+        relocationIndexingBlockedDurationMetric = meterRegistry.registerDoubleHistogram(
+            RELOCATION_INDEXING_BLOCKED_TIME_METRIC_IN_SECONDS,
+            "Time during which indexing is blocked during relocation (acquiring permits, second flush and handoff), "
+                + "measured on the source",
             "seconds"
         );
         relocationTargetPreRecoveryDurationMetric = meterRegistry.registerDoubleHistogram(
@@ -119,6 +128,7 @@ public class StatelessPrimaryRelocationMetricsCollector {
         relocationAcquirePermitsDurationMetric.record(metrics.acquirePermitsDurationInMillis() / 1000.0);
         relocationSecondFlushDurationMetric.record(metrics.secondFlushDurationInMillis() / 1000.0);
         relocationHandoffDurationMetric.record(metrics.handoffDurationInMillis() / 1000.0);
+        relocationIndexingBlockedDurationMetric.record(metrics.indexingBlockedDurationInMillis() / 1000.0);
     }
 
     public void recordRelocationTargetPreRecoveryDuration(long durationInMillis) {

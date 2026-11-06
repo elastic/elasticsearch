@@ -121,28 +121,34 @@ static inline int64_t dotd4q4_inner_avx512(const int8_t* a, const int8_t* q, con
         });
     });
 
-    const auto step = [&](const auto load) {
-        __m512i query_planes[query_bits];
+    // one doc plane against each query plane, into the pairs' popcount accumulators
+    const auto accumulate = [](__m512i (&acc_row)[query_bits], const __m512i doc_plane, const __m512i (&query_planes)[query_bits]) {
         apply_indexed<query_bits>([&](auto Q) {
-            query_planes[Q] = load(q + Q * bit_length);
-        });
-        apply_indexed<doc_bits>([&](auto D) {
-            const __m512i doc_plane = load(a + D * bit_length);
-            apply_indexed<query_bits>([&](auto Q) {
-                acc[D][Q] = _mm512_add_epi64(acc[D][Q], _mm512_popcnt_epi64(_mm512_and_si512(doc_plane, query_planes[Q])));
-            });
+            acc_row[Q] = _mm512_add_epi64(acc_row[Q], _mm512_popcnt_epi64(_mm512_and_si512(doc_plane, query_planes[Q])));
         });
     };
 
     int r = 0;
     const int upperBound = bit_length & ~(sizeof(__m512i) - 1);
     for (; r < upperBound; r += sizeof(__m512i)) {
-        step([&](const int8_t* plane) { return _mm512_loadu_si512((const __m512i_u*)(plane + r)); });
+        __m512i query_planes[query_bits];
+        apply_indexed<query_bits>([&](auto Q) {
+            query_planes[Q] = _mm512_loadu_si512((const __m512i_u*)(q + Q * bit_length + r));
+        });
+        apply_indexed<doc_bits>([&](auto D) {
+            accumulate(acc[D], _mm512_loadu_si512((const __m512i_u*)(a + D * bit_length + r)), query_planes);
+        });
     }
     const int remaining = bit_length - r;
     if (remaining > 0) {
         const __mmask64 mask = (1ULL << remaining) - 1;
-        step([&](const int8_t* plane) { return _mm512_maskz_loadu_epi8(mask, plane + r); });
+        __m512i query_planes[query_bits];
+        apply_indexed<query_bits>([&](auto Q) {
+            query_planes[Q] = _mm512_maskz_loadu_epi8(mask, q + Q * bit_length + r);
+        });
+        apply_indexed<doc_bits>([&](auto D) {
+            accumulate(acc[D], _mm512_maskz_loadu_epi8(mask, a + D * bit_length + r), query_planes);
+        });
     }
 
     __m512i sum = _mm512_setzero_si512();

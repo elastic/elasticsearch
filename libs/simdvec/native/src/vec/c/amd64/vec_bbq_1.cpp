@@ -191,45 +191,48 @@ static inline int64_t dotd4q4_inner_avx2(const int8_t* a, const int8_t* q, const
     });
 
     int r = 0;
-    // One step at the width of the given operations. Two query planes at a time: their running sums share
-    // the doc plane loads, and AVX2 has too few registers to keep all four next to the accumulators.
-    const auto step = [&](const auto load, const auto popcnt_and, const auto add8, const auto sad) {
+    // Two query planes at a time: their running sums share the doc plane loads, and AVX2 has too few
+    // registers to keep all four next to the accumulators. Within a pair, the highest doc plane comes
+    // first, and the running sums are doubled before each lower plane is added.
+    const int upperBound = bit_length & ~(sizeof(__m256i) - 1);
+    for (; r < upperBound; r += sizeof(__m256i)) {
         apply_indexed<query_bits / 2>([&](auto P) {
             constexpr int Q0 = 2 * P;
             constexpr int Q1 = 2 * P + 1;
-            const auto query0 = load(q + Q0 * bit_length + r);
-            const auto query1 = load(q + Q1 * bit_length + r);
-            // highest doc plane first, doubling the running sums before adding each lower plane
-            const auto top = load(a + (doc_bits - 1) * bit_length + r);
-            auto weighted0 = popcnt_and(top, query0);
-            auto weighted1 = popcnt_and(top, query1);
+            const __m256i query0 = _mm256_loadu_si256((const __m256i_u*)(q + Q0 * bit_length + r));
+            const __m256i query1 = _mm256_loadu_si256((const __m256i_u*)(q + Q1 * bit_length + r));
+            const __m256i top = _mm256_loadu_si256((const __m256i_u*)(a + (doc_bits - 1) * bit_length + r));
+            __m256i weighted0 = popcnt_bytes_256(_mm256_and_si256(top, query0));
+            __m256i weighted1 = popcnt_bytes_256(_mm256_and_si256(top, query1));
             apply_indexed<doc_bits - 1>([&](auto I) {
                 constexpr int D = doc_bits - 2 - I;
-                const auto doc_plane = load(a + D * bit_length + r);
-                weighted0 = add8(add8(weighted0, weighted0), popcnt_and(doc_plane, query0));
-                weighted1 = add8(add8(weighted1, weighted1), popcnt_and(doc_plane, query1));
+                const __m256i doc_plane = _mm256_loadu_si256((const __m256i_u*)(a + D * bit_length + r));
+                weighted0 = _mm256_add_epi8(_mm256_add_epi8(weighted0, weighted0), popcnt_bytes_256(_mm256_and_si256(doc_plane, query0)));
+                weighted1 = _mm256_add_epi8(_mm256_add_epi8(weighted1, weighted1), popcnt_bytes_256(_mm256_and_si256(doc_plane, query1)));
             });
-            acc[Q0] = _mm256_add_epi64(acc[Q0], sad(weighted0));
-            acc[Q1] = _mm256_add_epi64(acc[Q1], sad(weighted1));
+            acc[Q0] = _mm256_add_epi64(acc[Q0], _mm256_sad_epu8(weighted0, _mm256_setzero_si256()));
+            acc[Q1] = _mm256_add_epi64(acc[Q1], _mm256_sad_epu8(weighted1, _mm256_setzero_si256()));
         });
-    };
-
-    const int upperBound = bit_length & ~(sizeof(__m256i) - 1);
-    for (; r < upperBound; r += sizeof(__m256i)) {
-        step(
-            [](const int8_t* p) { return _mm256_loadu_si256((const __m256i_u*)p); },
-            [](const __m256i d, const __m256i q) { return popcnt_bytes_256(_mm256_and_si256(d, q)); },
-            [](const __m256i x, const __m256i y) { return _mm256_add_epi8(x, y); },
-            [](const __m256i w) { return _mm256_sad_epu8(w, _mm256_setzero_si256()); }
-        );
     }
+    // the same for one 16-byte step
     if (bit_length - r >= m128_bytes) {
-        step(
-            [](const int8_t* p) { return _mm_loadu_si128((const __m128i_u*)p); },
-            [](const __m128i d, const __m128i q) { return popcnt_bytes_128(_mm_and_si128(d, q)); },
-            [](const __m128i x, const __m128i y) { return _mm_add_epi8(x, y); },
-            [](const __m128i w) { return _mm256_zextsi128_si256(_mm_sad_epu8(w, _mm_setzero_si128())); }
-        );
+        apply_indexed<query_bits / 2>([&](auto P) {
+            constexpr int Q0 = 2 * P;
+            constexpr int Q1 = 2 * P + 1;
+            const __m128i query0 = _mm_loadu_si128((const __m128i_u*)(q + Q0 * bit_length + r));
+            const __m128i query1 = _mm_loadu_si128((const __m128i_u*)(q + Q1 * bit_length + r));
+            const __m128i top = _mm_loadu_si128((const __m128i_u*)(a + (doc_bits - 1) * bit_length + r));
+            __m128i weighted0 = popcnt_bytes_128(_mm_and_si128(top, query0));
+            __m128i weighted1 = popcnt_bytes_128(_mm_and_si128(top, query1));
+            apply_indexed<doc_bits - 1>([&](auto I) {
+                constexpr int D = doc_bits - 2 - I;
+                const __m128i doc_plane = _mm_loadu_si128((const __m128i_u*)(a + D * bit_length + r));
+                weighted0 = _mm_add_epi8(_mm_add_epi8(weighted0, weighted0), popcnt_bytes_128(_mm_and_si128(doc_plane, query0)));
+                weighted1 = _mm_add_epi8(_mm_add_epi8(weighted1, weighted1), popcnt_bytes_128(_mm_and_si128(doc_plane, query1)));
+            });
+            acc[Q0] = _mm256_add_epi64(acc[Q0], _mm256_zextsi128_si256(_mm_sad_epu8(weighted0, _mm_setzero_si128())));
+            acc[Q1] = _mm256_add_epi64(acc[Q1], _mm256_zextsi128_si256(_mm_sad_epu8(weighted1, _mm_setzero_si128())));
+        });
         r += m128_bytes;
     }
 

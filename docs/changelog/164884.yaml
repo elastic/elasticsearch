@@ -2,4 +2,4 @@ area: Authorization
 issues: []
 pr: 164884
 summary: Share in-flight application privilege loads
-type: bug
+type: enhancement

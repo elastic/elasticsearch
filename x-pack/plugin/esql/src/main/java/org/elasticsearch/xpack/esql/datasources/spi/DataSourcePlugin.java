@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.ProfileSchema;
 
 import java.util.List;
 import java.util.Map;
@@ -158,6 +159,16 @@ public interface DataSourcePlugin {
     }
 
     default List<NamedWriteableRegistry.Entry> namedWriteables() {
+        return List.of();
+    }
+
+    /**
+     * Profile schemas for the format-reader statuses contributed by this plugin.
+     *
+     * <p>The same variants should supply the plugin's named-writeable registrations, keeping the
+     * transport discriminator and public profile discriminator in sync.
+     */
+    default List<ProfileSchema.Variant<FormatReaderStatus>> formatReaderProfileVariants() {
         return List.of();
     }
 

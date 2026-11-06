@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -508,6 +510,85 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertThat(knn.field(), instanceOf(FieldAttribute.class));
     }
 
+    // Older nodes don't support runtime MATCH options (see Match#writeTo)
+    public void testRuntimeMatchWithOptionsRejectedOnOlderTransportVersion() {
+        var e = expectThrows(VerificationException.class, () -> optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            ROW t = TO_TEXT("the quick brown fox")
+            | WHERE MATCH(t, "quick fox", {"operator": "AND"})
+            """));
+        assertThat(e.getMessage(), containsString(RUNTIME_MATCH_OPTIONS_UNSUPPORTED));
+    }
+
+    public void testRuntimeKeywordMatchWithLenientRejectedOnOlderTransportVersion() {
+        var e = expectThrows(VerificationException.class, () -> optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            ROW k = "fox"
+            | WHERE MATCH(k, "fox", {"lenient": true})
+            """));
+        assertThat(e.getMessage(), containsString(RUNTIME_MATCH_OPTIONS_UNSUPPORTED));
+    }
+
+    public void testRuntimeMatchWithoutOptionsAllowedOnOlderTransportVersion() {
+        var plan = optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            ROW t = TO_TEXT("the quick brown fox")
+            | WHERE MATCH(t, "quick fox")
+            """);
+        assertThat(findMatch(plan).isRuntimeSearch(), is(true));
+    }
+
+    public void testRuntimeMatchWithOptionsAllowedOnSearchFunctionOptionsVersion() {
+        var plan = optimizeWithMinimumVersion(fullTextAnalyzer(), FullTextFunction.ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS, """
+            ROW t = TO_TEXT("the quick brown fox")
+            | WHERE MATCH(t, "quick fox", {"operator": "AND"})
+            """);
+        assertThat(findMatch(plan).isRuntimeSearch(), is(true));
+    }
+
+    public void testIndexBackedMatchWithOptionsAllowedOnOlderTransportVersion() {
+        // the coordinator-built query builder carries the options to older nodes
+        var plan = optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            FROM test
+            | WHERE MATCH(title, "quick fox", {"operator": "AND"})
+            """);
+        assertThat(findMatch(plan).isRuntimeSearch(), is(false));
+    }
+
+    public void testIndexBackedInUnionAllSubqueryMatchWithOptionsAllowedOnOlderTransportVersion() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // title is a runtime search on the merged column at analysis time, and only becomes index-backed once the
+        // filter is pushed into the branches
+        var plan = optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            FROM (FROM test | WHERE category == 1),
+                 (FROM test | WHERE category == 2)
+            | WHERE MATCH(title, "quick fox", {"operator": "AND"})
+            """);
+
+        List<Match> matches = new ArrayList<>();
+        plan.forEachDown(LogicalPlan.class, node -> node.forEachExpression(Match.class, matches::add));
+        assertThat(matches, hasSize(2));
+        for (Match match : matches) {
+            assertThat(match.isRuntimeSearch(), is(false));
+            assertThat(match.field(), instanceOf(FieldAttribute.class));
+        }
+    }
+
+    private static final String RUNTIME_MATCH_OPTIONS_UNSUPPORTED =
+        "[MATCH] options on a non-index-mapped field or expression are not supported on every participating node";
+
+    private static Match findMatch(LogicalPlan plan) {
+        List<Match> functions = new ArrayList<>();
+        plan.forEachDown(LogicalPlan.class, node -> node.forEachExpression(Match.class, functions::add));
+        assertThat(functions, hasSize(1));
+        return functions.getFirst();
+    }
+
+    private LogicalPlan optimizeBelowSearchFunctionOptionsVersion(TestAnalyzer analyzer, String query) {
+        return optimizeWithMinimumVersion(
+            analyzer,
+            TransportVersionUtils.getPreviousVersion(FullTextFunction.ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS),
+            query
+        );
+    }
+
     private static void assumeKnnRuntimeEnabled() {
         assumeTrue("Knn on runtime expression requires corresponding capability", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
     }
@@ -525,9 +606,12 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * support guard reads the optimizer's minimum version, so it must be set there and not only on the analyzer.
      */
     private LogicalPlan optimizeBelowKnnRuntimeVersion(TestAnalyzer analyzer, String query) {
-        TransportVersion beforeFeature = TransportVersionUtils.getPreviousVersion(Knn.ESQL_KNN_RUNTIME_FIELD);
-        LogicalPlan analyzed = analyzer.minimumTransportVersion(beforeFeature).query(query);
-        LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), beforeFeature));
+        return optimizeWithMinimumVersion(analyzer, TransportVersionUtils.getPreviousVersion(Knn.ESQL_KNN_RUNTIME_FIELD), query);
+    }
+
+    private LogicalPlan optimizeWithMinimumVersion(TestAnalyzer analyzer, TransportVersion minimumVersion, String query) {
+        LogicalPlan analyzed = analyzer.minimumTransportVersion(minimumVersion).query(query);
+        LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
         return optimizer.optimize(analyzed);
     }
 

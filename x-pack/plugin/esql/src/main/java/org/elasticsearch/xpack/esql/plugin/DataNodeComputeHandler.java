@@ -31,6 +31,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -90,7 +91,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -131,14 +131,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final ExternalSourceAuthorizer externalSourceAuthorizer;
     /** {@link ExternalSourceSettings#WORKER_READY_TIMEOUT}, tracked live; see {@link #waitUntilReady}. */
     private final AtomicReference<TimeValue> workerReadyTimeout = new AtomicReference<>();
-    /**
-     * Per declining worker id, when this coordinator last logged at INFO that it routed around that worker. A node joining
-     * under dashboard load declines hundreds of requests within a second, each of which is one DEBUG line; the operator-facing
-     * INFO is kept to one per node per {@link #DECLINE_INFO_INTERVAL_MILLIS}. Entries are not evicted: one per node id that
-     * ever declined to this coordinator, which node churn bounds.
-     */
-    private static final long DECLINE_INFO_INTERVAL_MILLIS = TimeValue.timeValueMinutes(1).millis();
-    private final Map<String, Long> lastDeclineInfoMillis = new ConcurrentHashMap<>();
 
     DataNodeComputeHandler(
         ComputeService computeService,
@@ -351,16 +343,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 );
             }
 
-            // The version the splits were planned under, or at least as new: the state only moves forward on this node, and a
-            // worker that has applied a lower version and cannot bind a dataset of the plan is behind rather than missing it.
+            // The version the splits were planned under: a worker that has applied a lower version and cannot bind a dataset
+            // of the plan is behind rather than missing it, and waits for the state (see DataNodeRequest).
             final long requiredClusterStateVersion = clusterService.state().version();
-            final List<ExternalDispatchResolution.ResolvedExternalNode> workers = resolution.resolved();
-            for (int i = 0; i < workers.size(); i++) {
-                ExternalDispatchResolution.ResolvedExternalNode target = workers.get(i);
-                // Should this worker not have applied the cluster state its splits were planned from, they walk the other
-                // resolved workers in turn and the last of them waits for that state; a lone worker waits at once (see
-                // ExternalSplitWalk and DataNodeRequest).
-                final int targetIndex = i;
+            for (ExternalDispatchResolution.ResolvedExternalNode target : resolution.resolved()) {
                 DiscoveryNode node = target.node();
                 Transport.Connection connection = target.connection();
                 List<ExternalSplit> nodeSplits = target.splits();
@@ -375,19 +361,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 };
                 ActionListener<Void> openExchangeListener = parentComputeListener.acquireAvoid().delegateFailureAndWrap((l, unused) -> {
                     l = ActionListener.runAfter(l, finishNode);
-                    // The node the splits currently run on: the target, or the worker of the latest hop of their walk.
-                    final AtomicReference<DiscoveryNode> currentNode = new AtomicReference<>(node);
                     final Runnable onGroupFailure;
                     final CancellableTask groupTask;
                     if (allowPartial) {
                         try {
                             groupTask = computeService.createGroupTask(
                                 parentTask,
-                                () -> "compute group: external data-node ["
-                                    + currentNode.get().getName()
-                                    + "], splits ["
-                                    + nodeSplits.size()
-                                    + "]"
+                                () -> "compute group: external data-node [" + node.getName() + "], splits [" + nodeSplits.size() + "]"
                             );
                         } catch (TaskCancelledException e) {
                             l.onFailure(e);
@@ -417,28 +397,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             outerL.onFailure(e);
                         }
                     }))) {
-                        final ExternalSplitWalk walk = new ExternalSplitWalk(
-                            sessionId,
-                            workers,
-                            targetIndex,
-                            configuration,
-                            dataNodePlan,
-                            requiredClusterStateVersion,
-                            groupTask,
-                            exchangeSource,
-                            allowPartial,
-                            computeListener,
-                            currentNode
-                        );
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
-                            walk.request(childSessionId, 0),
+                            externalRequest(childSessionId, configuration, dataNodePlan, nodeSplits, requiredClusterStateVersion),
                             groupTask,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
-                                walk.attemptListener(0),
+                                computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo),
                                 in -> new DataNodeComputeResponse(in, threadContext),
                                 searchExecutor
                             )
@@ -447,7 +414,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         exchangeSource.addRemoteSink(
                             remoteSink,
                             allowPartial == false,
-                            walk::pageFetched,
+                            () -> {},
                             queryPragmas.concurrentExchangeClients(),
                             computeListener.acquireAvoid()
                         );
@@ -625,51 +592,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         return summary.toString();
     }
 
-    /**
-     * The worker attempt {@code hop} of a walk runs on: {@code hop} places after the walk's original target
-     * ({@code resolved.get(index)}) in resolved order, wrapping around, so a walk visits every other worker once.
-     * "Next after", not "first other": the distribution strategies offset concurrent leaves (UNION, FORK) so they do not
-     * all start on the first node, and one lagging node must not undo that by sending every leaf's declined splits to the
-     * same worker. {@code null} once the walk is exhausted, and for a lone worker, which waits for the state instead.
-     * The strategies keep no locality or per-node statistics, so any resolved worker can run any split.
-     */
-    @Nullable
-    static ExternalDispatchResolution.ResolvedExternalNode nextWorker(
-        List<ExternalDispatchResolution.ResolvedExternalNode> resolved,
-        int index,
-        int hop
-    ) {
-        if (hop <= 0 || hop >= resolved.size()) {
-            return null;
-        }
-        return resolved.get((index + hop) % resolved.size());
-    }
-
-    /**
-     * Whether attempt {@code hop} of a walk over {@code workers} resolved workers asks the worker to decline rather than
-     * wait when it has not applied the cluster state the splits were planned from: every attempt but the walk's last.
-     * The last worker waits because, with every other one having declined, waiting is cheaper than failing; a lone
-     * worker's only attempt is its last.
-     */
-    static boolean declineIfNotReady(int hop, int workers) {
-        return hop < workers - 1;
-    }
-
-    /**
-     * Whether a worker's failure is its decline of the splits for not having applied the cluster state they were planned
-     * from, as opposed to a real failure. Decided on the typed condition, which survives the node boundary in the
-     * exception metadata ({@link ExternalException#hasCondition}), never on message text.
-     */
-    static boolean isWorkerNotReadyFailure(Exception failure) {
-        return ExternalException.hasCondition(failure, ExternalException.Condition.WORKER_NOT_READY);
-    }
-
     private static DataNodeRequest externalRequest(
         String sessionId,
         Configuration configuration,
         ExchangeSinkExec dataNodePlan,
         List<ExternalSplit> splits,
-        boolean declineIfNotReady,
         long requiredClusterStateVersion
     ) {
         return new DataNodeRequest(
@@ -685,236 +612,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             false,
             false,
             splits,
-            declineIfNotReady,
             requiredClusterStateVersion
         );
-    }
-
-    /**
-     * The walk one worker's external splits take across the resolved workers. Attempt 0 is the original target; each
-     * worker that declines the splits, for not having applied the cluster state they were planned from, hands them on
-     * to the next in resolved order ({@link #nextWorker}), under the same group task and into the same exchange source,
-     * until a worker runs them or the last of the walk waits for the state ({@link #declineIfNotReady}). A worker's
-     * connection is the one captured at resolution; if it has gone since, the hop fails and so does the query, with a
-     * retryable status: a walk passes declines, not failures. A hop's exchange is opened with a plain request, not a
-     * child of the task, so a hop that races a cancellation can still open an exchange that is only reaped later, as
-     * any attempt's can.
-     *
-     * <p>Two slots of the inner {@link ComputeListener} are acquired up front, while it is still open: the response slot,
-     * completed by whichever attempt answers last, and the walk ref, a spare slot held until then. The listener's refs can
-     * be acquired after its try block closes as long as one is outstanding, which is what the walk ref is for: every hop
-     * acquires its own sink slot. The two also hold the {@code ExchangeSourceLinkKeepAlive} ({@code finishNode} runs when
-     * the inner listener completes), so the exchange source stays open across the hops; without that, a decliner's
-     * empty-finished sink could be the source's last and finish it before the next hop's sink is added.
-     */
-    private final class ExternalSplitWalk {
-        private final String sessionId;
-        private final List<ExternalDispatchResolution.ResolvedExternalNode> workers;
-        private final int targetIndex;
-        private final Configuration configuration;
-        private final ExchangeSinkExec dataNodePlan;
-        private final long requiredClusterStateVersion;
-        private final CancellableTask groupTask;
-        private final ExchangeSourceHandler exchangeSource;
-        private final boolean allowPartial;
-        private final ComputeListener computeListener;
-        /** The node the splits currently run on, for the group task's description. */
-        private final AtomicReference<DiscoveryNode> currentNode;
-        private final AtomicLong pagesFetched = new AtomicLong();
-        private final ActionListener<DriverCompletionInfo> response;
-        @Nullable
-        private final ActionListener<Void> walkRef;
-        /** Set once the walk's outcome is decided; a decline that arrives after that must not hop on a closed listener. */
-        private final AtomicBoolean ended = new AtomicBoolean();
-
-        ExternalSplitWalk(
-            String sessionId,
-            List<ExternalDispatchResolution.ResolvedExternalNode> workers,
-            int targetIndex,
-            Configuration configuration,
-            ExchangeSinkExec dataNodePlan,
-            long requiredClusterStateVersion,
-            CancellableTask groupTask,
-            ExchangeSourceHandler exchangeSource,
-            boolean allowPartial,
-            ComputeListener computeListener,
-            AtomicReference<DiscoveryNode> currentNode
-        ) {
-            this.sessionId = sessionId;
-            this.workers = workers;
-            this.targetIndex = targetIndex;
-            this.configuration = configuration;
-            this.dataNodePlan = dataNodePlan;
-            this.requiredClusterStateVersion = requiredClusterStateVersion;
-            this.groupTask = groupTask;
-            this.exchangeSource = exchangeSource;
-            this.allowPartial = allowPartial;
-            this.computeListener = computeListener;
-            this.currentNode = currentNode;
-            // Each completed exactly once, whichever step of whichever attempt ends the walk, and a step that throws after
-            // the attempt's response handler was registered must not complete them a second time.
-            this.response = ActionListener.notifyOnce(computeListener.acquireCompute());
-            this.walkRef = workers.size() < 2 ? null : ActionListener.notifyOnce(computeListener.acquireAvoid());
-        }
-
-        private ExternalDispatchResolution.ResolvedExternalNode worker(int hop) {
-            return workers.get((targetIndex + hop) % workers.size());
-        }
-
-        private List<ExternalSplit> splits() {
-            return worker(0).splits();
-        }
-
-        DataNodeRequest request(String childSessionId, int hop) {
-            return externalRequest(
-                childSessionId,
-                configuration,
-                dataNodePlan,
-                splits(),
-                declineIfNotReady(hop, workers.size()),
-                requiredClusterStateVersion
-            );
-        }
-
-        void pageFetched() {
-            pagesFetched.incrementAndGet();
-        }
-
-        /**
-         * The response listener of attempt {@code attempt}. The decline is decided here, on a plain listener, before any
-         * {@link ComputeListener} slot sees it: a failure delivered to a slot cancels the query ({@code acquireAvoid} runs
-         * the group failure hook), which would end the query the hop is meant to save. A decline that comes with pages
-         * already fetched is a misbehaving worker and fails the query rather than walking on. A throw out of the hop
-         * (a listener that cannot be acquired, say) fails the walk rather than escaping the transport thread with the
-         * slots uncompleted, which would hang the query.
-         */
-        ActionListener<DataNodeComputeResponse> attemptListener(int attempt) {
-            return ActionListener.wrap(r -> succeed(r.completionInfo()), e -> {
-                if (ended.get() == false
-                    && nextWorker(workers, targetIndex, attempt + 1) != null
-                    && pagesFetched.get() == 0
-                    && isWorkerNotReadyFailure(e)) {
-                    try {
-                        hop(attempt + 1);
-                    } catch (Exception hopFailure) {
-                        hopFailure.addSuppressed(e);
-                        fail(hopFailure);
-                    }
-                    return;
-                }
-                fail(e);
-            });
-        }
-
-        private void succeed(DriverCompletionInfo info) {
-            try {
-                response.onResponse(info);
-            } finally {
-                endWalk();
-            }
-        }
-
-        private void fail(Exception e) {
-            try {
-                response.onFailure(e);
-            } finally {
-                endWalk();
-            }
-        }
-
-        private void endWalk() {
-            ended.set(true);
-            if (walkRef != null) {
-                walkRef.onResponse(null);
-            }
-        }
-
-        /** Sends the splits the worker of attempt {@code attempt - 1} declined to the worker of attempt {@code attempt}. */
-        private void hop(int attempt) {
-            final DiscoveryNode declined = worker(attempt - 1).node();
-            final ExternalDispatchResolution.ResolvedExternalNode next = worker(attempt);
-            currentNode.set(next.node());
-            // This hop's sink slot, acquired while the walk ref keeps the inner ComputeListener open, and completed exactly
-            // once: by the remote sink, or here when nothing was sent and no sink was added.
-            final ActionListener<Void> sink = ActionListener.notifyOnce(computeListener.acquireAvoid());
-            final var queryPragmas = configuration.pragmas();
-            final String childSessionId = computeService.newChildSession(sessionId);
-            final ActionListener<Void> opened = ActionListener.wrap(unused -> {
-                ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                transportService.sendChildRequest(
-                    next.connection(),
-                    ComputeService.DATA_ACTION_NAME,
-                    request(childSessionId, attempt),
-                    groupTask,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(
-                        attemptListener(attempt),
-                        in -> new DataNodeComputeResponse(in, threadContext),
-                        searchExecutor
-                    )
-                );
-                var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, next.connection());
-                exchangeSource.addRemoteSink(
-                    remoteSink,
-                    allowPartial == false,
-                    this::pageFetched,
-                    queryPragmas.concurrentExchangeClients(),
-                    sink
-                );
-            }, e -> {
-                try {
-                    fail(e);
-                } finally {
-                    sink.onResponse(null);
-                }
-            });
-            try {
-                logDeclinedWorker(declined, next.node(), splits().size(), attempt, workers.size() - 1, childSessionId);
-                ExchangeService.openExchange(
-                    transportService,
-                    next.connection(),
-                    childSessionId,
-                    queryPragmas.exchangeBufferSize(),
-                    searchExecutor,
-                    opened
-                );
-            } catch (Exception e) {
-                opened.onFailure(e);
-            }
-        }
-    }
-
-    /**
-     * One DEBUG line per hop, and an INFO line at most once per declining node per minute: a node joining under query load
-     * declines every request it gets for a second or so, and the operator needs the fact, not the volume.
-     */
-    private void logDeclinedWorker(DiscoveryNode declined, DiscoveryNode next, int splits, int hop, int hops, String sessionId) {
-        LOGGER.debug(
-            "external worker [{}] has not applied the cluster state this query was planned from; "
-                + "rerouting [{}] splits to [{}] on hop [{}/{}], session [{}]",
-            declined.getName(),
-            splits,
-            next.getName(),
-            hop,
-            hops,
-            sessionId
-        );
-        final long now = threadPool.relativeTimeInMillis();
-        final boolean[] logInfo = new boolean[1];
-        lastDeclineInfoMillis.compute(declined.getId(), (id, last) -> {
-            if (last == null || now - last >= DECLINE_INFO_INTERVAL_MILLIS) {
-                logInfo[0] = true;
-                return now;
-            }
-            return last;
-        });
-        if (logInfo[0]) {
-            LOGGER.info(
-                "external worker [{}] declined external splits because it has not yet applied the cluster state the query was planned "
-                    + "from; routing its splits to other workers (reported at most once a minute per node)",
-                declined.getName()
-            );
-        }
     }
 
     private static final Logger LOGGER = LogManager.getLogger(DataNodeComputeHandler.class);
@@ -971,6 +670,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
         private final PlanTimeProfile planTimeProfile;
+        private final List<DataNodeRequest.Shard> shards;
+        @Nullable
+        private final SharedSortBound sortBound;
 
         DataNodeRequestExecutor(
             EsqlFlags flags,
@@ -984,7 +686,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             boolean singleNodeOptimizations,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
-            AcquiredSearchContexts searchContexts
+            AcquiredSearchContexts searchContexts,
+            @Nullable SharedSortBound sortBound
         ) {
             assert (internalExchange == null) != (externalSink == null) : "exactly one exchange must be provided";
             this.flags = flags;
@@ -1001,6 +704,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.blockingSink = exchangeSink(() -> {});
             this.searchContexts = searchContexts;
             this.planTimeProfile = new PlanTimeProfile();
+            this.sortBound = sortBound;
+            boolean ascending = ShardTimestampOrder.ascending(request.plan());
+            this.shards = ShardTimestampOrder.order(
+                request.shards(),
+                shardId -> ShardTimestampOrder.key(searchService.getIndicesService(), shardId, ascending),
+                ascending
+            );
         }
 
         void start() {
@@ -1019,9 +729,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final Configuration configuration = request.configuration();
             final String clusterAlias = request.clusterAlias();
             final var sessionId = request.sessionId();
-            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shards().size());
+            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, shards.size());
             final AtomicInteger pagesProduced = new AtomicInteger();
-            List<DataNodeRequest.Shard> shards = request.shards().subList(startBatchIndex, endBatchIndex);
+            List<DataNodeRequest.Shard> batch = shards.subList(startBatchIndex, endBatchIndex);
             ActionListener<DriverCompletionInfo> batchListener = new ActionListener<>() {
                 final ActionListener<DriverCompletionInfo> ref = computeListener.acquireCompute();
 
@@ -1037,8 +747,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 @Override
                 public void onFailure(Exception e) {
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
-                        for (DataNodeRequest.Shard shard : shards) {
+                        for (DataNodeRequest.Shard shard : batch) {
                             addShardLevelFailure(shard.shardId(), e);
+                        }
+                        // The rows behind a bound offered by this batch are never delivered
+                        if (sortBound != null) {
+                            sortBound.invalidate();
                         }
                         onResponse(DriverCompletionInfo.EMPTY);
                     } else {
@@ -1057,7 +771,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             };
             acquireSearchContexts(
                 clusterAlias,
-                shards,
+                batch,
                 configuration,
                 request.aliasFilters(),
                 PlannerUtils.sliceSelection(request.plan()),
@@ -1077,7 +791,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration.newFoldContext(),
                         null,
                         () -> exchangeSink(pagesProduced::incrementAndGet),
-                        singleNodeOptimizations
+                        singleNodeOptimizations,
+                        sortBound
                     );
                     computeService.runCompute(
                         parentTask,
@@ -1167,7 +882,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
-            if (lastBatchIndex < request.shards().size() && exchangeFinished() == false) {
+            if (lastBatchIndex < shards.size() && exchangeFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
                 // don't return until all pages have been consumed
@@ -1210,6 +925,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         if (externalSink == null) {
             return;
         }
+        // Shared by the batches of shards
+        final int sortKeys = ShardTimestampOrder.sharedSortKeys(request.plan());
+        final SharedSortBound sortBound = sortKeys > 0 ? new SharedSortBound(sortKeys) : null;
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
@@ -1244,7 +962,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     request.singleNodeOptimizations(),
                     shardLevelFailures,
                     computeListener,
-                    searchContexts
+                    searchContexts,
+                    sortBound
                 );
                 dataNodeRequestExecutor.start();
                 if (runNodeReduce == false) {
@@ -1306,15 +1025,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * as is any external node under a cross-cluster-access authentication. A plan without an external node, the
      * common case, pays nothing: no round-trip, no thread hop.
      * <p>
-     * An external-only request (splits, no shards) is also checked for this node's readiness to serve it. Shards are
-     * routed through the routing table, which lists a shard on a node only after that node applied the state and reported
-     * it started; external splits are routed by node role, which the coordinator sees as soon as it applies the join, so
-     * a node that accepts transport requests before it has applied any cluster state ({@code Node.start()} accepts
-     * requests before the initial join) receives splits it cannot serve: its state has no dataset, no encryption key and
-     * default settings. Likewise a node behind a dataset change the coordinator planned from. Three sites decide "not
-     * ready", with one outcome ({@link #notReady}): the entry check on {@link ClusterState#clusterRecovered} below, the
-     * authorizer refusing a dataset while this node's state is older than the coordinator's, and the rebind refusing one
-     * for the same reason ({@link #planAndRunExternal}).
+     * An external-only request (splits, no shards) is also checked for this node's readiness to serve it: unlike a shard,
+     * routed only once its node reported it started, external splits are routed by role, and this node may not have
+     * applied the state the coordinator planned from yet. Three sites decide "not ready", with one outcome
+     * ({@link #notReady}): the entry check on {@link ClusterState#clusterRecovered} below, the authorizer refusing a
+     * dataset while this node's state is older than the coordinator's, and the rebind refusing one for the same reason
+     * ({@link #planAndRunExternal}).
      */
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
@@ -1462,7 +1178,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.reductionLateMaterialization(),
             request.singleNodeOptimizations(),
             request.externalSplits(),
-            request.declineIfNotReady(),
             request.requiredClusterStateVersion()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
@@ -1514,10 +1229,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     /**
      * This node cannot serve the request's external splits yet: it has not applied the cluster state they were planned
-     * from, so the datasets, credentials or settings the plan relies on are not here. What happens is the coordinator's
-     * call, carried in the request: with another worker still to try it asked for a decline ({@link #decline}), otherwise
-     * this node waits for the state, bounded ({@link #waitUntilReady}). Both are the read-path precedents: a shard copy that
-     * cannot serve fails fast and the search moves on, a lone primary parks the request on the cluster state.
+     * from, so the datasets, credentials or settings the plan relies on are not here. It waits for the state, bounded
+     * ({@link #waitUntilReady}), the way a primary parks a write on the cluster state.
      *
      * @param observed the state the decision was made on; the wait observes from it, so a state applied in between is
      *                 not missed
@@ -1542,14 +1255,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             failWithoutStarting(request, listener, new TaskCancelledException(task.getReasonCancelled()));
             return;
         }
-        if (request.declineIfNotReady()) {
-            final ExchangeSinkHandler sink = sinkToRun(request.sessionId(), listener);
-            if (sink != null) {
-                decline(request, sink, listener, why);
-            }
-        } else {
-            waitUntilReady(request, task, listener, observed, ready, why, deadline != null ? deadline : new ReadyDeadline(), retry);
-        }
+        waitUntilReady(request, task, listener, observed, ready, why, deadline != null ? deadline : new ReadyDeadline(), retry);
     }
 
     /**
@@ -1563,30 +1269,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         TimeValue remaining() {
             return TimeValue.timeValueMillis(Math.max(0L, deadlineMillis - threadPool.relativeTimeInMillis()));
         }
-    }
-
-    /**
-     * Refuses the splits so the coordinator hands them to another worker. The sink the coordinator opened is finished
-     * <em>empty</em>, not failed: a failed sink aborts the coordinator's whole exchange source when partial results are off,
-     * and the coordinator must keep reading from the other workers. Finishing an empty sink completes it at once, so the
-     * handler is removed and the response sent before this returns; a coordinator fetch arriving later gets
-     * {@code finished=true}. Only the transport response carries the reason, as the typed
-     * {@link ExternalException.Condition#WORKER_NOT_READY}, which the coordinator routes on.
-     */
-    private void decline(DataNodeRequest request, ExchangeSinkHandler sink, ActionListener<DataNodeComputeResponse> listener, String why) {
-        final String sessionId = request.sessionId();
-        LOGGER.debug(
-            "declining [{}] external splits on [{}], session [{}]: {}",
-            request.externalSplits().size(),
-            transportService.getLocalNode().getName(),
-            sessionId,
-            why
-        );
-        sink.addCompletionListener(ActionListener.running(() -> {
-            exchangeService.finishSinkHandler(sessionId, null);
-            listener.onFailure(workerNotReady(""));
-        }));
-        sink.createExchangeSink(() -> {}).finish();
     }
 
     /**
@@ -1704,7 +1386,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * the type and status both raise their binding refusals with ({@link DatasetConfigResolver#notRegistered}, a changed
      * definition, a split outside the resource) and neither raises anything else of that type (a block, a timeout, a
      * cancellation or a rejection come as their own types). A 400 that is not a binding refusal, on a node that is behind,
-     * costs at most a hop per such worker of the walk, or one wait, after which the same 400 is reported.
+     * costs one wait, after which the same 400 is reported.
      */
     static boolean isDatasetRefusalWhileBehind(Exception failure, DataNodeRequest request, ClusterState applied) {
         return request.requiredClusterStateVersion() > 0
@@ -1774,8 +1456,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     /**
      * The part of {@link #handleExternalSourceRequest} after the sink is resolved and the cancellation listener registered:
      * local planning, which rebinds the plan's datasets to this node's definitions, and the compute. Re-entered by itself
-     * when the rebind refused a dataset while this node was behind the coordinator's cluster state and the coordinator
-     * asked for a wait; by then a newer state has been applied.
+     * when the rebind refused a dataset while this node was behind the coordinator's cluster state; by then a newer state
+     * has been applied.
      */
     private void planAndRunExternal(
         DataNodeRequest request,

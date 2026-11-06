@@ -1420,29 +1420,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * including blobs pending async deletion. Blobs created after relocation started are never uploaded
      * ({@link ShardCommitState#pauseUpload}) and can be excluded by the caller passing the latest uploaded BCC generation.
      */
-    public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
+    public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long bccMaxUploadedGeneration) {
         Set<BlobFile> blobFiles = new HashSet<>();
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         // The order of loops is the reverse of BlobReference#closeInternal to avoid missing pending deletes.
         for (var primaryTermAndGeneration : commitState.primaryTermAndGenToBlobReference.keySet()) {
-            if (primaryTermAndGeneration.generation() > maxUploadedGeneration) {
+            if (primaryTermAndGeneration.generation() > bccMaxUploadedGeneration) {
                 continue;
             }
-            blobFiles.add(
-                new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()), primaryTermAndGeneration)
-            );
+            blobFiles.add(new BccBlobFile(primaryTermAndGeneration));
         }
         // We also need to include all blobs pending deletion as they are deleted asynchronously.
         for (var staleCompoundCommit : commitCleaner.getPendingDeletes(shardId)) {
-            if (staleCompoundCommit.primaryTermAndGeneration().generation() > maxUploadedGeneration) {
+            if (staleCompoundCommit.primaryTermAndGeneration().generation() > bccMaxUploadedGeneration) {
                 continue;
             }
-            blobFiles.add(
-                new BlobFile(
-                    BatchedCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
-                    staleCompoundCommit.primaryTermAndGeneration()
-                )
-            );
+            blobFiles.add(new BccBlobFile(staleCompoundCommit.primaryTermAndGeneration()));
         }
         return blobFiles;
     }
@@ -1459,7 +1452,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         boolean hasRecentIdLookup
     ) {}
 
-    public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
+    public record SourceBlobsInfo(BccBlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
 
     public @Nullable RecoveryInfoFromSource getRecoveryInfoFromSourceEntry(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
@@ -1725,8 +1718,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             List<BlobReference> previousBCCBlobs = new ArrayList<>(otherBlobs.size());
             // create a compound commit blob instance for the recovery commit
             for (BlobFile nonRecoveredBlobFile : otherBlobs) {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
-                    PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlobFile.termAndGeneration();
+                if (nonRecoveredBlobFile instanceof BccBlobFile bccBlobFile) {
+                    PrimaryTermAndGeneration nonRecoveredTermGen = bccBlobFile.termAndGeneration();
 
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
                     // We don't know which CCs are included in the non-recovered BCCs,
@@ -1747,10 +1740,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     });
                     primaryTermAndGenToBlobReference.put(nonRecoveredTermGen, nonRecoveredBlobReference);
                     previousBCCBlobs.add(nonRecoveredBlobReference);
+                } else if (nonRecoveredBlobFile instanceof MergeBlobFile mergeBlobFile) {
+                    // merge blobs are not tracked yet, so they are ignored
+                    logger.debug(() -> format("%s found merge object store file, ignoring it [%s]", shardId, mergeBlobFile));
                 } else {
                     logger.warn(
                         () -> format(
-                            "%s found object store file which does not match compound commit file naming pattern [%s]",
+                            "%s found object store file which is not a batched compound commit, ignoring it [%s]",
                             shardId,
                             nonRecoveredBlobFile
                         )

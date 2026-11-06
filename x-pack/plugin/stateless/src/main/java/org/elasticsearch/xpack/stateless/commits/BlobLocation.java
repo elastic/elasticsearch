@@ -43,11 +43,7 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
 
     // private access only for deserialization
     private BlobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
-        this(
-            new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(blobName))),
-            offset,
-            fileLength
-        );
+        this(BlobFile.of(primaryTerm, blobName), offset, fileLength);
     }
 
     public long primaryTerm() {
@@ -62,10 +58,12 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
      * @return parse the generation from the blob name
      */
     public long compoundFileGeneration() {
-        return blobFile.generation();
+        assert blobFile instanceof BccBlobFile : blobFile;
+        return blobFile.termAndGeneration().generation();
     }
 
     public PrimaryTermAndGeneration getBatchedCompoundCommitTermAndGeneration() {
+        assert blobFile instanceof BccBlobFile : blobFile;
         return blobFile.termAndGeneration();
     }
 

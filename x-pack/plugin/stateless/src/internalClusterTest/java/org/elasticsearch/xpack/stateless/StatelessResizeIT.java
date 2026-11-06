@@ -315,7 +315,7 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
         flush(shrunkIndex);
         for (int s = 0; s < shrunkShards; s++) {
             final ShardId shardId = findIndexShard(resolveIndex(shrunkIndex), s).shardId();
-            assertThat(listBlobsTermAndGenerations(shardId), hasSize(greaterThan(0)));
+            assertThat(listBccBlobsTermAndGenerations(shardId), hasSize(greaterThan(0)));
         }
 
         // Split: shrunk -> split_again
@@ -460,7 +460,7 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
         flush(targetIndex);
         for (int s = 0; s < targetShards; s++) {
             final ShardId targetShardId = findIndexShard(resolveIndex(targetIndex), s).shardId();
-            assertThat(listBlobsTermAndGenerations(targetShardId), hasSize(greaterThan(0)));
+            assertThat(listBccBlobsTermAndGenerations(targetShardId), hasSize(greaterThan(0)));
         }
 
         // Source should still have only original docs
@@ -479,7 +479,7 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
         // Source blobs should eventually be cleaned up
         assertBusy(() -> {
             for (ShardId shardId : sourceShardIds) {
-                assertThat("expected blobs for " + shardId + " to be deleted", listBlobsTermAndGenerations(shardId), hasSize(0));
+                assertThat("expected blobs for " + shardId + " to be deleted", listBccBlobsTermAndGenerations(shardId), hasSize(0));
             }
         });
 

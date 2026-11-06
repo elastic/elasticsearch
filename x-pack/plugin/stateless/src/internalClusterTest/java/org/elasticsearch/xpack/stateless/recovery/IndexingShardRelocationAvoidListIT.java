@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
@@ -255,7 +255,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         assertBusy(() -> { assertThat(blobsDeletedOnTarget.size(), equalTo(uploadedFiles.size() + 1)); });
         // check that exact names of uploaded blobs were deleted
         List<String> uploadedFileNames = uploadedFiles.stream()
-            .map(termAndGen -> BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()))
+            .map(termAndGen -> BccBlobFile.blobNameFromGeneration(termAndGen.generation()))
             .toList();
         assertTrue(uploadedFileNames.stream().allMatch(u -> blobsDeletedOnTarget.stream().anyMatch(d -> d.endsWith(u))));
 
@@ -363,7 +363,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         assertBusy(() -> {
             var prewarmBccBlob = prewarmBccBlobRef.get();
             assertThat(prewarmBccBlob, not(equalTo(null)));
-            var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(prewarmBccBlob.blobFile().generation());
+            var bccBlobName = BccBlobFile.blobNameFromGeneration(prewarmBccBlob.blobFile().termAndGeneration().generation());
             assertTrue(blobsDeleted.stream().anyMatch(d -> d.endsWith(bccBlobName)));
         });
 
@@ -510,14 +510,14 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
                 telemetryProvider
             ) {
                 @Override
-                public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
+                public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long bccMaxUploadedGeneration) {
                     CountDownLatch entered = getTrackedBlobFilesEnteredLatch.get();
                     CountDownLatch blocker = getTrackedBlobFilesBlockerLatch.get();
                     if (entered != null && blocker != null) {
                         entered.countDown();
                         safeAwait(blocker);
                     }
-                    return super.getTrackedUploadedBlobFilesUpTo(shardId, maxUploadedGeneration);
+                    return super.getTrackedUploadedBlobFilesUpTo(shardId, bccMaxUploadedGeneration);
                 }
             };
         }

@@ -295,11 +295,14 @@ public record StatelessCompoundCommit(
     /**
      * Returns the BCC blob file that physically contains this compound commit's internal files.
      */
-    public BlobFile getContainingBccBlobFile() {
+    public BccBlobFile getContainingBccBlobFile() {
         for (String internalFile : internalFiles) {
             BlobLocation location = commitFiles.get(internalFile);
             assert location != null : "internal file [" + internalFile + "] does not exist as a commit file [" + commitFiles + "]";
-            return location.blobFile();
+            if (location.blobFile() instanceof BccBlobFile bccBlobFile) {
+                return bccBlobFile;
+            }
+            throw new IllegalStateException("internal file [" + internalFile + "] is not stored in a BCC: " + location.blobFile());
         }
         assert false : "a commit should always have at least one internal file";
         return null;
@@ -636,9 +639,8 @@ public record StatelessCompoundCommit(
         @Nullable TimestampFieldValueRange timestampFieldValueRange
     ) {
         PrimaryTermAndGeneration bccTermAndGen = new PrimaryTermAndGeneration(primaryTerm, bccGenSupplier.apply(generation));
-        var blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
         final var combinedCommitFilesResult = combineCommitFiles(
-            blobFile,
+            new BccBlobFile(bccTermAndGen),
             replicatedContentRanges,
             internalFiles,
             referencedBlobLocations,
@@ -707,7 +709,7 @@ public record StatelessCompoundCommit(
      * Additionally, calculates the extra content files of the commit and returns them separately.
      */
     static CombinedCommitFilesResult combineCommitFiles(
-        BlobFile blobFile,
+        BccBlobFile blobFile,
         InternalFilesReplicatedRanges replicatedContentRanges,
         List<InternalFile> internalFiles,
         Map<String, BlobLocation> referencedBlobFiles,

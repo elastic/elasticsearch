@@ -105,7 +105,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
             indexDirectory.getBlobStoreCacheDirectory().setBlobContainer(value -> blobContainer);
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 1; i <= 100; i++) {
                 final String fileName = "file_" + i + randomFileExtension();
                 final byte[] bytes = randomChecksumBytes(randomIntBetween(1, 100_000)).v2();
                 try (IndexOutput output = indexDirectory.createOutput(fileName, IOContext.DEFAULT)) {
@@ -250,13 +250,13 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         try (IndexInput input = directory.openInput(fileName, IOContext.READONCE)) {
             blobContainer.writeBlob(
                 randomFrom(OperationPurpose.values()),
-                "stateless_commit_0",
+                "stateless_commit_1",
                 new InputStreamIndexInput(input, length),
                 length,
                 false
             );
         }
-        directory.updateCommit(0, length, Set.of(fileName), Map.of(fileName, createBlobFileRanges(1L, 0, 0L, length)));
+        directory.updateCommit(0, length, Set.of(fileName), Map.of(fileName, createBlobFileRanges(1L, 1L, 0L, length)));
     }
 
     public void testReadsAfterDelete() throws IOException {

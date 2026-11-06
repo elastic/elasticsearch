@@ -90,7 +90,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationS
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -1597,7 +1597,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
      * Returns the length of the blob stored in the object store.
      */
     private static long getBlobLength(IndexDirectory indexDirectory, PrimaryTermAndGeneration primaryTermAndGeneration) throws IOException {
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation());
+        var blobName = BccBlobFile.blobNameFromGeneration(primaryTermAndGeneration.generation());
         var blobs = IndexBlobStoreCacheDirectory.unwrapDirectory(indexDirectory)
             .getBlobContainer(primaryTermAndGeneration.primaryTerm())
             .listBlobsByPrefix(OperationPurpose.INDICES, blobName);

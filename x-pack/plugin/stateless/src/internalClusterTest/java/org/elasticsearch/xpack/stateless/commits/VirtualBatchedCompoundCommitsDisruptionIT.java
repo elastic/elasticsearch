@@ -266,7 +266,7 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
                 long length
             ) throws IOException {
                 // Ensure that the search node doesn't fall back to the blob store to read a non-uploaded BCC
-                assertThat(blobName, is(not(equalTo(BatchedCompoundCommit.blobNameFromGeneration(currentVBCCGen)))));
+                assertThat(blobName, is(not(equalTo(BccBlobFile.blobNameFromGeneration(currentVBCCGen)))));
                 return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
             }
         });

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +45,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.stateless.commits.MergeBlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -52,6 +54,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -73,7 +77,7 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
+import static org.elasticsearch.xpack.stateless.commits.BccBlobFile.blobNameFromGeneration;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -432,7 +436,7 @@ public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), greaterThan(0L));
 
         logger.debug("--> record blobs and primary term before the empty allocation");
-        Set<PrimaryTermAndGeneration> blobsBefore = listBlobsTermAndGenerations(shardId);
+        Set<PrimaryTermAndGeneration> blobsBefore = listBccBlobsTermAndGenerations(shardId);
         assertThat("should have blobs from at least one primary term", blobsBefore.size(), greaterThanOrEqualTo(1));
         long primaryTermBefore = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
@@ -498,7 +502,7 @@ public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
         }
 
         logger.debug("--> verify new blobs exist under the new primary term");
-        Set<PrimaryTermAndGeneration> blobsAfter = listBlobsTermAndGenerations(shardId);
+        Set<PrimaryTermAndGeneration> blobsAfter = listBccBlobsTermAndGenerations(shardId);
         Set<Long> termsAfter = blobsAfter.stream().map(PrimaryTermAndGeneration::primaryTerm).collect(Collectors.toSet());
         assertThat("new primary term blobs must exist", termsAfter.contains(primaryTermAfter), is(true));
 
@@ -569,4 +573,92 @@ public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
         assertBusy(() -> assertThat(searchableSegmentCountSupplier.getAsLong(), lessThan((long) initialSegmentCount)));
     }
 
+    /**
+     * Until merge blobs are correctly handled, they must be excluded from indexing and search shards recoveries. This test writes merge
+     * blobs in the blob container of the current primary term (with a merge start generation lower than, equal to and greater than the
+     * latest commit generation), restarts the indexing node twice, and checks that the shard recovers from its latest BCC without losing
+     * documents, and that the merge blobs are neither picked up as commits nor deleted by the recoveries. It then adds a search shard,
+     * which must recover and serve all the documents.
+     */
+    public void testRecoveryIgnoresMergeBlobs() throws Exception {
+        final String indexNode = startIndexNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        for (int i = 0, flushes = between(2, 4); i < flushes; i++) {
+            indexDocs(indexName, between(5, 20));
+            flush(indexName);
+        }
+        final long docCount = findIndexShard(resolveIndex(indexName), 0).docStats().getCount();
+        assertThat(docCount, greaterThan(0L));
+        final long committedGeneration = findIndexShard(resolveIndex(indexName), 0).commitStats().getGeneration();
+
+        final ShardId shardId = findIndexShard(resolveIndex(indexName), 0).shardId();
+        final long primaryTerm = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index(indexName)
+            .primaryTerm(0);
+        final long latestGeneration = listBccBlobsTermAndGenerations(shardId).stream()
+            .filter(termAndGen -> termAndGen.primaryTerm() == primaryTerm)
+            .mapToLong(PrimaryTermAndGeneration::generation)
+            .max()
+            .orElseThrow();
+
+        final var blobContainer = getObjectStoreService(indexNode).getProjectBlobContainer(shardId, primaryTerm);
+        final Set<String> mergeBlobNames = new HashSet<>();
+        for (long mergeStartGeneration : new long[] { 1L, latestGeneration, latestGeneration + between(1, 100) }) {
+            final String mergeBlobName = MergeBlobFile.blobName(
+                mergeStartGeneration,
+                Long.toString(randomNonNegativeLong(), Character.MAX_RADIX),
+                HexFormat.of().formatHex(randomByteArrayOfLength(8))
+            );
+            blobContainer.writeBlob(operationPurpose, mergeBlobName, new BytesArray(randomByteArrayOfLength(between(1, 100))), true);
+            mergeBlobNames.add(mergeBlobName);
+        }
+
+        for (int restart = 0; restart < 2; restart++) {
+            internalCluster().restartNode(indexNode);
+            ensureGreen(indexName);
+            assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo(docCount));
+            // The recovery of the indexing shard creates one new commit on top of the commit it recovered from: any other generation means
+            // that the shard has not recovered from its latest BCC
+            assertThat(
+                "indexing shard must recover the latest commit, not a merge blob",
+                findIndexShard(resolveIndex(indexName), 0).commitStats().getGeneration(),
+                equalTo(committedGeneration + restart + 1)
+            );
+            assertThat(
+                "merge blobs must not be deleted by the recovery",
+                blobContainer.listBlobs(operationPurpose).keySet().containsAll(mergeBlobNames),
+                is(true)
+            );
+            assertThat(
+                "merge blobs must not be seen as batched compound commits",
+                listBccBlobsTermAndGenerations(shardId).stream().anyMatch(termAndGen -> termAndGen.generation() > latestGeneration + 100),
+                is(false)
+            );
+        }
+
+        // Search shards must ignore merge blobs too: they recover from the latest commit, which they must be able to read and search
+        startSearchNodes(1);
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), docCount);
+        assertBusy(
+            () -> assertThat(
+                "search shard must recover the latest commit of the indexing shard, not a merge blob",
+                findSearchShard(indexName).commitStats().getGeneration(),
+                equalTo(findIndexShard(resolveIndex(indexName), 0).commitStats().getGeneration())
+            )
+        );
+        assertThat(
+            "merge blobs must not be deleted when search shards recover",
+            blobContainer.listBlobs(operationPurpose).keySet().containsAll(mergeBlobNames),
+            is(true)
+        );
+    }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -77,9 +78,10 @@ public class StatelessPrimaryRelocationTargetService {
             final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             final var indexShard = indexService.getShard(request.shardId().id());
             final var latestBccBlob = request.latestBccBlob();
+            assert latestBccBlob.blobFile() instanceof BccBlobFile : latestBccBlob.blobFile();
             // We don't need otherBlobs for prewarming
             final var sourceBlobsInfo = new StatelessCommitService.SourceBlobsInfo(
-                latestBccBlob.blobFile(),
+                (BccBlobFile) latestBccBlob.blobFile(),
                 latestBccBlob.length(),
                 Set.of()
             );

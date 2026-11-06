@@ -35,7 +35,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
@@ -220,7 +220,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
         assertThat(unhollowShard.getOperationPrimaryTerm(), equalTo(primaryTerm));
 
         // The commit acquired on the IndexEngine for snapshotting has been retained during hollowing
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration());
+        var blobName = BccBlobFile.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration());
         var blobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(unhollowShard.shardId(), primaryTerm)
             .listBlobs(OperationPurpose.INDICES)
             .keySet();
@@ -352,7 +352,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
         // segments_a
         logLastCommittedSegmentInfos(hollowShard);
 
-        final var blobName = BatchedCompoundCommit.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration());
+        final var blobName = BccBlobFile.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration());
 
         // The commit acquired on the HollowIndexEngine for snapshotting has been retained after unhollowing
         {
@@ -530,7 +530,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
         // while the prewarming (reading commits in BCC using cache) also updates the IndexBlobStoreCacheDirectory metadata. Also,
         // metadata are updated on upload so if there are not more uploads some metadata remains even if the file were deleted.
 
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(searcher.getDirectoryReader().getIndexCommit().getGeneration());
+        var blobName = BccBlobFile.blobNameFromGeneration(searcher.getDirectoryReader().getIndexCommit().getGeneration());
         var blobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(unhollowShard.shardId(), primaryTerm)
             .listBlobs(OperationPurpose.INDICES)
             .keySet();
@@ -643,9 +643,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
                 List<String> blobsToDelete = new ArrayList<>();
                 blobNames.forEachRemaining(blobsToDelete::add);
                 var deletingSnapshotBackingBCC = blobsToDelete.stream()
-                    .anyMatch(
-                        name -> name.contains(BatchedCompoundCommit.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration()))
-                    );
+                    .anyMatch(name -> name.contains(BccBlobFile.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration())));
                 if (deletingSnapshotBackingBCC && isAllowedToDeleteSnapshotBackingBCCs.get() == false) {
                     throw new AssertionError("Blob deletion should not be triggered " + blobsToDelete);
                 }

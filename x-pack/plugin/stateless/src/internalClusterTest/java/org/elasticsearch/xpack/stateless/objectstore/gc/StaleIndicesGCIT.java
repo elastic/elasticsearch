@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
@@ -516,7 +516,7 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
                 long blobSize,
                 boolean failIfAlreadyExists
             ) throws IOException {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
+                if (BccBlobFile.startsWithBlobPrefix(blobName)) {
                     logger.info("--> simulate failure on [{}]", blobName);
                     failed.countDown();
                     throw new IOException("simulate failure after write");

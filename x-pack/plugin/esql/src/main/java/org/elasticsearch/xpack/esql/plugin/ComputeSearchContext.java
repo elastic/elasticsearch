@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.Default
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Search and shard context used as entries in {@link org.elasticsearch.compute.lucene.IndexedByShardId}. These are shared by both the data
@@ -26,7 +27,7 @@ import java.util.Objects;
  * <p>
  * Closing this will only close the underlying search context, and doing so <i>directly</i> is generally only done during error handling. In
  * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by
- * {@link #shardContext(QueryWarnings)} reaches 0.
+ * {@link #shardContext(QueryWarnings, Set)} reaches 0.
  */
 class ComputeSearchContext implements Releasable {
     private final int index;
@@ -60,9 +61,12 @@ class ComputeSearchContext implements Releasable {
         return index;
     }
 
-    ShardContext shardContext(QueryWarnings queryWarnings) {
+    /**
+     * @param unmappedFieldNames the fields the plan reads that some shards may not map, which this shard resolves to what it holds
+     */
+    ShardContext shardContext(QueryWarnings queryWarnings, Set<String> unmappedFieldNames) {
         if (shardContext.get() == null) {
-            shardContext.set(createShardContext(queryWarnings));
+            shardContext.set(createShardContext(queryWarnings, unmappedFieldNames));
         }
         return shardContext.get();
     }
@@ -72,11 +76,12 @@ class ComputeSearchContext implements Releasable {
         return searchContext;
     }
 
-    private ShardContext createShardContext(QueryWarnings queryWarnings) {
+    private ShardContext createShardContext(QueryWarnings queryWarnings, Set<String> unmappedFieldNames) {
         ensureNotTombstone();
         EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(
             searchContext.getSearchExecutionContext(),
-            queryWarnings
+            queryWarnings,
+            unmappedFieldNames
         );
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
         return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());

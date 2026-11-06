@@ -704,6 +704,7 @@ public final class DocumentParser {
             parseArrayElements(context, null, currentFieldName, currentFieldName);
         } else {
             MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
+            builderFromTemplate.normalize(builderContext);
             Mapper objectMapperFromTemplate = builderFromTemplate.build(builderContext);
             if (parsesArrayValue(objectMapperFromTemplate)) {
                 Mapper mapper = context.getDynamicMapper(builderFromTemplate, objectMapperFromTemplate, builderContext);

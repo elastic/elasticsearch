@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -23,6 +24,7 @@ import java.util.Objects;
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceFields.TRUNCATION;
@@ -41,7 +43,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
     static final String INPUT_TYPE_FIELD = "input_type";
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
-    public static VoyageAIEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
+    public static VoyageAIEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
@@ -53,7 +55,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
             INPUT_TYPE_FIELD,
             TASK_SETTINGS,
             InputType::fromString,
-            VALID_INPUT_TYPE_VALUES,
+            getValidTaskSettingsInputTypes(VALID_INPUT_TYPE_VALUES, context),
             validationException
         );
         var truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
@@ -170,7 +172,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        var updatedSettings = VoyageAIEmbeddingsTaskSettings.fromMap(newSettings);
+        var updatedSettings = VoyageAIEmbeddingsTaskSettings.fromMap(newSettings, ConfigurationParseContext.REQUEST);
         return of(this, updatedSettings);
     }
 }

@@ -14,20 +14,27 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings.JINA_AI_CONFIGURABLE_LATE_CHUNKING;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIEmbeddingsTaskSettings> {
+
+    private static final EnumSet<InputType> VALID_REQUEST_INPUT_TYPE_VALUES = getValidTaskSettingsInputTypes(
+        VALID_INPUT_TYPE_VALUES,
+        ConfigurationParseContext.REQUEST
+    );
 
     public static JinaAIEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomFrom(VALID_INPUT_TYPE_VALUES) : null;
@@ -60,7 +67,7 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
 
     public void testUpdatedTaskSettings_ReturnsUpdatedSettings_WhenNewSettingsHaveInputType() {
         var initialSettings = createRandom();
-        var newInputType = randomValueOtherThan(initialSettings.getInputType(), () -> randomFrom(VALID_INPUT_TYPE_VALUES));
+        var newInputType = randomValueOtherThan(initialSettings.getInputType(), () -> randomFrom(VALID_REQUEST_INPUT_TYPE_VALUES));
         Map<String, Object> newSettingsMap = new HashMap<>();
         newSettingsMap.put(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, newInputType.toString());
 
@@ -82,7 +89,7 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
 
     public void testUpdatedTaskSettings_ReturnsUpdatedSettings_WhenNewSettingsHaveAllValuesSet() {
         var initialSettings = createRandom();
-        var newInputType = randomValueOtherThan(initialSettings.getInputType(), () -> randomFrom(VALID_INPUT_TYPE_VALUES));
+        var newInputType = randomValueOtherThan(initialSettings.getInputType(), () -> randomFrom(VALID_REQUEST_INPUT_TYPE_VALUES));
         var newLateChunking = initialSettings.getLateChunking() == null ? randomBoolean() : initialSettings.getLateChunking() == false;
         Map<String, Object> newSettingsMap = new HashMap<>();
         newSettingsMap.put(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, newInputType.toString());
@@ -94,18 +101,25 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
-        assertThat(JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>()), is(new JinaAIEmbeddingsTaskSettings((InputType) null)));
+        assertThat(
+            JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST),
+            is(new JinaAIEmbeddingsTaskSettings((InputType) null))
+        );
     }
 
     public void testFromMap_CreatesEmptySettings_WhenMapIsNull() {
-        assertThat(JinaAIEmbeddingsTaskSettings.fromMap(null), is(new JinaAIEmbeddingsTaskSettings((InputType) null)));
+        assertThat(
+            JinaAIEmbeddingsTaskSettings.fromMap(null, ConfigurationParseContext.REQUEST),
+            is(new JinaAIEmbeddingsTaskSettings((InputType) null))
+        );
     }
 
     public void testFromMap_CreatesSettings_WhenInputTypeIsPresent() {
-        var inputType = randomFrom(VALID_INPUT_TYPE_VALUES);
+        var inputType = randomFrom(VALID_REQUEST_INPUT_TYPE_VALUES);
 
         var actualSettings = JinaAIEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString()))
+            new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString())),
+            ConfigurationParseContext.REQUEST
         );
         var expectedSettings = new JinaAIEmbeddingsTaskSettings(inputType, null);
         assertEquals(expectedSettings, actualSettings);
@@ -115,14 +129,15 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
         var lateChunking = randomBoolean();
 
         var actualSettings = JinaAIEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.LATE_CHUNKING, lateChunking))
+            new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.LATE_CHUNKING, lateChunking)),
+            ConfigurationParseContext.REQUEST
         );
         var expectedSettings = new JinaAIEmbeddingsTaskSettings(null, lateChunking);
         assertEquals(expectedSettings, actualSettings);
     }
 
     public void testFromMap_CreatesSettings_WhenAllFieldsOfSettingsArePresent() {
-        var inputType = randomFrom(VALID_INPUT_TYPE_VALUES);
+        var inputType = randomFrom(VALID_REQUEST_INPUT_TYPE_VALUES);
         var lateChunking = randomBoolean();
 
         var actualSettings = JinaAIEmbeddingsTaskSettings.fromMap(
@@ -133,7 +148,8 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
                     JinaAIEmbeddingsTaskSettings.LATE_CHUNKING,
                     lateChunking
                 )
-            )
+            ),
+            ConfigurationParseContext.REQUEST
         );
         var expectedSettings = new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
         assertEquals(expectedSettings, actualSettings);
@@ -142,7 +158,10 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
     public void testFromMap_ReturnsFailure_WhenInputTypeIsInvalid() {
         var exception = expectThrows(
             ValidationException.class,
-            () -> JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, "abc")))
+            () -> JinaAIEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, "abc")),
+                ConfigurationParseContext.REQUEST
+            )
         );
 
         assertThat(
@@ -160,7 +179,8 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
         var exception = expectThrows(
             ValidationException.class,
             () -> JinaAIEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString()))
+                new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString())),
+                ConfigurationParseContext.REQUEST
             )
         );
 
@@ -176,7 +196,7 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
     }
 
     private static String getValidValuesSortedAndCombined() {
-        var validValuesAsStrings = JinaAIService.VALID_INPUT_TYPE_VALUES.stream()
+        var validValuesAsStrings = VALID_REQUEST_INPUT_TYPE_VALUES.stream()
             .map(value -> value.toString().toLowerCase(Locale.ROOT))
             .toArray(String[]::new);
         Arrays.sort(validValuesAsStrings);
@@ -250,5 +270,47 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
         } else {
             return new JinaAIEmbeddingsTaskSettings(instance.getInputType(), null);
         }
+    }
+
+    public void testFromMap_ReturnsFailure_WhenInputTypeIsInternal_InRequestContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> JinaAIEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString())),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [%s] received. "
+                        + "[input_type] must be one of [classification, clustering, ingest, search];",
+                    inputType
+                )
+            )
+        );
+    }
+
+    public void testFromMap_CreatesSettings_WhenInputTypeIsInternal_InPersistentContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var settings = JinaAIEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString())),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(settings.getInputType(), is(inputType));
+    }
+
+    public void testUpdatedTaskSettings_ReturnsFailure_WhenInputTypeIsInternal() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        expectThrows(
+            ValidationException.class,
+            () -> JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS.updatedTaskSettings(
+                new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString()))
+            )
+        );
     }
 }

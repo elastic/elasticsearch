@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -33,14 +35,17 @@ public class AlibabaCloudSearchSparseTaskSettingsTests extends AbstractWireSeria
 
     public void testFromMap() {
         MatcherAssert.assertThat(
-            AlibabaCloudSearchSparseTaskSettings.fromMap(new HashMap<>(Map.of(INPUT_TYPE, "ingest"))),
+            AlibabaCloudSearchSparseTaskSettings.fromMap(new HashMap<>(Map.of(INPUT_TYPE, "ingest")), ConfigurationParseContext.REQUEST),
             is(new AlibabaCloudSearchSparseTaskSettings(InputType.INGEST, null))
         );
     }
 
     public void testUpdatedTaskSettings() {
         var initialSettings = createRandom();
-        var newSettings = createRandom();
+        var newSettings = new AlibabaCloudSearchSparseTaskSettings(
+            randomBoolean() ? randomFrom(InputType.INGEST, InputType.SEARCH) : null,
+            randomBoolean()
+        );
         var newSettingsInputType = newSettings.getInputType() == null ? InputType.SEARCH.toString() : newSettings.getInputType().toString();
         var updatedSettings = initialSettings.updatedTaskSettings(
             new HashMap<>(Map.of(INPUT_TYPE, newSettingsInputType, RETURN_TOKEN, newSettings.isReturnToken()))
@@ -58,7 +63,7 @@ public class AlibabaCloudSearchSparseTaskSettingsTests extends AbstractWireSeria
     public void testFromMap_WhenInputTypeIsNull() {
         InputType inputType = null;
         MatcherAssert.assertThat(
-            AlibabaCloudSearchSparseTaskSettings.fromMap(new HashMap<>()),
+            AlibabaCloudSearchSparseTaskSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST),
             is(new AlibabaCloudSearchSparseTaskSettings(inputType, null))
         );
     }
@@ -90,5 +95,46 @@ public class AlibabaCloudSearchSparseTaskSettingsTests extends AbstractWireSeria
         }
 
         return map;
+    }
+
+    public void testFromMap_ReturnsFailure_WhenInputTypeIsInternal_InRequestContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> AlibabaCloudSearchSparseTaskSettings.fromMap(
+                new HashMap<>(Map.of(INPUT_TYPE, inputType.toString())),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [%s] received. [input_type] must be one of [ingest, search];",
+                    inputType
+                )
+            )
+        );
+    }
+
+    public void testFromMap_CreatesSettings_WhenInputTypeIsInternal_InPersistentContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var settings = AlibabaCloudSearchSparseTaskSettings.fromMap(
+            new HashMap<>(Map.of(INPUT_TYPE, inputType.toString())),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(settings.getInputType(), is(inputType));
+    }
+
+    public void testUpdatedTaskSettings_ReturnsFailure_WhenInputTypeIsInternal() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        expectThrows(
+            ValidationException.class,
+            () -> AlibabaCloudSearchSparseTaskSettings.EMPTY_SETTINGS.updatedTaskSettings(
+                new HashMap<>(Map.of(INPUT_TYPE, inputType.toString()))
+            )
+        );
     }
 }

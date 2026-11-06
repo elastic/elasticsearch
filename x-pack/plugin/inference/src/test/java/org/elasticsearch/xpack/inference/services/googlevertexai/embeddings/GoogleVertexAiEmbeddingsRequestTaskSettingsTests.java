@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
@@ -71,6 +72,27 @@ public class GoogleVertexAiEmbeddingsRequestTaskSettingsTests extends ESTestCase
             ValidationException.class,
             () -> GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(
                 new HashMap<>(Map.of(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString()))
+            )
+        );
+    }
+
+    public void testFromMap_ThrowsValidationException_IfInputTypeIsInternal() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(
+                new HashMap<>(Map.of(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString()))
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [%s] received. "
+                        + "[input_type] must be one of [classification, clustering, ingest, search];",
+                    inputType
+                )
             )
         );
     }

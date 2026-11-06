@@ -264,6 +264,14 @@ public class ProfileCollectorDetailTests extends ESTestCase {
         expectThrows(AssertionError.class, direct::start);
     }
 
+    public void testOverlappingCallsOnTwoDetailsOfOneParentAreAContractViolation() {
+        final ProfileCollector parent = TestCollectors.withClock(new ManualClock());
+        final Timer first = parent.detail(NO_ACCOUNTING).timer(TIME);
+        final Timer second = parent.detail(NO_ACCOUNTING).timer(TIME);
+        first.start();
+        expectThrows(AssertionError.class, second::start);
+    }
+
     public void testAMissingStopFailsTheNextStart() {
         final Timer linked = TestCollectors.withClock(new ManualClock()).detail(NO_ACCOUNTING).timer(TIME);
         linked.start();

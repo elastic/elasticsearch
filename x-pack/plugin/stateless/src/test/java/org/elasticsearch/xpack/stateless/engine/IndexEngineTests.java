@@ -755,9 +755,9 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             final String fileName = invocation.getArgument(0);
             final BytesReference bytes = invocation.getArgument(1);
             translogBlobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, bytes, true);
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
             return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
         return objectStoreService;
     }
 

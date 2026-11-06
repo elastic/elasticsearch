@@ -30,7 +30,8 @@ public class BlobCachePlugin extends Plugin implements ExtensiblePlugin {
             SharedBlobCacheService.SHARED_CACHE_COUNT_READS,
             SharedBlobCacheService.SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING,
             SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING,
-            SharedBlobCacheService.SHARED_CACHE_REACCESS_WINDOW_SETTING
+            SharedBlobCacheService.SHARED_CACHE_REACCESS_WINDOW_SETTING,
+            SharedBlobCacheService.SHARED_CACHE_PROBATION_SIZE_RATIO_SETTING
         );
     }
 }

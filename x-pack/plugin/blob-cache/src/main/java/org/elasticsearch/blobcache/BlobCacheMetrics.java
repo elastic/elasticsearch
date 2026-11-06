@@ -127,6 +127,12 @@ public class BlobCacheMetrics {
     public static final String EVICTED_BY_ATTRIBUTE_KEY = "es_evicted_by";
     /** Whether a region evicted under cache pressure had been read again after the fill that brought it into the cache. */
     public static final String REACCESSED_ATTRIBUTE_KEY = "es_reaccessed";
+    /**
+     * Regions moved out of the probation tier of the cache into its main tier instead of being evicted, broken down by
+     * {@link #PROBATION_PROMOTION_ATTRIBUTE_KEY}. Only recorded when the probation tier is enabled.
+     */
+    public static final String BLOB_CACHE_PROBATION_PROMOTED_TOTAL = "es.blob_cache.probation.promoted.total";
+    public static final String PROBATION_PROMOTION_ATTRIBUTE_KEY = "es_probation_promotion";
 
     /** A {@link TimeProvider} with all methods returning {@code 0L}. Used by {@link #NOOP} and by tests. */
     public static final TimeProvider NOOP_TIME_PROVIDER = new TimeProvider() {
@@ -182,6 +188,7 @@ public class BlobCacheMetrics {
     private final DoubleHistogram refetchEvictionDistance;
     private final LongHistogram refetchAge;
     private final LongCounter pressureEvictedRegions;
+    private final LongCounter probationPromotions;
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
@@ -238,6 +245,14 @@ public class BlobCacheMetrics {
     }
 
     /// The kind of fill that brings a region into the cache, as known by the cache when the region is allocated a slot.
+    /// Why a region leaving the probation tier of the cache is kept in its main tier rather than evicted.
+    public enum ProbationPromotion {
+        /// The region was read again after the fill that brought it in.
+        Reaccessed,
+        /// The eviction policy protects the region, so it cannot be evicted anyway.
+        Protected
+    }
+
     public enum RegionFillOrigin {
         /// A read that needs the data (searches, merges, ...), including codec prefetches issued through the read path.
         Demand,
@@ -397,6 +412,14 @@ public class BlobCacheMetrics {
                     + "]; excludes forced evictions",
                 "regions"
             ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_PROBATION_PROMOTED_TOTAL,
+                "The number of regions moved from the probation tier to the main tier of the cache instead of being evicted, "
+                    + "broken down by ["
+                    + PROBATION_PROMOTION_ATTRIBUTE_KEY
+                    + "]",
+                "regions"
+            ),
             timeProvider
         );
 
@@ -448,6 +471,7 @@ public class BlobCacheMetrics {
         DoubleHistogram refetchEvictionDistance,
         LongHistogram refetchAge,
         LongCounter pressureEvictedRegions,
+        LongCounter probationPromotions,
         TimeProvider timeProvider
     ) {
         this.cacheMissCounter = cacheMissCounter;
@@ -471,6 +495,7 @@ public class BlobCacheMetrics {
         this.refetchEvictionDistance = refetchEvictionDistance;
         this.refetchAge = refetchAge;
         this.pressureEvictedRegions = pressureEvictedRegions;
+        this.probationPromotions = probationPromotions;
         this.timeProvider = timeProvider;
     }
 
@@ -655,6 +680,11 @@ public class BlobCacheMetrics {
     /// @param reaccessed whether the region was read again after the fill that brought it in
     public void recordPressureEviction(RegionFillOrigin origin, boolean reaccessed) {
         pressureEvictedRegions.incrementBy(1L, Map.of(FILL_ORIGIN_ATTRIBUTE_KEY, origin.name(), REACCESSED_ATTRIBUTE_KEY, reaccessed));
+    }
+
+    /// Record a region moved from the probation tier to the main tier of the cache (see [#BLOB_CACHE_PROBATION_PROMOTED_TOTAL]).
+    public void recordProbationPromotion(ProbationPromotion reason) {
+        probationPromotions.incrementBy(1L, Map.of(PROBATION_PROMOTION_ATTRIBUTE_KEY, reason.name()));
     }
 
     public long readCount() {

@@ -67,6 +67,7 @@ import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
@@ -407,7 +408,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             "id1",
             null,
             List.of(dataStreamName + "*"),
-            indexSettings(1, 1).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1") // This allows merging to succeed in a single node test
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
                 .build(),
             null,
@@ -475,6 +479,19 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                         forceMergedIndices.contains(toBeForceMergedIndex),
                         equalTo(true)
                     );
+                    ExplainDataStreamLifecycleAction.Request request = new ExplainDataStreamLifecycleAction.Request(
+                        TEST_REQUEST_TIMEOUT,
+                        new String[] { dataStreamName }
+                    );
+                    ExplainDataStreamLifecycleAction.Response response = safeGet(
+                        client().execute(ExplainDataStreamLifecycleAction.INSTANCE, request)
+                    );
+                    Optional<ExplainIndexDataStreamLifecycle> lifecycleExplain = response.getIndices()
+                        .stream()
+                        .filter(r -> r.getIndex().equals(toBeForceMergedIndex))
+                        .findFirst();
+                    assertThat(lifecycleExplain.isPresent(), equalTo(true));
+                    assertThat(lifecycleExplain.get().getTailMergeDate(), notNullValue());
                 }
                 // We want to assert that when data stream lifecycle rolls over the write index it, it doesn't forcemerge it on that
                 // iteration:
@@ -483,6 +500,22 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     forceMergedIndices.contains(toBeRolledOverIndex),
                     equalTo(false)
                 );
+            });
+        }
+    }
+
+    /**
+     * The shards capacity health indicator reads the shard limits from the {@link HealthMetadata}.
+     * Waits until every node has applied a cluster state with the expected limit, since the health
+     * report may be computed on any node.
+     */
+    private static void awaitHealthMetadataMaxShardsPerNode(int expectedMaxShardsPerNode) {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            awaitClusterState(nodeName, state -> {
+                HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(state);
+                return healthMetadata != null
+                    && healthMetadata.getShardLimitsMetadata() != null
+                    && healthMetadata.getShardLimitsMetadata().maxShardsPerNode() == expectedMaxShardsPerNode;
             });
         }
     }
@@ -569,6 +602,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(errorInfo.retryCount(), greaterThanOrEqualTo(3));
         });
 
+        awaitHealthMetadataMaxShardsPerNode(1);
         GetHealthAction.Response healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
             .actionGet();
         HealthIndicatorResult masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
@@ -616,6 +650,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(dslHealthInfoOnHealthNode, is(DataStreamLifecycleHealthInfo.NO_DSL_ERRORS));
         });
 
+        awaitHealthMetadataMaxShardsPerNode(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getDefault(Settings.EMPTY));
         healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000)).actionGet();
         masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
         // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not

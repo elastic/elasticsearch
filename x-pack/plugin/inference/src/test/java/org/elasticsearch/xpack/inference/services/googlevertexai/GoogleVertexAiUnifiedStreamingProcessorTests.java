@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
@@ -325,7 +327,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         assertNull(detail.index());
     }
 
-    public void testFunctionCallIdFallsBackToTheNameWhenAbsent() throws IOException {
+    public void testFunctionCallIdIsSynthesizedFromTheNameWhenAbsent() throws IOException {
         var chunk = parse(Strings.format("""
             {
               "candidates": [ {
@@ -345,9 +347,35 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             }
             """, FUNCTION_NAME, THOUGHT_SIGNATURE));
 
-        var message = chunk.choices().getFirst().message();
-        assertThat(message.toolCalls().getFirst().id(), is(FUNCTION_NAME));
-        assertThat(asTextReasoningDetail(chunk, 0).id(), is(FUNCTION_NAME));
+        var toolCallId = chunk.choices().getFirst().message().toolCalls().getFirst().id();
+        assertThat(toolCallId, startsWith(FUNCTION_NAME + "#"));
+        assertThat(asTextReasoningDetail(chunk, 0).id(), is(toolCallId));
+    }
+
+    public void testSynthesizedFunctionCallIdsAreUnique() throws IOException {
+        var json = Strings.format("""
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    { "functionCall": { "name": "%s", "args": { "topic": "Q3 planning" } } },
+                    { "functionCall": { "name": "%s", "args": { "topic": "Q4 planning" } } }
+                  ]
+                }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-2.5-pro",
+              "responseId": "responseId"
+            }
+            """, FUNCTION_NAME, FUNCTION_NAME);
+
+        var parallelCalls = parse(json).choices().getFirst().message().toolCalls();
+        var laterCall = parse(json).choices().getFirst().message().toolCalls().getFirst();
+
+        assertThat(parallelCalls.get(0).id(), not(parallelCalls.get(1).id()));
+        assertThat(laterCall.id(), not(parallelCalls.get(0).id()));
+        assertThat(laterCall.id(), not(parallelCalls.get(1).id()));
     }
 
     public void testSignatureOnAPlainTextPartIsIndexed() throws IOException {

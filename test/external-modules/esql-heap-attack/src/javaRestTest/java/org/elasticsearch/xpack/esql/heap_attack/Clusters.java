@@ -34,6 +34,7 @@ public class Clusters {
             .distribution(DistributionType.DEFAULT)
             .nodes(2)
             .module("test-esql-heap-attack")
+            .module("test-pausable-field")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("esql.query.allow_partial_results", "false")

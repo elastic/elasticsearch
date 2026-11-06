@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162524
+summary: Restrict ES|QL enrich lookup to enrich indices
+type: bug

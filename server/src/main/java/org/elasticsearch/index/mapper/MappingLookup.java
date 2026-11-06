@@ -684,7 +684,9 @@ public final class MappingLookup {
     ) {
         if (isSourceSynthetic() || isSourceColumnarStored()) {
             SourceLoader loader = new SourceLoader.Synthetic(
-                filter,
+                // columnar_stored keeps a single _ignored_source entry, the whole-document blob named _source, which an include filter
+                // would drop by name. The root applies the filter while writing the blob out instead.
+                isSourceColumnarStored() ? null : filter,
                 () -> mapping.syntheticFieldLoader(filter, isSourceColumnarStored()),
                 metrics,
                 mapping.ignoredSourceFormat()
@@ -758,6 +760,35 @@ public final class MappingLookup {
      */
     public Mapping getMapping() {
         return mapping;
+    }
+
+    /**
+     * Returns the passthrough status for {@code field}. Mapper-backed passthrough sources are resolved directly;
+     * auto-flattened objects in strict columnar index modes are resolved from the root mapping's prefix properties.
+     *
+     * @return {@code true} for an enabled passthrough source, {@code false} for a field that could be a passthrough
+     *         source but is not, or {@code null} when passthrough is not applicable to the field
+     */
+    @Nullable
+    public Boolean isPassthrough(String field) {
+        ObjectMapper objectMapper = objectMappers.get(field);
+        if (objectMapper != null) {
+            if (objectMapper instanceof PassThroughFieldSource passThroughFieldSource) {
+                return passThroughFieldSource.isPassthrough();
+            }
+            return objectMapper instanceof NestedObjectMapper ? null : false;
+        }
+
+        Mapper fieldMapper = fieldMappers.get(field);
+        if (fieldMapper != null) {
+            return fieldMapper instanceof PassThroughFieldSource passThroughFieldSource ? passThroughFieldSource.isPassthrough() : null;
+        }
+
+        PrefixProperties properties = mapping.getRoot().getPrefixProperties().get(field);
+        if (properties != null) {
+            return properties.passthrough() != null;
+        }
+        return null;
     }
 
     /**

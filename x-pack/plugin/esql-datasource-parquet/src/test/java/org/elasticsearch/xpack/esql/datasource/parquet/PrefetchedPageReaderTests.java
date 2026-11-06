@@ -45,7 +45,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
     @Before
     public void initCodecAndBreaker() {
         codecFactory = new PlainCompressionCodecFactory();
-        breaker = new NoopCircuitBreaker("test");
+        breaker = NoopCircuitBreaker.INSTANCE;
     }
 
     @After

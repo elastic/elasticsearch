@@ -32,6 +32,7 @@ import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Template;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -408,6 +409,71 @@ public class SenderServiceTests extends ESTestCase {
 
             assertNotNull(listener.actionGet(TIMEOUT));
         }
+    }
+
+    public void testTemplateNotSupportedByDefault() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var request = templateOnlyRequest();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(mock(Model.class), UnifiedCompletionRequest.streaming(request), TIMEOUT, listener);
+
+            var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), is("The test service service does not support unified completion with templates"));
+        }
+    }
+
+    public void testTemplateSucceedsWhenServiceSupportsTemplates() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            protected boolean supportsChatCompletionTemplates() {
+                return true;
+            }
+
+            @Override
+            protected void doUnifiedCompletionInfer(
+                Model model,
+                UnifiedChatInput inputs,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                assertNull(inputs.getRequest().messages());
+                assertTrue(inputs.getRequest().containsTemplate());
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+
+        try (service) {
+            var request = templateOnlyRequest();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(mock(Model.class), UnifiedCompletionRequest.streaming(request), TIMEOUT, listener);
+
+            assertNotNull(listener.actionGet(TIMEOUT));
+        }
+    }
+
+    private static UnifiedCompletionRequestBody templateOnlyRequest() {
+        return new UnifiedCompletionRequestBody(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new Template(".summarize", 1, Map.of("time_range", "24h"))
+        );
     }
 
     public void testNonStreamingNotSupportedByDefault() throws IOException {

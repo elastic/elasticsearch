@@ -87,18 +87,6 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         Expression rowLimit,
         Expression prompt,
         Attribute targetField,
-        MapExpression taskSettings
-    ) {
-        this(source, child, inferenceId, rowLimit, prompt, targetField, taskSettings, null);
-    }
-
-    public Completion(
-        Source source,
-        LogicalPlan child,
-        Expression inferenceId,
-        Expression rowLimit,
-        Expression prompt,
-        Attribute targetField,
         MapExpression taskSettings,
         TimeValue timeout
     ) {

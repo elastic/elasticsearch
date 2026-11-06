@@ -48,7 +48,7 @@ public class RestClusterSearchShardsActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_search_shards")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1,s2"))
+            .withParams(Map.of(SliceIndexing.FIELD_NAME, "s1,s2"))
             .build();
         action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
     }
@@ -65,7 +65,7 @@ public class RestClusterSearchShardsActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_search_shards")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL))
+            .withParams(Map.of(SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL))
             .build();
         action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
     }
@@ -74,20 +74,20 @@ public class RestClusterSearchShardsActionTests extends RestActionTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_search_shards")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1", "routing", "r1"))
+            .withParams(Map.of(SliceIndexing.FIELD_NAME, "s1", "routing", "r1"))
             .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
-        assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
+        assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
     }
 
     public void testParseSearchShardsRequestRejectsSliceWhenFeatureDisabled() {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_search_shards")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1"))
+            .withParams(Map.of(SliceIndexing.FIELD_NAME, "s1"))
             .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
-        assertEquals("request does not support [slice]", e.getMessage());
+        assertEquals("request does not support [_slice]", e.getMessage());
     }
 
     private static ClusterSearchShardsResponse emptyResponse() {

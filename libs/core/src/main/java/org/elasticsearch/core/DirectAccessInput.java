@@ -12,6 +12,7 @@ package org.elasticsearch.core;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.function.IntFunction;
 
 /**
  * An optional interface that an IndexInput can implement to provide direct
@@ -24,19 +25,29 @@ import java.lang.foreign.ValueLayout;
 public interface DirectAccessInput {
 
     /**
-     * If a direct memory segment view is available for the given range, passes it
-     * to {@code action} and returns {@code true}. Otherwise returns
-     * {@code false} without invoking the action.
+     * Passes a memory segment holding the given range to {@code action} and returns
+     * {@code true}, or returns {@code false} without invoking the action if the range
+     * cannot be provided.
+     *
+     * <p>The segment is either a direct view of the underlying data or, where no such
+     * view is available, a copy of the range in a segment obtained from {@code scratch}.
      *
      * <p>The memory segment is read-only and valid only for the duration of the
      * action. Callers must not retain references to it after the action returns.
      *
-     * @param offset the byte offset within the input
-     * @param length the number of bytes requested
-     * @param action the action to perform with the memory segment
-     * @return {@code true} if a segment was available and the action was invoked
+     * @param offset  the byte offset within the input
+     * @param length  the number of bytes requested
+     * @param scratch supplies a writable off-heap segment of exactly the requested
+     *                length, into which the range may be copied
+     * @param action  the action to perform with the memory segment
+     * @return {@code true} if a segment was provided and the action was invoked
      */
-    boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException;
+    boolean withMemorySegmentSlice(
+        long offset,
+        long length,
+        IntFunction<MemorySegment> scratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException;
 
     /**
      * Bulk variant of {@link #withMemorySegmentSlice}. Resolves {@code count}

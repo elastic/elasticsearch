@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 
@@ -37,6 +38,19 @@ public class TransportActionsTests extends ESTestCase {
         assertTrue(TransportActions.isRetriableShardLevelException(new NoShardAvailableActionException(SHARD_ID)));
         assertTrue(TransportActions.isRetriableShardLevelException(new UnavailableShardsException(SHARD_ID, "unavailable")));
         assertTrue(TransportActions.isRetriableShardLevelException(new AlreadyClosedException("already closed")));
+    }
+
+    /**
+     * A shard being restored is unavailable like any other, even though its status is 403, which every other 4xx exception would make
+     * non-retriable.
+     */
+    public void testShardRestoringExceptionIsShardNotAvailable() {
+        final ShardRestoringException exception = new ShardRestoringException(SHARD_ID.getIndexName(), randomUUID());
+
+        assertTrue(TransportActions.isShardNotAvailableException(exception));
+        assertTrue(TransportActions.isShardNotAvailableException(new RemoteTransportException("remote", exception)));
+        assertTrue(TransportActions.isRetriableShardLevelException(exception));
+        assertFalse(TransportActions.isReadOverrideException(exception));
     }
 
     public void test4xxExceptionsAreNotRetriable() {

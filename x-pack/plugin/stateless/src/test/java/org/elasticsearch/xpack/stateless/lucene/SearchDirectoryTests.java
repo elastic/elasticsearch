@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -40,6 +41,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -152,11 +154,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(super.nodeSettings())
                     .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
-                    .put(
-                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(),
-                        timestampBackfillEnabled
-                    );
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize);
                 return settings.build();
             }
 
@@ -207,6 +205,30 @@ public class SearchDirectoryTests extends ESTestCase {
                 ThreadPool threadPool,
                 MeterRegistry MeterRegistry
             ) {
+                if (timestampBackfillEnabled) {
+                    return new StatelessSharedBlobCacheService(
+                        nodeEnvironment,
+                        settings,
+                        clusterSettings,
+                        threadPool,
+                        BlobCacheMetrics.NOOP,
+                        new DefaultEvictionPolicy<FileCacheKey>() {
+                            @Override
+                            public boolean hasRegionTimestampProtection() {
+                                return true;
+                            }
+                        },
+                        System::nanoTime,
+                        threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                    ) {
+                        @Override
+                        protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
+                            // this test tries to read beyond the file length
+                            return true;
+                        }
+                    };
+                }
                 StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
                     nodeEnvironment,
                     settings,
@@ -523,6 +545,140 @@ public class SearchDirectoryTests extends ESTestCase {
         }
     }
 
+    public void testBlobLengthTracksMetadataUpdates() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            final var commit1 = new PrimaryTermAndGeneration(1L, 1L);
+            final var commit2 = new PrimaryTermAndGeneration(1L, 2L);
+            assertThat(searchDirectory.blobLength(commit1).isPresent(), equalTo(false));
+
+            final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
+            final var locationB = createBlobLocation(1L, 1L, 100L, 150L);
+            final var otherBlob = createBlobLocation(1L, 2L, 0L, 40L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of("fileA", locationA, "fileB", locationB),
+                    250L,
+                    Set.of("fileA", "fileB"),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(250L));
+            assertThat(searchDirectory.blobLength(commit2).isPresent(), equalTo(false));
+
+            final var locationC = createBlobLocation(1L, 1L, 250L, 80L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    2L,
+                    "_na_",
+                    Map.of("fileA", locationA, "fileB", locationB, "fileC", locationC, "other", otherBlob),
+                    370L,
+                    Set.of("fileC", "other"),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(new PrimaryTermAndGeneration(2L, 1L)).isPresent(), equalTo(false));
+
+            // Dropping files, including the one at the end, leaves the length while any file still references the blob.
+            searchDirectory.retainFiles(Set.of("fileA", "fileC", "other"));
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+
+            searchDirectory.retainFiles(Set.of("fileA", "other"));
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+
+            searchDirectory.retainFiles(Set.of("other"));
+            assertThat(searchDirectory.blobLength(commit1).isPresent(), equalTo(false));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+        }
+    }
+
+    public void testBlobLengthUsesFurthestFileEnd() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            // fileLater starts further into the blob, but fileEarly extends past it.
+            final var fileEarly = createBlobLocation(1L, 1L, 0L, 500L);
+            final var fileLater = createBlobLocation(1L, 1L, 400L, 10L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of("fileEarly", fileEarly, "fileLater", fileLater),
+                    500L,
+                    Set.of(),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(fileEarly.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(500L));
+        }
+    }
+
+    public void testGenerationalFileCopyExtendsBlobItIsNotStoredIn() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            final String generationalFile = "_0_1.fnm";
+            final var firstLocation = createBlobLocation(1L, 1L, 0L, 80L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of(generationalFile, firstLocation),
+                    80L,
+                    Set.of(generationalFile),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(firstLocation.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(80L));
+
+            // A later commit carries the same generational file from a longer copy in a new blob. The directory keeps
+            // the first location, but the copy still extends the new blob past the file that is stored there.
+            final var copiedLocation = createBlobLocation(1L, 2L, 40L, 200L);
+            final var newFile = createBlobLocation(1L, 2L, 0L, 40L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 2L),
+                    2L,
+                    "_na_",
+                    Map.of(generationalFile, copiedLocation, "fileD", newFile),
+                    240L,
+                    Set.of(generationalFile),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(firstLocation.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(80L));
+            assertThat(searchDirectory.blobLength(newFile.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(240L));
+        }
+    }
+
     private String randomNonSiFileName() {
         String siExtension = LuceneFilesExtensions.SI.getExtension();
         return randomValueOtherThanMany(name -> name.endsWith(siExtension), () -> randomAlphaOfLength(10));
@@ -763,7 +919,6 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 
@@ -816,10 +971,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var locationWithoutTs = createBlobLocation(1L, 2L, 0L, regionSize.getBytes());
             final var withTimestamp = new BlobFileRanges(locationWithTs, range);
             final var withoutTimestamp = new BlobFileRanges(locationWithoutTs, null);
-            searchDirectory.updateMetadata(
-                Map.of("file-with-ts", withTimestamp, "file-without-ts", withoutTimestamp),
-                2 * regionSize.getBytes()
-            );
+            searchDirectory.mergeMetadata(Map.of("file-with-ts", withTimestamp, "file-without-ts", withoutTimestamp), false);
             // Mark the latest BCC as uploaded so the cache reader routes both files through the object store path
             searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(1L, 2L));
 
@@ -852,8 +1004,9 @@ public class SearchDirectoryTests extends ESTestCase {
             final var metadataBlobName = BatchedCompoundCommit.blobNameFromGeneration(3L);
             final var metadataTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
             searchDirectory.updateLatestUploadedBcc(metadataTermAndGen);
-            var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(true);
-            metadataReadDirectory.updateMetadata(
+            var metadataReadDirectory = searchDirectory.createNewInstance(
+                searchDirectory.blobContainer.get(),
+                true,
                 Map.of(
                     metadataBlobName,
                     new BlobFileRanges(new BlobLocation(new BlobFile(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))
@@ -909,7 +1062,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 equalTo(BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
             assertThat(
-                "backfill should be disabled when timestamp backfill setting is off",
+                "backfill should be disabled when the eviction policy has no timestamp protection",
                 directory.timestampBackfillEnabled(),
                 equalTo(false)
             );
@@ -945,7 +1098,7 @@ public class SearchDirectoryTests extends ESTestCase {
         // Time-based shard with timestamp backfill enabled.
         try (var node = createFakeStatelessNode(regionSize, cacheSize, true, true)) {
             assertThat(
-                "backfill should be enabled when timestamp backfill setting is on",
+                "backfill should be enabled when the eviction policy has timestamp protection",
                 SearchDirectory.unwrapDirectory(node.searchStore.directory()).timestampBackfillEnabled(),
                 equalTo(true)
             );
@@ -1058,7 +1211,6 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 

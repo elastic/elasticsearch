@@ -7,13 +7,20 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.search.lookup.Source;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper.OffsetSource;
 
@@ -34,6 +41,30 @@ public class SemanticFieldContent {
             this.mapValues = new HashMap<>(1);
             parseFieldValues(List.of(fieldValue), textValues, mapValues);
         }
+    }
+
+    /**
+     * Loads the values that chunk offsets for {@code fieldType} are relative to: only those assigned directly to the field,
+     * excluding values copied in through {@code copy_to}.
+     */
+    public static SemanticFieldContent load(
+        MappedFieldType fieldType,
+        SearchExecutionContext context,
+        LeafReaderContext readerContext,
+        Source source,
+        int docId
+    ) throws IOException {
+        ValueFetcher fetcher;
+        if (fieldType instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {
+            fetcher = semanticFieldType.directValueFetcher(context);
+        } else {
+            fetcher = new OriginalValuesSemanticFieldValueFetcher(
+                Set.of(fieldType.name()),
+                context.getIndexSettings().getIgnoredSourceFormat()
+            );
+        }
+        fetcher.setNextReader(readerContext);
+        return new SemanticFieldContent(fetcher.fetchValues(source, docId, new ArrayList<>()));
     }
 
     /**

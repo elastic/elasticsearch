@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 /**
@@ -172,7 +173,15 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
     private boolean started;
 
     public SourceRowXContentParser(SchemaNode root, SourceRow row) {
-        super(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, RestApiVersion.current());
+        this(root, row, NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS);
+    }
+
+    /**
+     * @param registry used to resolve named objects, e.g. the queries a percolator field parses out of the document
+     * @param deprecationHandler notified of deprecated usages encountered while parsing
+     */
+    public SourceRowXContentParser(SchemaNode root, SourceRow row, NamedXContentRegistry registry, DeprecationHandler deprecationHandler) {
+        super(registry, deprecationHandler, RestApiVersion.current());
         this.root = root;
         this.row = row;
     }
@@ -662,6 +671,10 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
 
     @Override
     public byte[] binaryValue() {
+        if (currentToken == Token.VALUE_STRING) {
+            // Mirror JSON parsers: binary fields are supplied as base64 strings unless the column carries raw bytes.
+            return Base64.getDecoder().decode(text());
+        }
         return BytesRef.deepCopyOf(cachedBinary).bytes;
     }
 

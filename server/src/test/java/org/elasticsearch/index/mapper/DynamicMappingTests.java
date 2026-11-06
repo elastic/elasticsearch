@@ -1178,7 +1178,6 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     public void testVectordbColumnarDynamicStringsMapAsText() throws IOException {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createVectordbColumnarModeDocumentMapper(topMapping(b -> {}));
         ParsedDocument parsedDocument = mapper.parse(source(b -> b.field("title", "A dynamically mapped title")));
         Mapping update = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate());

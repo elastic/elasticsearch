@@ -369,6 +369,8 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             originalQuery.rescoreVectorBuilder(),
             originalQuery.getVectorSimilarity()
         );
+
+        // The filters are built in the chunks nested scope, the knn query evaluates each one at the level of the fields it reads
         innerKnnQuery.addFilterQueries(originalQuery.filterQueries());
 
         return QueryBuilders.nestedQuery(SemanticTextField.getChunksFieldName(getField()), innerKnnQuery, ScoreMode.Max)

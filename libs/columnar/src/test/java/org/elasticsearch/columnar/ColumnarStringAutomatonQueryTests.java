@@ -19,29 +19,34 @@ import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.IntFunction;
 
+import static org.elasticsearch.columnar.ColumnarStringQueryTestUtils.found;
+import static org.elasticsearch.columnar.ColumnarStringQueryTestUtils.indexOneSegment;
+import static org.elasticsearch.columnar.ColumnarStringQueryTestUtils.oneSlotEach;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
 import static org.elasticsearch.columnar.ColumnarTestUtils.stringPayload;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
- * A wildcard pattern answered by the column, over the shapes that answer it differently. Every pattern is
- * checked against what Lucene says the pattern means, so a pattern the query narrowed to a term, a prefix or
- * a run of bytes has to find exactly what running the automaton would have found.
+ * A wildcard automaton answered by the column, over the shapes that answer it differently. Every pattern is
+ * checked against what Lucene says the pattern means. Narrowing a pattern to a cheaper query is the caller's
+ * business and is tested where it is done.
  */
 public class ColumnarStringAutomatonQueryTests extends ESTestCase {
 
@@ -96,63 +101,16 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
     }
 
     /**
-     * A pattern that names one of the shapes a column answers directly is built as that query, so the column
-     * bisects or searches for bytes rather than running an automaton over every distinct value.
-     */
-    public void testForWildcardNarrowsToTheCheapestQuery() {
-        assertEquals(
-            ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"), ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "alpha", ScanBudget.UNLIMITED)
-        );
-        assertEquals(
-            ColumnarStringTermQuery.prefix(FIELD, new BytesRef("al"), ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*", ScanBudget.UNLIMITED)
-        );
-        // Every value, which is a prefix of no bytes rather than an automaton.
-        assertEquals(
-            ColumnarStringTermQuery.prefix(FIELD, new BytesRef(""), ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "*", ScanBudget.UNLIMITED)
-        );
-        assertEquals(
-            ColumnarStringTermQuery.contains(FIELD, new BytesRef("lph"), ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "*lph*", ScanBudget.UNLIMITED)
-        );
-    }
-
-    /** A pattern that names none of those shapes stays an automaton. */
-    public void testForWildcardKeepsTheAutomatonWhereItHasTo() {
-        // The empty pattern too: Lucene reads it as naming no value, not as naming the value of no bytes.
-        for (String pattern : new String[] { "*pha", "al*a", "alph?", "**", "a*b*c", "al\\*pha", "*a?c*", "" }) {
-            assertThat(
-                "pattern [" + pattern + "]",
-                ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED),
-                instanceOf(ColumnarStringAutomatonQuery.class)
-            );
-        }
-    }
-
-    /**
      * An automaton has no equality to cache on, so the query keys on what produced it. Two queries built from
      * the same pattern have to be the same query, and two built from different patterns have to differ, or a
      * cached filter would be handed to the wrong one.
      */
     public void testCacheIdentityFollowsThePattern() {
-        assertEquals(
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED)
-        );
-        assertEquals(
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED).hashCode(),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED).hashCode()
-        );
-        assertNotEquals(
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*b", ScanBudget.UNLIMITED)
-        );
-        assertNotEquals(
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED),
-            ColumnarStringAutomatonQuery.forWildcard("other", "al*a", ScanBudget.UNLIMITED)
-        );
+        final boolean singleValued = randomBoolean();
+        assertEquals(automatonFor("al*a", singleValued), automatonFor("al*a", singleValued));
+        assertEquals(automatonFor("al*a", singleValued).hashCode(), automatonFor("al*a", singleValued).hashCode());
+        assertNotEquals(automatonFor("al*a", singleValued), automatonFor("al*b", singleValued));
+        assertNotEquals(automatonFor("al*a", singleValued), automatonFor("other", "al*a", singleValued));
     }
 
     /**
@@ -178,15 +136,9 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                 final IndexSearcher searcher = new IndexSearcher(ColumnarTestUtils.hideTheColumn(reader));
                 for (String pattern : PATTERNS) {
                     assertEquals(
-                        "pattern [" + pattern + "] through an overlay",
-                        accepted(values, pattern),
-                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED))
-                    );
-                    // The narrowed shapes go through the overlay too, since forWildcard picks them first.
-                    assertEquals(
                         "pattern [" + pattern + "] as an automaton through an overlay",
                         accepted(values, pattern),
-                        found(searcher, automatonFor(pattern))
+                        found(searcher, automatonFor(pattern, false))
                     );
                 }
             }
@@ -203,9 +155,9 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
             d -> d % 7 == 3 ? null : d % 11 == 0 ? "" : d % 5 == 0 ? "alpine-" + d : TERMS[d % TERMS.length]
         );
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(ColumnarTestUtils.singleValuedStringCodec())
                 .setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = ColumnarTestUtils.singleValuedBinaryFieldType();
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (String value : values) {
                     final Document doc = new Document();
@@ -220,15 +172,70 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                 final IndexSearcher searcher = new IndexSearcher(ColumnarTestUtils.hideTheColumn(reader));
                 for (String pattern : PATTERNS) {
                     assertEquals(
-                        "pattern [" + pattern + "] through an overlay",
-                        accepted(values, pattern),
-                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED))
-                    );
-                    assertEquals(
                         "pattern [" + pattern + "] as an automaton through an overlay",
                         accepted(values, pattern),
-                        found(searcher, automatonFor(pattern))
+                        found(searcher, automatonFor(pattern, true))
                     );
+                }
+            }
+        }
+    }
+
+    public void testAColumnWithoutValuesMatchesNothing() throws IOException {
+        final List<String> values = values(200, d -> TERMS[d % TERMS.length]);
+        try (Directory dir = newDirectory()) {
+            indexOneSegment(dir, columnarCodec(ColumnarFieldType.STRING), FIELD, oneSlotEach(values));
+            try (DirectoryReader reader = DirectoryReader.open(dir); DirectoryReader dropped = ColumnarTestUtils.dropTheColumn(reader)) {
+                ColumnarTestUtils.assertBinaryFieldWithoutValues(dropped, FIELD);
+                final IndexSearcher searcher = new IndexSearcher(dropped);
+                for (String pattern : new String[] { "alpha", "*" }) {
+                    assertEquals("pattern [" + pattern + "]", List.of(), found(searcher, automatonFor(pattern, false)));
+                }
+            }
+        }
+    }
+
+    public void testQuestionMarkMatchesOneSupplementaryCharacter() throws IOException {
+        final List<String> values = List.of(new String(Character.toChars(0x1F600)), "ab", "a", "\u00e9");
+        try (Directory dir = newDirectory()) {
+            indexOneSegment(dir, columnarCodec(ColumnarFieldType.STRING), FIELD, oneSlotEach(values));
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(List.of(0, 2, 3), found(new IndexSearcher(reader), automatonFor("?", false)));
+            }
+        }
+    }
+
+    public void testNullSlotsNeverMatchThroughAnOverlaidColumn() throws IOException {
+        final BytesRef[][] docs = {
+            { null },
+            { new BytesRef("") },
+            { new BytesRef("alpha"), null },
+            null,
+            { null, null },
+            { null, new BytesRef("alpha") },
+            { null, new BytesRef("") },
+            { new BytesRef("miss"), null, new BytesRef("alpha") },
+            {} };
+        try (Directory dir = newDirectory()) {
+            indexOneSegment(dir, columnarCodec(ColumnarFieldType.STRING), FIELD, docs);
+            try (DirectoryReader reader = DirectoryReader.open(dir); DirectoryReader hidden = ColumnarTestUtils.hideTheColumn(reader)) {
+                assertThat(hidden.leaves().get(0).reader().getBinaryDocValues(FIELD), not(instanceOf(StringColumnSource.class)));
+                final IndexSearcher searcher = new IndexSearcher(hidden);
+                assertEquals("every value, null slots aside", List.of(1, 2, 5, 6, 7), acceptedSlots(docs, "*"));
+                final Map<String, Boolean> matchesSomething = new LinkedHashMap<>();
+                matchesSomething.put("*", true);
+                matchesSomething.put("alph?", true);
+                matchesSomething.put("alpha", true);
+                matchesSomething.put("zzz*", false);
+                for (final Map.Entry<String, Boolean> entry : matchesSomething.entrySet()) {
+                    final String pattern = entry.getKey();
+                    final List<Integer> expected = acceptedSlots(docs, pattern);
+                    assertEquals("pattern [" + pattern + "] accepts a value", entry.getValue(), expected.isEmpty() == false);
+                    assertFalse(
+                        "a null slot and an absent document never match",
+                        expected.contains(0) || expected.contains(3) || expected.contains(4) || expected.contains(8)
+                    );
+                    assertEquals("pattern [" + pattern + "]", expected, found(searcher, automatonFor(pattern, false)));
                 }
             }
         }
@@ -254,54 +261,61 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                 final IndexSearcher searcher = new IndexSearcher(reader);
                 for (String pattern : PATTERNS) {
                     assertEquals(
-                        "pattern [" + pattern + "]",
-                        accepted(values, pattern),
-                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED))
-                    );
-                    // The automaton is what the narrowed queries have to agree with, so it is asked too.
-                    assertEquals(
                         "pattern [" + pattern + "] as an automaton",
                         accepted(values, pattern),
-                        found(searcher, automatonFor(pattern))
+                        found(searcher, automatonFor(pattern, false))
                     );
                 }
             }
         }
     }
 
-    /** The query the pattern would be without any narrowing, which is what the narrowing has to match. */
-    private static Query automatonFor(String pattern) {
+    private static Query automatonFor(String pattern, boolean singleValued) {
+        return automatonFor(FIELD, pattern, singleValued);
+    }
+
+    private static Query automatonFor(String field, String pattern, boolean singleValued) {
         return new ColumnarStringAutomatonQuery(
-            FIELD,
+            field,
             Operations.determinize(
-                WildcardQuery.toAutomaton(new Term(FIELD, pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                WildcardQuery.toAutomaton(new Term(field, pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             ),
             "pattern=" + pattern,
+            singleValued,
             ScanBudget.UNLIMITED
         );
     }
 
     /** The documents whose value Lucene's automaton for the pattern accepts. */
     private static List<Integer> accepted(List<String> values, String pattern) {
+        final BytesRef[][] docs = new BytesRef[values.size()][];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = values.get(d) == null ? null : new BytesRef[] { new BytesRef(values.get(d)) };
+        }
+        return acceptedSlots(docs, pattern);
+    }
+
+    private static List<Integer> acceptedSlots(BytesRef[][] docs, String pattern) {
         final ByteRunAutomaton automaton = new ByteRunAutomaton(
             Operations.determinize(
                 WildcardQuery.toAutomaton(new Term(FIELD, pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             )
         );
-        final List<Integer> docs = new ArrayList<>();
-        for (int d = 0; d < values.size(); d++) {
-            final String value = values.get(d);
-            if (value == null) {
+        final List<Integer> matching = new ArrayList<>();
+        for (int d = 0; d < docs.length; d++) {
+            if (docs[d] == null) {
                 continue;
             }
-            final BytesRef bytes = new BytesRef(value);
-            if (automaton.run(bytes.bytes, bytes.offset, bytes.length)) {
-                docs.add(d);
+            for (BytesRef slot : docs[d]) {
+                if (slot != null && automaton.run(slot.bytes, slot.offset, slot.length)) {
+                    matching.add(d);
+                    break;
+                }
             }
         }
-        return docs;
+        return matching;
     }
 
     private static List<String> values(int count, IntFunction<String> value) {
@@ -312,13 +326,4 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
         return values;
     }
 
-    private static List<Integer> found(IndexSearcher searcher, Query query) throws IOException {
-        final TopDocs hits = searcher.search(query, Integer.MAX_VALUE);
-        final List<Integer> docs = new ArrayList<>();
-        for (ScoreDoc hit : hits.scoreDocs) {
-            docs.add(hit.doc);
-        }
-        docs.sort(Integer::compareTo);
-        return docs;
-    }
 }

@@ -228,6 +228,8 @@ FROM events_* METADATA _index
 | events_keyword | 2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889 | Connected to 10.1.0.2 |
 | events_keyword | 2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233 | Connected to 10.1.0.3 |
 
-Note that `_METADATA _index` will return `null` if the index pattern is a
-[subquery](/reference/query-languages/esql/esql-subquery.md) or a
-[view](/reference/query-languages/esql/esql-views.md).
+When a `FROM` source is a [subquery](esql-from-subquery.md#subqueries-with-metadata) or
+[view](esql-views.md#views-with-metadata), an outer `METADATA _index` request returns
+`null` unless that source retains `_index` in its output.
+
+For `_index` behavior on datasets, refer to [Use metadata columns](esql-data-federation-querying.md#use-metadata-columns).

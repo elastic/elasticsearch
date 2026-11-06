@@ -82,7 +82,7 @@ public class DeferredRegexExpression extends Expression implements PostOptimizat
 
     @Override
     public Nullability nullable() {
-        return Nullability.UNKNOWN;
+        return Nullability.TRUE;
     }
 
     /**

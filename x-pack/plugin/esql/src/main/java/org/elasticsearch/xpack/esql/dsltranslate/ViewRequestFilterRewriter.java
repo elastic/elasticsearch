@@ -16,9 +16,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.HashMap;
@@ -37,12 +37,12 @@ import static org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter.ES
  *
  * <p>This is the request-filter <em>policy</em> over the source-agnostic {@link FilterRewriter} mechanism, analogous to
  * {@link RequestFilterRewriter} for external datasets: it targets the subplan outputs of logical views — specifically,
- * every non-index child of a {@link ViewUnionAll} — and version-gates the rewrite. {@code FilterRewriter} does the
+ * every non-index child of a {@link BranchPlan} — and version-gates the rewrite. {@code FilterRewriter} does the
  * actual translation work (DSL → ES|QL expression, bound against the child's output schema), and the inserted
  * {@link Filter} enters the ordinary optimizer pipeline.
  *
  * <p>A logical view ({@code FROM viewName}) is expanded by {@link org.elasticsearch.xpack.esql.view.ViewResolver} into
- * its subquery plan, stored as a named child of a {@link ViewUnionAll}. That subplan may compute values (via
+ * its subquery plan, stored as a named child of a {@link BranchPlan}. That subplan may compute values (via
  * {@code STATS}, {@code EVAL}, {@code RENAME}, …) that do not correspond to any raw field in the view's source index.
  * Applying the request filter via the Lucene scan path (the index path, used for plain index relations) would therefore
  * push the filter into the source index <em>before</em> those computations, producing wrong results for computed or
@@ -50,7 +50,7 @@ import static org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter.ES
  * silently returning zero rows. This rewriter avoids that by inserting the filter <em>above</em> the view's subplan —
  * i.e., against the view's <em>output</em> schema — so it applies after the view's own processing.
  *
- * <p>Bare-index children of a {@link ViewUnionAll} (stored under the {@code null} key in the named-subqueries map) are
+ * <p>Bare-index children of a {@link BranchPlan} (stored under the {@code null} key in the named-subqueries map) are
  * left untouched: those are plain Elasticsearch index relations whose request filter is handled by the existing
  * pre-analysis Lucene-scan path.
  *
@@ -139,11 +139,11 @@ public final class ViewRequestFilterRewriter {
 
     /**
      * Rewrites {@code analyzed} so that {@code requestFilter} is applied as an ordinary {@link Filter} above each view
-     * subplan boundary in every {@link ViewUnionAll} node of the plan, bound against that boundary's output schema.
+     * subplan boundary in every {@link BranchPlan} node of the plan, bound against that boundary's output schema.
      *
      * @param analyzed       the fully analyzed logical plan — must have passed through
      *                       {@link org.elasticsearch.xpack.esql.view.ViewCompaction#postIndexResolution} so that
-     *                       {@link ViewUnionAll} nodes carry their resolved subplans.
+     *                       {@link BranchPlan} nodes carry their resolved subplans.
      * @param requestFilter  the Query DSL from the request; {@code null} means no filter and the plan is returned
      *                       unchanged.
      * @param configuration  the query configuration — anchors {@code now} date math so a request filter over a view
@@ -166,20 +166,9 @@ public final class ViewRequestFilterRewriter {
             warnPushedIntoSources(analyzed);
             return analyzed;
         }
-        // Walk down and stop at the first ViewUnionAll on each path: the filter belongs on the output of the views the
-        // *query* names, and a view nested inside another view's definition is an implementation detail of the outer
-        // view, not a boundary the request filter addresses. Filtering an inner boundary too would apply the predicate
-        // before the outer view's own processing — the very mistake the Lucene push-in path makes — and for a field the
-        // outer view computes it would bind to NULL there and silently drop every row.
         Set<String> skipped = new LinkedHashSet<>();
         Set<String> gated = new LinkedHashSet<>();
-        LogicalPlan rewritten = analyzed.transformDownSkipBranch((plan, skipBranch) -> {
-            if (plan instanceof ViewUnionAll vua) {
-                skipBranch.set(true);
-                return applyRequestFilterToViewBranches(vua, requestFilter, configuration, skipped, gated, minimumVersion);
-            }
-            return plan;
-        });
+        LogicalPlan rewritten = rewriteViewBoundaries(analyzed, requestFilter, configuration, skipped, gated, minimumVersion);
         if (skipped.isEmpty() == false || gated.isEmpty() == false) {
             warnUnsupportedClauses(skipped, gated);
         }
@@ -190,16 +179,49 @@ public final class ViewRequestFilterRewriter {
     }
 
     /**
-     * Installs the filter above every actual view branch of {@code vua}, bound against that branch's output schema.
+     * Walks {@code plan} and filters every {@link BranchPlan} it reaches, descending into non-view branches but never
+     * into view branches.
      *
-     * <p>Bare-index and literal-subquery branches are left alone — they are not view branches and the existing
-     * Lucene-scan path handles them. {@link ViewUnionAll#isViewBranch(String)} is the test to use: {@code key != null}
-     * is not sufficient, because bare-index branches carry {@code "main"} and literal subqueries carry
+     * <p>The filter belongs on the output of the views the <em>query</em> names. A view nested inside another view's
+     * definition is an implementation detail of the outer view, not a boundary the request filter addresses: filtering
+     * it too would apply the predicate before the outer view's own processing — the very mistake the Lucene push-in
+     * path makes — and for a field the outer view computes it would bind to NULL there and silently drop every row. So
+     * the walk stops at each view branch. A view nested inside a <em>non-view</em> branch — a user-written subquery, say
+     * {@code FROM a, (FROM my_view | WHERE x > 0)} — is one the query names, so the walk continues through such branches
+     * and filters that view's output in turn. Nothing else would: its source fragments are marked as view-branch
+     * fragments and skipped by the Lucene push-in path, and a dataset inside it is skipped by
+     * {@link RequestFilterRewriter} for the same reason.
+     */
+    private static LogicalPlan rewriteViewBoundaries(
+        LogicalPlan plan,
+        QueryBuilder requestFilter,
+        Configuration configuration,
+        Set<String> skipped,
+        Set<String> gated,
+        TransportVersion minimumVersion
+    ) {
+        return plan.transformDownSkipBranch((node, skipBranch) -> {
+            if (node instanceof BranchPlan vua) {
+                // applyRequestFilterToViewBranches recurses into the non-view branches itself.
+                skipBranch.set(true);
+                return applyRequestFilterToViewBranches(vua, requestFilter, configuration, skipped, gated, minimumVersion);
+            }
+            return node;
+        });
+    }
+
+    /**
+     * Installs the filter above every actual view branch of {@code vua}, bound against that branch's output schema, and
+     * recurses into the other branches via {@link #rewriteViewBoundaries} so that views nested in them are filtered too.
+     *
+     * <p>Bare-index and literal-subquery branches are not themselves filtered here — they are not view branches and the
+     * existing Lucene-scan (or dataset) path handles them. {@link BranchPlan#isViewBranch(String)} is the test to use:
+     * {@code key != null} is not sufficient, because bare-index branches carry {@code "main"} and literal subqueries carry
      * {@code "unnamed_view_<hash>"}. Unsupported constructs are recorded in {@code skipped} as {@code [construct] on view [name]}
      * and the translatable remainder is installed; the caller warns once for the whole plan.
      */
     private static LogicalPlan applyRequestFilterToViewBranches(
-        ViewUnionAll vua,
+        BranchPlan vua,
         QueryBuilder requestFilter,
         Configuration configuration,
         Set<String> skipped,
@@ -212,12 +234,15 @@ public final class ViewRequestFilterRewriter {
             String key = entry.getKey();
             LogicalPlan child = entry.getValue();
             if (vua.isViewBranch(key) == false) {
-                newSubqueries.put(key, child);
+                LogicalPlan rewrittenChild = rewriteViewBoundaries(child, requestFilter, configuration, skipped, gated, minimumVersion);
+                newSubqueries.put(key, rewrittenChild);
+                changed |= rewrittenChild != child;
             } else {
                 QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration, minimumVersion);
                 // The same construct can fail more than once on one view (two wildcard clauses, say); the set keeps the header short.
                 for (QueryDslTranslator.UnsupportedClause unsupported : result.unsupported()) {
-                    String where = "[" + unsupported.construct() + "] on view [" + key + "]";
+                    // The identity's name, not the map key: keys are uniquified labels ("meow~2"), names are the view's own.
+                    String where = "[" + unsupported.construct() + "] on view [" + vua.branchIdentity(key).name() + "]";
                     // Name the version reason, as RequestFilterRewriter does; "not supported" would be wrong.
                     if (unsupported.reason() == null) {
                         skipped.add(where);
@@ -239,8 +264,8 @@ public final class ViewRequestFilterRewriter {
         if (changed == false) {
             return vua;
         }
-        // Output columns are unchanged: a Filter never adds columns. Preserve viewBranchKeys.
-        return new ViewUnionAll(vua.source(), newSubqueries, vua.viewBranchKeys(), vua.output());
+        // Output columns are unchanged: a Filter never adds columns. Identities carry over untouched.
+        return new BranchPlan(vua.source(), newSubqueries, vua.branchIdentities(), vua.output());
     }
 
     /**
@@ -284,9 +309,11 @@ public final class ViewRequestFilterRewriter {
      */
     private static void warnPushedIntoSources(LogicalPlan plan) {
         TreeSet<String> viewNames = new TreeSet<>();
-        plan.forEachDown(ViewUnionAll.class, vua -> {
-            for (String key : vua.viewBranchKeys()) {
-                viewNames.add(key);
+        plan.forEachDown(BranchPlan.class, vua -> {
+            for (var identity : vua.branchIdentities().values()) {
+                if (identity.isView()) {
+                    viewNames.add(identity.name());
+                }
             }
         });
         if (viewNames.isEmpty() == false) {

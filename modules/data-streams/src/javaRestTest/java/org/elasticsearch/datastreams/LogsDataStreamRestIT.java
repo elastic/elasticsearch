@@ -85,7 +85,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         waitForLogs(client);
     }
 
-    private static void waitForLogs(RestClient client) throws Exception {
+    static void waitForLogs(RestClient client) throws Exception {
         assertBusy(() -> {
             try {
                 Request request = new Request("GET", "_index_template/logs");
@@ -1123,9 +1123,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         registerRepository(repository, type, false, settings.build());
     }
 
-    private void assertDataStreamBackingIndexMode(final String indexMode, int backingIndex, final String dataStreamName)
-        throws IOException {
-        assertThat(getSettings(client, getWriteBackingIndex(client, dataStreamName, backingIndex)).get("index.mode"), is(indexMode));
+    static void assertDataStreamBackingIndexMode(final String indexMode, int backingIndex, final String dataStreamName) throws IOException {
+        assertThat(getSettings(client(), getWriteBackingIndex(client(), dataStreamName, backingIndex)).get("index.mode"), is(indexMode));
     }
 
     static String document(
@@ -1150,7 +1149,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         );
     }
 
-    private static void createDataStream(final RestClient client, final String dataStreamName) throws IOException {
+    static void createDataStream(final RestClient client, final String dataStreamName) throws IOException {
         Request request = new Request("PUT", "_data_stream/" + dataStreamName);
         assertOK(client.performRequest(request));
     }
@@ -1169,7 +1168,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertThat(entityAsMap(response).get("result"), equalTo("created"));
     }
 
-    private static void rolloverDataStream(final RestClient client, final String dataStreamName) throws IOException {
+    static void rolloverDataStream(final RestClient client, final String dataStreamName) throws IOException {
         final Request request = new Request("POST", "/" + dataStreamName + "/_rollover");
         final Response response = client.performRequest(request);
         assertOK(response);
@@ -1177,7 +1176,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
+    static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
         final Request request = new Request("GET", "_data_stream/" + dataStreamName);
         final List<Object> dataStreams = (List<Object>) entityAsMap(client.performRequest(request)).get("data_streams");
         final Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
@@ -1186,7 +1185,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> getSettings(final RestClient client, final String indexName) throws IOException {
+    static Map<String, Object> getSettings(final RestClient client, final String indexName) throws IOException {
         final Request request = new Request("GET", "/" + indexName + "/_settings?flat_settings");
         return ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName)).get("settings");
     }

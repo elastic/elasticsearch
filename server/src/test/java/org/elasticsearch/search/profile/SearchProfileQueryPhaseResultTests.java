@@ -27,9 +27,15 @@ public class SearchProfileQueryPhaseResultTests extends AbstractWireSerializingT
             queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
         }
         AggregationProfileShardResult aggProfileShardResult = AggregationProfileShardResultTests.createTestItem(1);
+        List<ProfileResult> rescoreProfileResults = new ArrayList<>();
+        int rescoreItems = randomIntBetween(0, 2);
+        for (int r = 0; r < rescoreItems; r++) {
+            rescoreProfileResults.add(ProfileResultTests.createTestItem(2));
+        }
         SearchProfileQueryPhaseResult searchProfileQueryPhaseResult = new SearchProfileQueryPhaseResult(
             queryProfileResults,
-            aggProfileShardResult
+            aggProfileShardResult,
+            rescoreProfileResults
         );
         if (randomBoolean()) {
             searchProfileQueryPhaseResult.setSearchProfileDfsPhaseResult(SearchProfileDfsPhaseResultTests.createTestItem());

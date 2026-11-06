@@ -33,7 +33,7 @@ import java.util.List;
  */
 public class ESSynonymMapBuilderTests extends ESTokenStreamTestCase {
 
-    private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("test");
+    private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = NoopCircuitBreaker.INSTANCE;
 
     private record SynonymRule(CharsRef input, CharsRef output, boolean includeOrig) {}
 

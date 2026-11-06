@@ -28,6 +28,8 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
 
     private final List<Alias> fields;
 
+    private List<Attribute> lazyOutput;
+
     public Row(Source source, List<Alias> fields) {
         super(source);
         this.fields = fields;
@@ -49,7 +51,10 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(fields, List.of());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(fields, List.of());
+        }
+        return lazyOutput;
     }
 
     @Override
@@ -78,7 +83,7 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
     @Override
     public void postAnalysisVerification(Failures failures) {
         fields.forEach(a -> {
-            if (DataType.isRepresentable(a.dataType()) == false) {
+            if (DataType.isRepresentableInExpression(a.dataType()) == false) {
                 failures.add(fail(a.child(), "cannot use [{}] directly in a row assignment", a.child().sourceText()));
             }
         });

@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -22,6 +24,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.InferenceContextTests;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
+import org.elasticsearch.xpack.core.inference.action.DecisionAction;
+import org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
@@ -35,8 +41,11 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -468,4 +477,228 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
         verify(client, times(1)).execute(eq(RerankAction.INSTANCE), captor.capture(), any());
         assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
     }
+
+    public void testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest_TimeoutSpecified() {
+        testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest_NullTimeout() {
+        testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest(null, TIMEOUT_NOT_DETERMINED);
+    }
+
+    public void testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest_TimeoutNotDetermined() {
+        testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
+    }
+
+    private void testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest(TimeValue timeout, TimeValue expectedTimeout) {
+        @SuppressWarnings("unchecked")
+        ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) mock(ActionListener.class);
+        var request = new InferenceActionProxy.Request(
+            TaskType.DECISION,
+            "id",
+            new BytesArray(DECISION_REQUEST_JSON),
+            XContentType.JSON,
+            timeout,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        action.doExecute(mock(Task.class), request, listener);
+
+        var captor = ArgumentCaptor.forClass(DecisionAction.Request.class);
+        verify(client, times(1)).execute(eq(DecisionAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
+    }
+
+    public void testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage_TimeoutSpecified() {
+        testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage_NullTimeout() {
+        testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage(null, TIMEOUT_NOT_DETERMINED);
+    }
+
+    public void testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage_TimeoutNotDetermined() {
+        testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
+    }
+
+    private void testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage(TimeValue timeout, TimeValue expectedTimeout) {
+        doAnswer(invocation -> {
+            ActionListener<UnparsedModel> listener = invocation.getArgument(1);
+            listener.onResponse(new UnparsedModel("id", TaskType.DECISION, "service", Collections.emptyMap(), Collections.emptyMap()));
+
+            return Void.TYPE;
+        }).when(modelRegistry).getModelWithSecrets(any(), any());
+
+        var listener = new TestPlainActionFuture<InferenceAction.Response>();
+        var request = new InferenceActionProxy.Request(
+            TaskType.ANY,
+            "id",
+            new BytesArray(DECISION_REQUEST_JSON),
+            XContentType.JSON,
+            timeout,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        action.doExecute(mock(Task.class), request, listener);
+
+        var captor = ArgumentCaptor.forClass(DecisionAction.Request.class);
+        verify(client, times(1)).execute(eq(DecisionAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
+    }
+
+    public void testOriginSwitchPreservesRequestMetadataAndRestoresCallerContext() {
+        var context = InferenceContextTests.context("use", "solution", "feature", "interaction", "trace", "user", "space");
+        record Case(TaskType taskType, String json, boolean streaming) {}
+        var cases = List.of(
+            new Case(TaskType.COMPLETION, """
+                {"input":["some text"]}
+                """, false),
+            new Case(TaskType.CHAT_COMPLETION, """
+                {
+                    "model": "gpt-4o",
+                    "messages": [
+                        {"role": "user", "content": [{"text": "some text", "type": "text"}]}
+                    ]
+                }
+                """, true),
+            new Case(TaskType.EMBEDDING, """
+                {"input":[{"content":{"value":"some text","type":"text"}}]}
+                """, false),
+            new Case(TaskType.RERANK, """
+                {"input":["doc1","doc2"],"query":"some query"}
+                """, false),
+            new Case(TaskType.DOCUMENT_EXTRACTION, DOCUMENT_EXTRACTION_REQUEST_JSON, false),
+            new Case(TaskType.DECISION, DECISION_REQUEST_JSON, false)
+        );
+
+        doAnswer(invocation -> {
+            var threadContext = threadPool.getThreadContext();
+            assertThat(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME), equalTo(INFERENCE_ORIGIN));
+            assertThat(threadContext.getHeader("X-Custom-Caller"), nullValue());
+            ActionRequest dispatched = invocation.getArgument(1);
+            assertThat(((BaseInferenceActionRequest) dispatched).getContext(), equalTo(context));
+            return null;
+        }).when(client).execute(any(), any(), any());
+
+        for (var testCase : cases) {
+            try (var ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader("X-Custom-Caller", "caller");
+                var request = new InferenceActionProxy.Request(
+                    testCase.taskType(),
+                    "id",
+                    new BytesArray(testCase.json()),
+                    XContentType.JSON,
+                    TimeValue.ONE_MINUTE,
+                    testCase.streaming(),
+                    context
+                );
+
+                var listener = new TestPlainActionFuture<InferenceAction.Response>();
+                action.doExecute(mock(Task.class), request, listener);
+                assertFalse(listener.isDone());
+
+                assertThat(threadPool.getThreadContext().getHeader("X-Custom-Caller"), equalTo("caller"));
+                assertThat(threadPool.getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME), nullValue());
+            }
+        }
+    }
+
+    public void testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest_TimeoutSpecified() {
+        testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest_NullTimeout() {
+        testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest(null, TIMEOUT_NOT_DETERMINED);
+    }
+
+    public void testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest_TimeoutNotDetermined() {
+        testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
+    }
+
+    private void testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest(
+        TimeValue timeout,
+        TimeValue expectedTimeout
+    ) {
+        @SuppressWarnings("unchecked")
+        ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) mock(ActionListener.class);
+        var request = new InferenceActionProxy.Request(
+            TaskType.DOCUMENT_EXTRACTION,
+            "id",
+            new BytesArray(DOCUMENT_EXTRACTION_REQUEST_JSON),
+            XContentType.JSON,
+            timeout,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        action.doExecute(mock(Task.class), request, listener);
+
+        var captor = ArgumentCaptor.forClass(DocumentExtractionAction.Request.class);
+        verify(client, times(1)).execute(eq(DocumentExtractionAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
+    }
+
+    public void testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage_TimeoutSpecified() {
+        testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage_NullTimeout() {
+        testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage(null, TIMEOUT_NOT_DETERMINED);
+    }
+
+    public void testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage_TimeoutNotDetermined() {
+        testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
+    }
+
+    private void testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage(
+        TimeValue timeout,
+        TimeValue expectedTimeout
+    ) {
+        doAnswer(invocation -> {
+            ActionListener<UnparsedModel> listener = invocation.getArgument(1);
+            listener.onResponse(
+                new UnparsedModel("id", TaskType.DOCUMENT_EXTRACTION, "service", Collections.emptyMap(), Collections.emptyMap())
+            );
+
+            return Void.TYPE;
+        }).when(modelRegistry).getModelWithSecrets(any(), any());
+
+        var listener = new TestPlainActionFuture<InferenceAction.Response>();
+        var request = new InferenceActionProxy.Request(
+            TaskType.ANY,
+            "id",
+            new BytesArray(DOCUMENT_EXTRACTION_REQUEST_JSON),
+            XContentType.JSON,
+            timeout,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        action.doExecute(mock(Task.class), request, listener);
+
+        var captor = ArgumentCaptor.forClass(DocumentExtractionAction.Request.class);
+        verify(client, times(1)).execute(eq(DocumentExtractionAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
+    }
+
+    private static final String DECISION_REQUEST_JSON = """
+        {
+            "input": "I was charged twice for my order."
+        }
+        """;
+
+    private static final String DOCUMENT_EXTRACTION_REQUEST_JSON = """
+        {
+            "input": [
+                {
+                   "content": {
+                        "value": "data:application/pdf;base64,abcd",
+                        "type": "pdf"
+                    }
+                }
+            ]
+        }
+        """;
 }

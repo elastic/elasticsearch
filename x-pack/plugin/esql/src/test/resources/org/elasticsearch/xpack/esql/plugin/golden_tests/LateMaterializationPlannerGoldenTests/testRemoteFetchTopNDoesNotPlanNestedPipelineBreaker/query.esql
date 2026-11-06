@@ -1,6 +1,0 @@
-FROM employees
-| SORT salary DESC
-| LIMIT 100
-| SORT hire_date
-| LIMIT 20
-| KEEP hire_date, salary, emp_no

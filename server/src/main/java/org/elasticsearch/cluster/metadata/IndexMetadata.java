@@ -728,7 +728,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final boolean useTimeSeriesSyntheticId;
 
-    private final boolean sequenceNumbersDisabled;
+    // Lazily resolved and idempotent, so it is neither volatile nor synchronized.
+    private Boolean sequenceNumbersDisabled;
 
     private IndexMetadata(
         final Index index,
@@ -782,8 +783,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final Double writeLoadForecast,
         @Nullable Long shardSizeInBytesForecast,
         @Nullable IndexReshardingMetadata reshardingMetadata,
-        final boolean useTimeSeriesSyntheticId,
-        final boolean sequenceNumbersDisabled
+        final boolean useTimeSeriesSyntheticId
     ) {
         this.index = index;
         this.version = version;
@@ -847,7 +847,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
         this.reshardingMetadata = reshardingMetadata;
         this.useTimeSeriesSyntheticId = useTimeSeriesSyntheticId;
-        this.sequenceNumbersDisabled = sequenceNumbersDisabled;
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
@@ -906,8 +905,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId,
-            this.sequenceNumbersDisabled
+            this.useTimeSeriesSyntheticId
         );
     }
 
@@ -973,8 +971,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId,
-            this.sequenceNumbersDisabled
+            this.useTimeSeriesSyntheticId
         );
     }
 
@@ -1048,8 +1045,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId,
-            this.sequenceNumbersDisabled
+            this.useTimeSeriesSyntheticId
         );
     }
 
@@ -1114,8 +1110,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId,
-            this.sequenceNumbersDisabled
+            this.useTimeSeriesSyntheticId
         );
     }
 
@@ -1175,8 +1170,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId,
-            this.sequenceNumbersDisabled
+            this.useTimeSeriesSyntheticId
         );
     }
 
@@ -1345,8 +1339,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return isFrozen;
     }
 
-    public boolean sequenceNumbersDisabled() {
-        return sequenceNumbersDisabled;
+    /**
+     * Whether sequence numbers are disabled. The node settings are needed because the default depends on whether the node is stateless.
+     * The result is cached, so all calls on one instance must pass the settings of the same node.
+     */
+    public boolean sequenceNumbersDisabled(Settings nodeSettings) {
+        Boolean disabled = sequenceNumbersDisabled;
+        if (disabled == null) {
+            disabled = IndexSettings.sequenceNumbersDisabled(settings, nodeSettings);
+            sequenceNumbersDisabled = disabled;
+        }
+        return disabled;
     }
 
     /**
@@ -2624,9 +2627,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
             final boolean isTsdb = IndexMode.isTsdb(indexMode);
             boolean useTimeSeriesSyntheticId = shouldUseTimeSeriesSyntheticId(isTsdb, indexCreatedVersion, settings);
-            final boolean sequenceNumbersDisabled = indexCreatedVersion.onOrAfter(
-                IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT
-            ) && settings.getAsBoolean(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -2680,8 +2680,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexWriteLoadForecast,
                 shardSizeInBytesForecast,
                 reshardingMetadata,
-                useTimeSeriesSyntheticId,
-                sequenceNumbersDisabled
+                useTimeSeriesSyntheticId
             );
         }
 

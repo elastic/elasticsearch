@@ -79,7 +79,7 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#1056: a list column is published with a size marker but no null count. Across a
+     * A list column is published with a size marker but no null count. Across a
      * multi-file UNION merge it is "present but null-count-less" in every file and must be poisoned —
      * the merged map keeps the size key (so {@code findColumn} hits) but drops the null_count key, so
      * {@code COUNT} declines and scans instead of being answered as 0. A flat column keeps its count.

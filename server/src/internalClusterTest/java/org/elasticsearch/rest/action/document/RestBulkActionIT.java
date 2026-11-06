@@ -126,10 +126,9 @@ public class RestBulkActionIT extends ESIntegTestCase {
             """);
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
-        Request bulkWithSlice = new Request("POST", "/" + index + "/_bulk");
-        bulkWithSlice.addParameter("slice", "s1");
+        Request bulkWithSlice = new Request("POST", "/" + index + "/s1/_bulk");
         bulkWithSlice.setJsonEntity("""
             {"index":{"_id":"2"}}
             {"field":"value2"}
@@ -160,7 +159,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
             """);
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
     }
 
     public void testBulkRoutingRejectedWhenSliceSettingEnabled() throws Exception {
@@ -189,7 +188,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
             new InputStreamReader(topLevelRoutingException.getResponse().getEntity().getContent(), UTF_8)
         );
         assertThat(topLevelRoutingResponse, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(topLevelRoutingResponse, containsString("use [slice] instead"));
+        assertThat(topLevelRoutingResponse, containsString("use [_slice] instead"));
 
         Request itemRouting = new Request("POST", "/" + index + "/_bulk");
         itemRouting.setJsonEntity("""
@@ -201,7 +200,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
             new InputStreamReader(itemRoutingException.getResponse().getEntity().getContent(), UTF_8)
         );
         assertThat(itemRoutingResponse, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(itemRoutingResponse, containsString("use [slice] instead"));
+        assertThat(itemRoutingResponse, containsString("use [_slice] instead"));
     }
 
     public void testBulkSliceRequiredWhenWritingViaAlias() throws Exception {
@@ -239,10 +238,9 @@ public class RestBulkActionIT extends ESIntegTestCase {
             """);
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulkMissingSlice));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
-        Request bulkWithSlice = new Request("POST", "/" + alias + "/_bulk");
-        bulkWithSlice.addParameter("slice", "s1");
+        Request bulkWithSlice = new Request("POST", "/" + alias + "/s1/_bulk");
         bulkWithSlice.setJsonEntity("""
             {"index":{"_id":"2"}}
             {"field":"value2"}
@@ -263,8 +261,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request bulk = new Request("POST", "/" + index + "/_bulk");
-        bulk.addParameter("slice", "s1");
+        Request bulk = new Request("POST", "/" + index + "/s1/_bulk");
         bulk.setJsonEntity("""
             {"index":{"_id":"1"}}
             {"field":"value1"}
@@ -278,8 +275,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
         assertThat(bulkResponsePath.evaluate("items.1.update.result"), equalTo("updated"));
         assertThat(bulkResponsePath.evaluate("items.2.delete.result"), equalTo("deleted"));
 
-        Request getDeletedDoc = new Request("GET", "/" + index + "/_doc/1");
-        getDeletedDoc.addParameter("slice", "s1");
+        Request getDeletedDoc = new Request("GET", "/" + index + "/s1/_doc/1");
         ResponseException getException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(getDeletedDoc));
         String getResponse = Streams.copyToString(new InputStreamReader(getException.getResponse().getEntity().getContent(), UTF_8));
         assertThat(getResponse, containsString("\"found\":false"));
@@ -287,15 +283,14 @@ public class RestBulkActionIT extends ESIntegTestCase {
 
     public void testBulkSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request bulk = new Request("POST", "/test_index/_bulk");
-        bulk.addParameter("slice", "s1");
+        Request bulk = new Request("POST", "/test_index/s1/_bulk");
         bulk.setJsonEntity("""
             {"index":{"_id":"1"}}
             {"field":"value1"}
             """);
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("request does not support [slice]"));
+        assertThat(response, containsString("request does not support [_slice]"));
     }
 
     public void testBulkSliceRejectedWhenSettingDisabled() throws Exception {
@@ -310,14 +305,13 @@ public class RestBulkActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request bulk = new Request("POST", "/" + index + "/_bulk");
-        bulk.addParameter("slice", "s1");
+        Request bulk = new Request("POST", "/" + index + "/s1/_bulk");
         bulk.setJsonEntity("""
             {"index":{"_id":"1"}}
             {"field":"value1"}
             """);
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(bulk));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(response, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 }

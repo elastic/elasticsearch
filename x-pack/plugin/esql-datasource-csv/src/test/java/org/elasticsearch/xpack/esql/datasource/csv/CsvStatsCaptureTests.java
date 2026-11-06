@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -47,7 +48,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /** SKIP_ROW emits HeaderWarning; drop the context so ensureNoWarnings sees an empty list. */
@@ -316,6 +317,9 @@ public class CsvStatsCaptureTests extends ESTestCase {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         Instant fixedMtime = Instant.now();
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

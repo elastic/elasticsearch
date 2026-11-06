@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.oteldata.otlp;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
-import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.Exemplar;
 
 import org.apache.lucene.util.BytesRef;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
@@ -34,27 +34,26 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
-import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.ExemplarDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
-import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricColumnarBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTLPMetricBatchBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -62,7 +61,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -96,6 +94,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     private final ClusterService clusterService;
     private final BatchIndexingEnabled batchIndexingEnabled;
     private final Recycler<BytesRef> bytesRefRecycler;
+    private volatile boolean exemplarIngestionEnabled;
 
     @Inject
     public OTLPMetricsTransportAction(
@@ -113,6 +112,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         clusterSettings.addSettingsUpdateConsumer(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, histogramFieldTypeSetting -> {
             defaultMappingHints = MappingHints.fromSettings(histogramFieldTypeSetting);
         });
+        clusterSettings.initializeAndWatch(XPackSettings.METRIC_EXEMPLARS_ENABLED, enabled -> exemplarIngestionEnabled = enabled);
         this.clusterService = clusterService;
         this.batchIndexingEnabled = new BatchIndexingEnabled(clusterSettings);
         this.bytesRefRecycler = bigArrays.bytesRefRecycler();
@@ -139,7 +139,6 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
         ProjectMetadata projectMetadata = clusterService.state().projectState(ProjectId.DEFAULT).metadata();
 
-        // Collect all groups in a single pass so we can check ESCF eligibility before committing any rows.
         // A BulkRequest carries at most one pre-built batch (keyed by index-abstraction name), so the ESCF
         // path requires all groups to target the same data stream. Groups targeting different data streams
         // fall through to doc-mode. Within a single data stream, BatchModeRouter handles routing to
@@ -147,36 +146,45 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         List<DataPointGroupingContext.DataPointGroup> allGroups = new ArrayList<>();
         context.consume(allGroups::add);
 
-        boolean exemplarIngestionEnabled = OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled();
-
+        // Snapshot volatile setting to have it consistent for this request
+        boolean exemplarIngestionEnabled = this.exemplarIngestionEnabled;
+        int totalItems = allGroups.stream().mapToInt(group -> group.dataPoints().size()).sum();
+        ExpandedContentTracker expandedContentTracker = expandedContentTracker(request, totalItems);
         if (canUseBatchIndexing(exemplarIngestionEnabled, projectMetadata, allGroups)) {
             String firstTarget = allGroups.getFirst().targetIndex().index();
-            MetricColumnarBuilder metricColumnarBuilder = new MetricColumnarBuilder(defaultMappingHints);
-            addEscfBatch(bulkRequestBuilder, metricColumnarBuilder, allGroups, firstTarget);
-            return context;
+            // Optimistically try to write every group as scalar ESCF columns in one pass, rather than first
+            // scanning all groups to rule out non-scalar attributes/data points. If a later group turns out
+            // ineligible, tryAddEscfBatch discards everything it built and returns false; we then fall
+            // through to the doc-mode loop below for the whole request, exactly as if canUseBatchIndexing
+            // had returned false in the first place.
+            if (tryAddEscfBatch(bulkRequestBuilder, allGroups, firstTarget, expandedContentTracker)) {
+                return context;
+            }
         }
 
-        long totalExpandedBytes = 0;
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
         ExemplarDocumentBuilder exemplarDocumentBuilder = exemplarIngestionEnabled ? new ExemplarDocumentBuilder(byteStringAccessor) : null;
+        // Resolving a layout parses the prefixed dimensions setting and compiles its matcher, so resolve each target index once per
+        // request rather than once per group. Keyed by backing index name, or by data stream name when the data stream does not
+        // exist yet; the two namespaces cannot collide.
+        Map<String, TsidLayout> tsidLayouts = new HashMap<>();
         for (DataPointGroupingContext.DataPointGroup group : allGroups) {
-            IndexVersion indexVersion = resolveIndexVersion(projectMetadata, group);
-            totalExpandedBytes = addIndexRequestDocMode(bulkRequestBuilder, metricDocumentBuilder, group, indexVersion, totalExpandedBytes);
+            TsidLayout tsidLayout = resolveTsidLayout(projectMetadata, group, tsidLayouts);
+            addIndexRequestDocMode(bulkRequestBuilder, metricDocumentBuilder, group, tsidLayout, expandedContentTracker);
         }
         if (exemplarDocumentBuilder != null) {
             int firstExemplarDocumentPosition = bulkRequestBuilder.numberOfActions();
             Set<ExemplarIdentity> exemplarIdentities = new HashSet<>();
-            Map<String, IndexVersion> exemplarIndexVersions = new HashMap<>();
             for (DataPointGroupingContext.DataPointGroup group : allGroups) {
-                totalExpandedBytes = addExemplarIndexRequests(
+                addExemplarIndexRequests(
                     bulkRequestBuilder,
                     exemplarDocumentBuilder,
                     group,
                     context,
                     projectMetadata,
-                    exemplarIndexVersions,
+                    tsidLayouts,
                     exemplarIdentities,
-                    totalExpandedBytes
+                    expandedContentTracker
                 );
             }
             if (bulkRequestBuilder.numberOfActions() > firstExemplarDocumentPosition) {
@@ -199,8 +207,9 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             return false;
         }
         String firstTarget = groups.getFirst().targetIndex().index();
+        // Deliberately no data-dependent scalar-value check here: tryAddEscfBatch attempts the ESCF path
+        // optimistically and falls back to doc-mode for the whole request if it turns out ineligible.
         return groups.stream().allMatch(group -> firstTarget.equals(group.targetIndex().index()))
-            && isEscfEligible(groups)
             && resolveEscfEligible(projectMetadata, firstTarget, groups);
     }
 
@@ -220,70 +229,35 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     // -------------------------------------------------------------------------
 
     /**
-     * Returns {@code true} when every group in the list can be written as scalar ESCF columns, i.e. all
-     * data points support columnar values and all attributes are scalar (no ARRAY/KVLIST/BYTES values).
+     * Optimistically attempts to write every group in {@code groups} as scalar ESCF columns into a single
+     * {@link OTLPMetricBatchBuilder}, registering the resulting batch on {@code bulkRequestBuilder} on
+     * success. Returns {@code false} without mutating {@code bulkRequestBuilder} if any group turns out
+     * ineligible (a non-scalar attribute or an unsupported data point) —
+     * {@link OTLPMetricBatchBuilder#buildMetricRow} discovers this the moment it tries to write the
+     * offending value, rather than this method scanning every group's data upfront. On failure, the
+     * caller falls back to the doc-mode (XContent) path for the whole request.
      */
-    static boolean isEscfEligible(List<DataPointGroupingContext.DataPointGroup> groups) {
-        for (DataPointGroupingContext.DataPointGroup group : groups) {
-            for (int i = 0; i < group.dataPoints().size(); i++) {
-                if (group.dataPoints().get(i).supportsColumnarValue() == false) {
-                    return false;
-                }
-            }
-            if (MetricColumnarBuilder.hasNonScalarAttributes(group.dataPointAttributes())) {
-                return false;
-            }
-            if (MetricColumnarBuilder.hasNonScalarAttributes(group.resource().getAttributesList())) {
-                return false;
-            }
-            if (MetricColumnarBuilder.hasNonScalarAttributes(group.scope().getAttributesList())) {
-                return false;
-            }
-            // OTel attribute lists allow duplicate keys; EscfRowBuffer rejects them. Detect here to
-            // avoid a mid-batch IllegalArgumentException that would propagate as a 500.
-            if (hasDuplicateAttributeKeys(group.dataPointAttributes())
-                || hasDuplicateAttributeKeys(group.resource().getAttributesList())
-                || hasDuplicateAttributeKeys(group.scope().getAttributesList())) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static boolean hasDuplicateAttributeKeys(List<KeyValue> attributes) {
-        if (attributes.size() <= 1) {
-            return false;
-        }
-        Set<String> seen = new HashSet<>(attributes.size());
-        for (int i = 0; i < attributes.size(); i++) {
-            if (seen.add(attributes.get(i).getKey()) == false) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void addEscfBatch(
+    private boolean tryAddEscfBatch(
         BulkRequestBuilder bulkRequestBuilder,
-        MetricColumnarBuilder metricColumnarBuilder,
         List<DataPointGroupingContext.DataPointGroup> groups,
-        String target
+        String target,
+        ExpandedContentTracker expandedContentTracker
     ) throws IOException {
-        // Collect (rowIndex -> IndexRequest) during the build pass, then attach source rows after buildPartition.
-        Map<Integer, IndexRequest> rowRequests = new LinkedHashMap<>(groups.size());
-        try (EscfBatchBuilder batchBuilder = new EscfBatchBuilder(bytesRefRecycler)) {
+        // Collect the per-row IndexRequests locally; they are only added to the real bulkRequestBuilder
+        // (and the batch only registered) once every group has been written successfully, so a mid-batch
+        // failure leaves bulkRequestBuilder untouched and safe to replay via doc-mode.
+        List<IndexRequest> indexRequests = new ArrayList<>(groups.size());
+        try (OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(bytesRefRecycler, defaultMappingHints)) {
             for (DataPointGroupingContext.DataPointGroup group : groups) {
                 var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(group.dataPoints().size());
                 var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(group.dataPoints().size());
 
-                boolean ok = metricColumnarBuilder.buildMetricRow(batchBuilder, group, dynamicTemplates, dynamicTemplateParams);
+                // buildMetricRow() commits the row on success, so every group that reaches here has committed
+                // exactly one row, in order; the row index always equals indexRequests.size().
+                boolean ok = batchBuilder.buildMetricRow(group, dynamicTemplates, dynamicTemplateParams);
                 if (ok == false) {
-                    // Eligibility pre-check should have prevented this; fail loudly.
-                    throw new IllegalStateException(
-                        "ESCF pre-flight check passed but buildMetricRow returned false for target [" + target + "]"
-                    );
+                    return false;
                 }
-                int rowIndex = batchBuilder.commit(0);
 
                 Instant tsTimestamp = DataStream.getCanonicalTimestampBound(
                     Instant.ofEpochMilli(TimeUnit.NANOSECONDS.toMillis(group.getTimestampUnixNano()))
@@ -294,57 +268,56 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                     .setDynamicTemplates(dynamicTemplates)
                     .setDynamicTemplateParams(dynamicTemplateParams)
                     .setTimeSeriesTimestamp(tsTimestamp);
-                // Source row will be attached after buildPartition below.
-                rowRequests.put(rowIndex, indexRequest);
-                bulkRequestBuilder.add(indexRequest);
+                // Source row will be attached after build() below.
+                indexRequests.add(indexRequest);
             }
 
-            // Partition 0 is the only partition: EscfBatchBuilder supports multiple keyed partitions
-            // for producers that pre-split rows by shard, but we keep all rows in one flat batch and
-            // let BatchModeRouter / EscfBatchScatterer handle shard scatter downstream.
-            EscfBatch batch = batchBuilder.buildPartition(0);
+            EscfBatch batch = batchBuilder.build();
 
             // Guard against coordinator heap exhaustion on large fan-out OTLP exports (resource/scope
             // attributes copied into every row mean the batch can be significantly larger than the
             // incoming protobuf payload).
-            long batchBytes = batch.ramBytesUsed();
-            if (batchBytes > maxExpandedContentLength) {
+            int dataPoints = 0;
+            for (DataPointGroupingContext.DataPointGroup group : groups) {
+                dataPoints += group.dataPoints().size();
+            }
+            try {
+                expandedContentTracker.add(batch.ramBytesUsed(), groups.size(), dataPoints);
+            } catch (ElasticsearchStatusException e) {
                 batch.close();
-                throw new ElasticsearchStatusException(
-                    "OTLP request rejected: ESCF batch ["
-                        + batchBytes
-                        + " b] would exceed expanded content limit ["
-                        + maxExpandedContentLength
-                        + " b]",
-                    RestStatus.REQUEST_ENTITY_TOO_LARGE
-                );
+                throw e;
             }
 
-            // Attach source rows now that the batch object is stable.
-            for (Map.Entry<Integer, IndexRequest> e : rowRequests.entrySet()) {
-                e.getValue().indexSource().setSourceRow(batch, e.getKey(), XContentType.JSON);
+            // Attach source rows now that the batch object is stable, then register the real requests.
+            for (int rowIndex = 0; rowIndex < indexRequests.size(); rowIndex++) {
+                IndexRequest indexRequest = indexRequests.get(rowIndex);
+                indexRequest.indexSource().setSourceRow(batch, rowIndex, XContentType.JSON);
+                bulkRequestBuilder.add(indexRequest);
             }
 
             // Register the pre-built batch. BatchModeRouter will scatter it to shards and invoke
             // ForIndexDimensions.indexShard(requests, batch), which calls ColumnarTsidCalculator to
             // derive _tsid column-major (no pre-set tsid required on the IndexRequests).
-            // Ownership of the batch transfers to the bulk request here. EscfBatchBuilder.close() only
-            // releases *unbuilt* partitions (buildPartition nulls the slot), so closing the builder
-            // below does NOT close or invalidate the batch; that is the caller's (router's) responsibility.
+            // Ownership of the batch transfers to the bulk request here. OTLPMetricBatchBuilder.close() is
+            // a no-op after a successful build() (which transfers column ownership to the EscfBatch), so
+            // closing the builder below does NOT close or invalidate the batch; ownership passes to the
+            // bulk action, which releases it, and AbstractOTLPTransportAction releases it if the bulk is
+            // rejected before the action takes it.
             bulkRequestBuilder.setPreBuiltBatches(Map.of(target, batch));
         }
+        return true;
     }
 
     // -------------------------------------------------------------------------
     // Doc-mode (XContent) path — unchanged from original implementation
     // -------------------------------------------------------------------------
 
-    private long addIndexRequestDocMode(
+    private void addIndexRequestDocMode(
         BulkRequestBuilder bulkRequestBuilder,
         MetricDocumentBuilder metricDocumentBuilder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
-        IndexVersion indexVersion,
-        long totalExpandedBytes
+        TsidLayout tsidLayout,
+        ExpandedContentTracker expandedContentTracker
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
             var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
@@ -355,7 +328,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 dataPointGroup,
                 dynamicTemplates,
                 dynamicTemplateParams,
-                indexVersion
+                tsidLayout
             );
             var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
                 .setRequireDataStream(true)
@@ -363,33 +336,34 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 .setIncludeSourceOnError(false)
                 .setDynamicTemplates(dynamicTemplates)
                 .setDynamicTemplateParams(dynamicTemplateParams);
-            if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
+            if (tsidLayout.indexVersion().onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
                 indexRequest.tsid(tsid);
             }
-            totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
+            expandedContentTracker.add(indexRequest, dataPointGroup.dataPoints().size());
             bulkRequestBuilder.add(indexRequest);
         }
-        return totalExpandedBytes;
     }
 
-    private IndexVersion resolveIndexVersion(ProjectMetadata projectMetadata, DataPointGroupingContext.DataPointGroup group) {
+    /**
+     * The tsid layout of the backing index the group's timestamp falls into, or that of the index the matching template would
+     * create when the data stream does not exist yet. Resolved layouts are cached in {@code tsidLayouts} for the request.
+     */
+    private static TsidLayout resolveTsidLayout(
+        ProjectMetadata projectMetadata,
+        DataPointGroupingContext.DataPointGroup group,
+        Map<String, TsidLayout> tsidLayouts
+    ) {
         String dataStreamName = group.targetIndex().index();
-        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
+        DataStream dataStream = resolveDataStream(projectMetadata, dataStreamName);
         if (dataStream == null) {
-            DataStreamAlias alias = projectMetadata.dataStreamAliases().get(dataStreamName);
-            if (alias != null && alias.getWriteDataStream() != null) {
-                dataStream = projectMetadata.dataStreams().get(alias.getWriteDataStream());
-            }
-        }
-        if (dataStream == null) {
-            return IndexVersion.current();
+            return tsidLayoutForNewDataStream(projectMetadata, dataStreamName, tsidLayouts);
         }
         Instant ts = Instant.ofEpochMilli(group.getTimestampUnixNano() / 1_000_000L);
         Index index = dataStream.selectTimeSeriesWriteIndex(ts, projectMetadata);
         if (index == null) {
             index = dataStream.getWriteIndex();
         }
-        return projectMetadata.getIndexSafe(index).getCreationVersion();
+        return tsidLayoutForIndex(projectMetadata, index, tsidLayouts);
     }
 
     private boolean resolveEscfEligible(
@@ -419,22 +393,22 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         }
         for (Index index : dataStream.selectTimeSeriesWriteIndices(timestamps, projectMetadata)) {
             IndexMetadata im = projectMetadata.getIndexSafe(index);
-            if (im.getTimeSeriesDimensions().isEmpty() || IndexSettings.TIME_SERIES_BATCH_INDEXING.get(im.getSettings()) == false) {
+            if (im.getTimeSeriesDimensions().isEmpty() || IndexSettings.isBatchIndexingEnabled(im.getSettings()) == false) {
                 return false;
             }
         }
         return true;
     }
 
-    private long addExemplarIndexRequests(
+    private void addExemplarIndexRequests(
         BulkRequestBuilder bulkRequestBuilder,
         ExemplarDocumentBuilder exemplarDocumentBuilder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         DataPointGroupingContext context,
         ProjectMetadata projectMetadata,
-        Map<String, IndexVersion> indexVersions,
+        Map<String, TsidLayout> tsidLayouts,
         Set<ExemplarIdentity> exemplarIdentities,
-        long totalExpandedBytes
+        ExpandedContentTracker expandedContentTracker
     ) throws IOException {
         TargetIndex targetIndex = dataPointGroup.targetIndex().exemplarsTarget();
         if (targetIndex == null) {
@@ -443,15 +417,15 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 exemplarCount += dataPoint.getExemplars().size();
             }
             context.recordExemplarsWithoutTarget(exemplarCount);
-            return totalExpandedBytes;
+            return;
         }
         String dataStreamName = targetIndex.index();
-        IndexVersion indexVersion = indexVersions.computeIfAbsent(dataStreamName, name -> resolveIndexVersion(projectMetadata, name));
+        TsidLayout tsidLayout = resolveTsidLayout(projectMetadata, dataStreamName, tsidLayouts);
         for (DataPoint dataPoint : dataPointGroup.dataPoints()) {
             if (dataPoint.getExemplars().isEmpty()) {
                 continue;
             }
-            BytesRef tsid = dataPointGroup.buildExemplarTsid(dataPoint.getMetricName(), indexVersion);
+            BytesRef tsid = dataPointGroup.buildExemplarTsid(dataPoint.getMetricName(), tsidLayout);
             for (Exemplar exemplar : dataPoint.getExemplars()) {
                 if (exemplar.getValueCase() == Exemplar.ValueCase.VALUE_NOT_SET) {
                     context.recordExemplarWithoutValue();
@@ -472,18 +446,36 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                         .setRequireDataStream(true)
                         .source(xContentBuilder)
                         .setIncludeSourceOnError(false);
-                    if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
+                    if (tsidLayout.indexVersion().onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
                         indexRequest.tsid(tsid);
                     }
-                    totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
+                    // exemplars are not counted as data points
+                    expandedContentTracker.add(indexRequest, 0);
                     bulkRequestBuilder.add(indexRequest);
                 }
             }
         }
-        return totalExpandedBytes;
     }
 
-    private static IndexVersion resolveIndexVersion(ProjectMetadata projectMetadata, String dataStreamName) {
+    /**
+     * The tsid layout of the data stream's write index, or that of the index the matching template would create when the data
+     * stream does not exist yet. Resolved layouts are cached in {@code tsidLayouts} for the request.
+     */
+    private static TsidLayout resolveTsidLayout(
+        ProjectMetadata projectMetadata,
+        String dataStreamName,
+        Map<String, TsidLayout> tsidLayouts
+    ) {
+        DataStream dataStream = resolveDataStream(projectMetadata, dataStreamName);
+        if (dataStream != null && dataStream.getWriteIndex() != null) {
+            return tsidLayoutForIndex(projectMetadata, dataStream.getWriteIndex(), tsidLayouts);
+        }
+        return tsidLayoutForNewDataStream(projectMetadata, dataStreamName, tsidLayouts);
+    }
+
+    /** The data stream with the given name, following a data stream alias to its write data stream, or {@code null}. */
+    @Nullable
+    private static DataStream resolveDataStream(ProjectMetadata projectMetadata, String dataStreamName) {
         DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
         if (dataStream == null) {
             DataStreamAlias alias = projectMetadata.dataStreamAliases().get(dataStreamName);
@@ -491,10 +483,19 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 dataStream = projectMetadata.dataStreams().get(alias.getWriteDataStream());
             }
         }
-        if (dataStream != null && dataStream.getWriteIndex() != null) {
-            return projectMetadata.getIndexSafe(dataStream.getWriteIndex()).getCreationVersion();
-        }
-        return IndexVersion.current();
+        return dataStream;
+    }
+
+    private static TsidLayout tsidLayoutForIndex(ProjectMetadata projectMetadata, Index index, Map<String, TsidLayout> tsidLayouts) {
+        return tsidLayouts.computeIfAbsent(index.getName(), name -> TsidLayout.forIndex(projectMetadata.getIndexSafe(index)));
+    }
+
+    private static TsidLayout tsidLayoutForNewDataStream(
+        ProjectMetadata projectMetadata,
+        String dataStreamName,
+        Map<String, TsidLayout> tsidLayouts
+    ) {
+        return tsidLayouts.computeIfAbsent(dataStreamName, name -> TsidLayout.forNewIndex(projectMetadata, name));
     }
 
     private record ExemplarIdentity(String index, BytesRef tsid, long timestamp) {}

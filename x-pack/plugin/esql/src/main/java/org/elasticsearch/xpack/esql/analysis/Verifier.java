@@ -13,6 +13,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
@@ -47,12 +49,19 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -60,20 +69,25 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -117,6 +131,14 @@ public class Verifier {
     }
 
     /**
+     * A copy of this verifier that runs every check but records no feature or function telemetry. Diagnostic analyses —
+     * such as the analyze-only pass that validates a view definition — must not count the plans they walk as feature usage.
+     */
+    public Verifier withoutMetrics() {
+        return new Verifier(null, licenseState, extraCheckers);
+    }
+
+    /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
@@ -142,10 +164,8 @@ public class Verifier {
             return failures.failures();
         }
 
-        if (unmappedResolution.loadsUnmappedFields()) {
-            checkLoadModeDisallowedCommands(plan, failures, unmappedResolution);
-            checkFlattenedSubFieldLoad(plan, failures, unmappedResolution);
-        }
+        // A view's own SET unmapped_fields decides these checks inside its branch. The caller's mode does not.
+        checkLoadRestrictions(plan, unmappedResolution, context, failures, false);
 
         if (unmappedResolution.loadsAllUnmappedFields()) {
             checkLoadAllModeSupportedCommands(plan, failures);
@@ -154,9 +174,14 @@ public class Verifier {
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
+        checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());
+        checkDenseVectorSupported(plan, failures, context.minimumVersion());
+        checkFillNullFieldCount(plan, failures, context.flags().maxFillNullFields());
 
         // collect plan checkers
-        var planCheckers = planCheckers(plan, context.analysisRegistry());
+        QueryPragmas pragmas = context.configuration() == null ? QueryPragmas.EMPTY : context.configuration().pragmas();
+        Consumer<String> warnings = context.deferredHeaderWarnings()::add;
+        var planCheckers = planCheckers(plan, context.analysisRegistry(), warnings, pragmas, context.flags());
         planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
@@ -169,7 +194,7 @@ public class Verifier {
             planCheckers.forEach(c -> c.accept(p, failures));
             p.forEachExpression(e -> {
                 if (e instanceof PostAnalysisVerificationAware va) {
-                    va.postAnalysisVerification(context.analysisRegistry(), failures);
+                    va.postAnalysisVerification(context.analysisRegistry(), warnings, failures);
                 }
             });
 
@@ -187,11 +212,59 @@ public class Verifier {
         }
 
         // gather metrics
-        if (failures.hasFailures() == false) {
+        if (metrics != null && failures.hasFailures() == false) {
             gatherMetrics(plan, partialMetrics);
         }
 
         return failures.failures();
+    }
+
+    /**
+     * Rejects a query whose {@code FILLNULL} commands fill more columns than {@link EsqlFlags#ESQL_MAX_FILLNULL_FIELDS} allows. It must run
+     * before optimization rewrites each FILLNULL into a Project over an Eval. Columns a command cannot fill do not count.
+     */
+    private static void checkFillNullFieldCount(LogicalPlan plan, Failures failures, int maxFields) {
+        Holder<Long> total = new Holder<>(0L);
+        Holder<FillNull> overflowing = new Holder<>();
+        countFillNullFields(plan, failures, maxFields, total, overflowing);
+        if (overflowing.get() != null) {
+            failures.add(
+                fail(
+                    overflowing.get(),
+                    "FILLNULL would fill {} columns in this query, counting each FORK branch and view reference that runs one, exceeding"
+                        + " the limit of {} set by the [{}] cluster setting. Name only the columns that need filling instead of matching"
+                        + " them with [*] or a pattern, or narrow the input with KEEP or DROP before the FILLNULL.",
+                    total.get(),
+                    maxFields,
+                    EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey()
+                )
+            );
+        }
+    }
+
+    // Children first, so the failure points at the first-written command that crosses the cap. An IN subquery runs as a query of its
+    // own, so it gets a cap of its own, as UnionAll#checkNestedSubqueryLimits does for branches.
+    private static void countFillNullFields(
+        LogicalPlan plan,
+        Failures failures,
+        int maxFields,
+        Holder<Long> total,
+        Holder<FillNull> overflowing
+    ) {
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            countFillNullFields(subqueryJoin.left(), failures, maxFields, total, overflowing);
+            checkFillNullFieldCount(subqueryJoin.right(), failures, maxFields);
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            countFillNullFields(child, failures, maxFields, total, overflowing);
+        }
+        if (plan instanceof FillNull fillNull) {
+            total.set(total.get() + fillNull.fillAliases().size());
+            if (total.get() > maxFields) {
+                overflowing.setIfAbsent(fillNull);
+            }
+        }
     }
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
@@ -235,6 +308,33 @@ public class Verifier {
                 );
             }
         });
+    }
+
+    /**
+     * An older node cannot route rows by index, so until every node can, analyzer mismatches that routing would resolve
+     * keep the {@code standard} fallback and its warning.
+     */
+    private static void checkHighlightAnalyzersAgree(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(TextEsField.TEXT_FIELD_ANALYZER)) {
+            plan.forEachDown(Highlight.class, highlight -> highlight.verifyAnalyzersAgree(failures));
+        }
+    }
+
+    /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
+    private static void checkDenseVectorSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION)) {
+            return;
+        }
+        plan.forEachDown(
+            DenseVector.class,
+            denseVector -> failures.add(
+                fail(
+                    denseVector,
+                    "DENSE_VECTOR is not supported on every participating node; "
+                        + "rolling upgrade in progress, or a remote cluster is on an older version"
+                )
+            )
+        );
     }
 
     private static void checkTStepIncompatibleWithTRange(LogicalPlan plan, Failures failures) {
@@ -344,11 +444,17 @@ public class Verifier {
     /**
      * Build a list of checkers based on the components in the plan.
      */
-    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan, AnalysisRegistry analysisRegistry) {
+    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(
+        LogicalPlan plan,
+        AnalysisRegistry analysisRegistry,
+        Consumer<String> warnings,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
             if (p instanceof PostAnalysisPlanVerificationAware pva) {
-                planCheckers.add(pva.postAnalysisPlanVerification(analysisRegistry));
+                planCheckers.add(pva.postAnalysisPlanVerification(analysisRegistry, pragmas, flags));
             }
         };
         plan.forEachDown(p -> {
@@ -358,7 +464,7 @@ public class Verifier {
             if (p instanceof PostAnalysisVerificationAware va) {
                 planCheckers.add((lp, failures) -> {
                     if (lp.getClass().equals(va.getClass())) {
-                        va.postAnalysisVerification(analysisRegistry, failures);
+                        va.postAnalysisVerification(analysisRegistry, warnings, failures);
                     }
                 });
             }
@@ -561,22 +667,52 @@ public class Verifier {
     }
 
     /**
+     * Applies the loading-mode restrictions to one scope, then to each nested view under that view's own mode.
+     * A view branch is not inspected as part of the enclosing scope.
+     * <p>
      * Neither loading mode yet supports PROMQL. This is checked separately from
-     * {@link #checkLoadAllModeSupportedCommands}, which the PROMQL command escapes: it is rewritten into a {@code TS} before
-     * verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart. The command is gone
-     * by then and can translate to several time-series pipelines (one per vector-match operand), so report only the
-     * first PROMQL-origin aggregate rather than one failure per pipeline.
+     * {@link #checkLoadAllModeSupportedCommands}, which the PROMQL command escapes: it is rewritten into a {@code TS}
+     * before verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart. The command
+     * is gone by then and can translate to several time-series pipelines (one per vector-match operand), so
+     * {@code promqlReported} records one PROMQL failure per scope, not one per pipeline.
+     *
+     * @return whether this scope has already reported a PROMQL failure
      */
-    private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
-        var promql = new Holder<TimeSeriesAggregate>();
-        plan.forEachDown(TimeSeriesAggregate.class, ts -> {
-            if (ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND && promql.get() == null) {
-                promql.set(ts);
+    private static boolean checkLoadRestrictions(
+        LogicalPlan plan,
+        UnmappedResolution resolution,
+        AnalyzerContext context,
+        Failures failures,
+        boolean promqlReported
+    ) {
+        if (plan instanceof BranchPlan branchPlan) {
+            List<LogicalPlan> children = branchPlan.children();
+            for (int i = 0; i < children.size(); i++) {
+                if (branchPlan.isViewBranch(i)) {
+                    UnmappedResolution viewResolution = ViewQuerySettings.forView(
+                        branchPlan.branchIdentity(i).settingsViewName(),
+                        context.viewSettings()
+                    ).unmappedFields();
+                    checkLoadRestrictions(children.get(i), viewResolution, context, failures, false);
+                } else {
+                    promqlReported = checkLoadRestrictions(children.get(i), resolution, context, failures, promqlReported);
+                }
             }
-        });
-        if (promql.get() != null) {
-            failures.add(fail(promql.get(), "PROMQL is not supported with unmapped_fields=\"{}\"", unmappedResolution.settingValue()));
+            return promqlReported;
         }
+        if (resolution.loadsUnmappedFields()) {
+            if (promqlReported == false
+                && plan instanceof TimeSeriesAggregate ts
+                && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
+                failures.add(fail(ts, "PROMQL is not supported with unmapped_fields=\"{}\"", resolution.settingValue()));
+                promqlReported = true;
+            }
+            checkFlattenedSubFieldLoad(plan, failures, resolution);
+        }
+        for (LogicalPlan child : plan.children()) {
+            promqlReported = checkLoadRestrictions(child, resolution, context, failures, promqlReported);
+        }
+        return promqlReported;
     }
 
     /**
@@ -586,20 +722,23 @@ public class Verifier {
     private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
             if (supportedInLoadAllMode(p) == false) {
-                failures.add(
-                    fail(
-                        p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
-                        p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
-                            : p instanceof ViewUnionAll ? "ViewUnionAll"
-                            : p instanceof NamedSubquery ? "NamedSubquery"
-                            : p instanceof TelemetryAware ta ? ta.telemetryLabel()
-                            : p.nodeName()
-                    )
-                );
+                String command = p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                    : p instanceof BranchPlan ? "BranchPlan"
+                    : p instanceof NamedSubquery ? "NamedSubquery"
+                    : p instanceof TelemetryAware ta ? ta.telemetryLabel()
+                    : p.nodeName();
+                failures.add(fail(p, loadAllUnsupportedCommandMessage(command)));
             }
         });
+    }
+
+    static String loadAllUnsupportedCommandMessage(String command) {
+        return "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+            + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
+            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
+            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+            + command
+            + "] is not supported yet";
     }
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
@@ -609,6 +748,15 @@ public class Verifier {
             || plan instanceof Drop
             || plan instanceof Rename
             || plan instanceof Eval
+            || plan instanceof FillNull
+            || plan instanceof Grok
+            || plan instanceof Dissect
+            || plan instanceof MvExpand
+            || plan instanceof Sample
+            || plan instanceof ChangePoint
+            || plan instanceof CompoundOutputEval
+            || plan instanceof LimitBy
+            || plan instanceof Dedup
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof Limit
@@ -620,7 +768,10 @@ public class Verifier {
             || plan instanceof LookupJoin
             || plan instanceof Enrich
             || plan instanceof Fork
-            || (plan instanceof UnionAll && plan instanceof ViewUnionAll == false)
+            // Every subquery union is a BranchPlan, view branches included: a view is a boundary the setting does not reach into,
+            // so nothing is loaded from _source inside it. It has no _unmapped_fields column; unions null-fill it where a sibling has one.
+            || plan instanceof BranchPlan
+            || (plan instanceof UnionAll && plan instanceof BranchPlan == false)
             || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
             || plan instanceof AbstractSubqueryJoin;
     }
@@ -631,37 +782,39 @@ public class Verifier {
      * flattened subfields resolution may eventually differ from what happens when unmapped fields are loaded from {@code _source}.
      */
     private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
-        plan.forEachDown(EsRelation.class, esRelation -> {
-            Set<String> flattenedFieldNames = flattenedFieldNames(esRelation.output());
+        if (plan instanceof EsRelation == false) {
+            return;
+        }
+        EsRelation esRelation = (EsRelation) plan;
+        Set<String> flattenedFieldNames = flattenedFieldNames(esRelation.output());
 
-            if (flattenedFieldNames.isEmpty()) {
-                return;
+        if (flattenedFieldNames.isEmpty()) {
+            return;
+        }
+
+        for (Attribute attr : esRelation.output()) {
+            if (!(attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)) {
+                continue;
             }
 
-            for (Attribute attr : esRelation.output()) {
-                if (!(attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)) {
-                    continue;
-                }
-
-                String name = fa.name();
-                List<String> prefixes = FieldNameUtils.parentPrefixes(name);
-                for (String parent : prefixes) {
-                    if (flattenedFieldNames.contains(parent)) {
-                        // It is sufficient to find "a" flattened field with a name matching the parent's.
-                        Failure failure = fail(
-                            fa,
-                            "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with "
-                                + "unmapped_fields=\"{}\"",
-                            name,
-                            parent,
-                            unmappedResolution.settingValue()
-                        );
-                        failures.add(failure);
-                        break;
-                    }
+            String name = fa.name();
+            List<String> prefixes = FieldNameUtils.parentPrefixes(name);
+            for (String parent : prefixes) {
+                if (flattenedFieldNames.contains(parent)) {
+                    // It is sufficient to find "a" flattened field with a name matching the parent's.
+                    Failure failure = fail(
+                        fa,
+                        "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with "
+                            + "unmapped_fields=\"{}\"",
+                        name,
+                        parent,
+                        unmappedResolution.settingValue()
+                    );
+                    failures.add(failure);
+                    break;
                 }
             }
-        });
+        }
     }
 
     private static Set<String> flattenedFieldNames(List<Attribute> attributes) {

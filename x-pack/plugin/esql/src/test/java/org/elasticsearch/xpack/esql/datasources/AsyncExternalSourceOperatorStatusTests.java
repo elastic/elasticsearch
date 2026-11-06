@@ -48,6 +48,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
+            0,
             randomNonNegativeLong(),
             null,
             randomNonNegativeLong(),
@@ -58,7 +59,9 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             ExternalReadCounters.fromCounters(randomNonNegativeLong(), randomNonNegativeLong()),
             randomFormatReader(),
             randomCapturedSourceMetadata(),
-            randomBoolean()
+            randomBoolean(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
@@ -104,7 +107,9 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
         FormatReaderStatus formatReader = instance.formatReader();
         Map<String, List<Map<String, Object>>> capturedSourceMetadata = instance.capturedSourceMetadata();
         boolean partial = instance.partial();
-        switch (between(0, 11)) {
+        long requestCount = instance.requestCount();
+        long retryCount = instance.retryCount();
+        switch (between(0, 13)) {
             case 0 -> pagesWaiting = randomValueOtherThan(pagesWaiting, ESTestCase::randomNonNegativeInt);
             case 1 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
             case 2 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
@@ -120,12 +125,15 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                 AsyncExternalSourceOperatorStatusTests::randomCapturedSourceMetadata
             );
             case 11 -> partial = partial == false;
+            case 12 -> requestCount = randomValueOtherThan(requestCount, ESTestCase::randomNonNegativeLong);
+            case 13 -> retryCount = randomValueOtherThan(retryCount, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new AsyncExternalSourceOperator.Status(
             pagesWaiting,
             pagesEmitted,
             rowsEmitted,
+            0,
             bytesBuffered,
             null,
             processNanos,
@@ -136,7 +144,9 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             ExternalReadCounters.NOOP,
             formatReader,
             capturedSourceMetadata,
-            partial
+            partial,
+            requestCount,
+            retryCount
         );
     }
 
@@ -147,6 +157,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                     5,
                     10,
                     111,
+                    0,
                     2048,
                     null,
                     1_000_000L,
@@ -161,9 +172,10 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                 )
             ),
             equalTo(
-                "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
+                "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_decoded\":0,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":1000000,\"splits_processed\":2,\"splits_total\":4,\"current_split\":3,"
-                    + "\"bytes_read\":8192,\"read_nanos\":0,\"read_cpu_nanos\":0,\"stripes_committed\":0,\"partial\":false,"
+                    + "\"bytes_read\":8192,\"request_count\":0,\"retry_count\":0,\"read_nanos\":0,\"read_cpu_nanos\":0,"
+                    + "\"stripes_committed\":0,\"partial\":false,"
                     + "\"format_reader\":{\"format\":\"ndjson\",\"rows_emitted\":7,\"parse_errors\":0}}"
             )
         );
@@ -194,7 +206,23 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     }
 
     private static AsyncExternalSourceOperator.Status statusWithCaptured(Map<String, List<Map<String, Object>>> captured) {
-        return new AsyncExternalSourceOperator.Status(0, 0, 0, 0, null, 0L, 0, 0, 0, 0L, ExternalReadCounters.NOOP, null, captured, false);
+        return new AsyncExternalSourceOperator.Status(
+            0,
+            0,
+            0,
+            0,
+            0,
+            null,
+            0L,
+            0,
+            0,
+            0,
+            0L,
+            ExternalReadCounters.NOOP,
+            null,
+            captured,
+            false
+        );
     }
 
     private static Map<String, Object> stripeContribution(long ordinal) {
@@ -218,6 +246,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                     5,
                     10,
                     111,
+                    0,
                     2048,
                     new RuntimeException("boom"),
                     0L,
@@ -232,9 +261,10 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                 )
             ),
             equalTo(
-                "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
+                "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_decoded\":0,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":0,\"splits_processed\":0,\"splits_total\":0,\"current_split\":0,"
-                    + "\"bytes_read\":0,\"read_nanos\":0,\"read_cpu_nanos\":0,\"stripes_committed\":0,\"partial\":true,"
+                    + "\"bytes_read\":0,\"request_count\":0,\"retry_count\":0,\"read_nanos\":0,\"read_cpu_nanos\":0,"
+                    + "\"stripes_committed\":0,\"partial\":true,"
                     + "\"format_reader\":{},\"failure\":\"boom\"}"
             )
         );
@@ -245,6 +275,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             5,
             10,
             111,
+            0,
             2048,
             null,
             1_000_000L,
@@ -280,6 +311,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             5,
             10,
             111,
+            0,
             2048,
             null,
             1_000_000L,
@@ -305,6 +337,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             5,
             10,
             111,
+            0,
             2048,
             null,
             1_000_000L,
@@ -325,11 +358,40 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
         assertThat(copy.readCpuNanos(), equalTo(0L));
     }
 
+    public void testReadFromBwcVersionPriorToRequestCounts() throws IOException {
+        AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(
+            5,
+            10,
+            111,
+            0,
+            2048,
+            null,
+            1_000_000L,
+            2,
+            4,
+            3,
+            8192L,
+            ExternalReadCounters.NOOP,
+            new NdJsonReaderStatus(7L, 0L),
+            Map.of(),
+            true,
+            9L,
+            4L
+        );
+        TransportVersion preCounts = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_external_planning_io"));
+        AsyncExternalSourceOperator.Status copy = copyInstance(original, preCounts);
+        assertThat(copy.bytesRead(), equalTo(8192L));
+        assertThat(copy.partial(), equalTo(true));
+        assertThat(copy.requestCount(), equalTo(0L));
+        assertThat(copy.retryCount(), equalTo(0L));
+    }
+
     public void testTypedFormatReaderRoundTrip() throws IOException {
         AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(
             1,
             2,
             3L,
+            0,
             4L,
             null,
             5L,

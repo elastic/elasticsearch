@@ -84,12 +84,12 @@ public class EstimatedHeapUsageMonitor {
     public void onNewInfo(ClusterInfo clusterInfo) {
         final ClusterState clusterState = clusterStateSupplier.get();
         if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            logger.debug("skipping monitor as the cluster state is not recovered yet");
+            logger.trace("skipping monitor as the cluster state is not recovered yet");
             return;
         }
 
         if (thresholdEnabled == false) {
-            logger.debug("skipping monitor as the {} usage threshold is disabled", description);
+            logger.trace("skipping monitor as the {} usage threshold is disabled", description);
             return;
         }
 

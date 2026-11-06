@@ -47,13 +47,11 @@ public class PrometheusMetadataResponseListener {
     private PrometheusMetadataResponseListener() {}
 
     public static ActionListener<EsqlQueryResponse> create(RestChannel channel, int limit, int limitPerMetric) {
-        return ActionListener.<Void>wrap(ignored -> {}, e -> {
-            logger.debug("Metadata query failed", e);
-            PrometheusErrorResponse.send(channel, e, logger);
-        }).delegateFailureAndWrap((l, response) -> {
-            LinkedHashMap<String, List<MetadataEntry>> entries = collectEntries(response.rows(), limit, limitPerMetric);
-            channel.sendResponse(buildSuccessResponse(entries, limit));
-        });
+        return ActionListener.<Void>wrap(ignored -> {}, e -> { PrometheusErrorResponse.send(channel, e, logger); })
+            .delegateFailureAndWrap((l, response) -> {
+                LinkedHashMap<String, List<MetadataEntry>> entries = collectEntries(response.rows(), limit, limitPerMetric);
+                channel.sendResponse(buildSuccessResponse(entries, limit));
+            });
     }
 
     /**

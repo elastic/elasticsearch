@@ -18,10 +18,12 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
@@ -61,6 +63,7 @@ import org.junit.Before;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.file.NoSuchFileException;
@@ -72,6 +75,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
@@ -108,6 +112,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
+
+    private static final IntFunction<MemorySegment> NO_COPY = len -> { throw new AssertionError("unexpected copy into scratch"); };
 
     private ThreadPool threadPool;
 
@@ -850,7 +856,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             assertArrayEquals(input, output);
 
             // Now verify withMemorySegmentSlice provides the correct data
-            boolean available = indexInput.withMemorySegmentSlice(0, input.length, seg -> {
+            boolean available = indexInput.withMemorySegmentSlice(0, input.length, NO_COPY, seg -> {
                 assertTrue(seg.isReadOnly());
                 assertEquals(input.length, seg.byteSize());
                 byte[] sliceBytes = new byte[input.length];
@@ -863,7 +869,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             if (input.length > 10) {
                 int subOffset = randomIntBetween(1, input.length / 2);
                 int subLength = randomIntBetween(1, input.length - subOffset);
-                boolean subAvailable = indexInput.withMemorySegmentSlice(subOffset, subLength, seg -> {
+                boolean subAvailable = indexInput.withMemorySegmentSlice(subOffset, subLength, NO_COPY, seg -> {
                     byte[] subBytes = new byte[subLength];
                     MemorySegment.ofArray(subBytes).copyFrom(seg);
                     assertArrayEquals(Arrays.copyOfRange(input, subOffset, subOffset + subLength), subBytes);
@@ -926,7 +932,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             );
 
             // withMemorySegmentSlice(0, sliceLength) on the slice should return data starting at sliceOffset
-            boolean available = blobSlice.withMemorySegmentSlice(0, sliceLength, seg -> {
+            boolean available = blobSlice.withMemorySegmentSlice(0, sliceLength, NO_COPY, seg -> {
                 byte[] sliceBytes = new byte[sliceLength];
                 MemorySegment.ofArray(sliceBytes).copyFrom(seg);
                 assertArrayEquals(Arrays.copyOfRange(input, sliceOffset, sliceOffset + sliceLength), sliceBytes);
@@ -935,18 +941,69 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         }
     }
 
-    // Verifies withMemorySegmentSlice returns false when the cache is not mmap-backed,
-    // since no memory segment view is available. Uses 10 regions (4-64 KB each) without mmap.
-    public void testWithMemorySegmentSliceNoMmapReturnsFalse() throws IOException {
-        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
-        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
-        final var settings = sharedCacheSettings(cacheSize, regionSize);
+    // Verifies that, when the cache is not mmap-backed, a read of at least the buffer size is copied into the scratch segment.
+    public void testWithMemorySegmentSliceNoMmapCopiesIntoScratch() throws IOException {
+        withCachedInputWithoutMmap(BlobCacheIndexInputTests::assertCopiesIntoScratch);
+    }
+
+    // Verifies that, on a slice of an input whose cache is not mmap-backed, a read of at least the buffer size is copied from
+    // the slice's position in the file.
+    public void testWithMemorySegmentSliceNoMmapCopiesIntoScratchOnSlice() throws IOException {
+        withCachedInputWithoutMmap((indexInput, input) -> {
+            final int sliceOffset = randomIntBetween(1, input.length / 2);
+            // Use doSlice to bypass the buffer-based fast path (trySliceBuffer) that may return a ByteArrayIndexInput
+            final BlobCacheIndexInput slice = asInstanceOf(
+                BlobCacheIndexInput.class,
+                indexInput.doSlice("test-slice", sliceOffset, input.length - sliceOffset)
+            );
+            assertCopiesIntoScratch(slice, Arrays.copyOfRange(input, sliceOffset, input.length));
+        });
+    }
+
+    // Verifies that, when the cache is not mmap-backed, a read smaller than the buffer size is declined.
+    public void testWithMemorySegmentSliceNoMmapDeclinesSmallRead() throws IOException {
+        withCachedInputWithoutMmap(BlobCacheIndexInputTests::assertDeclinesSmallRead);
+    }
+
+    // Verifies that, when the cache is not mmap-backed, a read of exactly the buffer size is copied and a read one byte
+    // shorter is declined.
+    public void testWithMemorySegmentSliceNoMmapBufferSizeBoundary() throws IOException {
+        withCachedInputWithoutMmap((indexInput, input) -> {
+            final int bufferSize = indexInput.getBufferSize();
+            assertCopiesIntoScratch(indexInput, input, randomIntBetween(0, input.length - bufferSize), bufferSize);
+            assertFalse(
+                indexInput.withMemorySegmentSlice(
+                    randomIntBetween(0, input.length - bufferSize + 1),
+                    bufferSize - 1,
+                    NO_COPY,
+                    seg -> fail("action should not be invoked")
+                )
+            );
+        });
+    }
+
+    // Populates a file in a cache that is not mmap-backed, then runs the check on it. Uses regions of 16-64 KB.
+    private void withCachedInputWithoutMmap(CheckedBiConsumer<BlobCacheIndexInput, byte[], IOException> check) throws IOException {
+        final int regionSize = (int) pageAligned(ByteSizeValue.ofKb(randomIntBetween(16, 64))).getBytes();
+        withCachedInput(false, regionSize, randomIntBetween(BlobCacheBufferedIndexInput.MERGE_BUFFER_SIZE, regionSize / 2), check);
+    }
+
+    // Populates a file of the given length in a cache of 10 regions of the given size, then runs the check on it.
+    private void withCachedInput(
+        boolean mmap,
+        int regionSize,
+        int fileLength,
+        CheckedBiConsumer<BlobCacheIndexInput, byte[], IOException> check
+    ) throws IOException {
+        final var settings = Settings.builder()
+            .put(sharedCacheSettings(ByteSizeValue.ofBytes(regionSize * 10L), ByteSizeValue.ofBytes(regionSize)))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), mmap)
+            .build();
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
-            final int fileLength = randomIntBetween(1, (int) regionSize.getBytes() / 2);
             final byte[] input = randomByteArrayOfLength(fileLength);
             final String fileName = randomAlphaOfLength(5) + randomFileExtension();
             final long primaryTerm = randomNonNegativeLong();
@@ -975,23 +1032,24 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             byte[] output = randomReadAndSlice(indexInput, input.length);
             assertArrayEquals(input, output);
 
-            // withMemorySegmentSlice should return false when mmap is not enabled
-            boolean available = indexInput.withMemorySegmentSlice(0, input.length, seg -> {
-                fail("action should not be invoked when mmap is not enabled");
-            });
-            assertFalse(available);
+            check.accept(indexInput, input);
         }
     }
 
-    // Verifies withMemorySegmentSlice returns false after the backing region has been evicted.
-    // Uses a small mmap-backed cache with only 3 regions (4-16 KB each); populating 4 additional
-    // files forces eviction of file A's region, after which withMemorySegmentSlice must return false.
-    public void testWithMemorySegmentSliceReturnsFalseAfterEviction() throws IOException {
+    // Verifies that, after the backing region has been evicted, a read of at least the buffer size is copied into the scratch
+    // segment.
+    public void testWithMemorySegmentSliceCopiesIntoScratchAfterEviction() throws IOException {
+        withEvictedInput(BlobCacheIndexInputTests::assertCopiesIntoScratch);
+    }
+
+    // Populates file A, evicts its region, then runs the check on it. Uses a small mmap-backed cache with only 3 regions
+    // (16-32 KB each); populating 4 additional files forces eviction of file A's region.
+    private void withEvictedInput(CheckedBiConsumer<BlobCacheIndexInput, byte[], IOException> check) throws IOException {
         // Decay runs in the background, so we want it to complete before populating the cache with the next file
         // Calling withMemorySegmentSlice on A promotes it to a higher frequency, so if decay doesn't complete and decrease A's frequency
         // before populating the other files, A will retain the highest frequency and avoid eviction
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 16)));
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(16, 32)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 3);
         final var settings = Settings.builder()
             .put(sharedCacheSettings(cacheSize, regionSize))
@@ -1005,7 +1063,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             final long primaryTerm = randomNonNegativeLong();
 
             // File A: fits in one region
-            final int fileLengthA = randomIntBetween(1, (int) regionSize.getBytes() / 2);
+            final int fileLengthA = randomIntBetween(BlobCacheBufferedIndexInput.MERGE_BUFFER_SIZE, (int) regionSize.getBytes() / 2);
             final byte[] inputA = randomByteArrayOfLength(fileLengthA);
             final String fileNameA = "fileA_" + randomAlphaOfLength(5);
             final BlobCacheIndexInput indexInputA = new BlobCacheIndexInput(
@@ -1035,7 +1093,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             assertArrayEquals(inputA, outputA);
 
             // Verify buffer is available before eviction
-            boolean availableBefore = indexInputA.withMemorySegmentSlice(0, inputA.length, seg -> {
+            boolean availableBefore = indexInputA.withMemorySegmentSlice(0, inputA.length, NO_COPY, seg -> {
                 byte[] sliceBytes = new byte[inputA.length];
                 MemorySegment.ofArray(sliceBytes).copyFrom(seg);
                 assertArrayEquals(inputA, sliceBytes);
@@ -1072,12 +1130,48 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 assertArrayEquals(evictInput, evictOutput);
             }
 
-            // After eviction, withMemorySegmentSlice should return false for file A
-            boolean availableAfter = indexInputA.withMemorySegmentSlice(0, inputA.length, seg -> {
-                fail("action should not be invoked after eviction");
-            });
-            assertFalse("expected buffer to be unavailable after eviction", availableAfter);
+            check.accept(indexInputA, inputA);
         }
+    }
+
+    // Verifies that a read spanning two regions, for which no single memory segment view exists, is copied into the scratch
+    // segment, even though the cache is mmap-backed and holds the data. Uses a file spanning several regions of 16-32 KB.
+    public void testWithMemorySegmentSliceCopiesIntoScratchAcrossRegions() throws IOException {
+        final int regionSize = (int) pageAligned(ByteSizeValue.ofKb(randomIntBetween(16, 32))).getBytes();
+        withCachedInput(true, regionSize, randomIntBetween(2 * regionSize, 3 * regionSize), (indexInput, input) -> {
+            final int length = randomIntBetween(indexInput.getBufferSize(), regionSize);
+            final int offset = regionSize - randomIntBetween(1, length - 1);
+            assertCopiesIntoScratch(indexInput, input, offset, length);
+        });
+    }
+
+    private static void assertCopiesIntoScratch(BlobCacheIndexInput indexInput, byte[] input) throws IOException {
+        final int length = randomIntBetween(indexInput.getBufferSize(), input.length);
+        assertCopiesIntoScratch(indexInput, input, randomIntBetween(0, input.length - length), length);
+    }
+
+    private static void assertCopiesIntoScratch(BlobCacheIndexInput indexInput, byte[] input, int offset, int length) throws IOException {
+        final AtomicBoolean copied = new AtomicBoolean();
+        final AtomicBoolean invoked = new AtomicBoolean();
+        final boolean available = indexInput.withMemorySegmentSlice(offset, length, len -> {
+            copied.set(true);
+            return Arena.ofAuto().allocate(len);
+        }, seg -> {
+            invoked.set(true);
+            assertEquals(length, seg.byteSize());
+            byte[] bytes = new byte[length];
+            MemorySegment.ofArray(bytes).copyFrom(seg);
+            assertArrayEquals(Arrays.copyOfRange(input, offset, offset + length), bytes);
+        });
+        assertTrue(available);
+        assertTrue("expected a copy into the scratch segment", copied.get());
+        assertTrue(invoked.get());
+    }
+
+    private static void assertDeclinesSmallRead(BlobCacheIndexInput indexInput, byte[] input) throws IOException {
+        final int length = randomIntBetween(1, indexInput.getBufferSize() - 1);
+        final int offset = randomIntBetween(0, input.length - length);
+        assertFalse(indexInput.withMemorySegmentSlice(offset, length, NO_COPY, seg -> fail("action should not be invoked")));
     }
 
     public void testBypassReadMetrics() throws Exception {

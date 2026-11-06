@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 
 public class DirectByteBufferBodyHandlersTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
     private static final StoragePath PATH = StoragePath.of("https://example.com/file.parquet");
 
     /** Arbitrary non-zero slack, so a factory buffer that is larger than requested is not a rounding coincidence. */

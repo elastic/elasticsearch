@@ -10,6 +10,7 @@
 | cartesian_shape | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | date | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | date_nanos | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| dense_vector {applies_to}`stack: ga 9.7.0` | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | double | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | geo_point | time_duration {applies_to}`stack: preview 9.3.0` | boolean |

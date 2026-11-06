@@ -14,11 +14,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
@@ -55,7 +56,6 @@ import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnP
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -1453,7 +1453,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
      * Runs a function-pushdown test against a strict-columnar index, where the field gets HIGH-cardinality binary doc values and the
      * pushdown lands on a binary loader rather than a SortedSet ordinal one.
      *
-     * <p>Which binary layout the index writes follows {@code index.columnar_codec.enabled} — the in-order column with its companion
+     * <p>Which binary layout the index writes follows the version it was created at — the in-order column with its companion
      * count, or the ColumNAR codec's payload — and each has its own loader, so the expected one is read off the index rather than
      * assumed. A field whose loader is the same either way passes the same matcher twice.
      */
@@ -1490,24 +1490,19 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
-     * Whether {@code index} writes its doc values with the ColumNAR codec. Read off the index: the setting's default has moved, and
-     * it is not registered at all on a build where the feature flag is off.
+     * Whether the strict-columnar {@code index} writes its doc values with the ColumNAR codec, which every such index created from
+     * {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG} does.
      */
     private static boolean usesColumnarCodec(String index) throws IOException {
-        Request request = new Request("GET", "/" + index + "/_settings/index.columnar_codec.enabled");
+        Request request = new Request("GET", "/" + index + "/_settings/index.version.created");
         request.addParameter("flat_settings", "true");
-        request.addParameter("include_defaults", "true");
         Map<String, Object> response = entityToMap(client().performRequest(request).getEntity(), XContentType.JSON);
         @SuppressWarnings("unchecked")
         Map<String, Object> forIndex = (Map<String, Object>) response.get(index);
-        for (String section : new String[] { "settings", "defaults" }) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> settings = (Map<String, Object>) forIndex.get(section);
-            if (settings != null && settings.get("index.columnar_codec.enabled") != null) {
-                return Booleans.parseBoolean(settings.get("index.columnar_codec.enabled").toString());
-            }
-        }
-        return false;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settings = (Map<String, Object>) forIndex.get("settings");
+        Object created = settings.get("index.version.created");
+        return IndexVersion.fromId(Integer.parseInt(created.toString())).onOrAfter(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
     }
 
     private void test(
@@ -1585,25 +1580,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
         assertResultMap(
             result,
-            getResultMatcher(result).entry(
-                "profile",
-                matchesMap() //
-                    .entry("drivers", instanceOf(List.class))
-                    .entry("plans", instanceOf(List.class))
-                    .entry("planning", matchesMap().extraOk())
-                    .entry("parsing", matchesMap().extraOk())
-                    .entry("view_resolution", matchesMap().extraOk())
-                    .entry("dataset_resolution", matchesMap().extraOk())
-                    .entry("preanalysis", matchesMap().extraOk())
-                    .entry("indices_resolution", matchesMap().extraOk())
-                    .entry("enrich_resolution", matchesMap().extraOk())
-                    .entry("inference_resolution", matchesMap().extraOk())
-                    .entry("analysis", matchesMap().extraOk())
-                    .entry("query", matchesMap().extraOk())
-                    .entry("field_caps_calls", instanceOf(Integer.class))
-                    .entry("unmapped_fields", instanceOf(String.class))
-                    .entry("minimumTransportVersion", instanceOf(Integer.class))
-            ),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             columnMatcher,
             matchesList().item(expectedValue)
         );

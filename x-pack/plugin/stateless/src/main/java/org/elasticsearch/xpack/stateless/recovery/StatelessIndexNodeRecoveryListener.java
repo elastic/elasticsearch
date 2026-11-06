@@ -284,8 +284,6 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             var store = indexShard.store();
             var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
             var batchedCompoundCommit = indexingShardState.latestCommit();
-            logBootstrappingFromObjectStore(logger, indexShard, batchedCompoundCommit);
-
             if (batchedCompoundCommit != null) {
                 var recoveryCommit = batchedCompoundCommit.lastCompoundCommit();
                 var blobFileRanges = indexingShardState.blobFileRanges();
@@ -317,6 +315,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
             final var checkPoint = segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+            logBootstrappingFromObjectStore(logger, indexShard, batchedCompoundCommit, segmentInfos);
             if (translogUUID != null) {
                 Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(),

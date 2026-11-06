@@ -266,27 +266,26 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 return;
             }
 
+            // We only send an action to the target node to begin warming the cache immediately, if the shard is not about to be hollowed.
+            if (hollowShardsService.isHollowableIndexShard(indexShard)) {
+                listener.onResponse(null);
+                return;
+            }
+
             final var engine = indexShard.getEngineOrNull();
             boolean hasRecentIdLookup = engine != null && engine.hasRecentIdLookup(idLookupRecencyThreshold);
-
-            // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
-            // Note that if the shard is already hollow, the target warming will just read a single region.
-            if (hollowShardsService.isHollowableIndexShard(indexShard) == false) {
-                parentClient.execute(
-                    TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
-                    new TransportStatelessPrimaryRelocationPrewarmAction.PrewarmRequest(
-                        request.targetNode(),
-                        new TransportStatelessPrimaryRelocationPrewarmAction.Request(
-                            shardId,
-                            new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
-                            hasRecentIdLookup
-                        )
-                    ),
-                    listener.map(ignored -> null)
-                );
-            } else {
-                listener.onResponse(null);
-            }
+            parentClient.execute(
+                TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
+                new TransportStatelessPrimaryRelocationPrewarmAction.PrewarmRequest(
+                    request.targetNode(),
+                    new TransportStatelessPrimaryRelocationPrewarmAction.Request(
+                        shardId,
+                        new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
+                        hasRecentIdLookup
+                    )
+                ),
+                listener.map(ignored -> null)
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }

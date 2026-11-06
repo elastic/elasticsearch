@@ -202,7 +202,16 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.query("from single-node-index | stats count(user) by tags");
             request.acceptedPragmaRisks(true);
-            request.pragmas(randomPragmas());
+            // The simulated rejection is wired into the exchange transport action, so keep every page fetch on the transport layer
+            // even when the coordinator is the data node, where the single-node optimizations would otherwise fetch in-process.
+            request.pragmas(
+                new QueryPragmas(
+                    Settings.builder()
+                        .put(randomPragmas().getSettings())
+                        .put(QueryPragmas.SINGLE_NODE_OPTIMIZATIONS.getKey(), false)
+                        .build()
+                )
+            );
             CountDownLatch queryLatch = new CountDownLatch(1);
             client().execute(EsqlQueryAction.INSTANCE, request, ActionListener.runAfter(ActionListener.wrap(r -> {
                 r.close();

@@ -243,10 +243,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 var childSessionId = computeService.newChildSession(sessionId);
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
-                // When the target node is this node the sink is created in-process instead of over the transport.
-                final boolean targetIsLocalNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
+                // When the target node is this node the sink is created in-process instead of over the transport, unless the
+                // single-node optimizations are turned off by pragma.
+                final boolean inProcessExchange = queryPragmas.singleNodeOptimizations()
+                    && transportService.getLocalNode().getId().equals(connection.getNode().getId());
                 openExchange(
-                    targetIsLocalNode,
+                    inProcessExchange,
                     connection,
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
@@ -304,7 +306,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     return r.completionInfo();
                                 }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
                             );
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                            final var remoteSink = exchangeService.newRemoteSink(
+                                groupTask,
+                                childSessionId,
+                                transportService,
+                                connection,
+                                queryPragmas.singleNodeOptimizations()
+                            );
                             exchangeSource.addRemoteSink(
                                 remoteSink,
                                 configuration.allowPartialResults() == false,
@@ -461,7 +469,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 searchExecutor
                             )
                         );
-                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                        var remoteSink = exchangeService.newRemoteSink(
+                            groupTask,
+                            childSessionId,
+                            transportService,
+                            connection,
+                            queryPragmas.singleNodeOptimizations()
+                        );
                         exchangeSource.addRemoteSink(
                             remoteSink,
                             allowPartial == false,
@@ -871,7 +885,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         searchExecutor
                     )
                 );
-                var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, next.connection());
+                var remoteSink = exchangeService.newRemoteSink(
+                    groupTask,
+                    childSessionId,
+                    transportService,
+                    next.connection(),
+                    queryPragmas.singleNodeOptimizations()
+                );
                 exchangeSource.addRemoteSink(
                     remoteSink,
                     allowPartial == false,

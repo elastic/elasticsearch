@@ -444,7 +444,25 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param conn             the connection to the remote node where the remote exchange sink is located
      */
     public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
-        boolean local = transportService.getLocalNode() != null && transportService.getLocalNode().equals(conn.getNode());
+        return newRemoteSink(parentTask, exchangeId, transportService, conn, false);
+    }
+
+    /**
+     * Same as {@link #newRemoteSink(Task, String, TransportService, Transport.Connection)}, except that when {@code inProcessIfLocal}
+     * is set and the connection targets this node, pages are fetched from the sink directly instead of through the transport layer.
+     * Callers keep the transport path when they need every fetch to be visible to the transport layer, for instance when a
+     * query pragma turns the same-node shortcuts off.
+     */
+    public RemoteSink newRemoteSink(
+        Task parentTask,
+        String exchangeId,
+        TransportService transportService,
+        Transport.Connection conn,
+        boolean inProcessIfLocal
+    ) {
+        boolean local = inProcessIfLocal
+            && transportService.getLocalNode() != null
+            && transportService.getLocalNode().equals(conn.getNode());
         return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor, local ? this : null);
     }
 

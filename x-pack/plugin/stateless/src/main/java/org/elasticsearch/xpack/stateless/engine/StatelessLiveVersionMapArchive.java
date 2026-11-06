@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.stateless.engine;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.engine.LiveVersionMap;
-import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.engine.VersionValue;
 
 import java.util.Comparator;
@@ -20,7 +19,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
+public class StatelessLiveVersionMapArchive implements StatelessLiveVersionMapArchiveApi {
     // Used to keep track of VersionValues while a refresh on unpromotable shards is pending.
     // Keeps track of the evacuated old map entries and the generation at the time of the refresh
     // to decide which evacuated maps can be removed upon a flush.
@@ -29,6 +28,8 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     // See {@link org.elasticsearch.index.engine.InternalEngine#getPreCommitSegmentGeneration}.
     private final Supplier<Long> preCommitGenerationSupplier;
     private final Object mutex = new Object();
+    // Refreshed as a side effect of getRamBytesUsed(), which the memory and disk controllers call periodically, for the node metrics.
+    private volatile CachedStats cachedStats = CachedStats.ZERO;
     private final AtomicLong minDeleteTimestamp = new AtomicLong(Long.MAX_VALUE);
     // Keeps track of an unsafe old map that has been passed to the archive and the archive has not yet received an unpromotable
     // refresh response for a generation that includes the changes that happened during the unsafe map. We need to track this, to
@@ -85,6 +86,7 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
         existing.merge(old);
     }
 
+    @Override
     public void afterUnpromotablesRefreshed(long generation) {
         synchronized (mutex) {
             if (generation >= minSafeGeneration) {
@@ -131,6 +133,7 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     }
 
     // visible for testing
+    @Override
     public long getMinSafeGeneration() {
         return minSafeGeneration;
     }
@@ -155,12 +158,21 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     @Override
     public long getRamBytesUsed() {
         long memBytesUsed = 0;
+        final int mapsHeld;
         synchronized (mutex) {
             for (var versionLookup : archivePerGeneration.values()) {
                 memBytesUsed += archiveEntryBytesUsed(versionLookup);
             }
+            mapsHeld = archivePerGeneration.size();
         }
+        // Count and bytes come from the same locked walk, so they are consistent.
+        cachedStats = new CachedStats(mapsHeld, memBytesUsed);
         return memBytesUsed;
+    }
+
+    @Override
+    public CachedStats cachedStats() {
+        return cachedStats;
     }
 
     @Override

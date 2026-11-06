@@ -186,6 +186,7 @@ import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
+import org.elasticsearch.xpack.stateless.engine.LiveVersionMapArchiveMetrics;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerServiceFactory;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
@@ -264,6 +265,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -805,6 +807,12 @@ public class StatelessPlugin extends Plugin
         Environment environment = services.environment();
         // use the settings that include additional settings.
         Settings settings = environment.settings();
+        logger.info(
+            "live version map: archive [{}], optimizations [{}], writes skip archive [{}]",
+            IndexEngine.LIVE_VERSION_MAP_ARCHIVE.get(settings).name().toLowerCase(Locale.ROOT),
+            IndexEngine.LIVE_VERSION_MAP_OPTIMIZATIONS_ENABLED.get(settings),
+            IndexEngine.LIVE_VERSION_MAP_WRITES_SKIP_ARCHIVE_ENABLED.get(settings)
+        );
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
         IndicesService indicesService = setAndGet(this.indicesService, services.indicesService());
         final MeterRegistry meterRegistry = services.telemetryProvider().getMeterRegistry();
@@ -911,6 +919,10 @@ public class StatelessPlugin extends Plugin
                 services.telemetryProvider()
             );
             components.add(uploadQueueControllerService);
+            // Closing the metrics unregisters their gauges
+            components.add(
+                new LiveVersionMapArchiveMetrics(meterRegistry, indicesService, IndexEngine.LIVE_VERSION_MAP_ARCHIVE.get(settings))
+            );
         }
 
         final var snapshotsCommitService = setAndGet(
@@ -1417,6 +1429,10 @@ public class StatelessPlugin extends Plugin
             TranslogReplicator.FLUSH_SIZE_SETTING,
             TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING,
             IndexEngine.MERGE_PREWARM,
+            IndexEngine.LIVE_VERSION_MAP_ARCHIVE,
+            IndexEngine.LIVE_VERSION_MAP_OPTIMIZATIONS_ENABLED,
+            IndexEngine.LIVE_VERSION_MAP_WRITES_SKIP_ARCHIVE_ENABLED,
+            IndexEngine.LIVE_VERSION_MAP_ARCHIVE_TEST_ACK_DELAY,
             IndexEngine.MERGE_FORCE_REFRESH_SIZE,
             IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR,
             StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING,

@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Assertions;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.LiveVersionMap;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -86,6 +88,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -110,6 +113,75 @@ public class IndexEngine extends InternalEngine {
     public static final String TRANSLOG_RELEASE_END_FILE = "translog_release_end_file";
     public static final String DOC_STATS = "doc_stats";
     public static final String SHARD_FIELD_STATS = "shard_field_stats";
+
+    /** The archive variant that holds the evacuated live version maps while unpromotable shards have yet to refresh. */
+    public enum LiveVersionMapArchiveType {
+        /** Copies the entries of every evacuated map into one map per commit generation. */
+        PER_GENERATION,
+        /** Keeps every evacuated map by reference, and walks them live. */
+        BY_REFERENCE
+    }
+
+    /**
+     * Static: read when an engine is created, so a change takes effect on node restart. Requires
+     * {@link #LIVE_VERSION_MAP_OPTIMIZATIONS_ENABLED} for {@code by_reference}: without the prune snapshot every prune walks the whole
+     * archive once per tombstone.
+     */
+    public static final Setting<LiveVersionMapArchiveType> LIVE_VERSION_MAP_ARCHIVE = Setting.enumSetting(
+        LiveVersionMapArchiveType.class,
+        "stateless.live_version_map.archive",
+        LiveVersionMapArchiveType.PER_GENERATION,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(LiveVersionMapArchiveType value) {}
+
+            @Override
+            public void validate(LiveVersionMapArchiveType value, Map<Setting<?>, Object> settings) {
+                if (value == LiveVersionMapArchiveType.BY_REFERENCE
+                    && (boolean) settings.get(LIVE_VERSION_MAP_OPTIMIZATIONS_ENABLED) == false) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "Setting [%s] cannot be [by_reference] unless setting [%s] is [true]",
+                            "stateless.live_version_map.archive",
+                            "stateless.live_version_map.optimizations.enabled"
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(LIVE_VERSION_MAP_OPTIMIZATIONS_ENABLED).iterator();
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
+    /** Static. No rotation of an empty live version map on refresh, and one min-delete-timestamp snapshot per tombstone prune. */
+    public static final Setting<Boolean> LIVE_VERSION_MAP_OPTIMIZATIONS_ENABLED = Setting.boolSetting(
+        "stateless.live_version_map.optimizations.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    /** Static. Writes and get-for-update do not look up the live version map archive. Valid with every archive variant. */
+    public static final Setting<Boolean> LIVE_VERSION_MAP_WRITES_SKIP_ARCHIVE_ENABLED = Setting.boolSetting(
+        "stateless.live_version_map.writes_skip_archive.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Static, test only. Delays the archive cleanup that runs once all search copies acked a commit, to simulate search copies that
+     * ack late. Search copies, {@code _refresh} and commit release are not delayed: only the archive holds its maps for longer.
+     */
+    public static final Setting<TimeValue> LIVE_VERSION_MAP_ARCHIVE_TEST_ACK_DELAY = Setting.timeSetting(
+        "stateless.live_version_map.archive.test_ack_delay",
+        TimeValue.ZERO,
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
     // If the size of a merge is greater than or equal to this, force a refresh to allow its space to be reclaimed immediately.
     public static final Setting<ByteSizeValue> MERGE_FORCE_REFRESH_SIZE = Setting.byteSizeSetting(
@@ -887,13 +959,41 @@ public class IndexEngine extends InternalEngine {
         super.awaitPendingClose();
     }
 
+    // Called from the InternalEngine constructor, before this class's fields are assigned: read the node settings through config().
     @Override
     public LiveVersionMapArchive createLiveVersionMapArchive() {
-        return new StatelessLiveVersionMapArchive(this::getPreCommitSegmentGeneration);
+        return switch (LIVE_VERSION_MAP_ARCHIVE.get(config().getIndexSettings().getNodeSettings())) {
+            case PER_GENERATION -> new StatelessLiveVersionMapArchive(this::getPreCommitSegmentGeneration);
+            case BY_REFERENCE -> new ByReferenceLiveVersionMapArchive(this::getPreCommitSegmentGeneration);
+        };
+    }
+
+    // Called from the InternalEngine constructor, before this class's fields are assigned: read the node settings through config().
+    @Override
+    protected LiveVersionMap.Options liveVersionMapOptions() {
+        final Settings nodeSettings = config().getIndexSettings().getNodeSettings();
+        final boolean optimizations = LIVE_VERSION_MAP_OPTIMIZATIONS_ENABLED.get(nodeSettings);
+        return new LiveVersionMap.Options(optimizations, optimizations, LIVE_VERSION_MAP_WRITES_SKIP_ARCHIVE_ENABLED.get(nodeSettings));
+    }
+
+    /**
+     * The live version map archive's size as of the last time the memory or disk controller polled this engine's index buffer bytes.
+     * Reads cached values only, it never walks the archive.
+     */
+    StatelessLiveVersionMapArchiveApi.CachedStats liveVersionMapArchiveCachedStats() {
+        return ((StatelessLiveVersionMapArchiveApi) getLiveVersionMapArchive()).cachedStats();
     }
 
     public void commitSuccess(long generation) {
-        ((StatelessLiveVersionMapArchive) getLiveVersionMapArchive()).afterUnpromotablesRefreshed(generation);
+        final var archive = (StatelessLiveVersionMapArchiveApi) getLiveVersionMapArchive();
+        final TimeValue delay = LIVE_VERSION_MAP_ARCHIVE_TEST_ACK_DELAY.get(config().getIndexSettings().getNodeSettings());
+        if (delay.millis() == 0) {
+            archive.afterUnpromotablesRefreshed(generation);
+        } else {
+            // A late or out-of-order call is safe: it only removes maps tagged at or below its generation.
+            final ThreadPool threadPool = config().getThreadPool();
+            threadPool.schedule(() -> archive.afterUnpromotablesRefreshed(generation), delay, threadPool.generic());
+        }
     }
 
     @Override

@@ -275,7 +275,7 @@ public class InternalEngine extends Engine {
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
         this.liveVersionMapArchive = createLiveVersionMapArchive();
-        this.versionMap = new LiveVersionMap(liveVersionMapArchive);
+        this.versionMap = new LiveVersionMap(liveVersionMapArchive, liveVersionMapOptions());
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -1240,7 +1240,9 @@ public class InternalEngine extends Engine {
             }
         }
 
-        return versionMap.getUnderLock(id);
+        // With writesSkipArchive, writes do not need the archive: its entries are already in the internal reader that a miss falls
+        // through to.
+        return versionMap.writesSkipArchive() ? versionMap.getForWriteUnderLock(id) : versionMap.getUnderLock(id);
     }
 
     private boolean canOptimizeAddDocument(Index index) {
@@ -4431,7 +4433,9 @@ public class InternalEngine extends Engine {
                     uid = Uid.encodeId(id);
                 }
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
-                    final VersionValue curr = versionMap.getUnderLock(uid);
+                    final VersionValue curr = versionMap.writesSkipArchive()
+                        ? versionMap.getForWriteUnderLock(uid)
+                        : versionMap.getUnderLock(uid);
                     if (curr == null || compareOpToVersionMapOnSeqNo(id, seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
                         if (isTombstone) {
                             // use 0L for the start time so we can prune this delete tombstone quickly
@@ -4510,6 +4514,14 @@ public class InternalEngine extends Engine {
 
     protected LiveVersionMapArchive createLiveVersionMapArchive() {
         return LiveVersionMapArchive.NOOP_ARCHIVE;
+    }
+
+    /**
+     * The opt-in behaviours of this engine's {@link LiveVersionMap}. Like {@link #createLiveVersionMapArchive()}, this is called from the
+     * constructor, so overrides must not depend on their own fields.
+     */
+    protected LiveVersionMap.Options liveVersionMapOptions() {
+        return LiveVersionMap.Options.DEFAULT;
     }
 
     protected LiveVersionMapArchive getLiveVersionMapArchive() {

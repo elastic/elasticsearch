@@ -28,13 +28,37 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
     private final LiveVersionMapArchive archive;
+    private final Options options;
+
+    /**
+     * Opt-in behaviours of the live version map. The defaults are the long-standing behaviour; only the stateless index engine turns
+     * them on, so that they can be switched on and off per node.
+     *
+     * @param skipEmptyRotation a refresh does not rotate the current map if it has not seen any operation
+     * @param pruneSnapshot tombstone pruning reads the min delete timestamp of the maps and the archive once per pass rather than once
+     *                      per tombstone
+     * @param writesSkipArchive writes and get-for-update do not look up the archive, since an archived entry is already in the internal
+     *                          reader that a miss falls through to
+     */
+    public record Options(boolean skipEmptyRotation, boolean pruneSnapshot, boolean writesSkipArchive) {
+        public static final Options DEFAULT = new Options(false, false, false);
+    }
 
     LiveVersionMap() {
         this(LiveVersionMapArchive.NOOP_ARCHIVE);
     }
 
     LiveVersionMap(LiveVersionMapArchive archive) {
+        this(archive, Options.DEFAULT);
+    }
+
+    LiveVersionMap(LiveVersionMapArchive archive, Options options) {
         this.archive = archive;
+        this.options = options;
+    }
+
+    boolean writesSkipArchive() {
+        return options.writesSkipArchive();
     }
 
     public static final class VersionLookup {
@@ -180,6 +204,14 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
 
         /**
+         * Returns true if the current map has not seen any operation (no entry, not unsafe, no delete), in which case a refresh does
+         * not need to rotate it: it can stay the current map, and a writer that sneaks in concurrently still writes into a live map.
+         */
+        boolean canSkipRotation() {
+            return current.isEmpty() && current.isUnsafe() == false && current.minDeleteTimestamp() == Long.MAX_VALUE;
+        }
+
+        /**
          * Builds a new map for the refresh transition this should be called in beforeRefresh()
          */
         Maps buildTransitionMap() {
@@ -282,8 +314,18 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // map. While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        maps = maps.buildTransitionMap();
-        assert (unsafeKeysMap = unsafeKeysMap.buildTransitionMap()) != null;
+        if (options.skipEmptyRotation()) {
+            // If the current map has not seen any operation, keep it (and the safe access flags) instead of rotating it. afterRefresh
+            // then sees an empty old map and does nothing.
+            final Maps currentMaps = maps;
+            if (currentMaps.canSkipRotation() == false) {
+                maps = currentMaps.buildTransitionMap();
+            }
+            assert (unsafeKeysMap = unsafeKeysMap.canSkipRotation() ? unsafeKeysMap : unsafeKeysMap.buildTransitionMap()) != null;
+        } else {
+            maps = maps.buildTransitionMap();
+            assert (unsafeKeysMap = unsafeKeysMap.buildTransitionMap()) != null;
+        }
         // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
         // line and this one, but that should be minor, and the error won't accumulate over time:
     }
@@ -297,8 +339,19 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact
         // reflected in the previous reader. We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
-        maps = maps.invalidateOldMap(archive);
-        assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMapForAssert()) != null;
+        if (options.skipEmptyRotation()) {
+            // The old map is only empty here if beforeRefresh skipped the rotation, in which case there is nothing to invalidate.
+            final Maps currentMaps = maps;
+            if (currentMaps.old != VersionLookup.EMPTY) {
+                maps = currentMaps.invalidateOldMap(archive);
+            }
+            assert (unsafeKeysMap = unsafeKeysMap.old == VersionLookup.EMPTY
+                ? unsafeKeysMap
+                : unsafeKeysMap.invalidateOldMapForAssert()) != null;
+        } else {
+            maps = maps.invalidateOldMap(archive);
+            assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMapForAssert()) != null;
+        }
 
     }
 
@@ -306,10 +359,23 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
      * Returns the live version (add or delete) for this uid.
      */
     VersionValue getUnderLock(final BytesRef uid) {
-        return getUnderLock(uid, maps);
+        final VersionValue value = getForWriteUnderLock(uid, maps);
+        if (value != null) {
+            return value;
+        }
+        return archive.get(uid);
     }
 
-    private VersionValue getUnderLock(final BytesRef uid, Maps currentMaps) {
+    /**
+     * Like {@link #getUnderLock(BytesRef)} but without looking up the archive. This is enough for writes (and get for update): an
+     * archived entry was refreshed into the internal reader before it left the old map, so a lookup that misses here and falls
+     * through to the internal reader finds the same version.
+     */
+    VersionValue getForWriteUnderLock(final BytesRef uid) {
+        return getForWriteUnderLock(uid, maps);
+    }
+
+    private VersionValue getForWriteUnderLock(final BytesRef uid, Maps currentMaps) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         // First try to get the "live" value:
         VersionValue value = currentMaps.current.get(uid);
@@ -322,22 +388,36 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return value;
         }
 
-        // We first check the tombstone then the archive since the archive accumulates ids from the old map, and we
-        // makes sure in `putDeleteUnderLock` the old map does not hold an entry that is in tombstone, archive also wouldn't have them.
-        value = tombstones.get(uid);
-        if (value != null) {
-            return value;
-        }
-
-        return archive.get(uid);
+        // We first check the tombstone then the archive (see getUnderLock) since the archive accumulates ids from the old map, and we
+        // make sure in `putDeleteUnderLock` the old map does not hold an entry that is in tombstone, archive also wouldn't have them.
+        return tombstones.get(uid);
     }
 
+    /**
+     * Assertion-only lookup. With {@link Options#writesSkipArchive()} it skips the archive like writes do: the archive only holds
+     * index entries that are already in the internal reader, which the assertions fall back to on a miss.
+     */
     VersionValue getVersionForAssert(final BytesRef uid) {
+        if (options.writesSkipArchive()) {
+            VersionValue value = getForWriteUnderLock(uid, maps);
+            if (value == null) {
+                value = getForWriteUnderLock(uid, unsafeKeysMap);
+            }
+            return value;
+        }
         VersionValue value = getUnderLock(uid, maps);
         if (value == null) {
             value = getUnderLock(uid, unsafeKeysMap);
         }
         return value;
+    }
+
+    private VersionValue getUnderLock(final BytesRef uid, Maps currentMaps) {
+        final VersionValue value = getForWriteUnderLock(uid, currentMaps);
+        if (value != null) {
+            return value;
+        }
+        return archive.get(uid);
     }
 
     boolean isUnsafe() {
@@ -441,10 +521,22 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
     }
 
-    private boolean canRemoveTombstone(long maxTimestampToPrune, long maxSeqNoToPrune, DeleteVersionValue versionValue) {
+    /**
+     * @param snapshotMinTrackedDeleteTimestamp the min delete timestamp of the maps and the archive read at the start of the pass, or
+     *                                          {@code null} to read them now
+     */
+    private boolean canRemoveTombstone(
+        long maxTimestampToPrune,
+        long maxSeqNoToPrune,
+        Long snapshotMinTrackedDeleteTimestamp,
+        DeleteVersionValue versionValue
+    ) {
         // check if the value is old enough and safe to be removed
         final boolean isTooOld = versionValue.time < maxTimestampToPrune;
         final boolean isSafeToPrune = versionValue.seqNo <= maxSeqNoToPrune;
+        if (snapshotMinTrackedDeleteTimestamp != null) {
+            return isTooOld && isSafeToPrune && versionValue.time < snapshotMinTrackedDeleteTimestamp;
+        }
         // version value can't be removed it's
         // not yet flushed to lucene i.e. it's part of this current maps object
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
@@ -456,11 +548,22 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
      * Try to prune tombstones whose timestamp is less than maxTimestampToPrune and seqno at most the maxSeqNoToPrune.
      */
     void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
+        // With the prune snapshot, read the min delete timestamp of the maps and then of the archive once per pass. The order matters: a
+        // map moves from the maps to the archive (archive first, then maps), so reading the maps first never misses a map in transit.
+        // Deletes that land after this point have a timestamp of about now, which is not older than maxTimestampToPrune, and acks only
+        // remove maps from the archive, so the snapshot is conservative.
+        final Long snapshot;
+        if (options.pruneSnapshot()) {
+            final long mapsMin = maps.getMinDeleteTimestamp();
+            snapshot = Math.min(mapsMin, archive.getMinDeleteTimestamp());
+        } else {
+            snapshot = null;
+        }
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : tombstones.entrySet()) {
             // we do check before we actually lock the key - this way we don't need to acquire the lock for tombstones that are not
             // prune-able. If the tombstone changes concurrently we will re-read and step out below since if we can't collect it now w
             // we won't collect the tombstone below since it must be newer than this one.
-            if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, entry.getValue())) {
+            if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, snapshot, entry.getValue())) {
                 final BytesRef uid = entry.getKey();
                 try (Releasable lock = keyedLock.tryAcquire(uid)) {
                     // we use tryAcquire here since this is a best effort and we try to be least disruptive
@@ -470,7 +573,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
                         // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                         final DeleteVersionValue versionValue = tombstones.get(uid);
                         if (versionValue != null) {
-                            if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, versionValue)) {
+                            if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, snapshot, versionValue)) {
                                 removeTombstoneUnderLock(uid);
                             }
                         }

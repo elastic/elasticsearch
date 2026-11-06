@@ -20,6 +20,7 @@ import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.Maps;
@@ -45,7 +46,6 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -360,12 +360,17 @@ public class SSLService {
     /**
      * Returns the intersection of the supported ciphers with the requested ciphers. This method will also optionally log if unsupported
      * ciphers were requested.
+     * <p>
+     * When the requested ciphers are the built-in {@link SslConfigurationLoader#DEFAULT_CIPHERS}, unsupported ones are logged at
+     * {@code DEBUG}: the operator configured nothing, and some providers never support some of the defaults (FIPS providers lack
+     * ChaCha20-Poly1305), so dropping them is normal operation. Otherwise the operator explicitly asked for a suite that cannot be used,
+     * so it is logged at {@code WARN}.
      *
-     * @throws IllegalArgumentException if no supported ciphers are in the requested ciphers
+     * @throws SslConfigException if no supported ciphers are in the requested ciphers
      */
     public static String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
         List<String> supportedCiphersList = new ArrayList<>(requestedCiphers.size());
-        List<String> unsupportedCiphers = new LinkedList<>();
+        List<String> unsupportedCiphers = new ArrayList<>();
         boolean found;
         for (String requestedCipher : requestedCiphers) {
             found = false;
@@ -389,13 +394,19 @@ public class SSLService {
         }
 
         if (log && unsupportedCiphers.isEmpty() == false) {
-            logger.error(
-                "unsupported ciphers [{}] were requested but cannot be used in this JVM, however there are supported ciphers "
-                    + "that will be used [{}]. If you are trying to use ciphers with a key length greater than 128 bits on an Oracle JVM, "
-                    + "you will need to install the unlimited strength JCE policy files.",
-                unsupportedCiphers,
-                supportedCiphersList
-            );
+            if (requestedCiphers.equals(SslConfigurationLoader.DEFAULT_CIPHERS)) {
+                logger.debug(
+                    "default cipher suites {} are not supported by the JSSE provider and will not be used; using {}",
+                    unsupportedCiphers,
+                    supportedCiphersList
+                );
+            } else {
+                logger.warn(
+                    "configured cipher suites {} are not supported by the JSSE provider and will not be used; using {}",
+                    unsupportedCiphers,
+                    supportedCiphersList
+                );
+            }
         }
 
         return supportedCiphersList.toArray(new String[supportedCiphersList.size()]);

@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 164905
+summary: Add full name and initials to user-managed service accounts
+type: enhancement

@@ -161,6 +161,18 @@ public abstract class RunTask extends DefaultTask {
     @Internal
     public abstract MapProperty<String, File> getConfigFiles();
 
+    /**
+     * Paths of the projects whose plugin bundles are installed. The bundles themselves are tracked by {@link #getPluginsPath()}.
+     */
+    @Internal
+    public abstract ListProperty<String> getPluginProjects();
+
+    /**
+     * Paths of the projects whose module bundles are installed. The bundles themselves are tracked by {@link #getModulesPath()}.
+     */
+    @Internal
+    public abstract ListProperty<String> getModuleProjects();
+
     @Input
     public abstract ListProperty<RunUser> getUsers();
 
@@ -333,15 +345,14 @@ public abstract class RunTask extends DefaultTask {
      * Installs the plugin built by the given project.
      */
     public void plugin(String projectPath) {
-        getProject().getDependencies()
-            .add(pluginsConfigurationName, getProject().getDependencies().project(Map.of("path", projectPath, "configuration", "zip")));
+        getPluginProjects().add(projectPath);
     }
 
     /**
      * Installs the module built by the given project. Only applies to the {@code INTEG_TEST} distribution.
      */
     public void module(String projectPath) {
-        getProject().getDependencies().add(modulesConfigurationName, getProject().getDependencies().project(Map.of("path", projectPath)));
+        getModuleProjects().add(projectPath);
     }
 
     /**

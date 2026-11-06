@@ -47,6 +47,7 @@ public class InternalRunPlugin implements Plugin<Project> {
 
     private static final String DEFAULT_DISTRO = "default_distro";
     private static final String INTEG_TEST_DISTRO = "integ_test_distro";
+    private static final String PLUGINS_PROJECT_PREFIX = ":plugins:";
     private static final String TLS_RESOURCES = "build-tools-internal/src/main/resources/run.ssl";
 
     private final ProviderFactory providers;
@@ -89,11 +90,25 @@ public class InternalRunPlugin implements Plugin<Project> {
                     .addAllLater(
                         task.getWithPlugins()
                             .orElse("")
-                            .map(value -> RunTask.splitPluginNames(value).stream().map(name -> pluginDependency(project, name)).toList())
+                            .map(
+                                value -> RunTask.splitPluginNames(value)
+                                    .stream()
+                                    .map(name -> pluginDependency(project, PLUGINS_PROJECT_PREFIX + name))
+                                    .toList()
+                            )
+                    );
+                c.getDependencies()
+                    .addAllLater(
+                        task.getPluginProjects().map(paths -> paths.stream().map(path -> pluginDependency(project, path)).toList())
                     );
             });
             Configuration modules = TestClusterArtifacts.createPluginConfiguration(project, task.getName() + "Modules", true, false);
             modules.setDescription("Module bundles installed into the cluster started by " + task.getPath());
+            modules.getDependencies()
+                .addAllLater(
+                    task.getModuleProjects()
+                        .map(paths -> paths.stream().map(path -> project.getDependencies().project(Map.of("path", path))).toList())
+                );
             task.setConfigurationNames(plugins.getName(), modules.getName());
 
             task.getClusterName().convention("runTask");
@@ -174,7 +189,7 @@ public class InternalRunPlugin implements Plugin<Project> {
         };
     }
 
-    private static Dependency pluginDependency(Project project, String name) {
-        return project.getDependencies().project(Map.of("path", ":plugins:" + name, "configuration", "zip"));
+    private static Dependency pluginDependency(Project project, String projectPath) {
+        return project.getDependencies().project(Map.of("path", projectPath, "configuration", "zip"));
     }
 }

@@ -301,6 +301,68 @@ public class SketchFilterOperatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code insert} is written out for four slots. It must do what the rules say: a tracked key adds one; a new key takes the first
+     * free slot; if the bucket is full, the new key takes the first slot with the smallest count, with {@code c} one above that
+     * count and {@code e} equal to it. This test runs the rules in the simplest way, on slots in order, and compares the state.
+     */
+    public void testInsertFollowsTheRules() {
+        int slots = randomFrom(8, 64, 256, 1024);
+        CountSketch sketch = new CountSketch(slots);
+        int buckets = sketch.buckets();
+        long[][] key = new long[buckets][4];
+        long[][] count = new long[buckets][4];
+        long[][] error = new long[buckets][4];
+        int keyRange = randomFrom(10, 100, 5_000, 100_000);
+        for (int row = 0; row < 40_000; row++) {
+            long k = randomBoolean() ? randomIntBetween(0, Math.min(keyRange, 20)) : randomIntBetween(0, keyRange);
+            if (randomInt(4) == 0) {
+                k = -k - 1; // negative and large keys too
+            }
+            sketch.add(k);
+            int b = sketch.bucketOf(k);
+            int slot = -1;
+            for (int j = 0; j < 4 && slot < 0; j++) {
+                if (count[b][j] != 0 && key[b][j] == k) {
+                    slot = j;
+                }
+            }
+            if (slot >= 0) {
+                count[b][slot]++;
+                continue;
+            }
+            for (int j = 0; j < 4 && slot < 0; j++) {
+                if (count[b][j] == 0) {
+                    slot = j;
+                }
+            }
+            if (slot >= 0) {
+                key[b][slot] = k;
+                count[b][slot] = 1;
+                error[b][slot] = 0;
+                continue;
+            }
+            slot = 0;
+            for (int j = 1; j < 4; j++) {
+                if (count[b][j] < count[b][slot]) {
+                    slot = j;
+                }
+            }
+            error[b][slot] = count[b][slot];
+            key[b][slot] = k;
+            count[b][slot]++;
+        }
+        Map<Long, List<Long>> expected = new HashMap<>();
+        for (int b = 0; b < buckets; b++) {
+            for (int j = 0; j < 4; j++) {
+                if (count[b][j] != 0) {
+                    expected.put(key[b][j], List.of(count[b][j], error[b][j]));
+                }
+            }
+        }
+        assertThat(tracked(sketch), equalTo(expected));
+    }
+
     private static Map<Long, List<Long>> tracked(CountSketch sketch) {
         Map<Long, List<Long>> m = new HashMap<>();
         sketch.forEachTracked((bucket, key, count, error) -> m.put(key, List.of(count, error)));

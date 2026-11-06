@@ -258,11 +258,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesGet;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesHash;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesSet;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesUnset;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
@@ -420,12 +415,6 @@ public class EsqlFunctionRegistry {
 
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
-            // Functional time-series metadata; verification checks the feature flag and participating nodes' versions.
-            new FunctionDefinition[] {
-                TimeSeriesGet.DEFINITION,
-                TimeSeriesSet.DEFINITION,
-                TimeSeriesUnset.DEFINITION,
-                TimeSeriesHash.DEFINITION },
             // grouping functions
             new FunctionDefinition[] { Bucket.DEFINITION, Categorize.DEFINITION, TBucket.DEFINITION, TimeSeriesWithout.DEFINITION },
             // aggregate functions
@@ -1193,16 +1182,12 @@ public class EsqlFunctionRegistry {
                 continue;
             }
             String name = "fn_" + def.name();
-            // Keep definitions available for verification, but do not advertise disabled metadata functions as usable.
-            boolean functionEnabled = enabled
-                && (TimeSeriesFunction.class.isAssignableFrom(def.clazz()) == false
-                    || EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled());
-            capabilities.add(name, functionEnabled);
+            capabilities.add(name, enabled);
             for (String sub : def.capabilities()) {
-                capabilities.add(name + "_" + sub, functionEnabled);
+                capabilities.add(name + "_" + sub, enabled);
             }
             for (String sub : def.snapshotCapabilities()) {
-                capabilities.add(name + "_" + sub, functionEnabled && Build.current().isSnapshot());
+                capabilities.add(name + "_" + sub, enabled && Build.current().isSnapshot());
             }
         }
     }

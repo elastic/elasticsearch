@@ -14,11 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
-import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,25 +26,8 @@ public final class TimeSeriesUnset extends TimeSeriesFunction {
         "TimeSeriesUnset",
         TimeSeriesUnset::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TimeSeriesUnset.class)
-        .unaryVariadic(TimeSeriesUnset::new)
-        .name("ts_unset");
 
-    @FunctionInfo(
-        returnType = "_timeseries",
-        appliesTo = @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.EXPERIMENTAL),
-        briefSummary = "Removes labels from time-series metadata.",
-        description = "Removes labels from time-series metadata."
-    )
-    public TimeSeriesUnset(
-        Source source,
-        @Param(
-            name = "metadata",
-            type = "_timeseries",
-            description = "Time-series metadata; null denotes the empty label set."
-        ) Expression metadata,
-        @Param(name = "labels", type = "keyword", description = "Constant label names to remove.") List<Expression> labels
-    ) {
+    public TimeSeriesUnset(Source source, Expression metadata, List<Expression> labels) {
         super(source, Stream.concat(Stream.of(metadata), labels.stream()).toList());
     }
 

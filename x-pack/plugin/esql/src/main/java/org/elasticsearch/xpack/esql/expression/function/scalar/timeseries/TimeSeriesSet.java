@@ -14,11 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
-import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,30 +25,8 @@ public final class TimeSeriesSet extends TimeSeriesFunction {
         "TimeSeriesSet",
         TimeSeriesSet::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TimeSeriesSet.class)
-        .ternary(TimeSeriesSet::new)
-        .name("ts_set");
 
-    @FunctionInfo(
-        returnType = "_timeseries",
-        appliesTo = @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.EXPERIMENTAL),
-        briefSummary = "Sets a label in time-series metadata.",
-        description = "Sets a label in time-series metadata."
-    )
-    public TimeSeriesSet(
-        Source source,
-        @Param(
-            name = "metadata",
-            type = "_timeseries",
-            description = "Time-series metadata; null denotes the empty label set."
-        ) Expression metadata,
-        @Param(name = "label", type = "keyword", description = "Constant label name.") Expression label,
-        @Param(
-            name = "value",
-            type = { "keyword", "text", "boolean", "integer", "long", "unsigned_long", "double", "ip" },
-            description = "New label value."
-        ) Expression value
-    ) {
+    public TimeSeriesSet(Source source, Expression metadata, Expression label, Expression value) {
         super(source, List.of(metadata, label, value));
     }
 

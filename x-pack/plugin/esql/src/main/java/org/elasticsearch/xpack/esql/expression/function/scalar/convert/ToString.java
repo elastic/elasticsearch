@@ -168,8 +168,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "version",
                 "date_range",
                 "exponential_histogram",
-                "flattened",
-                "_timeseries" },
+                "flattened" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression v,
         Configuration configuration

@@ -29,9 +29,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFol
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-/** Shared type validation and transport for operations on time-series label sets. */
+/**
+ * Shared type validation and transport for operations on time-series label sets. Internal: only PromQL translation builds
+ * these, so they have no ES|QL function name.
+ */
 public abstract class TimeSeriesFunction extends EsqlScalarFunction {
-    // Match the public signatures; representable types also include vectors, geometry, and internal engine values.
+    // Scalar label values; representable types also include vectors, geometry, and internal engine values.
     private static final Set<DataType> LABEL_VALUE_TYPES = Set.of(
         DataType.KEYWORD,
         DataType.TEXT,
@@ -66,7 +69,7 @@ public abstract class TimeSeriesFunction extends EsqlScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        // Null is the empty dictionary, including when supplied directly in an ES|QL expression.
+        // Null is the empty dictionary.
         return isType(metadata(), type -> type == DataType.TIMESERIES_DATA_TYPE, sourceText(), ParamOrdinal.FIRST, "_timeseries").and(
             resolveArguments()
         );
@@ -86,7 +89,7 @@ public abstract class TimeSeriesFunction extends EsqlScalarFunction {
             : new TypeResolution("label names in [" + sourceText() + "] must be non-empty, single-valued strings");
     }
 
-    /** TS_HASH accepts optional name/value pairs for promoted columns. */
+    /** The hash accepts optional name/value pairs for promoted columns. */
     protected final TypeResolution namedValues() {
         if ((children().size() - 1) % 2 != 0) {
             return new TypeResolution("[" + sourceText() + "] expects label name/value pairs after the metadata argument");

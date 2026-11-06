@@ -16,11 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
-import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -34,25 +29,8 @@ public final class TimeSeriesGet extends TimeSeriesFunction {
         "TimeSeriesGet",
         TimeSeriesGet::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TimeSeriesGet.class)
-        .binary(TimeSeriesGet::new)
-        .name("ts_get");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        appliesTo = @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.EXPERIMENTAL),
-        briefSummary = "Reads a label from time-series metadata.",
-        description = "Reads a label from time-series metadata."
-    )
-    public TimeSeriesGet(
-        Source source,
-        @Param(
-            name = "metadata",
-            type = "_timeseries",
-            description = "Time-series metadata; null denotes the empty label set."
-        ) Expression metadata,
-        @Param(name = "label", type = "keyword", description = "Constant label name.") Expression label
-    ) {
+    public TimeSeriesGet(Source source, Expression metadata, Expression label) {
         super(source, List.of(metadata, label));
     }
 
@@ -62,7 +40,7 @@ public final class TimeSeriesGet extends TimeSeriesFunction {
 
     /**
      * Reads metadata in a label's native type. Named columns and typed nulls pass through unchanged so aggregation
-     * analysis can still see their attributes; metadata reads use TS_GET followed by an ordinary scalar conversion.
+     * analysis can still see their attributes; metadata reads use TimeSeriesGet followed by an ordinary scalar conversion.
      */
     public static Expression create(Source source, Expression input, String label, DataType resultType, Configuration configuration) {
         if (input.dataType() != DataType.TIMESERIES_DATA_TYPE) {

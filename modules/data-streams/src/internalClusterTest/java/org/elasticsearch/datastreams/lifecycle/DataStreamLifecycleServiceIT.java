@@ -59,6 +59,7 @@ import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
@@ -536,6 +537,22 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * The shards capacity health indicator reads the shard limits from the {@link HealthMetadata}.
+     * Waits until every node has applied a cluster state with the expected limit, since the health
+     * report may be computed on any node.
+     */
+    private static void awaitHealthMetadataMaxShardsPerNode(int expectedMaxShardsPerNode) {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            awaitClusterState(nodeName, state -> {
+                HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(state);
+                return healthMetadata != null
+                    && healthMetadata.getShardLimitsMetadata() != null
+                    && healthMetadata.getShardLimitsMetadata().maxShardsPerNode() == expectedMaxShardsPerNode;
+            });
+        }
+    }
+
     private static void disableDataStreamLifecycle() {
         updateClusterSettings(Settings.builder().put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, TimeValue.MAX_VALUE));
     }
@@ -637,6 +654,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(errorInfo.retryCount(), greaterThanOrEqualTo(3));
         });
 
+        awaitHealthMetadataMaxShardsPerNode(1);
         GetHealthAction.Response healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
             .actionGet();
         HealthIndicatorResult masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
@@ -688,6 +706,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(dslHealthInfoOnHealthNode, is(DataStreamLifecycleHealthInfo.NO_DSL_ERRORS));
         });
 
+        awaitHealthMetadataMaxShardsPerNode(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getDefault(Settings.EMPTY));
         healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000)).actionGet();
         masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
         // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not

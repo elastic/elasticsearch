@@ -409,4 +409,10 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             }
         };
     }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The test needs three distinct ordered values and a boolean has two.
+        return false;
+    }
 }

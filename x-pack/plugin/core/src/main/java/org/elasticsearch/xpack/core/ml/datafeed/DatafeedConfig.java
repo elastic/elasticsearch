@@ -113,6 +113,18 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES = TransportVersion.fromName(
         "datafeed_max_consecutive_extraction_failures"
     );
+    static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED = TransportVersion.fromName(
+        "datafeed_max_consecutive_extraction_failures_removed"
+    );
+
+    /**
+     * main and 9.5 stop reading and writing {@code max_consecutive_extraction_failures} from {@code _REMOVED} onwards, so a node that
+     * advertises that version must not put the field on the wire either, otherwise the stream is misaligned against them.
+     */
+    static boolean maxConsecutiveExtractionFailuresOnWire(TransportVersion version) {
+        return version.supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+            && version.supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED) == false;
+    }
 
     // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser
     public static final ParseField JOB_ID = new ParseField("job_id");
@@ -309,7 +321,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)) {
+        if (maxConsecutiveExtractionFailuresOnWire(in.getTransportVersion())) {
             this.maxConsecutiveExtractionFailures = in.readOptionalInt();
         } else {
             this.maxConsecutiveExtractionFailures = null;
@@ -563,7 +575,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)) {
+        if (maxConsecutiveExtractionFailuresOnWire(out.getTransportVersion())) {
             out.writeOptionalInt(maxConsecutiveExtractionFailures);
         }
     }
@@ -630,7 +642,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
-        if (maxConsecutiveExtractionFailures != null) {
+        // This field is intentionally not persisted to the .ml-config system index on this branch: it is not
+        // declared in the index's mapping descriptor, so writing it would be rejected by the system-index
+        // mapping enforcement. The value is still surfaced in API responses; datafeed execution falls back to
+        // the default when the field is absent from the stored config.
+        if (maxConsecutiveExtractionFailures != null && forInternalStorage == false) {
             builder.field(MAX_CONSECUTIVE_EXTRACTION_FAILURES.getPreferredName(), maxConsecutiveExtractionFailures);
         }
         if (runtimeMappings.isEmpty() == false) {
@@ -850,7 +866,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indicesOptions = IndicesOptions.readIndicesOptions(in);
             }
             runtimeMappings = in.readGenericMap();
-            if (in.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)) {
+            if (maxConsecutiveExtractionFailuresOnWire(in.getTransportVersion())) {
                 maxConsecutiveExtractionFailures = in.readOptionalInt();
             }
         }
@@ -889,7 +905,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indicesOptions.writeIndicesOptions(out);
             }
             out.writeGenericMap(runtimeMappings);
-            if (out.getTransportVersion().supports(DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)) {
+            if (maxConsecutiveExtractionFailuresOnWire(out.getTransportVersion())) {
                 out.writeOptionalInt(maxConsecutiveExtractionFailures);
             }
         }

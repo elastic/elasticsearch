@@ -7,14 +7,22 @@
 
 package org.elasticsearch.xpack.ml.packageloader.action;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -164,5 +172,58 @@ public class ModelLoaderUtilsTests extends ESTestCase {
         long start = randomLongBetween(0, 2 << 10);
         long end = randomLongBetween(start + 1, 2 << 11);
         assertEquals("bytes=" + start + "-" + end, new ModelLoaderUtils.RequestRange(start, end, 0, 1).bytesRange());
+    }
+
+    public void testDroppedConnectionIsResumedFromTheLastDownloadedByte() throws IOException {
+        int chunkSize = 10;
+        byte[] modelDef = randomByteArrayOfLength(chunkSize * 3);
+        var range = new ModelLoaderUtils.RequestRange(0, modelDef.length - 1, 0, 3);
+        List<String> requestedRanges = new ArrayList<>();
+
+        var chunker = new ModelLoaderUtils.HttpStreamChunker(range, chunkSize, requested -> {
+            requestedRanges.add(requested.bytesRange());
+            var stream = rangeOf(modelDef, requested);
+            // On the first request serve a single chunk, then drop the connection mid download
+            return requestedRanges.size() == 1 ? new SequenceInputStream(Streams.limitStream(stream, chunkSize), failingStream()) : stream;
+        });
+
+        var downloaded = new ByteArrayOutputStream();
+        while (chunker.hasNext()) {
+            downloaded.write(BytesReference.toBytes(chunker.next().bytes()));
+        }
+
+        assertArrayEquals(modelDef, downloaded.toByteArray());
+        assertThat(chunker.getTotalBytesRead(), is((long) modelDef.length));
+        // The second request asks for the remainder of the range only, the first chunk is not downloaded twice
+        assertThat(requestedRanges, contains("bytes=0-29", "bytes=10-29"));
+    }
+
+    public void testDownloadFailsWhenTheConnectionKeepsDropping() {
+        var range = new ModelLoaderUtils.RequestRange(0, 99, 0, 10);
+        AtomicInteger requests = new AtomicInteger();
+
+        var chunker = new ModelLoaderUtils.HttpStreamChunker(range, 10, requested -> {
+            requests.incrementAndGet();
+            return failingStream();
+        });
+
+        IOException e = expectThrows(IOException.class, chunker::next);
+        assertEquals("connection closed", e.getMessage());
+        assertThat(requests.get(), is(ModelLoaderUtils.MAX_RETRIES + 1));
+        assertThat(chunker.getTotalBytesRead(), is(0L));
+    }
+
+    private static InputStream rangeOf(byte[] bytes, ModelLoaderUtils.RequestRange range) {
+        int start = Math.toIntExact(range.rangeStart());
+        return new ByteArrayInputStream(bytes, start, Math.toIntExact(range.rangeEnd() - start + 1));
+    }
+
+    private static InputStream failingStream() {
+        return new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("connection closed");
+            }
+        };
     }
 }

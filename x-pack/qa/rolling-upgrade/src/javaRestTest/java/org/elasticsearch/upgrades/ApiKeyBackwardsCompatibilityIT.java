@@ -19,6 +19,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -54,8 +56,16 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
+    @ClassRule
+    public static final ElasticsearchCluster cluster = buildClusterWithSecurity();
+
     public ApiKeyBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public void testQueryRestTypeKeys() throws IOException {

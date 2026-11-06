@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.truncateForError;
+
 public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
     public ToDateNanosTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -125,7 +127,9 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
                 "Line 1:1: java.lang.IllegalArgumentException: "
                     + (bytesRef.utf8ToString().isEmpty()
                         ? "cannot parse empty datetime"
-                        : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [strict_date_optional_time_nanos]"))
+                        : ("failed to parse date field ["
+                            + truncateForError(bytesRef.utf8ToString())
+                            + "] with format [strict_date_optional_time_nanos]"))
             )
         );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);

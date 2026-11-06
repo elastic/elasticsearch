@@ -16,8 +16,9 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public interface LocalClusterSpecBuilder<T extends ElasticsearchCluster> extends LocalSpecBuilder<LocalClusterSpecBuilder<T>> {
+
     /**
-     * Sets the node name. By default, "test-cluster" is used.
+     * Sets the node name. By default, a randomized name starting with string {@code "test-cluster-"} is used.
      */
     LocalClusterSpecBuilder<T> name(String name);
 

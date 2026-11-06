@@ -423,9 +423,6 @@
       "job_version" : {
         "type" : "keyword"
       },
-      "max_consecutive_extraction_failures" : {
-        "type" : "keyword"
-      },
       "max_empty_searches" : {
         "type" : "keyword"
       },

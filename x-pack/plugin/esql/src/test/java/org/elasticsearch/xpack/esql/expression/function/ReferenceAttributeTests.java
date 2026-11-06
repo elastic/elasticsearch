@@ -20,7 +20,7 @@ public class ReferenceAttributeTests extends AbstractAttributeTestCase<Reference
         DataType type = onlyRepresentable
             ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), () -> randomFrom(DataType.types()))
             : randomFrom(DataType.types());
-        Nullability nullability = randomFrom(Nullability.values());
+        Nullability nullability = randomFrom(Nullability.TRUE, Nullability.FALSE);
         boolean synthetic = randomBoolean();
         return new ReferenceAttribute(source, name, type, nullability, new NameId(), synthetic);
     }
@@ -40,7 +40,7 @@ public class ReferenceAttributeTests extends AbstractAttributeTestCase<Reference
         switch (between(0, 3)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
-            case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
+            case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.TRUE, Nullability.FALSE));
             case 3 -> synthetic = false == synthetic;
         }
         return new ReferenceAttribute(source, name, type, nullability, new NameId(), synthetic);

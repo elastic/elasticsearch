@@ -1,9 +1,0 @@
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-
-tasks.withType(RestIntegTestTask).configureEach {
-  systemProperty 'tests.ssl.enabled', 'false'
-}
-
-testClusters.configureEach {
-  setting 'xpack.license.self_generated.type', 'trial'
-}

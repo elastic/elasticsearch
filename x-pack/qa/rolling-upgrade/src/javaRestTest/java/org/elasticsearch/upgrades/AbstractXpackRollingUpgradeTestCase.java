@@ -8,17 +8,17 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 
 import java.util.function.UnaryOperator;
 
 public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 
-    static final org.elasticsearch.Version UPGRADE_FROM_VERSION = org.elasticsearch.Version.fromString(getOldClusterVersion());
+    static final Version UPGRADE_FROM_VERSION = Version.fromString(getOldClusterVersion());
 
     public AbstractXpackRollingUpgradeTestCase(int upgradedNodes) {
         super(upgradedNodes);
@@ -36,7 +36,7 @@ public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedR
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false");
 
-        if (getOldClusterTestVersion().before(Version.fromString("8.18.0"))) {
+        if (UPGRADE_FROM_VERSION.before(Version.V_8_18_0)) {
             builder.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             builder.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

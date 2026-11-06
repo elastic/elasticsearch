@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Stack;
 
 /**
  * Block loader for fields that use fallback synthetic source implementation.
@@ -185,52 +184,44 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             var type = XContentDataHelper.decodeType(nameValue.value());
             assert type.isPresent();
 
-            String nameAtThisLevel = fieldName.substring(nameValue.name().length() + 1);
-            var filterParserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.of(nameAtThisLevel), Set.of(), true);
             try (
                 XContentParser parser = type.get()
                     .xContent()
-                    .createParser(filterParserConfig, nameValue.value().bytes, nameValue.value().offset + 1, nameValue.value().length - 1)
+                    .createParser(
+                        XContentParserConfiguration.EMPTY,
+                        nameValue.value().bytes,
+                        nameValue.value().offset + 1,
+                        nameValue.value().length - 1
+                    )
             ) {
-                parser.nextToken();
-                var fieldNames = new Stack<String>() {
-                    {
-                        push(nameValue.name());
-                    }
-                };
+                if (parser.nextToken() != null) {
+                    parseFieldAtPath(parser, nameValue.name(), blockValues);
+                }
+            }
+        }
 
-                while (parser.currentToken() != null) {
-                    // We are descending into an object/array hierarchy of arbitrary depth
-                    // until we find the field that we need.
-                    while (true) {
-                        if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                            fieldNames.push(parser.currentName());
-                            var nameInParser = String.join(".", fieldNames);
-                            if (nameInParser.equals(fieldName)) {
-                                parser.nextToken();
-                                break;
-                            }
-                        } else {
-                            assert parser.currentToken() == XContentParser.Token.START_OBJECT
-                                || parser.currentToken() == XContentParser.Token.START_ARRAY;
-                        }
-
-                        parser.nextToken();
-                    }
-                    parseWithReader(parser, blockValues);
+        private void parseFieldAtPath(XContentParser parser, String path, List<T> blockValues) throws IOException {
+            assert fieldName.startsWith(path) && path.length() < fieldName.length() : "[" + path + "] not prefix of [" + fieldName + "]";
+            XContentParser.Token token = parser.currentToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                    String childPath = path + "." + parser.currentName();
                     parser.nextToken();
-
-                    // We are coming back up in object/array hierarchy.
-                    // If arrays are present we will explore all array items by going back down again.
-                    while (parser.currentToken() == XContentParser.Token.END_OBJECT
-                        || parser.currentToken() == XContentParser.Token.END_ARRAY) {
-                        // When exiting an object arrays we'll see END_OBJECT followed by END_ARRAY, but we only need to pop the object name
-                        // once.
-                        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
-                            fieldNames.pop();
+                    if (fieldName.startsWith(childPath)) {
+                        if (childPath.length() == fieldName.length()) {
+                            parseWithReader(parser, blockValues);
+                        } else if (fieldName.charAt(childPath.length()) == '.') {
+                            parseFieldAtPath(parser, childPath, blockValues);
+                        } else {
+                            parser.skipChildren();
                         }
-                        parser.nextToken();
+                    } else {
+                        parser.skipChildren();
                     }
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                for (token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+                    parseFieldAtPath(parser, path, blockValues);
                 }
             }
         }
@@ -289,14 +280,8 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                 return;
             }
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                        if (nullValue != null) {
-                            convertValue(nullValue, accumulator);
-                        }
-                    } else {
-                        parseNonNullValue(parser, accumulator);
-                    }
+                for (var token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+                    parse(parser, accumulator);
                 }
                 return;
             }

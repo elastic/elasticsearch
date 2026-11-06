@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 /**
  * An {@link IndexSettingProvider} is a provider for index level settings that can be set
@@ -51,6 +52,15 @@ public interface IndexSettingProvider {
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     );
+
+    /**
+     * Exposes the keys of all the index settings this provider may add via {@link #getAdditionalIndexSettings}. This allows other
+     * components to know upfront which settings can be affected by this provider, without having to invoke it.
+     *
+     * @return the keys of the settings this provider can affect, the provider does not necessarily set all of them
+     *         for every index
+     */
+    Set<String> affectedSettings();
 
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.

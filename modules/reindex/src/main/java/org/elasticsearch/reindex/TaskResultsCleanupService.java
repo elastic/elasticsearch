@@ -48,8 +48,8 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_START_TIME_IN_MILL
  * ago. The retention period is therefore measured from when the task <em>started</em>, not from when it finished, so the result of a task
  * that runs for longer than the retention period can be deleted soon after it completes.
  * <p>
- * Modelled on {@code AsyncTaskMaintenanceService}: the cleanup runs only on the node holding the primary of the {@code .tasks} write
- * index, so there is a single cleaner per project and no coordination between nodes is needed.
+ * The cleanup is disabled by default: it runs only when {@link #TASK_RESULTS_CLEANUP_INTERVAL_SETTING} is a positive duration, and it is
+ * stopped or started as that dynamic setting changes.
  */
 public class TaskResultsCleanupService extends AbstractLifecycleComponent implements ClusterStateListener {
 
@@ -65,13 +65,28 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         Property.Dynamic
     );
 
+    private static final TimeValue MIN_CLEANUP_INTERVAL = TimeValue.timeValueSeconds(1);
+
     /**
-     * How long to wait between the end of one cleanup and the start of the next.
+     * How long to wait between the end of one cleanup and the start of the next. The value must be either {@code -1}, which disables the
+     * cleanup, or at least one second, so zero and shorter intervals are rejected. {@code -1} is the default, so task results are only
+     * deleted once an operator has chosen an interval.
      */
     public static final Setting<TimeValue> TASK_RESULTS_CLEANUP_INTERVAL_SETTING = Setting.timeSetting(
         "tasks.results.cleanup_interval",
-        TimeValue.timeValueHours(1),
-        TimeValue.timeValueSeconds(1),
+        TimeValue.MINUS_ONE,
+        value -> {
+            // TimeValue only allows -1 as a negative value, and that is the one that disables the cleanup
+            if (value.nanos() >= 0 && value.compareTo(MIN_CLEANUP_INTERVAL) < 0) {
+                throw new IllegalArgumentException(
+                    "setting [tasks.results.cleanup_interval] should be either -1 to disable the cleanup or at least "
+                        + MIN_CLEANUP_INTERVAL
+                        + ", got ["
+                        + value
+                        + "]"
+                );
+            }
+        },
         Property.NodeScope,
         Property.Dynamic
     );
@@ -149,7 +164,9 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
     }
 
     /**
-     * Records which projects this node should clean up and, if there are any, marks the cleanup as running.
+     * Records which projects this node should clean up and, if there are any and the cleanup is enabled, marks the cleanup as running.
+     * Dynamic settings changes are applied before cluster state listeners are notified, so this also picks up the cleanup being enabled
+     * or disabled: the same cluster state update that changes the interval reaches {@link #clusterChanged}.
      *
      * @return whether the caller must now start the first cleanup, which is the case only when this call is what turned the cleanup from
      *         stopped to running. Starting it is left to the caller so that it happens outside the lock.
@@ -158,15 +175,27 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         if (lifecycle.stoppedOrClosed()) {
             return false;
         }
-        if (projectsOnLocalNode.isEmpty()) {
+        if (projectsOnLocalNode.isEmpty() || isCleanupEnabled() == false) {
             this.projectsToCleanup = List.of();
             stopCleanup();
             return false;
         }
-        this.projectsToCleanup = List.copyOf(projectsOnLocalNode);
+        this.projectsToCleanup = projectsOnLocalNode;
         final boolean wasRunning = isCleanupRunning;
         isCleanupRunning = true;
         return wasRunning == false;
+    }
+
+    /**
+     * The cleanup is disabled by an interval of {@code -1}, the only value the setting accepts that is not a positive duration.
+     */
+    private boolean isCleanupEnabled() {
+        return cleanupInterval.nanos() > 0;
+    }
+
+    // exposed for tests
+    synchronized boolean isCleanupRunning() {
+        return isCleanupRunning;
     }
 
     void executeNextCleanup() {

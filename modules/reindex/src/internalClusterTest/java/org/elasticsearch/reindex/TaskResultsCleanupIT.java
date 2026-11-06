@@ -26,6 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  * Checks that {@link TaskResultsCleanupService} removes task results whose task started longer ago than the retention period, and only
  * those.
@@ -69,6 +72,72 @@ public class TaskResultsCleanupIT extends ESSingleNodeTestCase {
         // the cleanup has now covered every document, so the ones that must be retained are still there
         assertNotNull(clusterAdmin().prepareGetTask(recent).get().getTask());
         assertNotNull(clusterAdmin().prepareGetTask(recentLongRunning).get().getTask());
+    }
+
+    public void testCleanupIsDisabledByDefault() {
+        assertThat(TaskResultsCleanupService.TASK_RESULTS_CLEANUP_INTERVAL_SETTING.get(Settings.EMPTY), equalTo(TimeValue.MINUS_ONE));
+    }
+
+    /**
+     * A cleanup interval of {@code -1} stops a running cleanup, and a positive interval starts it again, without a restart.
+     */
+    public void testCleanupCanBeDisabledAndEnabledDynamically() throws Exception {
+        final TaskResultsCleanupService service = getInstanceFromNode(TaskResultsCleanupService.class);
+        // creating .tasks gives this node its primary, which is what makes the cleanup eligible to run
+        storeResult(10, System.currentTimeMillis(), TimeUnit.SECONDS.toNanos(1));
+        assertBusy(() -> assertTrue(service.isCleanupRunning()));
+
+        try {
+            setCleanupInterval(TimeValue.MINUS_ONE);
+            assertBusy(() -> assertFalse(service.isCleanupRunning()));
+
+            // an expired result is not deleted while the cleanup is disabled, only once it is enabled again
+            final TaskId expired = storeResult(11, System.currentTimeMillis() - TimeUnit.HOURS.toMillis(2), 1);
+            assertFalse(service.isCleanupRunning());
+            assertNotNull(clusterAdmin().prepareGetTask(expired).get().getTask());
+
+            setCleanupInterval(TimeValue.timeValueSeconds(1));
+            assertBusy(() -> assertTrue(service.isCleanupRunning()));
+            assertBusy(() -> assertTaskResultMissing(expired));
+        } finally {
+            // go back to the interval from the node settings, so the other tests are unaffected
+            updateClusterSettings(
+                Settings.builder().putNull(TaskResultsCleanupService.TASK_RESULTS_CLEANUP_INTERVAL_SETTING.getKey()).build()
+            );
+        }
+    }
+
+    /**
+     * The interval must be either {@code -1}, which disables the cleanup, or at least one second: zero and shorter intervals are rejected.
+     */
+    public void testCleanupIntervalMustBeDisabledOrAtLeastOneSecond() {
+        try {
+            for (TimeValue invalid : List.of(TimeValue.ZERO, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(999))) {
+                // not via updateClusterSettings, which wraps a failure in an AssertionError
+                final var e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                        .setPersistentSettings(
+                            Settings.builder().put(TaskResultsCleanupService.TASK_RESULTS_CLEANUP_INTERVAL_SETTING.getKey(), invalid)
+                        )
+                        .get()
+                );
+                assertThat(e.getMessage(), containsString("either -1 to disable the cleanup or at least 1s"));
+            }
+            for (TimeValue valid : List.of(TimeValue.MINUS_ONE, TimeValue.timeValueSeconds(1), TimeValue.timeValueHours(1))) {
+                setCleanupInterval(valid);
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull(TaskResultsCleanupService.TASK_RESULTS_CLEANUP_INTERVAL_SETTING.getKey()).build()
+            );
+        }
+    }
+
+    private void setCleanupInterval(TimeValue interval) {
+        updateClusterSettings(
+            Settings.builder().put(TaskResultsCleanupService.TASK_RESULTS_CLEANUP_INTERVAL_SETTING.getKey(), interval).build()
+        );
     }
 
     private TaskId storeResult(long id, long startTimeMillis, long runningTimeNanos) {

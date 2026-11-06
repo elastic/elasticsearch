@@ -29,6 +29,7 @@ import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -221,13 +222,13 @@ public class StageSchedulerTests extends ESTestCase {
     }
 
     private static StagedPlan joinPlan(String strategy, boolean unionBuild) {
-        String query = """
+        String query = String.format(Locale.ROOT, """
             FROM test
             | LEFT OUTER JOIN (FROM test | KEEP emp_no, salary | RENAME salary AS s1) ON emp_no
             | LEFT OUTER JOIN (%s | KEEP emp_no, salary | RENAME salary AS s2) ON emp_no
             | STATS s1 = SUM(s1), s2 = SUM(s2) BY emp_no
             | LIMIT 1000
-            """.formatted(unionBuild ? "FROM test, (FROM test | WHERE salary > 0)" : "FROM test");
+            """, unionBuild ? "FROM test, (FROM test | WHERE salary > 0)" : "FROM test");
         return plan(query, strategy, false);
     }
 

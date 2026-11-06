@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.data.UnionBlock;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -62,9 +63,9 @@ public final class ResponseValueUtils {
      * Returns an iterator of iterators over the values in the given pages. There is one iterator
      * for each block.
      */
-    public static Iterator<Iterator<Object>> pagesToValues(List<DataType> dataTypes, List<Page> pages, ZoneId zoneId) {
+    public static Iterator<Iterator<Object>> pagesToValues(List<ColumnInfoImpl> columns, List<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
-        var valueExtractors = valueExtractorsFor(dataTypes, zoneId);
+        var valueExtractors = valueExtractorsFor(columns, zoneId);
         return Iterators.flatMap(
             pages.iterator(),
             page -> Iterators.forRange(
@@ -76,9 +77,9 @@ public final class ResponseValueUtils {
     }
 
     /** Returns an iterable of iterables over the values in the given pages. There is one iterables for each row. */
-    static Iterable<Iterable<Object>> valuesForRowsInPages(List<DataType> dataTypes, List<Page> pages, ZoneId zoneId) {
+    static Iterable<Iterable<Object>> valuesForRowsInPages(List<ColumnInfoImpl> columns, List<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
-        var valueExtractors = valueExtractorsFor(dataTypes, zoneId);
+        var valueExtractors = valueExtractorsFor(columns, zoneId);
         return () -> Iterators.flatMap(pages.iterator(), page -> valuesForRowsInPage(valueExtractors, page, scratch));
     }
 
@@ -97,9 +98,9 @@ public final class ResponseValueUtils {
     }
 
     /**  Returns an iterator of values for the given column. */
-    static Iterator<Object> valuesForColumn(int columnIndex, DataType dataType, List<Page> pages, ZoneId zoneId) {
+    static Iterator<Object> valuesForColumn(int columnIndex, ColumnInfoImpl column, List<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
-        var valueExtractor = valueExtractorFor(dataType, zoneId);
+        var valueExtractor = valueExtractorFor(column, zoneId);
         return Iterators.flatMap(
             pages.iterator(),
             page -> Iterators.forRange(
@@ -132,15 +133,39 @@ public final class ResponseValueUtils {
         Object extract(Block block, int offset, BytesRef scratch);
     }
 
-    private static BlockValueExtractor[] valueExtractorsFor(List<DataType> dataTypes, ZoneId zoneId) {
-        var valueExtractors = new BlockValueExtractor[dataTypes.size()];
-        for (int i = 0; i < dataTypes.size(); i++) {
-            valueExtractors[i] = valueExtractorFor(dataTypes.get(i), zoneId);
+    private static BlockValueExtractor[] valueExtractorsFor(List<ColumnInfoImpl> columns, ZoneId zoneId) {
+        var valueExtractors = new BlockValueExtractor[columns.size()];
+        for (int i = 0; i < columns.size(); i++) {
+            valueExtractors[i] = valueExtractorFor(columns.get(i), zoneId);
         }
         return valueExtractors;
     }
 
+    /**
+     * An extractor for one response column. A union column reads its leg types from the column's original
+     * types, in the leg order the block was built with.
+     */
+    public static BlockValueExtractor valueExtractorFor(ColumnInfoImpl column, ZoneId zoneId) {
+        return valueExtractorFor(column.type(), legTypesOf(column), zoneId);
+    }
+
+    private static List<DataType> legTypesOf(ColumnInfoImpl column) {
+        List<String> originalTypes = column.originalTypes();
+        if (originalTypes == null) {
+            return List.of();
+        }
+        return originalTypes.stream().map(DataType::fromTypeName).toList();
+    }
+
+    /**
+     * An extractor for a type with no column behind it. A union needs its leg types, so it is refused here;
+     * use {@link #valueExtractorFor(ColumnInfoImpl, ZoneId)}.
+     */
     public static BlockValueExtractor valueExtractorFor(DataType dataType, ZoneId zoneId) {
+        return valueExtractorFor(dataType, List.of(), zoneId);
+    }
+
+    public static BlockValueExtractor valueExtractorFor(DataType dataType, List<DataType> legTypes, ZoneId zoneId) {
         return switch (dataType) {
             case UNSIGNED_LONG -> (block, offset, scratch) -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case LONG, COUNTER_LONG -> (block, offset, scratch) -> ((LongBlock) block).getLong(offset);
@@ -211,9 +236,26 @@ public final class ResponseValueUtils {
             case DENSE_VECTOR -> (block, offset, scratch) -> ((FloatBlock) block).getFloat(offset);
             case FLATTENED -> (block, offset, scratch) -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case NULL, UNSUPPORTED -> (block, offset, scratch) -> null;
-            // Rendering a union means reading the sub-block that is non-null at this offset and delegating to that
-            // type's extractor. That needs the block, so until it exists this throws rather than render nulls.
-            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG, UNION ->
+            case UNION -> {
+                if (legTypes.isEmpty()) {
+                    throw new EsqlIllegalArgumentException("rendering a union needs its leg types");
+                }
+                // One extractor per leg, so each value renders as the type its own leg declares: a date leg
+                // formats as a date even though it is stored as a long.
+                BlockValueExtractor[] legExtractors = new BlockValueExtractor[legTypes.size()];
+                for (int leg = 0; leg < legTypes.size(); leg++) {
+                    legExtractors[leg] = valueExtractorFor(legTypes.get(leg), zoneId);
+                }
+                yield (block, offset, scratch) -> {
+                    UnionBlock union = (UnionBlock) block;
+                    int leg = union.tag(offset);
+                    if (leg == UnionBlock.NO_TAG) {
+                        return null;
+                    }
+                    return legExtractors[leg].extract(union.legBlock(leg), offset, scratch);
+                };
+            }
+            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG ->
                 throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }

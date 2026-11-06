@@ -11,8 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UnionBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
@@ -249,4 +252,45 @@ public class TextFormatterTests extends ESTestCase {
             )
         );
     }
+
+    /**
+     * The text table renders a union column per row from the leg each value sits in. Both legs here are
+     * {@link ElementType#LONG}, so only the declared leg type tells a plain long from a date.
+     */
+    public void testUnionColumnRendersPerLeg() {
+        try (
+            UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(List.of(ElementType.LONG, ElementType.LONG), 3);
+            Block plainLong = blockFactory.newConstantLongBlockWith(42L, 1);
+            Block asDate = blockFactory.newConstantLongBlockWith(UTC_DATE_TIME_FORMATTER.parseMillis("1955-01-21T01:02:03.342Z"), 1)
+        ) {
+            builder.appendValue(0, plainLong, 0);
+            builder.appendValue(1, asDate, 0);
+            builder.appendNull();
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("flow", "union", List.of("long", "date"))),
+                List.of(new Page(builder.build())),
+                0,
+                0,
+                null,
+                false,
+                null,
+                false,
+                false,
+                ZoneOffset.UTC,
+                0L,
+                0L,
+                createEsqlExecutionInfo(false)
+            );
+            try {
+                String[] result = getTextBodyContent(new TextFormatter(response, false, false).format()).split("\n");
+                assertThat(result, arrayWithSize(3));
+                assertEquals("42                      ", result[0]);
+                assertEquals("1955-01-21T01:02:03.342Z", result[1]);
+                assertEquals("null                    ", result[2]);
+            } finally {
+                response.close();
+            }
+        }
+    }
+
 }

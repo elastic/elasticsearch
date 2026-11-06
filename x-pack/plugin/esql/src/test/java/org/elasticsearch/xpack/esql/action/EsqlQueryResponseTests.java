@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -37,6 +38,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.data.UnionBlock;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
@@ -76,6 +78,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
@@ -92,6 +95,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -2006,4 +2010,65 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         return new Page(results.stream().map(Block.Builder::build).toArray(Block[]::new));
     }
+
+    /**
+     * A union column renders each value as the type its own leg declares. The long leg and the date leg are both
+     * {@link ElementType#LONG}, so nothing but the declared leg type distinguishes 42 from a timestamp.
+     */
+    public void testUnionColumnRendersEachValueAsItsOwnLegType() {
+        List<ElementType> legs = List.of(ElementType.LONG, ElementType.BYTES_REF, ElementType.LONG);
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(legs, 4)) {
+            appendUnionLong(builder, 0, 42L);
+            appendUnionBytes(builder, 1, "hello");
+            builder.appendNull();
+            appendUnionLong(builder, 2, 1700000000000L);
+            try (
+                EsqlQueryResponse response = new EsqlQueryResponse(
+                    List.of(new ColumnInfoImpl("flow", "union", List.of("long", "keyword", "date"))),
+                    List.of(new Page(builder.build())),
+                    0,
+                    0,
+                    null,
+                    false,
+                    null,
+                    false,
+                    false,
+                    ZoneOffset.UTC,
+                    0L,
+                    0L,
+                    null
+                )
+            ) {
+                assertThat(
+                    EsqlTestUtils.getValuesList(response.values()),
+                    equalTo(List.of(List.of(42L), List.of("hello"), Collections.singletonList(null), List.of("2023-11-14T22:13:20.000Z")))
+                );
+                String json = Strings.toString(wrapAsToXContent(response), false, false);
+                assertThat(json, containsString("\"original_types\":[\"long\",\"keyword\",\"date\"]"));
+                assertThat(json, containsString("\"values\":[[42],[\"hello\"],[null],[\"2023-11-14T22:13:20.000Z\"]]"));
+            }
+        }
+    }
+
+    /** Rendering a union column with no leg types declared is refused rather than guessed at. */
+    public void testUnionColumnWithoutLegTypesIsRefused() {
+        EsqlIllegalArgumentException e = expectThrows(
+            EsqlIllegalArgumentException.class,
+            () -> ResponseValueUtils.valueExtractorFor(new ColumnInfoImpl("flow", "union", null), ZoneOffset.UTC)
+        );
+        assertThat(e.getMessage(), equalTo("rendering a union needs its leg types"));
+    }
+
+    private void appendUnionLong(UnionBlock.Builder builder, int leg, long value) {
+        try (Block source = blockFactory.newConstantLongBlockWith(value, 1)) {
+            builder.appendValue(leg, source, 0);
+        }
+    }
+
+    private void appendUnionBytes(UnionBlock.Builder builder, int leg, String value) {
+        try (Block source = blockFactory.newConstantBytesRefBlockWith(new BytesRef(value), 1)) {
+            builder.appendValue(leg, source, 0);
+        }
+    }
+
 }

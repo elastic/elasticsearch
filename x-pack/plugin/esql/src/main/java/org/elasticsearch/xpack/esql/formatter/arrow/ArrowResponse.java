@@ -474,6 +474,9 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
 
             case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
+            // A union becomes Arrow's sparse union: the tag sub-block is the types buffer and each leg is a child
+            // of the full column length.
+            case UNION -> TO_BE_IMPLEMENTED_MARKER;
             case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
 
             case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
@@ -496,9 +499,6 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case TIME_DURATION -> null;
             case DOC_DATA_TYPE -> null;
             case PARTIAL_AGG -> null;
-            // Until a union column can be rendered at all. It then becomes Arrow's sparse union: one child per type,
-            // each the full length of the column.
-            case UNION -> null;
         };
     }
 }

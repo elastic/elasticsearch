@@ -52,6 +52,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -927,7 +928,11 @@ public final class CsvTestUtils {
         Map<String, List<String>> responseHeaders
     ) {
         List<List<Object>> values() {
-            return EsqlTestUtils.getValuesList(ResponseValueUtils.pagesToValues(dataTypes(), pages, zoneId));
+            List<ColumnInfoImpl> columns = new ArrayList<>(dataTypes().size());
+            for (int i = 0; i < dataTypes().size(); i++) {
+                columns.add(new ColumnInfoImpl(columnNames().get(i), dataTypes().get(i), null));
+            }
+            return EsqlTestUtils.getValuesList(ResponseValueUtils.pagesToValues(columns, pages, zoneId));
         }
     }
 

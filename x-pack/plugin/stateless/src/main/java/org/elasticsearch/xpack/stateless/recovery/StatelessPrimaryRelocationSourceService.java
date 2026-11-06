@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -63,7 +64,9 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.PrewarmWaitOutcome;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -95,6 +98,15 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Setting.Property.NodeScope
     );
 
+    /// how long the source waits for the prewarm to finish before acquiring permits
+    public static final Setting<TimeValue> PREWARM_WAIT_TIMEOUT_SETTING = Setting.timeSetting(
+        "stateless.cluster.primary_relocation.prewarm_wait_timeout",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(StatelessPrimaryRelocationSourceService.class);
 
     private final ClusterService clusterService;
@@ -106,6 +118,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     private final StatelessCommitServiceProvider statelessCommitServiceProvider;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsMetrics hollowShardsMetrics;
+    private final StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider;
     private final Client client;
 
     @Nullable
@@ -114,6 +127,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     private volatile TimeValue slowRelocationWarningThreshold;
     private volatile TimeValue idLookupRecencyThreshold;
     private volatile TimeValue preFlushSlowUploadQueueThreshold;
+    private volatile TimeValue prewarmWaitTimeout;
 
     public StatelessPrimaryRelocationSourceService(
         Settings settings,
@@ -124,6 +138,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         StatelessCommitServiceProvider statelessCommitServiceProvider,
         IndexShardCacheWarmer indexShardCacheWarmer,
         HollowShardsMetrics hollowShardsMetrics,
+        StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider,
         Client client,
         ByteSizeValue maxHeap
     ) {
@@ -136,6 +151,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         this.statelessCommitServiceProvider = statelessCommitServiceProvider;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.hollowShardsMetrics = hollowShardsMetrics;
+        this.relocationMetricsCollectorProvider = relocationMetricsCollectorProvider;
         this.client = client;
         this.throttledPrimaryRelocations = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)
             ? new ThrottledPrimaryRelocations(clusterService, recoveryExecutor, this::startRelocationWithFreshClusterState, maxHeap)
@@ -147,6 +163,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING, value -> this.preFlushSlowUploadQueueThreshold = value);
+        clusterService.getClusterSettings().initializeAndWatch(PREWARM_WAIT_TIMEOUT_SETTING, value -> this.prewarmWaitTimeout = value);
     }
 
     /// Registers the shared recovery scheduling listeners (available via Guice when the transport action is constructed).
@@ -199,11 +216,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
     void startRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<StartRelocationResponse> listener) {
         final var parentClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
-        // Note that we trigger prewarm on the target before entering the source-side throttle queue. By the time the
-        // relocation reaches `startRelocation`, it has already passed through the target's own recovery throttle (concurrency
-        // limit on incoming recoveries), so the target node cannot be overloaded by prewarm requests. Starting early
-        // overlaps cache warming with any queue wait, reducing overall relocation latency.
-        initiatePrewarm(parentClient, request);
 
         RecoveryClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
@@ -237,40 +249,45 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         );
     }
 
-    private void initiatePrewarm(Client parentClient, StatelessPrimaryRelocationAction.Request request) {
+    /// @param listener is completed once the target has finished prewarming, or immediately in case of failure or no prewarm is sent
+    private void initiatePrewarm(
+        Client parentClient,
+        StatelessPrimaryRelocationAction.Request request,
+        IndexShard indexShard,
+        ActionListener<Void> listener
+    ) {
         try {
             final ShardId shardId = request.shardId();
             final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
             final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
             if (latestBcc == null) {
                 logger.trace("{} no uploaded BCC found, skipping initiate prewarm", shardId);
+                listener.onResponse(null);
                 return;
             }
 
-            final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            final IndexShard indexShard = indexService.getShard(shardId.id());
+            // We only send an action to the target node to begin warming the cache immediately, if the shard is not about to be hollowed.
+            if (hollowShardsService.isHollowableIndexShard(indexShard)) {
+                listener.onResponse(null);
+                return;
+            }
+
             final var engine = indexShard.getEngineOrNull();
             boolean hasRecentIdLookup = engine != null && engine.hasRecentIdLookup(idLookupRecencyThreshold);
-
-            // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
-            // Note that if the shard is already hollow, the target warming will just read a single region.
-            if (hollowShardsService.isHollowableIndexShard(indexShard) == false) {
-                parentClient.execute(
-                    TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
-                    new TransportStatelessPrimaryRelocationPrewarmAction.PrewarmRequest(
-                        request.targetNode(),
-                        new TransportStatelessPrimaryRelocationPrewarmAction.Request(
-                            shardId,
-                            new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
-                            hasRecentIdLookup
-                        )
-                    ),
-                    // Prewarm failures are non-fatal, the relocation continues without the benefit of prewarming.
-                    ActionListener.wrap(ignored -> {}, e -> logger.debug(format("%s ignoring prewarm action failure", shardId), e))
-                );
-            }
+            parentClient.execute(
+                TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
+                new TransportStatelessPrimaryRelocationPrewarmAction.PrewarmRequest(
+                    request.targetNode(),
+                    new TransportStatelessPrimaryRelocationPrewarmAction.Request(
+                        shardId,
+                        new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
+                        hasRecentIdLookup
+                    )
+                ),
+                listener.map(ignored -> null)
+            );
         } catch (Exception e) {
-            logger.trace(format("%s ignoring prewarm message failure", request.shardId()), e);
+            listener.onFailure(e);
         }
     }
 
@@ -329,8 +346,31 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
-        preFlushStep.addListener(listener.delegateFailureAndWrap((listener0, preFlushResult) -> {
+        preFlushStep.<TimeValue>andThen((l, preFlushResult) -> {
+            // get the duration here and pass to next listener so that the flush-duration does not include the waiting time (timeout below)
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
+
+            // send the "prewarm" after the "preflush" so the prewarmed shard on the target is closer to the one we flush,
+            // and hence handoff completes sooner, and we hold the permits for less time
+            final long beforePrewarm = threadPool.relativeTimeInMillis();
+            final var prewarmStep = new SubscribableListener<Void>();
+            prewarmStep.addTimeout(prewarmWaitTimeout, threadPool, recoveryExecutor);
+            initiatePrewarm(parentClient, request, indexShard, prewarmStep);
+            // prewarming is best-effort, in case of failures we continue
+            prewarmStep.addListener(ActionListener.wrap(ignored -> {
+                relocationMetricsCollectorProvider.get()
+                    .recordRelocationSourcePrewarmWait(threadPool.relativeTimeInMillis() - beforePrewarm, PrewarmWaitOutcome.COMPLETED);
+                l.onResponse(initialFlushDuration);
+            }, e -> {
+                logger.debug(format("%s ignoring prewarm failure or timeout", request.shardId()), e);
+                relocationMetricsCollectorProvider.get()
+                    .recordRelocationSourcePrewarmWait(
+                        threadPool.relativeTimeInMillis() - beforePrewarm,
+                        e instanceof ElasticsearchTimeoutException ? PrewarmWaitOutcome.TIMED_OUT : PrewarmWaitOutcome.FAILED
+                    );
+                l.onResponse(initialFlushDuration);
+            }));
+        }).addListener(listener.delegateFailureAndWrap((listener0, initialFlushDuration) -> {
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
             if (indexShard.getEngineOrNull() == null) {
                 listener0.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));

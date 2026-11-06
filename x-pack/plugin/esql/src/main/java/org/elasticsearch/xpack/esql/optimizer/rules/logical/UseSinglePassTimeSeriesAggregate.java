@@ -8,16 +8,20 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.List;
+import java.util.Map;
 
 public final class UseSinglePassTimeSeriesAggregate extends OptimizerRules.ParameterizedOptimizerRule<
     TimeSeriesAggregate,
@@ -43,8 +47,12 @@ public final class UseSinglePassTimeSeriesAggregate extends OptimizerRules.Param
         if (relations.size() != 1) {
             return false;
         }
-        var concreteIndices = relations.getFirst().concreteIndices().values();
-        if (Iterables.size(concreteIndices) != 1 || Iterables.get(concreteIndices, 0).size() != 1) {
+        Map<String, IndexProperties> indexProperties = relations.getFirst().indexProperties();
+        if (indexProperties.size() != 1) {
+            return false;
+        }
+        int createdVersionId = Iterables.get(indexProperties.values(), 0).createdVersion();
+        if (createdVersionId == 0 || IndexVersion.fromId(createdVersionId).before(IndexVersions.WRITE_TSID_PREFIX_PARTITION)) {
             return false;
         }
         boolean requiredSorted = false;

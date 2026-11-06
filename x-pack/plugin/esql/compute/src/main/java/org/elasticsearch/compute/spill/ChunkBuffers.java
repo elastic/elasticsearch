@@ -73,6 +73,10 @@ final class ChunkBuffers implements Releasable {
                 if (cancelled) {
                     throw new TaskCancelledException("spill cancelled");
                 }
+                if (closed) {
+                    // nothing comes back to the free list once closed; a waiter would never wake
+                    throw new IOException("spill buffers closed");
+                }
                 byte[] buffer = free.poll();
                 if (buffer != null) {
                     return buffer;

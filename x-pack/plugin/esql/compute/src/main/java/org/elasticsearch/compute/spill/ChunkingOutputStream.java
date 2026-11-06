@@ -10,6 +10,7 @@ package org.elasticsearch.compute.spill;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.compute.spill.spi.ChunkSink;
 import org.elasticsearch.tasks.TaskCancelledException;
 
@@ -23,11 +24,18 @@ import java.util.concurrent.locks.ReentrantLock;
  * next chunk is serialized into a second buffer while the first append is in flight, and the thread waits, at the chunk
  * boundary, until that append has completed before it sends the second. Only the codec thread runs this, so the waits
  * never land on a driver, transport or I/O thread.
+ * <p>
+ * With trailers on, every chunk carries the eight-byte trailer of {@link FramedRunLayout}, payload length and CRC32,
+ * so the chunk's payload is {@code chunkSize} bytes and its physical size eight more; {@link #logicalPosition()} counts
+ * payload bytes only, which is what a run's index records. {@link #appendRaw} sends bytes outside the chunking, for an
+ * index and a footer, after the chunk in progress has been flushed.
  */
 final class ChunkingOutputStream extends OutputStream {
 
     private final ChunkBuffers buffers;
     private final ChunkSink sink;
+    private final boolean trailers;
+    private final int payloadCapacity;
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition appendDone = lock.newCondition();
     private boolean appendPending;
@@ -39,9 +47,32 @@ final class ChunkingOutputStream extends OutputStream {
     private volatile long bytesWritten;
     private volatile int chunksAppended;
 
-    ChunkingOutputStream(ChunkBuffers buffers, ChunkSink sink) {
+    /**
+     * @param trailers whether each chunk ends in the layout's length-and-CRC trailer, which then occupies the last eight
+     *                 bytes of every buffer
+     */
+    ChunkingOutputStream(ChunkBuffers buffers, ChunkSink sink, boolean trailers) {
         this.buffers = buffers;
         this.sink = sink;
+        this.trailers = trailers;
+        this.payloadCapacity = trailers ? buffers.chunkSize() - FramedRunLayout.CHUNK_TRAILER_BYTES : buffers.chunkSize();
+        if (payloadCapacity <= 0) {
+            throw new IllegalArgumentException("chunk size [" + buffers.chunkSize() + "] leaves no room for a payload");
+        }
+    }
+
+    /**
+     * Payload bytes per chunk: the buffer, less the trailer when there is one.
+     */
+    int payloadCapacity() {
+        return payloadCapacity;
+    }
+
+    /**
+     * Payload bytes written so far, the offset of the next byte in the run's logical stream.
+     */
+    long logicalPosition() {
+        return bytesWritten + position;
     }
 
     @Override
@@ -54,7 +85,7 @@ final class ChunkingOutputStream extends OutputStream {
     public void write(byte[] b, int off, int len) throws IOException {
         while (len > 0) {
             ensureBuffer();
-            int n = Math.min(len, buffer.length - position);
+            int n = Math.min(len, payloadCapacity - position);
             System.arraycopy(b, off, buffer, position, n);
             position += n;
             off += n;
@@ -66,7 +97,7 @@ final class ChunkingOutputStream extends OutputStream {
         if (buffer == null) {
             buffer = buffers.acquire();
             position = 0;
-        } else if (position == buffer.length) {
+        } else if (position == payloadCapacity) {
             appendCurrent();
             buffer = buffers.acquire();
             position = 0;
@@ -82,7 +113,13 @@ final class ChunkingOutputStream extends OutputStream {
         }
         awaitAppend();
         final byte[] chunk = buffer;
-        final int length = position;
+        final int payload = position;
+        int length = payload;
+        if (trailers) {
+            ByteUtils.writeIntLE(payload, chunk, payload);
+            ByteUtils.writeIntLE(FramedRunLayout.crc32(chunk, 0, payload), chunk, payload + Integer.BYTES);
+            length = payload + FramedRunLayout.CHUNK_TRAILER_BYTES;
+        }
         buffer = null;
         position = 0;
         lock.lock();
@@ -95,9 +132,16 @@ final class ChunkingOutputStream extends OutputStream {
             new BytesArray(chunk, 0, length),
             () -> buffers.release(chunk)
         );
-        bytesWritten += length;
+        bytesWritten += payload;
         chunksAppended++;
-        sink.append(reference, ActionListener.runAfter(new ActionListener<>() {
+        sink.append(reference, appendListener(reference));
+    }
+
+    /**
+     * The listener for one append: records the completion or the failure, then releases the stream's own reference.
+     */
+    private ActionListener<Void> appendListener(ReleasableBytesReference reference) {
+        return ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 lock.lock();
@@ -123,7 +167,7 @@ final class ChunkingOutputStream extends OutputStream {
                 }
                 buffers.fail(e);
             }
-        }, reference::close));
+        }, reference::close);
     }
 
     private void awaitAppend() throws IOException {
@@ -159,6 +203,24 @@ final class ChunkingOutputStream extends OutputStream {
         appendCurrent();
         awaitAppend();
         return bytesWritten;
+    }
+
+    /**
+     * Sends bytes outside the chunking, after the chunk in progress: the run's index and footer. The bytes belong to the
+     * caller until the append completes, which this waits for.
+     */
+    void appendRaw(byte[] bytes) throws IOException {
+        appendCurrent();
+        awaitAppend();
+        lock.lock();
+        try {
+            appendPending = true;
+        } finally {
+            lock.unlock();
+        }
+        final ReleasableBytesReference reference = ReleasableBytesReference.wrap(new BytesArray(bytes));
+        sink.append(reference, appendListener(reference));
+        awaitAppend();
     }
 
     /**

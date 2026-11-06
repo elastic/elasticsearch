@@ -29,6 +29,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
@@ -166,6 +167,30 @@ public final class MemorySpillStore implements SpillStore {
 
     public void setLimitBytes(long limitBytes) {
         this.limitBytes = limitBytes;
+    }
+
+    /**
+     * Flips bits of one byte of a stored object, for corruption tests, so the byte always changes; the object must be
+     * one of this store's and {@code mask} must not be zero.
+     */
+    public void corrupt(SpillObject object, long offset, byte mask) {
+        if (mask == 0) {
+            throw new IllegalArgumentException("a zero mask changes nothing");
+        }
+        ((MemoryObject) object).data[Math.toIntExact(offset)] ^= mask;
+    }
+
+    /**
+     * Cuts a stored object to {@code length} bytes, for truncation tests. Readers opened before see the shorter object
+     * from their next read; the store's accounting follows.
+     */
+    public void truncate(SpillObject object, long length) {
+        MemoryObject memory = (MemoryObject) object;
+        synchronized (memory) {
+            long removed = memory.data.length - length;
+            memory.data = Arrays.copyOf(memory.data, Math.toIntExact(length));
+            memory.scope.addBytes(-removed);
+        }
     }
 
     public void setShortReads(boolean shortReads) {
@@ -583,7 +608,7 @@ public final class MemorySpillStore implements SpillStore {
 
     private final class MemoryObject implements SpillObject {
         private final MemoryScope scope;
-        private final byte[] data;
+        private volatile byte[] data;
         private volatile boolean deleted;
 
         MemoryObject(MemoryScope scope, byte[] data) {

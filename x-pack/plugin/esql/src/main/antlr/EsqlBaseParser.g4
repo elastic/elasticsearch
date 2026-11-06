@@ -126,6 +126,24 @@ indexPatternAndMetadataFields
 indexPatternOrSubquery
     : indexPattern
     | subquery
+    | tableFunction
+    ;
+
+// A table function in a source list: FROM foo, bar*, DATASET(my_source, {"resource": "s3://b/*.parquet"}).
+// The name is resolved against the table-function registry while the plan is built, so an unknown name
+// is a parse error naming the functions that do exist rather than a missing-index error later on.
+//
+// The trailing mapExpression is the function's configuration payload, in the same position and with the
+// same shape functionExpression gives it, which is why its keys must be double-quoted. A positional
+// argument is a name, never an expression: a source list is read before anything is in scope for an
+// expression to refer to.
+tableFunction
+    : {this.isDevVersion()}? name=TABLE_FUNCTION_NAME LP (tableFunctionArgument (COMMA tableFunctionArgument)* (COMMA mapExpression)?)? RP
+    ;
+
+tableFunctionArgument
+    : identifierOrParameter
+    | string
     ;
 
 subquery

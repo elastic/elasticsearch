@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -113,6 +114,10 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionCall;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.joni.exception.SyntaxException;
 
 import java.time.Duration;
@@ -419,14 +424,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<EsqlBaseParser.IndexPatternOrSubqueryContext> ctxs = ctx == null ? null : ctx.indexPatternOrSubquery();
         List<EsqlBaseParser.IndexPatternContext> indexPatternsCtx = new ArrayList<>();
         List<EsqlBaseParser.SubqueryContext> subqueriesCtx = new ArrayList<>();
+        List<EsqlBaseParser.TableFunctionContext> tableFunctionsCtx = new ArrayList<>();
         if (ctxs != null) {
             ctxs.forEach(c -> {
                 if (c.indexPattern() != null) {
                     indexPatternsCtx.add(c.indexPattern());
-                } else {
+                } else if (c.subquery() != null) {
                     subqueriesCtx.add(c.subquery());
+                } else {
+                    tableFunctionsCtx.add(c.tableFunction());
                 }
             });
+        }
+        // Resolved and shape-checked here, before any of the source list is turned into a plan, so a call
+        // that cannot stand fails as a parse error at the call rather than somewhere downstream. No leaf is
+        // built from one yet, so a well-formed call is refused by the function itself.
+        for (EsqlBaseParser.TableFunctionContext tableFunctionCtx : tableFunctionsCtx) {
+            visitTableFunction(tableFunctionCtx);
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
@@ -475,6 +489,103 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             return new UnresolvedMetadata(source(ctxs.getFirst(), ctxs.getLast()), inner, metadataFields);
         }
+    }
+
+    /**
+     * Resolves one {@code NAME(...)} in a source list to the relation it stands for.
+     * <p>
+     * The name is resolved against {@link TableFunctionRegistry} here rather than during analysis, so an
+     * unknown one reads as a parse error listing the functions that exist instead of surviving to index
+     * resolution and reading as a missing index. The function itself then checks the shape of the call,
+     * because what a call may look like is only meaningful against the function it calls.
+     */
+    @Override
+    public LogicalPlan visitTableFunction(EsqlBaseParser.TableFunctionContext ctx) {
+        Source source = source(ctx);
+        String name = ctx.name.getText();
+        TableFunction function = TableFunctionRegistry.INSTANCE.resolve(source, name);
+
+        List<TableFunctionArgument> arguments = new ArrayList<>(ctx.tableFunctionArgument().size());
+        for (EsqlBaseParser.TableFunctionArgumentContext argumentCtx : ctx.tableFunctionArgument()) {
+            arguments.add(new TableFunctionArgument(source(argumentCtx), tableFunctionArgument(argumentCtx)));
+        }
+
+        Map<String, Object> payload = ctx.mapExpression() == null
+            ? null
+            : foldTableFunctionPayload(name, visitMapExpression(ctx.mapExpression()), "");
+        return function.toRelation(new TableFunctionCall(source, name, arguments, payload));
+    }
+
+    /** The name one positional argument denotes: an identifier, a quoted string, or a parameter standing for either. */
+    private String tableFunctionArgument(EsqlBaseParser.TableFunctionArgumentContext ctx) {
+        if (ctx.identifierOrParameter() != null) {
+            return visitIdentifierOrParameter(ctx.identifierOrParameter());
+        }
+        return BytesRefs.toString(visitString(ctx.string()).value());
+    }
+
+    /**
+     * Folds a table function's payload to the plain nested map its function validates.
+     * <p>
+     * A value is a constant or another payload, nothing else: a dataset definition nests, and it is read
+     * while the plan is built, so there is nothing an expression in it could be evaluated against.
+     * {@link BytesRef} normalizes to {@link String}, inside a list as well as at top level, so the folded
+     * map has the shape the dataset API's own parser produces.
+     *
+     * @param path the dotted keys already descended through, so a diagnostic deep in a nested payload names
+     *             the key the user has to find rather than only its last segment
+     */
+    private static Map<String, Object> foldTableFunctionPayload(String functionName, MapExpression payload, String path) {
+        Map<String, Object> folded = new LinkedHashMap<>();
+        for (EntryExpression entry : payload.entryExpressions()) {
+            // visitMapExpression built every key as a keyword Literal out of the QUOTED_STRING the grammar
+            // demanded, so anything else here is a broken invariant rather than something a query can write.
+            if (entry.key() instanceof Literal keyLiteral) {
+                String key = BytesRefs.toString(keyLiteral.value());
+                Object value = foldTableFunctionPayloadValue(functionName, path + key, entry.value());
+                if (folded.put(key, value) != null) {
+                    // visitMapExpression refuses a repeated key only when the FIRST occurrence had a scalar
+                    // value -- it never records a key whose value was a nested payload -- so
+                    // {"a": {..}, "a": {..}} arrives here with both entries, and is refused here rather than
+                    // silently keeping the last one.
+                    throw new ParsingException(entry.key().source(), "[{}] definition sets [{}] more than once", functionName, path + key);
+                }
+            } else {
+                throw new IllegalStateException("payload key is not a literal: " + entry.key());
+            }
+        }
+        return folded;
+    }
+
+    private static Object foldTableFunctionPayloadValue(String functionName, String path, Expression value) {
+        if (value instanceof MapExpression nested) {
+            return foldTableFunctionPayload(functionName, nested, path + ".");
+        }
+        // visitMapExpression admits a nested payload or a constant and refuses everything else, so a Literal is
+        // all that is left -- but its value may still be null, which only this fold is placed to reject.
+        if (value instanceof Literal literal) {
+            Object literalValue = literal.value();
+            if (literalValue == null) {
+                throw new ParsingException(value.source(), "[{}] definition sets [{}] to null", functionName, path);
+            }
+            return normalizeBytesRefs(literalValue);
+        }
+        throw new IllegalStateException("payload value is neither a nested payload nor a constant: " + value);
+    }
+
+    /** {@link BytesRef} to {@link String}, through a list, leaving every other value as it was. */
+    private static Object normalizeBytesRefs(Object value) {
+        if (value instanceof BytesRef bytesRef) {
+            return BytesRefs.toString(bytesRef);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> normalized = new ArrayList<>(list.size());
+            for (Object element : list) {
+                normalized.add(element == null ? null : normalizeBytesRefs(element));
+            }
+            return normalized;
+        }
+        return value;
     }
 
     private List<Subquery> visitSubqueriesInFromCommand(List<EsqlBaseParser.SubqueryContext> ctxs) {

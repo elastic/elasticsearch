@@ -4719,6 +4719,14 @@ public class EsqlCapabilities {
          */
         FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
 
+        /**
+         * Table functions in a {@code FROM} source list — {@code FROM foo, bar*, DATASET(ds, {...})} — and
+         * {@code DATASET} as the first of them. Snapshot-only, and gated twice over: the {@code tableFunction}
+         * parser rule in {@code EsqlBaseParser.g4} carries {@code isDevVersion()}, which is what decides
+         * whether the syntax parses at all, and this capability mirrors it so a test only runs where it does.
+         */
+        FROM_TABLE_FUNCTION(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -53,6 +53,24 @@ UNQUOTED_SOURCE
 FROM_UNQUOTED_SOURCE : UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
 FROM_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 
+// A table function in the source list: FROM DATASET(my_source, {"resource": "..."}).
+//
+// Matches `name(` as lookahead but emits only `name`, rewinding so the '(' is re-lexed in
+// TABLE_FUNCTION_MODE. The trailing '(' has to be part of the match because nothing else
+// distinguishes a function name from an index pattern -- UNQUOTED_SOURCE matches both -- and a lexer
+// rule cannot look at the token it emitted last. Placed after FROM_UNQUOTED_SOURCE for readability
+// only: ANTLR picks the longest match, and `name(` is always one character longer than the
+// UNQUOTED_SOURCE that `name` alone would produce.
+//
+// The name is deliberately narrower than UNQUOTED_SOURCE_PART, which admits index-pattern characters
+// such as '*', '-' and '+'. A pattern character can never begin a function call, so `foo*(` cannot match
+// here: it stays what it was, a source pattern followed by a '(' that opens nothing, rather than becoming
+// a call to an unknown function named `foo*`.
+TABLE_FUNCTION_NAME
+    : LETTER UNQUOTED_ID_BODY* '(' { this.rewindToTokenStart(this.getText().length() - 1); }
+      -> pushMode(TABLE_FUNCTION_MODE)
+    ;
+
 FROM_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
     ;
@@ -64,3 +82,16 @@ FROM_MULTILINE_COMMENT
 FROM_WS
     : WS -> channel(HIDDEN)
     ;
+
+// Entered from TABLE_FUNCTION_NAME, positioned on the '(' that rule peeked at and gave back. The mode
+// exists to give that one character a different meaning than it has in FROM_MODE, where FROM_LP opens a
+// subquery; it needs no whitespace or comment rules because the rule that pushed it only fires when '('
+// is the very next character.
+mode TABLE_FUNCTION_MODE;
+
+// Pushes EXPRESSION_MODE ONCE, where EXPRESSION_MODE's own LP pushes it twice. That asymmetry is what
+// closes the stack: the matching ')' is lexed in EXPRESSION_MODE, whose RP pops twice, which unwinds
+// both EXPRESSION_MODE and this mode and leaves the lexer back in FROM_MODE -- so the rest of the
+// source list ( `, bar*`, METADATA, '|' ) goes on lexing as source patterns. Same pairing as
+// FROM_LP's single push against FROM_RP's double pop for subqueries.
+TABLE_FUNCTION_LP : LP -> type(LP), pushMode(EXPRESSION_MODE);

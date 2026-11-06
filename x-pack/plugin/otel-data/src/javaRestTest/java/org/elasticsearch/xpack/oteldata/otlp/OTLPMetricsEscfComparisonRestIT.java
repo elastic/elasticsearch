@@ -7,26 +7,31 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
-import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
-import io.opentelemetry.sdk.common.CompletableResultCode;
-import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
-import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
-import io.opentelemetry.sdk.metrics.data.DoublePointData;
-import io.opentelemetry.sdk.metrics.data.LongPointData;
-import io.opentelemetry.sdk.metrics.data.MetricData;
-import io.opentelemetry.sdk.metrics.internal.data.ImmutableDoublePointData;
-import io.opentelemetry.sdk.metrics.internal.data.ImmutableGaugeData;
-import io.opentelemetry.sdk.metrics.internal.data.ImmutableLongPointData;
-import io.opentelemetry.sdk.metrics.internal.data.ImmutableMetricData;
-import io.opentelemetry.sdk.metrics.internal.data.ImmutableSumData;
-import io.opentelemetry.sdk.resources.Resource;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+import io.opentelemetry.proto.common.v1.AnyValue;
+import io.opentelemetry.proto.common.v1.ArrayValue;
+import io.opentelemetry.proto.common.v1.InstrumentationScope;
+import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.Gauge;
+import io.opentelemetry.proto.metrics.v1.Metric;
+import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
+import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
+import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
+import io.opentelemetry.proto.metrics.v1.Sum;
+import io.opentelemetry.proto.resource.v1.Resource;
 
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -36,14 +41,19 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
-import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Integration test that sends identical OTLP metric payloads to two data streams: one using the traditional
@@ -60,6 +70,14 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * <p>Per-shard doc-count equality across the two three-shard streams further validates that both paths
  * route documents to the same shards.
+ *
+ * <p>The payload is built as OTLP protobuf directly rather than through the OpenTelemetry SDK, because the
+ * SDK's {@code Attributes} API can only express a fixed set of attribute shapes. Attributes are entirely
+ * random: which keys exist at each level, which shape from {@link AttributeShape} each key uses, which
+ * subset of keys each series carries (possibly none) and their values. Because a single unsupported value
+ * makes the whole export fall back to
+ * doc mode — which would make this comparison pass vacuously — the test also asserts that the ESCF path was
+ * genuinely taken; see {@link #countEscfBatches()}.
  */
 public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
 
@@ -70,13 +88,14 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     // and the resulting data-stream names are metrics-docmode.otel-default / metrics-escf.otel-default.
     private static final String DOCMODE_DATASET = "docmode";
     private static final String ESCF_DATASET = "escf";
+    private static final String DOCMODE_STREAM = "metrics-docmode.otel-default";
+    private static final String ESCF_STREAM = "metrics-escf.otel-default";
 
-    private static final int NUM_RESOURCES = 3;
-    private static final int NUM_DP_ATTR_SETS = 3;
-    // numGauges, numCounters, and numTimestamps are randomised per test run.
+    private static final String SCOPE_NAME = "io.opentelemetry.escf.comparison.test";
+    private static final String SCOPE_VERSION = "1.0.0";
 
-    private static final InstrumentationScopeInfo SCOPE = InstrumentationScopeInfo.create("io.opentelemetry.escf.comparison.test");
-
+    /** Logged by {@link org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsTransportAction} once per ESCF export. */
+    private static final String ESCF_BATCH_LOG = "built an ESCF batch of";
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -87,6 +106,8 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
         .setting("indices.batch_indexing", "true")
+        // The coordinator logs which path each OTLP export took; countEscfBatches reads it back.
+        .setting("logger.org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsTransportAction", "TRACE")
         .build();
 
     @Override
@@ -94,9 +115,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    // Shared across all iterations: created on the first @Before, shut down in @AfterClass.
-    // Templates are also installed once and deleted in @AfterClass.
-    private static OtlpHttpMetricExporter exporter;
+    // Templates are installed on the first @Before and deleted in @AfterClass.
     private static volatile boolean classSetupDone = false;
 
     /**
@@ -112,10 +131,6 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     @AfterClass
     public static void teardownClass() throws Exception {
         classSetupDone = false;
-        if (exporter != null) {
-            exporter.shutdown();
-            exporter = null;
-        }
         try {
             client().performRequest(new Request("DELETE", "_index_template/metrics-docmode.otel-template"));
         } catch (Exception ignored) {}
@@ -141,10 +156,6 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             // Install the ESCF template — same but with index.time_series.batch_indexing: true.
             installTemplate("metrics-escf.otel-template", "metrics-escf.otel-*", true);
 
-            // Build the exporter once. Security is disabled so no auth header is needed.
-            String firstHost = cluster.getHttpAddresses().split(",")[0].trim();
-            exporter = OtlpHttpMetricExporter.builder().setEndpoint("http://" + firstHost + "/_otlp/v1/metrics").build();
-
             classSetupDone = true;
         }
     }
@@ -155,7 +166,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     }
 
     private static void deleteDataStreams() {
-        for (String ds : List.of("metrics-docmode.otel-default", "metrics-escf.otel-default")) {
+        for (String ds : List.of(DOCMODE_STREAM, ESCF_STREAM)) {
             try {
                 client().performRequest(new Request("DELETE", "_data_stream/" + ds));
                 logger.info("Deleted data stream [{}]", ds);
@@ -169,159 +180,87 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
      * Sends identical OTLP payloads (differentiated only by {@code data_stream.dataset} resource attribute)
      * to a doc-mode stream and an ESCF-enabled stream, then verifies:
      * <ol>
-     *   <li>Both streams contain exactly {@code expectedDocs} documents (randomised per run).</li>
+     *   <li>No data point is rejected, and both streams contain the same number of documents. The count is
+     *       not predicted, because metrics that happen to share an attribute set merge into one document.</li>
      *   <li>Sorted by {@code @timestamp} + {@code _tsid}, every document in the doc-mode stream has the
      *       same {@code _id}, {@code _tsid}, and {@code _source} as the corresponding document in the ESCF
      *       stream.</li>
      *   <li>Per-primary-shard doc counts are equal across the two three-shard streams.</li>
+     *   <li>Both streams derive the same mappings from their documents.</li>
+     *   <li>Every export to the ESCF stream was actually written through the ESCF path.</li>
      * </ol>
      */
     public void testEscfProducesSameDocumentsAsDocMode() throws Exception {
-        int numGauges = randomIntBetween(1, 3);
-        int numCounters = randomIntBetween(1, 3);
-        int numTimestamps = randomIntBetween(100, 1000);
-        // Each OTLP message (MetricData) covers 1–5 consecutive timestamps: NUM_DP_ATTR_SETS × numTimestampsPerMsg
-        // data points per metric, varying per run. This tests that the ingest pipeline correctly
-        // separates multi-timestamp messages into one TSDB document per (timestamp, attr-set).
+        Workload workload = randomWorkload();
+        int numTimestamps = randomIntBetween(1, 20);
+        // Each OTLP message (MetricData) covers 1–5 consecutive timestamps, which exercises splitting a
+        // multi-timestamp message into one TSDB document per (timestamp, attribute set).
         int numTimestampsPerMsg = randomIntBetween(1, 5);
-        // Each timestamp batch is split into 1–3 separate OTLP exports (each covering a disjoint
-        // subset of metric names for all resources at all timestamps in the batch).
+        // The payload is split into 1–3 OTLP exports, each covering a disjoint subset of the metrics.
         int numSplits = randomIntBetween(1, 3);
-        int expectedDocs = NUM_RESOURCES * (numGauges + numCounters) * NUM_DP_ATTR_SETS * numTimestamps;
 
-        // Timestamps: numTimestamps points, 5 seconds apart, ending ~2 minutes before now.
-        // 1000 × 5 s = 5000 s ≈ 83 minutes, safely within the default 2-hour look_back_time window.
-        long nowNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
-        long endNanos = nowNanos - TimeUnit.MINUTES.toNanos(2);
+        // Timestamps 5 seconds apart, ending 2 minutes before now: well within the default look_back_time.
+        long endNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis()) - TimeUnit.MINUTES.toNanos(2);
         long[] timestamps = new long[numTimestamps];
         for (int t = 0; t < numTimestamps; t++) {
             timestamps[t] = endNanos - TimeUnit.SECONDS.toNanos(5L * (numTimestamps - 1 - t));
         }
 
-        // Timestamps are grouped into export batches (EXPORT_BATCH timestamps) to bound each HTTP payload.
-        // Within each batch, timestamps are further grouped into messages of numTimestampsPerMsg.
-        // Max index ops per export: EXPORT_BATCH × NUM_RESOURCES × (numGauges + numCounters) × NUM_DP_ATTR_SETS
-        // = 10 × 3 × 6 × 3 = 540 (EXPORT_BATCH is in timestamps, so numTimestampsPerMsg does not affect this).
-        final int EXPORT_BATCH = 10;
-        // Periodic refresh (every REFRESH_EVERY batches) clears the Lucene LiveVersionMap so that
-        // heap usage stays bounded even with refresh_interval=-1.
-        final int REFRESH_EVERY = 10;
-
-        // Populate the doc-mode stream. The doc-mode template has no index.time_series.batch_indexing
-        // setting, so all exports take the XContent path even though indices.batch_indexing is enabled
-        // cluster-wide.
-        // Within each timestamp batch, timestamps are grouped into messages of numTimestampsPerMsg.
-        // Each message group is then distributed round-robin across numSplits sub-batches to exercise
-        // multiple OTLP exports per data stream.
-        for (int tStart = 0; tStart < numTimestamps; tStart += EXPORT_BATCH) {
-            int tEnd = Math.min(tStart + EXPORT_BATCH, numTimestamps);
-            List<List<MetricData>> splits = new ArrayList<>(numSplits);
-            for (int s = 0; s < numSplits; s++) {
-                splits.add(new ArrayList<>());
-            }
-            for (int msgStart = tStart; msgStart < tEnd; msgStart += numTimestampsPerMsg) {
-                long[] msgTs = Arrays.copyOfRange(timestamps, msgStart, Math.min(msgStart + numTimestampsPerMsg, tEnd));
-                for (int r = 0; r < NUM_RESOURCES; r++) {
-                    List<MetricData> metrics = buildResourceBatch(DOCMODE_DATASET, r, msgTs, numGauges, numCounters);
-                    for (int m = 0; m < metrics.size(); m++) {
-                        splits.get(m % numSplits).add(metrics.get(m));
-                    }
-                }
-            }
-            for (List<MetricData> split : splits) {
-                if (split.isEmpty() == false) {
-                    exportSync(split);
-                }
-            }
-            if ((tStart / EXPORT_BATCH + 1) % REFRESH_EVERY == 0) {
-                refreshAll();
-            }
-        }
-
-        // Populate the ESCF stream. The first export naturally falls back to doc-mode (resolveEscfEligible
-        // returns false when the data stream does not yet exist) which creates the backing index; all
-        // subsequent exports take the ESCF path. No explicit warm-up is needed.
-        for (int tStart = 0; tStart < numTimestamps; tStart += EXPORT_BATCH) {
-            int tEnd = Math.min(tStart + EXPORT_BATCH, numTimestamps);
-            List<List<MetricData>> splits = new ArrayList<>(numSplits);
-            for (int s = 0; s < numSplits; s++) {
-                splits.add(new ArrayList<>());
-            }
-            for (int msgStart = tStart; msgStart < tEnd; msgStart += numTimestampsPerMsg) {
-                long[] msgTs = Arrays.copyOfRange(timestamps, msgStart, Math.min(msgStart + numTimestampsPerMsg, tEnd));
-                for (int r = 0; r < NUM_RESOURCES; r++) {
-                    List<MetricData> metrics = buildResourceBatch(ESCF_DATASET, r, msgTs, numGauges, numCounters);
-                    for (int m = 0; m < metrics.size(); m++) {
-                        splits.get(m % numSplits).add(metrics.get(m));
-                    }
-                }
-            }
-            for (List<MetricData> split : splits) {
-                if (split.isEmpty() == false) {
-                    exportSync(split);
-                }
-            }
-            if ((tStart / EXPORT_BATCH + 1) % REFRESH_EVERY == 0) {
-                refreshAll();
-            }
-        }
+        // The ESCF path only applies to an existing data stream, so both are created before the first export.
+        createDataStream(DOCMODE_STREAM);
+        createDataStream(ESCF_STREAM);
+        // The doc-mode template has no index.time_series.batch_indexing setting, so its exports take the
+        // XContent path even though indices.batch_indexing is enabled cluster-wide.
+        populate(DOCMODE_DATASET, workload, timestamps, numTimestampsPerMsg, numSplits);
+        int escfBatchesBefore = countEscfBatches();
+        int escfExports = populate(ESCF_DATASET, workload, timestamps, numTimestampsPerMsg, numSplits);
+        assertThat(
+            "every ESCF export must have been written as an ESCF batch",
+            countEscfBatches() - escfBatchesBefore,
+            equalTo(escfExports)
+        );
         refreshAll();
 
-        // -----------------------------------------------------------------------
-        // Assertion 1: document counts
-        // -----------------------------------------------------------------------
-        assertDocCount("metrics-docmode.otel-default", expectedDocs);
-        assertDocCount("metrics-escf.otel-default", expectedDocs);
-
-        // -----------------------------------------------------------------------
-        // Assertion 2: per-range document comparison.
-        // Timestamps are batched into groups of batchTimestamps. For each batch we issue one range
-        // query per stream, capping the response at batchTimestamps * docsPerTimestamp docs — well
-        // within the default max_result_window.
-        // -----------------------------------------------------------------------
-        final int docsPerTimestamp = NUM_RESOURCES * (numGauges + numCounters) * NUM_DP_ATTR_SETS;
-        final int batchTimestamps = 10;
-        int docsCompared = 0;
-        for (int batchStart = 0; batchStart < timestamps.length; batchStart += batchTimestamps) {
-            int batchEnd = Math.min(batchStart + batchTimestamps - 1, timestamps.length - 1);
-            long startMillis = TimeUnit.NANOSECONDS.toMillis(timestamps[batchStart]);
-            long endMillis = TimeUnit.NANOSECONDS.toMillis(timestamps[batchEnd]);
-            int expectedBatchDocs = (batchEnd - batchStart + 1) * docsPerTimestamp;
-            List<Map<String, Object>> docmodeDocs = fetchSortedForRange("metrics-docmode.otel-default", startMillis, endMillis);
-            List<Map<String, Object>> escfDocs = fetchSortedForRange("metrics-escf.otel-default", startMillis, endMillis);
-            String rangeCtx = "[" + startMillis + "," + endMillis + "]";
-            assertThat("doc count must match for range " + rangeCtx, escfDocs.size(), equalTo(docmodeDocs.size()));
-            assertThat("doc count for range " + rangeCtx, docmodeDocs.size(), equalTo(expectedBatchDocs));
-            for (int i = 0; i < docmodeDocs.size(); i++) {
-                Map<String, Object> docmodeDoc = docmodeDocs.get(i);
-                Map<String, Object> escfDoc = escfDocs.get(i);
-                String ctx = rangeCtx + " rank=" + i;
-                assertThat(ctx + ": _id must match", escfDoc.get("_id"), equalTo(docmodeDoc.get("_id")));
-                assertThat(ctx + ": _tsid must match", escfDoc.get("_tsid"), equalTo(docmodeDoc.get("_tsid")));
-                @SuppressWarnings("unchecked")
-                Map<String, Object> docmodeRawSource = (Map<String, Object>) docmodeDoc.get("_source");
-                @SuppressWarnings("unchecked")
-                Map<String, Object> escfRawSource = (Map<String, Object>) escfDoc.get("_source");
-                assertSourceShape(ctx + " docmode", docmodeRawSource);
-                assertSourceShape(ctx + " escf", escfRawSource);
-                Map<String, Object> docmodeSource = stripDataStreamDataset(docmodeRawSource);
-                Map<String, Object> escfSource = stripDataStreamDataset(escfRawSource);
-                assertThat(ctx + ": _source (minus data_stream.dataset) must match", escfSource, equalTo(docmodeSource));
-            }
-            docsCompared += docmodeDocs.size();
+        // At most 20 timestamps × 3 resources × 6 metrics × 3 attribute sets = 1080 documents, so a single
+        // search per stream returns everything.
+        List<Map<String, Object>> docmodeDocs = fetchSorted(DOCMODE_STREAM);
+        List<Map<String, Object>> escfDocs = fetchSorted(ESCF_STREAM);
+        assertThat("the doc-mode stream must not be empty", docmodeDocs.size(), greaterThan(0));
+        assertThat("doc count must match", escfDocs.size(), equalTo(docmodeDocs.size()));
+        for (int i = 0; i < docmodeDocs.size(); i++) {
+            Map<String, Object> docmodeDoc = docmodeDocs.get(i);
+            Map<String, Object> escfDoc = escfDocs.get(i);
+            String ctx = "rank=" + i;
+            assertThat(ctx + ": _id must match", escfDoc.get("_id"), equalTo(docmodeDoc.get("_id")));
+            assertThat(ctx + ": _tsid must match", escfDoc.get("_tsid"), equalTo(docmodeDoc.get("_tsid")));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> docmodeSource = stripDataStreamDataset((Map<String, Object>) docmodeDoc.get("_source"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> escfSource = stripDataStreamDataset((Map<String, Object>) escfDoc.get("_source"));
+            assertThat(ctx + ": _source (minus data_stream.dataset) must match", escfSource, equalTo(docmodeSource));
         }
-        assertThat("total docs compared must equal expectedDocs", docsCompared, equalTo(expectedDocs));
 
-        // -----------------------------------------------------------------------
-        // Assertion 3: per-shard doc-count equality
-        // If _tsid is computed identically then routing (based on _tsid) assigns the
-        // same documents to the same shards in both data streams.
-        // -----------------------------------------------------------------------
-        List<Integer> docmodeShardCounts = primaryShardDocCounts("metrics-docmode.otel-default");
-        List<Integer> escfShardCounts = primaryShardDocCounts("metrics-escf.otel-default");
-        assertThat("number of primary shards must be equal", escfShardCounts.size(), equalTo(docmodeShardCounts.size()));
-        for (int s = 0; s < docmodeShardCounts.size(); s++) {
-            assertThat("shard " + s + " doc count must match", escfShardCounts.get(s), equalTo(docmodeShardCounts.get(s)));
+        // If _tsid is computed identically then routing (based on _tsid) assigns the same documents to the same
+        // shards in both data streams.
+        assertThat("per-shard doc counts must match", primaryShardDocCounts(ESCF_STREAM), equalTo(primaryShardDocCounts(DOCMODE_STREAM)));
+
+        // The two paths reach the mapper through different code (columnar vs document parsing), so an attribute
+        // shape could round-trip to the same _source while producing a different field type.
+        assertThat("mappings must match", indexMappings(ESCF_STREAM), equalTo(indexMappings(DOCMODE_STREAM)));
+    }
+
+    /**
+     * Counts the OTLP exports written as ESCF batches so far. Without checking this, an attribute shape the
+     * batch builder rejects would silently fall back to doc mode, and every comparison would pit doc-mode
+     * output against doc-mode output and pass for the wrong reason.
+     *
+     * <p>Reads the node log rather than any stat, because batch indexing exposes no counter: the one signal
+     * that distinguishes the two paths is what {@code OTLPMetricsTransportAction} logs about its own
+     * decision. The log spans all iterations, so callers compare counts taken before and after.
+     */
+    private static int countEscfBatches() throws IOException {
+        try (InputStream log = cluster.getNodeLog(0, LogType.SERVER)) {
+            return (int) Streams.readAllLines(log).stream().filter(line -> line.contains(ESCF_BATCH_LOG)).count();
         }
     }
 
@@ -330,96 +269,300 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     // -------------------------------------------------------------------------
 
     /**
-     * Builds all {@link MetricData} records for one resource (identified by {@code resourceIdx})
-     * covering the timestamps in {@code msgTimestamps}. Each MetricData contains
-     * {@link #NUM_DP_ATTR_SETS} × {@code msgTimestamps.length} data points — one per (attr-set, timestamp)
-     * pair. The {@code data_stream.dataset} resource attribute controls which data stream the export targets.
+     * The attribute value shapes the ESCF path supports. Bytes values, key-value (object) values and arrays
+     * nested inside arrays are deliberately
+     * absent: each makes the row ineligible, which would send the whole export down the doc-mode path and
+     * defeat the check in {@link #countEscfBatches()}.
+     *
+     * <p>A key keeps its shape for the whole run. Dynamic mapping takes the type of whichever document
+     * reaches the shard first, so a key whose value were sometimes a string and sometimes a number could
+     * resolve to different types in the two streams purely by timing.
      */
-    private static List<MetricData> buildResourceBatch(
-        String dataset,
-        int resourceIdx,
-        long[] msgTimestamps,
-        int numGauges,
-        int numCounters
-    ) {
-        Resource resource = Resource.create(
-            Attributes.builder()
-                .put(stringKey("service.name"), "elasticsearch")
-                .put(stringKey("data_stream.dataset"), dataset)
-                .put(stringKey("host.name"), "host-" + resourceIdx)
-                .put(stringKey("service.version"), "v" + resourceIdx)
-                .build()
-        );
+    private enum AttributeShape {
+        STRING,
+        LONG,
+        DOUBLE,
+        BOOLEAN,
+        STRING_ARRAY,
+        LONG_ARRAY,
+        DOUBLE_ARRAY,
+        BOOLEAN_ARRAY,
+        /** An array whose elements are a mix of ints and doubles, always leading with a double. */
+        MIXED_NUMERIC_ARRAY,
+        /** An array of strings with unset elements interspersed, always leading with a string. */
+        ARRAY_WITH_NULLS,
+        /** Always empty, so neither path should derive a mapping for the key at all. */
+        EMPTY_ARRAY,
+        /** The value oneof left unset: dropped by the ESCF path, written as a null by the doc path. */
+        UNSET
+    }
 
-        List<MetricData> batch = new ArrayList<>(numGauges + numCounters);
+    /** An attribute key together with the single value shape it uses for the whole run. */
+    private record AttributeSpec(String key, AttributeShape shape) {}
 
-        // Gauges (double). Each gauge gets its own set of attribute values (metric index embedded) so
-        // every (gauge, attr-set) pair is a distinct time series / TSDB document group.
-        for (int g = 0; g < numGauges; g++) {
-            List<DoublePointData> points = new ArrayList<>(NUM_DP_ATTR_SETS * msgTimestamps.length);
-            for (long timestamp : msgTimestamps) {
-                for (int a = 0; a < NUM_DP_ATTR_SETS; a++) {
-                    Attributes dpAttrs = Attributes.builder()
-                        .put(stringKey("http.method"), "G" + g + "-METHOD-" + a)
-                        .put(stringKey("http.status_code"), String.valueOf(200 + g * NUM_DP_ATTR_SETS + a))
-                        .build();
-                    double value = resourceIdx * 10_000.0 + a * 100.0 + g * 0.001;
-                    points.add(ImmutableDoublePointData.create(timestamp, timestamp, dpAttrs, value));
-                }
-            }
-            batch.add(
-                ImmutableMetricData.createDoubleGauge(
-                    resource,
-                    SCOPE,
-                    "gauge." + g,
-                    "Test gauge " + g,
-                    "1",
-                    ImmutableGaugeData.create(points)
-                )
-            );
+    /** A metric name together with the point type it uses for the whole run. */
+    private record MetricSpec(String name, boolean sum, boolean longValued) {}
+
+    /**
+     * The randomised payload, generated once and sent verbatim to both data streams. Attribute values are
+     * fixed per time series rather than per data point, so that a series keeps one {@code _tsid} across all
+     * timestamps.
+     *
+     * <p>Resources are distinct from each other, and so are the attribute sets of each metric, so that no two
+     * data points of a metric share a series and a timestamp: grouping would reject the second one as a
+     * duplicate. Different metrics may share an attribute set, in which case grouping merges them into one
+     * document, so the document count is not predictable.
+     *
+     * @param resourceAttributes  indexed by resource
+     * @param dataPointAttributes indexed by metric, then by attribute set
+     */
+    private record Workload(
+        List<MetricSpec> metrics,
+        List<List<KeyValue>> resourceAttributes,
+        List<KeyValue> scopeAttributes,
+        List<List<List<KeyValue>>> dataPointAttributes
+    ) {}
+
+    private static Workload randomWorkload() {
+        List<MetricSpec> metrics = new ArrayList<>();
+        for (int m = 0, numMetrics = randomIntBetween(1, 6); m < numMetrics; m++) {
+            metrics.add(new MetricSpec("metric." + m, randomBoolean(), randomBoolean()));
         }
 
-        // Counters (long, monotonic, cumulative). Same uniqueness guarantee as gauges.
-        for (int c = 0; c < numCounters; c++) {
-            List<LongPointData> points = new ArrayList<>(NUM_DP_ATTR_SETS * msgTimestamps.length);
-            for (long timestamp : msgTimestamps) {
-                for (int a = 0; a < NUM_DP_ATTR_SETS; a++) {
-                    Attributes dpAttrs = Attributes.builder()
-                        .put(stringKey("http.method"), "C" + c + "-METHOD-" + a)
-                        .put(stringKey("http.status_code"), String.valueOf(300 + c * NUM_DP_ATTR_SETS + a))
-                        .build();
-                    long value = (long) resourceIdx * 10_000L + a * 100L + c;
-                    points.add(ImmutableLongPointData.create(timestamp, timestamp, dpAttrs, value));
-                }
-            }
-            batch.add(
-                ImmutableMetricData.createLongSum(
-                    resource,
-                    SCOPE,
-                    "counter." + c,
-                    "Test counter " + c,
-                    "1",
-                    ImmutableSumData.create(true, AggregationTemporality.CUMULATIVE, points)
-                )
-            );
-        }
+        List<AttributeSpec> resourceSchema = randomAttributeSchema("test.resource");
+        List<AttributeSpec> scopeSchema = randomAttributeSchema("test.scope");
+        List<AttributeSpec> dataPointSchema = randomAttributeSchema("test.datapoint");
 
-        return batch;
+        List<List<KeyValue>> resourceAttributes = distinctRandomAttributes(resourceSchema, randomIntBetween(1, 3));
+        List<List<List<KeyValue>>> dataPointAttributes = new ArrayList<>(metrics.size());
+        for (int m = 0; m < metrics.size(); m++) {
+            dataPointAttributes.add(distinctRandomAttributes(dataPointSchema, randomIntBetween(1, 3)));
+        }
+        return new Workload(metrics, resourceAttributes, randomAttributes(scopeSchema), dataPointAttributes);
+    }
+
+    /**
+     * Up to {@code count} random attribute sets over {@code schema} that are distinct series. Fewer come back
+     * when the schema cannot produce that many, e.g. a schema without keys produces exactly one, empty, set.
+     */
+    private static List<List<KeyValue>> distinctRandomAttributes(List<AttributeSpec> schema, int count) {
+        Map<Map<String, AnyValue>, List<KeyValue>> distinct = new LinkedHashMap<>();
+        for (int attempt = 0; attempt < count * 10 && distinct.size() < count; attempt++) {
+            List<KeyValue> attributes = randomAttributes(schema);
+            distinct.putIfAbsent(seriesIdentity(attributes), attributes);
+        }
+        return new ArrayList<>(distinct.values());
+    }
+
+    /**
+     * What makes two attribute sets the same series. Attribute order does not count, and neither does
+     * anything that contributes nothing to the tsid: an unset value, an unset array element, or an array that
+     * is empty once those are removed.
+     */
+    private static Map<String, AnyValue> seriesIdentity(List<KeyValue> attributes) {
+        Map<String, AnyValue> identity = new HashMap<>();
+        for (KeyValue kv : attributes) {
+            AnyValue value = kv.getValue();
+            if (value.hasArrayValue()) {
+                List<AnyValue> elements = value.getArrayValue()
+                    .getValuesList()
+                    .stream()
+                    .filter(e -> e.getValueCase() != AnyValue.ValueCase.VALUE_NOT_SET)
+                    .toList();
+                if (elements.isEmpty() == false) {
+                    identity.put(kv.getKey(), arrayValue(elements));
+                }
+            } else if (value.getValueCase() != AnyValue.ValueCase.VALUE_NOT_SET) {
+                identity.put(kv.getKey(), value);
+            }
+        }
+        return identity;
+    }
+
+    /**
+     * Between zero and eight keys, each with a random shape. A key keeps its shape for the whole run, which
+     * is what keeps dynamic mapping deterministic; see {@link AttributeShape}.
+     */
+    private static List<AttributeSpec> randomAttributeSchema(String prefix) {
+        List<AttributeSpec> schema = new ArrayList<>();
+        for (int i = 0, numKeys = randomIntBetween(0, 8); i < numKeys; i++) {
+            schema.add(new AttributeSpec(prefix + ".attr" + i, randomFrom(AttributeShape.values())));
+        }
+        return schema;
+    }
+
+    /** A random subset of {@code schema}, possibly empty, in random order and with random values. */
+    private static List<KeyValue> randomAttributes(List<AttributeSpec> schema) {
+        List<KeyValue> attributes = new ArrayList<>(schema.size());
+        for (AttributeSpec spec : schema) {
+            if (randomBoolean()) {
+                attributes.add(KeyValue.newBuilder().setKey(spec.key()).setValue(randomValue(spec.shape())).build());
+            }
+        }
+        Collections.shuffle(attributes, random());
+        return attributes;
+    }
+
+    private static AnyValue randomValue(AttributeShape shape) {
+        return switch (shape) {
+            case STRING -> stringValue(randomAlphaOfLengthBetween(1, 16));
+            case LONG -> AnyValue.newBuilder().setIntValue(randomLong()).build();
+            case DOUBLE -> AnyValue.newBuilder().setDoubleValue(randomDouble()).build();
+            case BOOLEAN -> AnyValue.newBuilder().setBoolValue(randomBoolean()).build();
+            case STRING_ARRAY -> arrayValue(randomElements(() -> stringValue(randomAlphaOfLengthBetween(1, 8))));
+            case LONG_ARRAY -> arrayValue(randomElements(() -> AnyValue.newBuilder().setIntValue(randomLong()).build()));
+            case DOUBLE_ARRAY -> arrayValue(randomElements(() -> AnyValue.newBuilder().setDoubleValue(randomDouble()).build()));
+            case BOOLEAN_ARRAY -> arrayValue(randomElements(() -> AnyValue.newBuilder().setBoolValue(randomBoolean()).build()));
+            case MIXED_NUMERIC_ARRAY -> {
+                // Leading with a double maps the field to a float, which then widens the ints without loss.
+                // The other order would map it to a long and silently truncate every double.
+                List<AnyValue> elements = new ArrayList<>();
+                elements.add(AnyValue.newBuilder().setDoubleValue(randomDouble()).build());
+                elements.addAll(
+                    randomElements(
+                        () -> randomBoolean()
+                            ? AnyValue.newBuilder().setIntValue(randomLong()).build()
+                            : AnyValue.newBuilder().setDoubleValue(randomDouble()).build()
+                    )
+                );
+                yield arrayValue(elements);
+            }
+            case ARRAY_WITH_NULLS -> {
+                List<AnyValue> elements = new ArrayList<>();
+                elements.add(stringValue(randomAlphaOfLengthBetween(1, 8)));
+                elements.addAll(randomElements(() -> randomBoolean() ? stringValue(randomAlphaOfLengthBetween(1, 8)) : unsetValue()));
+                yield arrayValue(elements);
+            }
+            case EMPTY_ARRAY -> arrayValue(List.of());
+            case UNSET -> unsetValue();
+        };
+    }
+
+    /** One to three elements, so that single-element and multi-valued arrays both occur. */
+    private static List<AnyValue> randomElements(Supplier<AnyValue> element) {
+        List<AnyValue> elements = new ArrayList<>();
+        for (int i = 0, count = randomIntBetween(1, 3); i < count; i++) {
+            elements.add(element.get());
+        }
+        return elements;
+    }
+
+    private static AnyValue stringValue(String value) {
+        return AnyValue.newBuilder().setStringValue(value).build();
+    }
+
+    private static AnyValue arrayValue(List<AnyValue> elements) {
+        return AnyValue.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(elements).build()).build();
+    }
+
+    private static AnyValue unsetValue() {
+        return AnyValue.getDefaultInstance();
+    }
+
+    private static KeyValue stringAttribute(String key, String value) {
+        return KeyValue.newBuilder().setKey(key).setValue(stringValue(value)).build();
     }
 
     // -------------------------------------------------------------------------
-    // Export helpers
+    // Export
     // -------------------------------------------------------------------------
 
-    private void exportSync(List<MetricData> metrics) {
-        CompletableResultCode result = exporter.export(metrics).join(30, TimeUnit.SECONDS);
-        Throwable failure = result.getFailureThrowable();
-        if (failure instanceof Exception e) {
-            throw new RuntimeException("OTLP export failed", e);
-        } else if (failure != null) {
-            throw new RuntimeException("OTLP export failed", failure);
+    /**
+     * Sends {@code workload} to the data stream selected by {@code dataset}. Timestamps are grouped into
+     * messages of {@code numTimestampsPerMsg}, and the metrics are distributed round-robin across
+     * {@code numSplits} exports, each covering a disjoint subset of the metrics.
+     *
+     * @return the number of exports sent
+     */
+    private int populate(String dataset, Workload workload, long[] timestamps, int numTimestampsPerMsg, int numSplits) throws IOException {
+        List<ExportMetricsServiceRequest.Builder> splits = new ArrayList<>(numSplits);
+        for (int s = 0; s < numSplits; s++) {
+            splits.add(ExportMetricsServiceRequest.newBuilder());
         }
-        assertThat("OTLP export must succeed", result.isSuccess(), equalTo(true));
+        for (int msgStart = 0; msgStart < timestamps.length; msgStart += numTimestampsPerMsg) {
+            long[] msgTimestamps = Arrays.copyOfRange(timestamps, msgStart, Math.min(msgStart + numTimestampsPerMsg, timestamps.length));
+            for (int r = 0; r < workload.resourceAttributes().size(); r++) {
+                for (int m = 0; m < workload.metrics().size(); m++) {
+                    Metric metric = buildMetric(workload, m, r, msgTimestamps);
+                    splits.get(m % numSplits).addResourceMetrics(buildResourceMetrics(dataset, workload, r, metric));
+                }
+            }
+        }
+        int exports = 0;
+        for (ExportMetricsServiceRequest.Builder split : splits) {
+            if (split.getResourceMetricsCount() > 0) {
+                export(split.build());
+                exports++;
+            }
+        }
+        return exports;
+    }
+
+    private static void createDataStream(String name) throws IOException {
+        assertOK(client().performRequest(new Request("PUT", "_data_stream/" + name)));
+    }
+
+    /**
+     * Wraps {@code metric} in the resource and scope for {@code resourceIdx}. The {@code data_stream.dataset}
+     * resource attribute is the only difference between the payloads the two streams receive.
+     */
+    private static ResourceMetrics buildResourceMetrics(String dataset, Workload workload, int resourceIdx, Metric metric) {
+        Resource resource = Resource.newBuilder()
+            .addAllAttributes(workload.resourceAttributes().get(resourceIdx))
+            .addAttributes(stringAttribute("data_stream.dataset", dataset))
+            .build();
+        InstrumentationScope scope = InstrumentationScope.newBuilder()
+            .setName(SCOPE_NAME)
+            .setVersion(SCOPE_VERSION)
+            .addAllAttributes(workload.scopeAttributes())
+            .build();
+        return ResourceMetrics.newBuilder()
+            .setResource(resource)
+            .addScopeMetrics(ScopeMetrics.newBuilder().setScope(scope).addMetrics(metric).build())
+            .build();
+    }
+
+    /**
+     * Builds one metric carrying one data point per (attribute set, timestamp) pair. Point values are derived
+     * from the indices rather than randomised, so that a monotonic sum never receives a negative value.
+     */
+    private static Metric buildMetric(Workload workload, int metricIdx, int resourceIdx, long[] msgTimestamps) {
+        MetricSpec spec = workload.metrics().get(metricIdx);
+        List<List<KeyValue>> attributeSets = workload.dataPointAttributes().get(metricIdx);
+        List<NumberDataPoint> points = new ArrayList<>(attributeSets.size() * msgTimestamps.length);
+        for (long timestamp : msgTimestamps) {
+            for (int a = 0; a < attributeSets.size(); a++) {
+                NumberDataPoint.Builder point = NumberDataPoint.newBuilder()
+                    .setTimeUnixNano(timestamp)
+                    .setStartTimeUnixNano(timestamp)
+                    .addAllAttributes(attributeSets.get(a));
+                long value = resourceIdx * 10_000L + a * 100L + metricIdx;
+                points.add(spec.longValued() ? point.setAsInt(value).build() : point.setAsDouble(value + 0.5).build());
+            }
+        }
+        Metric.Builder metric = Metric.newBuilder().setName(spec.name()).setUnit("1");
+        return spec.sum()
+            ? metric.setSum(
+                Sum.newBuilder()
+                    .addAllDataPoints(points)
+                    .setIsMonotonic(true)
+                    .setAggregationTemporality(AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE)
+                    .build()
+            ).build()
+            : metric.setGauge(Gauge.newBuilder().addAllDataPoints(points).build()).build();
+    }
+
+    private void export(ExportMetricsServiceRequest metricsRequest) throws IOException {
+        Request request = new Request("POST", "/_otlp/v1/metrics");
+        request.setEntity(new ByteArrayEntity(metricsRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        Response response = client().performRequest(request);
+        assertOK(response);
+        ExportMetricsServiceResponse metricsResponse = ExportMetricsServiceResponse.parseFrom(response.getEntity().getContent());
+        assertThat(
+            "OTLP export must not reject any data point: " + metricsResponse.getPartialSuccess().getErrorMessage(),
+            metricsResponse.getPartialSuccess().getRejectedDataPoints(),
+            equalTo(0L)
+        );
     }
 
     private static void refreshAll() throws IOException {
@@ -489,22 +632,28 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     // Assertion helpers
     // -------------------------------------------------------------------------
 
-    private static void assertDocCount(String target, int expected) throws IOException {
-        ObjectPath response = ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_count")));
-        assertThat("doc count for " + target, (int) response.evaluate("count"), equalTo(expected));
-    }
-
-    /** Asserts that {@code source} is a well-formed OTel metric document with top-level {@code attributes}
-     * and a {@code resource} object that itself contains {@code attributes}. */
+    /**
+     * Returns the mappings of the single backing index of {@code target}, with the {@code data_stream.dataset}
+     * constant_keyword removed: its value is the stream's own dataset name, which the two streams
+     * intentionally disagree on. Every other field is derived from the documents and must match.
+     */
     @SuppressWarnings("unchecked")
-    private static void assertSourceShape(String ctx, Map<String, Object> source) {
-        assertFalse(ctx + ": _source must not be empty", source.isEmpty());
-        assertTrue(ctx + ": _source must contain top-level 'attributes'", source.containsKey("attributes"));
-        Object resourceRaw = source.get("resource");
-        assertNotNull(ctx + ": _source must contain 'resource'", resourceRaw);
-        assertThat(ctx + ": 'resource' must be a map", resourceRaw, org.hamcrest.Matchers.instanceOf(Map.class));
-        Map<String, Object> resource = (Map<String, Object>) resourceRaw;
-        assertTrue(ctx + ": 'resource' must contain 'attributes'", resource.containsKey("attributes"));
+    private static Map<String, Object> indexMappings(String target) throws IOException {
+        Map<String, Object> response = ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_mapping")))
+            .evaluate("");
+        assertThat("exactly one backing index is expected for " + target, response.size(), equalTo(1));
+        Map<String, Object> mappings = (Map<String, Object>) ((Map<String, Object>) response.values().iterator().next()).get("mappings");
+        // The template declares data_stream.dataset as a dotted property, which the mapper expands into an
+        // object, so the leaf to drop sits at properties.data_stream.properties.dataset.
+        Map<String, Object> copy = new LinkedHashMap<>(mappings);
+        Map<String, Object> properties = new LinkedHashMap<>((Map<String, Object>) copy.get("properties"));
+        Map<String, Object> dataStream = new LinkedHashMap<>((Map<String, Object>) properties.get("data_stream"));
+        Map<String, Object> dataStreamProperties = new LinkedHashMap<>((Map<String, Object>) dataStream.get("properties"));
+        assertNotNull("data_stream.dataset must be mapped", dataStreamProperties.remove("dataset"));
+        dataStream.put("properties", dataStreamProperties);
+        properties.put("data_stream", dataStream);
+        copy.put("properties", properties);
+        return copy;
     }
 
     /**
@@ -515,10 +664,10 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
      */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> stripDataStreamDataset(Map<String, Object> source) {
-        Map<String, Object> result = new java.util.LinkedHashMap<>(source);
+        Map<String, Object> result = new LinkedHashMap<>(source);
         Object dsRaw = result.get("data_stream");
         if (dsRaw instanceof Map) {
-            Map<String, Object> ds = new java.util.LinkedHashMap<>((Map<String, Object>) dsRaw);
+            Map<String, Object> ds = new LinkedHashMap<>((Map<String, Object>) dsRaw);
             ds.remove("dataset");
             result.put("data_stream", ds);
         }
@@ -526,24 +675,25 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     }
 
     /**
-     * Fetches all documents from {@code target} whose {@code @timestamp} falls in
-     * {@code [startMillis, endMillis]}, sorted by {@code @timestamp} ASC then {@code _tsid} ASC.
+     * Fetches all documents from {@code target}, sorted by {@code @timestamp} ASC then {@code _tsid} ASC.
      * Each element in the returned list is a map with keys {@code _id}, {@code _tsid}, and {@code _source}.
      */
     @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> fetchSortedForRange(String target, long startMillis, long endMillis) throws IOException {
+    private static List<Map<String, Object>> fetchSorted(String target) throws IOException {
         Request request = new Request("GET", target + "/_search");
-        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        request.setJsonEntity("""
             {
               "size": 10000,
-              "query": {"range": {"@timestamp": {"gte": %d, "lte": %d}}},
+              "track_total_hits": true,
               "sort": [{"@timestamp": "asc"}, {"_tsid": "asc"}],
               "docvalue_fields": ["_tsid"],
               "_source": true
             }
-            """, startMillis, endMillis));
+            """);
         ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
         List<Object> rawHits = response.evaluate("hits.hits");
+        int totalHits = response.evaluate("hits.total.value");
+        assertThat("all documents of " + target + " must fit in one page", rawHits.size(), equalTo(totalHits));
         List<Map<String, Object>> result = new ArrayList<>(rawHits.size());
         for (Object rawHit : rawHits) {
             Map<String, Object> hit = (Map<String, Object>) rawHit;
@@ -587,4 +737,5 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         }
         return counts;
     }
+
 }

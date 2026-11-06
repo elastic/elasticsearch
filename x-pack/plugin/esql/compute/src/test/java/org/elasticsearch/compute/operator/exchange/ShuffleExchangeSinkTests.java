@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PartitionedExchangeSinkTests extends ComputeTestCase {
+public class ShuffleExchangeSinkTests extends ComputeTestCase {
 
     private static final String TEST_EXECUTOR = "partitioned_exchange_test";
 
@@ -95,7 +95,7 @@ public class PartitionedExchangeSinkTests extends ComputeTestCase {
                 driverContext(),
                 new CannedSourceOperator(inputPages.iterator()),
                 List.of(),
-                new ExchangeSinkOperator(new PartitionedExchangeSink(partitions.stream().map(Partition::sink).toList(), partitioner))
+                new ExchangeSinkOperator(new ShuffleExchangeSink(partitions.stream().map(Partition::sink).toList(), partitioner))
             )
         );
         for (int partition = 0; partition < partitionCount; partition++) {

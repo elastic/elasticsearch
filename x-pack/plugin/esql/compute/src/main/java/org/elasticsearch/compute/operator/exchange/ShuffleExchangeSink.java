@@ -20,7 +20,7 @@ import java.util.Objects;
 /**
  * Routes each page's rows to hash-partitioned exchange sinks while preserving block ownership.
  */
-public final class PartitionedExchangeSink implements ExchangeSink {
+public final class ShuffleExchangeSink implements ExchangeSink {
 
     private final List<ExchangeSink> sinks;
     private final HashPartitioner partitioner;
@@ -29,7 +29,7 @@ public final class PartitionedExchangeSink implements ExchangeSink {
     private int[] partitions = new int[0];
     private int[] positions = new int[0];
 
-    public PartitionedExchangeSink(List<ExchangeSink> sinks, HashPartitioner partitioner) {
+    public ShuffleExchangeSink(List<ExchangeSink> sinks, HashPartitioner partitioner) {
         this.sinks = List.copyOf(sinks);
         this.partitioner = Objects.requireNonNull(partitioner);
         if (this.sinks.size() != partitioner.partitionCount()) {

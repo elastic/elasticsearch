@@ -61,7 +61,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
-import org.elasticsearch.compute.operator.exchange.PartitionedExchangeSink;
+import org.elasticsearch.compute.operator.exchange.ShuffleExchangeSink;
 import org.elasticsearch.compute.operator.lookup.HashJoinBuildOperator;
 import org.elasticsearch.compute.operator.lookup.HashJoinColumnLoadOperator;
 import org.elasticsearch.compute.operator.lookup.HashJoinProbeOperator;
@@ -2041,7 +2041,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
         ExchangeSink exchangeSink = ((ExchangeSinkOperatorFactory) operation.sinkOperatorFactory).exchangeSinks().get();
         try {
-            assertThat(exchangeSink, instanceOf(PartitionedExchangeSink.class));
+            assertThat(exchangeSink, instanceOf(ShuffleExchangeSink.class));
         } finally {
             exchangeSink.finish();
         }

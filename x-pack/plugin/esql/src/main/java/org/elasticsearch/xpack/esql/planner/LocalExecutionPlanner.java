@@ -84,7 +84,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.Exchange
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.HashPartitioner;
-import org.elasticsearch.compute.operator.exchange.PartitionedExchangeSink;
+import org.elasticsearch.compute.operator.exchange.ShuffleExchangeSink;
 import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
@@ -1123,7 +1123,7 @@ public class LocalExecutionPlanner {
                     .stream()
                     .map(key -> PlannerUtils.toElementType(key.dataType()))
                     .toArray(ElementType[]::new);
-                yield () -> new PartitionedExchangeSink(
+                yield () -> new ShuffleExchangeSink(
                     handlers.stream().map(handler -> handler.createExchangeSink(() -> {})).toList(),
                     new HashPartitioner(keyChannels, types, handlers.size())
                 );

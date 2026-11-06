@@ -32,8 +32,8 @@ public class StatelessPluginSettingsTests extends ESTestCase {
                 .build()
         );
         Settings searchNodeSettings = searchNodeStateless.additionalSettings();
-        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("90%"));
-        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("250GB"));
+        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("8gb"));
+        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("-1"));
 
         StatelessPlugin searchNodeStatelessWithManualSetting = new TestUtils.StatelessPluginWithTrialLicense(
             Settings.builder()

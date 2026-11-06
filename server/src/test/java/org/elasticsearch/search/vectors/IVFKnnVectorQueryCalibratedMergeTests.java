@@ -23,6 +23,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -66,17 +68,22 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
 
                 var resolver = IvfQueryConfigResolver.from(false, false, 4, oversampleB, null);
 
-                IVFKnnFloatVectorQuery ivfQuery = new IVFKnnFloatVectorQuery(
+                List<SharedCompetitiveScore> sharedScores = new ArrayList<>();
+                IVFKnnFloatVectorQuery ivfQuery = new CapturingIVFKnnFloatVectorQuery(
                     ESNextRescoreOversampleTestFixture.FIELD_NAME,
                     queryVector,
                     k,
                     500,
                     null,
                     1f,
-                    resolver
+                    resolver,
+                    sharedScores
                 );
 
                 Query rewritten = ivfQuery.rewrite(searcher);
+                assertThat(sharedScores, hasSize(2));
+                assertSame(sharedScores.get(0), sharedScores.get(1));
+                assertEquals(IvfSegmentConfig.leafCollectorBudget(k, oversampleB), sharedScores.get(0).requiredObservations());
                 TopDocs hits = searcher.search(rewritten, Integer.MAX_VALUE);
 
                 assertThat(hits.scoreDocs.length, lessThanOrEqualTo(Math.min(expectedMergeK, reader.numDocs())));
@@ -285,6 +292,30 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
                 TopDocs hits = searcher.search(rewritten, k);
                 assertThat(hits.scoreDocs.length, lessThanOrEqualTo(k));
             }
+        }
+    }
+
+    private static class CapturingIVFKnnFloatVectorQuery extends IVFKnnFloatVectorQuery {
+        private final List<SharedCompetitiveScore> sharedScores;
+
+        CapturingIVFKnnFloatVectorQuery(
+            String field,
+            float[] query,
+            int k,
+            int numCands,
+            Query filter,
+            float visitRatio,
+            IvfQueryConfigResolver resolver,
+            List<SharedCompetitiveScore> sharedScores
+        ) {
+            super(field, query, k, numCands, filter, visitRatio, resolver);
+            this.sharedScores = sharedScores;
+        }
+
+        @Override
+        protected IVFCollectorManager getKnnCollectorManager(int k, SharedCompetitiveScore sharedScore) {
+            sharedScores.add(sharedScore);
+            return super.getKnnCollectorManager(k, sharedScore);
         }
     }
 }

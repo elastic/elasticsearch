@@ -12,26 +12,25 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.SetOnce;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.LongAccumulator;
 
 public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final float visitRatio;
     private final int numCands;
     private final int k;
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
-    private final LongAccumulator accumulator;
+    private final SharedCompetitiveScore.Tracker sharedScoreTracker;
 
-    public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator) {
+    public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, SharedCompetitiveScore sharedScore) {
         this.visitRatio = visitRatio;
         this.numCands = numCands;
         this.k = k;
-        this.accumulator = accumulator;
+        this.sharedScoreTracker = sharedScore == null ? null : sharedScore.newTracker();
     }
 
     void setCollector(AbstractMaxScoreKnnCollector collector) {
         this.collector.set(collector);
-        if (accumulator != null) {
-            collector.updateMinCompetitiveDocScore(accumulator.get());
+        if (sharedScoreTracker != null) {
+            sharedScoreTracker.sync(collector);
         }
     }
 
@@ -45,6 +44,18 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
 
     public int getK() {
         return k;
+    }
+
+    /** Whether enough candidates across leaves support the shared competitive score. */
+    public boolean hasSharedCompetitiveScore() {
+        return sharedScoreTracker != null && sharedScoreTracker.hasEstablishedScore();
+    }
+
+    /** Whether either the local queue is full or enough candidates across leaves support a shared score. */
+    public boolean hasSufficientCandidates() {
+        AbstractMaxScoreKnnCollector collector = this.collector.get();
+        assert collector != null : "Collector must be set before checking candidate sufficiency";
+        return collector.numCollected() >= collector.k() || hasSharedCompetitiveScore();
     }
 
     @Override
@@ -62,23 +73,14 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
 
     /**
      * This method is called when the next block of vectors is processed.
-     * It accumulates the minimum competitive document score from the collector
-     * and updates the accumulator with the most competitive score.
-     * If the current score in the accumulator is greater than the minimum competitive
-     * document score in the collector, it updates the collector's minimum competitive document score.
+     * Contributes newly retained candidates and consumes an established shared competitive score.
      */
     @Override
     public void nextVectorsBlock() {
-        if (accumulator == null) {
+        if (sharedScoreTracker == null) {
             return;
         }
         assert this.collector.get() != null : "Collector must be set before nextVectorsBlock is called";
-        AbstractMaxScoreKnnCollector knnCollector = this.collector.get();
-        long collectorScore = knnCollector.getMinCompetitiveDocScore();
-        accumulator.accumulate(collectorScore);
-        long currentScore = accumulator.get();
-        if (currentScore > collectorScore) {
-            knnCollector.updateMinCompetitiveDocScore(currentScore);
-        }
+        sharedScoreTracker.sync(this.collector.get());
     }
 }

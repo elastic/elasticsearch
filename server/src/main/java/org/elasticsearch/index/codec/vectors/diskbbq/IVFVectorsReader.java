@@ -465,8 +465,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int k = knnCollector.k();
         int numCands = k;
         float visitRatio = dynamicVisitRatio;
+        IVFKnnSearchStrategy ivfSearchStrategy = null;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
-        if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
+        if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy strategy) {
+            ivfSearchStrategy = strategy;
             visitRatio = ivfSearchStrategy.getVisitRatio();
             numCands = ivfSearchStrategy.getNumCands();
             k = ivfSearchStrategy.getK();
@@ -508,7 +510,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
         while (centroidPrefetchingIterator.hasNext()
-            && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
+            && (maxVectorVisited > expectedDocs || needsMoreCandidates(knnCollector, ivfSearchStrategy))) {
             PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
             expectedDocs += scorer.resetPostingsScorer(postingMetadata);
             actualDocs += scorer.visit(knnCollector);
@@ -530,6 +532,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 }
             }
         }
+    }
+
+    private static boolean needsMoreCandidates(KnnCollector collector, IVFKnnSearchStrategy searchStrategy) {
+        return searchStrategy == null
+            ? collector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY
+            : searchStrategy.hasSufficientCandidates() == false;
     }
 
     /**

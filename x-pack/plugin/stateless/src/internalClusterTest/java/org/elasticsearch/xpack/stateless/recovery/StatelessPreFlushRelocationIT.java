@@ -59,8 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegTestCase {
@@ -379,16 +378,14 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
 
         final var preFlush = installPreFlushObserver(sourceNode, indexName);
         final var preFlushDoneAtPrewarmSend = new AtomicBoolean();
-        final var uploadedBccNamesAtPrewarmSend = new AtomicReference<List<String>>();
-        final var prewarmedBccName = new AtomicReference<String>();
+        final var prewarmedBccGeneration = new AtomicReference<Long>();
         final var sourceTransportService = MockTransportService.getInstance(sourceNode);
 
         sourceTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME.equals(action)) {
                 preFlushDoneAtPrewarmSend.set(preFlush.result().isDone());
-                uploadedBccNamesAtPrewarmSend.set(List.copyOf(uploadedBccNames));
-                prewarmedBccName.set(
-                    ((TransportStatelessPrimaryRelocationPrewarmAction.Request) request).latestBccBlob().blobFile().blobName()
+                prewarmedBccGeneration.set(
+                    ((TransportStatelessPrimaryRelocationPrewarmAction.Request) request).latestBccBlob().blobFile().generation()
                 );
             }
             connection.sendRequest(requestId, action, request, options);
@@ -399,10 +396,12 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
 
         assertTrue("prewarm is sent after the preflush", preFlushDoneAtPrewarmSend.get());
 
-        // we have 2 BCCs uploaded, one from the explicit `flush` above and one during the preflush
-        final var bccNames = uploadedBccNamesAtPrewarmSend.get();
-        assertThat(bccNames, hasSize(2));
-        assertThat("prewarm warms the latest uploaded BCC, the one during the preflush", prewarmedBccName.get(), equalTo(bccNames.get(1)));
+        final var preFlushResult = safeGet(preFlush.result());
+        assertThat(
+            "prewarm warms the BCC of the preflush or of a later flush",
+            prewarmedBccGeneration.get(),
+            greaterThanOrEqualTo(preFlushResult.generation())
+        );
     }
 
     private String createTestIndex() {

@@ -4249,10 +4249,10 @@ public class InternalEngine extends Engine {
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
         ensureOpen();
         final long truncatedAt = truncatedAtSeqNo;
-        if (toSeqNo < truncatedAt) {
+        if (truncatedAt > SequenceNumbers.NO_OPS_PERFORMED && toSeqNo < truncatedAt) {
             return 0;
         }
-        final long clampedFromSeqNo = Math.max(fromSeqNo, truncatedAt);
+        final long clampedFromSeqNo = truncatedAt > SequenceNumbers.NO_OPS_PERFORMED ? Math.max(fromSeqNo, truncatedAt) : fromSeqNo;
         refreshIfNeeded(source, toSeqNo);
         try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
             return LuceneChangesSnapshot.countOperations(searcher, engineConfig.getIndexSettings(), clampedFromSeqNo, toSeqNo);
@@ -4286,11 +4286,14 @@ public class InternalEngine extends Engine {
         ensureOpen();
         // History below the latest truncate was discarded and is covered by the truncate itself, so a consumer asking for it is
         // served from the truncate onwards.
+        // Only once a truncate has happened: otherwise requests, including invalid ones, must reach the snapshot untouched.
         final long truncatedAt = truncatedAtSeqNo;
-        if (toSeqNo < truncatedAt) {
-            return Translog.Snapshot.EMPTY;
+        if (truncatedAt > SequenceNumbers.NO_OPS_PERFORMED) {
+            if (toSeqNo < truncatedAt) {
+                return Translog.Snapshot.EMPTY;
+            }
+            fromSeqNo = Math.max(fromSeqNo, truncatedAt);
         }
-        fromSeqNo = Math.max(fromSeqNo, truncatedAt);
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {

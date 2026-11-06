@@ -610,6 +610,8 @@ public class Constants {
         "indices:admin/template/delete",
         "indices:admin/template/get",
         "indices:admin/template/put",
+        "indices:admin/truncate",
+        "indices:admin/truncate[s]",
         "indices:admin/validate/query",
         "indices:admin/xpack/ccr/forget_follower",
         "indices:admin/xpack/ccr/put_follow",

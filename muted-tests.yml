@@ -541,3 +541,8 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/164936
+- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorForceDocSequenceTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/164938

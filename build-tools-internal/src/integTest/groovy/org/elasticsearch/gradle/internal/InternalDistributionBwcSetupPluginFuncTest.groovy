@@ -418,7 +418,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
         def knownGoodBuildId = "${bwcVersion}-aaaa1111"
-        stubKnownGood(wireMock, "/known-good/${bwcBranch}.json", bwcBranch, bwcVersion, knownGoodBuildId)
+        stubKnownGood(wireMock, "/known-good/${bwcBranch}.txt", knownGoodBuildId)
         stubManifestOk(wireMock, draManifestPath(knownGoodBuildId, bwcVersion))
         stubLatest(wireMock, draLatestPath(bwcBranch), "${bwcVersion}-bbbb2222")
         stubTarArtifact(wireMock, draTarArtifactPath(knownGoodBuildId, bwcVersion, "darwin-x86_64"), bwcVersion)
@@ -601,15 +601,9 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         wireMock.stubFor(get(urlEqualTo(path)).willReturn(aResponse().withStatus(404)))
     }
 
-    /** Stubs GET for a branch's record in the known-good store, as the bwc pipelines promote it. */
-    private static void stubKnownGood(WireMockServer wireMock, String path, String branch, String version, String buildId) {
-        wireMock.stubFor(
-            get(urlEqualTo(path))
-                .willReturn(
-                    aResponse().withStatus(200)
-                        .withBody("""{"branch": "${branch}", "version": "${version}", "build_id": "${buildId}"}""")
-                )
-        )
+    /** Stubs GET for a branch's record in the known-good store, as the bwc pipelines promote it: just the build ID. */
+    private static void stubKnownGood(WireMockServer wireMock, String path, String buildId) {
+        wireMock.stubFor(get(urlEqualTo(path)).willReturn(aResponse().withStatus(200).withBody("${buildId}\n")))
     }
 
     /** Stubs GET for the DRA "latest" endpoint, returning a JSON body with the given build ID. */

@@ -106,8 +106,8 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
         Property<String> getBaseUrl();
 
         /**
-         * Base URL of the known-good store read in {@code dra} mode: one {@code <branch>.json} record per branch, written
-         * by CI when a bwc run on a DRA build passes. It is a public bucket, read without credentials.
+         * Base URL of the known-good store read in {@code dra} mode: one {@code <branch>.txt} object per branch holding the
+         * build ID, written by CI when a bwc run on that DRA build passes. It is a public bucket, read without credentials.
          */
         Property<String> getKnownGoodUrl();
     }
@@ -140,7 +140,7 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
             ObjectMapper mapper = new ObjectMapper();
 
             if (mode.equals("dra")) {
-                String knownGood = resolveKnownGood(client, mapper, getParameters().getKnownGoodUrl().get(), baseUrl, version, branch);
+                String knownGood = resolveKnownGood(client, getParameters().getKnownGoodUrl().get(), baseUrl, version, branch);
                 if (knownGood.isEmpty() == false) {
                     return knownGood;
                 }
@@ -205,15 +205,8 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
      * build is still in DRA. Returns {@code ""} otherwise, including when the store cannot be read, so that {@code dra}
      * mode falls back to the latest build.
      */
-    static String resolveKnownGood(
-        HttpClient client,
-        ObjectMapper mapper,
-        String knownGoodUrl,
-        String baseUrl,
-        String version,
-        String branch
-    ) {
-        String recordUrl = knownGoodUrl + "/" + branch + ".json";
+    static String resolveKnownGood(HttpClient client, String knownGoodUrl, String baseUrl, String version, String branch) {
+        String recordUrl = knownGoodUrl + "/" + branch + ".txt";
         try {
             HttpResponse<String> response = client.send(
                 HttpRequest.newBuilder().uri(URI.create(recordUrl)).timeout(Duration.ofSeconds(10)).GET().build(),
@@ -228,9 +221,8 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
                 );
                 return "";
             }
-            JsonNode record = mapper.readTree(response.body());
-            String buildId = record.path("build_id").asText("");
-            if (record.path("version").asText("").equals(version) == false || buildId.startsWith(version + "-") == false) {
+            String buildId = response.body().trim();
+            if (buildId.startsWith(version + "-") == false) {
                 logger.info(
                     "BWC DRA [{}]: known-good build [{}] of [{}] is for another version; using the latest build",
                     version,

@@ -399,8 +399,28 @@ EXPORT void vec_dotd2q2_bulk_sparse_2(
 // No tier-2 d2q4 kernels: the d2q4 functions resolve to the tier-1 (NEON) kernels on SVE CPUs as well,
 // which are faster than SVE versions on 128-bit SVE.
 
+// One doc plane of a d4q4 step: the plane against the four query planes, each weighted by its bit value,
+// into the plane's accumulator.
+static inline svuint32_t dot_d4q4_plane_sv(
+    const svuint32_t acc,
+    const svuint8_t doc_plane,
+    const svuint8_t q0,
+    const svuint8_t q1,
+    const svuint8_t q2,
+    const svuint8_t q3,
+    const svuint8_t w0,
+    const svuint8_t w1,
+    const svuint8_t w2,
+    const svuint8_t w3
+) {
+    svuint32_t r = dot_bit_weighted_sv(acc, doc_plane, q0, w0);
+    r = dot_bit_weighted_sv(r, doc_plane, q1, w1);
+    r = dot_bit_weighted_sv(r, doc_plane, q2, w2);
+    return dot_bit_weighted_sv(r, doc_plane, q3, w3);
+}
+
 // One step of one vector of the d4q4 kernels: each of the four doc planes against the four query planes,
-// each weighted by its bit value, into the doc plane's accumulator.
+// into the doc plane's accumulator.
 static inline void dot_d4q4_step_sv(
     svuint32_t& acc0,
     svuint32_t& acc1,
@@ -418,17 +438,10 @@ static inline void dot_d4q4_step_sv(
     const svuint8_t w2,
     const svuint8_t w3
 ) {
-    const auto plane = [&](const svuint32_t acc, const int8_t* p) {
-        const svuint8_t doc_plane = svld1_u8(pg, (const uint8_t*)p);
-        svuint32_t r = dot_bit_weighted_sv(acc, doc_plane, q0, w0);
-        r = dot_bit_weighted_sv(r, doc_plane, q1, w1);
-        r = dot_bit_weighted_sv(r, doc_plane, q2, w2);
-        return dot_bit_weighted_sv(r, doc_plane, q3, w3);
-    };
-    acc0 = plane(acc0, a);
-    acc1 = plane(acc1, a + bit_length);
-    acc2 = plane(acc2, a + 2 * bit_length);
-    acc3 = plane(acc3, a + 3 * bit_length);
+    acc0 = dot_d4q4_plane_sv(acc0, svld1_u8(pg, (const uint8_t*)a), q0, q1, q2, q3, w0, w1, w2, w3);
+    acc1 = dot_d4q4_plane_sv(acc1, svld1_u8(pg, (const uint8_t*)(a + bit_length)), q0, q1, q2, q3, w0, w1, w2, w3);
+    acc2 = dot_d4q4_plane_sv(acc2, svld1_u8(pg, (const uint8_t*)(a + 2 * bit_length)), q0, q1, q2, q3, w0, w1, w2, w3);
+    acc3 = dot_d4q4_plane_sv(acc3, svld1_u8(pg, (const uint8_t*)(a + 3 * bit_length)), q0, q1, q2, q3, w0, w1, w2, w3);
 }
 
 // Sum of a vector's four doc plane accumulators, each weighted by its doc bit value.
@@ -470,12 +483,7 @@ EXPORT int64_t vec_dotd4q4_2(const int8_t* a, const int8_t* query, const int32_t
 }
 
 // Bulk scoring two vectors at a time in lockstep, one accumulator per doc bit plane per vector, so the two
-// vectors' UDOT chains run side by side; an odd last vector uses the single kernel. The pair loop uses
-// z8-z15, whose low 64 bits are the scalar FP registers d8-d15 that the AArch64 calling convention requires
-// a function to preserve, so whichever function contains the loop saves and restores d8-d15. It is written
-// here, in the bulk function, rather than in a separate pair function that the compiler would keep out of
-// line, saving d8-d15 on every pair: every call with two or more vectors runs the loop anyway, so this way
-// the save happens once per call.
+// vectors' UDOT chains run side by side; an odd last vector uses the single kernel.
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),

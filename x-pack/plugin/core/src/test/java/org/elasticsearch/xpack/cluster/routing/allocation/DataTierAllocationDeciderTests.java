@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -115,7 +116,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
         ShardRouting.Role.DEFAULT,
-        ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+        RecoveryPriority.UNASSIGNED_NEW_PRIMARY
     );
 
     public void testIndexPrefer() {

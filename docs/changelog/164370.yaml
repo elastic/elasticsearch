@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 164370
+summary: Reject ingest field paths made only of dots
+type: bug

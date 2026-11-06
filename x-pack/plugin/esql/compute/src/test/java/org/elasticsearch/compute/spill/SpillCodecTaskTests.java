@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.spill.spi.ChunkSink;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.tasks.TaskCancelledException;

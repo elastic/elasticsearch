@@ -10,6 +10,7 @@ package org.elasticsearch.compute.spill;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.compute.spill.spi.ChunkSink;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;

@@ -5,14 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.spill;
+package org.elasticsearch.compute.spill.spi;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
 /**
- * Where a codec task sends the chunks it serializes, one at a time, in order. Provisional: the storage SPI's writer takes
- * this shape over.
+ * The append half of a {@link SpillWriter}: where the engine's codec task sends the chunks it serializes, one at a time, in
+ * order. Kept apart from the writer so that the task depends on nothing else.
  * <p>
  * The borrow rule: the chunk belongs to the caller. A sink that needs it past the call takes its own reference with
  * {@link ReleasableBytesReference#retain()} and releases that reference before it completes the listener; after the

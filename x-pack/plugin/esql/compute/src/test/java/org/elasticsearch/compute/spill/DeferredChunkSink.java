@@ -10,6 +10,7 @@ package org.elasticsearch.compute.spill;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.compute.spill.spi.ChunkSink;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;

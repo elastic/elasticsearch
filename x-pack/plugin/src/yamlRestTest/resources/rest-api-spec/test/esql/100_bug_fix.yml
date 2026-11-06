@@ -77,7 +77,15 @@
 "unsupported and invalid mapped fields":
   - requires:
       cluster_features: ["gte_v8.13.0"]
+      test_runner_features: [ capabilities ]
       reason: "fixes in 8.13 or later"
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ objects_are_not_fields ]
+      reason: "An object is not a field"
   - do:
       indices.create:
         index: index1

@@ -327,8 +327,9 @@ public record WindowGroupingAggregatorFunction(
     }
 
     @Override
-    public boolean canEmitPartialResultsPeriodically() {
-        return next.canEmitPartialResultsPeriodically() && (partialNext == null || partialNext.canEmitPartialResultsPeriodically());
+    public boolean canEmitPartialResultsPeriodically(Page incomingPage) {
+        return next.canEmitPartialResultsPeriodically(incomingPage)
+            && (partialNext == null || partialNext.canEmitPartialResultsPeriodically(incomingPage));
     }
 
     @Override

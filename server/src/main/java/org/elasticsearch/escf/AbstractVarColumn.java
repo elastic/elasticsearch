@@ -82,6 +82,41 @@ abstract class AbstractVarColumn extends EscfColumn {
         return data.slice(off, intAt(offsets, row + 1) - off).toBytesRef();
     }
 
+    /** The payload length of document {@code row}'s value, read from the offset fence posts alone. */
+    final int valueLength(int row) {
+        int base = offsets.offset + row;
+        return offsets.ints[base + 1] - offsets.ints[base];
+    }
+
+    /**
+     * The total payload length of the values in rows {@code [from, to)}: the offsets are cumulative,
+     * so one subtraction covers the whole range. Used by {@link EscfArrayColumn} to size a row's string
+     * elements without visiting them.
+     */
+    final int valueLength(int from, int to) {
+        return offsets.ints[offsets.offset + to] - offsets.ints[offsets.offset + from];
+    }
+
+    /**
+     * Absent rows need no special casing: the column builder writes no payload for them and repeats the
+     * running offset, so their offset delta is zero.
+     */
+    @Override
+    public final int sizeInBytes(int row) {
+        assert row >= 0 && row < docCount : "row [" + row + "] out of range [0, " + docCount + ")";
+        return valueLength(row);
+    }
+
+    @Override
+    public final void addSizesInBytes(int[] sizes) {
+        // Absent rows have a zero offset delta (see sizeInBytes), so a plain pass over all rows is exact.
+        final int[] offs = offsets.ints;
+        final int base = offsets.offset;
+        for (int d = 0; d < docCount; d++) {
+            sizes[d] += offs[base + d + 1] - offs[base + d];
+        }
+    }
+
     @Override
     final EscfColumn sliceInternal(int from, int count) {
         // data is kept full/shared; the slice is expressed by adjusting dataOffsets.offset.

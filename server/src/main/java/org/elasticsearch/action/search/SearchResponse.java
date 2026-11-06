@@ -110,6 +110,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Nullable
     private transient Releasable coordinatorFetchCharge;
 
+    // Size of the aggregations as read off the wire, or -1 if unknown, so that they can be estimated without serializing them again.
+    private transient long serializedAggregationsBytes = -1;
+
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;
 
@@ -124,11 +127,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public SearchResponse(StreamInput in) throws IOException {
         this.hits = SearchHits.readFrom(in);
         if (in.readBoolean()) {
+            // Only a stream backed by bytes knows exactly how many are left.
+            final int availableBefore = in.supportReadAllToReleasableBytesReference() ? in.available() : -1;
             // deserialize the aggregations trying to deduplicate the object created
             // TODO: use DelayableWriteable instead.
             this.aggregations = InternalAggregations.readFrom(
                 DelayableWriteable.wrapWithDeduplicatorStreamInput(in, in.getTransportVersion(), in.namedWriteableRegistry())
             );
+            if (availableBefore >= 0) {
+                this.serializedAggregationsBytes = availableBefore - in.available();
+            }
             this.topHitsToRelease = collectTopHitsFromAggregations(this.aggregations, false);
         } else {
             this.aggregations = null;
@@ -496,6 +504,23 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     boolean hasCoordinatorFetchCharge() {
         return coordinatorFetchCharge != null;
+    }
+
+    /**
+     * The serialized size of the aggregations when this response read them from a stream that knows its remaining size, such as a transport
+     * message, or -1 if it has no aggregations, read them from another stream, or was built in memory.
+     */
+    long serializedAggregationsBytes() {
+        return serializedAggregationsBytes;
+    }
+
+    /**
+     * Takes the charge for the hits of a response built without search phase sections, such as a merged cross-cluster response. It is
+     * released with this response.
+     */
+    void adoptCoordinatorFetchCharge(@Nullable Releasable charge) {
+        assert coordinatorFetchCharge == null : "a coordinator fetch charge was already adopted";
+        coordinatorFetchCharge = charge;
     }
 
     /**

@@ -13,6 +13,7 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer.QuantEncoding;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -72,25 +73,25 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     ) throws IOException;
 
     @Override
-    final long quantizeScore(byte[] q) throws IOException {
+    final long quantizeScore(ScoringQuery q) throws IOException {
         return dotProduct.dotProduct(q);
     }
 
     @Override
-    final boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
+    final boolean quantizeScoreBulk(ScoringQuery q, int count, float[] scores) throws IOException {
         dotProduct.dotProductBulk(q, count, scores);
         return true;
     }
 
     @Override
-    final boolean quantizeScoreBulkMasked(byte[] q, int mask, float[] scores, int count) throws IOException {
+    final boolean quantizeScoreBulkMasked(ScoringQuery q, int mask, float[] scores, int count) throws IOException {
         dotProduct.dotProductBulkMasked(q, mask, scores, count);
         return true;
     }
 
     @Override
     final float scoreBulk(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -115,7 +116,7 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
 
     @Override
     final float scoreBulkMasked(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,

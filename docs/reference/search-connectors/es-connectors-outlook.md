@@ -6,6 +6,12 @@ mapped_pages:
 
 # Elastic Outlook connector reference [es-connectors-outlook]
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, **{{content-crawlers-cap}}** is named **{{content-connectors-cap}}**. Wherever this page says **{{content-crawlers-cap}}**, use **{{content-connectors-cap}}** instead.
+:::
+
 
 The Elastic Outlook connector is built with the Elastic connector framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md).
 
@@ -27,7 +33,7 @@ This connector is available as a self-managed connector. To use this connector, 
 
 To create a new Outlook connector:
 
-1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
+1. In the Kibana UI, search for **{{content-crawlers-cap}}** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Outlook** self-managed connector.
 
 

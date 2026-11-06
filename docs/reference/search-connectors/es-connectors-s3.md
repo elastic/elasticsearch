@@ -6,6 +6,12 @@ mapped_pages:
 
 # Elastic S3 connector reference [es-connectors-s3]
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, **{{content-crawlers-cap}}** is named **{{content-connectors-cap}}**. Wherever this page says **{{content-crawlers-cap}}**, use **{{content-connectors-cap}}** instead.
+:::
+
 The *Elastic S3 connector* is a [connector](/reference/search-connectors/index.md) for [Amazon S3](https://aws.amazon.com/s3/) data sources.
 
 ## **Self-managed connector reference** [es-connectors-s3-connector-client-reference]
@@ -22,7 +28,7 @@ This connector is available as a self-managed connector. This self-managed conne
 
 To create a new Amazon S3 connector:
 
-1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
+1. In the Kibana UI, search for **{{content-crawlers-cap}}** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Amazon S3** self-managed connector.
 
 

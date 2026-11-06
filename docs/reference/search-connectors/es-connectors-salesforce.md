@@ -6,6 +6,12 @@ mapped_pages:
 
 # Elastic Salesforce connector reference [es-connectors-salesforce]
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, **{{content-crawlers-cap}}** is named **{{content-connectors-cap}}**. Wherever this page says **{{content-crawlers-cap}}**, use **{{content-connectors-cap}}** instead.
+:::
+
 
 The *Elastic Salesforce connector* is a [connector](/reference/search-connectors/index.md) for [Salesforce](https://www.salesforce.com/) data sources.
 
@@ -31,7 +37,7 @@ This connector is compatible with the following:
 
 To create a new Salesforce connector:
 
-1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
+1. In the Kibana UI, search for **{{content-crawlers-cap}}** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Salesforce** self-managed connector.
 
 

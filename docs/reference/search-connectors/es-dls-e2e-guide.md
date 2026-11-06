@@ -6,8 +6,14 @@ mapped_pages:
 
 # Leverage document-level security from connectors in Search Applications [es-dls-e2e-guide]
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, **{{content-crawlers-cap}}** is named **{{content-connectors-cap}}**. Wherever this page says **{{content-crawlers-cap}}**, use **{{content-connectors-cap}}** instead.
+:::
+
 :::{important}
-This page pertains to a specific implementation of DLS for Elastic content crawlers.
+This page pertains to a specific implementation of DLS for Elastic {{content-crawlers}}.
 Refer to [controlling-access-at-document-field-level](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}} DLS feature.
 :::
 

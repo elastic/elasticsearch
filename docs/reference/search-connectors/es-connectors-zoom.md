@@ -6,6 +6,12 @@ mapped_pages:
 
 # Elastic Zoom connector reference [es-connectors-zoom]
 
+:::{note}
+:applies_to: stack: ga 9.0-9.6
+
+In your version of {{kib}}, **{{content-crawlers-cap}}** is named **{{content-connectors-cap}}**. Wherever this page says **{{content-crawlers-cap}}**, use **{{content-connectors-cap}}** instead.
+:::
+
 
 The Zoom connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
@@ -31,7 +37,7 @@ This connector is in **technical preview** and is subject to change. The design 
 
 To create a new Zoom connector:
 
-1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
+1. In the Kibana UI, search for **{{content-crawlers-cap}}** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Zoom** self-managed connector.
 
 

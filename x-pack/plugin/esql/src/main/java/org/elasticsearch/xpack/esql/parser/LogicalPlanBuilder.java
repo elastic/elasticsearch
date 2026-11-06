@@ -103,6 +103,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
@@ -437,14 +438,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             });
         }
-        // Resolved and shape-checked before any of the source list becomes a plan, so a call that cannot
-        // stand fails as a parse error at the call rather than somewhere downstream. Then refused: no leaf
-        // is built from a table function yet, and a leaf carrying no dataset name reads as unnamed to the
-        // per-node authorizer, which lets an unnamed external source through unauthorized on a snapshot
-        // build. Validating and then refusing keeps the diagnostics honest without emitting such a leaf.
+        // Resolved and shape-checked before any of the source list becomes a plan, so a call that cannot stand
+        // fails as a parse error at the call rather than somewhere downstream.
+        List<TableFunctionCall> tableFunctionCalls = new ArrayList<>(tableFunctionsCtx.size());
         for (EsqlBaseParser.TableFunctionContext tableFunctionCtx : tableFunctionsCtx) {
-            TableFunctionCall call = tableFunctionCall(tableFunctionCtx);
-            throw new ParsingException(call.source(), "[{}] is not supported yet", call.name());
+            tableFunctionCalls.add(tableFunctionCall(tableFunctionCtx));
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
@@ -460,32 +458,43 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
+        // Each call becomes its own leaf, carrying the METADATA names so a table function reads them exactly as a
+        // pattern does. Pre-analysis rewrites each into the relation that reads.
+        List<LogicalPlan> tableFunctions = new ArrayList<>(tableFunctionCalls.size());
+        for (TableFunctionCall call : tableFunctionCalls) {
+            tableFunctions.add(new UnresolvedTableFunctionRelation(call.source(), call, metadataFields));
+        }
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
-        if (subqueries.isEmpty()) {
+        if (subqueries.isEmpty() && tableFunctions.isEmpty()) {
             if (metadataFields.isEmpty()) {
                 return unresolvedRelation;
             }
             return new UnresolvedMetadata(source, unresolvedRelation, metadataFields);
         } else {
-            // subquery is not supported with time-series indices at the moment
+            // neither alternative source form is supported with time-series indices at the moment
             if (command == SourceCommand.TS) {
-                throw new ParsingException(source, "Subqueries are not supported in TS command");
+                throw new ParsingException(
+                    source,
+                    subqueries.isEmpty() ? "Table functions are not supported in TS command" : "Subqueries are not supported in TS command"
+                );
             }
 
-            List<LogicalPlan> mainQueryAndSubqueries = new ArrayList<>(subqueries.size() + 1);
+            List<LogicalPlan> sources = new ArrayList<>(subqueries.size() + tableFunctions.size() + 1);
             if (table.indexPattern().isEmpty() == false) {
-                mainQueryAndSubqueries.add(unresolvedRelation);
+                sources.add(unresolvedRelation);
             }
-            mainQueryAndSubqueries.addAll(subqueries);
+            sources.addAll(subqueries);
+            sources.addAll(tableFunctions);
 
             LogicalPlan inner;
-            if (mainQueryAndSubqueries.size() == 1) {
-                Subquery only = subqueries.get(0);
-                // if there is only one child without metadata - return it directly, no need for UnionAll
-                inner = metadataFields.isEmpty() ? only.plan() : only;
+            if (sources.size() == 1) {
+                LogicalPlan only = sources.get(0);
+                // if there is only one child without metadata - return it directly, no need for UnionAll. Only a
+                // Subquery is a wrapper worth unwrapping; a table-function leaf is already the source itself.
+                inner = (only instanceof Subquery subquery && metadataFields.isEmpty()) ? subquery.plan() : only;
             } else {
                 // the output of UnionAll is resolved by analyzer
-                inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
+                inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), sources, List.of());
             }
 
             if (metadataFields.isEmpty()) {

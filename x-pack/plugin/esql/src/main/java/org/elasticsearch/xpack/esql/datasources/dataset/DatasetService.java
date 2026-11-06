@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -112,22 +114,56 @@ public class DatasetService {
         if (validator == null) {
             throw new IllegalStateException("no validator registered for data source type [" + parent.type() + "]");
         }
+        return validateDefinition(
+            validator,
+            parent,
+            request.name(),
+            request.dataSource(),
+            request.resource(),
+            request.description(),
+            request.rawSettings(),
+            request.mapping()
+        );
+    }
+
+    /**
+     * Validates one dataset definition against the data source it hangs off and builds the domain {@link Dataset}:
+     * the settings pass the parent type's validator, none of them shadows a parent secret, and the declared mapping
+     * is shape-valid.
+     * <p>
+     * Shared with the definition a {@code DATASET(...)} table function carries inline, which is the same definition
+     * arriving by another route and must meet the same bar. What stays with the caller is everything that is about
+     * <em>registering</em> rather than about the definition: finding the parent, picking its validator, and the
+     * index-namespace collision check, which an inline definition cannot trip because it claims no name.
+     *
+     * @param name the dataset name recorded on the returned {@link Dataset}. For an inline definition this is the
+     *             data source's own name — it reaches no cluster state and no cache address
+     *             ({@code DefinitionVersion.of} folds the resource and the settings, never the name), and the
+     *             dataset context it annotates failures with carries the data source beside it, so the two reading
+     *             alike is what marks the definition as unregistered.
+     */
+    public static Dataset validateDefinition(
+        DataSourceValidator validator,
+        DataSource parent,
+        String name,
+        String dataSourceName,
+        String resource,
+        @Nullable String description,
+        @Nullable Map<String, Object> rawSettings,
+        @Nullable DatasetMapping mapping
+    ) {
         // Pre-validator shadow check: if a raw setting key matches a parent secret, report the
         // specific shadow-rejection message rather than the generic "unknown setting [key]" the
         // format validator would produce when it sees an unrecognised key.
-        if (request.rawSettings() != null) {
-            for (String key : request.rawSettings().keySet()) {
+        if (rawSettings != null) {
+            for (String key : rawSettings.keySet()) {
                 DataSourceSetting parentSetting = parent.settings().get(key);
                 if (parentSetting != null && parentSetting.secret()) {
                     throwShadowError(key);
                 }
             }
         }
-        final Map<String, Object> validatedSettings = validator.validateDataset(
-            parent.settings().asMap(),
-            request.resource(),
-            request.rawSettings()
-        );
+        final Map<String, Object> validatedSettings = validator.validateDataset(parent.settings().asMap(), resource, rawSettings);
         // Post-validator shadow check: a validator that strips a key before returning would otherwise
         // mask the shadow attempt at the wire boundary.
         for (String key : validatedSettings.keySet()) {
@@ -138,16 +174,9 @@ public class DatasetService {
         }
         // Shape-only validation of the declared mapping (no file I/O): declarable types and rename name collisions.
         // A `path` column rename is honored by all formats (translation is centralized at the reader boundary).
-        DeclaredSchemaValidator.validate(request.mapping());
-        Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, request.mapping());
-        return new Dataset(
-            request.name(),
-            new DataSourceReference(request.dataSource()),
-            request.resource(),
-            request.description(),
-            settings,
-            request.mapping()
-        );
+        DeclaredSchemaValidator.validate(mapping);
+        Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, mapping);
+        return new Dataset(name, new DataSourceReference(dataSourceName), resource, description, settings, mapping);
     }
 
     private static void throwShadowError(String key) {

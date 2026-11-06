@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.mockito.stubbing.Answer;
@@ -238,6 +239,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     enrichResolver,
                     viewService.getViewResolver(),
                     noDatasetsResolver(),
+                    noTableFunctionsResolver(),
                     createEsqlExecutionInfo(randomBoolean()),
                     groupIndicesByCluster,
                     runPhase,
@@ -279,6 +281,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     enrichResolver,
                     viewService.getViewResolver(),
                     noDatasetsResolver(),
+                    noTableFunctionsResolver(),
                     successExecutionInfo,
                     groupIndicesByCluster,
                     runPhase,
@@ -791,6 +794,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             mockEnrichResolver(),
             viewService.getViewResolver(),
             noDatasetsResolver(),
+            noTableFunctionsResolver(),
             executionInfo,
             groupIndicesByCluster,
             runPhase,
@@ -808,6 +812,14 @@ public class PlanExecutorMetricsTests extends ESTestCase {
      */
     private static DatasetResolver noDatasetsResolver() {
         return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP, true, new FederationLicense(() -> null));
+    }
+
+    /**
+     * These tests name no table function, so the resolver completes on the walk and never touches a client,
+     * executor or validator — nulls are never dereferenced, for the same reason as above.
+     */
+    private static TableFunctionResolver noTableFunctionsResolver() {
+        return new TableFunctionResolver(null, null, Map.of());
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

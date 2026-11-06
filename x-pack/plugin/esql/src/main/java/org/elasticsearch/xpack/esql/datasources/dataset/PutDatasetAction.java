@@ -97,11 +97,14 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             IndicesRequest,
             DataSourceRequestInfo,
             SecurityConfigChangeRequest {
-        private static final ParseField DATA_SOURCE = new ParseField("data_source");
-        private static final ParseField RESOURCE = new ParseField("resource");
-        private static final ParseField DESCRIPTION = new ParseField("description");
-        private static final ParseField SETTINGS = new ParseField("settings");
-        private static final ParseField MAPPINGS = new ParseField("mappings");
+        // Public because this request body IS the dataset-definition JSON shape, and a DATASET(...) table function
+        // carries that same shape inline: InlineDatasetDefinition reads these names rather than restating them, so
+        // the two routes cannot drift on what a key is called.
+        public static final ParseField DATA_SOURCE = new ParseField("data_source");
+        public static final ParseField RESOURCE = new ParseField("resource");
+        public static final ParseField DESCRIPTION = new ParseField("description");
+        public static final ParseField SETTINGS = new ParseField("settings");
+        public static final ParseField MAPPINGS = new ParseField("mappings");
 
         /** Gates the optional {@link DatasetMapping} on the request wire (mixed-version upgrade). */
         private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");

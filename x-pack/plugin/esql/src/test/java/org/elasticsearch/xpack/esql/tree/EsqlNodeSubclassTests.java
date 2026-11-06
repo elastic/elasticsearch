@@ -98,6 +98,9 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.tablefunction.DatasetTableFunction;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionCall;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -533,6 +536,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of()), null, null);
         } else if (argClass == ExternalSchema.class) {
             return new ExternalSchema(List.of());
+        } else if (argClass == TableFunctionCall.class) {
+            // Record carrying a folded payload, so final and unmockable. Varied per call, because
+            // testReplaceChildren and testTransform need randomValueOtherThan to find a second distinct instance.
+            return new TableFunctionCall(
+                Source.EMPTY,
+                DatasetTableFunction.NAME,
+                List.of(new TableFunctionArgument(Source.EMPTY, randomAlphaOfLength(8))),
+                Map.of("resource", randomAlphaOfLength(12))
+            );
         } else if (argClass == DeclaredReadSpec.class) {
             // Typed carrier record; populate every component (renames, dateFormats, declaredTypeColumns) so
             // transform/mutation tests exercise a fully-loaded value rather than an all-but-renames empty one.

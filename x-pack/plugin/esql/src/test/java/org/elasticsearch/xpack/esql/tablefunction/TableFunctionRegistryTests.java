@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
@@ -22,6 +24,16 @@ public class TableFunctionRegistryTests extends ESTestCase {
         @Override
         public void validate(TableFunctionCall call) {
             throw new AssertionError("the registry must not validate a call");
+        }
+
+        @Override
+        public List<String> dataSourceNames(TableFunctionCall call) {
+            throw new AssertionError("the registry must not read a call's data sources");
+        }
+
+        @Override
+        public LogicalPlan toRelation(TableFunctionCall call, List<NamedExpression> metadataFields, TableFunctionContext context) {
+            throw new AssertionError("the registry must not bind a call");
         }
     }
 

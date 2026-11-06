@@ -246,6 +246,15 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
      * {@code test} validator and stores a missing key (legacy hydrate).
      */
     protected String registerLocalFileDataset(String name, String resourceUri, Map<String, Object> settings) {
+        registerDataset(name, registerLocalFileDataSource(), resourceUri, settings);
+        return name;
+    }
+
+    /**
+     * Registers the shared {@code local}-type data source on first use and returns its name, without a dataset over
+     * it — for a test that names the data source itself, as an inline {@code DATASET(...)} definition does.
+     */
+    protected String registerLocalFileDataSource() {
         if (registeredDataSources.contains(SHARED_LOCAL_FILE_DATA_SOURCE) == false) {
             assertAcked(
                 client().execute(
@@ -255,8 +264,7 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
             );
             registeredDataSources.add(SHARED_LOCAL_FILE_DATA_SOURCE);
         }
-        registerDataset(name, SHARED_LOCAL_FILE_DATA_SOURCE, resourceUri, settings);
-        return name;
+        return SHARED_LOCAL_FILE_DATA_SOURCE;
     }
 
     /**

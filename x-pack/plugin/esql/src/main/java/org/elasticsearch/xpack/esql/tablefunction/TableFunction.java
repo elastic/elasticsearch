@@ -6,6 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.tablefunction;
 
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+
+import java.util.List;
+
 /**
  * A function that stands where a source pattern stands: {@code FROM foo, bar*, NAME(<arguments>, {<payload>})}.
  * <p>
@@ -32,4 +37,23 @@ public interface TableFunction {
      * has to change.
      */
     void validate(TableFunctionCall call);
+
+    /**
+     * The data sources this call reads, which the coordinator authorizes the caller for before any of it is bound.
+     * Exact names only — {@link #validate} is what guarantees that, so a pattern never reaches here.
+     * <p>
+     * Separate from {@link #toRelation} because authorization precedes binding and is batched across every call in
+     * the source list: one round-trip for the query, not one per leaf.
+     */
+    List<String> dataSourceNames(TableFunctionCall call);
+
+    /**
+     * Binds the call to the leaf that reads it, against {@code context}'s project. Called only after the caller has
+     * been authorized for every name {@link #dataSourceNames} returned.
+     * <p>
+     * Diagnostics propagate as the registration API raises them — a missing data source as a 404, a definition the
+     * validator refuses as a 400 — so one definition draws the same error whichever route it arrives by. That costs
+     * the position within the query text, which the registration API has no notion of.
+     */
+    LogicalPlan toRelation(TableFunctionCall call, List<NamedExpression> metadataFields, TableFunctionContext context);
 }

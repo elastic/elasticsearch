@@ -8,40 +8,81 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionCall;
 import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- * Table functions in a {@code FROM} source list.
+ * Table functions in a {@code FROM} source list, as far as the parser takes them: a well-formed call becomes an
+ * {@link UnresolvedTableFunctionRelation} carrying the call, which pre-analysis later binds to a reading leaf.
  * <p>
- * No table function yields a relation yet, so a call that is well formed is refused with "is not supported
- * yet". That refusal is raised last — after the name resolves and after the function has checked the shape
- * of the call — so a test reaching it has shown the query lexed, parsed, resolved and passed validation,
- * which is what these tests are about. What a successful payload fold produces is not observable from here
- * and is covered where the folded payload reaches a plan node.
+ * So these tests read the folded payload off the parsed plan rather than inferring it from a refusal. Binding —
+ * the data source lookup, the definition validator, the privilege — needs cluster state and is covered where that
+ * is available.
  */
 public class TableFunctionParserTests extends AbstractStatementParserTests {
-
-    private static final String NOT_SUPPORTED = "[DATASET] is not supported yet";
 
     @Before
     public void checkCapability() {
         assumeTrue("requires table functions in FROM", EsqlCapabilities.Cap.FROM_TABLE_FUNCTION.isEnabled());
     }
 
-    public void testCallWithPayload() {
-        expectError("FROM DATASET(my_source, {\"resource\": \"s3://bucket/data/*.parquet\"})", NOT_SUPPORTED);
+    /** Every table-function call in the plan, in plan order. */
+    private List<TableFunctionCall> calls(String query) {
+        List<TableFunctionCall> found = new ArrayList<>();
+        query(query).forEachDown(node -> {
+            if (node instanceof UnresolvedTableFunctionRelation leaf) {
+                found.add(leaf.call());
+            }
+        });
+        return found;
     }
 
+    private UnresolvedTableFunctionRelation onlyLeaf(String query) {
+        List<UnresolvedTableFunctionRelation> found = new ArrayList<>();
+        query(query).forEachDown(node -> {
+            if (node instanceof UnresolvedTableFunctionRelation leaf) {
+                found.add(leaf);
+            }
+        });
+        assertThat(found, hasSize(1));
+        return found.get(0);
+    }
+
+    private TableFunctionCall onlyCall(String query) {
+        return onlyLeaf(query).call();
+    }
+
+    private static List<String> argumentValues(TableFunctionCall call) {
+        return call.arguments().stream().map(TableFunctionArgument::value).toList();
+    }
+
+    public void testCallWithPayload() {
+        TableFunctionCall call = onlyCall("FROM DATASET(my_source, {\"resource\": \"s3://bucket/data/*.parquet\"})");
+        assertThat(call.name(), equalTo("DATASET"));
+        assertThat(argumentValues(call), equalTo(List.of("my_source")));
+        assertThat(call.payload(), equalTo(Map.of("resource", "s3://bucket/data/*.parquet")));
+    }
+
+    /** The name is kept as typed, for diagnostics; the registry is what matches without regard to case. */
     public void testNameIsCaseInsensitive() {
-        expectError("from dataset(my_source, {\"resource\": \"x\"})", "[dataset] is not supported yet");
-        expectError("FROM DaTaSeT(my_source, {\"resource\": \"x\"})", "[DaTaSeT] is not supported yet");
+        assertThat(onlyCall("from dataset(my_source, {\"resource\": \"x\"})").name(), equalTo("dataset"));
+        assertThat(onlyCall("FROM DaTaSeT(my_source, {\"resource\": \"x\"})").name(), equalTo("DaTaSeT"));
     }
 
     /**
@@ -84,8 +125,11 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     public void testPayloadValueTypesInsideJson() {
-        expectError("FROM DATASET(my_source, {\"s\": \"x\", \"i\": 1, \"d\": 2.5, \"b\": true})", NOT_SUPPORTED);
-        expectError("FROM DATASET(my_source, {\"l\": 9223372036854775807})", NOT_SUPPORTED);
+        assertThat(
+            onlyCall("FROM DATASET(my_source, {\"s\": \"x\", \"i\": 1, \"d\": 2.5, \"b\": true})").payload(),
+            equalTo(Map.of("s", "x", "i", 1, "d", 2.5, "b", true))
+        );
+        assertThat(onlyCall("FROM DATASET(my_source, {\"l\": 9223372036854775807})").payload(), equalTo(Map.of("l", Long.MAX_VALUE)));
     }
 
     /** A payload diagnostic points at the key, since a value may carry no position of its own. */
@@ -105,20 +149,27 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     public void testQuotedAndBackquotedDataSourceName() {
-        expectError("FROM DATASET(\"my source\", {\"resource\": \"x\"})", NOT_SUPPORTED);
-        expectError("FROM DATASET(`my source`, {\"resource\": \"x\"})", NOT_SUPPORTED);
+        assertThat(argumentValues(onlyCall("FROM DATASET(\"my source\", {\"resource\": \"x\"})")), equalTo(List.of("my source")));
+        assertThat(argumentValues(onlyCall("FROM DATASET(`my source`, {\"resource\": \"x\"})")), equalTo(List.of("my source")));
     }
 
+    /** An empty payload is a payload: a function may require one and still accept it empty. */
     public void testEmptyPayloadIsStillAPayload() {
-        expectError("FROM DATASET(my_source, {})", NOT_SUPPORTED);
+        assertThat(onlyCall("FROM DATASET(my_source, {})").payload(), equalTo(Map.of()));
     }
 
     public void testNestedPayload() {
-        expectError("FROM DATASET(my_source, {\"resource\": \"x\", \"partition_spec\": {\"kind\": \"hive\"}})", NOT_SUPPORTED);
+        assertThat(
+            onlyCall("FROM DATASET(my_source, {\"resource\": \"x\", \"partition_spec\": {\"kind\": \"hive\"}})").payload(),
+            equalTo(Map.of("resource", "x", "partition_spec", Map.of("kind", "hive")))
+        );
     }
 
     public void testListValueInPayload() {
-        expectError("FROM DATASET(my_source, {\"resource\": \"x\", \"file_exclusions\": [\"a\", \"b\"]})", NOT_SUPPORTED);
+        assertThat(
+            onlyCall("FROM DATASET(my_source, {\"resource\": \"x\", \"file_exclusions\": [\"a\", \"b\"]})").payload(),
+            equalTo(Map.of("resource", "x", "file_exclusions", List.of("a", "b")))
+        );
     }
 
     /**
@@ -127,22 +178,36 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
      * FROM_MODE can read.
      */
     public void testHeterogeneousSourceList() {
-        expectError("FROM foo, bar*, DATASET(my_source, {\"resource\": \"x\"})", NOT_SUPPORTED);
-        expectError("FROM DATASET(my_source, {\"resource\": \"x\"}), foo, bar*", NOT_SUPPORTED);
-        expectError("FROM foo, DATASET(my_source, {\"resource\": \"x\"}), bar*", NOT_SUPPORTED);
-        expectError("FROM remote:foo, DATASET(my_source, {\"resource\": \"x\"})", NOT_SUPPORTED);
+        assertThat(calls("FROM DATASET(my_source, {\"resource\": \"x\"}), foo, bar*"), hasSize(1));
+        assertThat(calls("FROM foo, DATASET(my_source, {\"resource\": \"x\"}), bar*"), hasSize(1));
+        assertThat(calls("FROM remote:foo, DATASET(my_source, {\"resource\": \"x\"})"), hasSize(1));
     }
 
+    /** The patterns and the call both survive, side by side under one union — which is what heterogeneous means. */
+    public void testHeterogeneousSourceListKeepsBothSides() {
+        UnionAll union = as(query("FROM foo, bar*, DATASET(my_source, {\"resource\": \"x\"})"), UnionAll.class);
+        assertThat(union.children(), hasSize(2));
+        assertThat(as(union.children().get(0), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("foo,bar*"));
+        assertThat(
+            argumentValues(as(union.children().get(1), UnresolvedTableFunctionRelation.class).call()),
+            equalTo(List.of("my_source"))
+        );
+    }
+
+    /** METADATA names reach the leaf, so a table function carries them exactly as a pattern does. */
     public void testFollowedByMetadata() {
-        expectError("FROM DATASET(my_source, {\"resource\": \"x\"}) METADATA _index", NOT_SUPPORTED);
+        UnresolvedTableFunctionRelation leaf = onlyLeaf("FROM DATASET(my_source, {\"resource\": \"x\"}) METADATA _index");
+        assertThat(leaf.metadataFields().stream().map(NamedExpression::name).toList(), equalTo(List.of("_index")));
     }
 
     public void testFollowedByPipe() {
-        expectError("FROM DATASET(my_source, {\"resource\": \"x\"}) | LIMIT 1", NOT_SUPPORTED);
+        assertThat(argumentValues(onlyCall("FROM DATASET(my_source, {\"resource\": \"x\"}) | LIMIT 1")), equalTo(List.of("my_source")));
     }
 
     public void testTwoCallsInOneSourceList() {
-        expectError("FROM DATASET(a, {\"resource\": \"x\"}), DATASET(b, {\"resource\": \"y\"})", NOT_SUPPORTED);
+        List<TableFunctionCall> found = calls("FROM DATASET(a, {\"resource\": \"x\"}), DATASET(b, {\"resource\": \"y\"})");
+        assertThat(found, hasSize(2));
+        assertThat(found.stream().map(call -> call.arguments().get(0).value()).toList(), equalTo(List.of("a", "b")));
     }
 
     public void testUnknownFunction() {

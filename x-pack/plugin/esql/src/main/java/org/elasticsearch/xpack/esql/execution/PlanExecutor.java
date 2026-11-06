@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
@@ -61,6 +63,7 @@ import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
@@ -90,6 +93,7 @@ public class PlanExecutor {
     private final IntSupplier maxGlobExpansion;
     @Nullable
     private final IntSupplier maxListedObjects;
+    private final Map<String, DataSourceValidator> datasetValidators;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -120,7 +124,8 @@ public class PlanExecutor {
             analysisRegistry,
             null,
             null,
-            null
+            null,
+            Map.of()
         );
     }
 
@@ -139,7 +144,8 @@ public class PlanExecutor {
         AnalysisRegistry analysisRegistry,
         @Nullable IntSupplier maxDiscoveredFiles,
         @Nullable IntSupplier maxGlobExpansion,
-        @Nullable IntSupplier maxListedObjects
+        @Nullable IntSupplier maxListedObjects,
+        Map<String, DataSourceValidator> datasetValidators
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -158,6 +164,7 @@ public class PlanExecutor {
         this.maxDiscoveredFiles = maxDiscoveredFiles;
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
+        this.datasetValidators = Map.copyOf(datasetValidators);
     }
 
     /**
@@ -245,6 +252,7 @@ public class PlanExecutor {
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
         DatasetResolver datasetResolver,
+        TableFunctionResolver tableFunctionResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
@@ -289,6 +297,7 @@ public class PlanExecutor {
             enrichPolicyResolver,
             viewResolver,
             datasetResolver,
+            tableFunctionResolver,
             externalSourceResolver,
             parser,
             preAnalyzer,
@@ -504,6 +513,15 @@ public class PlanExecutor {
 
     public Metrics metrics() {
         return this.metrics;
+    }
+
+    /**
+     * The registration API's per-type data source validators, so the query path can hold an inline dataset
+     * definition to the same bar a registered one meets. They reach here rather than {@link DataSourceModule}
+     * because they are wired FROM that module and so are built after it.
+     */
+    public Map<String, DataSourceValidator> datasetValidators() {
+        return datasetValidators;
     }
 
     public DataSourceModule dataSourceModule() {

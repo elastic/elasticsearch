@@ -182,8 +182,12 @@ public final class ExternalSourceAuthorizer {
      * A name the resolve action can be asked about as-is: non-empty, not an exclusion, no wildcard, no comma, and no
      * colon (a remote prefix or a selector). Datasets are registered under plain index-style names, so anything else
      * cannot be registered and is refused without a round-trip.
+     * <p>
+     * Public because a data source name is subject to the same rule and settled by the same predicate: data sources
+     * are registered under index-style names too ({@code PutDataSourceAction} runs the same name validation), so
+     * {@code DatasetTableFunction} refuses anything else rather than restating the test.
      */
-    static boolean isExactLocalName(String name) {
+    public static boolean isExactLocalName(String name) {
         return name.isEmpty() == false
             && name.charAt(0) != '-'
             && name.indexOf(',') < 0

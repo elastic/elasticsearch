@@ -1,5 +1,6 @@
 area: Geo
-issues: []
+issues:
+ - 164908
 pr: 164949
 summary: Fix handling degenerated polygons in vector tiles
 type: bug

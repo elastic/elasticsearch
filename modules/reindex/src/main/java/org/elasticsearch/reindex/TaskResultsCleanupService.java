@@ -159,7 +159,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
 
         if (updateProjectsAndMarkRunning(projectsOnLocalNode)) {
             logger.debug("attempt starting task results cleanup for projects {}", projectsToCleanup);
-            executeNextCleanup();
+            threadPool.generic().execute(this::executeNextCleanup);
         }
     }
 

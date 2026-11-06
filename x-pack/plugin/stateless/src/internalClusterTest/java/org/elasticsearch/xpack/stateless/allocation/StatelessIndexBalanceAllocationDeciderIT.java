@@ -453,19 +453,18 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
             ClusterRerouteUtils.reroute(client());
 
             // The original nodes hold all the sources and targets, so at least one of them is over the threshold of the expanded tier
-            {
-                final var state = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-                final var index = state.routingTable(ProjectId.DEFAULT).index(indexName).getIndex();
-                final int expandedThreshold = Math.ceilDiv(2 * sourceShards, expandedIndexNodes.size());
-                assertTrue(
-                    indexNodes.stream()
-                        .anyMatch(
-                            indexNode -> state.getRoutingNodes()
-                                .node(getNodeId(indexNode))
-                                .numberOfOwningShardsForIndex(index) > expandedThreshold
-                        )
-                );
-            }
+            final var stateAfterScaling = masterClusterService.state();
+            final var index = stateAfterScaling.routingTable(ProjectId.DEFAULT).index(indexName).getIndex();
+            final int expandedThreshold = Math.ceilDiv(2 * sourceShards, expandedIndexNodes.size());
+            assertTrue(
+                "at least one original index node should be over the index balance threshold of the expanded tier",
+                indexNodes.stream()
+                    .anyMatch(
+                        indexNode -> stateAfterScaling.getRoutingNodes()
+                            .node(getNodeId(indexNode))
+                            .numberOfOwningShardsForIndex(index) > expandedThreshold
+                    )
+            );
             assertThat("split sources must not be moved while the split is in progress", movedSplitSources, empty());
 
             // Release the splits and let the reshard complete

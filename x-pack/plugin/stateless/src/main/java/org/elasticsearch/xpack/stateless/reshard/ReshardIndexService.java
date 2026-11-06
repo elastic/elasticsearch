@@ -928,16 +928,14 @@ public class ReshardIndexService {
             if (reshardingMetadataRemoved) {
                 // IndexBalanceAllocationDecider lets split sources remain on nodes over the index balance threshold while
                 // the index has resharding metadata. After removing it, reroute to rebalance the index.
-                rerouteService.reroute(
-                    "reroute after removing resharding metadata",
-                    Priority.NORMAL,
-                    ActionListener.wrap(
-                        r -> logger.debug("reroute after removing resharding metadata completed"),
-                        e -> logger.warn("reroute after removing resharding metadata failed", e)
-                    )
-                );
+                rerouteService.reroute("reroute after completing a resharding operation", Priority.NORMAL, rerouteListener);
             }
         }
+
+        private static final ActionListener<Void> rerouteListener = ActionListener.wrap(
+            r -> logger.debug("reroute after completing a resharding operation succeeded"),
+            e -> logger.warn("reroute after completing a resharding operation failed", e)
+        );
     }
 
     // Perhaps this should be closeable to fail tasks at shutdown time. Currently I'm assuming

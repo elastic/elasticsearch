@@ -617,7 +617,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         final var settings = Settings.builder()
             .put("stateless.enabled", "true")
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), "true")
-            // Index tier rebalancing is disabled in stateless
+            // Stateless disables index tier rebalancing in the desired balance simulation
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .build();
         final var allocationService = createAllocationService(settings);

@@ -181,6 +181,33 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(leafName());
+            builder.field("type", CONTENT_TYPE);
+            // Only an explicit override is serialized; the inherited default is re-derived from the root on parse.
+            if (subobjects.explicit()) {
+                builder.field("subobjects", subobjects.value() == Subobjects.ENABLED);
+            }
+            if (includeInParent.explicit() && includeInParent.value()) {
+                builder.field("include_in_parent", includeInParent.value());
+            }
+            if (includeInRoot.value()) {
+                builder.field("include_in_root", includeInRoot.value());
+            }
+            if (dynamic != null) {
+                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
+            }
+            if (enabled.value() != Defaults.ENABLED) {
+                builder.field("enabled", enabled.value());
+            }
+            if (sourceKeepMode.isPresent()) {
+                builder.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, sourceKeepMode.get());
+            }
+            serializeChildren(builder, params);
+            return builder.endObject();
+        }
+
+        @Override
         protected NestedMapperBuilderContext childContext(MapperBuilderContext context) {
             boolean parentIncludedInRoot = this.includeInRoot.value();
             if (context instanceof NestedMapperBuilderContext == false) {

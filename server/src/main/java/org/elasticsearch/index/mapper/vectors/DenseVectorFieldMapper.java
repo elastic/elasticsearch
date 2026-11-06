@@ -2957,8 +2957,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return false;
         }
 
+<<<<<<< HEAD
         @Override
         public boolean isOnDiskRescore() {
+=======
+        public int m() {
+            return m;
+        }
+
+        public int efConstruction() {
+            return efConstruction;
+        }
+
+        public boolean onDiskRescore() {
+>>>>>>> 3d981edc7b2185887d7649cdcc3293494056e0a5
             return onDiskRescore;
         }
 
@@ -3154,7 +3166,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     var ashConfig = IvfSegmentConfig.AshConfig.of(
                         bits,
                         IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
-                        IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION
+                        IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION,
+                        IvfSegmentConfig.AshConfig.DEFAULT_MAX_PROJECTED_DIMS
                     );
                     return new ESNextDiskASHVectorsFormat(
                         ashConfig,

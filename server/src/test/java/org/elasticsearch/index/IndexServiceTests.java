@@ -10,7 +10,14 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -19,8 +26,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -38,7 +47,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getEngine;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -69,6 +80,45 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(indexService, closedIndexService);
         assertNull(closedIndexService.getNodeMappingStats());
+    }
+
+    public void testCreateShardThreadsLocalRecoveryRetriesIntoRecoveryState() throws Exception {
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_INDEX_UUID, randomUUID()))
+            .build();
+        // Bypasses the normal cluster-state-driven creation path, so this index/shard must be removed
+        // again before the test returns
+        final IndexService indexService = indicesService.createIndex(indexMetadata, Collections.emptyList(), false);
+        try {
+            final ShardRouting shardRouting = ShardRouting.newUnassigned(
+                new ShardId(indexMetadata.getIndex(), 0),
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                ShardRouting.Role.DEFAULT,
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            ).initialize("node1", null, -1);
+
+            final IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                DiscoveryNodeUtils.create("node1", "node1"),
+                null,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY,
+                7
+            );
+
+            assertThat(indexShard.recoveryState().getLocalRetries(), equalTo(7));
+        } finally {
+            indicesService.removeIndex(
+                indexMetadata.getIndex(),
+                DELETED,
+                "test cleanup",
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                ActionListener.noop()
+            );
+        }
     }
 
     public void testCannotCreateSearchExecutionContextWithoutSearchInfrastructure() throws Exception {
@@ -326,7 +376,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
             // we are running on updateMetadata if the interval changes
-            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(1, search.totalHits.value());
             }
@@ -340,7 +390,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(refreshTask.isClosed());
         assertBusy(() -> {
             // this one becomes visible due to the force refresh we are running on updateMetadata if the interval changes
-            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(2, search.totalHits.value());
             }
@@ -348,7 +398,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         prepareIndex("test").setId("2").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         assertBusy(() -> {
             // this one becomes visible due to the scheduled refresh
-            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(3, search.totalHits.value());
             }

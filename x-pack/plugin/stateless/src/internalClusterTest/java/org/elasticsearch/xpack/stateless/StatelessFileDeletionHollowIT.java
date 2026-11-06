@@ -17,6 +17,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -436,7 +437,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
         logLastCommittedSegmentInfos(indexShard);
 
         // Acquire commit for searcher
-        var searcher = indexShard.acquireSearcher("searcher");
+        var searcher = indexShard.acquireExternalSearcher("searcher", SplitShardCountSummary.IRRELEVANT);
         assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(5L));
         assertThat(searcher.getDirectoryReader().getIndexCommit().getSegmentCount(), equalTo(2));
 

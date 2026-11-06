@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocOriginTable;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -261,7 +262,15 @@ public class TopNOperator implements Operator, Accountable {
     private final long jumboPageBytes;
 
     private final List<ElementType> elementTypes;
+    /**
+     * The encoders of this operator, with detached {@code _doc} columns bound to {@link #originTable}.
+     */
     private final List<TopNEncoder> encoders;
+    /**
+     * Numbers the origins of detached {@code _doc} rows, {@code null} if no column holds them.
+     */
+    @Nullable
+    private final DocOriginTable originTable;
     private final List<SortOrder> sortOrders;
     private final boolean[] channelInKey;
 
@@ -375,8 +384,10 @@ public class TopNOperator implements Operator, Accountable {
         TopNQueue inputQueue = null;
         SharedMinCompetitive minCompetitive = null;
         SharedGlobalTopK globalTopK = null;
+        DocOriginTable originTable = null;
         boolean success = false;
         try {
+            originTable = DocVectorEncoder.originTableFor(encoders, breaker);
             inputQueue = TopNQueue.build(breaker, topCount);
             minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
             if (globalTopKMergeConfig != null) {
@@ -387,9 +398,11 @@ public class TopNOperator implements Operator, Accountable {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(inputQueue, minCompetitive, globalTopK);
+                Releasables.close(inputQueue, minCompetitive, globalTopK, originTable);
             }
         }
+        this.originTable = originTable;
+        this.encoders = originTable == null ? encoders : DocVectorEncoder.withOrigins(encoders, originTable);
         this.inputQueue = inputQueue;
         this.minCompetitive = minCompetitive;
         this.minCompetitiveSupplier = minCompetitiveSupplier;
@@ -401,7 +414,6 @@ public class TopNOperator implements Operator, Accountable {
         this.maxPageRows = maxPageRows;
         this.jumboPageBytes = jumboPageBytes;
         this.elementTypes = elementTypes;
-        this.encoders = encoders;
         this.sortOrders = sortOrders;
         this.inputOrdering = inputOrdering;
         this.channelInKey = new boolean[elementTypes.size()];
@@ -585,6 +597,10 @@ public class TopNOperator implements Operator, Accountable {
         if (parallelWorkerConfig == null) {
             return this;
         }
+        if (originTable != null) {
+            // Each worker numbers origins in a table of its own, so the merged queue would mix numbers from different tables
+            return this;
+        }
         if (rowsReceived > parallelWorkerConfig.promotionThresholdRows()) {
             return new ParallelTopNOperator(parallelWorkerConfig, driverContext, this);
         }
@@ -628,7 +644,8 @@ public class TopNOperator implements Operator, Accountable {
              */
             output,
             minCompetitive,
-            globalTopK
+            globalTopK,
+            originTable
         );
         // Aggressively null these so they can be GCed more quickly, and so that close() is idempotent.
         spare = null;
@@ -652,6 +669,9 @@ public class TopNOperator implements Operator, Accountable {
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
         if (inputQueue != null) {
             size += inputQueue.ramBytesUsed();
+        }
+        if (originTable != null) {
+            size += originTable.ramBytesUsed();
         }
         return size;
     }

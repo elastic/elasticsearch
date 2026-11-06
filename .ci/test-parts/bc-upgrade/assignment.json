@@ -1,0 +1,69 @@
+{
+  "comment" : "Generated from config.json and durations.json in this directory, see .ci/test-parts/README.md. Do not edit.",
+  "parts" : 6,
+  "splits" : {
+    ":qa:rolling-upgrade:bcUpgradeTest" : {
+      "count" : 5,
+      "by" : "class"
+    },
+    ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest" : {
+      "count" : 4,
+      "by" : "class"
+    },
+    ":x-pack:qa:rolling-upgrade:bcUpgradeTest" : {
+      "count" : 5,
+      "by" : "class"
+    }
+  },
+  "tests" : {
+    ":modules:ingest-geoip:qa:full-cluster-restart:bcUpgradeTest" : 4,
+    ":modules:ip-location:qa:full-cluster-restart:bcUpgradeTest" : 4,
+    ":qa:full-cluster-restart:bcUpgradeTest" : 6,
+    ":qa:rolling-upgrade:bcUpgradeTest#0" : 5,
+    ":qa:rolling-upgrade:bcUpgradeTest#1" : 3,
+    ":qa:rolling-upgrade:bcUpgradeTest#2" : 6,
+    ":qa:rolling-upgrade:bcUpgradeTest#3" : 4,
+    ":qa:rolling-upgrade:bcUpgradeTest#4" : 4,
+    ":x-pack:plugin:ent-search:qa:full-cluster-restart:bcUpgradeTest" : 5,
+    ":x-pack:plugin:eql:qa:mixed-node:bcUpgradeTest" : 4,
+    ":x-pack:plugin:esql:qa:server:mixed-cluster:bcUpgradeTest" : 4,
+    ":x-pack:plugin:inference:qa:mixed-cluster:bcUpgradeTest" : 4,
+    ":x-pack:plugin:inference:qa:rolling-upgrade:bcUpgradeTest" : 5,
+    ":x-pack:plugin:logsdb:qa:legacy-rolling-upgrade:bcUpgradeTest" : 6,
+    ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest#0" : 2,
+    ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest#1" : 1,
+    ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest#2" : 5,
+    ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest#3" : 4,
+    ":x-pack:plugin:security:qa:multi-cluster:bcUpgradeTest" : 6,
+    ":x-pack:plugin:shutdown:qa:full-cluster-restart:bcUpgradeTest" : 6,
+    ":x-pack:plugin:shutdown:qa:rolling-upgrade:bcUpgradeTest" : 6,
+    ":x-pack:plugin:sql:qa:mixed-node:bcUpgradeTest" : 4,
+    ":x-pack:qa:full-cluster-restart:bcUpgradeTest" : 5,
+    ":x-pack:qa:rolling-upgrade-basic:bcUpgradeTest" : 5,
+    ":x-pack:qa:rolling-upgrade:bcUpgradeTest#0" : 6,
+    ":x-pack:qa:rolling-upgrade:bcUpgradeTest#1" : 3,
+    ":x-pack:qa:rolling-upgrade:bcUpgradeTest#2" : 4,
+    ":x-pack:qa:rolling-upgrade:bcUpgradeTest#3" : 5,
+    ":x-pack:qa:rolling-upgrade:bcUpgradeTest#4" : 4
+  },
+  "projects" : {
+    ":modules:ingest-geoip:qa:full-cluster-restart" : 4,
+    ":modules:ip-location:qa:full-cluster-restart" : 4,
+    ":qa:full-cluster-restart" : 6,
+    ":qa:rolling-upgrade" : 6,
+    ":x-pack:plugin:ent-search:qa:full-cluster-restart" : 5,
+    ":x-pack:plugin:eql:qa:mixed-node" : 4,
+    ":x-pack:plugin:esql:qa:server:mixed-cluster" : 4,
+    ":x-pack:plugin:inference:qa:mixed-cluster" : 4,
+    ":x-pack:plugin:inference:qa:rolling-upgrade" : 5,
+    ":x-pack:plugin:logsdb:qa:legacy-rolling-upgrade" : 6,
+    ":x-pack:plugin:logsdb:qa:rolling-upgrade" : 1,
+    ":x-pack:plugin:security:qa:multi-cluster" : 6,
+    ":x-pack:plugin:shutdown:qa:full-cluster-restart" : 6,
+    ":x-pack:plugin:shutdown:qa:rolling-upgrade" : 6,
+    ":x-pack:plugin:sql:qa:mixed-node" : 4,
+    ":x-pack:qa:full-cluster-restart" : 5,
+    ":x-pack:qa:rolling-upgrade" : 3,
+    ":x-pack:qa:rolling-upgrade-basic" : 5
+  }
+}

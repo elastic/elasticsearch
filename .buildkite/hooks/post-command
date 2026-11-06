@@ -35,7 +35,11 @@ if [[ -f build/task-status.json ]]; then
   cd "$WORKSPACE"
 fi
 
-if [[ "${JACOCO_REPORTING_ENABLED:-}" == "true" ]]; then
+# TODO: re-enable before merging. Disabled on the CI time reduction branch only: uploading the :server HTML
+# report as ~15,500 individual artifacts adds ~10 minutes to whichever part runs :server:test, and the
+# reports are expected to change soon.
+JACOCO_HTML_UPLOAD_DISABLED=true
+if [[ "${JACOCO_REPORTING_ENABLED:-}" == "true" && "${JACOCO_HTML_UPLOAD_DISABLED}" != "true" ]]; then
   # Upload JaCoCo HTML coverage reports ({project}/build/reports/jacoco/{sourceset}/html/index.html)
   # as artifacts and link them from a single annotation. Failures here must never fail the job.
   jacoco_annotation=""

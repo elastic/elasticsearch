@@ -49,6 +49,8 @@ import java.util.TreeMap;
  * INITIAL emits its buffered rows early whenever their tracked memory reaches the partial emit threshold.
  * The same (metric, data stream, dimensions) key can then appear in several INITIAL pages. FINAL merges
  * those rows again, so it must buffer everything until it has seen all of its input.
+ * <p>
+ * Both modes emit merged rows in pages of roughly the target page size rather than in one page.
  *
  * <h2>Output columns (both modes)</h2>
  * <ul>
@@ -148,18 +150,19 @@ public class TsInfoOperator implements Operator {
      * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
      * @param indexChannel          channel index for {@code _index} block
      * @param partialEmitThreshold  tracked memory of buffered rows at which they are emitted early
+     * @param targetPageSize        estimated block memory at which an output page is closed
      */
     public record Factory(
         MetricsInfoOperator.MetricFieldLookup fieldLookup,
         Map<String, String> dataStreamsByIndex,
         int metadataSourceChannel,
         int indexChannel,
-        ByteSizeValue partialEmitThreshold
+        ByteSizeValue partialEmitThreshold,
+        ByteSizeValue targetPageSize
     ) implements OperatorFactory {
         public Factory {
-            if (partialEmitThreshold.getBytes() <= 0) {
-                throw new IllegalArgumentException("partialEmitThreshold must be positive; got [" + partialEmitThreshold + "]");
-            }
+            requirePositive("partialEmitThreshold", partialEmitThreshold);
+            requirePositive("targetPageSize", targetPageSize);
         }
 
         @Override
@@ -173,7 +176,8 @@ public class TsInfoOperator implements Operator {
                 indexChannel,
                 null,
                 NO_LIMIT,
-                partialEmitThreshold.getBytes()
+                partialEmitThreshold.getBytes(),
+                targetPageSize.getBytes()
             );
         }
 
@@ -192,10 +196,15 @@ public class TsInfoOperator implements Operator {
     /**
      * Factory for FINAL mode (coordinator): merges 7-column pages from multiple data nodes.
      *
-     * @param channels the 7 input channel indices for
-     *                 [metric_name, data_stream, unit, metric_type, field_type, dimension_fields, dimensions]
+     * @param channels       the 7 input channel indices for
+     *                       [metric_name, data_stream, unit, metric_type, field_type, dimension_fields, dimensions]
+     * @param targetPageSize estimated block memory at which an output page is closed
      */
-    public record FinalFactory(int[] channels, int limit) implements OperatorFactory {
+    public record FinalFactory(int[] channels, int limit, ByteSizeValue targetPageSize) implements OperatorFactory {
+        public FinalFactory {
+            requirePositive("targetPageSize", targetPageSize);
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
             return new TsInfoOperator(
@@ -207,13 +216,20 @@ public class TsInfoOperator implements Operator {
                 -1,
                 channels,
                 limit,
-                NEVER_EMIT_PARTIAL
+                NEVER_EMIT_PARTIAL,
+                targetPageSize.getBytes()
             );
         }
 
         @Override
         public String describe() {
             return "TsInfoOperator[mode=FINAL" + (limit == NO_LIMIT ? "" : ", limit=" + limit) + "]";
+        }
+    }
+
+    private static void requirePositive(String name, ByteSizeValue value) {
+        if (value.getBytes() <= 0) {
+            throw new IllegalArgumentException(name + " must be positive; got [" + value + "]");
         }
     }
 
@@ -247,9 +263,16 @@ public class TsInfoOperator implements Operator {
     private final int limit;
     private final Set<MetricDimensions> metricDimensions = new HashSet<>();
     private final long partialEmitThresholdBytes;
+    private final long targetPageBytes;
+
+    /**
+     * Merged rows that are not emitted yet, or null. While set the operator takes no input, so the memory tracked
+     * for these rows is not mixed with memory for new entries.
+     */
+    private MergedRows pendingRows;
 
     private boolean finished = false;
-    private boolean outputProduced = false;
+    private boolean finalOutputStarted = false;
 
     private int pagesReceived;
     private long rowsReceived;
@@ -265,7 +288,8 @@ public class TsInfoOperator implements Operator {
         int indexChannel,
         int[] channels,
         int limit,
-        long partialEmitThresholdBytes
+        long partialEmitThresholdBytes,
+        long targetPageBytes
     ) {
         this.mode = mode;
         this.blockFactory = blockFactory;
@@ -277,11 +301,12 @@ public class TsInfoOperator implements Operator {
         this.finalChannels = channels;
         this.limit = limit;
         this.partialEmitThresholdBytes = partialEmitThresholdBytes;
+        this.targetPageBytes = targetPageBytes;
     }
 
     @Override
     public boolean needsInput() {
-        return finished == false && partialEmitThresholdReached() == false;
+        return finished == false && pendingRows == null && partialEmitThresholdReached() == false;
     }
 
     private boolean partialEmitThresholdReached() {
@@ -574,41 +599,48 @@ public class TsInfoOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finished && outputProduced;
+        return finished && finalOutputStarted && pendingRows == null;
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return partialEmitThresholdReached();
+        return pendingRows != null || partialEmitThresholdReached();
     }
 
     @Override
     public Page getOutput() {
-        if (partialEmitThresholdReached()) {
-            return emitBufferedEntries();
+        if (pendingRows == null) {
+            if (partialEmitThresholdReached()) {
+                pendingRows = mergeBufferedEntries();
+            } else if (finished && finalOutputStarted == false) {
+                finalOutputStarted = true;
+                if (entriesByKey.isEmpty()) {
+                    // Downstream gets at least one page even when there is no input
+                    return rowsEmitted == 0 ? createEmptyPage() : null;
+                }
+                pendingRows = mergeBufferedEntries();
+            } else {
+                return null;
+            }
         }
-        if (finished == false || outputProduced) {
-            return null;
+        Page output = pendingRows.nextPage();
+        rowsEmitted += output.getPositionCount();
+        if (pendingRows.hasNext() == false) {
+            pendingRows = null;
+            releaseTrackedBytes();
         }
-
-        outputProduced = true;
-
-        if (entriesByKey.isEmpty()) {
-            return createEmptyPage();
-        }
-        return emitBufferedEntries();
+        return output;
     }
 
     /**
-     * Builds a page from the buffered entries, then drops them and returns their memory to the breaker.
+     * Merges the buffered entries into rows and drops the entries. Their tracked memory is kept until the last
+     * row is emitted, because the rows share the entries' strings and sets.
      */
-    private Page emitBufferedEntries() {
-        Page output = createOutputPageFromRows(mergeRowsBySignature(entriesByKey));
-        rowsEmitted += output.getPositionCount();
+    private MergedRows mergeBufferedEntries() {
+        MergedRows rows = new MergedRows(mergeRowsBySignature(entriesByKey));
         entriesByKey.clear();
         metricDimensions.clear();
-        releaseTrackedBytes();
-        return output;
+        return rows;
     }
 
     private Page createEmptyPage() {
@@ -628,32 +660,62 @@ public class TsInfoOperator implements Operator {
         }
     }
 
-    private Page createOutputPageFromRows(List<TsInfoRow> rows) {
-        int rowCount = rows.size();
+    /**
+     * Merged rows emitted over several pages. Each page stops at the first row that brings the estimated block
+     * memory to {@link #targetPageBytes}, so a page holds at least one row and a single wide row can exceed the target.
+     * Emitted rows are cleared from the list so they can be collected while later pages are built.
+     */
+    private final class MergedRows {
+        /**
+         * Rows vary widely in size, so the row count of a page is unknown up front.
+         * Builders start at this many positions and grow.
+         */
+        private static final int INITIAL_PAGE_POSITIONS = 128;
 
-        try (
-            BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder dsBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder unitBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder mtBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder ftBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder dfBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
-            BytesRefBlock.Builder dimBuilder = blockFactory.newBytesRefBlockBuilder(rowCount)
-        ) {
-            for (TsInfoRow row : rows) {
-                nameBuilder.appendBytesRef(new BytesRef(row.metricName));
-                appendMultiValued(dsBuilder, row.indexAbstractionNames);
-                appendMultiValued(unitBuilder, row.units);
-                appendMultiValued(mtBuilder, row.metricTypes);
-                appendMultiValued(ftBuilder, row.fieldTypes);
-                appendMultiValued(dfBuilder, row.dimensionFieldKeys);
-                dimBuilder.appendBytesRef(new BytesRef(row.dimensionsJson));
+        private final List<TsInfoRow> rows;
+        private int next;
+
+        MergedRows(List<TsInfoRow> rows) {
+            this.rows = rows;
+        }
+
+        boolean hasNext() {
+            return next < rows.size();
+        }
+
+        Page nextPage() {
+            int initialPositions = Math.min(rows.size() - next, INITIAL_PAGE_POSITIONS);
+            try (
+                BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+                BytesRefBlock.Builder dsBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+                BytesRefBlock.Builder unitBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+                BytesRefBlock.Builder mtBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+                BytesRefBlock.Builder ftBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+                BytesRefBlock.Builder dfBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+                BytesRefBlock.Builder dimBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions)
+            ) {
+                Block.Builder[] builders = { nameBuilder, dsBuilder, unitBuilder, mtBuilder, ftBuilder, dfBuilder, dimBuilder };
+                int start = next;
+                do {
+                    TsInfoRow row = rows.set(next++, null);
+                    nameBuilder.appendBytesRef(new BytesRef(row.metricName));
+                    appendMultiValued(dsBuilder, row.indexAbstractionNames);
+                    appendMultiValued(unitBuilder, row.units);
+                    appendMultiValued(mtBuilder, row.metricTypes);
+                    appendMultiValued(ftBuilder, row.fieldTypes);
+                    appendMultiValued(dfBuilder, row.dimensionFieldKeys);
+                    dimBuilder.appendBytesRef(new BytesRef(row.dimensionsJson));
+                } while (hasNext() && estimatedBytes(builders) < targetPageBytes);
+                return new Page(next - start, Block.Builder.buildAll(builders));
             }
+        }
 
-            return new Page(
-                rowCount,
-                Block.Builder.buildAll(nameBuilder, dsBuilder, unitBuilder, mtBuilder, ftBuilder, dfBuilder, dimBuilder)
-            );
+        private static long estimatedBytes(Block.Builder[] builders) {
+            long total = 0;
+            for (Block.Builder builder : builders) {
+                total += builder.estimatedBytes();
+            }
+            return total;
         }
     }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -2026,6 +2027,19 @@ public class ComputeService {
             listener = ActionListener.runAfter(listener, computeLease::close);
         }
         final QueryScope queryScope = computeLease == null ? null : computeLease.scope();
+        if (queryScope != null) {
+            // the test pragmas replace the setting's budget and the own-state minimum for this query: applied by every
+            // compute of the query on this node before any of its drivers runs, so that an operator's safe point sees them
+            QueryPragmas pragmas = context.configuration().pragmas();
+            ByteSizeValue pragmaBudget = pragmas.spillBudget();
+            if (pragmaBudget.getBytes() >= 0) {
+                queryScope.breaker().setBudget(pragmaBudget.getBytes());
+            }
+            ByteSizeValue pragmaMinimum = pragmas.spillMinBytes();
+            if (pragmaMinimum.getBytes() >= 0) {
+                queryScope.setMinSpillBytes(pragmaMinimum.getBytes());
+            }
+        }
         try {
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();

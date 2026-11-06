@@ -78,6 +78,18 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
+    /**
+     * The spill budget of this query on every node it runs on, replacing {@code esql.spill.query_budget}; {@code -1}
+     * leaves the setting in charge. A test knob by construction, since pragmas are accepted on snapshot builds only.
+     */
+    public static final Setting<ByteSizeValue> SPILL_BUDGET = Setting.byteSizeSetting("spill_budget", ByteSizeValue.MINUS_ONE);
+
+    /**
+     * The own-state minimum below which an operator of this query never spills, replacing the fixed 16 MB; {@code -1}
+     * leaves the constant in charge. A test knob, so that a small working set exercises the spill paths.
+     */
+    public static final Setting<ByteSizeValue> SPILL_MIN_BYTES = Setting.byteSizeSetting("spill_min_bytes", ByteSizeValue.MINUS_ONE);
+
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -318,6 +330,20 @@ public final class QueryPragmas implements Writeable {
 
     public int exchangeBufferSize() {
         return EXCHANGE_BUFFER_SIZE.get(settings);
+    }
+
+    /**
+     * The spill budget this query asks for, or {@code -1} bytes when it leaves the setting in charge.
+     */
+    public ByteSizeValue spillBudget() {
+        return SPILL_BUDGET.get(settings);
+    }
+
+    /**
+     * The own-state minimum this query asks for, or {@code -1} bytes when it leaves the constant in charge.
+     */
+    public ByteSizeValue spillMinBytes() {
+        return SPILL_MIN_BYTES.get(settings);
     }
 
     public int concurrentExchangeClients() {

@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.spill.QueryScope;
 import org.elasticsearch.compute.spill.QueryScopeRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -406,6 +407,27 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
+        // The response lease: taken before any compute of the query and handed to the response, so that the scope outlives
+        // the result's delivery and the result pages are released against a live account when the response closes.
+        final QueryScope.Lease responseLease = computeService.queryScopes().acquire(ComputeService.rootOf(sessionId));
+        try {
+            innerExecute(task, request, listener, localMinimumVersion, flags, sessionId, responseLease);
+        } catch (RuntimeException e) {
+            // a throw before any listener was reached: nothing else releases the lease
+            Releasables.close(responseLease);
+            throw e;
+        }
+    }
+
+    private void innerExecute(
+        Task task,
+        EsqlQueryRequest request,
+        ActionListener<EsqlQueryResponse> listener,
+        TransportVersion localMinimumVersion,
+        EsqlFlags flags,
+        String sessionId,
+        @Nullable QueryScope.Lease responseLease
+    ) {
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
@@ -448,6 +470,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     collectMetrics(result.inner());
                 }
                 var response = toResponse(task, request, request.profile(), result);
+                if (responseLease != null) {
+                    response.releaseOnClose(responseLease);
+                }
                 assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
                 if (response.isAsync()) {
@@ -462,6 +487,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
                 listener.onResponse(response);
             }, ex -> {
+                Releasables.close(responseLease);
                 if (request.analyzeOnly() == false) {
                     recordCCSTelemetry(task, executionInfo, request, ex);
                 }

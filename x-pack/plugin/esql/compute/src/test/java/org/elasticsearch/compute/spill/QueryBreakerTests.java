@@ -9,6 +9,7 @@ package org.elasticsearch.compute.spill;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
@@ -41,6 +42,14 @@ import static org.hamcrest.Matchers.sameInstance;
  * are closed, with both the query and the request accounts back at baseline.
  */
 public class QueryBreakerTests extends ComputeTestCase {
+
+    public void testTheBudgetCanBeReplaced() {
+        QueryBreaker query = new QueryBreaker(new NoopCircuitBreaker("request"), 1000);
+        assertTrue(query.wouldCrossBudget(1001));
+        query.setBudget(5000);
+        assertThat(query.budget(), equalTo(5000L));
+        assertFalse(query.wouldCrossBudget(1001));
+    }
 
     private static final long OVER = 1024;
     private static final long MAX_OVER = 8 * 1024;

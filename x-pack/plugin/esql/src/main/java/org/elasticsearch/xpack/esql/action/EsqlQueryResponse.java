@@ -114,6 +114,13 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final ZoneId zoneId;
 
     /**
+     * Released when this response closes, after its pages: the coordinator's lease on the query's scope, so that the
+     * pages go back to a live account. Never serialized; a response read from the wire has none.
+     */
+    @Nullable
+    private volatile Releasable onClose;
+
+    /**
      * Tri-state: null when query approximation was not requested (field omitted from the response),
      * otherwise whether approximation was actually applied for the query.
      */
@@ -644,7 +651,19 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     void closeInternal() {
-        Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks));
+        try {
+            Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks));
+        } finally {
+            Releasables.close(onClose);
+        }
+    }
+
+    /**
+     * Something to release when this response is closed, after its pages. Set once, by the coordinator.
+     */
+    public void releaseOnClose(Releasable releasable) {
+        assert onClose == null : "release hook set twice";
+        onClose = releasable;
     }
 
     // singleton lazy set view over this response

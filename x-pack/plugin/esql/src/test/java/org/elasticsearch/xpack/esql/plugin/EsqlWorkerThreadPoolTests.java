@@ -17,6 +17,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.spill.SpillSettings;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -36,8 +37,10 @@ public class EsqlWorkerThreadPoolTests extends ESTestCase {
         List<ExecutorBuilder<?>> builders = plugin.getExecutorBuilders(settings);
         // Two pools: the esql_worker compute pool plus the dedicated esql_external_io pool that runs blocking
         // external reads and the streaming parse pipeline. They are kept separate so the parse pipeline cannot
-        // starve the compute drivers that consume its output (the heap-attack external stall).
-        assertEquals(2, builders.size());
+        // starve the compute drivers that consume its output (the heap-attack external stall). Behind the spill
+        // flag, the codec pool and the spill I/O pool join them.
+        int spillPools = SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled() ? 2 : 0;
+        assertEquals(2 + spillPools, builders.size());
     }
 
     public void testExternalIoPoolRegistered() {

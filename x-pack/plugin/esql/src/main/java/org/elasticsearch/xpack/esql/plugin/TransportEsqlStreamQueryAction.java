@@ -27,6 +27,8 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -228,10 +230,35 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         EsqlExecutionInfo executionInfo,
         PageStreamPublisher publisher,
         AtomicReference<Result> resultRef,
-        ActionListener<ActionResponse.Empty> listener
+        ActionListener<ActionResponse.Empty> delegate
     ) {
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
+        // The query's scope on the coordinator lives until this action completes; the response parts of a later package
+        // extend it to the end of the stream.
+        final QueryScope.Lease responseLease = computeService.queryScopes().acquire(ComputeService.rootOf(sessionId));
+        final ActionListener<ActionResponse.Empty> listener = responseLease == null
+            ? delegate
+            : ActionListener.runAfter(delegate, responseLease::close);
+        try {
+            innerExecute(task, request, executionInfo, publisher, resultRef, flags, sessionId, listener);
+        } catch (RuntimeException e) {
+            // a throw before any listener was reached: nothing else releases the lease
+            Releasables.close(responseLease);
+            throw e;
+        }
+    }
+
+    private void innerExecute(
+        Task task,
+        EsqlStreamQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        PageStreamPublisher publisher,
+        AtomicReference<Result> resultRef,
+        EsqlFlags flags,
+        String sessionId,
+        ActionListener<ActionResponse.Empty> listener
+    ) {
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();

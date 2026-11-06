@@ -50,6 +50,9 @@ import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.compute.spill.QueryScopeRegistry;
+import org.elasticsearch.compute.spill.spi.SpillStore;
+import org.elasticsearch.compute.spill.spi.SpillStoreProvider;
+import org.elasticsearch.compute.spill.spi.SpillStoreServices;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
@@ -165,6 +168,9 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.spill.SpillScopes;
+import org.elasticsearch.xpack.esql.spill.SpillSettings;
+import org.elasticsearch.xpack.esql.spill.SpillStores;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -251,6 +257,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * See {@link #externalBlobStorePool()} for why this is separate from {@code esql_worker}.
      */
     public static final String EXTERNAL_IO_THREAD_POOL_NAME = "esql_external_io";
+
+    /**
+     * The pool a spilling operator's run writers serialize on; a task there may wait for an append's completion, which
+     * is why it is not the I/O pool that completes it. Exists only behind the {@code esql_spill} feature flag.
+     */
+    public static final String ESQL_SPILL_CODEC_THREAD_POOL_NAME = "esql_spill_codec";
+
+    /**
+     * The pool every filesystem operation of the spill store runs on, with a bounded queue so that rejection is a
+     * reachable path. Exists only behind the {@code esql_spill} feature flag.
+     */
+    public static final String ESQL_SPILL_IO_THREAD_POOL_NAME = "esql_spill_io";
 
     public static final Setting<Integer> ESQL_WORKER_THREAD_POOL_SIZE = Setting.intSetting(
         "esql.worker.thread_pool_size",
@@ -383,11 +401,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
 
+    private final List<SpillStoreProvider> spillStoreProviders = new ArrayList<>();
+
+    /** The spill backend, created with the components and shut down by {@link #close()}; null without the flag or a provider. */
+    private volatile SpillStore spillStore;
+
     /** Names of credential (secret) settings across all registered data source providers, for audit-log filtering. */
     private volatile Set<String> dataSourceSecretSettingNames = Set.of();
 
     @Override
     public void close() throws IOException {
+        SpillStores.shutdown(spillStore, TimeValue.timeValueSeconds(10));
         IOUtils.close(dataSourceModule);
     }
 
@@ -651,9 +675,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             inventoryCounters
         );
 
-        // The query scopes of this node, keyed by the query's root session id. The factory returns null until the spill
-        // settings and store are wired in, so every query runs on its pre-feature paths with the node's block factory.
-        QueryScopeRegistry queryScopes = new QueryScopeRegistry((queryId, onClosing) -> null);
+        // The query scopes of this node, keyed by the query's root session id. Behind the esql_spill flag the factory
+        // builds a scope from the spill settings snapshot of the moment and the store; without the flag, with spilling
+        // off or without a store it returns null, and the query runs on its pre-feature paths with the node's block
+        // factory.
+        QueryScopeRegistry queryScopes = new QueryScopeRegistry(spillScopeFactory(services, blockFactoryProvider.blockFactory()));
         ExchangeService exchangeService = new ExchangeService(
             services.clusterService().getSettings(),
             services.threadPool(),
@@ -710,6 +736,29 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.threadPool(),
                 Federation.isAvailable(settings)
             )
+        );
+    }
+
+    private QueryScopeRegistry.ScopeFactory spillScopeFactory(PluginServices services, BlockFactory nodeFactory) {
+        if (SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled() == false) {
+            return (queryId, onClosing) -> null;
+        }
+        SpillSettings.Holder spillSettings = new SpillSettings.Holder(services.clusterService());
+        spillStore = SpillStores.create(
+            spillStoreProviders,
+            new SpillStoreServices(
+                services.clusterService().getSettings(),
+                services.clusterService().getClusterSettings(),
+                List.of(services.environment().dataDirs()),
+                services.nodeEnvironment().nodeId(),
+                services.threadPool().executor(ESQL_SPILL_IO_THREAD_POOL_NAME)
+            )
+        );
+        return SpillScopes.factory(
+            spillSettings,
+            spillStore,
+            nodeFactory,
+            services.threadPool().executor(ESQL_SPILL_CODEC_THREAD_POOL_NAME)
         );
     }
 
@@ -777,6 +826,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());
+
+        // Spilling: the kill switch, the budget share and the store, registered only behind the esql_spill flag
+        settings.addAll(SpillSettings.settings());
 
         // The federation gate, every external source knob below it, and the data source / dataset count ceilings,
         // registered only while an operator leaves the feature registered. On a node where the feature is
@@ -936,7 +988,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         int configuredSize = ESQL_WORKER_THREAD_POOL_SIZE.get(settings);
         int poolSize = configuredSize > 0 ? configuredSize : ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
         int queueSize = workerQueueSize(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(), allocatedProcessors);
-        return List.of(
+        List<ExecutorBuilder<?>> builders = new ArrayList<>();
+        builders.add(
             new FixedExecutorBuilder(
                 settings,
                 ESQL_WORKER_THREAD_POOL_NAME,
@@ -947,7 +1000,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     .trackOngoingTasks()
                     .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
                     .build()
-            ),
+            )
+        );
+        builders.add(
             // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept
             // separate from esql_worker so the segmentator/parser tasks cannot starve the compute drivers that
             // consume their output. Max is the heap- and CPU-scaled concurrency knob (memory-capped,
@@ -962,12 +1017,48 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 false
             )
         );
+        if (SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled()) {
+            // Two small pools for spilling, separate so that a codec task waiting for an append can never occupy the
+            // threads that would complete it, and bounded so that rejection is a reachable path rather than a
+            // shutdown-only one.
+            int spillThreads = Math.max(1, allocatedProcessors / 2);
+            builders.add(
+                new FixedExecutorBuilder(
+                    settings,
+                    ESQL_SPILL_CODEC_THREAD_POOL_NAME,
+                    spillThreads,
+                    1000,
+                    ESQL_SPILL_CODEC_THREAD_POOL_NAME,
+                    EsExecutors.TaskTrackingConfig.DEFAULT
+                )
+            );
+            builders.add(
+                new FixedExecutorBuilder(
+                    settings,
+                    ESQL_SPILL_IO_THREAD_POOL_NAME,
+                    spillThreads,
+                    1000,
+                    ESQL_SPILL_IO_THREAD_POOL_NAME,
+                    EsExecutors.TaskTrackingConfig.DEFAULT
+                )
+            );
+        }
+        return builders;
+    }
+
+    /**
+     * Takes the spill store providers the modules extending this plugin offer. On its own so that a test plugin that
+     * replaces {@link #loadExtensions} can still take them.
+     */
+    protected final void loadSpillStoreProviders(ExtensionLoader loader) {
+        spillStoreProviders.addAll(loader.loadExtensions(SpillStoreProvider.class));
     }
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
         dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
+        loadSpillStoreProviders(loader);
         loadMetricsCollectors(loader);
     }
 

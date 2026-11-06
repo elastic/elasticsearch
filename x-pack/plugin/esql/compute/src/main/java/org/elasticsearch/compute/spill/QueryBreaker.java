@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class QueryBreaker implements DelegatingCircuitBreaker {
 
     private final CircuitBreaker parent;
-    private final long budgetBytes;
+    private volatile long budgetBytes;
     private final AtomicLong used = new AtomicLong();
 
     /**
@@ -57,6 +57,14 @@ public final class QueryBreaker implements DelegatingCircuitBreaker {
 
     public long budget() {
         return budgetBytes;
+    }
+
+    /**
+     * Replaces the budget for the rest of the query: the test pragma's value, applied by every compute of the query on
+     * the node before any of its drivers runs.
+     */
+    public void setBudget(long budgetBytes) {
+        this.budgetBytes = budgetBytes;
     }
 
     /**

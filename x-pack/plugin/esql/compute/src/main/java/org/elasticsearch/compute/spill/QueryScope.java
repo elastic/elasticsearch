@@ -10,6 +10,7 @@ package org.elasticsearch.compute.spill;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.spill.spi.SpillScope;
@@ -19,6 +20,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -46,7 +48,8 @@ public final class QueryScope {
     private final BlockFactory blockFactory;
     @Nullable
     private final SpillStore store;
-    private final long minSpillBytes;
+    private final Executor codecExecutor;
+    private volatile long minSpillBytes;
     private final Consumer<QueryScope> onClosing;
     private final AtomicInteger leases = new AtomicInteger();
     private final AtomicBoolean closeStarted = new AtomicBoolean();
@@ -60,6 +63,7 @@ public final class QueryScope {
         long budgetBytes,
         long minSpillBytes,
         @Nullable SpillStore store,
+        Executor codecExecutor,
         Consumer<QueryScope> onClosing
     ) {
         this.queryId = queryId;
@@ -73,6 +77,7 @@ public final class QueryScope {
             .bytesRefRamOverestimateFactor(nodeFactory.bytesRefRamOverestimateFactor())
             .build();
         this.store = store;
+        this.codecExecutor = codecExecutor;
         this.minSpillBytes = minSpillBytes;
         this.onClosing = onClosing;
     }
@@ -85,6 +90,7 @@ public final class QueryScope {
      * @param budgetBytes the soft limit of {@link QueryBreaker}
      * @param minSpillBytes the own-state minimum below which an operator never spills, see {@link #shouldSpill}
      * @param store the backend, or null when spilling is off, in which case the scope only accounts
+     * @param codecExecutor where the query's run writers serialize, a pool a codec task may wait on an append in
      * @param onClosing called once, when the last lease is released and before the asynchronous close starts; the
      *                  registry uses it to drop the entry, so that a new scope may be created while this one closes
      */
@@ -94,9 +100,25 @@ public final class QueryScope {
         long budgetBytes,
         long minSpillBytes,
         @Nullable SpillStore store,
+        Executor codecExecutor,
         Consumer<QueryScope> onClosing
     ) {
-        return new QueryScope(queryId, nodeFactory, budgetBytes, minSpillBytes, store, onClosing);
+        return new QueryScope(queryId, nodeFactory, budgetBytes, minSpillBytes, store, codecExecutor, onClosing);
+    }
+
+    /**
+     * A scope whose codec tasks run on the calling thread: for a scope without a store, or a test whose store completes
+     * inline.
+     */
+    public static QueryScope create(
+        String queryId,
+        BlockFactory nodeFactory,
+        long budgetBytes,
+        long minSpillBytes,
+        @Nullable SpillStore store,
+        Consumer<QueryScope> onClosing
+    ) {
+        return create(queryId, nodeFactory, budgetBytes, minSpillBytes, store, EsExecutors.DIRECT_EXECUTOR_SERVICE, onClosing);
     }
 
     public String queryId() {
@@ -130,8 +152,29 @@ public final class QueryScope {
         return store != null;
     }
 
+    /**
+     * Where this query's run writers serialize.
+     */
+    public Executor codecExecutor() {
+        return codecExecutor;
+    }
+
     public long budgetBytes() {
         return breaker.budget();
+    }
+
+    /**
+     * The own-state minimum of {@link #shouldSpill}: what an operator holds before it acquires its spill headroom.
+     */
+    public long minSpillBytes() {
+        return minSpillBytes;
+    }
+
+    /**
+     * Replaces the own-state minimum for the rest of the query: the test pragma's value.
+     */
+    public void setMinSpillBytes(long minSpillBytes) {
+        this.minSpillBytes = minSpillBytes;
     }
 
     /**

@@ -1272,6 +1272,42 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return noOp(engine, noOp);
     }
 
+    /**
+     * Discards every document in this primary and assigns the truncate its sequence number. The caller must hold all operation permits
+     * (see {@link #acquireAllPrimaryOperationsPermits}) so that no write is in flight and every earlier write has been acknowledged by
+     * all in-sync copies; that is what makes the truncate a clean cut in the sequence number space.
+     */
+    public Engine.TruncateResult applyTruncateOperationOnPrimary() throws IOException {
+        assert getActiveOperationsCount() == OPERATIONS_BLOCKED : "truncate requires all operation permits";
+        return applyTruncate(getEngine(), UNASSIGNED_SEQ_NO, getOperationPrimaryTerm(), Engine.Operation.Origin.PRIMARY);
+    }
+
+    /**
+     * Replays on a replica the truncate that the primary executed with the given sequence number. The caller must hold all operation
+     * permits (see {@link #acquireAllReplicaOperationsPermits}).
+     */
+    public Engine.TruncateResult applyTruncateOperationOnReplica(long seqNo, long opPrimaryTerm) throws IOException {
+        assert getActiveOperationsCount() == OPERATIONS_BLOCKED : "truncate requires all operation permits";
+        return applyTruncate(getEngine(), seqNo, opPrimaryTerm, Engine.Operation.Origin.REPLICA);
+    }
+
+    private Engine.TruncateResult applyTruncate(Engine engine, long seqNo, long opPrimaryTerm, Engine.Operation.Origin origin)
+        throws IOException {
+        assert opPrimaryTerm <= getOperationPrimaryTerm()
+            : "op term [ " + opPrimaryTerm + " ] > shard term [" + getOperationPrimaryTerm() + "]";
+        final long startTime = System.nanoTime();
+        ensureWriteAllowed(origin);
+        final Engine.Truncate truncate = new Engine.Truncate(seqNo, opPrimaryTerm, origin, startTime);
+        try {
+            if (logger.isTraceEnabled()) {
+                logger.trace("truncate (seq# [{}], origin [{}])", seqNo, origin);
+            }
+            return engine.truncate(truncate);
+        } finally {
+            active.set(true);
+        }
+    }
+
     private Engine.NoOpResult noOp(Engine engine, Engine.NoOp noOp) throws IOException {
         try {
             if (logger.isTraceEnabled()) {
@@ -2425,6 +2461,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case NO_OP -> {
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 result = markSeqNoAsNoop(engine, noOp.seqNo(), noOp.primaryTerm(), noOp.reason(), origin);
+            }
+            case TRUNCATE -> {
+                final Translog.Truncate truncate = (Translog.Truncate) operation;
+                result = applyTruncate(engine, truncate.seqNo(), truncate.primaryTerm(), origin);
             }
             default -> throw new IllegalStateException("No operation defined for [" + operation + "]");
         }

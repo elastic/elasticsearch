@@ -76,6 +76,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             case INDEX -> engine.index((Engine.Index) operation);
             case DELETE -> engine.delete((Engine.Delete) operation);
             case NO_OP -> engine.noOp((Engine.NoOp) operation);
+            case TRUNCATE -> engine.truncate((Engine.Truncate) operation);
             default -> throw new IllegalStateException("No operation defined for [" + operation + "]");
         }
     }
@@ -137,6 +138,10 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 final Engine.NoOp engineNoOp = new Engine.NoOp(noOp.seqNo(), noOp.primaryTerm(), origin, System.nanoTime(), noOp.reason());
                 return engineNoOp;
+            }
+            case TRUNCATE -> {
+                final Translog.Truncate truncate = (Translog.Truncate) operation;
+                return new Engine.Truncate(truncate.seqNo(), truncate.primaryTerm(), origin, System.nanoTime());
             }
             default -> throw new IllegalStateException("No operation defined for [" + operation + "]");
         }

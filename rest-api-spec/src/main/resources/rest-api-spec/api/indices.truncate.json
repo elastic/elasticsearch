@@ -1,0 +1,55 @@
+{
+  "indices.truncate": {
+    "documentation": {
+      "url": null,
+      "description": "Discard all documents of an index while keeping the index, its settings, mappings and aliases"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_truncate",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names. Wildcards are only accepted when `action.destructive_requires_name` is false."
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+      },
+      "allow_no_indices": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to allow (1) wildcard index expressions that match no indices and (2) requests where the final resolved set is empty."
+      },
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      }
+    }
+  }
+}

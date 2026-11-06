@@ -167,6 +167,23 @@ public final class TranslogHeaderWriter {
         }
     }
 
+    /**
+     * Truncates are rare (at most one per shard per truncate request), so there is no fast path that writes into the
+     * current page directly; this always uses the generic size-prefixed layout.
+     */
+    public static void writeTruncateHeader(RecyclerBytesStreamOutput buffer, Translog.Truncate truncate) throws IOException {
+        final long start = buffer.position();
+        buffer.skip(Integer.BYTES);
+        buffer.writeByte(Translog.Record.Type.TRUNCATE.id());
+        truncate.writeHeader(-1, buffer);
+        final long end = buffer.position();
+        // The total operation size is the header size + 4 bytes for checksum
+        final int operationSize = (int) (end - Integer.BYTES - start) + Integer.BYTES;
+        buffer.seek(start);
+        buffer.writeInt(operationSize);
+        buffer.seek(end);
+    }
+
     private static void writeSlowNoOpHeader(RecyclerBytesStreamOutput buffer, Translog.NoOp noop) throws IOException {
         final long start = buffer.position();
         buffer.skip(Integer.BYTES);

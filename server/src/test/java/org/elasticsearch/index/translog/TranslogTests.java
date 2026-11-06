@@ -891,6 +891,9 @@ public class TranslogTests extends ESTestCase {
                         assertThat(noOp.primaryTerm(), equalTo(expectedNoOp.primaryTerm()));
                         assertThat(noOp.reason(), equalTo(expectedNoOp.reason()));
                     }
+                    case TRUNCATE -> {
+                        assertThat(op, equalTo(expectedOp));
+                    }
                     default -> throw new AssertionError("unsupported operation type [" + op.opType() + "]");
                 }
             }
@@ -1026,12 +1029,14 @@ public class TranslogTests extends ESTestCase {
                             Translog.Operation.Type.CREATE,
                             Translog.Operation.Type.INDEX,
                             Translog.Operation.Type.DELETE,
-                            Translog.Operation.Type.NO_OP };
+                            Translog.Operation.Type.NO_OP,
+                            Translog.Operation.Type.TRUNCATE };
                         final Translog.Operation.Type type = singleOpTypes[((int) (id % singleOpTypes.length))];
                         op = switch (type) {
                             case CREATE, INDEX -> indexOp("" + id, id, primaryTerm.get(), Long.toString(id));
                             case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
                             case NO_OP -> new Translog.NoOp(id, 1, Long.toString(id));
+                            case TRUNCATE -> new Translog.Truncate(id, primaryTerm.get());
                         };
                         Translog.Location location = translog.add(op);
                         tracker.markSeqNoAsProcessed(id);
@@ -2438,7 +2443,8 @@ public class TranslogTests extends ESTestCase {
                         Translog.Operation.Type.CREATE,
                         Translog.Operation.Type.INDEX,
                         Translog.Operation.Type.DELETE,
-                        Translog.Operation.Type.NO_OP
+                        Translog.Operation.Type.NO_OP,
+                        Translog.Operation.Type.TRUNCATE
                     );
                     op = switch (type) {
                         case CREATE, INDEX -> indexOp(
@@ -2454,6 +2460,7 @@ public class TranslogTests extends ESTestCase {
                             1 + randomInt(100000)
                         );
                         case NO_OP -> new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
+                        case TRUNCATE -> new Translog.Truncate(seqNoGenerator.getAndIncrement(), primaryTerm.get());
                     };
 
                     Translog.Location loc = add(op);

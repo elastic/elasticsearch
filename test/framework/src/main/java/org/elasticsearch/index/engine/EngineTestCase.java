@@ -1068,7 +1068,12 @@ public abstract class EngineTestCase extends ESTestCase {
         );
         for (int i = 0; i < numOps; i++) {
             final String id = Integer.toString(randomInt(maxIdValue));
-            final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
+            // A truncate discards everything below it, so it cannot be shuffled in with random operations that are expected to survive
+            final Engine.Operation.TYPE opType = randomFrom(
+                Engine.Operation.TYPE.INDEX,
+                Engine.Operation.TYPE.DELETE,
+                Engine.Operation.TYPE.NO_OP
+            );
             final boolean isNestedDoc = includeNestedDocs && opType == Engine.Operation.TYPE.INDEX && randomBoolean();
             final int nestedValues = between(0, 3);
             final long startTime = threadPool.relativeTimeInNanos();
@@ -1232,6 +1237,7 @@ public abstract class EngineTestCase extends ESTestCase {
             case INDEX -> engine.index((Engine.Index) operation);
             case DELETE -> engine.delete((Engine.Delete) operation);
             case NO_OP -> engine.noOp((Engine.NoOp) operation);
+            case TRUNCATE -> engine.truncate((Engine.Truncate) operation);
         };
         return result;
     }
@@ -1308,7 +1314,10 @@ public abstract class EngineTestCase extends ESTestCase {
         for (Translog.Operation translogOp : translogOps) {
             final Translog.Operation luceneOp = luceneOps.get(translogOp.seqNo());
             if (luceneOp == null) {
-                if (minSeqNoToRetain <= translogOp.seqNo()) {
+                // A truncate deliberately drops the Lucene history below it, while the translog still holds those operations until
+                // it is trimmed by a flush, so they are legitimately missing from Lucene.
+                final boolean discardedByTruncate = translogOp.seqNo() < ((InternalEngine) engine).getTruncatedAtSeqNo();
+                if (minSeqNoToRetain <= translogOp.seqNo() && discardedByTruncate == false) {
                     fail(
                         "Operation not found seq# ["
                             + translogOp.seqNo()

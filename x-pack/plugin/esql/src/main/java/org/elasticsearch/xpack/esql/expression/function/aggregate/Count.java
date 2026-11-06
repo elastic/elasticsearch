@@ -72,7 +72,7 @@ public class Count extends UnaryAggregateFunction
         .description("Counts the number of elements in the input vector.")
         .example("count(http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
+        .stdDivergence(PromqlFunctionDefinition.COUNT_NOTE)
         .name("count");
 
     @FunctionInfo(

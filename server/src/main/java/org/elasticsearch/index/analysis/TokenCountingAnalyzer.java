@@ -25,6 +25,10 @@ import java.io.IOException;
  * <p>Each field value's token count is recorded when the token stream is finalized
  * via {@link TokenFilter#end()}. The counter resets in {@link TokenFilter#reset()}
  * before each new field value.
+ *
+ * <p>Wraps a single underlying analyzer and reuses {@link TokenStreamComponents} the same way that
+ * analyzer does, so one counting wrapper can be shared by every field using that analyzer. See
+ * {@link TokenCountingIndexAnalyzer} for how the wrappers are shared at index time.
  */
 public final class TokenCountingAnalyzer extends AnalyzerWrapper {
 
@@ -34,17 +38,22 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
     /**
      * Creates a new token-counting analyzer wrapper.
      *
-     * <p>Uses {@link Analyzer#PER_FIELD_REUSE_STRATEGY} from the delegate, which caches
-     * {@link TokenStreamComponents} permanently per field. This is safe today because
+     * <p>Borrows the delegate's reuse strategy, so it must wrap the analyzer inside a {@link NamedAnalyzer}
+     * rather than a per-field or delegating wrapper. This is safe today because
      * {@link ReloadableCustomAnalyzer} is search-time only. If index-time reloadable
      * analyzers are introduced in the future, the reuse strategy here will need to be
      * made reload-aware.
      *
-     * @param delegate the underlying analyzer to wrap
+     * @param delegate the underlying analyzer to wrap; must use Lucene's global or per-field reuse strategy,
+     *                 for example the analyzer inside a {@link NamedAnalyzer} rather than the
+     *                 {@link NamedAnalyzer} itself
      * @param metrics  metrics instance for recording token counts per field value
      */
     public TokenCountingAnalyzer(Analyzer delegate, TokenCountingMetrics metrics) {
         super(delegate.getReuseStrategy());
+        // The borrowed strategy is called with this wrapper, which only Lucene's built-in strategies support.
+        assert delegate.getReuseStrategy() == GLOBAL_REUSE_STRATEGY || delegate.getReuseStrategy() == PER_FIELD_REUSE_STRATEGY
+            : "cannot borrow reuse strategy of [" + delegate + "]; wrap NamedAnalyzer#analyzer() rather than a delegating analyzer";
         this.delegate = delegate;
         this.metrics = metrics;
     }

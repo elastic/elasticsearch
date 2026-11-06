@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164820
+summary: Share the bound of a top N after the source across batches of shards
+type: enhancement

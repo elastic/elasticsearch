@@ -252,7 +252,7 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
     }
 
     @Override
-    protected boolean shouldEmitPartialResultsPeriodically() {
+    protected boolean shouldEmitPartialResultsPeriodically(Page incomingPage) {
         return false;
     }
 

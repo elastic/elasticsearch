@@ -184,6 +184,7 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.engine.IndexEngineTestUtils.flushHollow;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
@@ -568,6 +569,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         var indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), true)
             .put(nodeSettings)
             .build();
         String indexNodeA = startIndexNode(indexNodeSettings);

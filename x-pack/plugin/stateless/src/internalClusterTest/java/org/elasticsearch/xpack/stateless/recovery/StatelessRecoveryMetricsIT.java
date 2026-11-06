@@ -289,7 +289,11 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
 
         final var hollowSettings = randomHollowIndexNodeSettings();
         final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowSettings);
-        final var indexingNodeSettings = Settings.builder().put(cacheSettings).put(hollowSettings).build();
+        final var indexingNodeSettings = Settings.builder()
+            .put(cacheSettings)
+            .put(hollowSettings)
+            .put(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), true)
+            .build();
 
         var indexingNode1 = startIndexNode(indexingNodeSettings);
         var indexingNode2 = startIndexNode(indexingNodeSettings);

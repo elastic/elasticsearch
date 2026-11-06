@@ -1422,6 +1422,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         final var hollowNodeSettings = randomHollowIndexNodeSettings();
         var indexNodesSettingsBuilder = Settings.builder()
             .put(hollowNodeSettings)
+            .put(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), true)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
@@ -1533,6 +1534,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         final var indexNodesSettings = Settings.builder()
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO) // shard becomes immediately hollowable if there's no indexing
+            .put(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), true)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4L))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256L))
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256L))

@@ -131,6 +131,7 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETT
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1439,6 +1440,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE)
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), hollowShardEnabled)
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), hollowShardEnabled ? TimeValue.ZERO : TimeValue.timeValueHours(1))
+            .put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), true)
             .build();
 
         final var indexNodeA = startMasterAndIndexNode(nodeSettings);

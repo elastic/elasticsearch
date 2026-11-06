@@ -753,9 +753,9 @@ public class StatelessPlugin extends Plugin
         ;
         if (sharedCachedSettingExplicitlySet == false) {
             if (hasSearchRole) {
-                // H06 experiment only, not for merge: pin the search node cache to a small fixed size (2GB) so that
+                // H06 experiment only, not for merge: pin the search node cache to a small fixed size (8GB) so that
                 // benchmarks evict under pressure. The usual default is 90% of the disk with a 250GB max headroom.
-                settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "2gb")
+                settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "8gb")
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "-1");
             }
             if (hasIndexRole) {

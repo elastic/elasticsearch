@@ -1152,6 +1152,18 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
      * read, up to the configured maximum, instead of reading each region separately, and does not read regions that are already cached.
      */
     public void testWarmByteRangeGroupsConsecutiveRegionsIntoOneRead() throws Exception {
+        assertWarmByteRangeReads(false);
+    }
+
+    /**
+     * Verifies that once the shard serves searches, its offline warming reads one region per object store read, so that the warming reads
+     * do not compete with the searches, even though grouping is enabled.
+     */
+    public void testWarmByteRangeDoesNotGroupRegionsWhenShardServesSearches() throws Exception {
+        assertWarmByteRangeReads(true);
+    }
+
+    private void assertWarmByteRangeReads(boolean shardServesSearches) throws Exception {
         final long primaryTerm = randomLongBetween(10, 42);
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
         final int regionsPerGroup = randomIntBetween(2, 4);
@@ -1204,6 +1216,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             var indexShard = mock(IndexShard.class);
             when(indexShard.store()).thenReturn(fakeNode.searchStore);
             when(indexShard.shardId()).thenReturn(fakeNode.shardId);
+            when(indexShard.state()).thenReturn(
+                shardServesSearches ? IndexShardState.STARTED : randomFrom(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY)
+            );
 
             final var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, generation));
             // Optionally cache the first regions beforehand: they must not be read again, and must not be part of any group
@@ -1232,14 +1247,17 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
             safeGet(warmFuture);
 
-            // every group of regions that were not cached was read with a single request, the last group being possibly smaller
+            // every group of regions that were not cached was read with a single request, the last group being possibly smaller. A shard
+            // that
+            // serves searches does not group regions, so each region that was not cached is read separately
+            final int regionsPerRead = shardServesSearches ? 1 : regionsPerGroup;
             final int regionsToRead = regionsPerFile - cachedRegions;
-            final int expectedReads = (regionsToRead + regionsPerGroup - 1) / regionsPerGroup;
+            final int expectedReads = (regionsToRead + regionsPerRead - 1) / regionsPerRead;
             assertThat(readLengths, hasSize(expectedReads));
             assertThat(readLengths.stream().mapToLong(Long::longValue).sum(), equalTo(regionsToRead * regionSizeInBytes));
             assertThat(
                 readLengths.stream().mapToLong(Long::longValue).max().getAsLong(),
-                lessThanOrEqualTo(regionsPerGroup * regionSizeInBytes)
+                lessThanOrEqualTo(regionsPerRead * regionSizeInBytes)
             );
         }
     }

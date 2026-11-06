@@ -1015,7 +1015,11 @@ public abstract class DocumentParserContext {
         if (addDynamicMapper(builder, fullPath) == false) {
             return null;
         }
-        Mapper mapper = preBuiltMapper != null ? preBuiltMapper : builder.build(builderContext);
+        Mapper mapper = preBuiltMapper;
+        if (mapper == null) {
+            builder.normalize(builderContext);
+            mapper = builder.build(builderContext);
+        }
         builtDynamicMappers.put(fullPath, mapper);
         return mapper;
     }

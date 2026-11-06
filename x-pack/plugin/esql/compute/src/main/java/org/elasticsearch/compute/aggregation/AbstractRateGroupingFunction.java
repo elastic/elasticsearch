@@ -15,8 +15,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -27,11 +29,36 @@ import java.util.Arrays;
 import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.indexInPage;
 import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.pageIndex;
 
-class AbstractRateGroupingFunction {
+abstract class AbstractRateGroupingFunction {
     /**
      * Maximum empty interval across which rate-like aggregations interpolate between populated buckets.
      */
     static final long MAX_LOOKBACK_MILLIS = Duration.ofMinutes(5).toMillis();
+
+    private int lastSliceIndex = -1;
+    private final int sliceChannel;
+
+    AbstractRateGroupingFunction(int sliceChannel) {
+        this.sliceChannel = sliceChannel;
+    }
+
+    abstract void flushRawBuffers();
+
+    final boolean maybeFlushOnNewSlice(Page page) {
+        IntVector sliceIndices = ((IntBlock) page.getBlock(sliceChannel)).asVector();
+        assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
+        int sliceIndex = sliceIndices.getInt(0);
+        if (sliceIndex > lastSliceIndex) {
+            flushRawBuffers();
+            lastSliceIndex = sliceIndex;
+            return true;
+        }
+        return false;
+    }
+
+    public final boolean canEmitPartialResultsPeriodically(Page incomingPage) {
+        return maybeFlushOnNewSlice(incomingPage);
+    }
 
     static boolean isPreviousGroupWithinLookback(
         TimeSeriesGroupingAggregatorEvaluationContext context,

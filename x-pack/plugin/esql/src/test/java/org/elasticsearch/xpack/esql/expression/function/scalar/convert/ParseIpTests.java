@@ -83,6 +83,32 @@ public class ParseIpTests extends ESTestCase {
                     return "long v6-shaped";
                 }
             }, false, false, false),
+            /*
+             * Longer in UTF-8 than the bytes ParseIp decodes for its error message, so the decode cuts a
+             * code point in half. The message must still match truncating the fully decoded string.
+             */
+            new TestCase(new Supplier<>() {
+                @Override
+                public String get() {
+                    return "€".repeat(2 * Strings.MAX_INPUT_LENGTH_IN_ERROR);
+                }
+
+                @Override
+                public String toString() {
+                    return "long 3 byte chars";
+                }
+            }, false, false, false),
+            new TestCase(new Supplier<>() {
+                @Override
+                public String get() {
+                    return "😀".repeat(2 * Strings.MAX_INPUT_LENGTH_IN_ERROR);
+                }
+
+                @Override
+                public String toString() {
+                    return "long surrogate pairs";
+                }
+            }, false, false, false),
             new TestCase(new Supplier<>() {
                 @Override
                 public String get() {

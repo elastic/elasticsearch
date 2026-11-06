@@ -399,6 +399,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public final boolean hasParam(String key) {
+        consumedParams.add(key);
         return params.containsKey(key);
     }
 

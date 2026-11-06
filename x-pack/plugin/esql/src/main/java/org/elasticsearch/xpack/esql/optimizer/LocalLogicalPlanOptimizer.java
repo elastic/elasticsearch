@@ -109,12 +109,10 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
     public LogicalPlan localOptimize(LogicalPlan plan) {
         LogicalPlan optimized = execute(plan);
-        org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("17c.lo_executed");
         Failures failures = verifier.verify(optimized, plan.output());
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
-        org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("17d.lo_verified");
         return optimized;
     }
 

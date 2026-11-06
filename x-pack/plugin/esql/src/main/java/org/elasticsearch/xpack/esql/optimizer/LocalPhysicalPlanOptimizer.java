@@ -59,11 +59,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
-        PhysicalPlan executed = execute(plan);
-        org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("17g.po_executed");
-        PhysicalPlan verified = verify(executed, plan.output());
-        org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("17h.po_verified");
-        return verified;
+        return verify(execute(plan), plan.output());
     }
 
     PhysicalPlan verify(PhysicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes) {

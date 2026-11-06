@@ -16,7 +16,6 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.esql.plugin.LatencyTrace;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -311,9 +310,6 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
             try (EsqlQueryResponse resp = runDirect(syncEsqlQueryRequest(esql).pragmas(getPragmas()).profile(true))) {
                 long clientNanos = System.nanoTime() - start;
                 if (i < WARMUP) {
-                    if (i == WARMUP - 1) {
-                        LatencyTrace.reset();
-                    }
                     continue;
                 }
                 if (i == WARMUP) {
@@ -390,22 +386,6 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
             );
         }
         logger.info("\n{}", sb);
-        StringBuilder tb = new StringBuilder("TRACE [").append(name).append("] offsets from request start\n");
-        for (Map.Entry<String, List<Long>> e : LatencyTrace.samples().entrySet()) {
-            long[] values = e.getValue().stream().mapToLong(Long::longValue).toArray();
-            tb.append(
-                String.format(
-                    Locale.ROOT,
-                    "  %-45s n %4d  min %10.3f  median %10.3f  p90 %10.3f%n",
-                    e.getKey(),
-                    values.length,
-                    ms(min(values)),
-                    ms(percentile(values, 50)),
-                    ms(percentile(values, 90))
-                )
-            );
-        }
-        logger.info("\n{}", tb);
     }
 
     /**

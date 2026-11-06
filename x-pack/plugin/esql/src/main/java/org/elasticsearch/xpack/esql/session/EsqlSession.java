@@ -194,7 +194,6 @@ import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.plugin.LatencyTrace;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
@@ -483,7 +482,6 @@ public class EsqlSession {
         BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
-        LatencyTrace.mark("02.session_execute");
         executionInfo.queryProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
@@ -559,7 +557,6 @@ public class EsqlSession {
             planTelemetry.command(explain);
         }
         parsingProfile.stop();
-        LatencyTrace.mark("03.parsed");
 
         // Resolve all query settings up front, immediately after parse, so every downstream phase only reads
         // resolved values (default < cluster < request body < in-query SET) and never re-derives precedence. This also
@@ -687,7 +684,6 @@ public class EsqlSession {
         ActionListener<Versioned<Result>> listener,
         Runnable fallback
     ) {
-        LatencyTrace.mark("03.parsed");
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterService.state().metadata().settings(),
             clusterService.getSettings(),
@@ -719,7 +715,6 @@ public class EsqlSession {
                 fieldNames = IndexResolver.INDEX_METADATA_FIELD; // only _source is kept: ask for the lightest field, like the full pipeline
             }
         }
-        LatencyTrace.mark("04b.fieldcaps_sent");
         indexResolver.resolveMainIndicesVersioned(
             fastQuery.indexPattern(),
             fieldNames,
@@ -733,7 +728,6 @@ public class EsqlSession {
             false,
             indicesExpressionGrouper,
             planningCpu.meteredCpu(ActionListener.wrap(resolution -> {
-                LatencyTrace.mark("05.fieldcaps_resp");
                 FastPathLogical logical = null;
                 Configuration configuration = null;
                 try {
@@ -841,7 +835,6 @@ public class EsqlSession {
             executionInfo
         );
         planSnapshot = planSnapshot.withSettings(resolved).withPhysical(physicalPlan);
-        LatencyTrace.mark("09.physical_planned");
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
         profile.planningCpuNanos(planningCpu.finish());
         planRunner.columnMetadata(Map.of());
@@ -1241,7 +1234,6 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert planningCpu.isMeteringCurrentThread() : "analyseAndExecute reached on an unmetered thread";
-        LatencyTrace.mark("04.views_resolved");
 
         // Skip all telemetry and side effects for diagnostic invocations: explain mode and the analyze-only pass
         // that validates a view definition. The EXPLAIN command itself was already counted at parse time
@@ -1496,7 +1488,6 @@ public class EsqlSession {
             EsqlPlugin.externalBlobStorePool()
         );
 
-        LatencyTrace.mark("08.logical_optimized");
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
         assert planningCpu.isMeteringCurrentThread() : "planning reached its end on a thread without an open planning CPU measurement";
         executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
@@ -1766,7 +1757,6 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-            LatencyTrace.mark("09.physical_planned");
             if (explainContext != null) {
                 recordExplainCoordinatorPlan(physicalPlan);
             }
@@ -2671,7 +2661,6 @@ public class EsqlSession {
             )
             .andThenApply(r -> {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
-                LatencyTrace.mark("06.indices_resolved");
                 return r;
             })
             .<PreAnalysisResult>andThen(
@@ -3786,7 +3775,6 @@ public class EsqlSession {
                 preserveViewBoundaries
             );
             analysisProfile.stop();
-            LatencyTrace.mark("07.analyzed");
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // Analysis succeeded on the first attempt. For unmapped_fields=nullify/load we intentionally do NOT re-resolve without the
             // request filter to recover a field that is mapped only in a filter-pruned index: once the filter prunes an index we keep it

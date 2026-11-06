@@ -632,7 +632,6 @@ public class PlannerUtils {
                 onLogicalPlanOptimized.accept(optimizedFragment);
             }
             PhysicalPlan physicalFragment = LocalMapper.INSTANCE.map(optimizedFragment);
-            org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("17e.mapped");
             if (profilingEnabled) {
                 planTimeProfile.addLogicalOptimizationPlanTime(System.nanoTime() - logicalStartNanos);
             }
@@ -668,9 +667,7 @@ public class PlannerUtils {
                 planTimeProfile.addPhysicalOptimizationPlanTime(System.nanoTime() - physicalStartNanos);
             }
 
-            PhysicalPlan sized = EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
-            org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("17i.rowsize");
-            return sized;
+            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
         });
 
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;

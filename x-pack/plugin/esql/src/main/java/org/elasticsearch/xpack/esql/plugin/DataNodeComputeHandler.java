@@ -251,7 +251,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
                     listener.delegateFailureAndWrap((l, unused) -> {
-                        LatencyTrace.mark("14.open_exchange_resp");
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -294,7 +293,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                            LatencyTrace.mark("15.data_req_sent");
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
@@ -302,7 +300,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 groupTask,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
-                                    LatencyTrace.mark("20.data_resp_received");
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
                                 }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
@@ -1084,7 +1081,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 PlannerUtils.sliceSelection(request.plan()),
                 ActionListener.wrap(acquiredSearchContexts -> {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
-                    LatencyTrace.mark("17.contexts_acquired");
                     if (acquiredSearchContexts.isEmpty()) {
                         batchListener.onResponse(DriverCompletionInfo.EMPTY);
                         return;
@@ -1443,7 +1439,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<DataNodeComputeResponse> listener,
         @Nullable ReadyDeadline deadline
     ) {
-        LatencyTrace.mark("16.data_req_received");
         Configuration configuration = request.configuration();
         PlanTimeProfile planTimeProfile = null;
         if (configuration.profile()) {

@@ -214,7 +214,6 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                 batchDuration = System.currentTimeMillis() - batchStart;
             } while (hasChanged && batch.limit.reached(batchRuns, lastAppliedRules) == false);
             TreeType after = currentPlan;
-            org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("opt." + batch.name + "[" + batchRuns + "]");
 
             totalDuration += batchDuration;
 

@@ -510,7 +510,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         final LuceneOperator.Factory luceneFactory;
         logger.trace("Query Exec is {}", esQueryExec);
-        org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("17k.source_factory_start");
 
         List<Sort> sorts = esQueryExec.sorts();
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
@@ -590,7 +589,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 planMinCompetitive(context.luceneMinCompetitivePilot().get())
             );
         }
-        org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("17l.source_factory_done");
         Layout.Builder layout = new Layout.Builder();
         layout.append(esQueryExec.output());
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());

@@ -91,7 +91,7 @@ public class BlockFactory {
         this.bytesRefRamOverestimateFactor = builder.bytesRefRamOverestimateFactor;
         this.parent = parent;
         assert breaker instanceof LocalCircuitBreaker == false
-            || (parent != null && ((LocalCircuitBreaker) builder.breaker).parentBreaker() == parent.breaker)
+            || (parent != null && compatibleChildBreaker((LocalCircuitBreaker) builder.breaker, parent.breaker))
             : "use local breaker without parent block factory";
     }
 
@@ -178,17 +178,41 @@ public class BlockFactory {
     }
 
     public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker) {
-        if (childBreaker.parentBreaker() != breaker) {
-            throw new IllegalStateException("Different parent breaker");
-        }
+        return newChildFactory(childBreaker, bigArrays);
+    }
+
+    /**
+     * A child factory whose blocks charge {@code childBreaker} and whose {@link BigArrays} is {@code childBigArrays}: the
+     * way a driver gets arrays that consume the same reservation as its blocks, by handing in a {@code BigArrays} over the
+     * same per-driver breaker view. The child breaker must charge this factory's breaker, or a view of the same query
+     * breaker as this factory's; a child factory inherits this factory's {@code BigArrays} otherwise.
+     */
+    public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker, BigArrays childBigArrays) {
+        checkChildBreaker(childBreaker);
         return new BlockFactory(
-            BlockFactory.builder(bigArrays)
+            BlockFactory.builder(childBigArrays)
                 .breaker(childBreaker)
                 .maxPrimitiveArraySize(maxPrimitiveArrayBytes)
                 .bytesRefRamOverestimateThreshold(bytesRefRamOverestimateThreshold)
                 .bytesRefRamOverestimateFactor(bytesRefRamOverestimateFactor),
             this
         );
+    }
+
+    /**
+     * Rejects a child breaker whose blocks, once passed to another driver and released through this factory's breaker,
+     * would leave the two accounts out of step.
+     */
+    protected final void checkChildBreaker(LocalCircuitBreaker childBreaker) {
+        if (compatibleChildBreaker(childBreaker, breaker) == false) {
+            throw new IllegalStateException("Different parent breaker");
+        }
+    }
+
+    private static boolean compatibleChildBreaker(LocalCircuitBreaker childBreaker, CircuitBreaker parentFactoryBreaker) {
+        CircuitBreaker childParent = childBreaker.parentBreaker();
+        return childParent == parentFactoryBreaker
+            || (childParent instanceof DelegatingCircuitBreaker delegating && delegating.sharesAccountWith(parentFactoryBreaker));
     }
 
     /**

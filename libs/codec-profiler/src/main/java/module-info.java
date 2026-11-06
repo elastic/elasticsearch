@@ -68,7 +68,9 @@
  *   {@link org.elasticsearch.codec.profiler.Timer#INERT} and records no counts. That read path reads no clock and
  *   allocates nothing for profiling. The only cost is one thread-local lookup when the reader opens.</li>
  *   <li>A collector, its details and their handles have one writer at a time. A snapshot needs the same exclusive
- *   access, or a completed handoff. Calls of one timer must not overlap. Assertions check these preconditions.</li>
+ *   access, or a completed handoff. Calls of one timer must not overlap. Assertions check only the timer calls, and
+ *   that a binding is closed innermost first on the thread that bound it. The single writer and the access of a
+ *   snapshot are the caller's responsibility.</li>
  *   <li>A recorder and the handles taken from it belong to the execution whose scope was bound when the reader opened.
  *   Only an object whose instrumented work all belongs to that execution may keep them, for example a reader that one
  *   execution opens and no other execution uses. A component that serves several executions, such as a cache in the

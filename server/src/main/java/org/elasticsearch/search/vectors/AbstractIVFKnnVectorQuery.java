@@ -43,8 +43,6 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
 
-import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
-
 /**
  * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore) - callers
  * must pass the user's {@code k}, never a pre-oversampled one, because this class expands the candidate pool
@@ -172,9 +170,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
         // per-segment using the Two-Signal model with segment-size awareness.
         final float visitRatio = providedVisitRatio;
-        final LongAccumulator longAccumulator = indexSearcher.getIndexReader().leaves().size() > 1
-            ? new LongAccumulator(Long::max, LEAST_COMPETITIVE)
-            : null;
+        // benchmark only: disable cross-leaf sharing of the min competitive score
+        final LongAccumulator longAccumulator = null;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         float maxRescoreOversampleAcrossLeaves = 1f;

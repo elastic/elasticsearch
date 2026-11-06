@@ -369,10 +369,29 @@ resolves casts. We will give their attributes the real field name rather than a 
 that is what decides whether a predicate on them is pushed.
 
 **We will add a block that carries one typed sub-block per type**, positionally aligned, so the data
-node can emit values without converting them. A row's value sits in the sub-block for its type and the
-others are null at that position, which makes the discriminator implicit: a row's type is whichever
-sub-block is non-null. The tag is the logical type, so a date stays a date rather than becoming the
-number it is stored as.
+node can emit values without converting them. A row's value sits in the sub-block for its type, which we
+call a leg, and the other legs are null at that position.
+
+Two things about that block came out differently from the first draft of this section, and both were
+decided by the code rather than by preference.
+
+The discriminator is a sub-block of its own, holding the leg index per value, and not something inferred
+from which leg happens to be non-null. `AbstractDelegatingCompoundBlock` is the base class the existing
+compound blocks use, and it derives the whole of a block's nullity from the first sub-block, in methods
+that are final: a value is null exactly where that sub-block is null. Legs cannot satisfy that, because
+each leg is null wherever the value has another type. A tag sub-block satisfies it exactly, since the tag
+is present precisely when the value is, so putting the tag first buys the filter, slice, keep-mask,
+deep-copy, ref-counting and breaker accounting already written in that base class. It also answers in
+constant time, it answers for an absent value, and it is what Arrow's union calls the types buffer.
+
+The leg types in the block are physical, not logical. The block lives in the compute module, which does
+not depend on `esql-core` outside its tests and so cannot name a `DataType` at all. The logical type of
+each leg therefore travels beside the column as the leg order, which the plan and the response agree on,
+and `ColumnInfoImpl.originalTypes` is the field that already carries exactly that list to clients for a
+conflicted column today. So a date stays a date rather than becoming the number it is stored as, but it
+does so because leg two is declared a date and the value is tagged two, not because the block holds the
+word "date". Two legs may share an element type while differing logically, which is why a leg is
+addressed by index and never by its element type.
 
 We will carry that in one channel, because the user asked for one column. `Layout` forbids two channels
 for one attribute id but says nothing against one logical column spread over several attribute ids,
@@ -397,8 +416,9 @@ grouping key is `TYPEOF` of the attribute being aggregated. A runtime partition 
 planning-time resolution, so without that check the rule has no mechanism.
 
 **We will add response rendering**, per row by type, and an Arrow union. The block layout above, with
-every sub-block full length and null where the row is another type, is Arrow's *sparse* union: a types
-buffer and one child per type, each the length of the whole column. A dense union adds an offsets buffer
+every leg full length and null where the row is another type, is Arrow's *sparse* union: a types buffer
+and one child per type, each the length of the whole column. The tag sub-block is that types buffer, so
+the mapping is a write-out rather than a translation. A dense union adds an offsets buffer
 and compacts each child to only its own values, so it is smaller on the wire but needs a compaction step
 the blocks don't do. Sparse maps directly; dense is the optimisation. Arrow's union
 is fully typed in the schema rather than opaque bytes, and it is a schema-level commitment, so a
@@ -449,3 +469,10 @@ Every refusal has to be scoped to what's refused today, or we take away the aggr
 all-dates behaviour that works now.
 
 Whether `SORT` stays refused. Discover's column sort will meet that refusal on every union column.
+
+Multi-valued union columns. A field can hold several values in one row, and a union field can hold
+several of different types, so this is a real shape rather than a corner. The compound block base class
+refuses `filter`, `slice`, `keepMask` and `expand` on any multi-valued compound block, which is why
+tdigest and exponential histogram are single-valued today as well. Supporting it is a change to that
+base class rather than to the union block, so three block types gain it at once, and the size of that
+change is not yet known.

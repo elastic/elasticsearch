@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesFromKeyword;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -348,6 +349,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
+            if (attr instanceof TimeSeriesMetadataAttribute && attr.dataType() == DataType.TIMESERIES_DATA_TYPE) {
+                // Typed metadata is the keyword source form of the dimensions, converted as it is read
+                return ValuesSourceReaderOperator.loadAndConvert(
+                    blockLoader,
+                    new TypeConverter(new TimeSeriesFromKeyword(attr.source(), attr))
+                );
+            }
             return ValuesSourceReaderOperator.load(blockLoader);
         }
         Expression conversion = switch (unionTypes) {

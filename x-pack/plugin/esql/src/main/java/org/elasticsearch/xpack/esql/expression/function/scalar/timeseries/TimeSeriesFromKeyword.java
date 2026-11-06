@@ -23,12 +23,11 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Casts the keyword {@code _timeseries} - the source of a series' dimensions, as nodes without typed metadata read it - to
- * typed metadata, so a plan exposes one {@code _timeseries} type whichever nodes read it. Dimensions under objects are
- * flattened to their dotted field names and named the way the typed reader names them. Values are their source text, so
- * they can differ from a typed read where the mapping coerces the source value.
+ * Casts the keyword {@code _timeseries} - the source of a series' dimensions - to typed metadata. Dimensions under objects
+ * are flattened to their dotted field names and named as PromQL labels. Values are their source text.
  * <p>
- * Internal: PromQL resolution places it on the coordinator, above every aggregate, where the typed type is supported.
+ * Internal: the shard reader converts the loaded source with it, and PromQL resolution places it on the coordinator, above
+ * every aggregate, for nodes that read the keyword form.
  */
 public final class TimeSeriesFromKeyword extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

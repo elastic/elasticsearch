@@ -231,7 +231,8 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
     public void testSpillingSkewed() {
         StoreAndCodec sc = newStoreAndCodec();
         DriverContext driverContext = spillingDriverContext(ByteSizeValue.ofKb(between(1, 64)), 0, sc.store(), sc.codec());
-        var config = new HashAggregationOperator.ParallelConfig(randomWorkerExecutor(), between(1, 8), between(1, 64), between(2, 8));
+        // the smallest key range makes four keys, which must reach the partitioning threshold
+        var config = new HashAggregationOperator.ParallelConfig(randomWorkerExecutor(), between(1, 8), between(1, 64), between(2, 4));
         var status = runTest(
             between(5_000, 20_000),
             true,

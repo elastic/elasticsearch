@@ -443,7 +443,7 @@ public class CsvIT extends ESTestCase {
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
-        try (var response = listener.actionGet(5, TimeUnit.MINUTES)) {
+        try (var response = hangDiagnostics(listener)) {
             assertFalse("response must not be partial: " + response.getExecutionInfo(), response.isPartial());
             ExpectedResults expected = indexLoadStrategy.transformExpectedResults(
                 groupName + "." + testName,
@@ -484,6 +484,51 @@ public class CsvIT extends ESTestCase {
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
+        }
+    }
+
+    /** TEMPORARY: on a hang, dump the ES|QL tasks (driver statuses say which operator is blocked and why) before failing. */
+    private org.elasticsearch.xpack.esql.action.EsqlQueryResponse hangDiagnostics(ResponseListener listener) {
+        try {
+            return listener.actionGet(2, TimeUnit.MINUTES);
+        } catch (org.elasticsearch.ElasticsearchTimeoutException e) {
+            var tasks = cluster.client()
+                .admin()
+                .cluster()
+                .prepareListTasks()
+                .setDetailed(true)
+                .setActions("indices:data/read/esql*", "internal:data/read/esql*")
+                .get();
+            StringBuilder sb = new StringBuilder("HANG_DIAGNOSTICS tasks=").append(tasks.getTasks().size()).append('\n');
+            for (var task : tasks.getTasks()) {
+                sb.append("  ")
+                    .append(task.action())
+                    .append(' ')
+                    .append(task.taskId())
+                    .append(" running=")
+                    .append(task.runningTimeNanos() / 1_000_000)
+                    .append("ms description=")
+                    .append(task.description())
+                    .append('\n');
+                if (task.status() != null) {
+                    sb.append("    status=").append(org.elasticsearch.common.Strings.toString(task.status(), true, true)).append('\n');
+                }
+            }
+            logger.error(sb.toString());
+            for (var entry : Thread.getAllStackTraces().entrySet()) {
+                String name = entry.getKey().getName();
+                if (name.contains("esql") || name.contains("search")) {
+                    StringBuilder ts = new StringBuilder("HANG_THREAD ").append(name)
+                        .append(' ')
+                        .append(entry.getKey().getState())
+                        .append('\n');
+                    for (StackTraceElement el : entry.getValue()) {
+                        ts.append("    at ").append(el).append('\n');
+                    }
+                    logger.error(ts.toString());
+                }
+            }
+            throw e;
         }
     }
 

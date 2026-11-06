@@ -30,6 +30,11 @@ public class PhysicalOptimizerRules {
         }
 
         @Override
+        public boolean appliesOnlyToTypeToken() {
+            return true;
+        }
+
+        @Override
         public final PhysicalPlan apply(PhysicalPlan plan, P context) {
             return direction == TransformDirection.DOWN
                 ? plan.transformDown(typeToken(), t -> rule(t, context))
@@ -49,6 +54,11 @@ public class PhysicalOptimizerRules {
 
         protected OptimizerRule(TransformDirection direction) {
             this.direction = direction;
+        }
+
+        @Override
+        public boolean appliesOnlyToTypeToken() {
+            return true;
         }
 
         @Override

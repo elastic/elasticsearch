@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,7 +44,8 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -130,10 +132,50 @@ public final class LuceneSliceQueue {
 
     private final int maxShardIndex;
     private final IntFunction<ShardContext> shardContexts;
-    private final int totalSlices;
+    /** Slices built so far: all of them for an eager queue, the prepared shards' for a lazy one. */
+    private final AtomicInteger totalSlices = new AtomicInteger();
     private final Map<String, PartitioningStrategy> partitioningStrategies;
 
-    private final AtomicReferenceArray<LuceneSlice> slices;
+    /** Slices not yet handed out, by position. A slice is handed out exactly once by removing it. */
+    private final ConcurrentHashMap<Integer, LuceneSlice> slices = new ConcurrentHashMap<>();
+
+    /**
+     * How to turn a shard into slices, for a lazy queue: the shards are prepared (query built and rewritten, weight created,
+     * leaves partitioned) by the drivers themselves, one shard at a time, the first time a driver finds nothing to do. That
+     * takes the per-shard preparation off the request thread that builds the operator factory and spreads it over the
+     * drivers. {@code null} for an eager queue, whose slices were all built up front.
+     */
+    @Nullable
+    private final ShardPreparation preparation;
+    /** The next shard of {@link ShardPreparation#shards()} to prepare. */
+    private final AtomicInteger nextShard = new AtomicInteger();
+    /** How many shards drivers are preparing right now, and a listener completing when all of them have published. */
+    private final Object preparationLock = new Object();
+    private int preparing;
+    @Nullable
+    private SubscribableListener<Void> preparationListener;
+    /** Upper bound of the slices this queue can produce, to size the driver parallelism before the shards are prepared. */
+    private final int estimatedSlices;
+    /**
+     * The first shard's queries, built by {@link #estimateSlices} to learn how many queries each shard runs, and reused when
+     * that shard is prepared rather than built twice.
+     */
+    @Nullable
+    private final List<QueryAndTags> firstShardQueries;
+
+    private record ShardPreparation(
+        List<ShardContext> shards,
+        Function<ShardContext, List<QueryAndTags>> queryFunction,
+        DataPartitioning dataPartitioning,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
+        int docThresholdForAutoStrategy,
+        int taskConcurrency,
+        Function<ShardContext, ScoreMode> scoreModeFunction,
+        LeafSplitGuard leafSplitGuard,
+        int minDocsPerSlice,
+        QueryWarnings singleValueQueryWarnings
+    ) {}
+
     /**
      * Queue of slice IDs that are the primary entry point for a new query.
      * A driver should prioritize polling from this queue after failing to get a sequential
@@ -165,15 +207,34 @@ public final class LuceneSliceQueue {
     ) {
         this.maxShardIndex = sliceList.stream().mapToInt(l -> l.shardContext().index()).max().orElse(-1);
         this.shardContexts = shardContexts;
-        this.totalSlices = sliceList.size();
-        this.slices = new AtomicReferenceArray<>(sliceList.size());
-        for (int i = 0; i < sliceList.size(); i++) {
-            slices.set(i, sliceList.get(i));
-        }
         this.partitioningStrategies = partitioningStrategies;
+        this.preparation = null;
+        this.firstShardQueries = null;
+        this.estimatedSlices = sliceList.size();
         this.queryHeads = ConcurrentCollections.newQueue();
         this.segmentHeads = ConcurrentCollections.newQueue();
         this.stealableSlices = ConcurrentCollections.newQueue();
+        totalSlices.set(sliceList.size());
+        publish(sliceList);
+    }
+
+    private LuceneSliceQueue(IntFunction<ShardContext> shardContexts, ShardPreparation preparation) {
+        this.maxShardIndex = preparation.shards().stream().mapToInt(ShardContext::index).max().orElse(-1);
+        this.shardContexts = shardContexts;
+        this.partitioningStrategies = new ConcurrentHashMap<>();
+        this.preparation = preparation;
+        this.firstShardQueries = preparation.shards().isEmpty() ? null : preparation.queryFunction().apply(preparation.shards().get(0));
+        this.estimatedSlices = estimateSlices(preparation, firstShardQueries == null ? 0 : firstShardQueries.size());
+        this.queryHeads = ConcurrentCollections.newQueue();
+        this.segmentHeads = ConcurrentCollections.newQueue();
+        this.stealableSlices = ConcurrentCollections.newQueue();
+    }
+
+    /** Makes the slices available to {@link #nextSlice}: into the map first, so a polled id always finds its slice. */
+    private void publish(List<LuceneSlice> sliceList) {
+        for (LuceneSlice slice : sliceList) {
+            slices.put(slice.slicePosition(), slice);
+        }
         for (LuceneSlice slice : sliceList) {
             if (slice.queryHead()) {
                 queryHeads.add(slice.slicePosition());
@@ -183,6 +244,29 @@ public final class LuceneSliceQueue {
                 stealableSlices.add(slice.slicePosition());
             }
         }
+    }
+
+    /**
+     * How many slices the shards can produce at most, without building their queries: exact for {@link DataPartitioning#SHARD}
+     * and {@link DataPartitioning#SEGMENT}, the task concurrency per shard otherwise (what the DOC partitioner aims for), one
+     * for an {@link DataPartitioning#AUTO} shard below the doc threshold (always {@link PartitioningStrategy#SHARD}). A shard
+     * runs {@code queriesPerShard} queries (query and tags), each partitioned on its own; the first shard's count stands for
+     * all. The drivers loop over the slices, so fewer drivers than slices is fine should a shard exceed this.
+     */
+    private static int estimateSlices(ShardPreparation preparation, int queriesPerShard) {
+        long estimate = 0;
+        for (ShardContext ctx : preparation.shards()) {
+            int leaves = ctx.searcher().getLeafContexts().size();
+            estimate += queriesPerShard * switch (preparation.dataPartitioning()) {
+                case SHARD -> 1;
+                case SEGMENT -> Math.min(leaves, Math.max(1, preparation.taskConcurrency()));
+                case DOC -> Math.max(1, preparation.taskConcurrency());
+                case AUTO -> ctx.searcher().getIndexReader().maxDoc() < preparation.docThresholdForAutoStrategy()
+                    ? 1
+                    : Math.max(1, preparation.taskConcurrency());
+            };
+        }
+        return (int) Math.min(Integer.MAX_VALUE, estimate);
     }
 
     int maxShardIndex() {
@@ -212,18 +296,74 @@ public final class LuceneSliceQueue {
     @Nullable
     public LuceneSlice nextSlice(LuceneSlice prev) {
         if (prev != null) {
-            final int nextId = prev.slicePosition() + 1;
-            if (nextId < totalSlices) {
-                var slice = slices.getAndSet(nextId, null);
-                if (slice != null) {
-                    return slice;
-                }
+            var slice = slices.remove(prev.slicePosition() + 1);
+            if (slice != null) {
+                return slice;
             }
         }
+        LuceneSlice slice = pollPublished();
+        if (slice != null || preparation == null) {
+            return slice;
+        }
+        // Nothing published: prepare the next shard, keeping its first slice for this driver and publishing the rest.
+        int shard;
+        while ((shard = nextShard.getAndIncrement()) < preparation.shards().size()) {
+            startPreparing();
+            try {
+                List<LuceneSlice> prepared = prepareShard(preparation.shards().get(shard));
+                if (prepared.isEmpty()) {
+                    continue; // the query matches nothing on this shard
+                }
+                publish(prepared.subList(1, prepared.size()));
+                return prepared.get(0);
+            } finally {
+                donePreparing();
+            }
+        }
+        // Every shard is taken. Another driver may still be preparing one: {@link #awaitPreparation} tells the caller to
+        // wait for it rather than finish, and its slices are found here once published.
+        return pollPublished();
+    }
+
+    /**
+     * A listener that completes once the shards other drivers are preparing right now have published their slices, or
+     * {@code null} when none is in flight. After {@link #nextSlice} returned {@code null}, a non-null listener means more
+     * slices may still appear: wait on it and ask again instead of finishing. Since a preparation only starts by claiming a
+     * shard and a {@code null} from {@link #nextSlice} means every shard is claimed, a {@code null} listener after that is final.
+     */
+    @Nullable
+    public SubscribableListener<Void> awaitPreparation() {
+        synchronized (preparationLock) {
+            return preparationListener;
+        }
+    }
+
+    private void startPreparing() {
+        synchronized (preparationLock) {
+            if (preparing++ == 0) {
+                preparationListener = new SubscribableListener<>();
+            }
+        }
+    }
+
+    private void donePreparing() {
+        SubscribableListener<Void> completed = null;
+        synchronized (preparationLock) {
+            if (--preparing == 0) {
+                completed = preparationListener;
+                preparationListener = null;
+            }
+        }
+        if (completed != null) {
+            completed.onResponse(null);
+        }
+    }
+
+    private LuceneSlice pollPublished() {
         for (var ids : List.of(queryHeads, segmentHeads, stealableSlices)) {
             Integer nextId;
             while ((nextId = ids.poll()) != null) {
-                var slice = slices.getAndSet(nextId, null);
+                var slice = slices.remove(nextId);
                 if (slice != null) {
                     return slice;
                 }
@@ -232,15 +372,79 @@ public final class LuceneSliceQueue {
         return null;
     }
 
-    public int totalSlices() {
-        return totalSlices;
+    private List<LuceneSlice> prepareShard(ShardContext ctx) {
+        List<LuceneSlice> prepared = sliceShard(
+            ctx,
+            ctx == preparation.shards().get(0) ? ignored -> firstShardQueries : preparation.queryFunction(),
+            preparation.dataPartitioning(),
+            preparation.autoStrategy(),
+            preparation.docThresholdForAutoStrategy(),
+            preparation.taskConcurrency(),
+            preparation.scoreModeFunction(),
+            preparation.leafSplitGuard(),
+            preparation.minDocsPerSlice(),
+            preparation.singleValueQueryWarnings(),
+            partitioningStrategies
+        );
+        // A contiguous block of positions per shard, so the next-slice affinity stays on the shard a driver is working on.
+        return withPositionsFrom(totalSlices.getAndAdd(prepared.size()), prepared);
+    }
+
+    private static List<LuceneSlice> withPositionsFrom(int base, List<LuceneSlice> sliceList) {
+        if (base == 0) {
+            return sliceList;
+        }
+        List<LuceneSlice> renumbered = new ArrayList<>(sliceList.size());
+        for (LuceneSlice slice : sliceList) {
+            renumbered.add(
+                new LuceneSlice(
+                    base + slice.slicePosition(),
+                    slice.queryHead(),
+                    slice.shardContext(),
+                    slice.leaves(),
+                    slice.weight(),
+                    slice.tags(),
+                    slice.blockedOnCaching()
+                )
+            );
+        }
+        return renumbered;
     }
 
     /**
-     * Strategy used to partition each shard in this queue.
+     * The slices built so far. For an eager queue that is all of them; for a lazy one it grows as drivers prepare shards,
+     * so it is a lower bound until the drivers are done.
+     */
+    public int totalSlices() {
+        return totalSlices.get();
+    }
+
+    /**
+     * An upper bound of {@link #totalSlices()} known before any shard is prepared, for sizing the driver parallelism.
+     */
+    public int estimatedSlices() {
+        return estimatedSlices;
+    }
+
+    /**
+     * Strategy used to partition each shard in this queue. For a lazy queue, only of the shards prepared so far.
      */
     public Map<String, PartitioningStrategy> partitioningStrategies() {
         return partitioningStrategies;
+    }
+
+    /**
+     * The shards this queue reads: the non-empty ones a lazy queue will prepare, or the ones an eager queue built slices for.
+     */
+    public Set<String> shardIdentifiers() {
+        if (preparation != null) {
+            Set<String> identifiers = new HashSet<>();
+            for (ShardContext shard : preparation.shards()) {
+                identifiers.add(shard.shardIdentifier());
+            }
+            return identifiers;
+        }
+        return partitioningStrategies.keySet();
     }
 
     public static LuceneSliceQueue create(
@@ -326,86 +530,163 @@ public final class LuceneSliceQueue {
     ) {
         List<LuceneSlice> slices = new ArrayList<>();
         Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>();
-
-        int nextSliceId = 0;
         for (ShardContext ctx : contexts.iterable()) {
-            if (ctx.searcher().getIndexReader().maxDoc() == 0) {
-                continue;
-            }
-            long startShard = System.nanoTime();
-            try {
-                for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
-                    var scoreMode = scoreModeFunction.apply(ctx);
-                    Query query = queryAndExtra.query;
-                    query = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
-                    /*
-                     * Rewrite the query on the local index so things like fully
-                     * overlapping range queries become match all. It's important
-                     * to do this before picking the partitioning strategy so we
-                     * can pick more aggressive strategies when the query rewrites
-                     * into MatchAll.
-                     *
-                    /*
-                     * Rewrite the query on the local index so things like fully
-                     * overlapping range queries become match all. It's important
-                     * to do this before picking the partitioning strategy so we
-                     * can pick more aggressive strategies when the query rewrites
-                     * into MatchAll.
-                     *
-                     * Sometimes (IVF/BBQ) rewrites run the whole query, and we
-                     * don't have a place to put warnings. So, for now, we use a
-                     * NOOP to discard any warnings we encounter. We'll change soon
-                     * to collect them.
-                     */
-                    try (Releasable ignored = singleValueQueryWarnings.bindDiscarding()) {
-                        query = ctx.searcher().rewrite(query);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                    if (query instanceof MatchNoDocsQuery) {
-                        continue;
-                    }
-                    var partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, docThresholdForAutoStrategy, ctx, query);
-                    partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
-                    var weightAndCache = weight(ctx, query, scoreMode, partitioning);
-                    List<List<PartialLeafReaderContext>> groups = partitioning.groups(
-                        ctx.searcher(),
+            slices.addAll(
+                withPositionsFrom(
+                    slices.size(),
+                    sliceShard(
+                        ctx,
+                        queryFunction,
+                        dataPartitioning,
+                        autoStrategy,
+                        docThresholdForAutoStrategy,
                         taskConcurrency,
-                        weightAndCache.weight,
+                        scoreModeFunction,
                         leafSplitGuard,
-                        minDocsPerSlice
-                    );
-                    boolean queryHead = true;
-                    for (List<PartialLeafReaderContext> group : groups) {
-                        if (group.isEmpty() == false) {
-                            final int slicePosition = nextSliceId++;
-                            slices.add(
-                                new LuceneSlice(
-                                    slicePosition,
-                                    queryHead,
-                                    ctx,
-                                    group,
-                                    weightAndCache.weight,
-                                    queryAndExtra.tags,
-                                    weightAndCache.blockedOnCaching
-                                )
-                            );
-                            queryHead = false;
-                        }
-                    }
-                }
-            } finally {
-                /*
-                 * Rewriting queries can execute searches and trigger disk reads on the local shard.
-                 * We account for the time spent rewriting and preparing queries here so that this
-                 * work is reflected in the shard's search load and contributes to the overall index
-                 * load attribution.
-                 */
-                long now = System.nanoTime();
-                ctx.stats().accumulateSearchLoad(now - startShard, now);
-            }
+                        minDocsPerSlice,
+                        singleValueQueryWarnings,
+                        partitioningStrategies
+                    )
+                )
+            );
         }
         return new LuceneSliceQueue(contexts::get, slices, partitioningStrategies);
+    }
+
+    /**
+     * A queue whose shards are prepared lazily by the drivers (see {@link #preparation}), instead of all up front on the
+     * thread building the operator factory. Takes the same parameters as {@link #create}.
+     */
+    public static LuceneSliceQueue createLazy(
+        IndexedByShardId<? extends ShardContext> contexts,
+        Function<ShardContext, List<QueryAndTags>> queryFunction,
+        DataPartitioning dataPartitioning,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
+        int docThresholdForAutoStrategy,
+        int taskConcurrency,
+        Function<ShardContext, ScoreMode> scoreModeFunction,
+        LeafSplitGuard leafSplitGuard,
+        int minDocsPerSlice,
+        QueryWarnings singleValueQueryWarnings
+    ) {
+        List<ShardContext> shards = new ArrayList<>();
+        for (ShardContext ctx : contexts.iterable()) {
+            if (ctx.searcher().getIndexReader().maxDoc() > 0) {
+                shards.add(ctx);
+            }
+        }
+        return new LuceneSliceQueue(
+            contexts::get,
+            new ShardPreparation(
+                Collections.unmodifiableList(shards),
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                docThresholdForAutoStrategy,
+                taskConcurrency,
+                scoreModeFunction,
+                leafSplitGuard,
+                minDocsPerSlice,
+                singleValueQueryWarnings
+            )
+        );
+    }
+
+    /**
+     * Builds the slices of one shard: its queries, rewritten against the shard, their weights and the partitioning of the
+     * shard's leaves. Positions start at 0; see {@link #withPositionsFrom}. Records the shard's partitioning strategy and its
+     * search load. Empty for an empty shard or a query matching nothing.
+     */
+    private static List<LuceneSlice> sliceShard(
+        ShardContext ctx,
+        Function<ShardContext, List<QueryAndTags>> queryFunction,
+        DataPartitioning dataPartitioning,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
+        int docThresholdForAutoStrategy,
+        int taskConcurrency,
+        Function<ShardContext, ScoreMode> scoreModeFunction,
+        LeafSplitGuard leafSplitGuard,
+        int minDocsPerSlice,
+        QueryWarnings singleValueQueryWarnings,
+        Map<String, PartitioningStrategy> partitioningStrategies
+    ) {
+        if (ctx.searcher().getIndexReader().maxDoc() == 0) {
+            return List.of();
+        }
+        List<LuceneSlice> slices = new ArrayList<>();
+        long startShard = System.nanoTime();
+        try {
+            for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
+                var scoreMode = scoreModeFunction.apply(ctx);
+                Query query = queryAndExtra.query;
+                query = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
+                /*
+                 * Rewrite the query on the local index so things like fully
+                 * overlapping range queries become match all. It's important
+                 * to do this before picking the partitioning strategy so we
+                 * can pick more aggressive strategies when the query rewrites
+                 * into MatchAll.
+                 *
+                /*
+                 * Rewrite the query on the local index so things like fully
+                 * overlapping range queries become match all. It's important
+                 * to do this before picking the partitioning strategy so we
+                 * can pick more aggressive strategies when the query rewrites
+                 * into MatchAll.
+                 *
+                 * Sometimes (IVF/BBQ) rewrites run the whole query, and we
+                 * don't have a place to put warnings. So, for now, we use a
+                 * NOOP to discard any warnings we encounter. We'll change soon
+                 * to collect them.
+                 */
+                try (Releasable ignored = singleValueQueryWarnings.bindDiscarding()) {
+                    query = ctx.searcher().rewrite(query);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                if (query instanceof MatchNoDocsQuery) {
+                    continue;
+                }
+                var partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, docThresholdForAutoStrategy, ctx, query);
+                partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
+                var weightAndCache = weight(ctx, query, scoreMode, partitioning);
+                List<List<PartialLeafReaderContext>> groups = partitioning.groups(
+                    ctx.searcher(),
+                    taskConcurrency,
+                    weightAndCache.weight,
+                    leafSplitGuard,
+                    minDocsPerSlice
+                );
+                boolean queryHead = true;
+                for (List<PartialLeafReaderContext> group : groups) {
+                    if (group.isEmpty() == false) {
+                        final int slicePosition = slices.size();
+                        slices.add(
+                            new LuceneSlice(
+                                slicePosition,
+                                queryHead,
+                                ctx,
+                                group,
+                                weightAndCache.weight,
+                                queryAndExtra.tags,
+                                weightAndCache.blockedOnCaching
+                            )
+                        );
+                        queryHead = false;
+                    }
+                }
+            }
+        } finally {
+            /*
+             * Rewriting queries can execute searches and trigger disk reads on the local shard.
+             * We account for the time spent rewriting and preparing queries here so that this
+             * work is reflected in the shard's search load and contributes to the overall index
+             * load attribution.
+             */
+            long now = System.nanoTime();
+            ctx.stats().accumulateSearchLoad(now - startShard, now);
+        }
+        return slices;
     }
 
     /**

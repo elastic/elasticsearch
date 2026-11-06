@@ -68,6 +68,18 @@ public final class PlanTimeProfile implements Writeable, ToXContentObject {
         return builder;
     }
 
+    public long logicalOptimizationNanos() {
+        return logicalOptimizationNanos;
+    }
+
+    public long physicalOptimizationNanos() {
+        return physicalOptimizationNanos;
+    }
+
+    public long reductionPlanNanos() {
+        return reductionPlanNanos;
+    }
+
     public void addLogicalOptimizationPlanTime(long logicalOptimizationPlanTime) {
         this.logicalOptimizationNanos = this.logicalOptimizationNanos + logicalOptimizationPlanTime;
     }

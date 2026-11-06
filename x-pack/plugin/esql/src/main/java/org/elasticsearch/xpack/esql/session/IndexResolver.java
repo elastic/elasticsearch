@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plugin.LatencyTrace;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
@@ -330,6 +331,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         ActionListener<EsqlResolveFieldsResponse> responseHandler = listener.delegateFailureAndWrap((l, response) -> {
+            LatencyTrace.mark("05.fieldcaps_resp");
             if (routingInfoCapture != null) {
                 TargetProjects tp = request.getResolvedTargetProjects();
                 if (tp != null) {
@@ -371,6 +373,7 @@ public class IndexResolver {
         });
         // Meter the response handling (mergedMappings can take tens of ms for wide mappings) as planning CPU of the query
         // that dispatched this request, if one is metering this thread.
+        LatencyTrace.mark("04b.fieldcaps_sent");
         client.execute(EsqlResolveFieldsAction.TYPE, request, PlanningCpuTracker.inheritMeteredCpu(responseHandler));
     }
 

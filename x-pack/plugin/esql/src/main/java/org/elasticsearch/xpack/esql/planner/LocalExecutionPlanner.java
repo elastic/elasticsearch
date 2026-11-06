@@ -2939,7 +2939,10 @@ public class LocalExecutionPlanner {
         }
 
         public void operators(List<Operator> operators, DriverContext driverContext) {
-            intermediateOperatorFactories.stream().map(opFactory -> opFactory.get(driverContext)).forEach(operators::add);
+            for (var opFactory : intermediateOperatorFactories) {
+                operators.add(opFactory.get(driverContext));
+                org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("18e.op." + opFactory.getClass().getSimpleName());
+            }
         }
 
         public SinkOperator sink(DriverContext driverContext) {
@@ -3075,9 +3078,13 @@ public class LocalExecutionPlanner {
             );
             var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
             try {
+                org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("18c.driver_ctx." + description);
                 source = physicalOperation.source(driverContext);
+                org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("18d.source_op." + description);
                 physicalOperation.operators(operators, driverContext);
+                org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("18e.intermediate_ops." + description);
                 sink = physicalOperation.sink(driverContext);
+                org.elasticsearch.xpack.esql.plugin.LatencyTrace.mark("18f.sink_op." + description);
                 success = true;
                 return new Driver(
                     sessionId,

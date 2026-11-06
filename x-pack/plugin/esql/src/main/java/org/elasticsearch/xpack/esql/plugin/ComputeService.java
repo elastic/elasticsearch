@@ -1114,6 +1114,7 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
+        LatencyTrace.mark("10.compute_execute");
         final SubPlan executionPlan;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
         final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
@@ -1360,6 +1361,7 @@ public class ComputeService {
         long splitDiscoveryStart,
         SiblingPlacement placement
     ) {
+        LatencyTrace.mark("11.after_discovery");
         final ExternalDistributionResult distributionResult;
         try {
             // SEARCH-thread CPU after the IO hop (distribution / coalesce). Footer and probe CPU
@@ -1998,6 +2000,7 @@ public class ComputeService {
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
+            LatencyTrace.mark("17a.planner_created." + context.description());
             boolean hasExternalSource = plan.anyMatch(
                 p -> p instanceof ExternalSourceExec
                     || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
@@ -2010,6 +2013,7 @@ public class ComputeService {
                 List<SearchExecutionContext> localContexts = new ArrayList<>();
                 shardContexts.iterable()
                     .forEach(shardContext -> localContexts.add(((DefaultShardContext) shardContext).executionContext()));
+                LatencyTrace.mark("17b.local_contexts." + context.description());
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,
@@ -2047,6 +2051,7 @@ public class ComputeService {
                 logicalPlanString = null;
                 approximationApplied = false;
             }
+            LatencyTrace.mark("17j.localplan_done." + context.description());
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
@@ -2075,6 +2080,7 @@ public class ComputeService {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
+            LatencyTrace.mark("18.local_planned." + context.description());
             String driverSessionId = new TaskId(clusterService.localNode().getId(), task.getId()).toString();
             var drivers = localExecutionPlan.createDrivers(driverSessionId);
             // Note that the drivers themselves do not hold a reference to the search contexts, but rather, these are held (and therefore
@@ -2132,14 +2138,23 @@ public class ComputeService {
                 planningBytesRead,
                 approximationApplied
             );
-            driverRunner.executeDrivers(task, drivers, computeExecutor, ActionListener.releaseAfter(driverListener, () -> {
-                if (hookExecInfo != null) {
-                    for (BooleanSupplier hook : registeredStopHooks) {
-                        hookExecInfo.removeStopHook(hook);
+            LatencyTrace.mark("18b.drivers_created." + context.description());
+            driverRunner.executeDrivers(
+                task,
+                drivers,
+                computeExecutor,
+                ActionListener.releaseAfter(
+                    ActionListener.runBefore(driverListener, () -> LatencyTrace.mark("19.drivers_done." + context.description())),
+                    () -> {
+                        if (hookExecInfo != null) {
+                            for (BooleanSupplier hook : registeredStopHooks) {
+                                hookExecInfo.removeStopHook(hook);
+                            }
+                        }
+                        Releasables.close(drivers);
                     }
-                }
-                Releasables.close(drivers);
-            }));
+                )
+            );
         } catch (Exception e) {
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());

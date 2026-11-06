@@ -338,6 +338,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        LatencyTrace.start();
+        LatencyTrace.mark("00.doExecute");
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
         requestExecutor.execute(
             ActionRunnable.wrap(
@@ -349,6 +351,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        LatencyTrace.mark("01.forked_to_search");
         if (requestIsAsync(request)) {
             assert task instanceof CancellableTask : "EsqlQueryRequest.createTask always returns CancellableTask";
             asyncTaskManagementService.asyncExecute(
@@ -436,6 +439,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
+                LatencyTrace.mark("21.result");
                 failIfCancelled(task, result.inner());
                 if (request.analyzeOnly() == false) {
                     recordCCSTelemetry(task, executionInfo, request, null);
@@ -443,6 +447,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     collectMetrics(result.inner());
                 }
                 var response = toResponse(task, request, request.profile(), result);
+                LatencyTrace.mark("22.response_built");
                 assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
                 if (response.isAsync()) {

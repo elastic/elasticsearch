@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -443,7 +444,31 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param conn             the connection to the remote node where the remote exchange sink is located
      */
     public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
-        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
+        boolean local = transportService.getLocalNode() != null && transportService.getLocalNode().equals(conn.getNode());
+        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor, local ? this : null);
+    }
+
+    /**
+     * Serves a page fetch for a sink on this node without going through the transport layer: the same steps as
+     * {@link ExchangeTransportAction#messageReceived} minus the per-request child task, for a coordinator that is also
+     * the data node. The caller's own task cancellation still reaches the sink through the compute running on it.
+     */
+    void fetchPageLocally(String exchangeId, boolean sourcesFinished, ActionListener<ExchangeResponse> listener) {
+        final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
+        if (sinkHandler == null) {
+            listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+            return;
+        }
+        if (sourcesFinished) {
+            rememberSourcesFinished(exchangeId);
+        }
+        sinkHandler.fetchPageAsync(sourcesFinished, listener);
+        if (sourcesFinished) {
+            ExchangeSinkHandler current = sinks.get(exchangeId);
+            if (current != null && current.isFinished()) {
+                finishSinkHandler(exchangeId, null);
+            }
+        }
     }
 
     static final class TransportRemoteSink implements RemoteSink {
@@ -453,6 +478,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final Task parentTask;
         final String exchangeId;
         final Executor responseExecutor;
+        /** Non-null when the sink lives on this node: pages are then fetched in-process instead of over the transport. */
+        @Nullable
+        final ExchangeService localService;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
         final AtomicReference<SubscribableListener<Void>> completionListenerRef = new AtomicReference<>(null);
@@ -463,7 +491,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             Transport.Connection connection,
             Task parentTask,
             String exchangeId,
-            Executor responseExecutor
+            Executor responseExecutor,
+            @Nullable ExchangeService localService
         ) {
             this.transportService = transportService;
             this.blockFactory = blockFactory;
@@ -471,6 +500,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             this.parentTask = parentTask;
             this.exchangeId = exchangeId;
             this.responseExecutor = responseExecutor;
+            this.localService = localService;
         }
 
         @Override
@@ -505,6 +535,29 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                     return;
                 }
                 listener = ActionListener.runAfter(listener, () -> blockFactory.breaker().addWithoutBreaking(-reservedBytes));
+            }
+            if (localService != null) {
+                final ActionListener<ExchangeResponse> finalListener = listener;
+                localService.fetchPageLocally(exchangeId, allSourcesFinished, new ActionListener<>() {
+                    @Override
+                    public void onResponse(ExchangeResponse response) {
+                        final long responseBytes = response.ramBytesUsedByPage();
+                        estimatedPageSizeInBytes.getAndUpdate(curr -> Math.max(responseBytes, curr / 2));
+                        // The sink releases the response once this returns (respondAndRelease), so hold a reference across the
+                        // hand-off, and deliver on the response executor like a transport response would: the consumers
+                        // assume the search pool.
+                        response.mustIncRef();
+                        new ThreadedActionListener<>(responseExecutor, ActionListener.runAfter(finalListener, response::decRef)).onResponse(
+                            response
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        finalListener.onFailure(e);
+                    }
+                });
+                return;
             }
             transportService.sendChildRequest(
                 connection,

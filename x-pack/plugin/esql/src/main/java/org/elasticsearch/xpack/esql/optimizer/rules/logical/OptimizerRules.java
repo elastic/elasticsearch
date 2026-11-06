@@ -32,6 +32,11 @@ public final class OptimizerRules {
         }
 
         @Override
+        public boolean appliesOnlyToTypeToken() {
+            return true;
+        }
+
+        @Override
         public final LogicalPlan apply(LogicalPlan plan) {
             return direction == TransformDirection.DOWN
                 ? plan.transformDown(typeToken(), this::rule)
@@ -82,6 +87,11 @@ public final class OptimizerRules {
         public Class<E> expressionToken() {
             return expressionTypeToken;
         }
+
+        @Override
+        public Class<?> expressionTypeToken() {
+            return expressionTypeToken;
+        }
     }
 
     public enum TransformDirection {
@@ -98,6 +108,11 @@ public final class OptimizerRules {
 
         protected ParameterizedOptimizerRule(TransformDirection direction) {
             this.direction = direction;
+        }
+
+        @Override
+        public boolean appliesOnlyToTypeToken() {
+            return true;
         }
 
         @Override

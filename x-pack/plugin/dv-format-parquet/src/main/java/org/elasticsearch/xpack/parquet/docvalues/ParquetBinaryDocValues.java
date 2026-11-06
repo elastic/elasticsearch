@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.parquet.docvalues;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
@@ -29,7 +30,10 @@ import java.util.function.Predicate;
  * ({@link #tryTermEqualIterator}, {@link #tryContainsIterator}) compares a page at a time and, for a column with a dictionary, a
  * dictionary entry at a time, see {@link BytesPageMatcher}.
  */
-final class ParquetBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
+final class ParquetBinaryDocValues extends BinaryDocValues
+    implements
+        BlockLoader.OptionalColumnAtATimeReader,
+        BlockLoader.OptionalLengthReader {
 
     private final List<ColumnChunkReader.Block> blocks;
     private final ColumnChunkReader reader;
@@ -211,6 +215,28 @@ final class ParquetBinaryDocValues extends BinaryDocValues implements BlockLoade
     @Override
     public DocIdSetIterator tryContainsIterator(BytesRef containsTerm) {
         return TwoPhaseIterator.asDocIdSetIterator(new PageMatches(new BytesPageMatcher(containsTerm, BytesPageMatcher.Mode.CONTAINS)));
+    }
+
+    /**
+     * The documents whose value has exactly {@code length} bytes, which the search layer asks for when a filter is {@code field != ""}
+     * ({@code length} of 0, as a query that must not match). The values are never looked at: a {@code PLAIN} page is tested by the length
+     * that precedes each value, and a dictionary only by the lengths of its entries. A row without a value never matches.
+     */
+    @Override
+    public DocIdSetIterator tryLengthIterator(int length) {
+        return TwoPhaseIterator.asDocIdSetIterator(new PageMatches(new BytesPageMatcher(length)));
+    }
+
+    /** Not implemented: the caller reads the lengths one document at a time, which is what it does when a reader answers {@code null}. */
+    @Override
+    public BlockLoader.Block tryReadLength(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered) {
+        return null;
+    }
+
+    /** Not implemented, see {@link #tryReadLength}. Only {@link #tryLengthIterator} is, and it does not need this. */
+    @Override
+    public NumericDocValues toLengthValues() {
+        return null;
     }
 
     /**

@@ -10,8 +10,12 @@ package org.elasticsearch.xpack.parquet.docvalues;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.format.Encoding;
@@ -46,14 +50,21 @@ public class ParquetBinaryFilterTests extends StubSegmentTestCase {
         EQUALS,
         CONTAINS,
         /** PROTOTYPE: the general hook, with the matcher of a prefix query. */
-        PREFIX;
+        PREFIX,
+        /** The values that have as many bytes as the term, which is what {@code field != ""} asks for (with the empty term). */
+        LENGTH;
 
         DocIdSetIterator iterator(BinaryDocValues values, BytesRef term) throws IOException {
+            if (this == LENGTH) {
+                assertTrue("the iterator filters by length", values instanceof BlockLoader.OptionalLengthReader);
+                return ((BlockLoader.OptionalLengthReader) values).tryLengthIterator(term.length);
+            }
             assertTrue("the iterator filters", values instanceof BlockLoader.OptionalColumnAtATimeReader);
             BlockLoader.OptionalColumnAtATimeReader reader = (BlockLoader.OptionalColumnAtATimeReader) values;
             return switch (this) {
                 case EQUALS -> reader.tryTermEqualIterator(term);
                 case CONTAINS -> reader.tryContainsIterator(term);
+                case LENGTH -> throw new AssertionError("handled above");
                 case PREFIX -> reader.tryMatchIterator(
                     value -> value.length >= term.length
                         && Arrays.equals(
@@ -73,6 +84,7 @@ public class ParquetBinaryFilterTests extends StubSegmentTestCase {
                 case EQUALS -> value -> value.equals(term);
                 case CONTAINS -> value -> value.contains(term);
                 case PREFIX -> value -> value.startsWith(term);
+                case LENGTH -> value -> value.getBytes(StandardCharsets.UTF_8).length == term.getBytes(StandardCharsets.UTF_8).length;
             };
         }
     }
@@ -261,6 +273,38 @@ public class ParquetBinaryFilterTests extends StubSegmentTestCase {
                 required.stream().filter(terms::contains).count(),
                 searcher.count(new ScanningBinaryDocValuesTermInSetQuery("f.req", terms.stream().map(BytesRef::new).toList(), format))
             );
+        });
+    }
+
+    /** The filter {@code field != ""} is a query that must not match the empty value, and it reaches the length hook. */
+    public void testAnEmptyTermQueryOfTheSearchLayerUsesTheLengthFilter() throws IOException {
+        int rows = randomIntBetween(1, 1_000);
+        List<String> required = new ArrayList<>();
+        List<String> optional = new ArrayList<>();
+        for (int i = 0; i < rows; i++) {
+            required.add(i % randomIntBetween(2, 7) == 0 ? "" : "req-" + i % 13);
+            optional.add(i % 3 == 0 ? null : (i % 4 == 0 ? "" : "opt-" + i % 5));
+        }
+        ParquetTestFiles.Options options = new ParquetTestFiles.Options(
+            randomBoolean(),
+            randomFrom(64, 4096),
+            randomFrom(256, 1024 * 1024),
+            randomBoolean() ? CompressionCodecName.SNAPPY : CompressionCodecName.UNCOMPRESSED
+        );
+        BytesParquetObject file = new BytesParquetObject(FILE, ParquetTestFiles.writeStrings(required, optional, options));
+        withSegment(file, BINDINGS, leaf -> {
+            IndexSearcher searcher = new IndexSearcher(leaf);
+            for (String field : new String[] { "f.req", "f.opt" }) {
+                List<String> values = field.equals("f.req") ? required : optional;
+                // an empty term is rewritten to a length query
+                Query empty = new ScanningBinaryDocValuesTermQuery(field, new BytesRef(""), BinaryDocValuesFormat.SEPARATE_COUNT);
+                assertEquals(field, values.stream().filter(v -> v != null && v.isEmpty()).count(), searcher.count(empty));
+                Query notEmpty = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST)
+                    .add(empty, BooleanClause.Occur.MUST_NOT)
+                    .build();
+                // a row without a value has no empty value either, so it is not excluded
+                assertEquals(field, values.stream().filter(v -> v == null || v.isEmpty() == false).count(), searcher.count(notEmpty));
+            }
         });
     }
 

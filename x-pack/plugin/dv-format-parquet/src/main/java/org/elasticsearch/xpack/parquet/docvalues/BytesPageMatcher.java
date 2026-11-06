@@ -36,12 +36,15 @@ final class BytesPageMatcher implements ColumnChunkReader.PageDecoder {
         /** Has the bytes of the term somewhere inside it. */
         CONTAINS,
         /** PROTOTYPE, only for the proof of concept: satisfies a predicate that the caller gives, instead of a term. */
-        PREDICATE
+        PREDICATE,
+        /** Has a given number of bytes, whatever they are: the value is never looked at, only its length. */
+        LENGTH
     }
 
     private final BytesRef term;
     private final Mode mode;
     private final Predicate<BytesRef> predicate;
+    private final int byteLength;
     // the value that the predicate tests, a slice of a page that the next call replaces
     private final BytesRef candidate = new BytesRef();
 
@@ -56,10 +59,19 @@ final class BytesPageMatcher implements ColumnChunkReader.PageDecoder {
     private int matchCount;
 
     BytesPageMatcher(BytesRef term, Mode mode) {
-        assert mode != Mode.PREDICATE;
+        assert mode == Mode.EQUALS || mode == Mode.CONTAINS;
         this.term = BytesRef.deepCopyOf(term);
         this.mode = mode;
         this.predicate = null;
+        this.byteLength = -1;
+    }
+
+    /** The values that have exactly {@code byteLength} bytes, which is what the filter {@code field != ""} asks for with a length of 0. */
+    BytesPageMatcher(int byteLength) {
+        this.term = null;
+        this.mode = Mode.LENGTH;
+        this.predicate = null;
+        this.byteLength = byteLength;
     }
 
     /** PROTOTYPE, only for the proof of concept: the values that satisfy the predicate, which must not keep what it is given. */
@@ -67,6 +79,7 @@ final class BytesPageMatcher implements ColumnChunkReader.PageDecoder {
         this.term = null;
         this.mode = Mode.PREDICATE;
         this.predicate = predicate;
+        this.byteLength = -1;
     }
 
     /** Whether any row of the current page matches. A page that the reader skipped has no match. */
@@ -213,6 +226,7 @@ final class BytesPageMatcher implements ColumnChunkReader.PageDecoder {
             case EQUALS -> length == term.length
                 && Arrays.equals(bytes, start, start + length, term.bytes, term.offset, term.offset + term.length);
             case CONTAINS -> BinaryDocValuesContainsTermQuery.contains(bytes, start, length, term);
+            case LENGTH -> length == byteLength;
             case PREDICATE -> {
                 candidate.bytes = bytes;
                 candidate.offset = start;

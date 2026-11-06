@@ -135,7 +135,7 @@ public class SecureSettingsReloaderTests extends ESTestCase {
         SecureSettingsReloader retaining = new SecureSettingsReloader(
             Settings.EMPTY,
             keystore("keystore"),
-            encryptionService,
+            () -> encryptionService,
             taskQueue.getThreadPool().generic()
         );
         retaining.setReloadCallback(retained::add);
@@ -200,7 +200,7 @@ public class SecureSettingsReloaderTests extends ESTestCase {
         SecureSettingsReloader reloader = new SecureSettingsReloader(
             Settings.EMPTY,
             keystore,
-            encryptionService,
+            () -> encryptionService,
             taskQueue.getThreadPool().generic()
         );
         reloader.setReloadCallback(settings -> reloadedValues.add(value(settings)));

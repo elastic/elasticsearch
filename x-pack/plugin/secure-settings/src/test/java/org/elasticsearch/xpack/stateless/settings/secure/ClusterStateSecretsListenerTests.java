@@ -283,7 +283,7 @@ public class ClusterStateSecretsListenerTests extends ESTestCase {
             SecureSettingsReloader reloader = new SecureSettingsReloader(
                 Settings.EMPTY,
                 keystore,
-                encryptionService,
+                () -> encryptionService,
                 taskQueue.getThreadPool().generic()
             );
             Environment environment = mock(Environment.class);

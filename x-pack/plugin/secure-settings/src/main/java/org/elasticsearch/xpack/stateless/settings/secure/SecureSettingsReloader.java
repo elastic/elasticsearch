@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.allocator.ContinuousComputation;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 /**
  * Reloads {@link ReloadablePlugin}s with a merged view of every secure settings source on the node: reserved state
@@ -64,7 +66,7 @@ final class SecureSettingsReloader {
     }
 
     private final Settings nodeSettings;
-    private final EncryptionService encryptionService;
+    private final Supplier<EncryptionService> encryptionService;
     private final ContinuousComputation<Sources> clusterStateReloads;
     private final Object mutex = new Object();
     private volatile boolean retryNeeded;
@@ -74,11 +76,12 @@ final class SecureSettingsReloader {
 
     /**
      * @param keystore the node's keystore while it is still open during startup, or {@code null} if it has none
+     * @param encryptionService called only when there are API-set values to decrypt, so the encryption plugin can start later
      */
     SecureSettingsReloader(
         Settings nodeSettings,
         @Nullable SecureSettings keystore,
-        EncryptionService encryptionService,
+        Supplier<EncryptionService> encryptionService,
         Executor executor
     ) {
         this.nodeSettings = Settings.builder().put(nodeSettings, false).build();
@@ -187,7 +190,7 @@ final class SecureSettingsReloader {
             retryNeeded = true;
         } else {
             retryNeeded = false;
-            logger.warn("Failed to decrypt secure settings {} set through the API", names, e);
+            logger.warn(() -> Strings.format("Failed to decrypt secure settings %s set through the API", names), e);
         }
     }
 
@@ -198,6 +201,7 @@ final class SecureSettingsReloader {
         }
         Map<String, byte[]> decrypted = new HashMap<>();
         try {
+            EncryptionService encryptionService = this.encryptionService.get();
             for (Map.Entry<String, EncryptedData> entry : apiSettings.settings().entrySet()) {
                 if (entry.getValue() == null) {
                     wiped.add(entry.getKey());

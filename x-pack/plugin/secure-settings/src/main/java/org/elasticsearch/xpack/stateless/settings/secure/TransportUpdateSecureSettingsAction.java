@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -51,7 +52,6 @@ public class TransportUpdateSecureSettingsAction extends TransportMasterNodeActi
 
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
-    private final EncryptionService encryptionService;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
     @Inject
@@ -61,8 +61,7 @@ public class TransportUpdateSecureSettingsAction extends TransportMasterNodeActi
         ThreadPool threadPool,
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
-        FeatureService featureService,
-        EncryptionService encryptionService
+        FeatureService featureService
     ) {
         super(
             UpdateSecureSettingsAction.NAME,
@@ -77,7 +76,6 @@ public class TransportUpdateSecureSettingsAction extends TransportMasterNodeActi
         );
         this.projectResolver = projectResolver;
         this.featureService = featureService;
-        this.encryptionService = encryptionService;
         this.taskQueue = clusterService.createTaskQueue(
             "update-secure-settings",
             Priority.NORMAL,
@@ -166,6 +164,7 @@ public class TransportUpdateSecureSettingsAction extends TransportMasterNodeActi
      * Encrypts every value before the cluster state task is submitted. A {@code null} value stays {@code null} and removes the setting.
      */
     private Map<String, EncryptedData> encrypt(Map<String, SecureString> values) {
+        final EncryptionService encryptionService = EncryptionServiceRegistry.getEncryptionService();
         final Map<String, EncryptedData> encrypted = new HashMap<>(values.size());
         for (Map.Entry<String, SecureString> entry : values.entrySet()) {
             if (entry.getValue() == null) {

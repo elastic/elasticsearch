@@ -44,7 +44,7 @@ public class SecureSettingsPlugin extends Plugin implements ReloadAwarePlugin, S
                 nodeSettings,
                 // Settings#getSecureSettings is package-private
                 Settings.builder().put(nodeSettings, true).getSecureSettings(),
-                EncryptionServiceRegistry.getEncryptionService(),
+                EncryptionServiceRegistry::getEncryptionService,
                 services.threadPool().generic()
             );
         }

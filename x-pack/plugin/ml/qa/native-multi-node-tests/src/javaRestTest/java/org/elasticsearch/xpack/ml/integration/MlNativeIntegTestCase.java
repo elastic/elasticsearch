@@ -116,6 +116,7 @@ import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
+import org.elasticsearch.xpack.stateless.settings.secure.SecureSettingsPlugin;
 import org.elasticsearch.xpack.transform.Transform;
 import org.junit.After;
 import org.junit.ClassRule;
@@ -194,6 +195,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             EsqlPlugin.class,
             // basic multi-project functionality
             TestOnlyMultiProjectPlugin.class,
+            // Secure settings plugin needed for node features and the secure settings custom from DEFAULT distribution nodes
+            SecureSettingsPlugin.class,
             // GPU plugin needed for node features published by DEFAULT distribution nodes
             GPUPlugin.class
         );

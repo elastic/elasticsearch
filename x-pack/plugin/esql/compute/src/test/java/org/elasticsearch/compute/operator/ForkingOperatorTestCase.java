@@ -131,11 +131,9 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             "test.spill",
             new Random(randomLong())
         );
-        // the smallest group set the input makes holds five groups, over a hundred bytes of own state
-        long minSpillBytes = randomBoolean() ? 0 : between(1, 100);
         DriverContext driverContext = spillingDriverContext(
             ByteSizeValue.ofKb(between(1, 16)),
-            minSpillBytes,
+            0,
             store,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -164,6 +162,11 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     new TestDriverRunner().run(d);
                 }
             }
+            // the own-state minimum: zero, so that the freeze comes before the first partial page, or one the first
+            // page's groups reach, the smallest group set the input makes holding five groups of over a hundred bytes,
+            // which needs a second partial page for the freeze to come at all
+            long minSpillBytes = partials.size() > 1 && randomBoolean() ? between(1, 100) : 0;
+            driverContext.queryScope().setMinSpillBytes(minSpillBytes);
             List<Operator> operators = new ArrayList<>();
             if (intermediate) {
                 operators.add(simpleWithMode(AggregatorMode.INTERMEDIATE).get(driverContext));

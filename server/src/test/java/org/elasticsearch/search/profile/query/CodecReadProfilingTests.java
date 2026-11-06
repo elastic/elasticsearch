@@ -31,13 +31,16 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
@@ -76,6 +79,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -594,6 +598,223 @@ public class CodecReadProfilingTests extends ESTestCase {
         assertThat(counted.getQueryName(), equalTo(OpensItsReaderInCount.class.getSimpleName()));
         assertThat(codecReadsOf(counted).get("ColumNAR.readers.opened"), greaterThanOrEqualTo((long) segments));
         assertFalse("counting leaves no scope bound", TestCollectors.isBound());
+    }
+
+    public void testAReaderOpenedLateIsCountedOnTheNodeThatOpenedItAndNotOnItsParentOrSibling() throws IOException {
+        index(between(1, 3), between(50, 100));
+        for (LatePhase phase : LatePhase.values()) {
+            final Query query = new BooleanQuery.Builder().add(new OpensItsReaderLate(COLUMNAR, phase, false), BooleanClause.Occur.MUST)
+                .add(new TermQuery(new Term(OTHER, "bar")), BooleanClause.Occur.MUST)
+                .build();
+            final TopDocs unprofiled = searcher(null).search(query, 10);
+            final ContextIndexSearcher searcher = searcher(null);
+            final QueryProfiler profiler = new QueryProfiler(ProfileSelection.NONE);
+            searcher.setProfiler(profiler);
+            final TopDocs profiled = searcher.search(query, 10);
+
+            assertThat(phase + ": same hits", profiled.totalHits, equalTo(unprofiled.totalHits));
+            assertThat(profiled.scoreDocs.length, equalTo(unprofiled.scoreDocs.length));
+            for (int hit = 0; hit < profiled.scoreDocs.length; hit++) {
+                assertThat(profiled.scoreDocs[hit].doc, equalTo(unprofiled.scoreDocs[hit].doc));
+                assertThat(profiled.scoreDocs[hit].score, equalTo(unprofiled.scoreDocs[hit].score));
+            }
+            final ProfileResult parent = profiler.getTree().get(0);
+            assertThat(phase + ": the parent opened no reader", parent.getTotals(), equalTo(Map.of()));
+            for (ProfileResult child : parent.getProfiledChildren()) {
+                if (child.getQueryName().equals(OpensItsReaderLate.class.getSimpleName())) {
+                    assertThat(phase.name(), codecReadsOf(child).get("ColumNAR.readers.opened"), greaterThanOrEqualTo((long) segments));
+                } else {
+                    assertThat(phase + ": the sibling opened no reader", child.getTotals(), equalTo(Map.of()));
+                }
+            }
+            assertFalse(phase + ": no scope stays bound", TestCollectors.isBound());
+        }
+    }
+
+    public void testAReaderOpenedLateByAFailingCallLeavesNoScopeBound() throws IOException {
+        index(1, between(50, 100));
+        final LatePhase phase = randomFrom(LatePhase.values());
+        final Query query = new BooleanQuery.Builder().add(new OpensItsReaderLate(COLUMNAR, phase, true), BooleanClause.Occur.MUST)
+            .add(new TermQuery(new Term(OTHER, "bar")), BooleanClause.Occur.MUST)
+            .build();
+        final ContextIndexSearcher searcher = searcher(null);
+        searcher.setProfiler(new QueryProfiler(ProfileSelection.NONE));
+        expectThrows(Exception.class, () -> searcher.search(query, 10));
+        assertFalse(phase + ": no scope stays bound", TestCollectors.isBound());
+    }
+
+    private enum LatePhase {
+        COST,
+        NEXT_DOC,
+        MATCHES,
+        SCORE
+    }
+
+    private static final class OpensItsReaderLate extends Query {
+        private final String field;
+        private final LatePhase phase;
+        private final boolean fail;
+
+        OpensItsReaderLate(String field, LatePhase phase, boolean fail) {
+            this.field = field;
+            this.phase = phase;
+            this.fail = fail;
+        }
+
+        private void open(LeafReaderContext context) throws IOException {
+            context.reader().getBinaryDocValues(field);
+            if (fail) {
+                throw new IOException("failed after opening the reader in " + phase);
+            }
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+            return new Weight(this) {
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                    final int maxDoc = context.reader().maxDoc();
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) {
+                            return new OpensLate(context, maxDoc);
+                        }
+
+                        @Override
+                        public long cost() {
+                            if (phase == LatePhase.COST) {
+                                try {
+                                    open(context);
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            }
+                            return maxDoc;
+                        }
+                    };
+                }
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false;
+                }
+            };
+        }
+
+        private final class OpensLate extends Scorer {
+            private final LeafReaderContext context;
+            private final DocIdSetIterator all;
+            private final TwoPhaseIterator twoPhase;
+            private boolean opened;
+
+            OpensLate(LeafReaderContext context, int maxDoc) {
+                this.context = context;
+                this.all = DocIdSetIterator.all(maxDoc);
+                this.twoPhase = phase != LatePhase.MATCHES ? null : new TwoPhaseIterator(all) {
+                    @Override
+                    public boolean matches() throws IOException {
+                        openOnce();
+                        return true;
+                    }
+
+                    @Override
+                    public float matchCost() {
+                        return 1;
+                    }
+                };
+            }
+
+            private void openOnce() throws IOException {
+                if (opened == false) {
+                    opened = true;
+                    open(context);
+                }
+            }
+
+            @Override
+            public int docID() {
+                return all.docID();
+            }
+
+            @Override
+            public DocIdSetIterator iterator() {
+                if (twoPhase != null) {
+                    return TwoPhaseIterator.asDocIdSetIterator(twoPhase);
+                }
+                if (phase != LatePhase.NEXT_DOC) {
+                    return all;
+                }
+                return new DocIdSetIterator() {
+                    @Override
+                    public int docID() {
+                        return all.docID();
+                    }
+
+                    @Override
+                    public int nextDoc() throws IOException {
+                        openOnce();
+                        return all.nextDoc();
+                    }
+
+                    @Override
+                    public int advance(int target) throws IOException {
+                        openOnce();
+                        return all.advance(target);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return all.cost();
+                    }
+                };
+            }
+
+            @Override
+            public TwoPhaseIterator twoPhaseIterator() {
+                return twoPhase;
+            }
+
+            @Override
+            public float getMaxScore(int upTo) {
+                return 1;
+            }
+
+            @Override
+            public float score() throws IOException {
+                if (phase == LatePhase.SCORE) {
+                    openOnce();
+                }
+                return 1;
+            }
+        }
+
+        @Override
+        public String toString(String defaultField) {
+            return "opens_its_reader_late(" + field + ", " + phase + ")";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return sameClassAs(other)
+                && field.equals(((OpensItsReaderLate) other).field)
+                && phase == ((OpensItsReaderLate) other).phase
+                && fail == ((OpensItsReaderLate) other).fail;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * (31 * classHash() + field.hashCode()) + phase.hashCode() + (fail ? 1 : 0);
+        }
     }
 
     private static final class OpensItsReaderInCount extends Query {

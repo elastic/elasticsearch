@@ -30,7 +30,8 @@ import java.util.function.LongConsumer;
 /**
  * The codec reads of one weight of a profiled query node. See {@link CodecReadAttribution} for the architecture.
  *
- * <p>Each call that builds a scorer or counts for a segment has its own {@link Leaf}. A leaf creates a
+ * <p>Each call that builds a scorer or counts for a segment has its own {@link Leaf}, which the scorer it builds binds
+ * again in each of its calls. A leaf creates a
  * {@link CodecReadAttribution} only when the first codec reader opens in it, so a node that opens no reader keeps
  * nothing. A reader reports to the node whose leaf was bound when it opened, because a nested node binds its leaf
  * inside the leaf of the outer node.

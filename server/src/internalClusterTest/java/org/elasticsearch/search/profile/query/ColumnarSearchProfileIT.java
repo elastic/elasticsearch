@@ -28,10 +28,16 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -41,12 +47,14 @@ import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 
 import static org.elasticsearch.search.profile.CodecReadProfilingTestUtils.assumeCodecReadProfilingEnabled;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -64,6 +72,61 @@ public class ColumnarSearchProfileIT extends ESIntegTestCase {
     private static final String INDEX = "columnar_search_profile";
     private static final int DOCS = 2000;
     private static final int VALUE_LENGTH = 100;
+    private static final String KEYWORD_LENGTH_SCRIPT = "doc['kw'].value.length()";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(KeywordLengthScriptPlugin.class);
+    }
+
+    public static class KeywordLengthScriptPlugin extends MockScriptPlugin {
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Map.of(KEYWORD_LENGTH_SCRIPT, vars -> {
+                final Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+                return ((ScriptDocValues.Strings) doc.get("kw")).getValue().length();
+            });
+        }
+    }
+
+    public void testAScriptThatFirstReadsAColumnarKeywordWhileScoringReportsTheReadOnTheScriptScoreNode() {
+        createIndexWithUniqueKeywords();
+        final Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, KEYWORD_LENGTH_SCRIPT, Map.of());
+        final SearchRequestBuilder search = prepareSearch(INDEX).setQuery(
+            QueryBuilders.scriptScoreQuery(QueryBuilders.matchAllQuery(), script)
+        ).setSize(10);
+        final List<String> unprofiledHits = new ArrayList<>();
+        assertResponse(search, response -> {
+            assertNoFailures(response);
+            for (SearchHit hit : response.getHits().getHits()) {
+                unprofiledHits.add(hit.getId() + "=" + hit.getScore());
+            }
+        });
+        assertThat(unprofiledHits.size(), equalTo(10));
+
+        assertResponse(search.setProfile(true), response -> {
+            assertNoFailures(response);
+            final List<String> hits = new ArrayList<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                hits.add(hit.getId() + "=" + hit.getScore());
+            }
+            assertThat("profiling does not change the hits or their scores", hits, equalTo(unprofiledHits));
+            final List<ProfileResult> codecNodes = codecNodes(response.getSearchProfileShardResults());
+            if (ProfileSelection.CODEC_READ_PROFILING_FEATURE_FLAG.isEnabled() == false) {
+                assertThat(codecNodes, equalTo(List.of()));
+                return;
+            }
+            final ProfileResult scriptScore = theOnlyQueryNode(response.getSearchProfileShardResults());
+            assertThat(scriptScore.getQueryName(), equalTo("ScriptScoreQuery"));
+            // NOTE: The match_all sub-query opens no codec reader, so every count on the node comes from the script, which
+            // opens its reader on its first score call, after the scorer was built.
+            assertThat(
+                "the script's reader is counted on the script_score node",
+                flatten(scriptScore.getTotals()).get("ColumNAR.readers.opened"),
+                greaterThan(0L)
+            );
+        });
+    }
 
     public void testAProfiledQueryOverAColumnarKeywordReportsTheCodecWorkOnlyWithCodecReadProfiling() {
         createIndexWithUniqueKeywords();
@@ -371,6 +434,17 @@ public class ColumnarSearchProfileIT extends ESIntegTestCase {
                 });
             }
         });
+    }
+
+    private static ProfileResult theOnlyQueryNode(Map<String, SearchProfileShardResult> profiles) {
+        final List<ProfileResult> roots = new ArrayList<>();
+        for (SearchProfileShardResult shard : profiles.values()) {
+            for (QueryProfileShardResult search : shard.getQueryProfileResults()) {
+                roots.addAll(search.getQueryResults());
+            }
+        }
+        assertThat(roots.size(), equalTo(1));
+        return roots.get(0);
     }
 
     private Map<String, Long> columnarOfTheOnlyQueryNode(Map<String, SearchProfileShardResult> profiles) {

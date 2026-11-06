@@ -64,8 +64,9 @@ public final class ProfileWeight extends Weight {
     @Override
     public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
         final Timer timer = profile.getNewTimer(QueryTimingType.BUILD_SCORER);
-        // NOTE: A query can open its readers in scorerSupplier or in get. Both calls bind the same scope, so the readers
-        // report to this node. A nested node binds its own scope inside this one, and the innermost binding wins.
+        // NOTE: A query can open its readers in scorerSupplier, get, cost, or later in a call of its scorer. All of them bind
+        // the same scope, so the readers report to this node. A nested node binds its own scope inside this one, and the
+        // innermost binding wins.
         final CodecReadProfiling.Leaf codecScope = codecReads == null ? null : codecReads.leaf(context == null ? null : context.reader());
         timer.start();
         final ScorerSupplier subQueryScorerSupplier;
@@ -85,7 +86,7 @@ public final class ProfileWeight extends Weight {
             public Scorer get(long loadCost) throws IOException {
                 timer.start();
                 try (Releasable ignored = codecScope == null ? null : codecScope.bind()) {
-                    return new ProfileScorer(subQueryScorerSupplier.get(loadCost), profile);
+                    return new ProfileScorer(subQueryScorerSupplier.get(loadCost), profile, codecScope);
                 } finally {
                     timer.stop();
                 }
@@ -106,7 +107,7 @@ public final class ProfileWeight extends Weight {
             @Override
             public long cost() {
                 timer.start();
-                try {
+                try (Releasable ignored = codecScope == null ? null : codecScope.bind()) {
                     return subQueryScorerSupplier.cost();
                 } finally {
                     timer.stop();

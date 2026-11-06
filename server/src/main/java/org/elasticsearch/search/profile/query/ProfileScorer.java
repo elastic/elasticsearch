@@ -13,6 +13,8 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.codec.profiler.Scopes;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
@@ -20,17 +22,24 @@ import java.util.Collection;
 
 /**
  * {@link Scorer} wrapper that will compute how much time is spent on moving
- * the iterator, confirming matches and computing scores.
+ * the iterator, confirming matches and computing scores. When codec reads are profiled, each call also binds the
+ * scope of its node, so a codec reader that the query opens only while it iterates or scores reports to that node.
  */
 final class ProfileScorer extends Scorer {
 
     private final Scorer scorer;
+    @Nullable
+    private final CodecReadProfiling.Leaf codecScope;
 
     private final Timer scoreTimer, nextDocTimer, intoBitSetTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
         setMinCompetitiveScoreTimer;
 
-    ProfileScorer(Scorer scorer, QueryProfileBreakdown profile) {
+    /**
+     * @param codecScope the scope of the leaf that built this scorer, or null when codec reads are not profiled
+     */
+    ProfileScorer(Scorer scorer, QueryProfileBreakdown profile, @Nullable CodecReadProfiling.Leaf codecScope) {
         this.scorer = scorer;
+        this.codecScope = codecScope;
         scoreTimer = profile.getNewTimer(QueryTimingType.SCORE);
         nextDocTimer = profile.getNewTimer(QueryTimingType.NEXT_DOC);
         intoBitSetTimer = profile.getNewTimer(QueryTimingType.INTO_BIT_SET);
@@ -49,7 +58,7 @@ final class ProfileScorer extends Scorer {
     @Override
     public float score() throws IOException {
         scoreTimer.start();
-        try {
+        try (Scopes.Binding ignored = bindCodecScope()) {
             return scorer.score();
         } finally {
             scoreTimer.stop();
@@ -76,7 +85,7 @@ final class ProfileScorer extends Scorer {
             @Override
             public boolean matches() throws IOException {
                 matchTimer.start();
-                try {
+                try (Scopes.Binding ignored = bindCodecScope()) {
                     return in.matches();
                 } finally {
                     matchTimer.stop();
@@ -93,7 +102,7 @@ final class ProfileScorer extends Scorer {
     @Override
     public int advanceShallow(int target) throws IOException {
         shallowAdvanceTimer.start();
-        try {
+        try (Scopes.Binding ignored = bindCodecScope()) {
             return scorer.advanceShallow(target);
         } finally {
             shallowAdvanceTimer.stop();
@@ -103,7 +112,7 @@ final class ProfileScorer extends Scorer {
     @Override
     public float getMaxScore(int upTo) throws IOException {
         computeMaxScoreTimer.start();
-        try {
+        try (Scopes.Binding ignored = bindCodecScope()) {
             return scorer.getMaxScore(upTo);
         } finally {
             computeMaxScoreTimer.stop();
@@ -113,11 +122,16 @@ final class ProfileScorer extends Scorer {
     @Override
     public void setMinCompetitiveScore(float minScore) throws IOException {
         setMinCompetitiveScoreTimer.start();
-        try {
+        try (Scopes.Binding ignored = bindCodecScope()) {
             scorer.setMinCompetitiveScore(minScore);
         } finally {
             setMinCompetitiveScoreTimer.stop();
         }
+    }
+
+    @Nullable
+    private Scopes.Binding bindCodecScope() {
+        return codecScope == null ? null : Scopes.bind(codecScope);
     }
 
     private class TimedDocIdSetIterator extends DocIdSetIterator {
@@ -131,7 +145,7 @@ final class ProfileScorer extends Scorer {
         @Override
         public int advance(int target) throws IOException {
             advanceTimer.start();
-            try {
+            try (Scopes.Binding ignored = bindCodecScope()) {
                 return in.advance(target);
             } finally {
                 advanceTimer.stop();
@@ -141,7 +155,7 @@ final class ProfileScorer extends Scorer {
         @Override
         public int nextDoc() throws IOException {
             nextDocTimer.start();
-            try {
+            try (Scopes.Binding ignored = bindCodecScope()) {
                 return in.nextDoc();
             } finally {
                 nextDocTimer.stop();
@@ -151,7 +165,7 @@ final class ProfileScorer extends Scorer {
         @Override
         public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
             intoBitSetTimer.start();
-            try {
+            try (Scopes.Binding ignored = bindCodecScope()) {
                 in.intoBitSet(upTo, bitSet, offset);
             } finally {
                 intoBitSetTimer.stop();

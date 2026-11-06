@@ -178,7 +178,7 @@ public class ProfileScorerTests extends ESTestCase {
     public void testPropagateMinCompetitiveScore() throws IOException {
         FakeScorer fakeScorer = new FakeScorer();
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
-        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile, null);
         profileScorer.setMinCompetitiveScore(0.42f);
         assertEquals(0.42f, fakeScorer.minCompetitiveScore, 0f);
     }
@@ -186,7 +186,7 @@ public class ProfileScorerTests extends ESTestCase {
     public void testPropagateMaxScore() throws IOException {
         FakeScorer fakeScorer = new FakeScorer();
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
-        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile, null);
         profileScorer.setMinCompetitiveScore(0.42f);
         fakeScorer.maxScore = 42f;
         assertEquals(42f, profileScorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS), 0f);
@@ -212,7 +212,7 @@ public class ProfileScorerTests extends ESTestCase {
             public DocIdSetIterator iterator() {
                 return allDocs;
             }
-        }, profile);
+        }, profile, null);
 
         FixedBitSet bitSet = new FixedBitSet(maxDoc);
         DocIdSetIterator it = profileScorer.iterator();

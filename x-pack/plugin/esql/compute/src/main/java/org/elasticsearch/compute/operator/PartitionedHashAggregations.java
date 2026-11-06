@@ -134,13 +134,15 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
     }
 
     /**
-     * Combines one partition from every generation
+     * Combines one partition from every generation, one generation at a time: its keys, then every aggregator's state
+     * for them, with one id mapping sized to the largest generation of the partition rather than one per generation.
+     * Whether an aggregator must track the groups it has seen is decided before any state is combined, from the
+     * all-values flags the generations recorded when they were split.
      */
     final class Combiner implements Releasable {
         private final HashAggregationOperator op;
         private final CircuitBreaker breaker;
-        private int[][] allGenIds = null;
-        private boolean[] appendOnly;
+        private int[] ids = null;
 
         Combiner(HashAggregationOperator op) {
             this.op = op;
@@ -151,70 +153,80 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
             final int numGens = generations.size();
             op.clearCurrentBatch();
             PartitionedBlockHash blockHash = (PartitionedBlockHash) op.blockHash;
-            if (allGenIds == null) {
-                allGenIds = new int[numGens][];
+            List<GroupingAggregator> aggregators = op.aggregators;
+            // If some group in any generation is missing a value we need to track groupIds
+            for (int i = 0; i < aggregators.size(); i++) {
+                for (int g = 0; g < numGens; g++) {
+                    if (generations.get(g).hasAllValues(i, p) == false) {
+                        aggregators.get(i).aggregatorFunction().selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
+                        break;
+                    }
+                }
             }
-            if (appendOnly == null) {
-                appendOnly = new boolean[numGens];
-            }
-            // Combine keys from every generation first, then combine each aggregation across all generations.
-            // This keeps accesses to the hash table and aggregation state cache-friendly.
             for (int g = 0; g < numGens; g++) {
                 PartitionedKeyAndAggs partitioned = generations.get(g);
                 var partitionedKeys = partitioned.keys;
                 int numKeys = partitionedKeys.keysInPartition(p);
-                ensureGenIds(g, numKeys);
-                appendOnly[g] = blockHash.combinePartition(partitionedKeys, p, allGenIds[g]);
+                ensureIds(numKeys);
+                boolean appendOnly = blockHash.combinePartition(partitionedKeys, p, ids);
                 op.rowsAddedInCurrentBatch += numKeys;
                 partitionedKeys.releasePartition(breaker, p);
-            }
-            // now combine aggregations
-            List<GroupingAggregator> aggregators = op.aggregators;
-            for (int i = 0; i < aggregators.size(); i++) {
-                final var aggregator = aggregators.get(i).aggregatorFunction();
-                // If some group in any generation is missing a value we need to track groupIds
-                for (int g = 0; g < numGens; g++) {
-                    if (generations.get(g).aggs.states[i].hasAllValues(p) == false) {
-                        aggregator.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
-                        break;
-                    }
-                }
-                aggregator.maybeEnsureCapacity(blockHash.numKeys() + 1);
-                for (int g = 0; g < numGens; g++) {
-                    PartitionedKeyAndAggs keysAndAggs = generations.get(g);
-                    GroupingAggregatorFunction.PartitionedState agg = keysAndAggs.aggs.states[i];
-                    aggregator.combinePartition(agg, p, appendOnly[g], allGenIds[g], keysAndAggs.keys.keysInPartition(p));
+                for (int i = 0; i < aggregators.size(); i++) {
+                    final var aggregator = aggregators.get(i).aggregatorFunction();
+                    GroupingAggregatorFunction.PartitionedState agg = partitioned.aggs.states[i];
+                    aggregator.maybeEnsureCapacity(blockHash.numKeys() + 1);
+                    aggregator.combinePartition(agg, p, appendOnly, ids, numKeys);
                     agg.releasePartition(breaker, p);
                 }
             }
             return true;
         }
 
-        private void ensureGenIds(int g, int numKeys) {
-            int[] genIds = allGenIds[g];
-            final int oldLength = genIds == null ? 0 : genIds.length;
-            if (genIds == null || oldLength < numKeys) {
+        private void ensureIds(int numKeys) {
+            final int oldLength = ids == null ? 0 : ids.length;
+            if (ids == null || oldLength < numKeys) {
                 final int newLength = ArrayUtil.oversize(numKeys, Integer.BYTES);
                 breaker.addEstimateBytesAndMaybeBreak((long) (newLength - oldLength) * Integer.BYTES, "PartitionedHashAggregations");
-                allGenIds[g] = new int[newLength];
+                ids = new int[newLength];
             }
         }
 
         @Override
         public void close() {
-            if (allGenIds != null) {
-                long bytes = 0;
-                for (int[] genIds : allGenIds) {
-                    if (genIds != null) {
-                        bytes += (long) genIds.length * Integer.BYTES;
-                    }
-                }
-                breaker.addWithoutBreaking(-bytes, "PartitionedHashAggregations");
+            if (ids != null) {
+                breaker.addWithoutBreaking(-(long) ids.length * Integer.BYTES, "PartitionedHashAggregations");
+                ids = null;
             }
         }
     }
 
-    private record PartitionedKeyAndAggs(PartitionedHashTable.PartitionedHashKeys keys, MultiAggsPartitionedState aggs) {
+    /**
+     * One generation: its keys and states, with the all-values flag of every state for every partition read once, when
+     * the generation is admitted, so that a combine decides on group tracking without touching the states.
+     */
+    private record PartitionedKeyAndAggs(
+        PartitionedHashTable.PartitionedHashKeys keys,
+        MultiAggsPartitionedState aggs,
+        boolean[][] allValues
+    ) {
+        PartitionedKeyAndAggs(PartitionedHashTable.PartitionedHashKeys keys, MultiAggsPartitionedState aggs) {
+            this(keys, aggs, allValuesOf(aggs.states));
+        }
+
+        boolean hasAllValues(int aggregator, int partition) {
+            return allValues[aggregator][partition];
+        }
+
+        static boolean[][] allValuesOf(GroupingAggregatorFunction.PartitionedState[] states) {
+            boolean[][] allValues = new boolean[states.length][PartitionedHashTable.NUM_PARTITIONS];
+            for (int i = 0; i < states.length; i++) {
+                for (int p = 0; p < PartitionedHashTable.NUM_PARTITIONS; p++) {
+                    allValues[i][p] = states[i].hasAllValues(p);
+                }
+            }
+            return allValues;
+        }
+
         void releaseAll(CircuitBreaker breaker) {
             keys.releaseAll(breaker);
             aggs.releaseAll(breaker);

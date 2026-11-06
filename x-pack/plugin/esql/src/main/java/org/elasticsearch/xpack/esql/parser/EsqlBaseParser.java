@@ -48,7 +48,7 @@ public class EsqlBaseParser extends ParserConfig {
     OPENING_BRACKET=112, CLOSING_BRACKET=113, LP=114, RP=115, UNQUOTED_IDENTIFIER=116, 
     QUOTED_IDENTIFIER=117, EXPR_LINE_COMMENT=118, EXPR_MULTILINE_COMMENT=119, 
     EXPR_WS=120, DEFAULT=121, FILLNULL_LINE_COMMENT=122, FILLNULL_MULTILINE_COMMENT=123, 
-    FILLNULL_WS=124, METADATA=125, UNQUOTED_SOURCE=126, TABLE_FUNCTION_NAME=127, 
+    FILLNULL_WS=124, METADATA=125, UNQUOTED_SOURCE=126, DEV_TABLE_FUNCTION_NAME=127, 
     FROM_LINE_COMMENT=128, FROM_MULTILINE_COMMENT=129, FROM_WS=130, FORK_WS=131, 
     FORK_LINE_COMMENT=132, FORK_MULTILINE_COMMENT=133, LET_LINE_COMMENT=134, 
     LET_MULTILINE_COMMENT=135, LET_WS=136, GROUP=137, SCORE=138, KEY=139, 
@@ -196,7 +196,7 @@ public class EsqlBaseParser extends ParserConfig {
       "LP", "RP", "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", 
       "EXPR_MULTILINE_COMMENT", "EXPR_WS", "DEFAULT", "FILLNULL_LINE_COMMENT", 
       "FILLNULL_MULTILINE_COMMENT", "FILLNULL_WS", "METADATA", "UNQUOTED_SOURCE", 
-      "TABLE_FUNCTION_NAME", "FROM_LINE_COMMENT", "FROM_MULTILINE_COMMENT", 
+      "DEV_TABLE_FUNCTION_NAME", "FROM_LINE_COMMENT", "FROM_MULTILINE_COMMENT", 
       "FROM_WS", "FORK_WS", "FORK_LINE_COMMENT", "FORK_MULTILINE_COMMENT", 
       "LET_LINE_COMMENT", "LET_MULTILINE_COMMENT", "LET_WS", "GROUP", "SCORE", 
       "KEY", "FUSE_LINE_COMMENT", "FUSE_MULTILINE_COMMENT", "FUSE_WS", "INLINE_STATS", 
@@ -1639,7 +1639,7 @@ public class EsqlBaseParser extends ParserConfig {
     public Token name;
     public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
     public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
-    public TerminalNode TABLE_FUNCTION_NAME() { return getToken(EsqlBaseParser.TABLE_FUNCTION_NAME, 0); }
+    public TerminalNode DEV_TABLE_FUNCTION_NAME() { return getToken(EsqlBaseParser.DEV_TABLE_FUNCTION_NAME, 0); }
     public List<TableFunctionArgumentContext> tableFunctionArgument() {
       return getRuleContexts(TableFunctionArgumentContext.class);
     }
@@ -1684,13 +1684,13 @@ public class EsqlBaseParser extends ParserConfig {
       setState(388);
       if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
       setState(389);
-      ((TableFunctionContext)_localctx).name = match(TABLE_FUNCTION_NAME);
+      ((TableFunctionContext)_localctx).name = match(DEV_TABLE_FUNCTION_NAME);
       setState(390);
       match(LP);
       setState(403);
       _errHandler.sync(this);
       _la = _input.LA(1);
-      if (((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & 3439272388460545L) != 0)) {
+      if (((((_la - 66)) & ~0x3f) == 0 && ((1L << (_la - 66)) & 3377699720527873L) != 0)) {
         {
         setState(391);
         tableFunctionArgument();
@@ -1744,8 +1744,8 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class TableFunctionArgumentContext extends ParserRuleContext {
-    public IdentifierOrParameterContext identifierOrParameter() {
-      return getRuleContext(IdentifierOrParameterContext.class,0);
+    public IdentifierContext identifier() {
+      return getRuleContext(IdentifierContext.class,0);
     }
     public StringContext string() {
       return getRuleContext(StringContext.class,0);
@@ -1777,16 +1777,12 @@ public class EsqlBaseParser extends ParserConfig {
       setState(409);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
-      case PARAM:
-      case DOUBLE_PARAMS:
-      case NAMED_OR_POSITIONAL_PARAM:
-      case NAMED_OR_POSITIONAL_DOUBLE_PARAMS:
       case UNQUOTED_IDENTIFIER:
       case QUOTED_IDENTIFIER:
         enterOuterAlt(_localctx, 1);
         {
         setState(407);
-        identifierOrParameter();
+        identifier();
         }
         break;
       case QUOTED_STRING:
@@ -11763,7 +11759,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u0000\u0192\u0194\u0001\u0000\u0000\u0000\u0193\u0187\u0001\u0000"+
     "\u0000\u0000\u0193\u0194\u0001\u0000\u0000\u0000\u0194\u0195\u0001\u0000"+
     "\u0000\u0000\u0195\u0196\u0005s\u0000\u0000\u0196\u001f\u0001\u0000\u0000"+
-    "\u0000\u0197\u019a\u0003N\'\u0000\u0198\u019a\u0003\u00e2q\u0000\u0199"+
+    "\u0000\u0197\u019a\u0003D\"\u0000\u0198\u019a\u0003\u00e2q\u0000\u0199"+
     "\u0197\u0001\u0000\u0000\u0000\u0199\u0198\u0001\u0000\u0000\u0000\u019a"+
     "!\u0001\u0000\u0000\u0000\u019b\u019c\u0005r\u0000\u0000\u019c\u01a1\u0003"+
     "$\u0012\u0000\u019d\u019e\u0005A\u0000\u0000\u019e\u01a0\u0003\b\u0004"+

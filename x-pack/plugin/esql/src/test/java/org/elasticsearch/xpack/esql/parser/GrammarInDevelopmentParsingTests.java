@@ -34,6 +34,23 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = invoke(a, x -> x)"));
     }
 
+    public void testDevelopmentTableFunction() throws Exception {
+        // the tableFunction parser rule is predicate-guarded, so the call does not parse in production
+        ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery("from dataset(a, {\"resource\": \"x\"})"));
+        assertThat(pe.getMessage(), not(containsString("DEV_")));
+    }
+
+    /**
+     * The token is only reachable behind that predicate, but the expected-token set a syntax error prints is
+     * computed from the ATN, which ignores predicates — so the token's name would reach a production user's
+     * error message if it were not DEV_-prefixed for the error listener to strip.
+     */
+    public void testTableFunctionTokenIsNotNamedInProductionErrors() throws Exception {
+        ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery("from ::::data"));
+        assertThat(pe.getMessage(), containsString("expecting {QUOTED_STRING, '(', UNQUOTED_SOURCE}"));
+        assertThat(pe.getMessage(), not(containsString("DEV_")));
+    }
+
     void parse(String query, String errorMessage) {
         ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery(query));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));

@@ -124,6 +124,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -436,11 +437,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             });
         }
-        // Resolved and shape-checked here, before any of the source list is turned into a plan, so a call
-        // that cannot stand fails as a parse error at the call rather than somewhere downstream. No leaf is
-        // built from one yet, so a well-formed call is refused by the function itself.
+        // Resolved and shape-checked before any of the source list becomes a plan, so a call that cannot
+        // stand fails as a parse error at the call rather than somewhere downstream. Then refused: no leaf
+        // is built from a table function yet, and a leaf carrying no dataset name reads as unnamed to the
+        // per-node authorizer, which lets an unnamed external source through unauthorized on a snapshot
+        // build. Validating and then refusing keeps the diagnostics honest without emitting such a leaf.
         for (EsqlBaseParser.TableFunctionContext tableFunctionCtx : tableFunctionsCtx) {
-            visitTableFunction(tableFunctionCtx);
+            TableFunctionCall call = tableFunctionCall(tableFunctionCtx);
+            throw new ParsingException(call.source(), "[{}] is not supported yet", call.name());
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
@@ -492,15 +496,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     /**
-     * Resolves one {@code NAME(...)} in a source list to the relation it stands for.
+     * Reads one {@code NAME(...)} from a source list into a {@link TableFunctionCall}, validated by the
+     * function it names.
      * <p>
      * The name is resolved against {@link TableFunctionRegistry} here rather than during analysis, so an
      * unknown one reads as a parse error listing the functions that exist instead of surviving to index
-     * resolution and reading as a missing index. The function itself then checks the shape of the call,
-     * because what a call may look like is only meaningful against the function it calls.
+     * resolution and reading as a missing index.
      */
-    @Override
-    public LogicalPlan visitTableFunction(EsqlBaseParser.TableFunctionContext ctx) {
+    private TableFunctionCall tableFunctionCall(EsqlBaseParser.TableFunctionContext ctx) {
         Source source = source(ctx);
         String name = ctx.name.getText();
         TableFunction function = TableFunctionRegistry.INSTANCE.resolve(source, name);
@@ -513,24 +516,45 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Map<String, Object> payload = ctx.mapExpression() == null
             ? null
             : foldTableFunctionPayload(name, visitMapExpression(ctx.mapExpression()), "");
-        return function.toRelation(new TableFunctionCall(source, name, arguments, payload));
+        TableFunctionCall call = new TableFunctionCall(source, name, arguments, payload);
+        function.validate(call);
+        return call;
     }
 
-    /** The name one positional argument denotes: an identifier, a quoted string, or a parameter standing for either. */
+    /** The name one positional argument denotes: a bare or backquoted identifier, or a quoted string. */
     private String tableFunctionArgument(EsqlBaseParser.TableFunctionArgumentContext ctx) {
-        if (ctx.identifierOrParameter() != null) {
-            return visitIdentifierOrParameter(ctx.identifierOrParameter());
+        if (ctx.identifier() != null) {
+            return visitIdentifier(ctx.identifier());
         }
         return BytesRefs.toString(visitString(ctx.string()).value());
     }
 
     /**
+     * The value types a payload may carry. A payload is meant to be the JSON a dataset registration
+     * carries, so it is confined to what an XContent parse of that JSON could have produced. ES|QL's
+     * {@code constant} rule is wider than that: {@code 1 day} yields a {@link java.time.Period}, and an
+     * integer past {@link Long#MAX_VALUE} is held as {@code UNSIGNED_LONG}, whose stored {@code long} is a
+     * biased representation rather than the number written. Normalizing either would be inventing a value;
+     * the list is a whitelist so that anything outside it is refused, and so that whatever validates a
+     * payload later can rely on the set rather than re-deriving it.
+     */
+    private static final Set<DataType> TABLE_FUNCTION_PAYLOAD_TYPES = Set.of(
+        DataType.KEYWORD,
+        DataType.TEXT,
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.DOUBLE,
+        DataType.BOOLEAN
+    );
+
+    /**
      * Folds a table function's payload to the plain nested map its function validates.
      * <p>
-     * A value is a constant or another payload, nothing else: a dataset definition nests, and it is read
-     * while the plan is built, so there is nothing an expression in it could be evaluated against.
-     * {@link BytesRef} normalizes to {@link String}, inside a list as well as at top level, so the folded
-     * map has the shape the dataset API's own parser produces.
+     * A value is a constant of one of {@link #TABLE_FUNCTION_PAYLOAD_TYPES} or another payload, and
+     * nothing else: a dataset definition nests, and it is read while the plan is built, so there is
+     * nothing an expression in it could be evaluated against. {@link BytesRef} normalizes to
+     * {@link String}, inside a list as well as at top level, so the folded map has the shape an XContent
+     * parse of the same JSON would produce. Every level is unmodifiable, including the nested ones.
      *
      * @param path the dotted keys already descended through, so a diagnostic deep in a nested payload names
      *             the key the user has to find rather than only its last segment
@@ -540,37 +564,54 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (EntryExpression entry : payload.entryExpressions()) {
             // visitMapExpression built every key as a keyword Literal out of the QUOTED_STRING the grammar
             // demanded, so anything else here is a broken invariant rather than something a query can write.
-            if (entry.key() instanceof Literal keyLiteral) {
-                String key = BytesRefs.toString(keyLiteral.value());
-                Object value = foldTableFunctionPayloadValue(functionName, path + key, entry.value());
-                if (folded.put(key, value) != null) {
-                    // visitMapExpression refuses a repeated key only when the FIRST occurrence had a scalar
-                    // value -- it never records a key whose value was a nested payload -- so
-                    // {"a": {..}, "a": {..}} arrives here with both entries, and is refused here rather than
-                    // silently keeping the last one.
-                    throw new ParsingException(entry.key().source(), "[{}] definition sets [{}] more than once", functionName, path + key);
-                }
-            } else {
+            if ((entry.key() instanceof Literal) == false) {
                 throw new IllegalStateException("payload key is not a literal: " + entry.key());
             }
+            Literal keyLiteral = (Literal) entry.key();
+            String key = BytesRefs.toString(keyLiteral.value());
+            // A parameter the request never bound. Skipped rather than reported, because its "Unknown query
+            // parameter" error is already recorded and is the one the user needs; reporting it here as a null
+            // value would preempt that with the wrong cause. Same guard, same reason, as visitFillNullCommand.
+            if (entry.value() == MISSING_PARAMETER) {
+                continue;
+            }
+            // Diagnostics are raised against the KEY's source: a value that came from a parameter carries
+            // Source.EMPTY, which would report line -1:-1 and point the user at nothing.
+            Object value = foldTableFunctionPayloadValue(functionName, path + key, keyLiteral.source(), entry.value());
+            if (folded.put(key, value) != null) {
+                // visitMapExpression refuses a repeated key only when the FIRST occurrence had a scalar
+                // value -- it never records a key whose value was a nested payload -- so
+                // {"a": {..}, "a": {..}} arrives here with both entries, and is refused here rather than
+                // silently keeping the last one.
+                throw new ParsingException(keyLiteral.source(), "[{}] definition sets [{}] more than once", functionName, path + key);
+            }
         }
-        return folded;
+        return Collections.unmodifiableMap(folded);
     }
 
-    private static Object foldTableFunctionPayloadValue(String functionName, String path, Expression value) {
+    private static Object foldTableFunctionPayloadValue(String functionName, String path, Source keySource, Expression value) {
         if (value instanceof MapExpression nested) {
             return foldTableFunctionPayload(functionName, nested, path + ".");
         }
-        // visitMapExpression admits a nested payload or a constant and refuses everything else, so a Literal is
-        // all that is left -- but its value may still be null, which only this fold is placed to reject.
-        if (value instanceof Literal literal) {
-            Object literalValue = literal.value();
-            if (literalValue == null) {
-                throw new ParsingException(value.source(), "[{}] definition sets [{}] to null", functionName, path);
-            }
-            return normalizeBytesRefs(literalValue);
+        // visitMapExpression admits a nested payload or a constant and refuses everything else, so a Literal
+        // is all that is left here.
+        if ((value instanceof Literal) == false) {
+            throw new IllegalStateException("payload value is neither a nested payload nor a constant: " + value);
         }
-        throw new IllegalStateException("payload value is neither a nested payload nor a constant: " + value);
+        Literal literal = (Literal) value;
+        if (literal.value() == null) {
+            throw new ParsingException(keySource, "[{}] definition sets [{}] to null", functionName, path);
+        }
+        if (TABLE_FUNCTION_PAYLOAD_TYPES.contains(literal.dataType()) == false) {
+            throw new ParsingException(
+                keySource,
+                "[{}] definition cannot set [{}] to a value of type [{}]",
+                functionName,
+                path,
+                literal.dataType().typeName()
+            );
+        }
+        return normalizeBytesRefs(literal.value());
     }
 
     /** {@link BytesRef} to {@link String}, through a list, leaving every other value as it was. */
@@ -583,7 +624,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             for (Object element : list) {
                 normalized.add(element == null ? null : normalizeBytesRefs(element));
             }
-            return normalized;
+            return Collections.unmodifiableList(normalized);
         }
         return value;
     }

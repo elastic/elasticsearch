@@ -15,6 +15,7 @@ import org.junit.Before;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Table functions in a {@code FROM} source list.
@@ -41,6 +42,66 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     public void testNameIsCaseInsensitive() {
         expectError("from dataset(my_source, {\"resource\": \"x\"})", "[dataset] is not supported yet");
         expectError("FROM DaTaSeT(my_source, {\"resource\": \"x\"})", "[DaTaSeT] is not supported yet");
+    }
+
+    /**
+     * A value parameter cannot name anything, and an unbound identifier parameter would be read as a data
+     * source literally called "null" with no error recorded, so the grammar admits neither.
+     */
+    public void testParameterIsNotADataSourceName() {
+        expectError("FROM DATASET(?p, {\"resource\": \"x\"})", "mismatched input '?p'");
+        expectError("FROM DATASET(??p, {\"resource\": \"x\"})", "mismatched input '??p'");
+    }
+
+    /**
+     * An unbound parameter in a payload must not be read as a user-written null: the two are the same
+     * {@code Literal} but for the MISSING_PARAMETER sentinel, and only the parser's own recorded "Unknown
+     * query parameter" error names the real cause. That error is drained at the end of plan building, so
+     * while every well-formed call is still refused it is the refusal that surfaces; what this pins is that
+     * the misleading cause does not.
+     */
+    public void testUnboundParameterInPayloadIsNotReadAsNull() {
+        ParsingException e = expectThrows(ParsingException.class, () -> query("FROM DATASET(my_source, {\"resource\": ?p})"));
+        assertThat(e.getMessage(), not(containsString("to null")));
+    }
+
+    /**
+     * The payload stands for the JSON a dataset registration carries, so a constant ES|QL admits but JSON
+     * cannot express is refused rather than converted. An unsigned long is the sharpest case: its stored
+     * long is a biased representation, so passing it through would hand on a different number.
+     */
+    public void testPayloadValueTypesOutsideJson() {
+        expectError("FROM DATASET(my_source, {\"x\": 1 day})", "[DATASET] definition cannot set [x] to a value of type [date_period]");
+        expectError("FROM DATASET(my_source, {\"x\": 3 hours})", "[DATASET] definition cannot set [x] to a value of type [time_duration]");
+        expectError(
+            "FROM DATASET(my_source, {\"x\": 18446744073709551615})",
+            "[DATASET] definition cannot set [x] to a value of type [unsigned_long]"
+        );
+        expectError(
+            "FROM DATASET(my_source, {\"spec\": {\"x\": 1 day}})",
+            "[DATASET] definition cannot set [spec.x] to a value of type [date_period]"
+        );
+    }
+
+    public void testPayloadValueTypesInsideJson() {
+        expectError("FROM DATASET(my_source, {\"s\": \"x\", \"i\": 1, \"d\": 2.5, \"b\": true})", NOT_SUPPORTED);
+        expectError("FROM DATASET(my_source, {\"l\": 9223372036854775807})", NOT_SUPPORTED);
+    }
+
+    /** A payload diagnostic points at the key, since a value may carry no position of its own. */
+    public void testPayloadDiagnosticCarriesAPosition() {
+        ParsingException e = expectThrows(ParsingException.class, () -> query("FROM DATASET(my_source, {\"resource\": null})"));
+        assertThat(e.getMessage(), startsWith("line 1:26:"));
+    }
+
+    /**
+     * The lookahead fires only when '(' is the very next character, so a space makes the name an index
+     * pattern. Pinned rather than fixed: in a source list a space before '(' is far more often a comma
+     * missing before a subquery than it is a call, and widening the lookahead over whitespace would take
+     * `FROM foo (FROM bar)` for a call to a function named foo.
+     */
+    public void testSpaceBeforeTheParenthesisIsNotACall() {
+        expectError("FROM DATASET (my_source, {\"resource\": \"x\"})", "mismatched input '('");
     }
 
     public void testQuotedAndBackquotedDataSourceName() {

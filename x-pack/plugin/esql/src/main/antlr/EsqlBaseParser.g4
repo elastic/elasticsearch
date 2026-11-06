@@ -138,11 +138,15 @@ indexPatternOrSubquery
 // argument is a name, never an expression: a source list is read before anything is in scope for an
 // expression to refer to.
 tableFunction
-    : {this.isDevVersion()}? name=TABLE_FUNCTION_NAME LP (tableFunctionArgument (COMMA tableFunctionArgument)* (COMMA mapExpression)?)? RP
+    : {this.isDevVersion()}? name=DEV_TABLE_FUNCTION_NAME LP (tableFunctionArgument (COMMA tableFunctionArgument)* (COMMA mapExpression)?)? RP
     ;
 
+// No parameter here, deliberately. A value parameter cannot name anything -- unresolvedAttributeNameInParam
+// refuses a Literal -- and an UNBOUND identifier parameter (??p) is worse than refused: ExpressionBuilder
+// returns an UnresolvedAttribute whose name is the string "null" and records no error, so the call would
+// quietly name a data source "null". Admitting parameters here means fixing that path first.
 tableFunctionArgument
-    : identifierOrParameter
+    : identifier
     | string
     ;
 

@@ -13,14 +13,14 @@ import java.util.Objects;
 /**
  * One positional argument of a table-function call.
  * <p>
- * Always a name: written bare ({@code my_source}), quoted ({@code "my source"}) or supplied as a query
- * parameter, which the grammar's {@code tableFunctionArgument} spells out and this type follows rather
- * than widening to {@code Expression} for a caller that does not exist. A table function stands where a
- * source pattern stands, and nothing is in scope there for an expression to refer to. A function that
- * one day needs a number takes it in its payload, or the grammar rule changes and so does this.
+ * Always a name, written bare ({@code my_source}) or quoted ({@code "my source"}) — which is what the
+ * grammar's {@code tableFunctionArgument} admits, and what this type follows rather than widening to
+ * {@code Expression} for a caller that does not exist. A table function stands where a source pattern
+ * stands, and nothing is in scope there for an expression to refer to. A function that one day needs a
+ * number takes it in its payload, or the grammar rule changes and so does this.
  *
  * @param source where the argument was written, for the diagnostic a function raises about it
- * @param value the name, with any quoting removed and any parameter already substituted
+ * @param value the name, with any quoting removed
  */
 public record TableFunctionArgument(Source source, String value) {
 

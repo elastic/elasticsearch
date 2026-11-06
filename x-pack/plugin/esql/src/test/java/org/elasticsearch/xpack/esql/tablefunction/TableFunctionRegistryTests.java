@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.tablefunction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
@@ -18,11 +17,11 @@ import static org.hamcrest.Matchers.containsString;
 
 public class TableFunctionRegistryTests extends ESTestCase {
 
-    /** A function that is only a name: the registry never calls through to one. */
+    /** A function that is only a name: the registry resolves one, it never calls through to it. */
     private record NamedOnly(String name) implements TableFunction {
         @Override
-        public LogicalPlan toRelation(TableFunctionCall call) {
-            throw new AssertionError("the registry must not build a relation");
+        public void validate(TableFunctionCall call) {
+            throw new AssertionError("the registry must not validate a call");
         }
     }
 

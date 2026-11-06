@@ -821,7 +821,7 @@ public abstract class DocumentParserContext {
     public boolean addDynamicMapper(Mapper.Builder builder, String fullPath) {
         // eagerly check object depth limit here to avoid stack overflow errors
         if (builder instanceof ObjectMapper.Builder) {
-            mappingParserContext.checkObjectDepthLimit(fullPath);
+            parseFieldLimits.checkObjectDepth(fullPath);
         }
 
         // eagerly check field name limit here to avoid OOM errors

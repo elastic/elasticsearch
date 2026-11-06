@@ -114,6 +114,26 @@ public class ParseFieldLimits {
         return new ParseFieldLimits(mappingDepthLimit, fieldNameLengthLimit, nestedFieldsLimit, NewFieldsBudget.unlimited(), 0);
     }
 
+    /**
+     * Checks that adding a dynamic object at {@code fullPath} would not exceed the object depth limit.
+     * Depth is computed by counting dots in the path (each dot represents one nesting level).
+     * Called eagerly during document parsing to avoid stack-overflow errors from deeply nested objects.
+     */
+    void checkObjectDepth(String fullPath) {
+        int numDots = 0;
+        for (int i = 0; i < fullPath.length(); i++) {
+            if (fullPath.charAt(i) == '.') {
+                numDots++;
+            }
+        }
+        int depth = numDots + 2;
+        if (depth > mappingDepthLimit) {
+            throw new MapperParsingException(
+                "Limit of mapping depth [" + mappingDepthLimit + "] has been exceeded due to object field [" + fullPath + "]"
+            );
+        }
+    }
+
     long mappingDepthLimit() {
         return mappingDepthLimit;
     }

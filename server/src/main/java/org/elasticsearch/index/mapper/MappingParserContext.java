@@ -47,7 +47,7 @@ public class MappingParserContext {
     private final IndexSettings indexSettings;
     private final Function<Query, BitSetProducer> bitSetProducer;
     // Start at 1 to account for the root object, so the limit semantics match the post-build
-    // checkObjectDepthLimit formula (path depth = dots + 2, where root = 1).
+    // ParseFieldLimits#checkObjectDepth formula (path depth = dots + 2, where root = 1).
     private long mappingObjectDepth = 1;
     private final List<VectorsFormatProvider> vectorsFormatProviders;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
@@ -253,27 +253,6 @@ public class MappingParserContext {
 
     void decrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth--;
-    }
-
-    /**
-     * Checks that adding a dynamic object at {@code fullPath} would not exceed the object depth limit.
-     * Depth is computed by counting dots in the path (each dot represents one nesting level).
-     * Called eagerly during document parsing to avoid stack-overflow errors from deeply nested objects.
-     */
-    public void checkObjectDepthLimit(String fullPath) {
-        int numDots = 0;
-        for (int i = 0; i < fullPath.length(); i++) {
-            if (fullPath.charAt(i) == '.') {
-                numDots++;
-            }
-        }
-        int depth = numDots + 2;
-        long depthLimit = indexSettings.getMappingDepthLimit();
-        if (depth > depthLimit) {
-            throw new MapperParsingException(
-                "Limit of mapping depth [" + depthLimit + "] has been exceeded due to object field [" + fullPath + "]"
-            );
-        }
     }
 
     /**

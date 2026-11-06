@@ -26,10 +26,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 
-/**
- * Get Field Mappings reads the stored mapping source back into builders and serializes the matching ones, so what it returns is pinned
- * here against the paths the mapping declares and the exact source each field is written as.
- */
 public class GetFieldMappingsFromBuildersTests extends MapperServiceTestCase {
 
     private static final String[][] REQUESTS = {

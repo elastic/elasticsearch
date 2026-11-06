@@ -3120,7 +3120,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      */
     public void testTimeSeriesRelationKeepsDimensionsExcludedByWithout() {
         FieldAttribute cost = metricField("network.cost", DataType.DOUBLE);
-        TimeSeriesMetadataAttribute timeseries = new TimeSeriesMetadataAttribute(EMPTY, Set.of("pod"));
+        TimeSeriesMetadataAttribute timeseries = TimeSeriesMetadataAttribute.create(EMPTY, Set.of("pod"));
         EsRelation relation = timeSeriesRelation(
             List.of(timestampField(), dimensionField("cluster"), dimensionField("pod"), cost, timeseries)
         );

@@ -114,6 +114,13 @@ public class RegexExpandTests extends ESTestCase {
         assertThat(replace("\\d+", "$0", "abc123"), nullValue());
     }
 
+    public void testClassicInstanceHostPortCapture() {
+        // Prometheus cookbook: label_replace(up, "dst", "$1", "instance", "(.*):.*")
+        assertThat(replace("(.*):.*", "$1", "localhost:9100"), equalTo("localhost"));
+        assertThat(replace("(.*):.*", "$1", "a:b:9100"), equalTo("a:b"));
+        assertThat(replace("(.*):.*", "$1", "nocolon"), nullValue());
+    }
+
     public void testNoMatchIsNoOp() {
         assertThat(replace("\\d+", "$0", "abc"), nullValue());
     }

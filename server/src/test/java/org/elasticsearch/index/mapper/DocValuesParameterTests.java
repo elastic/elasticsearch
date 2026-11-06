@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -589,7 +588,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                 // serialized at top level, not nested in doc_values
                 String quote = original instanceof String ? "\"" : "";
                 assertThat(
-                    Strings.toString(mapperService.documentMapper().mapping()),
+                    mapperService.documentMapper().mappingSource().string(),
                     containsString("\"" + name + "\":" + quote + original + quote)
                 );
                 // re-sending the same value is a no-op
@@ -1240,8 +1239,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         KeywordFieldMapper tm = (KeywordFieldMapper) topLevel.documentMapper().mappers().getMapper("field");
         assertThat(nm.docValuesParameters(), equalTo(tm.docValuesParameters()));
         // both serialize to top-level on a new index
-        assertThat(Strings.toString(nested.documentMapper().mapping()), containsString("\"multi_value\":false"));
-        assertThat(Strings.toString(nested.documentMapper().mapping()), not(containsString("\"doc_values\":{")));
+        assertThat(nested.documentMapper().mappingSource().string(), containsString("\"multi_value\":false"));
+        assertThat(nested.documentMapper().mappingSource().string(), not(containsString("\"doc_values\":{")));
         assertWarnings(NESTED_ATTRIBUTES_DEPRECATION);
     }
 

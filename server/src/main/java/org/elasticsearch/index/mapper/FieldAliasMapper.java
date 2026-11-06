@@ -63,11 +63,6 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject(leafName()).field("type", CONTENT_TYPE).field(Names.PATH, targetPath).endObject();
-    }
-
-    @Override
     public void validate(MappingLookup mappers) {
         if (Objects.equals(this.targetPath(), this.fullPath())) {
             throw new MapperParsingException(

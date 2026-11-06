@@ -79,13 +79,13 @@ final class ExecutionClosureScanner extends CodeVisitorSupport {
 
     @Override
     public void visitDeclarationExpression(DeclarationExpression declaration) {
-        // Bind before visiting the initializer, and never leak block-local names into siblings.
+        // The initializer resolves before the new local is in scope. Keep block-local names out of siblings.
+        declaration.getRightExpression().visit(this);
         if (declaration.isMultipleAssignmentDeclaration()) {
             declaration.getTupleExpression().getExpressions().forEach(expression -> bind(expression, false));
         } else {
             bind(declaration.getVariableExpression(), isTask(declaration.getRightExpression()));
         }
-        declaration.getRightExpression().visit(this);
     }
 
     private void bind(Expression expression, boolean task) {

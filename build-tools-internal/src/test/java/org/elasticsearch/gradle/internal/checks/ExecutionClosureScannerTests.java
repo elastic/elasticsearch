@@ -82,6 +82,26 @@ public class ExecutionClosureScannerTests {
     }
 
     @Test
+    public void testSelfNamedInitializersResolveBeforeLocalShadowing() {
+        var findings = scan("""
+            tasks.register('probe') {
+              doLast {
+                def project = project
+                def gradle = gradle
+                def sourceSets = sourceSets
+                def file = file('data')
+                println project.name
+                println gradle
+                println sourceSets
+                file('other')
+              }
+            }
+            """);
+        assertEquals(List.of("project", "gradle", "sourceSets", "file()"), references(findings));
+        assertEquals(List.of(3, 4, 5, 6), findings.stream().map(ExecutionClosureScanner.Finding::line).toList());
+    }
+
+    @Test
     public void testNestedClosuresInterpolationAndScopeRestoration() {
         var findings = scan("""
             tasks.named('probe').configure {

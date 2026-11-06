@@ -54,6 +54,7 @@ $declaration {
         'gradle'      | 'onlyIf'  | "tasks.register('probe')"     | 'gradle.startParameter.offline == false' | "invocation of 'gradle'"
         'project'     | 'onlyIf'  | "tasks.register('probe')"     | "project.hasProperty('enabled')"        | "invocation of 'project'"
         'project'     | 'doLast'  | 'task probe'                  | 'println project.name'                  | 'Task.project'
+        'project'     | 'doLast'  | "tasks.register('probe')"     | 'def project = project; println project.name' | 'Task.project'
         'project'     | 'onlyIf'  | 'task probe(type: Exec)'      | "project.hasProperty('enabled')"        | "invocation of 'project'"
     }
 

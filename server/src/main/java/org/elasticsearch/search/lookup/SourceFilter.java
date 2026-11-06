@@ -62,6 +62,7 @@ public final class SourceFilter {
         // literal backslashes before a path separator, including parents whose names end in a backslash.
         boolean hasBackslashBeforeDot = Arrays.stream(this.includes).anyMatch(field -> field.contains("\\."))
             || Arrays.stream(this.excludes).anyMatch(field -> field.contains("\\."));
+       
         this.canFilterBytes = excludesHaveWildcard == false && hasBackslashBeforeDot == false;
         this.empty = CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes);
     }

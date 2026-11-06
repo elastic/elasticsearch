@@ -243,3 +243,102 @@ warning:Line 2:9: java.lang.IllegalArgumentException: dot_product requires unit-
 
 dv:dense_vector
 ;
+
+// KNN over an inline to_dense_vector() of a keyword field runs at runtime, the same as when the conversion is done
+// in an EVAL first (see knnRuntimeWithSimThreshold).
+knnRuntimeInlineToDenseVectorOnKeyword
+required_capability: knn_runtime_field
+required_capability: fn_knn_inline_dense_vector_conversion_fix
+
+FROM knn_hex_vectors
+| WHERE knn(to_dense_vector(emb_hex), [64, 0, 0], {"similarity": 0.6})
+| SORT id ASC
+| KEEP id
+| LIMIT 10
+;
+
+id:integer
+0
+3
+4
+;
+
+// Same scores as knnRuntimeWithScore, where the conversion is done in an EVAL first.
+knnRuntimeInlineToDenseVectorOnKeywordWithScore
+required_capability: knn_runtime_field
+required_capability: fn_knn_inline_dense_vector_conversion_fix
+
+FROM knn_hex_vectors METADATA _score
+| WHERE knn(to_dense_vector(emb_hex), [64, 0, 0])
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+0          | 1.0
+1          | 0.5
+2          | 0.5
+3          | 0.8535534143447876
+4          | 0.9456390142440796
+5          | 0.7509205937385559
+;
+
+// An inline runtime KNN combined with a filter on an indexed field: the indexed filter is pushed down and KNN is
+// evaluated per row on what remains.
+knnRuntimeInlineToDenseVectorOnKeywordAndIndexedFilter
+required_capability: knn_runtime_field
+required_capability: fn_knn_inline_dense_vector_conversion_fix
+
+FROM knn_hex_vectors
+| WHERE knn(to_dense_vector(emb_hex), [64, 0, 0], {"similarity": 0.6}) AND id > 0
+| SORT id ASC
+| KEEP id
+| LIMIT 10
+;
+
+id:integer
+3
+4
+;
+
+// KNN over an inline to_dense_vector() of a key extracted from a flattened field.
+// The knn_hex_flattened dataset holds the same vectors as knn_hex_vectors under attrs.h.
+knnRuntimeInlineToDenseVectorOnFieldExtract
+required_capability: knn_runtime_field
+required_capability: fn_knn_inline_dense_vector_conversion_fix
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM knn_hex_flattened
+| WHERE knn(to_dense_vector(field_extract(attrs, "h")), [64, 0, 0], {"similarity": 0.6})
+| SORT id ASC
+| KEEP id
+| LIMIT 10
+;
+
+id:integer
+0
+3
+4
+;
+
+// The same query with the conversion done in an EVAL first returns the same rows.
+knnRuntimeEvalToDenseVectorOnFieldExtract
+required_capability: knn_runtime_field
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM knn_hex_flattened
+| EVAL dv = to_dense_vector(field_extract(attrs, "h"))
+| WHERE knn(dv, [64, 0, 0], {"similarity": 0.6})
+| SORT id ASC
+| KEEP id
+| LIMIT 10
+;
+
+id:integer
+0
+3
+4
+;

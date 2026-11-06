@@ -449,9 +449,13 @@ first and by the name in the request second, as the reader wrapper does. If an
 index was renamed and the access control has an entry under neither name, the
 key stands for every restriction in it.
 
-Not covered: `DotPrefixValidator` filters index creation, auto-creation and
-templates but not a rename, so a rename can produce a dot-prefixed name that
-those paths would refuse.
+A rename gives an index a name as creating one does, so the dot-prefix rule applies to the
+new name: `AliasesDotValidator` in the dot-prefix-validation module is a filter on the aliases
+action that checks the new name of each `rename_index` action, and only that. It warns about
+a dot-prefixed name, or refuses it on stateless, with the same skips as for creating an index:
+system indices, the ignored patterns, and requests with an internal origin. The current name
+of the index being renamed, and the aliases of the other actions, are not checked
+(`AliasesDotValidatorTests`, and a case in `dot_prefix/10_basic.yml`).
 
 ### T7. Cross-cluster replication follows by UUID across a rename
 

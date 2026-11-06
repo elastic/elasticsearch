@@ -184,6 +184,40 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int successfulShards,
         int skippedShards,
         long tookInMillis,
+        List<ShardSearchFailure> shardFailures,
+        Clusters clusters
+    ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures.isEmpty() ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+            clusters
+        );
+    }
+
+    public SearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters
     ) {
@@ -205,6 +239,34 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             null,
             null,
             null
+        );
+    }
+
+    public SearchResponse(
+        SearchResponseSections searchResponseSections,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        List<ShardSearchFailure> shardFailures,
+        Clusters clusters,
+        BytesReference pointInTimeId,
+        SearchSourceBuilder source,
+        String[] indices
+    ) {
+        this(
+            searchResponseSections,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures.isEmpty() ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+            clusters,
+            pointInTimeId,
+            source,
+            indices
         );
     }
 
@@ -249,6 +311,46 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     public SearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        List<ShardSearchFailure> shardFailures,
+        Clusters clusters,
+        BytesReference pointInTimeId,
+        @Nullable List<SearchHits> topHitsToRelease,
+        @Nullable List<SearchHit> completionOptionHitsToRelease
+    ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures.isEmpty() ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+            clusters,
+            pointInTimeId,
+            topHitsToRelease,
+            completionOptionHitsToRelease
+        );
+    }
+
+    private SearchResponse(
         SearchHits hits,
         InternalAggregations aggregations,
         Suggest suggest,

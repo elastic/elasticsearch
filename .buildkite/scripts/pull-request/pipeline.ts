@@ -4,7 +4,7 @@ import { basename, resolve } from "path";
 import { execSync } from "child_process";
 
 import type { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types.ts";
-import { getBwcVersions, getIncludedSnapshotBwcVersions, getSnapshotBwcPinArgs } from "./bwc-versions.ts";
+import { getBwcVersions, getIncludedSnapshotBwcVersions } from "./bwc-versions.ts";
 import { getLaterBranches } from "./later-branches.ts";
 
 // Auto-retry configuration for PR pipelines.
@@ -164,7 +164,6 @@ export const generatePipelines = (
       }
       yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(snapshotBwcVersions));
     }
-    yaml = yaml.replaceAll("$BWC_SNAPSHOT_PIN_ARGS", getSnapshotBwcPinArgs());
 
     if (yaml.includes("$LATER_BRANCHES")) {
       const laterBranches = getLaterBranches(process.env["GITHUB_PR_TARGET_BRANCH"]);

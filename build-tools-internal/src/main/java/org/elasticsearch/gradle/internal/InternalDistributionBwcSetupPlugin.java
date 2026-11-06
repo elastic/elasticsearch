@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal;
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.test.BwcSnapshotBuildsService;
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.DefaultTask;
@@ -88,6 +89,9 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private static final String WRAPPER_DISTS_RELATIVE_PATH = "wrapper/dists";
+    // TODO: placeholder until the known-good bucket is provisioned; CI's BWC_KNOWN_GOOD_BUCKET overrides it
+    static final String DEFAULT_KNOWN_GOOD_BUCKET = "elasticsearch-ci-bwc-known-good";
+    static final String DEFAULT_KNOWN_GOOD_PREFIX = "elasticsearch/bwc-known-good";
     static final Attribute<Boolean> BWC_DISTRIBUTION_ATTRIBUTE = Attribute.of("bwc-distribution", Boolean.class);
 
     private final ObjectFactory objectFactory;
@@ -196,6 +200,16 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<String> remote = providerFactory.systemProperty("bwc.remote").orElse("elastic");
         Provider<String> draBaseUrl = providerFactory.systemProperty("tests.bwc.dra.base.url")
             .orElse("https://artifacts-snapshot.elastic.co");
+        // The public store of known-good builds read in dra mode. CI's pipelines read and write the same location.
+        Provider<String> knownGoodUrl = providerFactory.systemProperty("tests.bwc.dra.known.good.url")
+            .orElse(
+                providerFactory.environmentVariable("BWC_KNOWN_GOOD_BUCKET")
+                    .orElse(DEFAULT_KNOWN_GOOD_BUCKET)
+                    .zip(
+                        providerFactory.environmentVariable("BWC_KNOWN_GOOD_PREFIX").orElse(DEFAULT_KNOWN_GOOD_PREFIX),
+                        (bucket, prefix) -> "https://storage.googleapis.com/" + bucket + "/" + prefix.replaceAll("/+$", "")
+                    )
+            );
         String bwcMode = providerFactory.systemProperty("tests.bwc.mode").getOrElse("gradle");
         validateBwcMode(bwcMode);
         Provider<String> bwcHashOverride = versionInfoProvider.map(info -> info.branch())
@@ -212,8 +226,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             // allowing the pre-built snapshot fast path on stale or absent refs.
             spec.getParameters().getHashOverride().set(bwcHashOverride);
             spec.getParameters().getBaseUrl().set(draBaseUrl);
+            spec.getParameters().getKnownGoodUrl().set(knownGoodUrl);
         });
         bwcGitPlugin.configureDraBuildId(draBuildId);
+        // so that the test JVMs of bwc tasks in other projects can name the build in their reproduce lines
+        BwcSnapshotBuildsService.register(project.getGradle()).get().register(versionInfo.version().toString(), draBuildId);
 
         // we want basic lifecycle tasks like `clean` here.
         project.getPlugins().apply(LifecycleBasePlugin.class);
@@ -1044,7 +1061,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 case "prebuilt", "dra" -> PREBUILT;
                 case "auto" -> AUTO;
                 default -> throw new InvalidUserDataException(
-                    "Invalid tests.bwc.mode value [" + value + "]. Must be one of: gradle, prebuilt, auto"
+                    "Invalid tests.bwc.mode value [" + value + "]. Must be one of: gradle, prebuilt, auto, dra"
                 );
             };
         }

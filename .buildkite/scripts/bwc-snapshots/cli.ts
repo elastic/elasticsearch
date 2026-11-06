@@ -5,8 +5,8 @@
 //   node .buildkite/scripts/bwc-snapshots/cli.ts promote --branch 9.4 --build-id 9.4.10-3710ab3e --step <key> [--step <key>]
 //       Promote a build after checking that the given Buildkite steps passed. --no-outcome-check skips that check;
 //       use it only to seed the store by hand with a build you know passed bwc tests.
-//   node .buildkite/scripts/bwc-snapshots/cli.ts pins
-//       Print the -Dtests.bwc.dra.hash.* arguments and the included versions for .ci/snapshotBwcVersions.
+//   node .buildkite/scripts/bwc-snapshots/cli.ts included
+//       Print the versions of .ci/snapshotBwcVersions that PR and merge-queue bwc jobs test.
 //   node .buildkite/scripts/bwc-snapshots/cli.ts show
 //       Print the stored record of every snapshot bwc version's branch.
 
@@ -18,7 +18,7 @@ import { getSnapshotBwcVersions } from "../pull-request/bwc-versions.ts";
 import { DraClient } from "./dra.ts";
 import { type NotGreenAlert, pendingStoreFromEnv, trackPending } from "./gating.ts";
 import { intakeBwcGroup, resolveIntakePlans, unpinnedIntakeBwcGroup } from "./intake-pipeline.ts";
-import { branchForVersion, currentVersion, loadSnapshotBwcPins, promote, storeFromEnv } from "./known-good.ts";
+import { branchForVersion, currentVersion, loadIncludedSnapshotBwcVersions, promote, storeFromEnv } from "./known-good.ts";
 
 const dra = new DraClient(process.env["BWC_DRA_BASE_URL"]);
 
@@ -122,13 +122,13 @@ switch (command) {
   case "promote":
     await promoteCommand(rest);
     break;
-  case "pins":
-    console.log(JSON.stringify(await loadSnapshotBwcPins(getSnapshotBwcVersions(), storeFromEnv(), dra)));
+  case "included":
+    console.log(JSON.stringify(await loadIncludedSnapshotBwcVersions(getSnapshotBwcVersions(), storeFromEnv(), dra)));
     break;
   case "show":
     await show();
     break;
   default:
-    console.error("usage: cli.ts intake-pipeline | promote --branch <b> --build-id <id> --step <key>... | pins | show");
+    console.error("usage: cli.ts intake-pipeline | promote --branch <b> --build-id <id> --step <key>... | included | show");
     process.exit(2);
 }

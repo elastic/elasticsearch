@@ -413,6 +413,57 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         ).exists()
     }
 
+    def "downloads the branch's known-good build rather than the latest when mode=dra and no hash override is set"() {
+        given:
+        def bwcVersion = "8.4.0"
+        def bwcBranch = "8.x"
+        def knownGoodBuildId = "${bwcVersion}-aaaa1111"
+        stubKnownGood(wireMock, "/known-good/${bwcBranch}.json", bwcBranch, bwcVersion, knownGoodBuildId)
+        stubManifestOk(wireMock, draManifestPath(knownGoodBuildId, bwcVersion))
+        stubLatest(wireMock, draLatestPath(bwcBranch), "${bwcVersion}-bbbb2222")
+        stubTarArtifact(wireMock, draTarArtifactPath(knownGoodBuildId, bwcVersion, "darwin-x86_64"), bwcVersion)
+        redirectBwcRepositories(wireMock.baseUrl())
+
+        when:
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcDarwinTar",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}",
+            "-Dtests.bwc.dra.known.good.url=${wireMock.baseUrl()}/known-good"
+        ).build()
+
+        then:
+        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.output.contains("DRA snapshot ${knownGoodBuildId}")
+    }
+
+    def "downloads the latest build when mode=dra and the branch has no known-good build"() {
+        given:
+        def bwcVersion = "8.4.0"
+        def bwcBranch = "8.x"
+        def latestBuildId = "${bwcVersion}-bbbb2222"
+        // no known-good record: the store returns 404
+        stubLatest(wireMock, draLatestPath(bwcBranch), latestBuildId)
+        stubTarArtifact(wireMock, draTarArtifactPath(latestBuildId, bwcVersion, "darwin-x86_64"), bwcVersion)
+        redirectBwcRepositories(wireMock.baseUrl())
+
+        when:
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcDarwinTar",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}",
+            "-Dtests.bwc.dra.known.good.url=${wireMock.baseUrl()}/known-good"
+        ).build()
+
+        then:
+        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.output.contains("DRA snapshot ${latestBuildId}")
+    }
+
     def "falls back to source build with warning when mode=prebuilt but prebuilt snapshots are unavailable (distribution archive)"() {
         given:
         // Stub the latest endpoint with 404 so resolveLatestBuildId returns an empty build ID.
@@ -548,6 +599,17 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
     private static void stubManifestNotFound(WireMockServer wireMock, String path) {
         wireMock.stubFor(head(urlEqualTo(path)).willReturn(aResponse().withStatus(404)))
         wireMock.stubFor(get(urlEqualTo(path)).willReturn(aResponse().withStatus(404)))
+    }
+
+    /** Stubs GET for a branch's record in the known-good store, as the bwc pipelines promote it. */
+    private static void stubKnownGood(WireMockServer wireMock, String path, String branch, String version, String buildId) {
+        wireMock.stubFor(
+            get(urlEqualTo(path))
+                .willReturn(
+                    aResponse().withStatus(200)
+                        .withBody("""{"branch": "${branch}", "version": "${version}", "build_id": "${buildId}"}""")
+                )
+        )
     }
 
     /** Stubs GET for the DRA "latest" endpoint, returning a JSON body with the given build ID. */

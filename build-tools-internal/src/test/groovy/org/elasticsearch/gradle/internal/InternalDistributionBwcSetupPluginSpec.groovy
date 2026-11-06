@@ -48,7 +48,7 @@ class InternalDistributionBwcSetupPluginSpec extends Specification {
         then:
         def ex = thrown(InvalidUserDataException)
         ex.message.contains("Invalid tests.bwc.mode value [${mode}]")
-        ex.message.contains("Must be one of: gradle, prebuilt, auto")
+        ex.message.contains("Must be one of: gradle, prebuilt, auto, dra")
 
         where:
         mode << ["invalid-mode", "DRA", "AUTO", "", "dra-or-gradle"]

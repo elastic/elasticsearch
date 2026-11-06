@@ -172,9 +172,9 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         /**
-         * The DRA snapshots a bwc test ran against, when CI pinned them ({@code -Dtests.bwc.dra.hash.<branch>}, with the
-         * {@code tests.bwc.mode} that reads them). The build passes them on to bwc test JVMs; without them a reproduce
-         * line would build each branch's current tip from source instead of the snapshot that failed.
+         * The DRA snapshots a bwc test ran against ({@code -Dtests.bwc.dra.hash.<branch>}, with the {@code tests.bwc.mode}
+         * that reads them). The build passes the snapshots it resolved on to bwc test JVMs; without them a reproduce line
+         * would resolve each branch's snapshot again, or build its current tip from source, instead of the one that failed.
          */
         ReproduceErrorMessageBuilder appendBwcSnapshotPins(Properties properties) {
             String mode = properties.getProperty(BWC_MODE);

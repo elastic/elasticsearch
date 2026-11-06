@@ -329,6 +329,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
                         routingTable,
                         notificationRequest.getCompoundCommit(),
                         notificationRequest.getBatchedCompoundCommitGeneration(),
+                        // no latest uploaded BCC, so SearchEngine does not move the upload tracker forward
                         null,
                         notificationRequest.getClusterStateVersion(),
                         notificationRequest.getNodeId()

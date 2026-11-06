@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 164683
+summary: Rework `GetFieldMappingsAction` to use Builders rather than Mappers
+type: bug

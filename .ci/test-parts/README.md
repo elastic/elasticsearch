@@ -7,9 +7,13 @@ non-test verification). Running every part runs exactly what `check` runs.
 
 | File | Edited by | Content |
 |---|---|---|
-| `config.json` | hand | part count, effective workers per job, test tasks to split, task groups that must not share a part, `runFirstSeconds` (test tasks at least this long in their part start before the part's other work), `heavyTestLimit` (cluster test tasks a part runs at once, see below) and `shardOverheadSeconds` (the fixed cost every shard of a split task pays again, where `durations.json` has no measured `overheads` entry) |
-| `durations.json` | export script | median executed duration (s) of each test task, and of each project's non-test tasks (without compilation and jars, which every part running its tests pays), in PR `part-*` jobs |
-| `assignment.json` | `./gradlew generateCiPartAssignment` | the generated assignment; do not edit |
+| `config.json` | hand | part count, effective workers per job, task groups that must not share a part, `runFirstSeconds` (test tasks at least this long in their part start before the part's other work), `heavyTestLimit` (cluster test tasks a part runs at once, see below), `shardOverheadSeconds` (the fixed cost every shard of a split task pays again, where `durations.json` has no measured `overheads` entry), and how to split long test tasks: `shardTargetSeconds` (longest a shard should take, fixed cost included), `maxShards`, and optional `pinnedSplits` (tasks always split as given) and `neverSplit` |
+| `durations.json` | export script | measured only: median executed duration (s) of each test task, of each project's non-test tasks (without compilation and jars, which every part running its tests pays), the fixed cost of one execution of a test task (`overheads`), and for long test tasks the duration of each test class or YAML file they could be split by (`items`) |
+| `assignment.json` | `./gradlew generateCiPartAssignment` | the generated assignment, including which test tasks are split and into how many shards; do not edit |
+
+The planner splits a test task with `items` into the fewest shards whose longest one fits `shardTargetSeconds`,
+estimating each shard from its items with the same hash the build uses to choose them, so one long class or
+YAML file is never spread thin. A task that fits as a whole is not split.
 
 Test tasks or projects missing from `assignment.json` (for example ones added since it was generated)
 go to a part chosen by a stable hash of their path, so the assignment only needs regenerating to

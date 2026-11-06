@@ -31,7 +31,6 @@ public class CiPartPlannerTests {
         CiPartPlanner.Config config = new CiPartPlanner.Config(2, 8, Map.of(), List.of());
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
             Map.of(":p:a", 1000.0, ":q:b", 1100.0, ":p:c", 500.0),
-            Map.of(),
             Map.of()
         );
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
@@ -47,7 +46,7 @@ public class CiPartPlannerTests {
             Map.of(":x:test", new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.CLASS)),
             List.of()
         );
-        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:test", 1000.0), Map.of(), Map.of());
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:test", 1000.0), Map.of());
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
         assertThat(assignment.partOfShard(":x:test", 0), not(equalTo(assignment.partOfShard(":x:test", 1))));
     }
@@ -58,7 +57,6 @@ public class CiPartPlannerTests {
         // :a's 40s of non-test work next to :a:test would make that part 140s; next to :b:test it is 90s
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
             Map.of(":a:test", 100.0, ":b:test", 50.0),
-            Map.of(),
             Map.of(":a", 40.0, ":b", 5.0)
         );
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
@@ -73,7 +71,6 @@ public class CiPartPlannerTests {
         CiPartPlanner.Config config = new CiPartPlanner.Config(2, 100, Map.of(), List.of(List.of(":p:a", ":q:b")));
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
             Map.of(":p:a", 10.0, ":q:b", 10.0, ":r:c", 1000.0),
-            Map.of(),
             Map.of()
         );
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
@@ -87,7 +84,7 @@ public class CiPartPlannerTests {
             tests.put(":p" + i + ":test", 60.0 + (i * 7) % 300);
         }
         CiPartPlanner.Config config = new CiPartPlanner.Config(6, 4, Map.of(), List.of());
-        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(tests, Map.of(), Map.of());
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(tests, Map.of());
         double[] minutes = CiPartPlanner.estimatedMinutes(CiPartPlanner.plan(config, durations), config, durations);
         double max = 0, min = Double.MAX_VALUE;
         for (double m : minutes) {
@@ -106,7 +103,7 @@ public class CiPartPlannerTests {
             List.of()
         );
         // with 8 workers :y's non-test work next to :y:test costs nothing, so it stays with the project's tests
-        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:yamlRestTest", 900.0, ":y:test", 10.0), Map.of(), Map.of(":y", 5.0));
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:yamlRestTest", 900.0, ":y:test", 10.0), Map.of(":y", 5.0));
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
         assertThat(assignment.tests().keySet(), equalTo(java.util.Set.of(":x:yamlRestTest#0", ":x:yamlRestTest#1", ":x:yamlRestTest#2", ":y:test")));
         assertThat(
@@ -119,7 +116,7 @@ public class CiPartPlannerTests {
     }
 
     @Test
-    public void testShardEstimatesOverrideEvenShares() {
+    public void testItemDurationsOverrideEvenShares() {
         CiPartPlanner.Config config = new CiPartPlanner.Config(
             2,
             1,
@@ -129,8 +126,9 @@ public class CiPartPlannerTests {
         // shard 0 holds one long class; an even split would put :y:test (300s) next to it
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
             Map.of(":x:javaRestTest", 1000.0, ":y:test", 300.0),
-            Map.of(":x:javaRestTest#0", 800.0, ":x:javaRestTest#1", 200.0),
-            Map.of()
+            Map.of(),
+            Map.of(),
+            Map.of(":x:javaRestTest", classes(2, 800.0, 200.0))
         );
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
         assertThat(assignment.partOfTest(":y:test"), equalTo(assignment.partOfShard(":x:javaRestTest", 1)));
@@ -155,7 +153,6 @@ public class CiPartPlannerTests {
                 ":b:test",
                 350.0
             ),
-            Map.of(),
             Map.of()
         );
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
@@ -182,17 +179,17 @@ public class CiPartPlannerTests {
             0,
             60
         );
-        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:javaRestTest", 660.0), Map.of(), Map.of());
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:javaRestTest", 660.0), Map.of());
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
         for (double minutes : CiPartPlanner.estimatedMinutes(assignment, config, durations)) {
             assertThat(minutes, equalTo(6.0));
         }
-        // a measured overhead for the task wins over the default, and shard estimates are work only
+        // a measured overhead for the task wins over the default, and item durations are work only
         CiPartPlanner.Durations measured = new CiPartPlanner.Durations(
             Map.of(":x:javaRestTest", 660.0),
-            Map.of(":x:javaRestTest#0", 420.0, ":x:javaRestTest#1", 120.0),
             Map.of(),
-            Map.of(":x:javaRestTest", 120.0)
+            Map.of(":x:javaRestTest", 120.0),
+            Map.of(":x:javaRestTest", classes(2, 420.0, 120.0))
         );
         double[] minutes = CiPartPlanner.estimatedMinutes(CiPartPlanner.plan(config, measured), config, measured);
         Arrays.sort(minutes);
@@ -211,7 +208,6 @@ public class CiPartPlannerTests {
         );
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
             Map.of(":big:test", 1000.0, ":heap:test", 800.0),
-            Map.of(),
             Map.of()
         );
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
@@ -236,7 +232,6 @@ public class CiPartPlannerTests {
         );
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
             Map.of(":a:test", 400.0, ":b:test", 900.0, ":c:test", 1200.0, ":d:test", 100.0),
-            Map.of(),
             Map.of(":a", 2000.0)
         );
         // :c:test's two shards land in different parts, 600 s each; :d:test is short and project work never runs first
@@ -251,8 +246,108 @@ public class CiPartPlannerTests {
             tests.put(":p" + (i % 7) + ":t" + i, 100.0);
         }
         CiPartPlanner.Config config = new CiPartPlanner.Config(5, 3, Map.of(), List.of());
-        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(tests, Map.of(), Map.of());
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(tests, Map.of());
         assertThat(CiPartPlanner.plan(config, durations).toJson(), equalTo(CiPartPlanner.plan(config, durations).toJson()));
+    }
+
+    @Test
+    public void testSplitsATaskIntoTheFewestShardsThatFitTheTarget() {
+        // 1200 s of work in four 300 s classes plus 60 s of fixed cost: two shards of 600 + 60 fit a 700 s target
+        CiPartPlanner.Config config = config(700, 8, List.of());
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(":x:javaRestTest", 1260.0, ":y:test", 100.0),
+            Map.of(),
+            Map.of(":x:javaRestTest", 60.0),
+            Map.of(":x:javaRestTest", classes(2, 300.0, 300.0, 300.0, 300.0))
+        );
+        CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
+        assertThat(assignment.split(":x:javaRestTest"), equalTo(new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.CLASS)));
+        assertThat(assignment.split(":y:test"), equalTo(null));
+        assertThat(assignment.partOfShard(":x:javaRestTest", 0), not(equalTo(assignment.partOfShard(":x:javaRestTest", 1))));
+    }
+
+    @Test
+    public void testDoesNotSplitATaskThatFitsTheTarget() {
+        CiPartPlanner.Config config = config(700, 8, List.of());
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(":x:javaRestTest", 650.0),
+            Map.of(),
+            Map.of(),
+            Map.of(":x:javaRestTest", classes(2, 300.0, 300.0))
+        );
+        assertThat(CiPartPlanner.splits(config, durations), equalTo(Map.of()));
+    }
+
+    @Test
+    public void testOneLongItemBoundsTheSplit() {
+        // one 900 s class cannot be spread: more shards never get below it, so the fewest shards with the shortest longest
+        // shard win (2: 900 + 0 and the rest), not the maximum
+        CiPartPlanner.Config config = config(600, 8, List.of());
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(":x:javaRestTest", 1200.0),
+            Map.of(),
+            Map.of(":x:javaRestTest", 0.0),
+            Map.of(":x:javaRestTest", classes(2, 900.0, 300.0))
+        );
+        assertThat(CiPartPlanner.splits(config, durations).get(":x:javaRestTest").count(), equalTo(2));
+        assertThat(CiPartPlanner.shardWork(classes(2, 900.0, 300.0), 1200.0, 2), equalTo(new double[] { 900.0, 300.0 }));
+    }
+
+    @Test
+    public void testYamlFileItemsSplitByYamlFile() {
+        CiPartPlanner.Config config = config(400, 8, List.of());
+        Map<String, Double> files = new HashMap<>();
+        for (int i = 0; i < 40; i++) {
+            files.put("api" + i + "/10_basic", 30.0);
+        }
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(":x:yamlRestTest", 1200.0),
+            Map.of(),
+            Map.of(":x:yamlRestTest", 0.0),
+            Map.of(":x:yamlRestTest", new CiPartPlanner.Items(CiPartAssignment.SplitBy.YAML_FILE, files))
+        );
+        CiPartAssignment.Split split = CiPartPlanner.splits(config, durations).get(":x:yamlRestTest");
+        assertThat(split.by(), equalTo(CiPartAssignment.SplitBy.YAML_FILE));
+        assertThat(split.count() >= 3, equalTo(true));
+        assertThat(split.count() <= config.maxShards(), equalTo(true));
+    }
+
+    @Test
+    public void testPinnedAndNeverSplitTasksAreNotPlanned() {
+        CiPartPlanner.Config config = new CiPartPlanner.Config(
+            2,
+            8,
+            Map.of(":p:test", new CiPartAssignment.Split(3, CiPartAssignment.SplitBy.CLASS)),
+            List.of(),
+            0,
+            0,
+            0,
+            100,
+            8,
+            List.of(":n:test")
+        );
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(":p:test", 1000.0, ":n:test", 1000.0),
+            Map.of(),
+            Map.of(),
+            Map.of(":p:test", classes(2, 500.0, 500.0), ":n:test", classes(2, 500.0, 500.0))
+        );
+        assertThat(
+            CiPartPlanner.splits(config, durations),
+            equalTo(Map.of(":p:test", new CiPartAssignment.Split(3, CiPartAssignment.SplitBy.CLASS)))
+        );
+    }
+
+    @Test
+    public void testNoTargetSplitsOnlyPinnedTasks() {
+        CiPartPlanner.Config config = new CiPartPlanner.Config(2, 8, Map.of(), List.of());
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(":x:test", 5000.0),
+            Map.of(),
+            Map.of(),
+            Map.of(":x:test", classes(2, 2500.0, 2500.0))
+        );
+        assertThat(CiPartPlanner.plan(config, durations).splits(), equalTo(Map.of()));
     }
 
     @Test
@@ -260,5 +355,26 @@ public class CiPartPlannerTests {
         assertThat(CiPartPlanner.projectOf(":server:test"), equalTo(":server"));
         assertThat(CiPartPlanner.projectOf(":test"), equalTo(":"));
         assertThat(CiPartPlanner.projectOf(":qa:x:v9.1.0#bwcTest"), equalTo(":qa:x"));
+    }
+
+    private static CiPartPlanner.Config config(int shardTargetSeconds, int maxShards, List<String> neverSplit) {
+        return new CiPartPlanner.Config(2, 8, Map.of(), List.of(), 0, 0, 0, shardTargetSeconds, maxShards, neverSplit);
+    }
+
+    /**
+     * Class items with the given durations, named so that with {@code count} shards the i-th item lands in shard
+     * {@code i % count}: shard membership comes from a hash of the name, so tests pick names by their bucket.
+     */
+    private static CiPartPlanner.Items classes(int count, double... seconds) {
+        Map<String, Double> items = new HashMap<>();
+        int candidate = 0;
+        for (int i = 0; i < seconds.length; i++) {
+            String name;
+            do {
+                name = "org.example.Test" + candidate++;
+            } while (CiShards.bucket(name, count) != i % count);
+            items.put(name, seconds[i]);
+        }
+        return new CiPartPlanner.Items(CiPartAssignment.SplitBy.CLASS, items);
     }
 }

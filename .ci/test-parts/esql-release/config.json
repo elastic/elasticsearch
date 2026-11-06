@@ -5,10 +5,6 @@
   "shardOverheadSeconds": 90,
   "runFirstSeconds": 240,
   "antiAffinity": [],
-  "splits": {
-    ":x-pack:plugin:esql:qa:server:single-node:csvSpecTests": {
-      "by": "class",
-      "count": 2
-    }
-  }
+  "shardTargetSeconds": 720,
+  "maxShards": 8
 }

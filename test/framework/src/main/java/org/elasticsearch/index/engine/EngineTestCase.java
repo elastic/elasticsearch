@@ -55,6 +55,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -966,7 +967,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (refresh) {
             engine.refresh("test");
         }
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
             assertThat(totalHits, equalTo(numDocs));
         }
@@ -1183,7 +1184,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         assertVisibleCount(replicaEngine, lastFieldValue == null ? 0 : 1);
         if (lastFieldValue != null) {
-            try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Integer totalHits = searcher.search(
                     new TermQuery(new Term("value", lastFieldValue)),
                     new TotalHitCountCollectorManager(searcher.getSlices())
@@ -1376,7 +1377,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (engine instanceof InternalEngine) {
             try {
                 engine.refresh("test");
-                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     var indexSettings = engine.config().getIndexSettings();
                     var mapperService = engine.config().getMapperService();
                     assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, mapperService, searcher.getDirectoryReader());
@@ -1609,7 +1610,13 @@ public abstract class EngineTestCase extends ESTestCase {
         if (readOnlyEngine.lazilyLoadSoftDeletes == false) {
             throw new IllegalStateException("method should only be called when lazily loading soft-deletes is enabled");
         }
-        try (Engine.Searcher searcher = readOnlyEngine.acquireSearcher("soft-deletes-check", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = readOnlyEngine.acquireSearcher(
+                "soft-deletes-check",
+                Engine.SearcherScope.INTERNAL,
+                SplitShardCountSummary.IRRELEVANT
+            )
+        ) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 LazySoftDeletesDirectoryReaderWrapper.LazyBits lazyBits = lazyBits(ctx.reader());
                 if (lazyBits != null && lazyBits.initialized()) {

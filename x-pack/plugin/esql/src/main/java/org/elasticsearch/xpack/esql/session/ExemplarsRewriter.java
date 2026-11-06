@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -51,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -69,13 +73,15 @@ public final class ExemplarsRewriter {
     private static final Pattern BACKING_INDEX_PATTERN = Pattern.compile("^(?:.*-)?\\.(?:ds|fs)-(.+)-\\d{4}\\.\\d{2}\\.\\d{2}-\\d{6}$");
     /** The exemplar field naming the metric an exemplar belongs to, see {@link #metricFilters}. */
     private static final String METRIC_NAME_FIELD = "metric_name";
-    /** The columns of an exemplars query, in output order: the exemplar's timestamp, metric and value plus its full document. */
-    static final List<String> EXEMPLAR_COLUMNS = List.of(
-        MetadataAttribute.TIMESTAMP_FIELD,
-        METRIC_NAME_FIELD,
-        "value",
-        SourceFieldMapper.NAME
-    );
+    /** The exemplar field holding the observed value. */
+    private static final String VALUE_FIELD = "value";
+    /**
+     * The exemplar fields linking it to the trace and span it was recorded in. OTLP exemplars store them as top-level fields. Prometheus
+     * remote write exemplars carry them as exemplar labels, which resolve to these names through their passthrough object, following
+     * the {@code trace_id} and {@code span_id} label names that OpenTelemetry and the Prometheus client libraries use for exemplars.
+     */
+    private static final String TRACE_ID_FIELD = "trace_id";
+    private static final String SPAN_ID_FIELD = "span_id";
 
     private ExemplarsRewriter() {}
 
@@ -143,7 +149,8 @@ public final class ExemplarsRewriter {
         ExemplarsSettings settings
     ) {
         Source source = analyzedMetricsQuery.source();
-        LogicalPlan exemplars = exemplarsRelation(analyzedMetricsQuery, exemplarsResolution);
+        TimeSeriesMetadataAttribute timeseries = settings.includeTimeseries() ? FieldAttribute.timeSeriesAttribute(source) : null;
+        LogicalPlan exemplars = exemplarsRelation(analyzedMetricsQuery, exemplarsResolution, timeseries);
         if (exemplars instanceof LocalRelation) {
             return exemplars;
         }
@@ -168,11 +175,7 @@ public final class ExemplarsRewriter {
         // Without any aggregated metric, there are no exemplars to select.
         Expression filter = aggregationFilters.isEmpty() ? Literal.FALSE : Predicates.combineOr(aggregationFilters);
         exemplars = new Filter(source, exemplars, filter);
-        List<NamedExpression> projections = new ArrayList<>(EXEMPLAR_COLUMNS.size());
-        for (String column : EXEMPLAR_COLUMNS) {
-            projections.add(new UnresolvedAttribute(source, column));
-        }
-        exemplars = new Keep(source, exemplars, projections);
+        exemplars = new Keep(source, exemplars, exemplarProjections(source, timeseries));
         Order mostRecentFirst = new Order(
             source,
             new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD),
@@ -181,6 +184,26 @@ public final class ExemplarsRewriter {
         );
         exemplars = new OrderBy(source, exemplars, List.of(mostRecentFirst));
         return settings.limit() == null ? exemplars : new Limit(source, new Literal(source, settings.limit(), DataType.INTEGER), exemplars);
+    }
+
+    /**
+     * The columns an exemplars query returns, in output order: the exemplar's timestamp, the metric it belongs to, its observed
+     * value and the trace and span it was recorded in, then the dimensions identifying its series when {@code timeseries} is requested,
+     * and finally its full document. The named columns are left unresolved so that analysis binds them against the exemplar data
+     * streams, or nullifies the ones none of them maps.
+     */
+    private static List<NamedExpression> exemplarProjections(Source source, @Nullable TimeSeriesMetadataAttribute timeseries) {
+        List<NamedExpression> projections = new ArrayList<>(7);
+        projections.add(new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD));
+        projections.add(new UnresolvedAttribute(source, METRIC_NAME_FIELD));
+        projections.add(new UnresolvedAttribute(source, VALUE_FIELD));
+        projections.add(new UnresolvedAttribute(source, TRACE_ID_FIELD));
+        projections.add(new UnresolvedAttribute(source, SPAN_ID_FIELD));
+        if (timeseries != null) {
+            projections.add(timeseries);
+        }
+        projections.add(new UnresolvedAttribute(source, SourceFieldMapper.NAME));
+        return projections;
     }
 
     /**
@@ -385,7 +408,11 @@ public final class ExemplarsRewriter {
      * exist have already been omitted from the resolution. Exemplars live in time series data streams but are plain documents to this
      * query, so the relation reads them like {@code FROM ... METADATA _source} does.
      */
-    private static LogicalPlan exemplarsRelation(LogicalPlan metricsQuery, @Nullable IndexResolution resolution) {
+    private static LogicalPlan exemplarsRelation(
+        LogicalPlan metricsQuery,
+        @Nullable IndexResolution resolution,
+        @Nullable TimeSeriesMetadataAttribute timeseries
+    ) {
         Source source = metricsQuery.source();
         if (resolution == null) {
             return new LocalRelation(source, List.of(), EmptyLocalSupplier.EMPTY);
@@ -393,9 +420,15 @@ public final class ExemplarsRewriter {
         if (resolution.isValid() == false) {
             throw new VerificationException(List.of(Failure.fail(metricsQuery, resolution.toString())));
         }
-        EsIndex esIndex = resolution.get();
+        EsIndex esIndex = timeSeriesIndicesOnly(resolution.get());
+        if (esIndex == null) {
+            return new LocalRelation(source, List.of(), EmptyLocalSupplier.EMPTY);
+        }
         List<Attribute> attributes = Analyzer.mappingAsAttributes(source, esIndex.mapping());
         attributes.add(MetadataAttribute.create(source, SourceFieldMapper.NAME).toAttribute());
+        if (timeseries != null) {
+            attributes.add(timeseries);
+        }
         return new EsRelation(
             source,
             esIndex.name(),
@@ -407,4 +440,43 @@ public final class ExemplarsRewriter {
         );
     }
 
+    /**
+     * The resolved exemplar indices that are time series ones.
+     * We require exemplar indices to be time series indices too, even though they don't store metrics:
+     * They contain (and mark) all dimensions of the original metrics and mark them as dimensions, which
+     * we need to load the _timeseries column if requested.
+     */
+    @Nullable
+    static EsIndex timeSeriesIndicesOnly(EsIndex esIndex) {
+        Map<String, IndexProperties> timeSeriesIndices = new LinkedHashMap<>(esIndex.indexProperties().size());
+        // Sorted, so that the warning names them in the same order however field caps happened to report them.
+        Set<String> others = new TreeSet<>();
+        esIndex.indexProperties().forEach((index, properties) -> {
+            if (properties.indexMode().isTsdb()) {
+                timeSeriesIndices.put(index, properties);
+            } else {
+                others.add(index);
+            }
+        });
+        if (others.isEmpty()) {
+            return esIndex;
+        }
+        HeaderWarning.addWarning(
+            "[{}] skipped [{}]: exemplars indices must be time series indices",
+            QuerySettings.EXEMPLARS.name(),
+            String.join(", ", others)
+        );
+        if (timeSeriesIndices.isEmpty()) {
+            return null;
+        }
+        // Keyed by cluster alias and holding unqualified names, unlike the index properties, see IndexResolver.
+        Map<String, List<String>> concreteIndices = new LinkedHashMap<>();
+        for (String index : timeSeriesIndices.keySet()) {
+            var split = RemoteClusterAware.splitIndexName(index);
+            concreteIndices.computeIfAbsent(split.getClusterGroupingKey(), cluster -> new ArrayList<>()).add(split.indexExpression());
+        }
+        // The original indices stay as they are: they name the patterns to resolve shards from, which the concrete indices then select
+        // from, and a cluster left without any index is skipped by the compute service.
+        return new EsIndex(esIndex.name(), esIndex.mapping(), timeSeriesIndices, esIndex.originalIndices(), concreteIndices);
+    }
 }

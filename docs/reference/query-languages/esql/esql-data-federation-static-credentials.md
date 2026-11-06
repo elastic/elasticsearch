@@ -116,17 +116,17 @@ Back in Elastic:
 In {{kib}}:
 
 1. Go to **Data management** > **{{esql}} Data Federation**.
-2. Click **Connect data source**.
-3. Set **Data source type** to **Amazon S3**.
-4. Under **Authentication**, select **Access and Secret Keys**.
-5. Enter the **access key** and **secret key** from the previous step.
+2. Select the **Data sources** tab.
+3. Click **Connect data source**.
+4. Set **Data source type** to **Amazon S3**.
+5. Enter a **Name** for the data source.
+6. Under **Authentication**, set **Preferred method** to **Access and Secret Keys**.
+7. Enter the **Access key** and **Secret key** from the previous step:
+
+   ![The Authentication section of the Connect external data source flyout with Access and Secret Keys selected, showing the Access key and Secret key fields](images/data-federation/access-and-secret-keys.png)
+8. Click **Connect**.
 
 For the full field reference, refer to [Connect external data sources](esql-data-federation-sources.md).
-
-:::{image} images/data-federation/access-and-secret-keys.png
-:alt: The Authentication section of the Connect data source flyout with Access and Secret Keys selected, showing the access key and secret key fields
-:width: 450px
-:::
 :::
 
 :::{tab-item} Console

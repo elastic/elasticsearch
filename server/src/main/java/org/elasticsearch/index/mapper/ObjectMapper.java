@@ -40,6 +40,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -123,18 +124,11 @@ public class ObjectMapper extends Mapper {
         /**
          * Get the root-level dynamic setting for a Mapping
          *
-         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}, unless the implicit flattened
-         * {@code _unmapped} sink is present, in which case unmapped fields default to being absorbed ({@link #FLATTENED}).
+         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}.
          */
         static Dynamic getRootDynamic(MappingLookup mappingLookup) {
             Dynamic rootDynamic = mappingLookup.getMapping().getRoot().dynamic;
-            if (rootDynamic != null) {
-                return rootDynamic;
-            }
-            if (mappingLookup.getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME) != null) {
-                return FLATTENED;
-            }
-            return Defaults.DYNAMIC;
+            return rootDynamic != null ? rootDynamic : Defaults.DYNAMIC;
         }
     }
 
@@ -259,18 +253,128 @@ public class ObjectMapper extends Mapper {
             return null;
         }
 
-        protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
+        /**
+         * The context this builder's children are normalized and built under
+         */
+        protected MapperBuilderContext childContext(MapperBuilderContext context) {
+            return context.createChildContext(leafName(), dynamic);
+        }
+
+        /**
+         * Merges duplicate children and flattens plain object children under {@code subobjects: false}
+         */
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            MapperBuilderContext childContext = childContext(context);
             // Assuming all features are supported is safe here. Builders that went through a merge have no duplicates left, and the
             // duplicates added while building a dynamic mapping update are copies of the same object, so merging them changes nothing.
             // That update is merged again on the master, which checks the features the cluster supports.
-            Map<String, Mapper.Builder> dedupedBuilders = flattenBuildersIfNeeded(
-                mappersBuilders,
-                mapperBuilderContext,
-                MapperMergeContext.fromBuilderContext(mapperBuilderContext, Long.MAX_VALUE, f -> true)
-            );
+            MapperMergeContext mergeContext = MapperMergeContext.fromBuilderContext(childContext, Long.MAX_VALUE, f -> true);
+            // grandchild mappers are normalized under the settings of the child, so duplicate children are merged
+            // first so that all grandchildren see the same settings
+            mergeDuplicateChildren(mergeContext.withUnlimitedParseFieldLimitsBudget(childContext));
+            for (Mapper.Builder child : mappersBuilders) {
+                child.normalize(childContext);
+            }
+            Map<String, Mapper.Builder> dedupedBuilders = flattenBuildersIfNeeded(mappersBuilders, childContext, mergeContext);
+            mappersBuilders.clear();
+            mappersBuilders.addAll(dedupedBuilders.values());
+        }
+
+        // Merge duplicate children, using a LinkedHashMap to preserve declaration order.
+        // Objects that are flattened away are not merged with each other, so they are keyed by identity.
+        // TODO combine this with flattening - would be a breaking change as some broken mappings
+        // that are currently accepted and silently fixed would be rejected
+        private void mergeDuplicateChildren(MapperMergeContext dedupContext) {
+            Map<Object, Mapper.Builder> merged = new LinkedHashMap<>();
+            for (Mapper.Builder builder : mappersBuilders) {
+                Object key = isFlattenedAway(builder) ? builder : builder.leafName();
+                merged.merge(key, builder, (existing, duplicate) -> existing.mergeWith(duplicate, dedupContext));
+            }
+            mappersBuilders.clear();
+            mappersBuilders.addAll(merged.values());
+        }
+
+        // Nested builders are a genuine document boundary and must survive subobjects:false rather than being flattened into
+        // dotted leaves. Plain object builders have no internal existence and are flattened away.
+        // NestedObjectMapper.Builder extends ObjectMapper.Builder, hence the explicit guard.
+        private boolean isFlattenedAway(Mapper.Builder builder) {
+            return subobjects.value() == Subobjects.DISABLED
+                && builder instanceof ObjectMapper.Builder
+                && builder instanceof NestedObjectMapper.Builder == false;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            toXContent(builder, params, null);
+            return builder;
+        }
+
+        void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
+            builder.startObject(leafName());
+            if (mappersBuilders.isEmpty() && custom == null) {
+                // only write the object content type if there are no properties, otherwise, it is automatically detected
+                builder.field("type", CONTENT_TYPE);
+            }
+            if (dynamic != null) {
+                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
+            }
+            if (enabled.value() != Defaults.ENABLED) {
+                builder.field("enabled", enabled.value());
+            }
+            if (subobjects != null && subobjects.explicit()) {
+                builder.field("subobjects", subobjects.value().printedValue);
+            }
+            if (sourceKeepMode.isPresent()) {
+                builder.field("synthetic_source_keep", sourceKeepMode.get());
+            }
+            if (custom != null) {
+                custom.toXContent(builder, params);
+            }
+
+            doXContent(builder, params);
+            serializeChildren(builder, params);
+            builder.endObject();
+        }
+
+        /**
+         * Writes the children under {@code properties}, sorted by name as {@link ObjectMapper#serializeMappers} sorts
+         * the mappers built from them. A flattened child has a dotted name, which sorts the same way its full path does.
+         */
+        protected final void serializeChildren(XContentBuilder builder, Params params) throws IOException {
+            List<Mapper.Builder> sortedChildren = mappersBuilders.stream()
+                .filter(this::isSerializedAsProperty)
+                .sorted(Comparator.comparing(Mapper.Builder::leafName))
+                .toList();
+            if (sortedChildren.isEmpty() == false) {
+                builder.startObject("properties");
+                for (Mapper.Builder child : sortedChildren) {
+                    child.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+        }
+
+        /**
+         * Whether a child is written under {@code properties}. Metadata fields are written elsewhere, by the mapping.
+         */
+        protected boolean isSerializedAsProperty(Mapper.Builder child) {
+            return child instanceof MetadataFieldMapper.Builder == false;
+        }
+
+        /**
+         * Writes whatever a subclass adds after the settings common to all objects and before the children.
+         */
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
+
+        /**
+         * Builds the children of this builder. Requires that {@link #normalize} has already been applied to the tree. That is done
+         * once, when the root is built.
+         */
+        protected final Map<String, Mapper> buildMappers(MapperBuilderContext childContext) {
             Map<String, Mapper> mappers = new HashMap<>();
-            for (Mapper.Builder builder : dedupedBuilders.values()) {
-                Mapper mapper = builder.build(mapperBuilderContext);
+            for (Mapper.Builder builder : mappersBuilders) {
+                Mapper mapper = builder.build(childContext);
                 mappers.put(mapper.leafName(), mapper);
             }
             return mappers;
@@ -389,13 +493,13 @@ public class ObjectMapper extends Mapper {
             MapperMergeContext dedupContext = mergeContext.withUnlimitedParseFieldLimitsBudget(builderContext);
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
-                // Nested builders are a genuine document boundary and must survive subobjects:false rather than
-                // being flattened into dotted leaves. Plain object builders have no internal existence and are
-                // flattened away. NestedObjectMapper.Builder extends ObjectMapper.Builder, hence the explicit guard.
-                if (subobjects.value() == Subobjects.DISABLED
-                    && builder instanceof ObjectMapper.Builder objectMapperBuilder
-                    && builder instanceof NestedObjectMapper.Builder == false) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.prefixProperties);
+                if (isFlattenedAway(builder)) {
+                    ((ObjectMapper.Builder) builder).asFlattenedFieldBuilders(
+                        builderContext,
+                        map,
+                        new ContentPath(),
+                        this.prefixProperties
+                    );
                 } else {
                     Mapper.Builder existing = map.get(builder.leafName());
                     if (existing != null) {
@@ -442,6 +546,8 @@ public class ObjectMapper extends Mapper {
                     return;
                 }
             }
+            // Merge together prefix properties collected from flattened objects
+            prefixProperties.forEach((prefix, properties) -> collector.merge(prefix, properties, PrefixProperties::merge));
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
                 if (childBuilder instanceof NestedObjectMapper.Builder nestedBuilder) {
@@ -579,7 +685,7 @@ public class ObjectMapper extends Mapper {
                 subobjects,
                 sourceKeepMode,
                 dynamic,
-                buildMappers(context.createChildContext(leafName(), dynamic))
+                buildMappers(childContext(context))
             );
         }
     }
@@ -621,6 +727,27 @@ public class ObjectMapper extends Mapper {
             }
         }
 
+        /**
+         * {@code dynamic: flattened} absorbs unmapped fields into the {@code _unmapped} sink, so it is accepted only where the sink exists
+         * (see {@link UnmappedSinkFieldMapper#isEnabled}), and only at the root: in strict columnar mode a sub-object's {@code dynamic} is
+         * kept in {@code prefix_properties}, which does not accept {@code flattened}.
+         */
+        private static void validateDynamicFlattened(IndexSettings indexSettings, Builder builder) {
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                throw new MapperParsingException("dynamic [flattened] is only supported in strict columnar mode");
+            }
+            if (UnmappedSinkFieldMapper.isEnabled(indexSettings) == false) {
+                throw new MapperParsingException(
+                    "dynamic [flattened] is not supported on indices created before ["
+                        + IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR.toReleaseVersion()
+                        + "]"
+                );
+            }
+            if (builder instanceof RootObjectMapper.Builder == false) {
+                throw new MapperParsingException("dynamic [flattened] is only supported on the root object");
+            }
+        }
+
         @SuppressWarnings({ "unchecked", "rawtypes" })
         protected static boolean parseObjectOrDocumentTypeProperties(
             String fieldName,
@@ -637,6 +764,9 @@ public class ObjectMapper extends Mapper {
                         throw new MapperParsingException("dynamic [runtime] is not supported in strict columnar mode");
                     }
                     builder.dynamic(Dynamic.RUNTIME);
+                } else if (value.equalsIgnoreCase("flattened") && FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
+                    validateDynamicFlattened(parserContext.getIndexSettings(), builder);
+                    builder.dynamic(Dynamic.FLATTENED);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);

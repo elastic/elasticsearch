@@ -239,7 +239,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     );
 
     public static final String BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC = "es.bcc.notification_time.histogram";
-    public static final String NOTIFICATION_UPLOADED_ATTRIBUTE_KEY = "es_notification_uploaded";
+    public static final String NOTIFICATION_UPLOADED_ATTRIBUTE_KEY = "uploaded";
 
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;

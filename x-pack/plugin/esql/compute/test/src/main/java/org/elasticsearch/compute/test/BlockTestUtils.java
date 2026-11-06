@@ -110,6 +110,8 @@ public class BlockTestUtils {
             case TDIGEST -> randomTDigest();
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
+            // A union value is a leg plus a value, which this signature has nowhere to put.
+            case UNION -> throw new IllegalArgumentException("can't make random values for union");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }

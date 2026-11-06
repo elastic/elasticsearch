@@ -46,7 +46,7 @@ public class ExtractorTests extends ESTestCase {
         for (ElementType e : ElementType.values()) {
             boolean supportsNull = true;
             switch (e) {
-                case UNKNOWN -> {
+                case UNKNOWN, UNION -> {
                     supportsNull = false;
                 }
                 case COMPOSITE -> {

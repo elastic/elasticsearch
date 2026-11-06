@@ -27,6 +27,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.lang.ref.Cleaner;
 import java.util.BitSet;
+import java.util.List;
 
 public class BlockFactory {
 
@@ -633,6 +634,14 @@ public class BlockFactory {
 
     public TDigestBlockBuilder newTDigestBlockBuilder(int estimatedSize) {
         return new TDigestBlockBuilder(estimatedSize, this);
+    }
+
+    /**
+     * A builder for a column whose values do not all have the same type. {@code legElementTypes} fixes the legs, in
+     * the leg order the rest of the query agrees on.
+     */
+    public UnionBlockBuilder newUnionBlockBuilder(List<ElementType> legElementTypes, int estimatedSize) {
+        return new UnionBlockBuilder(legElementTypes, estimatedSize, this);
     }
 
     public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {

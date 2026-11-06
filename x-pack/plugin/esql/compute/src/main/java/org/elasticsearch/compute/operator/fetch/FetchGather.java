@@ -91,7 +91,9 @@ public final class FetchGather {
                         concatenate(blockFactory, fetchedPages, c, type, responseRowCount, null),
                         mayContainDuplicates
                     );
-                    case DOC, COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("[" + type + "] columns can't be fetched");
+                    // A union needs its leg element types to build a block, which concatenate cannot get from the
+                    // element type alone, so fetching one is refused here rather than failing inside the builder.
+                    case DOC, COMPOSITE, UNION, UNKNOWN -> throw new IllegalArgumentException("[" + type + "] columns can't be fetched");
                 };
             }
             int rowStart = 0;

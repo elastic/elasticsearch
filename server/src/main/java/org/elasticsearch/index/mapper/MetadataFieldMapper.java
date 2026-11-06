@@ -161,6 +161,13 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             return builder.endObject();
         }
 
+        /**
+         * Checks this field against the rest of the mapping once the root has been normalized, and fails the build
+         * if they are inconsistent. Runs on the builders, so it sees what the user configured explicitly rather
+         * than what was resolved at build time.
+         */
+        void validateMapping(RootObjectMapper.Builder root) {}
+
         @Override
         public final MetadataFieldMapper build(MapperBuilderContext context) {
             return build();
@@ -242,17 +249,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         public String contentType() {
             return mapper.typeName();
         }
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        MetadataFieldMapper.Builder mergeBuilder = (MetadataFieldMapper.Builder) getMergeBuilder();
-        if (mergeBuilder.hasNonDefaultParameters() == false) {
-            return builder;
-        }
-        builder.startObject(leafName());
-        mergeBuilder.serializeParameters(builder, params);
-        return builder.endObject();
     }
 
     @Override

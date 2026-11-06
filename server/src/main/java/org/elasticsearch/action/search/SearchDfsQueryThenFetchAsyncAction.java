@@ -172,7 +172,10 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
                 rescoreVectorBuilder == null ? null : rescoreVectorBuilder.oversample()
             ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
-                query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
+                // The search may target indices that don't map the nested path. Their shards have no knn hits, so they match nothing
+                // rather than failing, like a knn search on a field that is unmapped.
+                query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).ignoreUnmapped(true)
+                    .innerHit(source.knnSearch().get(i).innerHit());
             }
             subSearchSourceBuilders.add(new SubSearchSourceBuilder(query));
             i++;

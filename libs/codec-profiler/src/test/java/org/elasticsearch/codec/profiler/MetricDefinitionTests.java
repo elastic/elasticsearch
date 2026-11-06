@@ -132,9 +132,17 @@ public class MetricDefinitionTests extends ESTestCase {
         final ProfileCollector collector = TestCollectors.withClock(() -> 0L);
         collector.timer(DECODE_WITH_CPU);
         assertThat(collector.snapshot().get(DECODE_WITH_CPU).cpuNanos(), equalTo(OptionalLong.empty()));
-        collector.counter(
-            CounterMetric.of("ColumNAR", "blocks", "decode_cpu_time_nanos", Metric.Unit.COUNT, "free when CPU is not measured")
+        final CounterMetric companionIdentity = CounterMetric.of(
+            "ColumNAR",
+            "blocks",
+            "decode_cpu_time_nanos",
+            Metric.Unit.COUNT,
+            "free when CPU is not measured"
         );
+        collector.counter(companionIdentity).add(3);
+        final Snapshot snapshot = collector.snapshot();
+        assertThat(snapshot.get(DECODE_WITH_CPU).cpuNanos(), equalTo(OptionalLong.empty()));
+        assertThat(snapshot.get(companionIdentity), equalTo(new CounterMeasurement(companionIdentity, 3)));
     }
 
     public void testTheLimitCountsACpuTimeCompanionBeforeAnythingIsRegistered() {

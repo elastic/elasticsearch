@@ -45,7 +45,8 @@ public final class Snapshot {
     /**
      * A snapshot of {@code measurements}, in any order.
      *
-     * @throws IllegalArgumentException when two measurements use one identity, counting a timer's CPU time companion
+     * @throws IllegalArgumentException when two measurements use one identity, counting the CPU time companion of a timer
+     *                                  that reports CPU time
      */
     public static Snapshot of(Collection<? extends Measurement> measurements) {
         final List<Measurement> sorted = new ArrayList<>(measurements);
@@ -53,7 +54,7 @@ public final class Snapshot {
         final Set<Metric.Id> used = new HashSet<>();
         for (Measurement measurement : sorted) {
             claim(used, measurement.id());
-            if (measurement instanceof TimerMeasurement timer && timer.definition().cpuTime() != null) {
+            if (measurement instanceof TimerMeasurement timer && timer.cpuNanos().isPresent()) {
                 claim(used, timer.definition().cpuTime().id());
             }
         }

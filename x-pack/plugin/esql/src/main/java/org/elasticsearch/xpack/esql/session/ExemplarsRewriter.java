@@ -477,6 +477,13 @@ public final class ExemplarsRewriter {
         }
         // The original indices stay as they are: they name the patterns to resolve shards from, which the concrete indices then select
         // from, and a cluster left without any index is skipped by the compute service.
-        return new EsIndex(esIndex.name(), esIndex.mapping(), timeSeriesIndices, esIndex.originalIndices(), concreteIndices);
+        return new EsIndex(
+            esIndex.name(),
+            esIndex.mapping(),
+            timeSeriesIndices,
+            esIndex.originalIndices(),
+            concreteIndices,
+            esIndex.fieldSemantics()
+        );
     }
 }

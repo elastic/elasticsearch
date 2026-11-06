@@ -27,6 +27,8 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -37,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -58,15 +61,15 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
         return List.of(MockTransportService.TestPlugin.class);
     }
 
-    /// Regression test for the `failedShardsCache` eviction bug in [IndicesClusterStateService].
+    /// Regression test for the `pendingAllocationStates` eviction bug in [IndicesClusterStateService].
     ///
     /// Verifies that a shard is re-created with only one shardFailed round after the master
     /// re-allocates it with a bumped primary term but the same allocation id.
     ///
     /// The test creates a primary-only index, fails the started primary via [IndexShard#failShard],
     /// and simulates the data node missing the intermediate UNASSIGNED cluster state (transient
-    /// network partition). If `updateFailedShardsCache` fails to evict the stale cache entry, it
-    /// will resend `localShardFailed` to the master, causing an unnecessary round of allocation.
+    /// network partition). If `updatePendingAllocationTracker` fails to evict the stale FailureReported
+    /// entry, it will resend `localShardFailed` to the master, causing an unnecessary round of allocation.
     public void testFailedShardCacheEvictedAfterPrimaryTermBump() throws Exception {
         final var masterNodeName = internalCluster().startMasterOnlyNode();
         final var primaryNodeName = internalCluster().startDataOnlyNode();
@@ -80,7 +83,7 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
         // Intercept COMMIT_STATE on the data node. Drops every COMMIT whose last-accepted state has
         // the shard UNASSIGNED, until the first INITIALIZING is delivered, to simulate a transient
         // partition that causes the data node to miss the UNASSIGNED window and see the
-        // re-allocation directly. `failedShardsCache` still holds the stale entry when INITIALIZING
+        // re-allocation directly. `pendingAllocationStates` still holds the stale FailureReported entry when INITIALIZING
         // arrives with the same allocation id.
         final var seenInitializing = new AtomicBoolean(false);
         final var dataTransport = setupCommitStateHandler(primaryNodeName, primary -> {
@@ -110,7 +113,13 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
 
             // Wait for ICSS to finish all processing.
             final var icss = internalCluster().getInstance(IndicesClusterStateService.class, primaryNodeName);
-            assertBusy(() -> assertTrue(icss.failedShardsCache.isEmpty()));
+            assertBusy(
+                () -> assertTrue(
+                    icss.pendingAllocationStates.values()
+                        .stream()
+                        .noneMatch(s -> s instanceof IndicesClusterStateService.PendingAllocationState.FailureReported)
+                )
+            );
             ensureGreen(TimeValue.timeValueSeconds(30), INDEX_NAME);
 
             final var finalState = masterClusterService.state();
@@ -129,6 +138,60 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
             dataTransport.clearAllRules();
             masterTransport.clearAllRules();
         }
+    }
+
+    /// Regression test for the `pendingAllocationStates` eviction bug in [IndicesClusterStateService],
+    /// for the close/reopen trigger rather than the shard-failure trigger used by
+    /// [#testFailedShardCacheEvictedAfterPrimaryTermBump].
+    ///
+    /// Verifies that a stale `FailureReported` ticket left behind while a node is partitioned away does
+    /// not survive a close and reopen of the index that happens entirely while the node is unreachable.
+    public void testPendingAllocationStateClearedAfterCloseReopenMissedWhilePartitioned() throws Exception {
+        final var masterNodeName = internalCluster().startMasterOnlyNode();
+        final var primaryNodeName = internalCluster().startDataOnlyNode();
+
+        final var index = createTestIndex();
+        final var shardId = new ShardId(index, SHARD_ID);
+        final var masterClusterService = internalCluster().getInstance(ClusterService.class, masterNodeName);
+        final var startedRouting = masterClusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
+        final var originalAllocationId = startedRouting.allocationId().getId();
+        final var icss = internalCluster().getInstance(IndicesClusterStateService.class, primaryNodeName);
+
+        final var partition = new NetworkDisruption(new TwoPartitions(masterNodeName, primaryNodeName), NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(partition);
+        partition.startDisrupting();
+        try {
+            // Fail the shard locally while partitioned: the failure can't reach master, so it stays a
+            // purely local FailureReported ticket -- the stale entry we're testing eviction of.
+            final var primaryShard = internalCluster().getInstance(IndicesService.class, primaryNodeName).getShardOrNull(shardId);
+            assertNotNull(primaryShard);
+            primaryShard.failShard("test", new IOException("simulated engine failure"));
+            assertBusy(
+                () -> assertTrue(
+                    icss.pendingAllocationStates.values()
+                        .stream()
+                        .anyMatch(s -> s instanceof IndicesClusterStateService.PendingAllocationState.FailureReported)
+                )
+            );
+
+            // Wait for master's fault detection to evict the now-unreachable node -- its shard shows
+            // unassigned, which is what lets close succeed without needing to reach it.
+            ensureStableCluster(1, masterNodeName);
+
+            assertAcked(client(masterNodeName).admin().indices().prepareClose(INDEX_NAME).setWaitForActiveShards(0));
+            assertAcked(client(masterNodeName).admin().indices().prepareOpen(INDEX_NAME).setWaitForActiveShards(0));
+        } finally {
+            partition.stopDisrupting();
+        }
+
+        ensureStableCluster(2, masterNodeName);
+        ensureGreen(TimeValue.timeValueSeconds(30), INDEX_NAME);
+
+        assertBusy(() -> assertTrue(icss.pendingAllocationStates.isEmpty()));
+
+        final var finalState = masterClusterService.state();
+        final var finalRouting = finalState.routingTable().shardRoutingTable(shardId).primaryShard();
+        assertThat(finalRouting.allocationId().getId(), equalTo(originalAllocationId));
     }
 
     /// Regression test for the "term is only increased as part of primary promotion" assertion

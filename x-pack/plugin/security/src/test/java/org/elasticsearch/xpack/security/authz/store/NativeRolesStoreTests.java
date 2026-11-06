@@ -789,6 +789,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             RoleDescriptor.Fields.INDEX,
             RoleDescriptor.Fields.NAMES,
             RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES,
+            RoleDescriptor.Fields.MATCH_NAME,
             RoleDescriptor.Fields.RESOURCES,
             RoleDescriptor.Fields.QUERY,
             RoleDescriptor.Fields.PRIVILEGES,

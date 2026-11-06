@@ -342,17 +342,6 @@ public class IndexSettingsTests extends ESTestCase {
         assertFalse(settings.isCombineDynamicMappingUpdates());
     }
 
-    public void testCombineDynamicMappingUpdatesNodeDefault() {
-        Settings nodeSettings = Settings.builder().put(IndexSettings.COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT_SETTING_NAME, true).build();
-        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), nodeSettings);
-        assertTrue(settings.isCombineDynamicMappingUpdates());
-
-        // an explicit index setting wins over the node default
-        Settings disabled = Settings.builder().put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), false).build();
-        settings = new IndexSettings(newIndexMeta("index", disabled), nodeSettings);
-        assertFalse(settings.isCombineDynamicMappingUpdates());
-    }
-
     public void testCombineDynamicMappingUpdatesDynamicUpdateFallsBackToNodeDefault() {
         Settings nodeSettings = Settings.builder().put(IndexSettings.COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT_SETTING_NAME, true).build();
         IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), nodeSettings);

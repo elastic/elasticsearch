@@ -1006,6 +1006,12 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
+            void collectFieldBuilders(String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+                for (FieldMapper.Builder fieldBuilder : fieldBuilders.values()) {
+                    fieldBuilder.collectFieldBuilders(parentPath, consumer);
+                }
+            }
+
             /**
              * Writes the {@code fields} block, sorted by name exactly as {@link MultiFields} sorts its built mappers.
              */
@@ -1907,7 +1913,12 @@ public abstract class FieldMapper extends Mapper {
             Values.Cardinality columnarCardinality,
             IndexVersion settingsHonoredSince
         ) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(settingsHonoredSince)) {
+            // 9.5 backported a later index version without the change gated on DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS, so a stateful 9.5 index
+            // can be above that gate without ever having honored the settings. This only holds for that gate: other gates may have been
+            // backported.
+            boolean ignoredOnStateful95 = settingsHonoredSince.equals(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS)
+                && IndexSettings.createdInStateful95(indexSettings.getIndexVersionCreated(), indexSettings.isStateless());
+            if (indexSettings.getIndexVersionCreated().onOrAfter(settingsHonoredSince) && ignoredOnStateful95 == false) {
                 return defaultValues(indexSettings, nonColumnarDefault, columnarCardinality);
             }
             if (indexSettings.getMode().isStrictColumnar() == false) {
@@ -2232,6 +2243,13 @@ public abstract class FieldMapper extends Mapper {
         @Override
         public void normalize(MapperBuilderContext context) {
             multiFieldsBuilder.normalize(context.createChildContext(leafName(), null));
+        }
+
+        @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            String fullPath = fullPath(parentPath);
+            consumer.accept(fullPath, this);
+            multiFieldsBuilder.collectFieldBuilders(fullPath, consumer);
         }
 
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {

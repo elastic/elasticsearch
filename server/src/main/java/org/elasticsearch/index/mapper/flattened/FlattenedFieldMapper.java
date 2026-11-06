@@ -144,6 +144,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -432,6 +433,15 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         @Override
         public String contentType() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            super.collectFieldBuilders(parentPath, consumer);
+            String fullPath = fullPath(parentPath);
+            for (FieldMapper.Builder propertyBuilder : properties.getValue().values()) {
+                propertyBuilder.collectFieldBuilders(fullPath, consumer);
+            }
         }
 
         @Override

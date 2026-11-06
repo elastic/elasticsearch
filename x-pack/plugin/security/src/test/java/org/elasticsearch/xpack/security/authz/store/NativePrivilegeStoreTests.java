@@ -672,6 +672,34 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     /**
+     * Retrying from the creator's failure callback must start a fresh load rather than join the failed load whose listeners are
+     * still being notified.
+     */
+    public void testFailureCallbackCanRetryWithNewLoad() throws Exception {
+        final DescriptorsAndApplicationNamesCache cache = newPrivilegeCache();
+        final List<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> loads = new ArrayList<>();
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> firstFuture = new PlainActionFuture<>();
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> retryFuture = new PlainActionFuture<>();
+
+        cache.get(Set.of("myapp"), true, loads::add, firstFuture.delegateResponse((l, e) -> {
+            cache.get(Set.of("myapp"), true, loads::add, retryFuture);
+            l.onFailure(e);
+        }));
+        assertThat(loads, hasSize(1));
+
+        final IllegalStateException failure = new IllegalStateException("load failed");
+        loads.get(0).onFailure(failure);
+        final ExecutionException e = expectThrows(ExecutionException.class, () -> firstFuture.get(1, TimeUnit.SECONDS));
+        assertSame(failure, e.getCause());
+        assertThat("retrying from the failure callback should start a new load", loads, hasSize(2));
+        assertFalse(retryFuture.isDone());
+
+        final ApplicationPrivilegeDescriptor descriptor = myappAdminPrivilege();
+        loads.get(1).onResponse(List.of(descriptor));
+        assertThat(retryFuture.get(1, TimeUnit.SECONDS), containsInAnyOrder(descriptor));
+    }
+
+    /**
      * A shared load completes on the thread, and under the thread context, of the caller that started it. A caller that joined the
      * load must still observe its own thread context when its listener runs, not the creating caller's, or security state and response
      * headers would leak between unrelated requests.

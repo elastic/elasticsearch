@@ -602,14 +602,18 @@ public class NativePrivilegeStore {
             load.addListener(listener);
 
             logger.debug("Fetching application privilege documents for: {}", applicationNames);
-            // A caller that joins between completion and removal gets a result as fresh as the cache, since the key has the count
-            load.addListener(ActionListener.running(() -> inFlightLoads.remove(key, load)));
             // ActionListener.run turns an exception thrown by the loader itself into a failure of the shared load; otherwise the
             // in-flight entry would never complete or be removed, and every later caller for this key would wait forever
             ActionListener.run(ActionListener.wrap(fetchedDescriptors -> {
+                // Cache before removing the in-flight entry, so that a caller arriving in between gets a cache hit instead of
+                // starting another load. Remove before completing, so the entry does not outlive the load while listeners run.
                 putIfNoInvalidationSince(applicationNames, fetchedDescriptors, invalidationCount);
+                inFlightLoads.remove(key, load);
                 load.onResponse(fetchedDescriptors);
-            }, load::onFailure), loader::accept);
+            }, e -> {
+                inFlightLoads.remove(key, load);
+                load.onFailure(e);
+            }), loader::accept);
         }
 
         /**

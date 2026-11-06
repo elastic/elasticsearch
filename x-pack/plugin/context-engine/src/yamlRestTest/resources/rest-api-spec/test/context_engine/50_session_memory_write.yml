@@ -1,0 +1,411 @@
+setup:
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: test-embedding
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+---
+teardown:
+  - do:
+      features.reset_features: {}
+
+  - do:
+      inference.delete:
+        inference_id: test-embedding
+        ignore: 404
+
+---
+"Remember stores text and image memories and list returns them newest first":
+  - do:
+      context_engine.remember:
+        body:
+          session_id: "session-1"
+          user_id: "user-1"
+          space: "default"
+          ai_index_ids: ["ai-index-1"]
+          content: "The user prefers dark mode."
+          attributes: { source: "test" }
+
+  - set: { id: text_id }
+  - is_true: id
+  - is_true: "@timestamp"
+  - match: { content: "The user prefers dark mode." }
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "memory-image"
+          session_id: "session-1"
+          user_id: "user-1"
+          content: "A whiteboard photo from the planning session."
+          media:
+            - type: "image"
+              value: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+  - match: { id: "memory-image" }
+  - match: { media.0.type: "image" }
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "memory-media-only"
+          session_id: "session-1"
+          user_id: "user-1"
+          media:
+            - type: "image"
+              value: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+  - match: { id: "memory-media-only" }
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "memory-url"
+          session_id: "session-1"
+          user_id: "user-1"
+          content: "A diagram fetched by URL."
+          media:
+            - type: "image"
+              format: "url"
+              value: "https://example.com/diagram.png"
+
+  - match: { id: "memory-url" }
+  - match: { media.0.format: "url" }
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-1"
+
+  - match: { count: 4 }
+  - match: { results.0.id: "memory-url" }
+  - match: { results.0.media.0.format: "url" }
+  - match: { results.0.media.0.value: "https://example.com/diagram.png" }
+  - match: { results.1.id: "memory-media-only" }
+  - match: { results.2.id: "memory-image" }
+  - match: { results.2.media.0.type: "image" }
+  - match: { results.3.id: $text_id }
+  - match: { results.3.content: "The user prefers dark mode." }
+  - match: { results.3.attributes.source: "test" }
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-1"
+        ai_index_ids: "ai-index-1"
+
+  - match: { count: 1 }
+  - match: { results.0.id: $text_id }
+
+---
+"Remember rejects a memory with neither content nor media":
+  - do:
+      catch: bad_request
+      context_engine.remember:
+        body:
+          session_id: "session-1"
+          user_id: "user-1"
+
+  - match: { error.reason: "/.*one\\sof\\s\\[content\\]\\sor\\s\\[media\\].*/" }
+
+---
+"Search finds memories by text and by image and honors filters":
+  - do:
+      context_engine.remember:
+        body:
+          id: "search-other-space"
+          session_id: "session-2"
+          user_id: "user-1"
+          space: "other"
+          ai_index_ids: ["ai-index-1"]
+          content: "The user prefers dark mode."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "search-text"
+          session_id: "session-2"
+          user_id: "user-1"
+          space: "default"
+          ai_index_ids: ["ai-index-1"]
+          content: "The user prefers dark mode."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "search-image"
+          session_id: "session-2"
+          user_id: "user-2"
+          space: "default"
+          media:
+            - type: "image"
+              value: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "dark mode"
+          session_id: "session-2"
+
+  # The test embedding service does not score similarity meaningfully, so only membership is asserted.
+  - match: { count: 3 }
+  - is_true: results.0._score
+  - is_true: results.0.memory.id
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "dark mode"
+          session_id: "session-2"
+          space: "default"
+
+  - match: { count: 2 }
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query:
+            type: "image"
+            value: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+          session_id: "session-2"
+          space: "default"
+
+  - match: { count: 2 }
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "dark mode"
+          session_id: "session-2"
+          user_id: "user-2"
+
+  - match: { count: 1 }
+  - match: { results.0.memory.id: "search-image" }
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "dark mode"
+          session_id: "session-2"
+          space: "default"
+          ai_index_ids: "ai-index-1"
+          size: 1
+
+  - match: { count: 1 }
+  - match: { results.0.memory.id: "search-text" }
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "anything"
+          session_id: "no-such-session"
+
+  - match: { count: 0 }
+
+---
+"List honors every filter and returns newest first":
+  - do:
+      context_engine.remember:
+        body:
+          id: "list-other-space"
+          session_id: "session-3"
+          user_id: "user-1"
+          space: "other"
+          ai_index_ids: ["ai-index-1"]
+          content: "The user prefers dark mode."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "list-first"
+          session_id: "session-3"
+          user_id: "user-1"
+          space: "default"
+          ai_index_ids: ["ai-index-1"]
+          content: "The user prefers dark mode."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "list-second"
+          session_id: "session-3"
+          user_id: "user-2"
+          space: "default"
+          content: "The user is in Boston."
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-3"
+
+  - match: { count: 3 }
+  - match: { results.0.id: "list-second" }
+  - match: { results.1.id: "list-first" }
+  - match: { results.2.id: "list-other-space" }
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-3"
+        space: "default"
+
+  - match: { count: 2 }
+  - match: { results.0.id: "list-second" }
+  - match: { results.1.id: "list-first" }
+
+  - do:
+      context_engine.list_session_memory:
+        user_id: "user-1"
+        space: "default"
+        ai_index_ids: "ai-index-1"
+
+  - match: { count: 1 }
+  - match: { results.0.id: "list-first" }
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-3"
+        size: 1
+
+  - match: { count: 1 }
+  - match: { results.0.id: "list-second" }
+
+---
+"Search finds a PDF memory by PDF query":
+  - do:
+      context_engine.remember:
+        body:
+          id: "search-pdf"
+          session_id: "session-5"
+          user_id: "user-1"
+          space: "default"
+          media:
+            - type: "pdf"
+              value: "data:application/pdf;base64,JVBERi0xLjQKJcOkw7zDtsOfCjEgMCBvYmoKPDwvVHlwZS9DYXRhbG9nPj4KZW5kb2JqCg=="
+
+  - match: { id: "search-pdf" }
+  - match: { media.0.type: "pdf" }
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query:
+            type: "pdf"
+            value: "data:application/pdf;base64,JVBERi0xLjQKJcOkw7zDtsOfCjEgMCBvYmoKPDwvVHlwZS9DYXRhbG9nPj4KZW5kb2JqCg=="
+          session_id: "session-5"
+
+  - match: { count: 1 }
+  - match: { results.0.memory.id: "search-pdf" }
+  - match: { results.0.memory.media.0.type: "pdf" }
+
+---
+"Forget deletes every revision of a memory and nothing else":
+  - do:
+      context_engine.remember:
+        body:
+          id: "forget-me"
+          session_id: "session-6"
+          user_id: "user-1"
+          space: "default"
+          content: "The user lives in Boston."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "forget-me"
+          session_id: "session-6"
+          user_id: "user-1"
+          space: "default"
+          content: "The user lives in Chicago."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "keep-me"
+          session_id: "session-6"
+          user_id: "user-1"
+          space: "default"
+          content: "The user prefers dark mode."
+
+  - do:
+      catch: missing
+      context_engine.forget:
+        id: "forget-me"
+        session_id: "no-such-session"
+
+  - do:
+      context_engine.forget:
+        id: "forget-me"
+        session_id: "session-6"
+        user_id: "user-1"
+        space: "default"
+
+  - match: { deleted: 2 }
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-6"
+
+  - match: { count: 1 }
+  - match: { results.0.id: "keep-me" }
+
+  - do:
+      catch: missing
+      context_engine.forget:
+        id: "forget-me"
+
+---
+"Search rejects an empty query":
+  - do:
+      catch: bad_request
+      context_engine.search_session_memory:
+        body:
+          query: ""
+
+  - match: { error.reason: "/.*\\[query\\]\\scannot\\sbe\\sempty.*/" }
+
+---
+"Revising a memory keeps only the current revision retrievable":
+  - do:
+      context_engine.remember:
+        body:
+          id: "revised"
+          session_id: "session-4"
+          user_id: "user-1"
+          space: "default"
+          content: "The user lives in Boston."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "revised"
+          session_id: "session-4"
+          user_id: "user-1"
+          space: "default"
+          content: "The user lives in Chicago."
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-4"
+
+  - match: { count: 1 }
+  - match: { results.0.id: "revised" }
+  - match: { results.0.content: "The user lives in Chicago." }
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "where does the user live"
+          session_id: "session-4"
+
+  - match: { count: 1 }
+  - match: { results.0.memory.id: "revised" }
+  - match: { results.0.memory.content: "The user lives in Chicago." }

@@ -1,0 +1,139 @@
+teardown:
+  - do:
+      features.reset_features: {}
+
+---
+"AI index registry lifecycle":
+  - do:
+      context_engine.put_ai_index:
+        id: "my-index"
+        create: true
+        body:
+          space: "default"
+          description: "Support tickets"
+          dest: { type: "index", value: "ai-index-idx-my-index" }
+          sources: [ { type: "esql", value: "FROM tickets" } ]
+          automations: []
+          traces: []
+
+  - match: { result: "created" }
+  - match: { ai_index.id: "my-index" }
+  - match: { ai_index.space: "default" }
+  - match: { ai_index.managed: false }
+  - match: { ai_index.dest.value: "ai-index-idx-my-index" }
+  - is_true: ai_index.date_created
+  - set: { ai_index.date_created: created }
+
+  - do:
+      catch: conflict
+      context_engine.put_ai_index:
+        id: "my-index"
+        create: true
+        body:
+          space: "default"
+          dest: { type: "index", value: "ai-index-idx-my-index" }
+
+  - do:
+      context_engine.put_ai_index:
+        id: "my-index"
+        body:
+          space: "default"
+          description: "Support tickets, revised"
+          memory_enabled: true
+          dest: { type: "index", value: "ai-index-idx-my-index" }
+          sources: [ { type: "esql", value: "FROM tickets" } ]
+          automations: [ { type: "workflow", value: "wf-1" } ]
+          traces: []
+
+  - match: { result: "updated" }
+  - match: { ai_index.date_created: $created }
+  - match: { ai_index.memory_enabled: true }
+
+  - do:
+      context_engine.get_ai_index:
+        id: "my-index"
+        space: "default"
+
+  - match: { id: "my-index" }
+  - match: { description: "Support tickets, revised" }
+  - match: { automations.0.value: "wf-1" }
+  - match: { date_created: $created }
+
+  - do:
+      context_engine.put_ai_index:
+        id: "shared"
+        body:
+          space: "other"
+          managed: true
+          dest: { type: "data_stream", value: "ai-index-ds-shared" }
+
+  - do:
+      context_engine.list_ai_index:
+        space: "default"
+
+  - match: { count: 1 }
+  - match: { results.0.id: "my-index" }
+
+  - do:
+      context_engine.list_ai_index: {}
+
+  - match: { count: 2 }
+  - match: { results.0.id: "my-index" }
+  - match: { results.1.id: "shared" }
+  - match: { results.1.managed: true }
+
+  - do:
+      context_engine.list_ai_index:
+        dest: "ai-index-ds-shared"
+
+  - match: { count: 1 }
+  - match: { results.0.space: "other" }
+
+  - do:
+      context_engine.delete_ai_index:
+        id: "my-index"
+        space: "default"
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      context_engine.get_ai_index:
+        id: "my-index"
+        space: "default"
+
+  - do:
+      catch: missing
+      context_engine.delete_ai_index:
+        id: "my-index"
+        space: "default"
+
+  - do:
+      context_engine.get_ai_index:
+        id: "shared"
+        space: "other"
+
+  - match: { id: "shared" }
+
+---
+"Put rejects an invalid dest":
+  - do:
+      catch: bad_request
+      context_engine.put_ai_index:
+        id: "bad"
+        body:
+          space: "default"
+          dest: { type: "alias", value: "" }
+
+  - match: { error.reason: "/.*\\[dest\\.type\\].*\\[dest\\.value\\].*/" }
+
+---
+"Put rejects a missing space":
+  - do:
+      catch: bad_request
+      context_engine.put_ai_index:
+        id: "bad"
+        body:
+          dest: { type: "index", value: "ai-index-idx-bad" }
+
+  - match: { error.reason: "/.*\\[space\\].*/" }

@@ -64,7 +64,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
     private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
     private static final String ELASTIC_AI_INDEX = ".ai-index-idx-elastic-index";
-    // Installed by the stack plugin's AiIndexTemplateRegistry; match every `.ai-index-idx-*` / `.ai-index-ds-*` name.
+    // Installed by the context-engine plugin's AiIndexTemplateRegistry; match every `.ai-index-idx-*` / `.ai-index-ds-*` name.
     private static final String AI_INDEX_MANAGED_TEMPLATE = "ai-index-idx-managed";
     private static final String AI_INDEX_DS_MANAGED_TEMPLATE = "ai-index-ds-managed";
 

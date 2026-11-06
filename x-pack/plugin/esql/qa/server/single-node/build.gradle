@@ -196,6 +196,14 @@ tasks.named('yamlRestTest') {
   usesDefaultDistribution("to be triaged")
 }
 
+// The ES|QL release test jobs run only this project's test suites; its precommit runs in the check parts. The root
+// build registers esqlReleaseTestCheck on the other projects those jobs cover.
+tasks.register('esqlReleaseTestCheck') {
+  group = 'Verification'
+  description = 'Runs the test suites of the ES|QL release test jobs for this project.'
+  dependsOn 'csvSpecTests', 'javaRestTest', 'yamlRestTest'
+}
+
 // Uncomment this to start automatically running this as part of CI
 // Otherwise run explicitly with: ./gradlew ":x-pack:plugin:esql:qa:server:single-node:javaRestTestSecure"
 // tasks.named('check').configure { dependsOn 'javaRestTestSecure' }

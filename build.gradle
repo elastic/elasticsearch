@@ -640,17 +640,15 @@ def esqlReleaseTestProjects = [
   ':x-pack:plugin:esql:qa:testFixtures',
   ':x-pack:plugin:esql:tools',
 ]
-esqlReleaseTestProjects.each { path ->
-  project(path).tasks.register('esqlReleaseTestCheck') {
-    group = 'Verification'
-    description = 'Runs the checks of the ES|QL release test jobs for this project.'
-    dependsOn 'releaseTestCheck'
+// single-node registers its own esqlReleaseTestCheck, for its test suites only
+allprojects {
+  if (esqlReleaseTestProjects.contains(path)) {
+    tasks.register('esqlReleaseTestCheck') {
+      group = 'Verification'
+      description = 'Runs the checks of the ES|QL release test jobs for this project.'
+      dependsOn 'releaseTestCheck'
+    }
   }
-}
-project(':x-pack:plugin:esql:qa:server:single-node').tasks.register('esqlReleaseTestCheck') {
-  group = 'Verification'
-  description = 'Runs the test suites of the ES|QL release test jobs for this project.'
-  dependsOn 'csvSpecTests', 'javaRestTest', 'yamlRestTest'
 }
 
 tasks.named("assemble").configure {

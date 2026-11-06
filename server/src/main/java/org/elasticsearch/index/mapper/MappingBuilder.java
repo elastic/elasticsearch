@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -253,6 +254,21 @@ public class MappingBuilder implements ToXContentFragment {
         for (MetadataFieldMapper.Builder metadataBuilder : metadataBuilders.values()) {
             metadataBuilder.normalize(rootContext);
         }
+    }
+
+    /**
+     * Normalizes the tree, then hands the consumer the builder of every field, metadata field and field alias with its full
+     * path. Collected builders may be serialized individually as they have been normalized.
+     *
+     * @param reason   the merge reason, used to normalize
+     * @param consumer receives each field builder with its full path
+     */
+    public void collectFieldBuilders(MergeReason reason, BiConsumer<String, Mapper.Builder> consumer) {
+        normalize(reason);
+        for (MetadataFieldMapper.Builder metadataBuilder : metadataBuilders.values()) {
+            metadataBuilder.collectFieldBuilders(null, consumer);
+        }
+        rootBuilder.collectFieldBuilders(null, consumer);
     }
 
     private MapperBuilderContext rootContext(MergeReason reason) {

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -196,6 +197,21 @@ public class Typed extends EsqlScalarFunction implements ConvertFunction {
         public String toString() {
             return "TypedEvaluator[matches=" + matches + "]";
         }
+    }
+
+    /**
+     * The type is a non-child, and {@code Function} equality compares only the class and the children, so without this
+     * {@code TYPED(x, "integer")} equals {@code TYPED(x, "long")}. Optimizer rules key maps on expression identity, so
+     * two such calls collapse into one and the second binds to the wrong leg.
+     */
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && Objects.equals(typeLiteral, ((Typed) obj).typeLiteral);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), typeLiteral);
     }
 
     /** Widened: a leg is pinned to its raw mapped type, so a {@code short} leg loads as an int block. */

@@ -5608,6 +5608,25 @@ public class AnalyzerTests extends AnalyzerTestCase {
      * type and its all-or-nothing check passes. A conversion that declines any mapped type refuses the
      * whole query instead.
      */
+    /**
+     * The type is a non-child and {@code Function} equality compares class and children, so without an override
+     * these two are equal. Optimizer rules key maps on expression identity: a STATS over both collapses them into
+     * one eval and binds the second aggregate to the wrong leg.
+     */
+    public void testTypedDistinguishesItsTargetType() {
+        FieldAttribute field = new FieldAttribute(
+            Source.EMPTY,
+            "salary",
+            new EsField("salary", INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Typed asLong = new Typed(Source.EMPTY, field, Literal.keyword(Source.EMPTY, "long"));
+        Typed asInteger = new Typed(Source.EMPTY, field, Literal.keyword(Source.EMPTY, "integer"));
+
+        assertThat(asLong, not(equalTo(asInteger)));
+        assertThat(asLong.hashCode(), not(equalTo(asInteger.hashCode())));
+        assertThat(asLong, equalTo(new Typed(Source.EMPTY, field, Literal.keyword(Source.EMPTY, "long"))));
+    }
+
     public void testTypedResolvesConflictedField() {
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put("keyword", Set.of("union_index_1"));

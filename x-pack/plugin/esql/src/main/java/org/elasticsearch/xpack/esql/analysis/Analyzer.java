@@ -142,6 +142,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Typed;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
@@ -4273,6 +4274,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the
                     // post-analysis verifier rejects it on a single-typed field.
                     return new UnresolvedAttribute(fa.source(), fa.name(), ToText.analyzerOnMappedFieldMessage(fa.name()));
+                }
+                if (convert instanceof Typed typed && typed.typeResolved().unresolved()) {
+                    // Nothing below consults the convert's own type resolution, so a bad type name would otherwise
+                    // become a union field typed UNSUPPORTED and the failure would name the field rather than the call.
+                    return new UnresolvedAttribute(fa.source(), fa.name(), typed.typeResolved().message());
                 }
                 // The field has an unresolved type conflict (TypeConflictedField), so we attempt to create UnionTypeEsField with
                 // index-specific conversions

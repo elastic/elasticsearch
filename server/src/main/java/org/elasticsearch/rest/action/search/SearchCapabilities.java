@@ -9,6 +9,8 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.search.profile.ProfileSelection;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -88,6 +90,9 @@ public final class SearchCapabilities {
     /** A composite aggregation with a non-positive {@code size} is rejected with a 400 instead of failing with an NPE. */
     private static final String COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE = "composite_agg_rejects_non_positive_size";
 
+    /** The profile reports codec reads and accepts {@code profile.segments} and {@code profile.fields}. */
+    private static final String CODEC_READ_PROFILING = "codec_read_profiling";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -132,6 +137,9 @@ public final class SearchCapabilities {
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
         capabilities.add(KNN_REQUIRES_SLICE_SELECTION);
         capabilities.add(COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE);
+        if (ProfileSelection.CODEC_READ_PROFILING_FEATURE_FLAG.isEnabled()) {
+            capabilities.add(CODEC_READ_PROFILING);
+        }
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

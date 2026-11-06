@@ -95,7 +95,7 @@ public record ChunkIndexMetadata(
     public ChunkedBytesReader open(ColumnInputs inputs) throws IOException {
         if (numChunks == 0) {
             // No bytes were written, so there is no index to open; only zero-length reads can follow.
-            return new ChunkedBytesReader(inputs.data(), ChunkCodec.forId(codecId), 0, null, null, 0);
+            return new ChunkedBytesReader(inputs.data(), ChunkCodec.forId(codecId), 0, null, null, 0, inputs.metrics());
         }
         return new ChunkedBytesReader(
             inputs.data(),
@@ -103,7 +103,8 @@ public record ChunkIndexMetadata(
             dataOffset,
             MonotonicReader.open(inputs.navigation(), startsMeta, numChunks + 1L, startsDataOffset, startsDataLength),
             MonotonicReader.open(inputs.navigation(), fileOffsetsMeta, numChunks + 1L, fileOffsetsDataOffset, fileOffsetsDataLength),
-            numChunks
+            numChunks,
+            inputs.metrics()
         );
     }
 

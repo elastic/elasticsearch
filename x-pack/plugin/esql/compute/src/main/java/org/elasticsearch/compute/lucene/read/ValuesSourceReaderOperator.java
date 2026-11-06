@@ -34,6 +34,9 @@ import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.profile.CodecReadAttribution;
+import org.elasticsearch.search.profile.CodecReads;
+import org.elasticsearch.search.profile.ProfileSelection;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -153,6 +156,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * @param fields fields to load
      * @param shardContexts per-shard loading information
      * @param docChannel the channel containing the shard, leaf/segment and doc id
+     * @param profile the segments and fields that the codec read profile breaks down, or null when codec reads are not
+     *                profiled; see {@link CodecReadAttribution}
      */
     public record Factory(
         ByteSizeValue jumboSize,
@@ -162,7 +167,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         int docChannel,
         double sourceReservationFactor,
         int docSequenceBytesRefFieldThreshold,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        @Nullable ProfileSelection profile
     ) implements OperatorFactory {
         public Factory
 
@@ -182,9 +188,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             boolean reuseColumnLoaders,
             int docChannel,
             double sourceReservationFactor,
-            LongSupplier directoryBytesRead
+            LongSupplier directoryBytesRead,
+            @Nullable ProfileSelection profile
         ) {
-            this(jumboSize, fields, shardContexts, reuseColumnLoaders, docChannel, sourceReservationFactor, 500, directoryBytesRead);
+            this(
+                jumboSize,
+                fields,
+                shardContexts,
+                reuseColumnLoaders,
+                docChannel,
+                sourceReservationFactor,
+                500,
+                directoryBytesRead,
+                profile
+            );
         }
 
         @Override
@@ -198,7 +215,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                 docChannel,
                 sourceReservationFactor,
                 docSequenceBytesRefFieldThreshold,
-                directoryBytesRead
+                directoryBytesRead,
+                profile
             );
         }
 
@@ -264,10 +282,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         return new LoaderAndConverter(loader, converter);
     }
 
+    /**
+     * @param shardIdentifier the shard as {@code <index>:<shard>}; the codec read profile prefixes segment keys with it
+     *                        because a Lucene segment name is unique within one shard only
+     */
     public record ShardContext(
         IndexReader reader,
         Function<Set<String>, SourceLoader> newSourceLoader,
-        double storedFieldsSequentialProportion
+        double storedFieldsSequentialProportion,
+        String shardIdentifier
     ) {}
 
     final DriverContext driverContext;
@@ -314,6 +337,19 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     long sourceBytesLoaded;
     private final LongSupplier directoryBytesRead;
 
+    /**
+     * Attributes the codec reads of the readers this operator opens, or null when codec reads are not profiled. The
+     * counts accumulate over every reader the operator opens, including readers it reopens.
+     */
+    @Nullable
+    private final CodecReadAttribution codecReads;
+
+    /** The bytes {@link #codecReads} charged to the driver's breaker; released on close. */
+    private long codecReadBytes;
+
+    /** The shard that {@link #codecReads} currently uses as its partition, or -1 before the first shard. */
+    private int codecReadShard = -1;
+
     private int lastShard = -1;
     private int lastSegment = -1;
 
@@ -352,13 +388,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         int docChannel,
         double sourceReservationFactor,
         int docSequenceBytesRefFieldThreshold,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        @Nullable ProfileSelection profile
     ) {
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
         }
         this.directoryBytesRead = directoryBytesRead;
         this.driverContext = driverContext;
+        this.codecReads = profile == null ? null : new CodecReadAttribution(profile, this::chargeCodecReads);
         this.jumboBytes = jumboBytes;
         this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
         this.fields = new FieldWork[fields.size()];
@@ -391,7 +429,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             public Page next() {
                 long bytesSnapshot = directoryBytesRead.getAsLong();
                 Page loaded = null;
-                try {
+                // NOTE: The operator opens every reader inside this call: on a new segment, after a thread change, and on
+                // each read when readers are not reused. The binding is thread local, so it must cover this call.
+                try (Releasable ignored = codecReads == null ? null : codecReads.bind()) {
                     loaded = inner.next();
                     return loaded;
                 } finally {
@@ -548,8 +588,18 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         );
     }
 
+    /** Charges the memory of the codec read details to the driver's breaker. The breaker can throw to refuse it. */
+    private void chargeCodecReads(long bytes) {
+        driverContext.blockFactory().adjustBreaker(bytes);
+        codecReadBytes += bytes;
+    }
+
     @Override
     public void close() {
+        if (codecReadBytes > 0) {
+            driverContext.blockFactory().adjustBreaker(-codecReadBytes);
+            codecReadBytes = 0;
+        }
         if (sourceLoadingReservation > 0) {
             driverContext.blockFactory().adjustBreaker(-sourceLoadingReservation);
             sourceLoadingReservation = 0;
@@ -649,7 +699,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     }
 
     LeafReaderContext ctx(int shard, int segment) {
-        return shardContexts.get(shard).reader().leaves().get(segment);
+        if (codecReads != null && codecReadShard != shard) {
+            // NOTE: The operator opens every reader on a leaf that this method returns. Setting the partition here gives
+            // the readers opened from now on the key <index>:<shard>/<segment>.
+            codecReads.partition(shardContexts.get(shard).shardIdentifier());
+            codecReadShard = shard;
+        }
+        final LeafReaderContext leaf = shardContexts.get(shard).reader().leaves().get(segment);
+        if (codecReads != null) {
+            codecReads.leaf(leaf.reader());
+        }
+        return leaf;
     }
 
     @Override
@@ -693,7 +753,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             bytesDecoded,
             sourceDocsLoaded,
             sourceFieldReads,
-            sourceBytesLoaded
+            sourceBytesLoaded,
+            codecReads == null ? CodecReads.EMPTY : codecReads.snapshot()
         );
     }
 

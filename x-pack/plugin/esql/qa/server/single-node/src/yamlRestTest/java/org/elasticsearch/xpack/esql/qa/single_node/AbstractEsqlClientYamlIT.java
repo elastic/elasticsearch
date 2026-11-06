@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -37,6 +38,7 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         // release build.
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .setting("ingest.geoip.downloader.enabled", "false")
+        .feature(FeatureFlag.CODEC_READ_PROFILING)
         .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
         .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
         .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))

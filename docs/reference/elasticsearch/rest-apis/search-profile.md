@@ -1199,9 +1199,140 @@ In the `dfs.knn` portion of the response we can see the output the of timings fo
 
 
 
+### Profiling codec reads [profiling-codec-reads]
+
+```{applies_to}
+stack: preview 9.7
+serverless: preview
+```
+
+A query node that reads a field stored by a codec that supports read profiling, such as the [columnar](/reference/elasticsearch/columnar/index.md) doc values format, reports what the codec did for it: how many readers it opened, how many blocks and chunks it fetched and inflated, and how long that took. Use it to find out whether a slow query spends its time reading column data, and which field and segment that time belongs to.
+
+Start with the totals, which cost the least, then name what you suspect, and ask for full detail only when nothing is suspected yet:
+
+1. Profile with `"profile": true`. Each query node that opened a codec reader has a `totals` object with the totals of that node, keyed by codec:
+
+    ```console
+    GET /my-logs/_search
+    {
+      "profile": true,
+      "query": { "term": { "log.level": "error" } }
+    }
+    ```
+
+    Suppose `totals.ColumNAR.blocks.fetch_time_nanos` is high and `blocks.fetched` is large compared with `readers.opened`: the node spends its time fetching blocks. The totals don't say which field or segment that is.
+
+2. Name the suspected field. The node then also has a `fields` object with the totals of that field over every segment it read, and no segment is listed:
+
+    ```console
+    GET /my-logs/_search
+    {
+      "profile": { "fields": [ "log.level" ] },
+      "query": { "term": { "log.level": "error" } }
+    }
+    ```
+
+3. To see which segments the cost of the field comes from, ask for every segment and the field. Each segment is listed with its totals, its description, and the counts of the field in it:
+
+    ```console
+    GET /my-logs/_search
+    {
+      "profile": { "segments": "_all", "fields": [ "log.level" ] },
+      "query": { "term": { "log.level": "error" } }
+    }
+    ```
+
+`profile` takes two independent options, `segments` and `fields`. Each is `"_all"` or an array of names. Each dimension expands only when it is asked for: segments never list fields, and fields never list segments. Naming a segment or a field reports its totals and what identifies it, and nothing else. `"_all"` reports every segment, or every field, with its description. A segment lists fields inside it only when `fields` selects them:
+
+| `profile` | Reports, besides `totals` |
+| --- | --- |
+| `true`, `{}`, `{"segments": []}` | Nothing |
+| `{"segments": ["_1", "_3"]}` | The totals of each named segment, over every field it read |
+| `{"fields": ["host.name", "region"]}` | The totals of each named field, over every segment it was read in |
+| `{"segments": ["_1"], "fields": ["host.name"]}` | Both, and the counts of `host.name` within `_1` |
+| `{"segments": "_all"}` | Every segment, with its description and its totals, and no field |
+| `{"fields": "_all"}` | Every field, with its description, and no segment |
+| `{"segments": ["_1"], "fields": "_all"}` | Segment `_1` with the counts of every field in it, and every field with its description and its totals over every segment |
+| `{"segments": "_all", "fields": ["host.name"]}` | Every segment, with its description and the counts of `host.name` in it, and the totals of `host.name` |
+| `{"segments": "_all", "fields": "_all"}` | The complete breakdown: every segment and every field, described, and every field within every segment |
+
+Selecting both segments and fields doesn't narrow either one: the totals of a named field always count every segment, and the totals of a named segment always count every field. The counts of a field within a segment are listed inside the segment entry. These views overlap, so don't add them together.
+
+Each selected field and segment measures most of its calls while it has few, so `"_all"` on a query that reads many fields in many segments carries the most instrumentation overhead.
+
+A profile lists each segment under the key `<index>:<shard>/<segment>`, as the ES|QL profile does, since Lucene names segments within one shard only. A segment is named by its Lucene name, such as `_1`, which matches that segment in every shard the search reads, or by that key, which matches it in one shard only. Names are matched exactly, with no patterns, and an entry of an array is always a name: `["_all"]` names the segment or field called `_all`. A name that matches nothing selects nothing and isn't an error. Segment names come from the [segments API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-segments) or from an earlier profile, and can change when segments merge.
+
+A node profiled with `"segments": "_all", "fields": "_all"` looks like this (the `fields` object of the node is left out):
+
+```js
+{
+  "type": "ColumnarStringTermQuery",
+  "description": "log.level:error",
+  "time_in_nanos": 3068708,
+  "breakdown": { ... },
+  "totals": {
+    "ColumNAR": {
+      "blocks": {
+        "fetched": 3,
+        "fetch_time_nanos": { "value": 1039334, "unit": "ns", "estimated": false, "total_calls": 3 }
+      },
+      "readers": {
+        "dictionary": 2,
+        "numeric": 0,
+        "open_time_nanos": { "value": 740750, "unit": "ns", "estimated": false, "total_calls": 2 },
+        "opened": 2,
+        "plain": 0
+      }
+    }
+  },
+  "segments": {
+    "my-logs:0/_1": {
+      "index": "my-logs",
+      "shard": 0,
+      "max_doc": 2757,
+      "num_docs": 2757,
+      ...,
+      "metrics": {
+        "ColumNAR": {
+          "blocks": { "fetched": 2, "fetch_time_nanos": { "value": 700201, "unit": "ns", "estimated": false, "total_calls": 2 } },
+          "readers": { "dictionary": 1, "numeric": 0, "open_time_nanos": { "value": 390112, "unit": "ns", "estimated": false, "total_calls": 1 }, "opened": 1, "plain": 0 }
+        }
+      },
+      "fields": {
+        "log.level": {
+          "field_info": { ... },
+          "column": { "skip_index": false },
+          "metrics": {
+            "ColumNAR": {
+              "blocks": { "fetched": 2, "fetch_time_nanos": { "value": 700201, "unit": "ns", "estimated": false, "total_calls": 2 } },
+              "readers": { "dictionary": 1, "numeric": 0, "open_time_nanos": { "value": 390112, "unit": "ns", "estimated": false, "total_calls": 1 }, "opened": 1, "plain": 0 }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+% NOTCONSOLE
+
+Every `metrics` object, like `totals`, is keyed by the codec that did the work, so the counts of two codecs are never added together.
+
+A segment is always listed with its `index` and `shard`. With `"segments": "_all"`, it also describes itself: `max_doc`, `num_docs`, `lucene_codec`, `lucene_version`, `compound_file` and, for a sorted index, `index_sort`, one entry per sort key with its `field`, `type`, `order`, `mode` and `missing` (`first` or `last`), as in the `index.sort.*` settings. `root_docs` and `nested_docs` count top-level and nested documents. They're free for a segment without nested documents. For a segment with them, counting reads the parent field, so add `"count_nested_docs": true` to the `profile` object to ask for it. Without it, such a segment has no `root_docs` and no `nested_docs`. Under `field_infos`, the segment shows what its field infos hold as a whole: `count`, `doc_values_count`, `doc_values_formats` (how many fields each doc values format serves), `has_norms`, `has_points`, `has_vectors`, and the soft-deletes and parent fields. With `"fields": "_all"`, a field shows under `field_info` what the field infos hold about it, such as `doc_values_type`, `index_options`, `postings_format` and `sort_field` with its `sort_position`. Its `column` shows `skip_index`, whether the stored column has the codec's own skip index. That says the index exists, not that a read used it: for the columnar format only a term, prefix or range match on a dictionary column navigates it, and a numeric column's skip index has no metrics. A field under `fields` of the node spans segments, so it shows a `field_info` only when all its segments describe it alike, and each `column` fact that none of them contradicts. These are descriptions, not measurements, and a description that can't be read reliably is left out.
+
+`totals` always counts the work of every field and segment of the node, whatever was selected, so the selection never changes it. The counts under `segments` and `fields` are part of the totals, not added to them. Counters are numbers. A time is an object with its `value` in nanoseconds, whether it is `estimated`, and its `total_calls`. A time is estimated when some of its calls were not measured and were valued at the mean of those that were; it then also has `sampled_calls`, how many were measured. That describes coverage, not accuracy. Each selected field and segment samples its own calls, so the estimated times of the segments add up to an estimate of the total rather than to the total itself. With every segment selected, the counters, the `total_calls` of every time, and the times that aren't estimated of the segments add up to the totals exactly, and so do those of the fields with every field selected.
+
+Times nest, so don't add them up. A page call contains everything the page needed, including the reads that have times of their own and the work of the consumer that receives the page, and a block fetch contains the decompression of the block. Byte counters count each fetch or read when it happens, so they describe read activity, not the size of a column, and they aren't disk or network I/O. For the columnar format, the metrics are listed in the Javadoc of `org.elasticsearch.columnar`, which also says which times contain which.
+
+The counts appear on the query node that opened the reader. A parent, such as a `bool` query, has none of its children's counts.
+
+Like the rest of the profile, codec read profiling has a cost and can change the timing of what it measures: clock reads, counter updates and the bookkeeping of the selected fields and segments take time and memory. The memory of the selected fields and segments counts towards the [request circuit breaker](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#request-circuit-breaker) for as long as the search runs, so a very large selection can trip it. The overhead follows the number of calls of the selected fields and how many of those are measured, not the number of fields selected: one busy field can cost more than many idle ones. Times of very short operations, such as dictionary lookups, carry the most overhead.
+
 ### Profiling considerations [profiling-considerations]
 
 Like any profiler, the Profile API introduces a non-negligible overhead to search execution. The act of instrumenting low-level method calls such as `collect`, `advance`, and `next_doc` can be fairly expensive, since these methods are called in tight loops. Therefore, profiling should not be enabled in production settings by default, and should not be compared against non-profiled query times. Profiling is just a diagnostic tool.
+
+Selecting fields and segments for [codec read profiling](#profiling-codec-reads) adds to that overhead, most when every field of every segment is selected.
 
 There are also cases where special Lucene optimizations are disabled, since they are not amenable to profiling. This could cause some queries to report larger relative times than their non-profiled counterparts, but in general should not have a drastic effect compared to other components in the profiled query.
 
@@ -1210,6 +1341,7 @@ There are also cases where special Lucene optimizations are disabled, since they
 
 * Profiling currently does not measure the network overhead.
 * Profiling also does not account for time spent in the queue, merging shard responses on the coordinating node, or additional work such as building global ordinals (an internal data structure used to speed up search).
+* [Codec read profiling](#profiling-codec-reads) counts only the readers a query node opens while it builds its scorers or counts. Reads done by aggregations, sorting, fetching, and by scripts or runtime fields while they match appear on no node.
 * Profiling statistics are currently not available for suggestions.
 * Profiling of the reduce phase of aggregation is currently not available.
 * The Profiler is instrumenting internals that can change from version to version. The resulting json should be considered mostly unstable, especially things in the `debug` section.

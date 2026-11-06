@@ -12,6 +12,8 @@ package org.elasticsearch.columnar.substrate;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.codec.profiler.MetricRecorder;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -62,8 +64,33 @@ public interface BlockBytesCodec {
         }
         if (id == ZSTD_ID) {
             // Holds scratch, so every caller takes its own rather than sharing one.
-            return new ZstdBlockBytesCodec();
+            return new ZstdBlockBytesCodec(ChunkCodec.ZSTD.newDecompressor());
         }
         throw new IllegalArgumentException("Unknown block-bytes codec id: " + id);
+    }
+
+    /**
+     * The codec for {@code id}, for a reader. With a recorder, the codec is wrapped in a {@link ProfiledBlockBytesCodec},
+     * and a Zstd codec inflates through a {@link ProfiledChunkDecompressor}. Without a recorder, this returns
+     * {@link #forId}.
+     *
+     * @param metrics the recorder of the reader, or null when the reader is not profiled
+     */
+    static BlockBytesCodec forReading(byte id, @Nullable MetricRecorder metrics) {
+        if (metrics == null) {
+            return forId(id);
+        }
+        final BlockBytesCodec codec;
+        if (id == ZSTD_ID) {
+            final ChunkDecompressor inflater = new ProfiledChunkDecompressor(
+                ChunkCodec.ZSTD.newDecompressor(),
+                metrics,
+                ProfiledBlockBytesCodec.INFLATION
+            );
+            codec = new ZstdBlockBytesCodec(inflater);
+        } else {
+            codec = forId(id);
+        }
+        return new ProfiledBlockBytesCodec(codec, metrics);
     }
 }

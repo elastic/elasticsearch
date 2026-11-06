@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ProfileSchema;
+import org.elasticsearch.search.profile.CodecReads;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -28,6 +29,26 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "values_source_reader",
         ValuesSourceReaderOperatorStatus::readFrom
     );
+    /**
+     * Codec read metrics by codec, then by component, then by name. Each metric is a counter value or a time object.
+     * See {@link CodecReads#renderTotals()}.
+     */
+    private static final Map<String, Object> CODEC_READ_METRICS = ProfileSchema.dynamicObject(
+        ProfileSchema.dynamicObject(
+            ProfileSchema.dynamicObject(
+                ProfileSchema.anyOf(
+                    ProfileSchema.integer(),
+                    ProfileSchema.dynamicObject(ProfileSchema.anyOf(ProfileSchema.integer(), ProfileSchema.string(), ProfileSchema.bool()))
+                )
+            )
+        )
+    );
+    /**
+     * The codec read breakdown, by segment key or by field name. The content of an entry depends on the selection.
+     * See {@link CodecReads#renderSegments()} and {@link CodecReads#renderFields()}.
+     */
+    private static final Map<String, Object> CODEC_READ_SELECTION = ProfileSchema.dynamicObject(ProfileSchema.dynamicObject(Map.of()));
+
     public static final ProfileSchema<ValuesSourceReaderOperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(
         ValuesSourceReaderOperatorStatus.class,
         (builder, status, params) -> status.writeProfile(builder)
@@ -46,6 +67,9 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         .required("pages_emitted", ProfileSchema.integer())
         .required("rows_received", ProfileSchema.integer())
         .required("rows_emitted", ProfileSchema.integer())
+        .optional("totals", CODEC_READ_METRICS)
+        .optional("segments", CODEC_READ_SELECTION)
+        .optional("fields", CODEC_READ_SELECTION)
         .build();
     private static final TransportVersion CONVERTERS_USED = TransportVersion.fromName("esql_vsr_converters_used");
 
@@ -56,6 +80,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName("esql_lucene_operator_bytes_read");
     private static final TransportVersion ESQL_VSR_SOURCE_LOAD_PROFILE = TransportVersion.fromName("esql_vsr_source_load_profile");
     private static final TransportVersion ESQL_BYTES_DECODED = TransportVersion.fromName("esql_bytes_decoded");
+    private static final TransportVersion CODEC_READ_PROFILING = TransportVersion.fromName("codec_read_profiling");
 
     private final Map<String, Integer> readersBuilt;
     private final Map<String, Integer> convertersUsed;
@@ -69,6 +94,13 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     private final long sourceFieldReads;
     /** Sum of last materialized source payload size per row-stride document read. */
     private final long sourceBytesLoaded;
+    /**
+     * The codec reads of the readers this operator opened: the codec totals and the breakdown. A segment key has the form
+     * {@code <index>:<shard>/<segment>} because one operator can read several shards. Empty when codec reads are not
+     * profiled or no instrumented codec reader was opened. Sent only to nodes that support the
+     * {@code codec_read_profiling} transport version.
+     */
+    private final CodecReads codecReads;
 
     public ValuesSourceReaderOperatorStatus(
         Map<String, Integer> readersBuilt,
@@ -83,7 +115,8 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         long bytesDecoded,
         long sourceDocsLoaded,
         long sourceFieldReads,
-        long sourceBytesLoaded
+        long sourceBytesLoaded,
+        CodecReads codecReads
     ) {
         super(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
         this.readersBuilt = readersBuilt;
@@ -94,6 +127,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         this.sourceDocsLoaded = sourceDocsLoaded;
         this.sourceFieldReads = sourceFieldReads;
         this.sourceBytesLoaded = sourceBytesLoaded;
+        this.codecReads = codecReads;
     }
 
     static ValuesSourceReaderOperatorStatus readFrom(StreamInput in) throws IOException {
@@ -127,6 +161,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         long sourceDocsLoaded = supportsSourceLoadProfile(in.getTransportVersion()) ? in.readVLong() : 0;
         long sourceFieldReads = supportsSourceLoadProfile(in.getTransportVersion()) ? in.readVLong() : 0;
         long sourceBytesLoaded = supportsSourceLoadProfile(in.getTransportVersion()) ? in.readVLong() : 0;
+        CodecReads codecReads = supportsReadStats(in.getTransportVersion()) ? new CodecReads(in) : CodecReads.EMPTY;
         return new ValuesSourceReaderOperatorStatus(
             readersBuilt,
             convertersUsed,
@@ -140,7 +175,8 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             bytesDecoded,
             sourceDocsLoaded,
             sourceFieldReads,
-            sourceBytesLoaded
+            sourceBytesLoaded,
+            codecReads
         );
     }
 
@@ -173,6 +209,13 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             out.writeVLong(sourceFieldReads);
             out.writeVLong(sourceBytesLoaded);
         }
+        if (supportsReadStats(out.getTransportVersion())) {
+            codecReads.writeTo(out);
+        }
+    }
+
+    private static boolean supportsReadStats(TransportVersion version) {
+        return version.supports(CODEC_READ_PROFILING);
     }
 
     private static boolean supportsBytesRead(TransportVersion version) {
@@ -235,6 +278,10 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         return sourceBytesLoaded;
     }
 
+    public CodecReads codecReads() {
+        return codecReads;
+    }
+
     private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.startObject("readers_built");
@@ -259,6 +306,17 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         builder.field("source_field_reads", sourceFieldReads);
         // Volume: cumulative source payload bytes materialized while reading.
         builder.field("source_bytes_loaded", sourceBytesLoaded);
+        if (codecReads.isEmpty() == false) {
+            builder.field("totals", codecReads.renderTotals());
+            final Map<String, Object> segments = codecReads.renderSegments();
+            if (segments.isEmpty() == false) {
+                builder.field("segments", segments);
+            }
+            final Map<String, Object> fields = codecReads.renderFields();
+            if (fields.isEmpty() == false) {
+                builder.field("fields", fields);
+            }
+        }
         innerToXContent(builder);
         return builder.endObject();
     }
@@ -279,7 +337,8 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             && bytesDecoded == status.bytesDecoded
             && sourceDocsLoaded == status.sourceDocsLoaded
             && sourceFieldReads == status.sourceFieldReads
-            && sourceBytesLoaded == status.sourceBytesLoaded;
+            && sourceBytesLoaded == status.sourceBytesLoaded
+            && codecReads.equals(status.codecReads);
     }
 
     @Override
@@ -292,7 +351,8 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             bytesDecoded,
             sourceDocsLoaded,
             sourceFieldReads,
-            sourceBytesLoaded
+            sourceBytesLoaded,
+            codecReads
         );
     }
 

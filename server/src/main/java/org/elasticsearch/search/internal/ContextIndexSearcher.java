@@ -356,7 +356,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 timer.stop();
                 profiler.pollLastElement();
             }
-            return chargingExecutionMemory(query, new ProfileWeight(query, innerWeight, profile));
+            return chargingExecutionMemory(
+                query,
+                new ProfileWeight(
+                    query,
+                    innerWeight,
+                    profile,
+                    profiler.codecReadSelection(),
+                    bytes -> chargeSearcher(bytes, CODEC_READ_PROFILE_LABEL)
+                )
+            );
         }
         // The charging weight sits below the query cache, so a leaf served from the cache is not charged.
         final Weight weight = chargingExecutionMemory(query, query.createWeight(this, scoreMode, boost));
@@ -385,6 +394,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return weight;
     }
 
+    /** The circuit breaker label for the details of a codec read profile. */
+    static final String CODEC_READ_PROFILE_LABEL = "<codec_read_profile>";
+
     /**
      * Reserves {@code bytes} of execution memory on the request circuit breaker under {@code label}, attributed to
      * {@code ctx}'s leaf (or to the {@link LeafExecutionScope} bound to the calling thread, if any). The memory is
@@ -395,6 +407,20 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     public void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
         executionAccounting.charge(ctx, bytes, label);
+    }
+
+    /**
+     * Reserves {@code bytes} on the request circuit breaker under {@code label} until this searcher closes. It is for
+     * memory that lives as long as the search, such as the details of a codec read profile. When the breaker trips,
+     * nothing is reserved. Does nothing when no circuit breaker is set.
+     */
+    public void chargeSearcher(long bytes, String label) {
+        executionAccounting.chargeSearcher(bytes, label);
+    }
+
+    /** Test-only */
+    long searcherExecutionBytes() {
+        return executionAccounting.searcherBytes();
     }
 
     /** Test-only */

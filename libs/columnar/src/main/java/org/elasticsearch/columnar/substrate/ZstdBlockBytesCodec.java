@@ -36,11 +36,16 @@ final class ZstdBlockBytesCodec implements BlockBytesCodec {
     private static final byte STORED_COMPRESSED = 1;
 
     private final ChunkCompressor compressor = ChunkCodec.ZSTD.newCompressor();
-    private final ChunkDecompressor decompressor = ChunkCodec.ZSTD.newDecompressor();
+    private final ChunkDecompressor decompressor;
     private final Scratch block = new Scratch();
     private final Scratch compressed = new Scratch();
     private final ByteArrayDataInput decompressedInput = new ByteArrayDataInput();
     private byte[] decompressed = new byte[0];
+
+    /** @param decompressor inflates a compressed block; a profiled reader passes a {@link ProfiledChunkDecompressor} */
+    ZstdBlockBytesCodec(ChunkDecompressor decompressor) {
+        this.decompressor = decompressor;
+    }
 
     @Override
     public byte id() {

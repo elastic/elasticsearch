@@ -202,14 +202,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
                     (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                    "test:0"
                 )
             ),
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
             docSequenceThreshold,
-            () -> 0L
+            () -> 0L,
+            null
         );
     }
 
@@ -552,14 +554,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
                     (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                    "test:0"
                 )
             ),
             reuseColumnLoaders,
             0,
             randomDoubleBetween(0.1, 10.0, true),
             docSequenceBytesRefFieldThreshold(),
-            () -> 0L
+            () -> 0L,
+            null
         ).get(driverContext);
         List<Page> results = new TestDriverRunner().numThreads(1).builder(driverContext).input(input).run(load);
         assertThat(results, hasSize(input.size()));
@@ -694,14 +698,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     new ValuesSourceReaderOperator.ShardContext(
                         reader,
                         (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                        STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                        STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                        "test:0"
                     )
                 ),
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
                 docSequenceBytesRefFieldThreshold(),
-                () -> 0L
+                () -> 0L,
+                null
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -717,14 +723,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
                             (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                            "test:0"
                         )
                     ),
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
                     docSequenceBytesRefFieldThreshold(),
-                    () -> 0L
+                    () -> 0L,
+                    null
                 ).get(driverContext)
             );
         }
@@ -866,14 +874,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             new ValuesSourceReaderOperator.ShardContext(
                                 reader,
                                 (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                                STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                                "test:0"
                             )
                         ),
                         reuseBlockLoaders,
                         0,
                         randomDoubleBetween(0.1, 10.0, true),
                         docSequenceBytesRefFieldThreshold(),
-                        () -> 0L
+                        () -> 0L,
+                        null
                     ).get(runner.context())
                 )
                 .toList()
@@ -1026,14 +1036,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             new ValuesSourceReaderOperator.ShardContext(
                                 reader,
                                 (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                                STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                                "test:0"
                             )
                         ),
                         randomBoolean(),
                         0,
                         randomDoubleBetween(0.1, 10.0, true),
                         docSequenceBytesRefFieldThreshold(),
-                        () -> 0L
+                        () -> 0L,
+                        null
                     ).get(runner.context())
                 )
                 .toList()
@@ -1720,14 +1732,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             new ValuesSourceReaderOperator.ShardContext(
                                 reader,
                                 (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                                STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                                "test:0"
                             )
                         ),
                         randomBoolean(),
                         0,
                         randomDoubleBetween(0.1, 10.0, true),
                         docSequenceBytesRefFieldThreshold(),
-                        () -> 0L
+                        () -> 0L,
+                        null
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -1776,12 +1790,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, sourcePaths -> {
                         sourceLoadersBuilt.incrementAndGet();
                         return SourceLoader.FROM_STORED_SOURCE;
-                    }, STORED_FIELDS_SEQUENTIAL_PROPORTIONS)),
+                    }, STORED_FIELDS_SEQUENTIAL_PROPORTIONS, "test:0")),
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
                     docSequenceBytesRefFieldThreshold(),
-                    () -> 0L
+                    () -> 0L,
+                    null
                 )
             );
         assertThat(sourceLoadersBuilt.get(), equalTo(1));
@@ -1796,12 +1811,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, sourcePaths -> {
                 sourceLoadersBuilt.incrementAndGet();
                 return SourceLoader.FROM_STORED_SOURCE;
-            }, STORED_FIELDS_SEQUENTIAL_PROPORTIONS)),
+            }, STORED_FIELDS_SEQUENTIAL_PROPORTIONS, "test:0")),
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
             docSequenceBytesRefFieldThreshold(),
-            () -> 0L
+            () -> 0L,
+            null
         ).get(driverContext());
         Set<String> paths = new HashSet<>();
         paths.add("a");
@@ -1839,14 +1855,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
                             (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                            "test:0"
                         )
                     ),
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
                     docSequenceBytesRefFieldThreshold(),
-                    () -> 0L
+                    () -> 0L,
+                    null
                 )
             );
         ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) runner.statuses().getFirst();
@@ -1874,14 +1892,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
                             (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                            "test:0"
                         )
                     ),
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
                     docSequenceBytesRefFieldThreshold(),
-                    () -> 0L
+                    () -> 0L,
+                    null
                 )
             );
         Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
@@ -1913,14 +1933,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
                     (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                    "test:0"
                 )
             ),
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
             docSequenceBytesRefFieldThreshold(),
-            () -> 0L
+            () -> 0L,
+            null
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -2078,14 +2100,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
                     needsSource ? (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE : (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                    "test:0"
                 )
             ),
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
             totalBytesRefFields,
-            () -> 0L
+            () -> 0L,
+            null
         );
 
         var runner = new TestDriverRunner().builder(driverContext);
@@ -2175,14 +2199,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
                     (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                    "test:0"
                 )
             ),
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
             docSequenceBytesRefFieldThreshold(),
-            () -> 0L
+            () -> 0L,
+            null
         );
 
         // Run the operator through the segment switch that used to trip assertions.
@@ -2347,14 +2373,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
                     (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                    "test:0"
                 )
             ),
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
             docSequenceBytesRefFieldThreshold(),
-            () -> 0L
+            () -> 0L,
+            null
         );
 
         Page inputPage = new Page(docVector.asBlock());
@@ -2482,7 +2510,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     new ValuesSourceReaderOperator.ShardContext(
                         readers[s],
                         (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                        STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                        STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                        "test:0"
                     )
                 );
             }
@@ -2512,7 +2541,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
                 docSequenceBytesRefFieldThreshold(),
-                () -> 0L
+                () -> 0L,
+                null
             );
             var runner = new TestDriverRunner().builder(driverContext());
             List<Page> results = runner.input(luceneFactory).run(readerFactory);
@@ -2652,7 +2682,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     new ValuesSourceReaderOperator.ShardContext(
                         readers[s],
                         (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                        STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                        STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                        "test:0"
                     )
                 );
             }
@@ -2666,7 +2697,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
                 keywordFieldCount,
-                () -> 0L
+                () -> 0L,
+                null
             );
 
             var runner = new TestDriverRunner().builder(driverContext);

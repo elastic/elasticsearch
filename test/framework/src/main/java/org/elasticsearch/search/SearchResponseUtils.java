@@ -1167,6 +1167,9 @@ public enum SearchResponseUtils {
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), ProfileResult.DEBUG);
         parser.declareLong(constructorArg(), ProfileResult.NODE_TIME_RAW);
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> parseProfileResult(p), ProfileResult.CHILDREN);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), ProfileResult.TOTALS);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), ProfileResult.SEGMENTS);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), ProfileResult.FIELDS);
         PROFILE_RESULT_PARSER = parser.build();
     }
 

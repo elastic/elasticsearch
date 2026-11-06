@@ -80,7 +80,17 @@ public class AggregationProfileShardResultTests extends AbstractXContentSerializ
         Map<String, Object> debug = new LinkedHashMap<>();
         debug.put("stuff", "stuff");
         debug.put("other_stuff", List.of("foo", "bar"));
-        ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug, 6000L, Collections.emptyList());
+        ProfileResult profileResult = new ProfileResult(
+            "someType",
+            "someDescription",
+            breakdown,
+            debug,
+            6000L,
+            Collections.emptyList(),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
         BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, false);

@@ -422,7 +422,8 @@ public class LookupExecutionPlanner {
                     new ValuesSourceReaderOperator.ShardContext(
                         esShardContext.searcher().getIndexReader(),
                         esShardContext::newSourceLoader,
-                        EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(org.elasticsearch.common.settings.Settings.EMPTY)
+                        EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(org.elasticsearch.common.settings.Settings.EMPTY),
+                        esShardContext.shardIdentifier()
                     )
                 );
                 return new ValuesSourceReaderOperator(
@@ -434,7 +435,8 @@ public class LookupExecutionPlanner {
                     docChannel,
                     PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
                     PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
-                    directoryBytesRead
+                    directoryBytesRead,
+                    null
                 );
             }
 

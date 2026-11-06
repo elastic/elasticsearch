@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -57,6 +58,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private String query;
     private boolean columnar;
     private boolean profile;
+    private ProfileSelection profileSelection = ProfileSelection.NONE;
     private Boolean includeCCSMetadata;
     private Boolean includeExecutionMetadata;
     private Locale locale;
@@ -118,6 +120,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.query = source.query;
         this.columnar = source.columnar;
         this.profile = source.profile;
+        this.profileSelection = source.profileSelection;
         this.includeCCSMetadata = source.includeCCSMetadata;
         this.includeExecutionMetadata = source.includeExecutionMetadata;
         this.locale = source.locale;
@@ -256,6 +259,20 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     public boolean profile() {
         return profile;
+    }
+
+    /**
+     * Sets the segments and fields that the codec read profile breaks down. The codec totals do not depend on it. It has
+     * an effect only when {@link #profile()} is set.
+     */
+    public EsqlQueryRequest profileSelection(ProfileSelection profileSelection) {
+        this.profileSelection = Objects.requireNonNull(profileSelection, "profileSelection");
+        return this;
+    }
+
+    /** The segments and fields that the codec read profile breaks down. */
+    public ProfileSelection profileSelection() {
+        return profileSelection;
     }
 
     public void locale(Locale locale) {

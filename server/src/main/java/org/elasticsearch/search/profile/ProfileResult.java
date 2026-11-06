@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,6 +38,11 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     static final ParseField NODE_TIME = new ParseField("time");
     public static final ParseField NODE_TIME_RAW = new ParseField("time_in_nanos");
     public static final ParseField CHILDREN = new ParseField("children");
+    public static final ParseField TOTALS = new ParseField("totals");
+    public static final ParseField SEGMENTS = new ParseField("segments");
+    public static final ParseField FIELDS = new ParseField("fields");
+
+    private static final TransportVersion CODEC_READ_PROFILING = TransportVersion.fromName("codec_read_profiling");
 
     private final String type;
     private final String description;
@@ -44,14 +50,28 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     private final Map<String, Object> debug;
     private final long nodeTime;
     private final List<ProfileResult> children;
+    private final Map<String, Object> totals;
+    private final Map<String, Object> segments;
+    private final Map<String, Object> fields;
 
+    /**
+     * The codec read maps are rendered by {@link CodecReads} and are sent only to nodes that support the
+     * {@code codec_read_profiling} transport version.
+     *
+     * @param totals   the codec totals of the node, by codec; empty when no instrumented codec opened a reader
+     * @param segments the {@code segments} view, by segment key; empty when no selected segment was read
+     * @param fields   the {@code fields} view, by field name; empty when no selected field was read
+     */
     public ProfileResult(
         String type,
         String description,
         Map<String, Long> breakdown,
         Map<String, Object> debug,
         long nodeTime,
-        List<ProfileResult> children
+        List<ProfileResult> children,
+        Map<String, Object> totals,
+        Map<String, Object> segments,
+        Map<String, Object> fields
     ) {
         this.type = type;
         this.description = description;
@@ -59,6 +79,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.debug = debug == null ? Map.of() : debug;
         this.children = children == null ? List.of() : children;
         this.nodeTime = nodeTime;
+        this.totals = totals == null ? Map.of() : totals;
+        this.segments = segments == null ? Map.of() : segments;
+        this.fields = fields == null ? Map.of() : fields;
     }
 
     /**
@@ -71,6 +94,15 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         breakdown = in.readMap(StreamInput::readLong);
         debug = in.readMap(StreamInput::readGenericValue);
         children = in.readCollectionAsList(ProfileResult::new);
+        if (in.getTransportVersion().supports(CODEC_READ_PROFILING)) {
+            totals = in.readGenericMap();
+            segments = in.readGenericMap();
+            fields = in.readGenericMap();
+        } else {
+            totals = Map.of();
+            segments = Map.of();
+            fields = Map.of();
+        }
     }
 
     @Override
@@ -81,6 +113,11 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         out.writeMap(breakdown, StreamOutput::writeLong);
         out.writeMap(debug, StreamOutput::writeGenericValue);
         out.writeCollection(children);
+        if (out.getTransportVersion().supports(CODEC_READ_PROFILING)) {
+            out.writeGenericMap(totals);
+            out.writeGenericMap(segments);
+            out.writeGenericMap(fields);
+        }
     }
 
     /**
@@ -109,6 +146,21 @@ public final class ProfileResult implements Writeable, ToXContentObject {
      */
     public Map<String, Object> getDebugInfo() {
         return Collections.unmodifiableMap(debug);
+    }
+
+    /** The codec totals of this node, by codec, then component, then metric name. */
+    public Map<String, Object> getTotals() {
+        return Collections.unmodifiableMap(totals);
+    }
+
+    /** The {@code segments} view of the codec reads of this node, by segment key. */
+    public Map<String, Object> getSegments() {
+        return Collections.unmodifiableMap(segments);
+    }
+
+    /** The {@code fields} view of the codec reads of this node, by field name. */
+    public Map<String, Object> getFields() {
+        return Collections.unmodifiableMap(fields);
     }
 
     /**
@@ -140,6 +192,15 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         if (false == debug.isEmpty()) {
             builder.field(DEBUG.getPreferredName(), debug);
         }
+        if (false == totals.isEmpty()) {
+            builder.field(TOTALS.getPreferredName(), totals);
+        }
+        if (false == segments.isEmpty()) {
+            builder.field(SEGMENTS.getPreferredName(), segments);
+        }
+        if (false == fields.isEmpty()) {
+            builder.field(FIELDS.getPreferredName(), fields);
+        }
 
         if (false == children.isEmpty()) {
             builder.startArray(CHILDREN.getPreferredName());
@@ -163,12 +224,15 @@ public final class ProfileResult implements Writeable, ToXContentObject {
             && breakdown.equals(other.breakdown)
             && debug.equals(other.debug)
             && nodeTime == other.nodeTime
-            && children.equals(other.children);
+            && children.equals(other.children)
+            && totals.equals(other.totals)
+            && segments.equals(other.segments)
+            && fields.equals(other.fields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, description, breakdown, debug, nodeTime, children);
+        return Objects.hash(type, description, breakdown, debug, nodeTime, children, totals, segments, fields);
     }
 
     @Override

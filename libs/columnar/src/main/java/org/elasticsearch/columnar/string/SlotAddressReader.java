@@ -37,7 +37,7 @@ final class SlotAddressReader {
     private long cachedBlock = -1;
 
     SlotAddressReader(SlotAddressing addressing, int numDocsWithField, ColumnInputs inputs) throws IOException {
-        this.counts = new LongBlocks.Reader(addressing.counts(), inputs.addressing(), inputs.navigation());
+        this.counts = new LongBlocks.Reader(addressing.counts(), inputs.addressing(), inputs.navigation(), inputs.metrics());
         this.numDocsWithField = numDocsWithField;
         this.blockSize = addressing.counts().blockSize();
         assert (blockSize & (blockSize - 1)) == 0 : "counts per block must be a power of two, got " + blockSize;

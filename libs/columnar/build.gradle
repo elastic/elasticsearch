@@ -12,7 +12,9 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.foreign-api'
 
 dependencies {
+  testImplementation(testFixtures(project(':libs:codec-profiler')))
   api "org.apache.lucene:lucene-core:${versions.lucene}"
+  api project(':libs:codec-profiler')
   // Vectorized numeric range scan (ESVectorUtil.inRangeBitmask). simdvec has no server dependency, so
   // columnar -> simdvec stays acyclic even once server depends on columnar.
   implementation project(":libs:simdvec")
@@ -35,4 +37,10 @@ tasks.named('forbiddenApisMain').configure {
 }
 tasks.named('forbiddenApisTest').configure {
   replaceSignatureFiles 'jdk-signatures'
+}
+
+// ColumnarMetricCatalogueTests reads the main sources at run time to check that every metric is documented in the package
+// reference. Gradle cannot see that read, so declare it, or a change to the reference alone would be served from the cache.
+tasks.named('test').configure {
+  inputs.dir('src/main/java').withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName('metricCatalogueSources')
 }

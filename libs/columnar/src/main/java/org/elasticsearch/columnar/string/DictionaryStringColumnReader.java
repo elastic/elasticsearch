@@ -16,12 +16,20 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
+import org.elasticsearch.codec.profiler.Counter;
+import org.elasticsearch.codec.profiler.CounterMetric;
+import org.elasticsearch.codec.profiler.Metric;
+import org.elasticsearch.codec.profiler.MetricRecorder;
+import org.elasticsearch.codec.profiler.Timer;
+import org.elasticsearch.codec.profiler.TimerMetric;
+import org.elasticsearch.codec.profiler.TimingPolicy;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnReader;
 import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -76,7 +84,37 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     private long escapeCursorAddress = -1;
     private long escapeCursorRank;
 
+    static final CounterMetric DICTIONARY_TERM_LOOKUPS = CounterMetric.of(
+        "ColumNAR",
+        "dictionary",
+        "term_lookups",
+        Metric.Unit.COUNT,
+        "Terms resolved from the dictionary, once per lookup. Reading a value one document at a time, bisecting for a term, a "
+            + "range or a prefix, and building the terms of a page each resolve terms; a term served from bytes the reader "
+            + "already holds still counts as a lookup. An escaped value is not a term and is not counted."
+    );
+
+    static final TimerMetric DICTIONARY_RESOLVE_TIME = TimerMetric.of(
+        "ColumNAR",
+        "dictionary",
+        "resolve_time_nanos",
+        TimingPolicy.ADAPTIVE,
+        "Elapsed wall-clock time of the dictionary term lookups, an estimate from a sample of the calls once there are many. "
+            + "A lookup reads the term where it lies in the file, so the time can include waits for the data, such as page faults "
+            + "on a mapped file. The uncompressed reads and block fetches a lookup triggers count into their own metrics too, so do "
+            + "not add this time to theirs. It is not CPU time."
+    );
+
     private final PageTerms pageTerms = new PageTerms();
+    /** Times dictionary term lookups; {@link Timer#INERT} when the reader is not profiled or its collector measures no time. */
+    private final Timer resolveTime;
+    /** Counts dictionary term lookups, or null when the reader is not profiled. */
+    @Nullable
+    private final Counter termLookups;
+    /** Receives the spans an ordinal range steps over; {@link IntervalSkipObserver#NONE} without a recorder or skip index. */
+    private final IntervalSkipObserver skipObserver;
+    /** Times ordinal skip navigation; {@link Timer#INERT} without a recorder or skip index, or when no time is measured. */
+    private final Timer skipNavigationTime;
 
     DictionaryStringColumnReader(StringColumnMetadata.Dictionary column, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         // The ordinals are what this column addresses in blocks; the dictionary keeps one term to a block.
@@ -85,6 +123,16 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         this.ordinals = new NumericColumnReader(column.ordinals(), inputs);
         this.ordinalSkipperMeta = column.ordinals().skipper();
         this.skipIndex = skipIndex;
+        final MetricRecorder metrics = inputs.metrics();
+        this.resolveTime = metrics == null ? Timer.INERT : metrics.timer(DICTIONARY_RESOLVE_TIME);
+        this.termLookups = metrics == null ? null : metrics.counter(DICTIONARY_TERM_LOOKUPS);
+        if (metrics != null && ordinalSkipperMeta != null) {
+            this.skipObserver = new ProfiledIntervalSkipObserver(metrics);
+            this.skipNavigationTime = metrics.timer(ProfiledIntervalSkipObserver.ORDINAL_SKIP_NAVIGATION_TIME);
+        } else {
+            this.skipObserver = IntervalSkipObserver.NONE;
+            this.skipNavigationTime = Timer.INERT;
+        }
         this.dictionarySize = column.dictionarySize();
         this.escapeOrdinal = column.escapeOrdinal();
         if (column.hasEscapes()) {
@@ -132,6 +180,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
     @Override
     protected ValueStream.Reader summarisedTerms() {
+        // NOTE: Merges read summaries, and merge readers have no recorder. A summary read is not a dictionary term
+        // lookup, so this returns the raw stream and does not go through the termAt metrics.
         return dictionary;
     }
 
@@ -196,8 +246,21 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         assert ordinal >= StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL
             && ordinal < dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL
             : "ordinal [" + ordinal + "] names no term in a dictionary of " + dictionarySize;
-        dictionary.get(ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, dst);
+        resolveTime.start();
+        try {
+            resolveTerm(ordinal, dst);
+        } finally {
+            resolveTime.stop();
+        }
+        if (termLookups != null) {
+            termLookups.add(1);
+        }
         return dst;
+    }
+
+    /** Resolves one term. {@code dictionary.resolve_time_nanos} measures exactly this call. */
+    private void resolveTerm(int ordinal, BytesRef dst) throws IOException {
+        dictionary.get(ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, dst);
     }
 
     /**
@@ -604,7 +667,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
         assert escapeCount == 0 : "a column with escapes has no ordinal skip index";
         final DocValuesSkipper skipper = SkipIndexCodec.forId(ordinalSkipperMeta.codecId()).reader(ordinalSkipperMeta, skipIndex);
-        return new OrdinalRangePresence(presence, skipper, lowOrdinal, highOrdinal);
+        return new OrdinalRangePresence(presence, skipper, lowOrdinal, highOrdinal, skipObserver, skipNavigationTime);
     }
 
     @Override

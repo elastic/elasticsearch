@@ -629,7 +629,9 @@ public class EsqlSession {
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             resolved,
-            viewResolution.viewQueries()
+            viewResolution.viewQueries(),
+            false,
+            request.profileSelection()
         );
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written

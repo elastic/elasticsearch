@@ -1,0 +1,108 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+        - method: POST
+          path: /_search
+          capabilities: [ codec_read_profiling ]
+      reason: "codec read profiling of columnar indices required"
+
+  - do:
+      indices.create:
+        index: codec_read_profile
+        body:
+          settings:
+            index.mode: columnar
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  - do:
+      bulk:
+        index: codec_read_profile
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "kw": "a" }
+          - { "index": { } }
+          - { "kw": "b" }
+
+# NOTE: The response of each selection is checked by ColumnarSearchProfileIT, which finds the query node that read the
+# column. The node's position in the profile tree depends on how the query is rewritten, so it is not asserted here.
+---
+"every selection form is accepted":
+  - do:
+      search:
+        index: codec_read_profile
+        body:
+          size: 0
+          profile: true
+          query: { term: { kw: a } }
+  - is_true: profile.shards.0.searches.0.query
+
+  - do:
+      search:
+        index: codec_read_profile
+        body:
+          size: 0
+          profile: { segments: [ _0, "codec_read_profile:0/_0" ], fields: [ kw ], count_nested_docs: true }
+          query: { term: { kw: a } }
+  - is_true: profile.shards.0.searches.0.query
+
+  - do:
+      search:
+        index: codec_read_profile
+        body:
+          size: 0
+          profile: { segments: _all, fields: _all }
+          query: { term: { kw: a } }
+  - is_true: profile.shards.0.searches.0.query
+
+  - do:
+      search:
+        index: codec_read_profile
+        body:
+          size: 0
+          profile: { segments: [ ], fields: [ ] }
+          query: { term: { kw: a } }
+  - is_true: profile.shards.0.searches.0.query
+
+---
+"invalid selections are refused":
+  - do:
+      catch: bad_request
+      search:
+        index: codec_read_profile
+        body:
+          profile: { segments: { _0: { } } }
+          query: { match_all: { } }
+
+  - do:
+      catch: bad_request
+      search:
+        index: codec_read_profile
+        body:
+          profile: { fields: "*" }
+          query: { match_all: { } }
+
+  - do:
+      catch: bad_request
+      search:
+        index: codec_read_profile
+        body:
+          profile: { segments: [ 1 ] }
+          query: { match_all: { } }
+
+  - do:
+      catch: bad_request
+      search:
+        index: codec_read_profile
+        body:
+          profile: { columns: [ kw ] }
+          query: { match_all: { } }

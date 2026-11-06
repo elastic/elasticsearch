@@ -15,6 +15,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
@@ -4718,6 +4719,12 @@ public class EsqlCapabilities {
          * See: <a href="https://github.com/elastic/elasticsearch/issues/164599">#164599</a>
          */
         FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
+
+        /**
+         * The request accepts the object form of {@code profile}, and the profile of {@code ValuesSourceReaderOperator}
+         * reports codec reads. Enabled by the {@code codec_read_profiling} feature flag.
+         */
+        CODEC_READ_PROFILING(ProfileSelection.CODEC_READ_PROFILING_FEATURE_FLAG),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

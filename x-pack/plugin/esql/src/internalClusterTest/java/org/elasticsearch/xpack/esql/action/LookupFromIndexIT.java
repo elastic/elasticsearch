@@ -361,12 +361,13 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 new IndexedByShardIdFromSingleton<>(
                     new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), (paths) -> {
                         throw new IllegalStateException("can't load source here");
-                    }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))
+                    }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY), "test:0")
                 ),
                 true,
                 0,
                 PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
-                () -> 0L
+                () -> 0L,
+                null
             );
             CancellableTask parentTask = new CancellableTask(1, "test", "test", "test", null, Map.of());
             final String finalNodeWithShard = nodeWithShard;

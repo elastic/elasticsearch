@@ -58,6 +58,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -123,7 +124,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             null,
             PlannerSettings.DEFAULTS,
             () -> 0L,
-            QueryWarnings.EMIT
+            QueryWarnings.EMIT,
+            null
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(
@@ -222,7 +224,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             null,
             PlannerSettings.DEFAULTS,
             () -> 0L,
-            QueryWarnings.EMIT
+            QueryWarnings.EMIT,
+            ProfileSelection.NONE
         );
         List<EsQueryExec.QueryBuilderAndTags> roundToSlices = List.of(
             new EsQueryExec.QueryBuilderAndTags(new ExistsQueryBuilder("f1"), List.of(0.5)),
@@ -433,7 +436,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             null,
             PlannerSettings.DEFAULTS,
             () -> 0L,
-            QueryWarnings.EMIT
+            QueryWarnings.EMIT,
+            null
         );
         org.elasticsearch.compute.lucene.ShardContext luceneShard = Mockito.mock(org.elasticsearch.compute.lucene.ShardContext.class);
         Mockito.when(luceneShard.index()).thenReturn(0);
@@ -564,7 +568,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             null,
             PlannerSettings.DEFAULTS,
             () -> 0L,
-            QueryWarnings.EMIT
+            QueryWarnings.EMIT,
+            null
         );
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
@@ -661,7 +666,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             null,
             PlannerSettings.DEFAULTS,
             () -> 0L,
-            QueryWarnings.EMIT
+            QueryWarnings.EMIT,
+            null
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), equalTo(ConstantNull.INSTANCE));
@@ -695,7 +701,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             null,
             PlannerSettings.DEFAULTS,
             () -> 0L,
-            QueryWarnings.EMIT
+            QueryWarnings.EMIT,
+            null
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));

@@ -10,6 +10,7 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.index.DocValuesSkipper;
+import org.elasticsearch.codec.profiler.Timer;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
@@ -33,6 +34,8 @@ final class OrdinalRangePresence extends ColumnIterator {
     private final DocValuesSkipper skipper;
     private final long lowOrdinal;
     private final long highOrdinal;
+    private final IntervalSkipObserver observer;
+    private final Timer navigationTimer;
 
     private int intervalLastDoc = -1;
     private int highestExcludedLevel = -1;
@@ -42,12 +45,24 @@ final class OrdinalRangePresence extends ColumnIterator {
      * @param skipper     the bounds of the ordinals by interval
      * @param lowOrdinal  the smallest ordinal in the range
      * @param highOrdinal the largest ordinal in the range
+     * @param observer    receives each span that is stepped over
+     * @param navigationTimer times each call that moves past the current interval of the skip index; {@link Timer#INERT}
+     *                        when the reader is not profiled
      */
-    OrdinalRangePresence(ColumnIterator presence, DocValuesSkipper skipper, long lowOrdinal, long highOrdinal) {
+    OrdinalRangePresence(
+        ColumnIterator presence,
+        DocValuesSkipper skipper,
+        long lowOrdinal,
+        long highOrdinal,
+        IntervalSkipObserver observer,
+        Timer navigationTimer
+    ) {
         this.presence = presence;
         this.skipper = skipper;
         this.lowOrdinal = lowOrdinal;
         this.highOrdinal = highOrdinal;
+        this.observer = observer;
+        this.navigationTimer = navigationTimer;
     }
 
     @Override
@@ -89,6 +104,15 @@ final class OrdinalRangePresence extends ColumnIterator {
     }
 
     private int skipNonMatchingIntervals(int doc) throws IOException {
+        navigationTimer.start();
+        try {
+            return navigate(doc);
+        } finally {
+            navigationTimer.stop();
+        }
+    }
+
+    private int navigate(int doc) throws IOException {
         while (doc != NO_MORE_DOCS) {
             if (intervalLastDoc < doc) {
                 skipper.advance(doc);
@@ -101,7 +125,9 @@ final class OrdinalRangePresence extends ColumnIterator {
             if (highestExcludedLevel < 0) {
                 return doc;
             }
-            doc = presence.advance(skipper.maxDocID(highestExcludedLevel) + 1);
+            final int excludedEnd = skipper.maxDocID(highestExcludedLevel) + 1;
+            observer.rejected(doc, excludedEnd);
+            doc = presence.advance(excludedEnd);
         }
         return NO_MORE_DOCS;
     }

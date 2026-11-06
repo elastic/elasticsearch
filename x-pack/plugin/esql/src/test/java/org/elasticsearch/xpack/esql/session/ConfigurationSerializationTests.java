@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
@@ -30,6 +31,7 @@ import java.time.ZoneId;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomProfileSelection;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -52,7 +54,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
     @Override
     protected Configuration mutateInstance(Configuration in) {
         ConfigurationBuilder builder = new ConfigurationBuilder(in);
-        switch (between(0, 10)) {
+        switch (between(0, 11)) {
             case 0 -> builder.setting(
                 QuerySettings.TIME_ZONE,
                 randomValueOtherThan(QuerySettings.TIME_ZONE.get(in.resolvedSettings()), () -> randomZone().normalized())
@@ -70,6 +72,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             case 7 -> builder.resultTruncationDefaultSizeRegular(in.resultTruncationDefaultSize(false) + randomIntBetween(3, 10));
             case 8 -> builder.query(in.query() + randomAlphaOfLength(2));
             case 9 -> builder.profile(in.profile() == false);
+            case 11 -> builder.profileSelection(randomValueOtherThan(in.profileSelection(), () -> randomProfileSelection()));
             case 10 -> {
                 while (true) {
                     Map<String, Map<String, Column>> newTables = null;
@@ -130,5 +133,19 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         Configuration roundTripped = copyInstance(configWithTimeZoneAndApproximation(), preApproximation);
         assertThat(QuerySettings.TIME_ZONE.get(roundTripped.resolvedSettings()), equalTo(ZoneId.of("Europe/Paris")));
         assertThat(QuerySettings.APPROXIMATION.get(roundTripped.resolvedSettings()), is(nullValue()));
+    }
+
+    public void testANodeThatDoesNotKnowCodecReadProfilingGetsNoSelectionAndEverythingElse() throws IOException {
+        final Configuration original = new ConfigurationBuilder(randomConfiguration()).profileSelection(
+            randomValueOtherThan(ProfileSelection.NONE, () -> randomProfileSelection())
+        ).build();
+        final TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("codec_read_profiling"));
+        final Configuration roundTripped = copyInstance(original, before);
+        assertThat(roundTripped.profileSelection(), equalTo(ProfileSelection.NONE));
+        assertThat(
+            "nothing else is lost or shifted on the wire",
+            roundTripped,
+            equalTo(new ConfigurationBuilder(original).profileSelection(ProfileSelection.NONE).build())
+        );
     }
 }

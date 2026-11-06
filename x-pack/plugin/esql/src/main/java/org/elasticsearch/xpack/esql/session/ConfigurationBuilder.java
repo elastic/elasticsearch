@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
@@ -36,6 +37,7 @@ public class ConfigurationBuilder {
     private boolean profile;
     private boolean allowPartialResults;
     private boolean explainOnly;
+    private ProfileSelection profileSelection;
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
     private Map<String, String> viewQueries;
@@ -55,6 +57,7 @@ public class ConfigurationBuilder {
         profile = configuration.profile();
         allowPartialResults = configuration.allowPartialResults();
         explainOnly = configuration.explainOnly();
+        profileSelection = configuration.profileSelection();
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
         viewQueries = configuration.viewQueries();
@@ -125,6 +128,11 @@ public class ConfigurationBuilder {
         return this;
     }
 
+    public ConfigurationBuilder profileSelection(ProfileSelection profileSelection) {
+        this.profileSelection = profileSelection;
+        return this;
+    }
+
     public ConfigurationBuilder tables(Map<String, Map<String, Column>> tables) {
         this.tables = tables;
         return this;
@@ -169,7 +177,8 @@ public class ConfigurationBuilder {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            explainOnly
+            explainOnly,
+            profileSelection
         );
     }
 }

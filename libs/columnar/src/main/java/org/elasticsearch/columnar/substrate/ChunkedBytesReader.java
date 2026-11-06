@@ -13,6 +13,13 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
+import org.elasticsearch.codec.profiler.Counter;
+import org.elasticsearch.codec.profiler.CounterMetric;
+import org.elasticsearch.codec.profiler.Metric;
+import org.elasticsearch.codec.profiler.MetricRecorder;
+import org.elasticsearch.codec.profiler.TimerMetric;
+import org.elasticsearch.codec.profiler.TimingPolicy;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -32,6 +39,42 @@ public final class ChunkedBytesReader {
     /** The largest range {@link #span} puts back together in a buffer it keeps; a larger one gets a buffer of its own. */
     public static final int RETAINED_SPAN_BYTES = 1024 * 1024;
 
+    static final CounterMetric UNCOMPRESSED_READS = CounterMetric.of(
+        "ColumNAR",
+        "uncompressed",
+        "reads",
+        Metric.Unit.COUNT,
+        "Bulk reads of a stream stored uncompressed, one for each contiguous range read off the file. A read served from the one "
+            + "chunk the reader holds is not counted. The dictionary of a string column is always stored uncompressed."
+    );
+
+    static final CounterMetric UNCOMPRESSED_BYTES_READ = CounterMetric.of(
+        "ColumNAR",
+        "uncompressed",
+        "bytes_read",
+        Metric.Unit.BYTES,
+        "Bytes the uncompressed reads copied off the file. This is the reads' input, not file or network reads."
+    );
+
+    static final TimerMetric UNCOMPRESSED_READ_TIME = TimerMetric.of(
+        "ColumNAR",
+        "uncompressed",
+        "read_time_nanos",
+        TimingPolicy.ADAPTIVE,
+        "Elapsed wall-clock time of the uncompressed reads, an estimate from a sample of the calls once there are many. It covers the "
+            + "copy off the file and can include waits for the data, such as page faults on a mapped file; for a stream stored "
+            + "uncompressed this is its whole storage cost. It can run inside pages.call_time_nanos, "
+            + "pages.byte_lengths_call_time_nanos or dictionary.resolve_time_nanos, so do not add it to those. It is not CPU time."
+    );
+
+    /** The metrics of the reads of an uncompressed stream. The stored size is the read size, so it is counted once. */
+    static final ProfiledChunkDecompressor.Metrics UNCOMPRESSED = new ProfiledChunkDecompressor.Metrics(
+        UNCOMPRESSED_READS,
+        null,
+        UNCOMPRESSED_BYTES_READ,
+        UNCOMPRESSED_READ_TIME
+    );
+
     private final IndexInput data;
     private final ChunkCodec codec;
     private final ChunkDecompressor decompressor;
@@ -39,6 +82,9 @@ public final class ChunkedBytesReader {
     private final LongValues starts;
     private final LongValues fileOffsets;
     private final long numChunks;
+    /** Counts a chunk that a read needs and the reader already holds. Null without a recorder or for an uncompressed stream. */
+    @Nullable
+    private final Counter cacheHits;
 
     private byte[] chunk = new byte[0];
     // Holds a span read from a verbatim chunk, where there is no decoded chunk to point into.
@@ -53,13 +99,19 @@ public final class ChunkedBytesReader {
         long dataOffset,
         LongValues starts,
         LongValues fileOffsets,
-        long numChunks
+        long numChunks,
+        @Nullable MetricRecorder metrics
     ) {
         // Cloned because reading a chunk seeks: the input this was opened over is shared, and a segment is
         // read by many threads at once.
         this.data = data.clone();
         this.codec = codec;
-        this.decompressor = codec.newDecompressor();
+        final ChunkDecompressor plain = codec.newDecompressor();
+        // NOTE: An identity stream inflates nothing, so its reads report as uncompressed reads, not as chunk inflations.
+        this.decompressor = metrics == null
+            ? plain
+            : new ProfiledChunkDecompressor(plain, metrics, codec.isIdentity() ? UNCOMPRESSED : ProfiledChunkDecompressor.CHUNKS);
+        this.cacheHits = metrics == null || codec.isIdentity() ? null : metrics.counter(ProfiledChunkDecompressor.CHUNK_CACHE_HITS);
         this.dataOffset = dataOffset;
         this.starts = starts;
         this.fileOffsets = fileOffsets;
@@ -82,7 +134,7 @@ public final class ChunkedBytesReader {
             // index like any other, but under this codec the uncompressed offset is already a file offset,
             // so a chunk need never be decoded and no buffer is needed to hold one.
             data.seek(dataOffset + offset);
-            data.readBytes(dst, 0, length);
+            readVerbatim(dst, length);
             return dst;
         }
         final long index = chunkContaining(offset);
@@ -124,7 +176,7 @@ public final class ChunkedBytesReader {
             // Stored verbatim in the file, so there is no decoded chunk to point into.
             final byte[] target = length > RETAINED_SPAN_BYTES ? new byte[length] : (verbatim = ArrayUtil.growNoCopy(verbatim, length));
             data.seek(dataOffset + offset);
-            data.readBytes(target, 0, length);
+            readVerbatim(target, length);
             dst.bytes = target;
             dst.offset = 0;
             dst.length = length;
@@ -160,7 +212,7 @@ public final class ChunkedBytesReader {
             long remaining = length;
             while (remaining > 0) {
                 final int take = (int) Math.min(remaining, IDENTITY_TRANSFER_BYTES);
-                data.readBytes(verbatim, 0, take);
+                readVerbatim(verbatim, take);
                 sink.append(verbatim, 0, take);
                 remaining -= take;
             }
@@ -182,7 +234,10 @@ public final class ChunkedBytesReader {
         int written = 0;
         long at = offset;
         while (written < length) {
-            ensureChunk(chunkContaining(at));
+            // NOTE: The caller has just ensured the chunk holding the first byte, so only the chunks after it are looked up.
+            if (written > 0) {
+                ensureChunk(chunkContaining(at));
+            }
             final int within = (int) (at - cachedStart);
             final int take = Math.min(cachedLength - within, length - written);
             System.arraycopy(chunk, within, dst, written, take);
@@ -211,6 +266,9 @@ public final class ChunkedBytesReader {
 
     private void ensureChunk(long index) throws IOException {
         if (index == cachedChunk) {
+            if (cacheHits != null) {
+                cacheHits.add(1);
+            }
             return;
         }
         final long start = starts.get(index);
@@ -223,5 +281,13 @@ public final class ChunkedBytesReader {
         cachedChunk = index;
         cachedStart = start;
         cachedLength = uncompressed;
+    }
+
+    /**
+     * Reads {@code length} bytes at the position of the input into {@code dst}. The identity decompressor does the
+     * same bulk read, and the call goes through {@link #decompressor} so that a profiled reader counts it.
+     */
+    private void readVerbatim(byte[] dst, int length) throws IOException {
+        decompressor.read(data, length, dst, length);
     }
 }

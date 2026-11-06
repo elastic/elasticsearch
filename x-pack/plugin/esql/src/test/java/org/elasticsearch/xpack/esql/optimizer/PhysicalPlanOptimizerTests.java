@@ -10287,7 +10287,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 null,
                 PlannerSettings.DEFAULTS,
                 () -> 0L,
-                QueryWarnings.EMIT
+                QueryWarnings.EMIT,
+                null
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
             true,  // snapshotBuild - bare external sources are planned without a registered dataset

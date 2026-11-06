@@ -43,6 +43,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
 import org.elasticsearch.search.internal.BreakerWeightTestUtils.CountingCollectorManager;
 import org.elasticsearch.search.internal.BreakerWeightTestUtils.TrackingCircuitBreaker;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -211,7 +212,7 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
-        searcher.setProfiler(new QueryProfiler());
+        searcher.setProfiler(new QueryProfiler(ProfileSelection.NONE));
         int hits = searcher.search(fewPresentTermsQuery(), new CountingCollectorManager());
         assertThat("the query must match documents so its scorer actually runs", hits, greaterThan(0));
         assertThat("profiling must not hide the query Lucene runs as a plain disjunction", breaker.peak(), equalTo(0L));

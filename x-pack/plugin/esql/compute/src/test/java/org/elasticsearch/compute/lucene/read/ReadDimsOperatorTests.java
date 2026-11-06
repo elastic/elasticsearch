@@ -78,14 +78,16 @@ public class ReadDimsOperatorTests extends ComputeTestCase {
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
                     sourcePaths -> SourceLoader.FROM_STORED_SOURCE,
-                    ValuesSourceReaderOperatorTests.STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                    ValuesSourceReaderOperatorTests.STORED_FIELDS_SEQUENTIAL_PROPORTIONS,
+                    "test:0"
                 )
             ),
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
             500,
-            () -> 0L
+            () -> 0L,
+            null
         );
 
         BlockFactory blockFactory = blockFactory();

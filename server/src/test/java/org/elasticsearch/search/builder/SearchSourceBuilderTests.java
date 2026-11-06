@@ -47,6 +47,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
@@ -88,6 +89,7 @@ import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.search.profile.CodecReadProfilingTestUtils.assumeCodecReadProfilingEnabled;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -286,6 +288,104 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original, TransportVersion version) throws IOException {
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new, version);
+    }
+
+    public void testProfileAcceptsABoolean() throws IOException {
+        assertProfile("{ \"profile\": true }", true, ProfileSelection.NONE);
+        assertProfile("{ \"profile\": false }", false, ProfileSelection.NONE);
+        assertProfile("{ \"profile\": \"true\" }", true, ProfileSelection.NONE);
+    }
+
+    public void testTheProfileObjectIsReadOnlyWithCodecReadProfiling() throws IOException {
+        final String body = "{ \"profile\": { \"fields\": [\"host.name\"] } }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, body)) {
+            if (ProfileSelection.CODEC_READ_PROFILING_FEATURE_FLAG.isEnabled()) {
+                final SearchSourceBuilder builder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
+                assertTrue(builder.profile());
+                assertThat(builder.profileSelection(), equalTo(ProfileSelection.of(null, ProfileSelection.Names.of(List.of("host.name")))));
+            } else {
+                final ParsingException e = expectThrows(
+                    ParsingException.class,
+                    () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
+                );
+                assertThat(
+                    "rejected as before codec read profiling existed",
+                    e.getMessage(),
+                    equalTo("Unknown key for a START_OBJECT in [profile].")
+                );
+            }
+        }
+    }
+
+    public void testProfileAcceptsAnObject() throws IOException {
+        assumeCodecReadProfilingEnabled();
+        assertProfile("{ \"profile\": {} }", true, ProfileSelection.NONE);
+        assertProfile("{ \"profile\": { \"segments\": [] } }", true, ProfileSelection.NONE);
+        assertProfile("{ \"profile\": { \"segments\": \"_all\" } }", true, ProfileSelection.of(ProfileSelection.Names.EVERY, null));
+        assertProfile("{ \"profile\": { \"segments\": \"_all\", \"fields\": \"_all\" } }", true, ProfileSelection.EVERYTHING);
+        assertProfile(
+            "{ \"profile\": { \"fields\": [\"host.name\", \"region\"] } }",
+            true,
+            ProfileSelection.of(null, ProfileSelection.Names.of(List.of("host.name", "region")))
+        );
+        assertProfile(
+            "{ \"profile\": { \"segments\": [\"_1\", \"_3\"], \"fields\": \"_all\" } }",
+            true,
+            ProfileSelection.of(ProfileSelection.Names.of(List.of("_1", "_3")), ProfileSelection.Names.EVERY)
+        );
+    }
+
+    public void testProfileRejectsAPatternAndUnknownOptions() throws IOException {
+        assumeCodecReadProfilingEnabled();
+        for (String body : List.of(
+            "{ \"profile\": { \"segments\": \"*\" } }",
+            "{ \"profile\": { \"segments\": { \"_1\": {} } } }",
+            "{ \"profile\": { \"fields\": \"host.*\" } }",
+            "{ \"profile\": { \"fields\": [1] } }",
+            "{ \"profile\": { \"metrics\": [\"a\"] } }"
+        )) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, body)) {
+                expectThrows(XContentParseException.class, () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false));
+            }
+        }
+    }
+
+    public void testTheProfileObjectRoundTripsThroughXContentAndTheWire() throws IOException {
+        assumeCodecReadProfilingEnabled();
+        final ProfileSelection selection = randomFrom(
+            ProfileSelection.EVERYTHING,
+            ProfileSelection.of(null, ProfileSelection.Names.of(randomList(1, 5, () -> randomAlphaOfLength(6)))),
+            ProfileSelection.of(
+                ProfileSelection.Names.of(List.of("_" + between(0, 9))),
+                randomFrom(ProfileSelection.Names.EVERY, ProfileSelection.Names.of(randomList(1, 3, () -> randomAlphaOfLength(6))))
+            )
+        );
+        final SearchSourceBuilder original = new SearchSourceBuilder().profile(true).profileSelection(selection);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(original))) {
+            final SearchSourceBuilder parsed = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
+            assertThat(parsed, equalTo(original));
+        }
+        assertThat(copyBuilder(original), equalTo(original));
+        assertNotEquals(original, new SearchSourceBuilder().profile(true));
+        assertThat(Strings.toString(new SearchSourceBuilder().profile(true)), equalTo("{\"profile\":true}"));
+    }
+
+    public void testANodeThatDoesNotKnowTheSelectionStillProfiles() throws IOException {
+        final SearchSourceBuilder original = new SearchSourceBuilder().profile(true).profileSelection(ProfileSelection.EVERYTHING);
+        final TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(
+            TransportVersion.fromName("codec_read_profiling")
+        );
+        final SearchSourceBuilder copy = copyBuilder(original, oldVersion);
+        assertTrue(copy.profile());
+        assertThat(copy.profileSelection(), equalTo(ProfileSelection.NONE));
+    }
+
+    private void assertProfile(String body, boolean profile, ProfileSelection selection) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, body)) {
+            final SearchSourceBuilder builder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
+            assertThat(body, builder.profile(), equalTo(profile));
+            assertThat(body, builder.profileSelection(), equalTo(selection));
+        }
     }
 
     public void testParseIncludeExclude() throws IOException {

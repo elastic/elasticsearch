@@ -176,7 +176,7 @@ public class FetchProfiler implements FetchPhase.Profiler {
                 .sorted(Comparator.comparing(b -> b.type))
                 .map(FetchSubPhaseProfileBreakdown::result)
                 .collect(toList());
-            return new ProfileResult("fetch", "", toBreakdownMap(), toDebugMap(), stop - start, children);
+            return new ProfileResult("fetch", "", toBreakdownMap(), toDebugMap(), stop - start, children, Map.of(), Map.of(), Map.of());
         }
     }
 
@@ -230,7 +230,17 @@ public class FetchProfiler implements FetchPhase.Profiler {
         }
 
         ProfileResult result() {
-            return new ProfileResult(type, description, toBreakdownMap(), toDebugMap(), toNodeTime(), List.of());
+            return new ProfileResult(
+                type,
+                description,
+                toBreakdownMap(),
+                toDebugMap(),
+                toNodeTime(),
+                List.of(),
+                Map.of(),
+                Map.of(),
+                Map.of()
+            );
         }
     }
 

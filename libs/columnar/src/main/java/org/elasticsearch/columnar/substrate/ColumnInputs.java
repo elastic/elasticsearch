@@ -10,6 +10,25 @@
 package org.elasticsearch.columnar.substrate;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.codec.profiler.MetricRecorder;
+import org.elasticsearch.core.Nullable;
 
-/** Where a column is read from; see {@link ColumnOutputs} for what each file holds. */
-public record ColumnInputs(IndexInput data, IndexInput addressing, IndexInput lengths, IndexInput navigation) {}
+/**
+ * Where a column is read from, and the recorder its readers report to. See {@link ColumnOutputs} for what each file
+ * holds.
+ *
+ * @param metrics the recorder of the readers built from these inputs, or null when they are not profiled
+ */
+public record ColumnInputs(
+    IndexInput data,
+    IndexInput addressing,
+    IndexInput lengths,
+    IndexInput navigation,
+    @Nullable MetricRecorder metrics
+) {
+
+    /** A copy of these inputs with the recorder {@code metrics}. */
+    public ColumnInputs withMetrics(@Nullable MetricRecorder metrics) {
+        return new ColumnInputs(data, addressing, lengths, navigation, metrics);
+    }
+}

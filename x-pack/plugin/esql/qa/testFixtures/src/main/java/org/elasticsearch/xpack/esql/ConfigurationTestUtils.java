@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.xpack.esql.action.ParseTables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
@@ -43,6 +45,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLength;
@@ -92,8 +95,26 @@ public class ConfigurationTestUtils {
             defaultTsTruncation,
             // No manual normalize — TIME_ZONE.canonicalize(ZoneId::normalized) runs inside withOverride.
             ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, zoneId),
-            Map.of()
+            Map.of(),
+            false,
+            randomProfileSelection()
         );
+    }
+
+    public static ProfileSelection randomProfileSelection() {
+        return switch (between(0, 3)) {
+            case 0 -> ProfileSelection.NONE;
+            case 1 -> ProfileSelection.EVERYTHING;
+            case 2 -> ProfileSelection.of(null, ProfileSelection.Names.of(randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 10))));
+            case 3 -> ProfileSelection.of(
+                ProfileSelection.Names.of(List.of("_" + between(0, 9))),
+                randomFrom(
+                    ProfileSelection.Names.EVERY,
+                    ProfileSelection.Names.of(randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 10)))
+                )
+            );
+            default -> throw new AssertionError("unreachable");
+        };
     }
 
     public static ConfigurationBuilder randomConfigurationBuilder() {

@@ -381,12 +381,13 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                     ),
                     new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                         throw new UnsupportedOperationException();
-                    }, 0.2)),
+                    }, 0.2, "test:0")),
                     true,
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
                     500,
-                    () -> 0L
+                    () -> 0L,
+                    null
                 )
             );
             var shardConfig = new IndexedByShardIdFromSingleton<>(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));

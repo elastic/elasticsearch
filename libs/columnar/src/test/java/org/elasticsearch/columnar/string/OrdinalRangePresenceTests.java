@@ -12,6 +12,9 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.codec.profiler.ProfileCollector;
+import org.elasticsearch.codec.profiler.TestCollectors;
+import org.elasticsearch.codec.profiler.Timer;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.test.ESTestCase;
 
@@ -56,6 +59,121 @@ public class OrdinalRangePresenceTests extends ESTestCase {
             actual.add(doc);
         }
         assertEquals(column.docsInIntervalsThatCanMatch(low, high), actual);
+    }
+
+    public void testObservingTheSkipsDoesNotChangeTheDocumentsVisited() throws IOException {
+        final Column column = randomColumn();
+        final long low = between(1, 10);
+        final long high = low + between(0, 4);
+        final List<Integer> observed = visitAll(column.presence(low, high, (from, to) -> {}));
+        assertEquals(visitAll(column.presence(low, high)), observed);
+        assertEquals(column.docsInIntervalsThatCanMatch(low, high), observed);
+    }
+
+    public void testEverySpanReportedHoldsOnlyDocumentsOfIntervalsThatCannotMatch() throws IOException {
+        final Column column = randomColumn();
+        final long low = between(1, 10);
+        final long high = low + between(0, 4);
+        final List<int[]> spans = new ArrayList<>();
+        visitAll(column.presence(low, high, (from, to) -> spans.add(new int[] { from, to })));
+
+        int previousEnd = 0;
+        for (int[] span : spans) {
+            assertTrue("a span is not empty", span[1] > span[0]);
+            assertTrue("spans do not overlap and come in order", span[0] >= previousEnd);
+            previousEnd = span[1];
+        }
+        final List<Integer> matching = column.docsInIntervalsThatCanMatch(low, high);
+        for (int doc : column.present) {
+            final boolean inSpan = spans.stream().anyMatch(span -> doc >= span[0] && doc < span[1]);
+            assertEquals("document " + doc + " is skipped exactly when its interval cannot match", matching.contains(doc) == false, inSpan);
+        }
+    }
+
+    public void testAColumnWhereEveryIntervalCanMatchReportsNoSpan() throws IOException {
+        final Column column = new Column(new int[] { 9, 19, 29 }, new long[] { 1, 2, 3 }, new long[] { 5, 6, 7 }, everyDoc(30));
+        final List<int[]> spans = new ArrayList<>();
+        visitAll(column.presence(4, 4, (from, to) -> spans.add(new int[] { from, to })));
+        assertTrue(spans.isEmpty());
+    }
+
+    public void testASkippedParentIsReportedOnceWithItsWholeSpan() throws IOException {
+        final Column column = new Column(
+            new int[] { 3, 7, 11, 15, 19 },
+            new long[] { 1, 1, 1, 1, 5 },
+            new long[] { 1, 1, 1, 1, 5 },
+            everyDoc(20)
+        );
+        final List<int[]> spans = new ArrayList<>();
+        assertEquals(16, column.presence(5, 5, (from, to) -> spans.add(new int[] { from, to })).nextDoc());
+        assertEquals(1, spans.size());
+        assertArrayEquals(new int[] { 0, 16 }, spans.get(0));
+    }
+
+    private static List<Integer> visitAll(OrdinalRangePresence presence) throws IOException {
+        final List<Integer> docs = new ArrayList<>();
+        for (int doc = presence.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = presence.nextDoc()) {
+            docs.add(doc);
+        }
+        return docs;
+    }
+
+    public void testNavigationTimeCoversTheSkipperAndTheAdvancesInsideTheMethodAndNothingElse() throws IOException {
+        final Column column = new Column(
+            new int[] { 3, 7, 11, 15, 19 },
+            new long[] { 1, 1, 1, 1, 5 },
+            new long[] { 1, 1, 1, 1, 5 },
+            everyDoc(20)
+        );
+        final long[] now = { 11 };
+        final ProfileCollector stats = TestCollectors.withClock(() -> now[0]);
+        final Skipper skipper = new Skipper(column);
+        skipper.onAdvance = () -> now[0] += 70;
+        final Presence underlying = new Presence(column.present);
+        underlying.onNext = () -> now[0] += 9;
+        underlying.onAdvance = () -> now[0] += 30;
+        final Timer timer = stats.timer(ProfiledIntervalSkipObserver.ORDINAL_SKIP_NAVIGATION_TIME);
+        final OrdinalRangePresence presence = new OrdinalRangePresence(underlying, skipper, 5, 5, IntervalSkipObserver.NONE, timer);
+
+        assertEquals(16, presence.nextDoc());
+
+        assertEquals(
+            "two skipper advances and one jump of the underlying iterator, not its nextDoc",
+            170L,
+            (long) TestCollectors.toKeyedValues(stats.snapshot()).get("ColumNAR.ordinal_skip.navigation_time_nanos")
+        );
+    }
+
+    public void testNavigationIsNotTimedWhileTheDocumentStaysInTheCachedInterval() throws IOException {
+        final Column column = new Column(new int[] { 99 }, new long[] { 1 }, new long[] { 10 }, everyDoc(100));
+        final long[] now = { 0 };
+        final long[] reads = { 0 };
+        final ProfileCollector stats = TestCollectors.withClock(() -> {
+            reads[0]++;
+            return now[0];
+        });
+        final Timer timer = stats.timer(ProfiledIntervalSkipObserver.ORDINAL_SKIP_NAVIGATION_TIME);
+        final OrdinalRangePresence presence = column.presence(5, 5, IntervalSkipObserver.NONE, timer);
+        presence.nextDoc();
+        final long readsAfterTheFirstNavigation = reads[0];
+        for (int doc = 1; doc < 100; doc++) {
+            assertEquals(doc, presence.nextDoc());
+        }
+        assertEquals("the other 99 documents were inside the interval the first call cached", readsAfterTheFirstNavigation, reads[0]);
+    }
+
+    public void testATimedPresenceFindsTheSameDocumentsAsAnUntimedOne() throws IOException {
+        final Column column = randomColumn();
+        final long low = between(1, 10);
+        final long high = low + between(0, 4);
+        final ProfileCollector stats = TestCollectors.withClock(new java.util.concurrent.atomic.AtomicLong()::incrementAndGet);
+        final Timer timer = stats.timer(ProfiledIntervalSkipObserver.ORDINAL_SKIP_NAVIGATION_TIME);
+        final List<Integer> timed = new ArrayList<>();
+        final OrdinalRangePresence presence = column.presence(low, high, IntervalSkipObserver.NONE, timer);
+        for (int doc = presence.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = presence.nextDoc()) {
+            timed.add(doc);
+        }
+        assertEquals(visitAll(column.presence(low, high)), timed);
     }
 
     public void testMixedForwardOperationsPreserveTheOriginalRank() throws IOException {
@@ -111,7 +229,14 @@ public class OrdinalRangePresenceTests extends ESTestCase {
             everyDoc(20)
         );
         final Skipper skipper = new Skipper(column);
-        final OrdinalRangePresence presence = new OrdinalRangePresence(new Presence(column.present), skipper, 5, 5);
+        final OrdinalRangePresence presence = new OrdinalRangePresence(
+            new Presence(column.present),
+            skipper,
+            5,
+            5,
+            IntervalSkipObserver.NONE,
+            Timer.INERT
+        );
         assertEquals(16, presence.nextDoc());
         assertEquals(2, skipper.advances);
     }
@@ -179,7 +304,15 @@ public class OrdinalRangePresenceTests extends ESTestCase {
         }
 
         OrdinalRangePresence presence(long low, long high) {
-            return new OrdinalRangePresence(new Presence(present), new Skipper(this), low, high);
+            return presence(low, high, IntervalSkipObserver.NONE);
+        }
+
+        OrdinalRangePresence presence(long low, long high, IntervalSkipObserver observer) {
+            return presence(low, high, observer, Timer.INERT);
+        }
+
+        OrdinalRangePresence presence(long low, long high, IntervalSkipObserver observer, Timer navigationTimer) {
+            return new OrdinalRangePresence(new Presence(present), new Skipper(this), low, high, observer, navigationTimer);
         }
 
         boolean isPresent(int doc) {
@@ -216,6 +349,8 @@ public class OrdinalRangePresenceTests extends ESTestCase {
     private static final class Presence extends ColumnIterator {
         private final int[] docs;
         private int at = -1;
+        Runnable onNext = () -> {};
+        Runnable onAdvance = () -> {};
 
         Presence(int[] docs) {
             this.docs = docs;
@@ -238,12 +373,14 @@ public class OrdinalRangePresenceTests extends ESTestCase {
 
         @Override
         public int nextDoc() {
+            onNext.run();
             at = Math.min(at + 1, docs.length);
             return docID();
         }
 
         @Override
         public int advance(int target) {
+            onAdvance.run();
             while (at < docs.length && (at < 0 || docs[at] < target)) {
                 at++;
             }
@@ -269,6 +406,7 @@ public class OrdinalRangePresenceTests extends ESTestCase {
         private final Column column;
         private int interval = -1;
         private int advances;
+        Runnable onAdvance = () -> {};
 
         Skipper(Column column) {
             this.column = column;
@@ -276,6 +414,7 @@ public class OrdinalRangePresenceTests extends ESTestCase {
 
         @Override
         public void advance(int target) {
+            onAdvance.run();
             advances++;
             assertTrue("target must be beyond the current interval", interval < 0 || target > column.maxDocs[interval]);
             interval = column.intervalOfOrEnd(target);

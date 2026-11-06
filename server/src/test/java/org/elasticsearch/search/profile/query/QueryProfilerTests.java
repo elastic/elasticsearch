@@ -36,6 +36,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.ProfileSelection;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -97,7 +98,7 @@ public class QueryProfilerTests extends ESTestCase {
     }
 
     public void testBasic() throws IOException {
-        QueryProfiler profiler = new QueryProfiler();
+        QueryProfiler profiler = new QueryProfiler(ProfileSelection.NONE);
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
@@ -125,7 +126,7 @@ public class QueryProfilerTests extends ESTestCase {
     }
 
     public void testNodeTime() throws IOException {
-        QueryProfiler profiler = new QueryProfiler();
+        QueryProfiler profiler = new QueryProfiler(ProfileSelection.NONE);
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
@@ -142,7 +143,7 @@ public class QueryProfilerTests extends ESTestCase {
     }
 
     public void testNoScoring() throws IOException {
-        QueryProfiler profiler = new QueryProfiler();
+        QueryProfiler profiler = new QueryProfiler(ProfileSelection.NONE);
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
@@ -170,7 +171,7 @@ public class QueryProfilerTests extends ESTestCase {
     }
 
     public void testUseIndexStats() throws IOException {
-        QueryProfiler profiler = new QueryProfiler();
+        QueryProfiler profiler = new QueryProfiler(ProfileSelection.NONE);
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats - builds weight but never builds scorer
@@ -184,7 +185,7 @@ public class QueryProfilerTests extends ESTestCase {
     }
 
     public void testApproximations() throws IOException {
-        QueryProfiler profiler = new QueryProfiler();
+        QueryProfiler profiler = new QueryProfiler(ProfileSelection.NONE);
         searcher.setProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);

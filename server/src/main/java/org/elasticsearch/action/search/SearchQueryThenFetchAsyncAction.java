@@ -763,7 +763,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 );
                 // merging the results of the shards of the request is work for them
                 List<ShardId> shardIds = request.shards.stream().map(ShardToQuery::shardId).toList();
-                state.queryPhaseResultConsumer.mergeLoad(searchService.getIndicesService().searchLoad(shardIds));
+                state.queryPhaseResultConsumer.mergeLoad(searchService.searchLoad(shardIds));
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
                     executeShardTasks(state);

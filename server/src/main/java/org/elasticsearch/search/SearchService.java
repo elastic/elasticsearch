@@ -3227,6 +3227,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
+     * Charges the time of tasks equally to those of {@code shardIds} still on this node when a task completes.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
+        return indicesService.searchLoad(shardIds);
+    }
+
+    /**
      * Returns a builder for {@link AggregationReduceContext}.
      */
     public AggregationReduceContext.Builder aggReduceContextBuilder(Supplier<Boolean> isCanceled, AggregatorFactories.Builder aggs) {

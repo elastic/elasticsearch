@@ -692,12 +692,15 @@ public class RBACEngine implements AuthorizationEngine {
             ? ResourcePrivilegesMap.builder()
             : null;
         for (RoleDescriptor.IndicesPrivileges check : privilegesToCheck.index()) {
-            boolean privilegesGranted = userRole.checkIndicesPrivileges(
-                Sets.newHashSet(check.getIndices()),
-                check.allowRestrictedIndices(),
-                Sets.newHashSet(check.getPrivileges()),
-                combineIndicesResourcePrivileges
-            );
+            final boolean privilegesGranted = switch (check.matchName()) {
+                case ALL -> userRole.checkIndicesPrivileges(
+                    Sets.newHashSet(check.getIndices()),
+                    check.allowRestrictedIndices(),
+                    Sets.newHashSet(check.getPrivileges()),
+                    combineIndicesResourcePrivileges
+                );
+                case ANY -> checkIndicesPrivilegesMatchingAnyName(userRole, check, combineIndicesResourcePrivileges);
+            };
             allMatch = allMatch && privilegesGranted;
             if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
                 assert combineIndicesResourcePrivileges == null;
@@ -756,6 +759,47 @@ public class RBACEngine implements AuthorizationEngine {
             assert allMatch;
             listener.onResponse(PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS);
         }
+    }
+
+    /**
+     * Checks an index privileges entry with {@link RoleDescriptor.IndicesPrivileges.MatchName#ANY}. A privilege is considered granted over
+     * a requested index name pattern when it is granted over at least one index name that the pattern matches (rather than over every
+     * one), and the entry is satisfied when every requested privilege is granted over at least one of the requested patterns.
+     * The per-pattern results that are added to {@code resourcePrivilegesMapBuilder} (when not {@code null}) follow the same semantics.
+     */
+    private static boolean checkIndicesPrivilegesMatchingAnyName(
+        Role userRole,
+        RoleDescriptor.IndicesPrivileges check,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
+    ) {
+        // privileges granted over every index matched by a pattern are also granted over some index matched by it
+        final ResourcePrivilegesMap.Builder fullyGrantedBuilder = ResourcePrivilegesMap.builder();
+        userRole.checkIndicesPrivileges(
+            Sets.newHashSet(check.getIndices()),
+            check.allowRestrictedIndices(),
+            Sets.newHashSet(check.getPrivileges()),
+            fullyGrantedBuilder
+        );
+        final Map<String, ResourcePrivileges> fullyGranted = fullyGrantedBuilder.build().getResourceToResourcePrivileges();
+        final ResourcePrivilegesMap.Builder checkResult = ResourcePrivilegesMap.builder();
+        final Set<String> grantedPrivileges = new HashSet<>();
+        for (String indexPattern : Sets.newHashSet(check.getIndices())) {
+            final ResourcePrivileges patternResult = fullyGranted.get(indexPattern);
+            for (String privilege : Sets.newHashSet(check.getPrivileges())) {
+                final boolean granted = (patternResult != null && Boolean.TRUE.equals(patternResult.getPrivileges().get(privilege)))
+                    || false == Operations.isEmpty(
+                        userRole.grantedIndicesMatching(indexPattern, check.allowRestrictedIndices(), privilege)
+                    );
+                checkResult.addResourcePrivilege(indexPattern, privilege, granted);
+                if (granted) {
+                    grantedPrivileges.add(privilege);
+                }
+            }
+        }
+        if (resourcePrivilegesMapBuilder != null) {
+            resourcePrivilegesMapBuilder.addResourcePrivilegesMap(checkResult.build());
+        }
+        return grantedPrivileges.containsAll(Arrays.asList(check.getPrivileges()));
     }
 
     @Override

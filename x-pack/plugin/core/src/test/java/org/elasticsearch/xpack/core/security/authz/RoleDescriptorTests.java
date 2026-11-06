@@ -1064,6 +1064,26 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unexpected field [implicitly_granted]"));
     }
 
+    public void testParserRejectsMatchNameFieldInRole() {
+        final String json = Strings.format("""
+            {
+              "cluster": [],
+              "indices": [
+                {
+                  "names": ["logs-*"],
+                  "privileges": ["read"],
+                  "match_name": "%s"
+                }
+              ]
+            }
+            """, randomFrom("all", "any"));
+        final ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON)
+        );
+        assertThat(e.getMessage(), containsString("unexpected field [match_name]"));
+    }
+
     public void testGlobalPrivilegesOrdering() throws IOException {
         final String roleName = randomAlphaOfLengthBetween(3, 30);
         final String[] applicationNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);

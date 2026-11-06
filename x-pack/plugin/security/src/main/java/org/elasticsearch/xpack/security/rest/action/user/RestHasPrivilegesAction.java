@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -41,6 +42,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
+
+    /**
+     * Signals support for the {@code match_name} option of index privileges checks.
+     */
+    public static final String HAS_PRIVILEGES_MATCH_NAME_CAPABILITY = "has_privileges_match_name";
 
     private final SecurityContext securityContext;
     private final HasPrivilegesRequestBuilderFactory builderFactory;
@@ -69,6 +75,11 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public String getName() {
         return "security_has_privileges_action";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(HAS_PRIVILEGES_MATCH_NAME_CAPABILITY);
     }
 
     @Override

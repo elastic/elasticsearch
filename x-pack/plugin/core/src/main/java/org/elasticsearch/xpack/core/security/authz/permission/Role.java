@@ -131,6 +131,17 @@ public interface Role {
     );
 
     /**
+     * Returns an {@link Automaton} matching the index names that {@code indexPattern} matches and over which this role grants
+     * {@code privilege}. The privilege is granted over <em>some</em> index name matched by the pattern if and only if the returned
+     * automaton is not empty.
+     *
+     * @param indexPattern the requested index name pattern
+     * @param allowRestrictedIndices if {@code true} then the pattern matches restricted indices as well
+     * @param privilege the index privilege (name or action) to check
+     */
+    Automaton grantedIndicesMatching(String indexPattern, boolean allowRestrictedIndices, String privilege);
+
+    /**
      * Check if cluster permissions allow for the given action in the context of given
      * authentication.
      *

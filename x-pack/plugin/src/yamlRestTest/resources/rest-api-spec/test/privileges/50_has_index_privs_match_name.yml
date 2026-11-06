@@ -1,0 +1,171 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_security/user/_has_privileges
+          capabilities: [has_privileges_match_name]
+      test_runner_features: capabilities
+      reason: "match_name for index privileges checks is not supported"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "match_name_role"
+        body: >
+          {
+            "indices": [
+              { "names": [ "logs-a" ], "privileges": [ "read" ] },
+              { "names": [ "metrics-b" ], "privileges": [ "write" ] }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "match_name_user"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles" : [ "match_name_role" ]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "match_name_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "match_name_role"
+        ignore: 404
+
+---
+"Test match_name defaults to all":
+  - do:
+      headers: { Authorization: "Basic bWF0Y2hfbmFtZV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # match_name_user
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              { "names": [ "logs-a", "logs-c" ], "privileges": [ "read" ] }
+            ]
+          }
+
+  - match: { "username" : "match_name_user" }
+  - match: { "has_all_requested" : false }
+  - match: { "index" : {
+      "logs-a" : { "read" : true },
+      "logs-c" : { "read" : false }
+    }
+  }
+
+  - do:
+      headers: { Authorization: "Basic bWF0Y2hfbmFtZV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # match_name_user
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              { "names": [ "logs-a", "logs-c" ], "privileges": [ "read" ], "match_name": "all" }
+            ]
+          }
+
+  - match: { "has_all_requested" : false }
+
+---
+"Test match_name any":
+  - do:
+      headers: { Authorization: "Basic bWF0Y2hfbmFtZV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # match_name_user
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              { "names": [ "logs-a", "logs-c" ], "privileges": [ "read" ], "match_name": "any" }
+            ]
+          }
+
+  - match: { "username" : "match_name_user" }
+  - match: { "has_all_requested" : true }
+  - match: { "index" : {
+      "logs-a" : { "read" : true },
+      "logs-c" : { "read" : false }
+    }
+  }
+
+  # each privilege is matched independently over the names
+  - do:
+      headers: { Authorization: "Basic bWF0Y2hfbmFtZV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # match_name_user
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              { "names": [ "logs-a", "metrics-b" ], "privileges": [ "read", "write" ], "match_name": "any" }
+            ]
+          }
+
+  - match: { "has_all_requested" : true }
+
+  - do:
+      headers: { Authorization: "Basic bWF0Y2hfbmFtZV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # match_name_user
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              { "names": [ "logs-c", "metrics-d" ], "privileges": [ "read" ], "match_name": "any" }
+            ]
+          }
+
+  - match: { "has_all_requested" : false }
+
+---
+"Test match_name any grants read when only a single index is readable":
+  # match_name_user can read logs-a and none of the other indices
+  - do:
+      headers: { Authorization: "Basic bWF0Y2hfbmFtZV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # match_name_user
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              {
+                "names": [ "*" ],
+                "privileges": [ "read" ],
+                "match_name": "any"
+              }
+            ]
+          }
+
+  - match: { "username" : "match_name_user" }
+  - match: { "has_all_requested" : true }
+  - match: { "index" : {
+      "*" : { "read" : true }
+    }
+  }
+
+---
+"Test invalid match_name":
+  - do:
+      catch: bad_request
+      headers: { Authorization: "Basic bWF0Y2hfbmFtZV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # match_name_user
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              { "names": [ "logs-a" ], "privileges": [ "read" ], "match_name": "some" }
+            ]
+          }
+
+  - match: { "error.type" : "parse_exception" }

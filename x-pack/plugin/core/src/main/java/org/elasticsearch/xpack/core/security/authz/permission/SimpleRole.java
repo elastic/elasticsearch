@@ -165,6 +165,11 @@ public class SimpleRole implements Role {
     }
 
     @Override
+    public Automaton grantedIndicesMatching(String indexPattern, boolean allowRestrictedIndices, String privilege) {
+        return indices.grantedIndicesMatching(indexPattern, allowRestrictedIndices, privilege);
+    }
+
+    @Override
     public boolean checkClusterAction(String action, TransportRequest request, Authentication authentication) {
         return cluster.check(action, request, authentication);
     }

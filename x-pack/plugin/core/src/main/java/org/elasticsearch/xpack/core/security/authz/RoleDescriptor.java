@@ -671,7 +671,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
-                indexPrivileges = parseIndices(description, parser, false);
+                indexPrivileges = parseIndicesToCheck(description, parser);
             } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
                 clusterPrivileges = readStringArray(description, parser, true);
             } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
@@ -742,6 +742,23 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat)
         throws IOException {
+        return parseIndices(roleName, parser, allow2xFormat, false);
+    }
+
+    /**
+     * Parses the index privileges of a privileges check. Unlike the index privileges of a role, these may specify
+     * {@link Fields#MATCH_NAME} to control how the names are combined when evaluating the check.
+     */
+    private static RoleDescriptor.IndicesPrivileges[] parseIndicesToCheck(String description, XContentParser parser) throws IOException {
+        return parseIndices(description, parser, false, true);
+    }
+
+    private static RoleDescriptor.IndicesPrivileges[] parseIndices(
+        String roleName,
+        XContentParser parser,
+        boolean allow2xFormat,
+        boolean allowMatchName
+    ) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
                 "failed to parse indices privileges for role [{}]. expected field [{}] value " + "to be an array, but found [{}] instead",
@@ -752,18 +769,24 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
         List<RoleDescriptor.IndicesPrivileges> privileges = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            privileges.add(parseIndex(roleName, parser, allow2xFormat));
+            privileges.add(parseIndex(roleName, parser, allow2xFormat, allowMatchName));
         }
         return privileges.toArray(new IndicesPrivileges[privileges.size()]);
     }
 
-    private static IndicesPrivileges parseIndex(final String roleName, final XContentParser parser, final boolean allow2xFormat)
-        throws IOException {
+    private static IndicesPrivileges parseIndex(
+        final String roleName,
+        final XContentParser parser,
+        final boolean allow2xFormat,
+        final boolean allowMatchName
+    ) throws IOException {
         final IndicesPrivilegesWithOptionalRemoteClusters parsed = parseIndexWithOptionalRemoteClusters(
             roleName,
             parser,
             allow2xFormat,
-            false
+            false,
+            null,
+            allowMatchName
         );
         assert parsed.remoteClusters() == null : "indices privileges cannot have remote clusters";
         return parsed.indicesPrivileges();
@@ -868,7 +891,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     public static IndicesPrivileges parseIndexWithPredefinedPrivileges(final String roleName, String[] privileges, XContentParser parser)
         throws IOException {
         final IndicesPrivilegesWithOptionalRemoteClusters indicesPrivilegesWithOptionalRemoteClusters =
-            parseIndexWithOptionalRemoteClusters(roleName, parser, false, false, privileges);
+            parseIndexWithOptionalRemoteClusters(roleName, parser, false, false, privileges, false);
         assert indicesPrivilegesWithOptionalRemoteClusters.remoteClusters == null;
         return indicesPrivilegesWithOptionalRemoteClusters.indicesPrivileges;
     }
@@ -879,7 +902,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         final boolean allow2xFormat,
         final boolean allowRemoteClusters
     ) throws IOException {
-        return parseIndexWithOptionalRemoteClusters(roleName, parser, allow2xFormat, allowRemoteClusters, null);
+        return parseIndexWithOptionalRemoteClusters(roleName, parser, allow2xFormat, allowRemoteClusters, null, false);
     }
 
     private static IndicesPrivilegesWithOptionalRemoteClusters parseIndexWithOptionalRemoteClusters(
@@ -887,7 +910,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         final XContentParser parser,
         final boolean allow2xFormat,
         final boolean allowRemoteClusters,
-        final String[] predefinedPrivileges
+        final String[] predefinedPrivileges,
+        final boolean allowMatchName
     ) throws IOException {
         assert predefinedPrivileges == null || predefinedPrivileges.length != 0;
         XContentParser.Token token = parser.currentToken();
@@ -907,6 +931,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         String[] grantedFields = null;
         String[] deniedFields = null;
         boolean allowRestrictedIndices = false;
+        IndicesPrivileges.MatchName matchName = IndicesPrivileges.MatchName.ALL;
         String[] remoteClusters = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -1067,6 +1092,21 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 }
             } else if (allowRemoteClusters && Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
                 remoteClusters = readStringArray(roleName, parser, false);
+            } else if (allowMatchName && Fields.MATCH_NAME.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (token != XContentParser.Token.VALUE_STRING) {
+                    throw new ElasticsearchParseException(
+                        "failed to parse indices privileges for role [{}]. expected field [{}] "
+                            + "value to be a string, but found [{}] instead",
+                        roleName,
+                        currentFieldName,
+                        token
+                    );
+                }
+                try {
+                    matchName = IndicesPrivileges.MatchName.parse(parser.text());
+                } catch (IllegalArgumentException e) {
+                    throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. {}", roleName, e.getMessage());
+                }
             } else {
                 throw new ElasticsearchParseException(
                     "failed to parse indices privileges for role [{}]. unexpected field [{}]",
@@ -1107,6 +1147,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 .deniedFields(deniedFields)
                 .query(query)
                 .allowRestrictedIndices(allowRestrictedIndices)
+                .matchName(matchName)
                 .build(),
             remoteClusters
         );
@@ -1322,6 +1363,38 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         private static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
 
+        static final TransportVersion HAS_PRIVILEGES_MATCH_NAME = TransportVersion.fromName("has_privileges_match_name");
+
+        /**
+         * Controls how the index names of a privileges check are combined when computing whether the check is satisfied.
+         * Only applicable to privilege checks (e.g. the has privileges API); roles always grant privileges over all their names.
+         */
+        public enum MatchName {
+            /**
+             * The privileges must be granted over every one of the index names.
+             */
+            ALL,
+            /**
+             * Each privilege must be granted over at least one of the index names, where a privilege is granted over an index name
+             * pattern if it is granted over at least one index name that the pattern matches.
+             */
+            ANY;
+
+            public static MatchName parse(String value) {
+                return switch (value) {
+                    case "all" -> ALL;
+                    case "any" -> ANY;
+                    default -> throw new IllegalArgumentException(
+                        "unknown value [" + value + "] for [" + Fields.MATCH_NAME.getPreferredName() + "], expected one of [all, any]"
+                    );
+                };
+            }
+
+            public String value() {
+                return name().toLowerCase(Locale.ROOT);
+            }
+        }
+
         private String[] indices;
         private String[] privileges;
         private String[] grantedFields = null;
@@ -1331,6 +1404,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         // users. Setting this flag eliminates this special status, and any index name pattern in the permission will cover restricted
         // indices as well.
         private boolean allowRestrictedIndices = false;
+        private MatchName matchName = MatchName.ALL;
 
         private IndicesPrivileges() {}
 
@@ -1346,6 +1420,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             this.deniedFields = other.deniedFields;
             this.query = other.query;
             this.allowRestrictedIndices = other.allowRestrictedIndices;
+            this.matchName = other.matchName;
         }
 
         public IndicesPrivileges(StreamInput in) throws IOException {
@@ -1355,6 +1430,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             this.privileges = in.readStringArray();
             this.query = in.readOptionalBytesReference();
             this.allowRestrictedIndices = in.readBoolean();
+            if (in.getTransportVersion().supports(HAS_PRIVILEGES_MATCH_NAME)) {
+                this.matchName = in.readEnum(MatchName.class);
+            }
         }
 
         @Override
@@ -1365,6 +1443,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             out.writeStringArray(privileges);
             out.writeOptionalBytesReference(query);
             out.writeBoolean(allowRestrictedIndices);
+            if (out.getTransportVersion().supports(HAS_PRIVILEGES_MATCH_NAME)) {
+                out.writeEnum(matchName);
+            } else if (matchName != MatchName.ALL) {
+                throw new IllegalArgumentException(
+                    "["
+                        + Fields.MATCH_NAME.getPreferredName()
+                        + "] with value ["
+                        + matchName.value()
+                        + "] is not supported by all nodes in the cluster"
+                );
+            }
         }
 
         public static Builder builder() {
@@ -1408,6 +1497,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         public boolean allowRestrictedIndices() {
             return allowRestrictedIndices;
+        }
+
+        public MatchName matchName() {
+            return matchName;
         }
 
         public boolean hasDeniedFields() {
@@ -1456,6 +1549,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 sb.append(", query=");
                 sb.append(query.utf8ToString());
             }
+            if (matchName != MatchName.ALL) {
+                sb.append(", matchName=").append(matchName.value());
+            }
             sb.append("]");
             return sb.toString();
         }
@@ -1469,6 +1565,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
             if (Arrays.equals(indices, that.indices) == false) return false;
             if (allowRestrictedIndices != that.allowRestrictedIndices) return false;
+            if (matchName != that.matchName) return false;
             if (Arrays.equals(privileges, that.privileges) == false) return false;
             if (Arrays.equals(grantedFields, that.grantedFields) == false) return false;
             if (Arrays.equals(deniedFields, that.deniedFields) == false) return false;
@@ -1483,6 +1580,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             result = 31 * result + Arrays.hashCode(grantedFields);
             result = 31 * result + Arrays.hashCode(deniedFields);
             result = 31 * result + (query != null ? query.hashCode() : 0);
+            result = 31 * result + matchName.hashCode();
             return result;
         }
 
@@ -1510,6 +1608,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             }
             if (query != null) {
                 builder.field("query", query.utf8ToString());
+            }
+            if (matchName != MatchName.ALL) {
+                builder.field(RoleDescriptor.Fields.MATCH_NAME.getPreferredName(), matchName.value());
             }
             return builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
         }
@@ -1544,7 +1645,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 return cmp;
             }
             cmp = Arrays.compare(deniedFields, o.deniedFields);
-            return cmp;
+            if (cmp != 0) {
+                return cmp;
+            }
+            return matchName.compareTo(o.matchName);
         }
 
         public static class Builder {
@@ -1587,6 +1691,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
             public Builder allowRestrictedIndices(boolean allow) {
                 indicesPrivileges.allowRestrictedIndices = allow;
+                return this;
+            }
+
+            public Builder matchName(MatchName matchName) {
+                indicesPrivileges.matchName = Objects.requireNonNull(matchName);
                 return this;
             }
 
@@ -1905,6 +2014,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField RUN_AS = new ParseField("run_as");
         ParseField NAMES = new ParseField("names");
         ParseField ALLOW_RESTRICTED_INDICES = new ParseField("allow_restricted_indices");
+        ParseField MATCH_NAME = new ParseField("match_name");
         ParseField RESOURCES = new ParseField("resources");
         ParseField QUERY = new ParseField("query");
         ParseField PRIVILEGES = new ParseField("privileges");

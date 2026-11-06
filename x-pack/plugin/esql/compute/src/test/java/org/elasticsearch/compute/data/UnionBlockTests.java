@@ -292,6 +292,46 @@ public class UnionBlockTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * The source block's slot may be null, and the typed getters do not check: reading it raw would make a
+     * missing value into a present, tagged zero, which no invariant on the block can catch.
+     */
+    public void testAppendValueRejectsANullSourcePosition() {
+        BlockFactory blockFactory = blockFactory();
+        try (
+            UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(LEGS, 2);
+            LongBlock.Builder source = blockFactory.newLongBlockBuilder(2)
+        ) {
+            source.appendLong(5L);
+            source.appendNull();
+            try (LongBlock sourceBlock = source.build()) {
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> builder.appendValue(LONG_LEG, sourceBlock, 1)
+                );
+                assertThat(e.getMessage(), equalTo("no value at index 1 of the source block; append a null instead"));
+            }
+        }
+    }
+
+    /**
+     * An all-null union equals a {@link ConstantNullBlock} of the same length in both directions, so it has to
+     * hash the same. The other compound blocks hash their first sub-block for exactly this reason.
+     */
+    public void testAnAllNullUnionHashesLikeAConstantNullBlock() {
+        BlockFactory blockFactory = blockFactory();
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(LEGS, 3)) {
+            builder.appendNull();
+            builder.appendNull();
+            builder.appendNull();
+            try (UnionBlock allNull = builder.build(); Block constantNull = blockFactory.newConstantNullBlock(3)) {
+                assertThat(allNull, equalTo(constantNull));
+                assertThat(constantNull, equalTo((Block) allNull));
+                assertThat(allNull.hashCode(), equalTo(constantNull.hashCode()));
+            }
+        }
+    }
+
     public void testCopyFromRejectsADifferentLegShape() {
         BlockFactory blockFactory = blockFactory();
         try (

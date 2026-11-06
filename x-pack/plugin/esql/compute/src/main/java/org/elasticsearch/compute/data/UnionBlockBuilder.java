@@ -53,6 +53,7 @@ public final class UnionBlockBuilder extends AbstractDelegatingCompoundBlock.Abs
 
     @Override
     public UnionBlockBuilder appendNull() {
+        assert isPositionEntryOpen() == false : "a null is a position of its own, not a value inside one";
         tagsBuilder.appendNull();
         for (Block.Builder legBuilder : legBuilders) {
             legBuilder.appendNull();
@@ -70,6 +71,12 @@ public final class UnionBlockBuilder extends AbstractDelegatingCompoundBlock.Abs
             throw new IllegalArgumentException(
                 "leg " + leg + " holds " + legElementTypes.get(leg) + " but the value came from a " + source.elementType() + " block"
             );
+        }
+        if (source.isNull(sourceValueIndex)) {
+            // The typed getters read the slot without checking, and a null slot holds a default rather than
+            // nothing, so reading it here would turn a missing value into a present, tagged zero that the
+            // block's own invariants cannot see.
+            throw new IllegalArgumentException("no value at index " + sourceValueIndex + " of the source block; append a null instead");
         }
         tagsBuilder.appendInt(leg);
         for (int i = 0; i < legBuilders.size(); i++) {

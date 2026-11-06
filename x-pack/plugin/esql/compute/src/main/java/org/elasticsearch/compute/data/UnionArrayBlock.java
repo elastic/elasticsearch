@@ -16,7 +16,6 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * A {@link UnionBlock} made of a tag sub-block and one sub-block per leg.
@@ -235,7 +234,12 @@ public final class UnionArrayBlock extends AbstractDelegatingCompoundBlock<Union
 
     @Override
     public int hashCode() {
-        return Objects.hash(tags.hashCode(), legElementTypes);
+        /*
+         * The tag alone, because an all-null union equals a ConstantNullBlock of the same length in both
+         * directions and so has to hash like one. An all-null IntBlock already hashes that way, which is why
+         * tdigest and exponential histogram hash their first sub-block too.
+         */
+        return tags.hashCode();
     }
 
     @Override

@@ -44,6 +44,11 @@ public sealed interface UnionBlock extends Block permits ConstantNullBlock, Unio
         };
     }
 
+    /**
+     * How many legs this column has. A union column that turned out null everywhere may be a
+     * {@link ConstantNullBlock}, which reports zero, so this is not the column's declared leg count and must
+     * not be zipped with the leg list the plan carries.
+     */
     int legCount();
 
     ElementType legElementType(int leg);

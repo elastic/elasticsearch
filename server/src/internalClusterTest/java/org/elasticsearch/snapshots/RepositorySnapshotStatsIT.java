@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -45,7 +46,13 @@ public class RepositorySnapshotStatsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> create index");
         final int numberOfShards = randomIntBetween(2, 6);
-        createIndex("test-idx", numberOfShards, 0);
+        // The rate limits below are derived from the reported store size. Store stats are cached for 10s by default, so any stats call
+        // that lands between shard start and indexing (e.g. the cluster info service) would pin the size of an empty shard (~100 bytes)
+        // and turn the limits into a few bytes per second. Disable the cache so that the size is always current.
+        createIndex(
+            "test-idx",
+            indexSettings(numberOfShards, 0).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms").build()
+        );
         ensureGreen();
         indexRandomDocs("test-idx", 100);
 

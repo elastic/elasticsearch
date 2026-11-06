@@ -571,3 +571,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRelocateHollowableShards
   issue: https://github.com/elastic/elasticsearch/issues/164753
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  tasks:
+  - :test:external-modules:test-esql-heap-attack:javaRestTest
+  method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
+  issue: https://github.com/elastic/elasticsearch/issues/164383

@@ -123,7 +123,6 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // Wait until the gateway has recovered from disk.
             return;
         }
         tryStartCleanup(state);
@@ -144,8 +143,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         }).toList();
 
         if (updateProjectsAndMarkRunning(projectsOnLocalNode)) {
-            // outside the lock, see executeNextCleanup; it rechecks isCleanupRunning in case a stop got in between
-            logger.debug("starting task results cleanup for projects {}", projectsToCleanup);
+            logger.debug("attempt starting task results cleanup for projects {}", projectsToCleanup);
             executeNextCleanup();
         }
     }
@@ -182,12 +180,12 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         logger.debug("running task results cleanup for [{}] project(s)", projects.size());
         try (var refs = new RefCountingListener(ActionListener.running(this::scheduleNextCleanup))) {
             for (ProjectId project : projects) {
-                cleanupIndex(project, refs.acquire());
+                cleanupTaskResultsForProject(project, refs.acquire());
             }
         }
     }
 
-    private void cleanupIndex(ProjectId projectId, ActionListener<Void> listener) {
+    private void cleanupTaskResultsForProject(ProjectId projectId, ActionListener<Void> listener) {
         // read once, so the logged value is the one the request was built from if the setting changes concurrently
         final TimeValue retention = retentionPeriod;
         final DeleteByQueryRequest toDelete = buildDeleteRequest(System.currentTimeMillis(), retention);
@@ -216,6 +214,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         final DeleteByQueryRequest request = new DeleteByQueryRequest(TASK_INDEX).setQuery(
             QueryBuilders.rangeQuery(TASK_START_TIME_IN_MILLIS_PATH).lte(cutoffInMillis)
         );
+        // .tasks results should normally not be updated, so this is mostly a defensive play
         request.setAbortOnVersionConflict(false);
         return request;
     }
@@ -224,7 +223,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         if (isCleanupRunning) {
             try {
                 final TimeValue interval = cleanupInterval;
-                logger.debug("scheduling the next task results cleanup in [{}]", interval);
+                logger.trace("scheduling the next task results cleanup in [{}]", interval);
                 cancellable = threadPool.schedule(this::executeNextCleanup, interval, threadPool.generic());
                 logger.debug("scheduled the next task results cleanup in [{}]", interval);
             } catch (EsRejectedExecutionException e) {

@@ -115,7 +115,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
             )
         );
         if (DiscoveryNode.canContainData(services.environment().settings())) {
-            // Only data nodes can hold the .tasks primary, so only they are eligible to run the cleanup.
+            // the .tasks cleanup service only needs to run on data nodes (which are the nodes hosting the primary)
             components.add(
                 new TaskResultsCleanupService(
                     services.clusterService(),

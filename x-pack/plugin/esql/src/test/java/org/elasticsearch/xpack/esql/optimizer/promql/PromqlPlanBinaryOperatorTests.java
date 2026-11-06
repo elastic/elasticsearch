@@ -292,6 +292,17 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
     }
 
+    /**
+     * {@code time()} beside {@code scalar()} of a vector runs as its own pipeline, keyed by a step of its own, and the two
+     * join on step. It must read that step, not the command's, which nothing below the join produces.
+     */
+    public void testTimeBesideScalarOfVectorReadsItsOwnStep() {
+        for (String query : List.of("time() / scalar(sum(network.cost))", "hour() > bool scalar(sum(network.cost))")) {
+            var plan = planPromql("PROMQL index=k8s step=1m result=(" + query + ")");
+            assertThat(query, plan.collect(HashJoin.class), hasSize(1));
+        }
+    }
+
     public void testTopLevelBinaryArithmeticQuery() {
         var plan = planPromql("""
             PROMQL index=k8s step=1m in_n_out=(

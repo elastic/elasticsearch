@@ -349,7 +349,7 @@ public record TranslationContext(
 
     /** Folds a value depending only on the evaluation step into a local relation. */
     private IntermediateResult doTranslateTryInline(IntermediateResult result) {
-        Attribute stepAttr = cmd.stepAttribute();
+        Attribute stepAttr = stepAttr();
         if (result.kind().constant
             || cmd.start().value() == null
             || result.value().references().stream().allMatch(ref -> ref.semanticEquals(stepAttr)) == false) {

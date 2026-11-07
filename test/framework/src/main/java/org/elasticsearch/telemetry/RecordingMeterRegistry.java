@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
 import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
+import org.elasticsearch.telemetry.metric.DoubleAsyncUpDownCounter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -20,6 +21,7 @@ import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
+import org.elasticsearch.telemetry.metric.LongAsyncUpDownCounter;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -64,6 +66,18 @@ public class RecordingMeterRegistry implements MeterRegistry {
 
     protected DoubleUpDownCounter buildDoubleUpDownCounter(String name, String description, String unit) {
         return new RecordingInstruments.RecordingDoubleUpDownCounter(name, recorder);
+    }
+
+    @Override
+    public DoubleAsyncUpDownCounter registerDoubleAsyncUpDownCounter(
+        String name,
+        String description,
+        String unit,
+        Consumer<DoubleAsyncMeasurement> callback
+    ) {
+        var instrument = new RecordingInstruments.RecordingDoubleAsyncUpDownCounter(name, recorder, callback);
+        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
+        return instrument;
     }
 
     @Override
@@ -143,15 +157,27 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
+    protected LongUpDownCounter buildLongUpDownCounter(String name, String description, String unit) {
+        return new RecordingInstruments.RecordingLongUpDownCounter(name, recorder);
+    }
+
+    @Override
+    public LongAsyncUpDownCounter registerLongAsyncUpDownCounter(
+        String name,
+        String description,
+        String unit,
+        Consumer<LongAsyncMeasurement> callback
+    ) {
+        var instrument = new RecordingInstruments.RecordingLongAsyncUpDownCounter(name, recorder, callback);
+        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
+        return instrument;
+    }
+
     @Override
     public LongGauge registerLongGauge(String name, String description, String unit) {
         LongGauge instrument = new RecordingInstruments.RecordingLongGauge(name, recorder);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
-    }
-
-    protected LongUpDownCounter buildLongUpDownCounter(String name, String description, String unit) {
-        return new RecordingInstruments.RecordingLongUpDownCounter(name, recorder);
     }
 
     @Override

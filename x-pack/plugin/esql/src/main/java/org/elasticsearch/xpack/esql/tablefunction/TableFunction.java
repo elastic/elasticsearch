@@ -26,9 +26,14 @@ import java.util.List;
  * <b>The coordinator stage is mandatory.</b> {@link TableFunctionRegistry#resolve} finds the function by name,
  * {@link #signature()} establishes the shape of the call, {@link #validate} establishes whatever else must be true
  * of it, {@link #dataSourceNames} declares what the caller must be authorized for, and {@link #toRelation} binds the
- * call to the leaf that will read. Anything needing cluster state, a round-trip or a schema belongs here, and a
- * function may do as much as it likes: {@code DATASET} validates a whole dataset definition, resolves a schema and
- * discovers splits, all in {@code toRelation}.
+ * call to the leaf that will read.
+ * <p>
+ * <b>A function does not resolve its own schema, and {@code DATASET} does not.</b> It validates the definition in
+ * {@link #toRelation} and hands back an <i>unresolved</i> relation; the listing, the schema reconciliation and the
+ * splits all happen afterwards, where they already happen for a registered dataset — {@code EsqlSession}'s
+ * pre-analysis, through {@code ExternalSourceResolver}. So the answer to "how does a function return a schema" is
+ * that it does not: it returns a relation, and a relation has an output. A function whose schema is known from its
+ * arguments returns a resolved relation instead, with the output set.
  * <p>
  * <b>The node stage is optional, and runs wherever the leaf is executed</b> — on a data node, and on the
  * coordinator when it reads its own splits — <b>and may run more than once there</b>, since the rebind is applied
@@ -41,6 +46,15 @@ import java.util.List;
  * dataset's name and rebuilds the credentials from its own state, which is what stops a crafted plan choosing
  * credentials, a role or an endpoint. A table function has no registered name to play that part, so the call plays
  * it instead.
+ * <p>
+ * <b>None of that node stage runs yet.</b> {@link BindsOnDataNode#bindOnDataNode} has no caller:
+ * {@code DatasetConfigResolver.rebind} keys on a registered dataset's name and returns an unnamed leaf unchanged,
+ * {@code ExternalSourceDatasets.collect} reads only that name, and {@code ExternalSourceAuthorizer} takes its
+ * empty-names shortcut for a plan whose leaves are all unnamed. So a table-function leaf today reaches a node with
+ * the plan's own configuration and is neither re-authorized nor rebound there. What keeps that from being a hole is
+ * {@code LocalExecutionPlanner.planExternalSource}, which refuses an unnamed external leaf outright unless this is
+ * a snapshot build. Wiring the node stage and re-authorizing the data source on the node are therefore one change,
+ * not two, and until it lands this paragraph describes an intention rather than the code.
  *
  * <h2>The rule that makes the two stages composable</h2>
  *

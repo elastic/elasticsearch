@@ -14,6 +14,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
@@ -36,7 +37,8 @@ import javax.inject.Inject;
  *
  * <p>{@code checkPartN} depends on the subset of {@code check}'s dependencies that belongs to part N: the test
  * tasks assigned to N, and, when N is the project's home part, everything else {@code check} runs (precommit
- * and other non-test verification). Lifecycle tasks are flattened so that test tasks behind them (for example
+ * and other non-test verification), except work that depends on test tasks, which runs in the parts of those
+ * tests. Lifecycle tasks are flattened so that test tasks behind them (for example
  * an aggregate of several test tasks) are still placed individually. Because the selection is derived from
  * {@code check} itself, running every part runs exactly what {@code check} runs.
  *
@@ -45,6 +47,15 @@ import javax.inject.Inject;
  * of the requested parts, either by excluding the test classes of other shards or, for YAML suites, through the
  * {@code tests.rest.shard} system property read by {@code ESClientYamlSuiteTestCase}. Every other invocation
  * (including {@code check} and reproducing a failure) runs the whole task.
+ *
+ * <p>Gradle starts ready tasks in path order, so a long test task whose path sorts late can start long after
+ * the part began and end it late. When part tasks are requested, the other tasks of a part should run after
+ * the part's {@link CiPartAssignment#runFirst() run-first} test tasks, and those after the longer ones. That is a
+ * soft ordering: it moves long tasks (and what they depend on) forward in the execution plan, but a worker that has
+ * nothing else ready still takes a short task.
+ *
+ * <p>When part tasks are requested, test tasks that start clusters are also limited by {@link CiHeavyTestThrottle}.
+ * Run-first tasks then take the throttle's slots first, longest first.
  *
  * <p>The {@code bcUpgradeTest} suite works the same way with {@code bcUpgradeTest} in place of {@code check}.
  * Splitting it by class is safe because each upgrade test class starts and upgrades its own cluster.
@@ -81,8 +92,35 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
         extension.getIncludeAssemble().convention(false);
         List<String> taskNames = project.getGradle().getStartParameter().getTaskNames();
         for (Suite suite : SUITES) {
-            apply(project, suite, assignmentService(project, suite).get().assignment(), extension, taskNames);
+            apply(project, suite, assignmentService(project, suite).get(), extension, taskNames);
         }
+        if (SUITES.stream().anyMatch(suite -> requestedParts(suite, taskNames).isEmpty() == false)) {
+            throttleHeavyTests(project);
+        }
+    }
+
+    /**
+     * Part tasks are what CI runs, so only then are test tasks that start clusters limited to
+     * {@link CiHeavyTestThrottle}'s share of the workers; other builds (a developer's, say) are not throttled.
+     */
+    private void throttleHeavyTests(Project project) {
+        int maxWorkers = project.getGradle().getStartParameter().getMaxWorkerCount();
+        Provider<String> override = getProviders().systemProperty(CiHeavyTestThrottle.MAX_PARALLEL_PROPERTY);
+        int limit = override.isPresent() ? Integer.parseInt(override.get()) : CiHeavyTestThrottle.defaultLimit(maxWorkers);
+        if (limit < 0) {
+            throw new IllegalArgumentException(CiHeavyTestThrottle.MAX_PARALLEL_PROPERTY + " must not be negative but was " + limit);
+        }
+        if (limit == 0) {
+            return;
+        }
+        Provider<CiHeavyTestThrottle> throttle = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent("ciHeavyTestThrottle", CiHeavyTestThrottle.class, spec -> spec.getMaxParallelUsages().set(limit));
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            if (CiHeavyTestThrottle.isHeavy(test.getName())) {
+                test.usesService(throttle);
+            }
+        });
     }
 
     private Provider<CiPartsBuildService> assignmentService(Project project, Suite suite) {
@@ -99,10 +137,16 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
     private static void apply(
         Project project,
         Suite suite,
-        CiPartAssignment assignment,
+        CiPartsBuildService service,
         CiPartsExtension extension,
         List<String> taskNames
     ) {
+        CiPartAssignment assignment = service.assignment();
+        Set<Integer> requestedParts = requestedParts(suite, taskNames);
+        boolean orderLongestFirst = requestedParts.isEmpty() == false && assignment.runFirst().isEmpty() == false;
+        if (orderLongestFirst) {
+            service.registerTasks(project.getPath(), project.getTasks());
+        }
         for (int part = 1; part <= assignment.parts(); part++) {
             int thisPart = part;
             project.getTasks().register(suite.taskPrefix() + part, t -> {
@@ -110,13 +154,51 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
                 t.setDescription(
                     "Runs the share of '" + suite.rootTask() + "' assigned to CI part " + thisPart + " of " + assignment.parts() + "."
                 );
-                t.dependsOn((Callable<List<Task>>) () -> tasksForPart(project, suite, assignment, extension, thisPart));
+                t.dependsOn((Callable<List<Task>>) () -> {
+                    List<Task> selected = tasksForPart(project, suite, assignment, extension, thisPart);
+                    if (orderLongestFirst && requestedParts.contains(thisPart)) {
+                        orderLongestFirst(project, selected, runFirstInPart(assignment, thisPart), service);
+                    }
+                    return selected;
+                });
             });
         }
 
-        Set<Integer> requestedParts = requestedParts(suite, taskNames);
         if (requestedParts.isEmpty() == false) {
             project.getTasks().withType(Test.class).configureEach(test -> configureShards(test, assignment, requestedParts));
+        }
+    }
+
+    /** The run-first test tasks that run (some shards) in {@code part}, longest first. */
+    static List<String> runFirstInPart(CiPartAssignment assignment, int part) {
+        return assignment.runFirst().stream().filter(taskPath -> assignment.runsInPart(taskPath, part)).toList();
+    }
+
+    /**
+     * Makes each of {@code selected} (one project's share of a part) run after the part's run-first tasks that are
+     * longer than it: all of them for a task that is not run-first itself. Run-first tasks that do not exist (for
+     * example ones removed since the assignment was generated) are skipped, and so are selected tasks of other
+     * projects or builds (the root project's {@code check} reaches tasks of included builds, which have already run
+     * by now and whose ordering can no longer change); their own project orders them.
+     */
+    static void orderLongestFirst(Project project, List<Task> selected, List<String> runFirst, CiPartsBuildService service) {
+        List<TaskProvider<Task>> longTasks = new ArrayList<>();
+        List<String> longPaths = new ArrayList<>();
+        for (String taskPath : runFirst) {
+            service.findTask(taskPath).ifPresent(provider -> {
+                longTasks.add(provider);
+                longPaths.add(taskPath);
+            });
+        }
+        for (Task task : selected) {
+            if (task.getProject() != project) {
+                continue;
+            }
+            int index = longPaths.indexOf(task.getPath());
+            List<TaskProvider<Task>> before = index < 0 ? longTasks : longTasks.subList(0, index);
+            if (before.isEmpty() == false) {
+                task.shouldRunAfter(List.copyOf(before));
+            }
         }
     }
 
@@ -159,7 +241,7 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
         // most projects have no bcUpgradeTest; their bcUpgradeTestPartN tasks are empty (but for assemble below)
         Task root = project.getTasks().findByName(suite.rootTask());
         if (root != null) {
-            select(root, assignment, part, home, new HashSet<>(), selected);
+            select(project, root, assignment, part, home, new HashSet<>(), selected);
         }
         if (home && extension.getIncludeAssemble().get()) {
             selected.add(project.getTasks().getByName(LifecycleBasePlugin.ASSEMBLE_TASK_NAME));
@@ -167,7 +249,15 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
         return selected;
     }
 
-    private static void select(Task task, CiPartAssignment assignment, int part, boolean home, Set<Task> visited, List<Task> selected) {
+    private static void select(
+        Project project,
+        Task task,
+        CiPartAssignment assignment,
+        int part,
+        boolean home,
+        Set<Task> visited,
+        List<Task> selected
+    ) {
         if (visited.add(task) == false) {
             return;
         }
@@ -177,10 +267,18 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
             }
         } else if (task.getActions().isEmpty()) {
             for (Task dependency : task.getTaskDependencies().getDependencies(task)) {
-                select(dependency, assignment, part, home, visited, selected);
+                select(project, dependency, assignment, part, home, visited, selected);
             }
-        } else if (home) {
-            selected.add(task);
+        } else {
+            // work that needs test results (a coverage report, say) runs where those tests run; in the home part it
+            // would pull the whole test task in again. Only this project's tasks are inspected: the root project's
+            // check also reaches tasks of included builds, whose dependencies cannot be resolved from here.
+            List<? extends Task> tests = task.getProject() != project
+                ? List.of()
+                : task.getTaskDependencies().getDependencies(task).stream().filter(dependency -> dependency instanceof Test).toList();
+            if (tests.isEmpty() ? home : tests.stream().anyMatch(test -> assignment.runsInPart(test.getPath(), part))) {
+                selected.add(task);
+            }
         }
     }
 }

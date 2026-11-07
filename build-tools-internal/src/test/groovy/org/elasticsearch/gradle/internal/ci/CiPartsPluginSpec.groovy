@@ -75,6 +75,22 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         names(3) == [":lib:yamlRestTest", ":lib:precommitThing"] as Set
     }
 
+    def "work that depends on a test task runs with that test, not in the home part"() {
+        given:
+        def report = project.tasks.register("testReport") {
+            dependsOn "internalClusterTest"
+            doLast {}
+        }
+        project.tasks.named("check") { dependsOn report }
+        applyPluginUnderTest(project)
+
+        expect:
+        // :lib's home is part 3, but internalClusterTest runs in part 2
+        names(2).contains(":lib:testReport")
+        names(3).contains(":lib:testReport") == false
+        names(1).contains(":lib:testReport") == false
+    }
+
     def "home part runs assemble when requested"() {
         given:
         applyPluginUnderTest(project)
@@ -92,6 +108,81 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
 
         expect:
         (names(1) + names(2) + names(3)) == [":lib:test", ":lib:internalClusterTest", ":lib:yamlRestTest", ":lib:precommitThing"] as Set
+    }
+
+    def "the other tasks of a requested part should run after its run-first tasks, longest first"() {
+        given:
+        new File(workspace, CiPartsPlugin.ASSIGNMENT_FILE).text = new CiPartAssignment(
+            3,
+            [(":lib:yamlRestTest"): new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.YAML_FILE)],
+            [(":lib:test"): 1, (":lib:internalClusterTest"): 2, (":lib:yamlRestTest#0"): 2, (":lib:yamlRestTest#1"): 3],
+            [(":lib"): 3],
+            // :gone:test no longer exists and is skipped
+            [":lib:yamlRestTest", ":gone:test", ":lib:internalClusterTest"]
+        ).toJson()
+        project.gradle.startParameter.taskNames = ["checkPart2", "checkPart3"]
+        // check can reach tasks of other projects (or, for the root project, of included builds that already ran)
+        def other = buildProject("other", rootProject)
+        def otherThing = other.tasks.register("otherThing") { doLast {} }
+        project.tasks.named("check") { dependsOn otherThing }
+        applyPluginUnderTest(project)
+        // building the graph resolves the part tasks' dependencies, which adds the ordering
+        names(2)
+        names(3)
+        names(1)
+
+        expect:
+        // only the ordering this plugin adds; the java plugin has test tasks run after jar
+        added("yamlRestTest") == [] as Set
+        added("internalClusterTest") == [":lib:yamlRestTest"] as Set
+        added("precommitThing") == [":lib:yamlRestTest"] as Set
+        // part 1 was not requested, so its tasks are not reordered
+        added("test") == [] as Set
+        // the other project's task is left to that project
+        names(3).contains(":other:otherThing")
+        otherThing.get().shouldRunAfter.getDependencies(otherThing.get()).isEmpty()
+    }
+
+    def "parts are not reordered unless part tasks are requested"() {
+        given:
+        new File(workspace, CiPartsPlugin.ASSIGNMENT_FILE).text = new CiPartAssignment(3, [:], [(":lib:test"): 1], [(":lib"): 1], [":lib:test"]).toJson()
+        project.gradle.startParameter.taskNames = ["check"]
+        applyPluginUnderTest(project)
+        names(1)
+
+        expect:
+        added("precommitThing") == [] as Set
+    }
+
+    def "cluster tests are throttled when part tasks are requested"() {
+        given:
+        project.gradle.startParameter.taskNames = taskNames
+        project.gradle.startParameter.maxWorkerCount = 16
+        if (override != null) {
+            System.setProperty(CiHeavyTestThrottle.MAX_PARALLEL_PROPERTY, override)
+        }
+
+        when:
+        applyPluginUnderTest(project)
+        def registration = project.gradle.sharedServices.registrations.findByName("ciHeavyTestThrottle")
+
+        then:
+        (registration?.maxParallelUsages?.get()) == expectedLimit
+        usesThrottle("internalClusterTest") == (expectedLimit != null)
+        usesThrottle("yamlRestTest") == (expectedLimit != null)
+        // unit tests are never throttled
+        usesThrottle("test") == false
+
+        cleanup:
+        System.clearProperty(CiHeavyTestThrottle.MAX_PARALLEL_PROPERTY)
+
+        where:
+        taskNames              | override || expectedLimit
+        ["checkPart2"]         | null     || 8
+        ["bcUpgradeTestPart1"] | null     || 8
+        ["checkPart2"]         | "3"      || 3
+        ["checkPart2"]         | "0"      || null
+        ["check"]              | null     || null
     }
 
     def "requested parts are read from checkPart task requests"() {
@@ -189,6 +280,17 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         names.every { n -> kept.findIndexOf { it.contains("${n}.class".toString()) } == kept.findIndexOf { it.contains("${n}\$Inner.class".toString()) } }
         kept.every { it.contains("org/foo/resource.txt") }
         kept.every { it.size() > 50 }
+    }
+
+    private boolean usesThrottle(String taskName) {
+        def task = project.tasks.getByName(taskName)
+        return task.requiredServices.elements.any { it.get() instanceof CiHeavyTestThrottle }
+    }
+
+    /** The tasks {@code taskName} should run after, other than its project's jar task. */
+    private Set<String> added(String taskName) {
+        def task = project.tasks.getByName(taskName)
+        return (task.shouldRunAfter.getDependencies(task).collect { it.path } as Set) - ":lib:jar"
     }
 
     private Set<String> bcNames(int part) {

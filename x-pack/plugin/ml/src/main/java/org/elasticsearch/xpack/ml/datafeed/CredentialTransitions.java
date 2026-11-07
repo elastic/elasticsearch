@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -131,6 +132,7 @@ public final class CredentialTransitions {
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final EsqlDatafeedQueryValidator esqlQueryValidator;
     private final MintFailureLogThrottle mintFailureLogThrottle = new MintFailureLogThrottle();
 
     public CredentialTransitions(
@@ -149,6 +151,7 @@ public final class CredentialTransitions {
         this.xContentRegistry = xContentRegistry;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.crossProjectModeDecider = crossProjectModeDecider;
+        this.esqlQueryValidator = new EsqlDatafeedQueryValidator();
     }
 
     public static Intent decideForUpdate(TransitionContext ctx) {
@@ -427,6 +430,11 @@ public final class CredentialTransitions {
             crossProjectModeDecider,
             callerCredential != null
         );
+        final Client searchClient = credentialManager.wrapClient(client, callerCredential);
+        if (effectiveConfig.getEsqlQuery() != null) {
+            validateEsqlAccessBeforeMint(effectiveConfig, headers, searchClient, listener);
+            return;
+        }
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
         QueryBuilder query = effectiveConfig.getParsedQuery(xContentRegistry);
         if (query != null) {
@@ -441,7 +449,6 @@ public final class CredentialTransitions {
         if (effectiveConfig.getProjectRouting() != null) {
             searchRequest.setProjectRouting(effectiveConfig.getProjectRouting());
         }
-        final Client searchClient = credentialManager.wrapClient(client, callerCredential);
         boolean flatWorldOnly = effectiveConfig.getIndices().stream().noneMatch(RemoteClusterAware::isRemoteIndexName);
         ActionListener<Void> probeListener = listener.delegateResponse((l, e) -> {
             if (flatWorldOnly && ExceptionsHelper.unwrapCause(e) instanceof NoMatchingProjectException) {
@@ -458,14 +465,7 @@ public final class CredentialTransitions {
                 );
                 l.onResponse(null);
             } else {
-                l.onFailure(
-                    DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
-                        effectiveConfig.getId(),
-                        effectiveConfig.getProjectRouting(),
-                        e,
-                        DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
-                    )
-                );
+                l.onFailure(enrichProbeFailure(effectiveConfig, e));
             }
         });
         executeWithHeadersAsync(
@@ -501,6 +501,31 @@ public final class CredentialTransitions {
                 }
                 l.onResponse(null);
             })
+        );
+    }
+
+    private void validateEsqlAccessBeforeMint(
+        DatafeedConfig effectiveConfig,
+        Map<String, String> headers,
+        Client searchClient,
+        ActionListener<Void> listener
+    ) {
+        // ES|QL datafeeds have no indices or indices options, so a DSL SearchRequest cannot be built from them.
+        esqlQueryValidator.validateAccessForMint(
+            searchClient,
+            headers,
+            effectiveConfig.getEsqlQuery(),
+            effectiveConfig.getProjectRouting(),
+            listener.delegateResponse((l, e) -> l.onFailure(enrichProbeFailure(effectiveConfig, e)))
+        );
+    }
+
+    private static Exception enrichProbeFailure(DatafeedConfig config, Exception e) {
+        return DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
+            config.getId(),
+            config.getProjectRouting(),
+            e,
+            DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
         );
     }
 

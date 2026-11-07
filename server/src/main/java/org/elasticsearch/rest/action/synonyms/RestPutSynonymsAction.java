@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.synonyms;
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.action.synonyms.SynonymUpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -27,9 +28,22 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutSynonymsAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("refresh", "append");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "synonymsSet");
+
     @Override
     public String getName() {
         return "synonyms_put_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

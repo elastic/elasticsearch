@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.synonyms;
 import org.elasticsearch.action.synonyms.GetSynonymsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -20,6 +21,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -29,9 +31,22 @@ public class RestGetSynonymsAction extends BaseRestHandler {
     private static final int DEFAULT_FROM_PARAM = 0;
     private static final int DEFAULT_SIZE_PARAM = 10;
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("size", "from", "search_after");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "synonymsSet");
+
     @Override
     public String getName() {
         return "synonyms_get_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

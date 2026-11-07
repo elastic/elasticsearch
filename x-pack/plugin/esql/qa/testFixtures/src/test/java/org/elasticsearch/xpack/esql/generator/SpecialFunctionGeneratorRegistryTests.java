@@ -30,6 +30,7 @@ public class SpecialFunctionGeneratorRegistryTests extends ESTestCase {
         "scalb",
         "pow",
         "ip_prefix",
+        "cidr_match",
         "case"
     );
 
@@ -43,6 +44,32 @@ public class SpecialFunctionGeneratorRegistryTests extends ESTestCase {
         assertNull(SpecialFunctionGeneratorRegistry.forFunction("does_not_exist"));
         assertNull(SpecialFunctionGeneratorRegistry.forFunction("abs"));
         assertNull(SpecialFunctionGeneratorRegistry.forFunction("to_string"));
+    }
+
+    /**
+     * {@code cidr_match} must emit an {@code ip/prefix} literal for the block argument. The
+     * generic composite builder would otherwise recurse for keyword and produce a field name.
+     */
+    public void testCidrMatchGeneratorUsesLiteralPrefix() {
+        GenerativeFunctionSignature sig = new GenerativeFunctionSignature(
+            List.of(new GenerativeFunctionParam("ip", "ip", false), new GenerativeFunctionParam("blockX", "keyword", false)),
+            "boolean",
+            true
+        );
+        SpecialFunctionGenerator.Recurser recurse = (type, cols, unmapped, depth) -> "leaf_" + type;
+        SpecialFunctionGenerator generator = SpecialFunctionGeneratorRegistry.forFunction("cidr_match");
+        assertNotNull(generator);
+        String expr = generator.generate("cidr_match", sig, List.of(), false, 2, recurse);
+        assertNotNull(expr);
+        assertTrue("expected cidr_match to use the ip expression, got " + expr, expr.startsWith("cidr_match(leaf_ip, \""));
+        assertTrue(
+            "expected a quoted CIDR literal, got " + expr,
+            expr.contains("\"10.0.0.0/8\"")
+                || expr.contains("\"192.168.0.0/16\"")
+                || expr.contains("\"172.16.0.0/12\"")
+                || expr.contains("\"0.0.0.0/0\"")
+        );
+        assertFalse("CIDR position must not be a generated keyword field, got " + expr, expr.contains("leaf_keyword"));
     }
 
     /**

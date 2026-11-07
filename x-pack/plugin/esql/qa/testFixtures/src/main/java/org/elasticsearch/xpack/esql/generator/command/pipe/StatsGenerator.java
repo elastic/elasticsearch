@@ -20,6 +20,14 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
+/**
+ * Generates {@code STATS} (and, via {@link InlineStatsGenerator}, {@code INLINE STATS}).
+ * <p>
+ * IN subquery is allowed only on a per-aggregate {@code WHERE} filter. The resolver rejects it
+ * in aggregate arguments and in {@code BY}, so those stay as {@link EsqlQueryGenerator#agg}
+ * and a bare groupable field. {@code BY alias = expr} is never emitted: a grouping alias
+ * shadows the child field, and {@code WHERE alias IN (...)} is then rejected.
+ */
 public class StatsGenerator implements CommandGenerator {
 
     public static final String STATS = "stats";
@@ -59,6 +67,8 @@ public class StatsGenerator implements CommandGenerator {
                 }
             }
             String expression = EsqlQueryGenerator.agg(nonNull, previousCommands);
+            // Per-aggregate WHERE only. Do not place an IN subquery in the agg expression.
+            String filter = EsqlQueryGenerator.maybeInSubqueryBooleanExpression(nonNull, schema, executor, context);
             if (i > 0) {
                 cmd.append(",");
             }
@@ -66,6 +76,10 @@ public class StatsGenerator implements CommandGenerator {
             cmd.append(name);
             cmd.append(" = ");
             cmd.append(expression);
+            if (filter != null) {
+                cmd.append(" WHERE ");
+                cmd.append(filter);
+            }
         }
         if (randomBoolean()) {
             var col = EsqlQueryGenerator.randomGroupableName(nonNull);

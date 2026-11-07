@@ -44,11 +44,6 @@ public class UnionEsField extends EsField {
         this.legTypes = List.copyOf(legTypes);
     }
 
-    /** The union of a conflicted field's types, in the canonical leg order. */
-    public static UnionEsField from(TypeConflictedField conflicted) {
-        return new UnionEsField(conflicted.getName(), conflicted.unionLegTypes());
-    }
-
     UnionEsField(StreamInput in) throws IOException {
         this(((PlanStreamInput) in).readCachedString(), in.readCollectionAsImmutableList(DataType::readFrom));
     }

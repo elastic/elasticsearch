@@ -238,7 +238,10 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             case DATE_RANGE -> CoalesceLongRangeEvaluator.toEvaluator(toEvaluator, children());
             case DOUBLE_RANGE -> CoalesceDoubleRangeEvaluator.toEvaluator(toEvaluator, children());
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
-            // A union is destructured per type before anything coalesces it, so it never reaches here.
+            // A union has no evaluator here and, under the pragma, nothing upstream yet stops one arriving: Coalesce
+            // types itself off its first child with no representability test, and while Eval refuses a union return
+            // type, a WHERE does not. So [WHERE COALESCE(u, u) IS NULL] passes analysis and fails here, on the data
+            // node. The gate belongs upstream; this throw is the backstop, not the contract.
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
                 SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, UNION -> throw new UnsupportedOperationException(
                     dataType() + " can't be coalesced"

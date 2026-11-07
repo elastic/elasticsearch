@@ -208,6 +208,63 @@ already pushdown-capable; both halves were wrong, and §0a now states what repla
 
 ---
 
+## 0d. Review findings, judged
+
+From `~/.claude/scratch/PR#164982.md`, polled against head `e9579adcc512`. Acted on, with the
+reasoning, since several turn on decisions rather than defects.
+
+**Fixed.**
+
+- **A value index is not a position.** `UnionBlockBuilder.appendValue` guarded with
+  `source.isNull(sourceValueIndex)`, where `Block.isNull` takes a position and the typed getters beside
+  it take a value index. They coincide only for a single-valued source, so a source with position 0
+  multi-valued and position 1 null would have refused a value that was plainly there. Now guarded only
+  where the two coincide, with the contract stated: a null position holds no values, so no valid value
+  index can refer to one, and the caller owns that. This mattered more than the review could know - the
+  loader appends per value from natively-loaded blocks, which are routinely multi-valued.
+- **The Java-object arm and the builder throw are now tested.** `BlockUtils.toJavaObject` over a union,
+  and `ElementType.UNION.newBlockBuilder` throwing. The second is load-bearing rather than defensive:
+  the multi-segment read path builds final builders from the element type alone, which is why the
+  loader has to be handed the leg types instead.
+- **Two in-code prose claims that were false.** The `Coalesce` comment asserted that a union is
+  destructured before anything coalesces it; nothing destructures, `Coalesce` types itself off its
+  first child with no representability test, and while `Eval` refuses a union return type a `WHERE`
+  does not - so `WHERE COALESCE(u, u) IS NULL` passes analysis and reaches that throw. The comment now
+  says that, and names the throw as a backstop rather than a contract. And a doubled javadoc in
+  `AnalyzerTests` where the first block described the method after it.
+- **A dead wrapper.** `UnionEsField.from` duplicated the analyzer's single construction site and
+  recomputed `unionLegTypes`, with one test caller. Deleted; its test now pins the construction
+  `UnionTypesCleanup` actually performs. `legOf` stays - the loader needs it to map a shard's mapped
+  type to a leg.
+
+**Already fixed before the poll:** the `canHoldLeg` javadoc, which now credits the test that holds the
+two lists together rather than claiming the logical layer calls it.
+
+**Recorded, not fixed.**
+
+- **The transport version.** `DataType.UNION` is gated on `INDEX_SOURCE`, borrowed from an unrelated
+  feature, where the sibling precedent is a constant named for the type and the two other reuses each
+  carry a comment saying why they are safe. This now matters more than when it was written, because the
+  mixed-cluster gate is built on it. A dedicated constant needs `generateTransportVersion`; until then
+  the borrowing is the recorded decision, not an oversight.
+- **Design documents at the repository root.** Three now. Internal design documents live in
+  `docs/internal/`, and these carry local paths and review-process references. All of it leaves before
+  the PR un-drafts.
+- **`TYPED` loads the non-matching leg and discards it.** The result is known at planning time, so a
+  constant-null loader would skip the read; a keyword or vector leg pays a full extraction for nothing.
+  A cost finding, and this is not a performance increment.
+
+**Standing finding.** The review's Q2 and the adversarial plan review found the same thing
+independently: `TopNExec` maps `UNION` to an unsortable encoder, which says a union may ride through a
+sort on another column, while `ResultBuilder` and `ValueExtractor` have no union arm and throw. Two
+reviewers reaching it by different routes is why it is increment 7 rather than a footnote.
+
+**Open and genuinely the user's call**, both offered as alternatives rather than defects: whether
+`UnionEsField` should be renamed so it does not read as a sibling of `UnionTypeEsField`, which means
+something else entirely; and whether a union's leg list belongs in `original_types` at all, given that
+field is diagnostic for an unsupported column and would become a positional contract for a union.
+`UNION-TYPES-SPEC.md` §9.4 records the consequence either way.
+
 ## 1. What the code decided for increment B
 
 **The discriminator is an explicit tag sub-block, not an implicit one.**

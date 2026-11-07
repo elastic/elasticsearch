@@ -57,7 +57,8 @@ public class UnionEsFieldTests extends AbstractEsFieldTypeTests<UnionEsField> {
             "flow",
             new TreeMap<>(Map.of("long", Set.of("a"), "keyword", Set.of("b"), "float", Set.of("c")))
         );
-        UnionEsField union = UnionEsField.from(conflicted);
+        // Constructed as UnionTypesCleanup constructs it, since that is the only production site.
+        UnionEsField union = new UnionEsField(conflicted.getName(), conflicted.unionLegTypes());
         assertEquals("flow", union.getName());
         assertEquals(DataType.UNION, union.getDataType());
         assertEquals(conflicted.unionLegTypes(), union.legTypes());

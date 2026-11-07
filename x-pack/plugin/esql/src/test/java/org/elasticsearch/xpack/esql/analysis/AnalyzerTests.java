@@ -5606,11 +5606,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * TYPED declares every type as supported, so ResolveUnionTypes builds a conversion entry per mapped
-     * type and its all-or-nothing check passes. A conversion that declines any mapped type refuses the
-     * whole query instead.
-     */
-    /**
      * The type is a non-child and {@code Function} equality compares class and children, so without an override
      * these two are equal. Optimizer rules key maps on expression identity: a STATS over both collapses them into
      * one eval and binds the second aggregate to the wrong leg.
@@ -5629,6 +5624,10 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(asLong, equalTo(new Typed(Source.EMPTY, field, Literal.keyword(Source.EMPTY, "long"))));
     }
 
+    /**
+     * TYPED declares every type as supported, so ResolveUnionTypes builds a conversion entry per mapped type and its
+     * all-or-nothing check passes. A conversion that declines any mapped type refuses the whole query instead.
+     */
     public void testTypedResolvesConflictedField() {
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put("keyword", Set.of("union_index_1"));

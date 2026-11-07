@@ -407,6 +407,59 @@ public class UnionBlockTests extends ComputeTestCase {
      * Multi-valued compound blocks are refused by the shared base class, for a union exactly as for tdigest and
      * exponential histogram. This holds that line visible until multi-value lands in that base class.
      */
+    /**
+     * A value index is not a position. The source here has position 0 = [1, 2] and position 1 = null, so value index 1
+     * is the {@code 2} of the first position while <em>position</em> 1 is the null - and a guard asking
+     * {@link Block#isNull} about a value index would refuse a value that is plainly there. A multi-valued source is in
+     * scope because the loader appends per value, and a null position holds no values, so no valid value index can
+     * refer to one.
+     */
+    public void testAppendValueTakesAValueIndexNotAPosition() {
+        BlockFactory blockFactory = blockFactory();
+        try (LongBlock.Builder source = blockFactory.newLongBlockBuilder(2)) {
+            source.beginPositionEntry();
+            source.appendLong(1L);
+            source.appendLong(2L);
+            source.endPositionEntry();
+            source.appendNull();
+            try (LongBlock sourceBlock = source.build(); UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(LEGS, 1)) {
+                assertTrue("the source must be multi-valued for this to mean anything", sourceBlock.mayHaveMultivaluedFields());
+                assertTrue("and position 1 must be the null", sourceBlock.isNull(1));
+                builder.appendValue(LONG_LEG, sourceBlock, 1);
+                try (UnionBlock block = builder.build()) {
+                    assertThat(block.getPositionCount(), equalTo(1));
+                    assertThat(block.tag(0), equalTo(LONG_LEG));
+                    assertThat(((LongBlock) block.legBlock(LONG_LEG)).getLong(0), equalTo(2L));
+                }
+            }
+        }
+    }
+
+    /** The union arm of the Java-object path, which is how a union value reaches a consumer that is not a renderer. */
+    public void testValuesReadBackAsJavaObjects() {
+        BlockFactory blockFactory = blockFactory();
+        try (UnionBlock block = buildSample(blockFactory)) {
+            assertThat(BlockUtils.toJavaObject(block, 0), equalTo(7L));
+            assertThat(BlockUtils.toJavaObject(block, 1), equalTo(new BytesRef("second")));
+            assertNull("a position with no tag has no value", BlockUtils.toJavaObject(block, 2));
+            assertThat(BlockUtils.toJavaObject(block, 3), equalTo(true));
+        }
+    }
+
+    /**
+     * The enum cannot supply a union builder, because a union needs its leg element types and an {@link ElementType} is
+     * only a code. The throw is load-bearing rather than defensive: anything building a final builder from the element
+     * type alone, as the multi-segment read path does, has to be given the leg types instead.
+     */
+    public void testTheElementTypeCannotSupplyABuilder() {
+        BlockFactory blockFactory = blockFactory();
+        UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> ElementType.UNION.newBlockBuilder(1, blockFactory)
+        );
+        assertThat(e.getMessage(), equalTo("a union block builder needs the leg element types"));
+    }
+
     public void testTheMultivaluedSampleIsShapedAsExpected() {
         BlockFactory blockFactory = blockFactory();
         try (UnionBlock block = buildMultivaluedSample(blockFactory)) {

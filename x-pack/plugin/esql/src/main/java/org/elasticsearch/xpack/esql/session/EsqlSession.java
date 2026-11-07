@@ -156,6 +156,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
@@ -242,6 +243,7 @@ public class EsqlSession {
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
     private final DatasetResolver datasetResolver;
+    private final TableFunctionResolver tableFunctionResolver;
     private final ExternalSourceResolver externalSourceResolver;
     /**
      * Thread CPU spent in this query's planning, on every thread that runs it. Sessions are one-shot, so one tracker
@@ -376,6 +378,7 @@ public class EsqlSession {
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
         DatasetResolver datasetResolver,
+        TableFunctionResolver tableFunctionResolver,
         ExternalSourceResolver externalSourceResolver,
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
@@ -398,6 +401,7 @@ public class EsqlSession {
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
         this.datasetResolver = datasetResolver;
+        this.tableFunctionResolver = tableFunctionResolver;
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
@@ -1814,15 +1818,26 @@ public class EsqlSession {
             flags,
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
-                analyzedPlanAfterDatasetResolution(
-                    scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
-                    unmappedResolution,
-                    viewSettings,
-                    configuration,
-                    executionInfo,
-                    requestFilter,
-                    indexViewOrigins,
-                    delegate
+                // Then the table functions a source list named, each becoming an external relation too. Separate from
+                // the rewrite above because the two are authorized by different privileges on different objects: a
+                // dataset by index `read` on its own name, a data source by `read` under global.data_source. Both must
+                // precede pre-analysis, which is where a source leaf's fields are collected. Completes synchronously
+                // when the query names no table function, which is the ordinary case.
+                tableFunctionResolver.resolveTableFunctions(
+                    rewritten,
+                    projectMetadata,
+                    planningCpu.meteredCpu(delegate.delegateFailureAndWrap((tableFunctionDelegate, resolved) -> {
+                        analyzedPlanAfterDatasetResolution(
+                            scopeIndexPatternsInViews(resolved, unmappedResolution, viewSettings),
+                            unmappedResolution,
+                            viewSettings,
+                            configuration,
+                            executionInfo,
+                            requestFilter,
+                            indexViewOrigins,
+                            tableFunctionDelegate
+                        );
+                    }))
                 );
             }))
         );

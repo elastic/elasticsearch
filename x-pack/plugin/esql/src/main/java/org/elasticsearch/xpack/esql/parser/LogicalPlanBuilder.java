@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -102,6 +103,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
@@ -113,12 +115,16 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.joni.exception.SyntaxException;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -419,14 +425,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<EsqlBaseParser.IndexPatternOrSubqueryContext> ctxs = ctx == null ? null : ctx.indexPatternOrSubquery();
         List<EsqlBaseParser.IndexPatternContext> indexPatternsCtx = new ArrayList<>();
         List<EsqlBaseParser.SubqueryContext> subqueriesCtx = new ArrayList<>();
+        List<EsqlBaseParser.TableFunctionContext> tableFunctionsCtx = new ArrayList<>();
         if (ctxs != null) {
             ctxs.forEach(c -> {
                 if (c.indexPattern() != null) {
                     indexPatternsCtx.add(c.indexPattern());
-                } else {
+                } else if (c.subquery() != null) {
                     subqueriesCtx.add(c.subquery());
+                } else {
+                    tableFunctionsCtx.add(c.tableFunction());
                 }
             });
+        }
+        // Resolved and shape-checked before any of the source list becomes a plan, so a call that cannot stand
+        // fails as a parse error at the call rather than somewhere downstream.
+        List<TableFunctionInvocation> tableFunctionInvocations = new ArrayList<>(tableFunctionsCtx.size());
+        for (EsqlBaseParser.TableFunctionContext tableFunctionCtx : tableFunctionsCtx) {
+            tableFunctionInvocations.add(tableFunctionInvocation(tableFunctionCtx));
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
@@ -442,32 +457,43 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
+        // Each call becomes its own leaf, carrying the METADATA names so a table function reads them exactly as a
+        // pattern does. Pre-analysis rewrites each into the relation that reads.
+        List<LogicalPlan> tableFunctions = new ArrayList<>(tableFunctionInvocations.size());
+        for (TableFunctionInvocation call : tableFunctionInvocations) {
+            tableFunctions.add(new UnresolvedTableFunctionRelation(call.source(), call, metadataFields));
+        }
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
-        if (subqueries.isEmpty()) {
+        if (subqueries.isEmpty() && tableFunctions.isEmpty()) {
             if (metadataFields.isEmpty()) {
                 return unresolvedRelation;
             }
             return new UnresolvedMetadata(source, unresolvedRelation, metadataFields);
         } else {
-            // subquery is not supported with time-series indices at the moment
+            // neither alternative source form is supported with time-series indices at the moment
             if (command == SourceCommand.TS) {
-                throw new ParsingException(source, "Subqueries are not supported in TS command");
+                throw new ParsingException(
+                    source,
+                    subqueries.isEmpty() ? "Table functions are not supported in TS command" : "Subqueries are not supported in TS command"
+                );
             }
 
-            List<LogicalPlan> mainQueryAndSubqueries = new ArrayList<>(subqueries.size() + 1);
+            List<LogicalPlan> sources = new ArrayList<>(subqueries.size() + tableFunctions.size() + 1);
             if (table.indexPattern().isEmpty() == false) {
-                mainQueryAndSubqueries.add(unresolvedRelation);
+                sources.add(unresolvedRelation);
             }
-            mainQueryAndSubqueries.addAll(subqueries);
+            sources.addAll(subqueries);
+            sources.addAll(tableFunctions);
 
             LogicalPlan inner;
-            if (mainQueryAndSubqueries.size() == 1) {
-                Subquery only = subqueries.get(0);
-                // if there is only one child without metadata - return it directly, no need for UnionAll
-                inner = metadataFields.isEmpty() ? only.plan() : only;
+            if (sources.size() == 1) {
+                LogicalPlan only = sources.get(0);
+                // if there is only one child without metadata - return it directly, no need for UnionAll. Only a
+                // Subquery is a wrapper worth unwrapping; a table-function leaf is already the source itself.
+                inner = (only instanceof Subquery subquery && metadataFields.isEmpty()) ? subquery.plan() : only;
             } else {
                 // the output of UnionAll is resolved by analyzer
-                inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
+                inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), sources, List.of());
             }
 
             if (metadataFields.isEmpty()) {
@@ -475,6 +501,146 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             return new UnresolvedMetadata(source(ctxs.getFirst(), ctxs.getLast()), inner, metadataFields);
         }
+    }
+
+    /**
+     * Reads one {@code NAME(...)} from a source list into a {@link TableFunctionInvocation}, validated by the
+     * function it names.
+     * <p>
+     * The name is resolved against {@link TableFunctionRegistry} here rather than during analysis, so an
+     * unknown one reads as a parse error listing the functions that exist instead of surviving to index
+     * resolution and reading as a missing index.
+     */
+    private TableFunctionInvocation tableFunctionInvocation(EsqlBaseParser.TableFunctionContext ctx) {
+        Source source = source(ctx);
+        String name = ctx.name.getText();
+        // One flat list with the map appended last, as ExpressionBuilder.visitFunctionExpression builds a scalar
+        // function's arguments: the grammar keeps the map a separate trailing alternative, the builder folds it in.
+        List<TableFunctionArgument> arguments = new ArrayList<>(ctx.tableFunctionArgument().size() + 1);
+        for (EsqlBaseParser.TableFunctionArgumentContext argumentCtx : ctx.tableFunctionArgument()) {
+            arguments.add(new TableFunctionArgument.Name(source(argumentCtx), tableFunctionArgumentName(argumentCtx)));
+        }
+        if (ctx.mapExpression() != null) {
+            arguments.add(
+                new TableFunctionArgument.NamedValues(
+                    source(ctx.mapExpression()),
+                    foldTableFunctionPayload(name, visitMapExpression(ctx.mapExpression()), "")
+                )
+            );
+        }
+        // Not resolved against the registry here, as a scalar function is not: ExpressionBuilder leaves an
+        // UnresolvedFunction for the analyzer to bind. TableFunctionResolver resolves this one, and raises the
+        // unknown-name, shape and per-function errors against the Source carried below — so the user sees the same
+        // message at the same position, just not from the parser.
+        return new TableFunctionInvocation(source, name, arguments);
+    }
+
+    /** The name one positional argument denotes: a bare or backquoted identifier, or a quoted string. */
+    private String tableFunctionArgumentName(EsqlBaseParser.TableFunctionArgumentContext ctx) {
+        if (ctx.identifier() != null) {
+            return visitIdentifier(ctx.identifier());
+        }
+        return BytesRefs.toString(visitString(ctx.string()).value());
+    }
+
+    /**
+     * The value types a payload may carry. A payload is meant to be the JSON a dataset registration
+     * carries, so it is confined to what an XContent parse of that JSON could have produced. ES|QL's
+     * {@code constant} rule is wider than that: {@code 1 day} yields a {@link java.time.Period}, and an
+     * integer past {@link Long#MAX_VALUE} is held as {@code UNSIGNED_LONG}, whose stored {@code long} is a
+     * biased representation rather than the number written. Normalizing either would be inventing a value;
+     * the list is a whitelist so that anything outside it is refused, and so that whatever validates a
+     * payload later can rely on the set rather than re-deriving it.
+     */
+    private static final Set<DataType> TABLE_FUNCTION_PAYLOAD_TYPES = Set.of(
+        DataType.KEYWORD,
+        DataType.TEXT,
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.DOUBLE,
+        DataType.BOOLEAN
+    );
+
+    /**
+     * Folds a table function's payload to the plain nested map its function validates.
+     * <p>
+     * A value is a constant of one of {@link #TABLE_FUNCTION_PAYLOAD_TYPES} or another payload, and
+     * nothing else: a dataset definition nests, and it is read while the plan is built, so there is
+     * nothing an expression in it could be evaluated against. {@link BytesRef} normalizes to
+     * {@link String}, inside a list as well as at top level, so the folded map has the shape an XContent
+     * parse of the same JSON would produce. Every level is unmodifiable, including the nested ones.
+     *
+     * @param path the dotted keys already descended through, so a diagnostic deep in a nested payload names
+     *             the key the user has to find rather than only its last segment
+     */
+    private static Map<String, Object> foldTableFunctionPayload(String functionName, MapExpression payload, String path) {
+        Map<String, Object> folded = new LinkedHashMap<>();
+        for (EntryExpression entry : payload.entryExpressions()) {
+            // visitMapExpression built every key as a keyword Literal out of the QUOTED_STRING the grammar
+            // demanded, so anything else here is a broken invariant rather than something a query can write.
+            if ((entry.key() instanceof Literal) == false) {
+                throw new IllegalStateException("payload key is not a literal: " + entry.key());
+            }
+            Literal keyLiteral = (Literal) entry.key();
+            String key = BytesRefs.toString(keyLiteral.value());
+            // A parameter the request never bound. Skipped rather than reported, because its "Unknown query
+            // parameter" error is already recorded and is the one the user needs; reporting it here as a null
+            // value would preempt that with the wrong cause. Same guard, same reason, as visitFillNullCommand.
+            if (entry.value() == MISSING_PARAMETER) {
+                continue;
+            }
+            // Diagnostics are raised against the KEY's source: a value that came from a parameter carries
+            // Source.EMPTY, which would report line -1:-1 and point the user at nothing.
+            Object value = foldTableFunctionPayloadValue(functionName, path + key, keyLiteral.source(), entry.value());
+            if (folded.put(key, value) != null) {
+                // visitMapExpression refuses a repeated key only when the FIRST occurrence had a scalar
+                // value -- it never records a key whose value was a nested payload -- so
+                // {"a": {..}, "a": {..}} arrives here with both entries, and is refused here rather than
+                // silently keeping the last one.
+                throw new ParsingException(keyLiteral.source(), "[{}] definition sets [{}] more than once", functionName, path + key);
+            }
+        }
+        return Collections.unmodifiableMap(folded);
+    }
+
+    private static Object foldTableFunctionPayloadValue(String functionName, String path, Source keySource, Expression value) {
+        if (value instanceof MapExpression nested) {
+            return foldTableFunctionPayload(functionName, nested, path + ".");
+        }
+        // visitMapExpression admits a nested payload or a constant and refuses everything else, so a Literal
+        // is all that is left here.
+        if ((value instanceof Literal) == false) {
+            throw new IllegalStateException("payload value is neither a nested payload nor a constant: " + value);
+        }
+        Literal literal = (Literal) value;
+        if (literal.value() == null) {
+            throw new ParsingException(keySource, "[{}] definition sets [{}] to null", functionName, path);
+        }
+        if (TABLE_FUNCTION_PAYLOAD_TYPES.contains(literal.dataType()) == false) {
+            throw new ParsingException(
+                keySource,
+                "[{}] definition cannot set [{}] to a value of type [{}]",
+                functionName,
+                path,
+                literal.dataType().typeName()
+            );
+        }
+        return normalizeBytesRefs(literal.value());
+    }
+
+    /** {@link BytesRef} to {@link String}, through a list, leaving every other value as it was. */
+    private static Object normalizeBytesRefs(Object value) {
+        if (value instanceof BytesRef bytesRef) {
+            return BytesRefs.toString(bytesRef);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> normalized = new ArrayList<>(list.size());
+            for (Object element : list) {
+                normalized.add(element == null ? null : normalizeBytesRefs(element));
+            }
+            return Collections.unmodifiableList(normalized);
+        }
+        return value;
     }
 
     private List<Subquery> visitSubqueriesInFromCommand(List<EsqlBaseParser.SubqueryContext> ctxs) {

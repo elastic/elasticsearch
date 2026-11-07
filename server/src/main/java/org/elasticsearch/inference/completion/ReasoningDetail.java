@@ -22,10 +22,12 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -33,7 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.nullableChunk;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DATA_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FORMAT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
@@ -142,9 +144,14 @@ public abstract sealed class ReasoningDetail implements Accountable, ToXContentO
     private static void declareParsedFields(ConstructingObjectParser<ReasoningDetail, Void> parser) {
         // common fields
         parser.declareString(constructorArg(), new ParseField(TYPE_FIELD));
-        parser.declareString(optionalConstructorArg(), new ParseField(FORMAT_FIELD));
-        parser.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
-        parser.declareLong(optionalConstructorArg(), new ParseField(INDEX_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(FORMAT_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(ID_FIELD));
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.longValue(),
+            new ParseField(INDEX_FIELD),
+            ObjectParser.ValueType.LONG_OR_NULL
+        );
 
         // reasoning.encrypted specific field
         parser.declareString(optionalConstructorArg(), new ParseField(DATA_FIELD));
@@ -153,8 +160,8 @@ public abstract sealed class ReasoningDetail implements Accountable, ToXContentO
         parser.declareString(optionalConstructorArg(), new ParseField(SUMMARY_FIELD));
 
         // reasoning.text specific fields
-        parser.declareString(optionalConstructorArg(), new ParseField(TEXT_FIELD));
-        parser.declareString(optionalConstructorArg(), new ParseField(SIGNATURE_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(TEXT_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(SIGNATURE_FIELD));
     }
 
     /**
@@ -230,7 +237,7 @@ public abstract sealed class ReasoningDetail implements Accountable, ToXContentO
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(chunkNullable(FORMAT_FIELD, format()), chunkNullable(ID_FIELD, id()), chunkNullable(INDEX_FIELD, index()));
+        return Iterators.concat(nullableChunk(FORMAT_FIELD, format()), nullableChunk(ID_FIELD, id()), nullableChunk(INDEX_FIELD, index()));
     }
 
     public String format() {
@@ -508,8 +515,8 @@ public abstract sealed class ReasoningDetail implements Accountable, ToXContentO
                 ChunkedToXContentHelper.startObject(),
                 chunk((b, p) -> b.field(TYPE_FIELD, ReasoningDetailType.TEXT.value)),
                 super.toXContentChunked(params),
-                chunkNullable(TEXT_FIELD, text),
-                chunkNullable(SIGNATURE_FIELD, signature),
+                nullableChunk(TEXT_FIELD, text),
+                nullableChunk(SIGNATURE_FIELD, signature),
                 ChunkedToXContentHelper.endObject()
             );
         }

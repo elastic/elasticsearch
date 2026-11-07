@@ -86,8 +86,8 @@ public class LuceneDirectoryBytesReadOperatorTests extends ComputeTestCase {
             assertThat(operatorBytes, greaterThan(0L));
 
             long planningBytes = 12_345L;
-            DriverCompletionInfo withPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), planningBytes);
-            DriverCompletionInfo withoutPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L);
+            DriverCompletionInfo withPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), planningBytes, false);
+            DriverCompletionInfo withoutPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
 
             assertThat(withPlanning.bytesRead(), equalTo(planningBytes + operatorBytes));
             assertThat(withoutPlanning.bytesRead(), equalTo(operatorBytes));

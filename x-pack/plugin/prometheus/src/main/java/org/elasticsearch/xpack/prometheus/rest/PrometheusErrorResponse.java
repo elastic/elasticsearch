@@ -17,6 +17,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.function.Supplier;
 
 /**
  * Utility for building and sending Prometheus-format error responses.
@@ -29,12 +31,13 @@ class PrometheusErrorResponse {
     private PrometheusErrorResponse() {}
 
     /**
-     * Sends a Prometheus-format error response derived from the given exception.
+     * Sends a Prometheus-format error response derived from the given exception, and logs the exception, see {@link #log}.
      * If sending fails, logs a warning and attempts a plain-text fallback response.
      */
     static void send(RestChannel channel, Exception e, Logger logger) {
         try {
             RestStatus status = ExceptionsHelper.status(e);
+            log(channel, status, e, logger);
             channel.sendResponse(new RestResponse(status, build(status, e.getMessage())));
         } catch (Exception inner) {
             inner.addSuppressed(e);
@@ -48,6 +51,28 @@ class PrometheusErrorResponse {
                     )
                 );
             } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * Mirrors the logging of {@link RestResponse#RestResponse(RestChannel, RestStatus, Exception)}, which standard Elasticsearch error
+     * responses go through but Prometheus-format ones don't: server errors are logged at {@code WARN} as they may point to a problem
+     * the cluster admin needs to look into, client errors only at {@code DEBUG}. Unlike there, query timeouts are logged at
+     * {@code DEBUG} too: although they are {@code 503}s, they are an expected outcome of the configured timeout, and logging them at
+     * {@code WARN} would be noisy.
+     */
+    private static void log(RestChannel channel, RestStatus status, Exception e, Logger logger) {
+        Supplier<String> messageSupplier = () -> String.format(
+            Locale.ROOT,
+            "path: %s, params: %s, status: %d",
+            channel.request().rawPath(),
+            channel.request().params(),
+            status.getStatus()
+        );
+        if (status.getStatus() < 500 || e instanceof PromqlQueryExecutor.QueryTimeoutException) {
+            logger.debug(messageSupplier, e);
+        } else {
+            logger.warn(messageSupplier, e);
         }
     }
 

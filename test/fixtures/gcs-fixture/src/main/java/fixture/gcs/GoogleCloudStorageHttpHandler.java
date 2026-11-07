@@ -399,9 +399,56 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     } else {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     }
-                } else {
-                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
-                }
+                } else if (Regex.simpleMatch("POST /" + bucket + "/*", decodedRequest)
+                    && RequestParams.from(exchange.getRequestURI()).containsKey("uploads")) {
+                        // XML API: Initiate Multipart Upload
+                        final String key = decodedPath.substring(("/" + bucket + "/").length());
+                        final String uploadId = mockGcsBlobStore.createMultipartUpload(key);
+                        final byte[] responseBytes = Strings.format("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <InitiateMultipartUploadResult>
+                              <Bucket>%s</Bucket>
+                              <Key>%s</Key>
+                              <UploadId>%s</UploadId>
+                            </InitiateMultipartUploadResult>""", bucket, key, uploadId).getBytes(UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length);
+                        exchange.getResponseBody().write(responseBytes);
+                    } else if (Regex.simpleMatch("PUT /" + bucket + "/*", decodedRequest)
+                        && RequestParams.from(exchange.getRequestURI()).containsKey("partNumber")
+                        && RequestParams.from(exchange.getRequestURI()).containsKey("uploadId")) {
+                            // XML API: Upload Part
+                            final var params = RequestParams.from(exchange.getRequestURI());
+                            final String uploadId = params.get("uploadId");
+                            final int partNumber = Integer.parseInt(params.get("partNumber"));
+                            final String eTag = mockGcsBlobStore.addMultipartUploadPart(uploadId, partNumber, requestBody);
+                            exchange.getResponseHeaders().add("ETag", eTag);
+                            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                        } else if (Regex.simpleMatch("POST /" + bucket + "/*", decodedRequest)
+                            && RequestParams.from(exchange.getRequestURI()).containsKey("uploadId")) {
+                                // XML API: Complete Multipart Upload
+                                final var params = RequestParams.from(exchange.getRequestURI());
+                                final String uploadId = params.get("uploadId");
+                                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.completeMultipartUpload(uploadId);
+                                final byte[] responseBytes = Strings.format("""
+                                    <?xml version="1.0" encoding="UTF-8"?>
+                                    <CompleteMultipartUploadResult>
+                                      <Bucket>%s</Bucket>
+                                      <Key>%s</Key>
+                                      <ETag>"%s"</ETag>
+                                    </CompleteMultipartUploadResult>""", bucket, blob.path(), blob.generation()).getBytes(UTF_8);
+                                exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length);
+                                exchange.getResponseBody().write(responseBytes);
+                            } else if (Regex.simpleMatch("DELETE /" + bucket + "/*", decodedRequest)
+                                && RequestParams.from(exchange.getRequestURI()).containsKey("uploadId")) {
+                                    // XML API: Abort Multipart Upload
+                                    final String uploadId = RequestParams.from(exchange.getRequestURI()).get("uploadId");
+                                    mockGcsBlobStore.abortMultipartUpload(uploadId);
+                                    exchange.sendResponseHeaders(NO_CONTENT.getStatus(), -1);
+                                } else {
+                                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                                }
             }
         } catch (MockGcsBlobStore.GcsRestException e) {
             sendError(exchange, e);

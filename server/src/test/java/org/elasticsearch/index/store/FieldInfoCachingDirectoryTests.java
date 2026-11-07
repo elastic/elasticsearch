@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -100,20 +101,26 @@ public class FieldInfoCachingDirectoryTests extends ESTestCase {
     public void testWeakReferenceReclaimsCanonical() throws Exception {
         try (Directory raw = newDirectory()) {
             FieldInfoCachingDirectory cache = new FieldInfoCachingDirectory(raw);
-            // Intern a one-off FieldInfo, do not hold any reference to it after returning.
-            cache.internFieldInfo("ephemeral", () -> makeFieldInfo("ephemeral", 0, 0L));
+
+            // Hold a strong reference to a trigger entry so it is never reclaimed.
+            FieldInfo trigger = cache.internFieldInfo("trigger", () -> makeFieldInfo("trigger", 1, 0L));
             assertEquals(1, cache.fieldInfoCacheSize());
 
-            // The next intern call will drain stale refs; eventually GC will clear the weak ref and the entry will be removed.
+            // Intern a one-off FieldInfo, do not hold any reference to it after returning.
+            cache.internFieldInfo("ephemeral", () -> makeFieldInfo("ephemeral", 0, 0L));
+            assertEquals(2, cache.fieldInfoCacheSize());
+
+            // System.gc() is only a hint and the cleared reference is enqueued asynchronously on the ReferenceHandler thread, so retry
+            // until the ephemeral entry is drained and only the trigger entry remains.
             assertBusy(() -> {
                 System.gc();
-                // Touch the cache to trigger drainDeadRefs from the intern path.
-                cache.internFieldInfo("trigger-" + System.nanoTime(), () -> makeFieldInfo("trigger", 0, 0L));
-                assertTrue(
+                assertSame(trigger, cache.internFieldInfo("trigger", () -> { throw new AssertionError("trigger must stay cached"); }));
+                assertEquals(
                     "ephemeral FieldInfo entry should be reclaimed once no strong reference remains",
-                    cache.fieldInfoCacheSize() < 2
+                    1,
+                    cache.fieldInfoCacheSize()
                 );
-            });
+            }, 30, TimeUnit.SECONDS);
         }
     }
 

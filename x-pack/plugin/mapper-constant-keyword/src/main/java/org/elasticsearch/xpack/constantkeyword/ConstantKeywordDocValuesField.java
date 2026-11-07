@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.constantkeyword;
 
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.script.field.BaseKeywordDocValuesField;
 
 public class ConstantKeywordDocValuesField extends BaseKeywordDocValuesField {
-    public ConstantKeywordDocValuesField(SortedBinaryDocValues input, String name) {
+    public ConstantKeywordDocValuesField(SortableBinaryDocValues input, String name) {
         super(input, name);
     }
 }

@@ -1,0 +1,7 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "id": { "type": "keyword" },
+        "tags": { "type": "keyword" }
+    }
+}

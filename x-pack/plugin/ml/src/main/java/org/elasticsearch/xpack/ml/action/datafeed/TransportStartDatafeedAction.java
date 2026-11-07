@@ -251,9 +251,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 // Apply CPS mode to detect if we're using cross-project search
                 DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
                     datafeedConfigHolder.get(),
-                    crossProjectModeDecider
+                    crossProjectModeDecider,
+                    datafeedConfigHolder.get().getCloudInternalCredential() != null
                 );
-                boolean isCpsMode = effectiveDatafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
+                boolean isCpsMode = isCrossProjectMode(effectiveDatafeed);
 
                 if (isCpsMode) {
                     // Skip license check for CPS - all projects share the same highest license
@@ -317,16 +318,35 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(datafeedBuilder -> {
             DatafeedConfig datafeedConfig = datafeedBuilder.build();
-            DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider);
+            try {
+                validateEsqlDatafeedEnabled(datafeedConfig, state);
+            } catch (ElasticsearchStatusException e) {
+                responseHeaderPreservingListener.onFailure(e);
+                return;
+            }
+            DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+                datafeedConfig,
+                crossProjectModeDecider,
+                datafeedConfig.getCloudInternalCredential() != null
+            );
             params.setDatafeedIndices(datafeedConfig.getIndices());
             params.setJobId(datafeedConfig.getJobId());
-            params.setIndicesOptions(effectiveDatafeed.getIndicesOptions());
+            setIndicesOptionsIfPresent(params, effectiveDatafeed);
             datafeedConfigHolder.set(datafeedConfig);
 
             jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
         }, responseHeaderPreservingListener::onFailure);
 
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
+    }
+
+    static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state) {
+        DatafeedEsqlGates.validateEsqlDatafeedEnabled(
+            datafeedConfig,
+            state,
+            Messages.DATAFEED_ESQL_START_UPGRADE_IN_PROGRESS,
+            Messages.DATAFEED_ESQL_START_DISABLED
+        );
     }
 
     // _origin: is the CPS origin-project qualifier, resolved at search time by the CPS rewriter, not a
@@ -336,6 +356,16 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             .stream()
             .filter(index -> index.startsWith(ProjectRoutingResolver.ORIGIN + ":") == false)
             .toList();
+    }
+
+    static boolean isCrossProjectMode(DatafeedConfig datafeed) {
+        return datafeed.getIndicesOptions() != null && datafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
+    }
+
+    static void setIndicesOptionsIfPresent(StartDatafeedAction.DatafeedParams params, DatafeedConfig datafeed) {
+        if (datafeed.getIndicesOptions() != null) {
+            params.setIndicesOptions(datafeed.getIndicesOptions());
+        }
     }
 
     static void checkRemoteConfigVersions(
@@ -376,7 +406,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> listener
     ) {
         // Apply cross-project search mode to IndicesOptions before creating the factory
-        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, crossProjectModeDecider);
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+            datafeed,
+            crossProjectModeDecider,
+            datafeed.getCloudInternalCredential() != null
+        );
 
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),

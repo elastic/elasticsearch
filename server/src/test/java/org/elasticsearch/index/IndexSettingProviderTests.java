@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class IndexSettingProviderTests extends ESSingleNodeTestCase {
@@ -98,6 +99,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
+            boolean registryInstalledTemplate,
             ProjectMetadata metadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
@@ -114,6 +116,11 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
                     additionalSettings.put("index.version.created", IndexVersion.current());
                 }
             }
+        }
+
+        @Override
+        public Set<String> affectedSettings() {
+            return Set.of("index.refresh_interval", "index.mapping.depth.limit", "index.version.created");
         }
 
         @Override

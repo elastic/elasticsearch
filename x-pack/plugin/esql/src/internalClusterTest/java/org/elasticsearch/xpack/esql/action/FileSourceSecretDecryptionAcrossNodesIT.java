@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -110,7 +111,10 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
             }
             return new Configured<>(
                 new CredentialGatedLocalStorageProvider(SCHEME, secret, expectedCredentialOverride),
-                secret == null ? Set.of() : Set.of(SECRET_KEY)
+                secret == null ? Set.of() : Set.of(SECRET_KEY),
+                // The only key consumed here is a secret, and a secret never identifies a configuration.
+                "",
+                ""
             );
         }
     }
@@ -174,7 +178,7 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
                 )
             )
         );
-        String uri = SCHEME + "://" + fixture.toAbsolutePath();
+        String uri = SCHEME + "://" + StoragePath.fileUri(fixture).substring("file://".length());
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,

@@ -17,10 +17,16 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+
 public class DeclaredSchemaValidatorTests extends ESTestCase {
 
-    private static DatasetMapping mapping(Dynamic dynamic, Map<String, DatasetFieldMapping> props, String idPath) {
-        return new DatasetMapping(new Mappings(dynamic, props, idPath));
+    private static DatasetMapping mapping(Dynamic dynamic, Map<String, DatasetFieldMapping> props) {
+        return new DatasetMapping(new Mappings(dynamic, props));
     }
 
     private static Map<String, DatasetFieldMapping> props(Object... pairs) {
@@ -140,46 +146,60 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
                     "ip",
                     "i",
                     "date_nanos"
-                ),
-                null
+                )
             )
         );
     }
 
     public void testTypeAliasesPass() {
         // int/bool/string are accepted aliases (parsed like ::type casts)
-        DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("a", "int", "b", "bool", "c", "string"), null));
+        DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("a", "int", "b", "bool", "c", "string")));
     }
 
     public void testUnsupportedTypeRejected() {
-        for (String bad : new String[] { "geo_point", "binary", "short", "float", "version", "not_a_type" }) {
+        for (String bad : new String[] { "geo_point", "binary", "short", "float", "version", "not_a_type", "text" }) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("col", bad), null))
+                () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("col", bad)))
             );
             assertTrue(e.getMessage(), e.getMessage().contains("unsupported declared type [" + bad + "]"));
             assertTrue(e.getMessage(), e.getMessage().contains("col"));
         }
     }
 
-    public void testStrictRequiresRoleColumnDeclared() {
+    /**
+     * {@code text} is rejected like any undeclarable type, and the message additionally names the replacement,
+     * which no other rejected type does. Separate from {@link #testUnsupportedTypeRejected} because that method's
+     * assertions are shared across its whole array.
+     */
+    public void testDeclaredTextIsRejectedAndNamesTheReplacement() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(mapping(Dynamic.FALSE, props("a", "keyword"), "missing_id"))
+            () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("msg", "text")))
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("_id"));
-        assertTrue(e.getMessage(), e.getMessage().contains("not declared"));
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("unsupported declared type [text] for column [msg]"),
+                // The literal, not TEXT_ROUTE: asserting the constant moves both sides together.
+                containsString("apply TO_TEXT in the query")
+            )
+        );
+        // The whole list, not the absence of `text` from it: the names are sorted, so a "does not contain"
+        // assertion lands mid-list and is one edit away from matching nothing and passing for free.
+        assertThat(
+            e.getMessage(),
+            containsString("supported types are [boolean, date_nanos, datetime, double, integer, ip, keyword, long, unsigned_long]")
+        );
     }
 
-    public void testNonStrictDefersUndeclaredRoleColumn() {
-        // _id.path references a column not in properties — under non-strict it may come from inference, so PUT allows it.
-        DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("a", "keyword"), "inferred_id"));
-    }
-
-    public void testIdPathWithNoPropertiesIsValid() {
-        // _id.path with an otherwise-empty mappings block (no properties) — non-strict, so the id column is deferred to
-        // query-time resolution. (The id-source is a meta-field inside mappings, so it always rides a mappings wrapper.)
-        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id")));
+    /**
+     * Nine declarable types. A count as well as {@link #testAllDeclarableTypesPass}'s enumeration, so widening the
+     * PUT-time vocabulary takes a deliberate edit here.
+     */
+    public void testDeclarableTypeCount() {
+        assertThat(DeclaredSchemaValidator.declarableTypes(), hasSize(9));
+        assertThat(DeclaredSchemaValidator.declarableTypes(), not(hasItem(DataType.TEXT)));
     }
 
     public void testStrictWithNoPropertiesRejected() {
@@ -193,7 +213,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
     }
 
     public void testBlankNamesRejected() {
-        // Index-mapping precedent: field names must be non-empty. Blank property key / path / _id.path all reject.
+        // Index-mapping precedent: field names must be non-empty. A blank property key or path rejects.
         Map<String, DatasetFieldMapping> blankKey = new LinkedHashMap<>();
         blankKey.put(" ", new DatasetFieldMapping("keyword", null));
         expectThrows(
@@ -206,11 +226,6 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, blankPath)))
-        );
-
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), " ")))
         );
     }
 }

@@ -307,10 +307,10 @@ public final class EscfBatchScatterer implements Releasable {
     }
 
     private void releaseInFlight() {
-        // discard() on a builder is idempotent after finish() (the stream is already moved/nulled).
+        // close() on a builder is a no-op after finish(), which moved the buffers into the column data.
         for (int p = 0; p < builders.length; p++) {
             if (builders[p] != null) {
-                builders[p].discard();
+                builders[p].close();
                 builders[p] = null;
             }
         }

@@ -12,6 +12,7 @@ package org.elasticsearch.sourcebatch;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 
 import java.util.List;
 
@@ -23,6 +24,28 @@ public interface LuceneColumn extends SliceableColumn {
 
     @Override
     LuceneColumn slice(int from, int count);
+
+    /**
+     * Returns a copy of this column that emits only documents whose bit is set in {@code filter}.
+     * When {@code filter} is non-null the returned column has {@link Column.Density#SPARSE} density.
+     * Passing {@code null} is a no-op when the column already has an active filter: the existing
+     * filter is preserved. Use {@link #singleFilter} to compose the incoming value with any
+     * pre-existing filter.
+     *
+     * @param filter a bitset of length equal to this column's doc count, or {@code null}
+     */
+    LuceneColumn withFilter(FixedBitSet filter);
+
+    /**
+     * Returns the single non-null filter from {@code existing} and {@code replacement}, asserting
+     * that they are not both non-null. If both are {@code null}, returns {@code null}. Intended for
+     * use inside {@link #withFilter} implementations to prevent an active filter from being silently
+     * discarded.
+     */
+    static FixedBitSet singleFilter(FixedBitSet existing, FixedBitSet replacement) {
+        assert existing == null || replacement == null : "cannot apply a filter to a column that already has one";
+        return replacement != null ? replacement : existing;
+    }
 
     /**
      * Returns a Lucene {@link Column} for this column's current window, for use with

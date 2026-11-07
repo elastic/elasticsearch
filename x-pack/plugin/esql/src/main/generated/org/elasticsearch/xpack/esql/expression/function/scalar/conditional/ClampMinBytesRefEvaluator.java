@@ -74,10 +74,11 @@ public final class ClampMinBytesRefEvaluator implements ExpressionEvaluator {
       BytesRef fieldScratch = new BytesRef();
       BytesRef minScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (fieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (fieldBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -85,10 +86,11 @@ public final class ClampMinBytesRefEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (minBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (minBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,7 +54,9 @@ import java.util.ServiceLoader;
  * If you revert a commit with an index version change, you <em>must</em> ensure there is a <em>new</em> index version
  * representing the reverted change. <em>Do not</em> let the index version go backwards, it must <em>always</em> be incremented.
  */
-public record IndexVersion(int id, Version luceneVersion) implements VersionId<IndexVersion>, ToXContentFragment {
+public record IndexVersion(int id, Version luceneVersion) implements VersionId<IndexVersion>, ToXContentFragment, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexVersion.class);
 
     private static class CurrentHolder {
         private static final IndexVersion CURRENT = findCurrent();
@@ -147,6 +151,12 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(id);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // luceneVersion is org.apache.lucene.util.Version, which cannot implement Accountable.
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(luceneVersion);
     }
 
     /**

@@ -9,10 +9,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.FieldType;
@@ -26,9 +29,11 @@ import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandle
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.After;
 
 import java.util.HashMap;
 import java.util.List;
@@ -36,12 +41,20 @@ import java.util.Map;
 import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Verifies that a {@code columnar_stored} source index and an equivalent {@code synthetic} source index
  * (both using {@code columnar} index mode) return identical {@code _source} for every document.
  */
 public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
+
+    @After
+    public void resetRebalancing() {
+        // indexAndFetchSources disables rebalancing; the persistent cluster setting must not leak out of the test.
+        updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));
+    }
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
@@ -162,10 +175,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     /**
-     * A {@code multi_value=false, on_failure=ignore} field that receives two values redirects the extra value to the
-     * {@code ._on_failure} column. Both source modes must reconstruct the same document: {@code synthetic} reads the first
-     * value from its doc-values column and the second from {@code ._on_failure}; {@code columnar_stored} reads it from the
-     * whole-document blob written before the column is pruned.
+     * A {@code multi_value=false, on_failure=ignore} field redirects extra values to {@code ._on_failure}.
+     * Both source modes must reconstruct the same document from their respective storage mechanisms.
      */
     public void testMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
         var mappingXContent = XContentFactory.jsonBuilder()
@@ -173,23 +184,24 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject("kw")
             .field("type", "keyword")
-            .startObject("doc_values")
             .field("multi_value", false)
             .field("on_failure", "ignore")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
         // Two values: "a" is indexed normally, "b" is redirected to ._on_failure. Both must appear in _source.
-        assertEqualSource(mappingXContent, Map.of("kw", List.of("a", "b")), randomBoolean());
+        var document = Map.of("kw", List.of("a", "b"));
+        assertEqualSource(mappingXContent, document, randomBoolean(), document);
         for (String index : List.of("test_synthetic", "test_columnar_stored")) {
             assertIgnoredContains(index, "kw");
         }
     }
 
     /**
-     * A {@code nullability=false, on_failure=ignore} field that is absent in a document is merely marked ignored rather
-     * than rejecting the document. Both source modes must omit the field from the reconstructed {@code _source}.
+     * A {@code nullability=false, on_failure=ignore} field that is absent in a document is marked ignored rather than rejecting
+     * the document. Both source modes must omit the field from the reconstructed {@code _source}.
+     * Note: an absent field writes nothing to {@code ._on_failure}, so the new read-side reconstruction wiring is not exercised here;
+     * this is a regression test for the existing nullability-tracking path.
      */
     public void testNullabilityViolationOmittedIdenticallyAcrossSourceModes() throws Exception {
         var mappingXContent = XContentFactory.jsonBuilder()
@@ -197,22 +209,23 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject("kw")
             .field("type", "keyword")
-            .startObject("doc_values")
             .field("nullability", false)
             .field("on_failure", "ignore")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
         // field is absent — violation is ignored, field must be omitted from _source in both modes
-        assertEqualSource(mappingXContent, Map.of(), randomBoolean());
+        var document = Map.<String, Object>of();
+        assertEqualSource(mappingXContent, document, randomBoolean(), document);
         for (String index : List.of("test_synthetic", "test_columnar_stored")) {
             assertIgnoredContains(index, "kw");
         }
     }
 
     /**
-     * Asserts reconstructed sources are the same and that the field is stored in _ignored across both source types when normalizer is used.
+     * A {@code lowercase} normalizer keeps the field in NATIVE mode, so the primary column stores the normalized first value and
+     * {@code ._on_failure} stores raw subsequent values. Both source modes must reconstruct the mixed-case array and populate
+     * {@code _ignored} with the field name.
      */
     public void testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
         var mappingXContent = XContentFactory.jsonBuilder()
@@ -221,27 +234,82 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .startObject("kw")
             .field("type", "keyword")
             .field("normalizer", "lowercase")
-            .startObject("doc_values")
             .field("multi_value", false)
             .field("on_failure", "ignore")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertEqualSource(mappingXContent, Map.of("kw", List.of("HELLO", "WORLD")), randomBoolean());
+        // "lowercase" sets normalizerSkipStoreOriginalValue=true → NATIVE mode. Primary = normalized; ._on_failure = raw.
+        var document = Map.of("kw", List.of("HELLO", "WORLD"));
+        var expectedSource = Map.of("kw", List.of("hello", "WORLD"));
+        assertEqualSource(mappingXContent, document, randomBoolean(), expectedSource);
         for (String index : List.of("test_synthetic", "test_columnar_stored")) {
             assertIgnoredContains(index, "kw");
         }
     }
 
+    public void testNumberFieldMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("num")
+            .field("type", "long")
+            .field("multi_value", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject();
+        int val1 = randomIntBetween(1, 100);
+        int val2 = randomValueOtherThan(val1, () -> randomIntBetween(1, 100));
+        var document = Map.of("num", List.of(val1, val2));
+        assertEqualSource(mappingXContent, document, randomBoolean(), document);
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "num");
+            // val1 was indexed as a normal doc value and must be term-query searchable.
+            assertHitCount(prepareSearch(index).setQuery(QueryBuilders.termQuery("num", val1)), 1);
+            // val2 was redirected to ._on_failure and must not appear in the regular doc values inverted index.
+            assertHitCount(prepareSearch(index).setQuery(QueryBuilders.termQuery("num", val2)), 0);
+        }
+    }
+
+    /**
+     * Asserts {@code _ignored} contains {@code fieldName} on <em>every</em> copy of the shard, not only on whichever copy a search happens
+     * to be routed to (#157799, #155610).
+     * <p>
+     * The index is created without replicas and the replica is added only after the document was indexed (and without a flush), so the
+     * replica must recover by replaying the primary's operations. That replay re-parses the source reconstructed from synthetic source,
+     * so a value that is not restored faithfully (e.g. a multi-value violation stored in {@code ._on_failure}) would make the replica
+     * lose {@code _ignored}. Adding the replica at index creation instead would let it receive the document via ordinary replication with
+     * the original source and never exercise this path.
+     */
     private void assertIgnoredContains(String index, String fieldName) {
-        var resp = client().prepareSearch(index).addFetchField(IgnoredFieldMapper.NAME).get();
-        try {
-            var ignoredField = resp.getHits().getAt(0).field(IgnoredFieldMapper.NAME);
-            assertNotNull(index + ": violation must populate _ignored", ignoredField);
-            assertTrue(index + ": _ignored must contain '" + fieldName + "'", ignoredField.getValues().contains(fieldName));
-        } finally {
-            resp.decRef();
+        setReplicaCount(1, index);
+        ensureGreen(index);
+        var replicaRecoveredOperations = indicesAdmin().prepareRecoveries(index)
+            .get()
+            .shardRecoveryInfos()
+            .get(index)
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .filter(state -> state.getPrimary() == false)
+            .mapToInt(state -> state.getTranslog().recoveredOperations())
+            .sum();
+        assertThat(index + ": the replica must have recovered by replaying operations", replicaRecoveredOperations, greaterThan(0));
+
+        var routing = clusterService().state().routingTable().index(index).shard(0);
+        for (var copy : routing.assignedShards()) {
+            var resp = client().prepareSearch(index)
+                .setPreference("_only_nodes:" + copy.currentNodeId())
+                .addFetchField(IgnoredFieldMapper.NAME)
+                .get();
+            try {
+                var ignoredField = resp.getHits().getAt(0).field(IgnoredFieldMapper.NAME);
+                var label = index + " primary=" + copy.primary();
+                assertNotNull(label + ": violation must populate _ignored", ignoredField);
+                assertTrue(label + ": _ignored must contain '" + fieldName + "'", ignoredField.getValues().contains(fieldName));
+            } finally {
+                resp.decRef();
+            }
         }
     }
 
@@ -257,27 +325,62 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     private void assertEqualSource(XContentBuilder mappingXContent, Map<String, ?> document, boolean useTimeSeriesDocValuesFormat) {
+        var sources = indexAndFetchSources(mappingXContent, document, useTimeSeriesDocValuesFormat);
+        assertEquals(sources.get(0), sources.get(1));
+    }
+
+    /**
+     * Like {@link #assertEqualSource(XContentBuilder, Map, boolean)} but also asserts the reconstructed source equals
+     * {@code expectedSource}, not just that both modes agree with each other.
+     */
+    private void assertEqualSource(
+        XContentBuilder mappingXContent,
+        Map<String, ?> document,
+        boolean useTimeSeriesDocValuesFormat,
+        Map<String, ?> expectedSource
+    ) {
+        var sources = indexAndFetchSources(mappingXContent, document, useTimeSeriesDocValuesFormat);
+        assertEquals(sources.get(0), sources.get(1));
+        assertEquals("synthetic source must match expected content", expectedSource, sources.get(0));
+        assertEquals("columnar stored source must match expected content", expectedSource, sources.get(1));
+    }
+
+    private List<Map<String, Object>> indexAndFetchSources(
+        XContentBuilder mappingXContent,
+        Map<String, ?> document,
+        boolean useTimeSeriesDocValuesFormat
+    ) {
+        // assertIgnoredContains adds a replica only after indexing, so that the replica must recover by replaying operations. For that:
+        // - start the second data node up front and disable rebalancing, otherwise a primary could relocate after indexing, and the
+        // relocation force-flushes the document into a commit that the replica then copies instead of replaying operations;
+        // - pin the replica count and the translog flush threshold, which ESIntegTestCase randomizes (a flush has the same effect).
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
         var syntheticSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1));
         var columnarStoredSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1));
 
         assertAcked(prepareCreate("test_synthetic").setMapping(mappingXContent).setSettings(syntheticSettings));
         assertAcked(prepareCreate("test_columnar_stored").setMapping(mappingXContent).setSettings(columnarStoredSettings));
+        ensureGreen("test_synthetic", "test_columnar_stored");
 
         prepareIndex("test_synthetic").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         prepareIndex("test_columnar_stored").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         var syntheticSource = client().prepareGet("test_synthetic", "1").get().getSourceAsMap();
         var columnarStoredSource = client().prepareGet("test_columnar_stored", "1").get().getSourceAsMap();
-
-        assertEquals(syntheticSource, columnarStoredSource);
+        return List.of(syntheticSource, columnarStoredSource);
     }
 
     private DataGeneratorSpecification buildSpec() {

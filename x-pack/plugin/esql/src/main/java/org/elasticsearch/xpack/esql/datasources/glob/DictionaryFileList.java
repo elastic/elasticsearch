@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.util.List;
+
 /**
  * Segment-dictionary-encoded file listing implementing {@link FileList}.
  * Compresses path storage from ~700 bytes/file (StorageEntry) to ~52 bytes/file
@@ -29,6 +31,8 @@ final class DictionaryFileList implements FileList {
     private final long[] sizes; // per-file size
     private final long[] mtimesMillis; // per-file mtime
     @Nullable
+    private final String[] versions; // per-file object version, null when no file has one
+    @Nullable
     private final String sharedExtension; // common extension (e.g. ".parquet")
     @Nullable
     private final String originalPattern;
@@ -42,6 +46,8 @@ final class DictionaryFileList implements FileList {
      */
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
+    private final List<String> listingWarnings;
+    private final long estimatedBytes;
 
     DictionaryFileList(
         String basePath,
@@ -50,23 +56,30 @@ final class DictionaryFileList implements FileList {
         int[] pathStarts,
         long[] sizes,
         long[] mtimesMillis,
+        @Nullable String[] versions,
         @Nullable String sharedExtension,
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
         int fileCount,
-        @Nullable FileSetFingerprint fileSetFingerprint
+        @Nullable FileSetFingerprint fileSetFingerprint,
+        List<String> listingWarnings
     ) {
+        assert partitionMetadata == null || partitionMetadata.coversFileCount(fileCount)
+            : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + fileCount + "]";
         this.basePath = basePath;
         this.tokens = tokens;
         this.pathTokens = pathTokens;
         this.pathStarts = pathStarts;
         this.sizes = sizes;
         this.mtimesMillis = mtimesMillis;
+        this.versions = versions;
         this.sharedExtension = sharedExtension;
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
         this.fileSetFingerprint = fileSetFingerprint;
+        this.listingWarnings = listingWarnings == null || listingWarnings.isEmpty() ? List.of() : List.copyOf(listingWarnings);
+        this.estimatedBytes = computeEstimatedBytes();
     }
 
     @Override
@@ -109,6 +122,12 @@ final class DictionaryFileList implements FileList {
 
     @Override
     @Nullable
+    public String version(int i) {
+        return versions == null ? null : versions[i];
+    }
+
+    @Override
+    @Nullable
     public String originalPattern() {
         return originalPattern;
     }
@@ -129,8 +148,18 @@ final class DictionaryFileList implements FileList {
         return fileCount == 0;
     }
 
+    /**
+     * Computed once at construction. The shared {@code Cache} runs its weigher twice on every hit that is not
+     * already at the LRU head - {@code Cache.promote} sends an existing entry through {@code relinkAtHead}, whose
+     * {@code unlink} subtracts {@code weigher.applyAsLong} and whose {@code linkAtHead} adds it back - and this
+     * weight is not a constant: it walks the dictionary. A listing is immutable, so one computation is exact.
+     */
     @Override
     public long estimatedBytes() {
+        return estimatedBytes;
+    }
+
+    private long computeEstimatedBytes() {
         // object header + reference fields
         long bytes = 64;
         // basePath String: object header (40B) + char data
@@ -139,6 +168,11 @@ final class DictionaryFileList implements FileList {
             // per-String: ~40B object overhead + char data
             bytes += 40 + token.length() * (long) Character.BYTES;
         }
+        if (versions != null) {
+            for (String version : versions) {
+                bytes += version == null ? 0 : 40 + version.length() * (long) Character.BYTES;
+            }
+        }
         bytes += pathTokens.length * (long) Short.BYTES;
         bytes += (long) pathStarts.length * Integer.BYTES;
         bytes += sizes.length * (long) Long.BYTES;
@@ -146,7 +180,11 @@ final class DictionaryFileList implements FileList {
         if (sharedExtension != null) {
             bytes += 40 + sharedExtension.length() * (long) Character.BYTES;
         }
-        return bytes;
+        return bytes + listingWarningBytes();
     }
 
+    @Override
+    public List<String> listingWarnings() {
+        return listingWarnings;
+    }
 }

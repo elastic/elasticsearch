@@ -57,6 +57,18 @@ public abstract class DataStreamLicenseChangeTestCase extends LogsIndexModeRestT
         }
     }
 
+    /**
+     * Returns true if the cluster under test supports the {@code vectordb_columnar} index mode, which sits behind
+     * its own feature flag and therefore has a capability of its own.
+     */
+    protected static boolean isVectordbColumnarIndexModeSupported() {
+        try {
+            return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_columnar_index_mode")).orElse(false);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     protected static void startBasic() throws IOException {
         Request startTrial = new Request("POST", "/_license/start_basic");
         startTrial.addParameter("acknowledge", "true");

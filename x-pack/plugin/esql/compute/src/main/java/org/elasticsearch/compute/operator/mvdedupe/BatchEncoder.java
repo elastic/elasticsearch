@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -49,6 +51,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
             case INT -> new IntsDecoder();
             case LONG -> new LongsDecoder();
             case DOUBLE -> new DoublesDecoder();
+            case DOUBLE_RANGE -> new DoubleRangesDecoder();
             case BYTES_REF -> new BytesRefsDecoder();
             case BOOLEAN -> new BooleansDecoder();
             case NULL -> new NullsDecoder();
@@ -508,6 +511,68 @@ public abstract class BatchEncoder implements Releasable, Accountable {
                     b.appendDouble((double) doubleHandle.get(e.bytes, e.offset));
                     e.offset += Double.BYTES;
                     e.length -= Double.BYTES;
+                }
+            }
+        }
+    }
+
+    protected abstract static class DoubleRanges extends MVEncoder {
+        protected DoubleRanges(int batchSize) {
+            super(batchSize);
+        }
+
+        protected final boolean hasCapacity(int count) {
+            return bytes.length() + count * Double.BYTES * 2 <= bytesCapacity();
+        }
+
+        protected final void ensureCapacity(int count) {
+            bytes.grow(count * Double.BYTES * 2);
+        }
+
+        protected final void encode(DoubleRangeBlockBuilder.DoubleRange range) {
+            addingValue();
+            doubleHandle.set(bytes.bytes(), bytes.length(), range.from());
+            bytes.setLength(bytes.length() + Double.BYTES);
+            doubleHandle.set(bytes.bytes(), bytes.length(), range.to());
+            bytes.setLength(bytes.length() + Double.BYTES);
+        }
+    }
+
+    protected static final class DirectDoubleRanges extends DirectEncoder {
+        private final DoubleRangeBlockBuilder.DoubleRange scratch = new DoubleRangeBlockBuilder.DoubleRange();
+
+        DirectDoubleRanges(DoubleRangeBlock block) {
+            super(block);
+        }
+
+        @Override
+        protected int readValueAtBlockIndex(int valueIndex, BreakingBytesRefBuilder dst) {
+            DoubleRangeBlockBuilder.DoubleRange range = ((DoubleRangeBlock) block).getDoubleRange(valueIndex, scratch);
+            int before = dst.length();
+            int after = before + Double.BYTES * 2;
+            dst.grow(after);
+            doubleHandle.set(dst.bytes(), before, range.from());
+            doubleHandle.set(dst.bytes(), before + Double.BYTES, range.to());
+            dst.setLength(after);
+            return Double.BYTES * 2;
+        }
+    }
+
+    private static class DoubleRangesDecoder implements Decoder {
+        @Override
+        public void decode(Block.Builder builder, IsNull isNull, BytesRef[] encoded, int count) {
+            DoubleRangeBlock.Builder b = (DoubleRangeBlock.Builder) builder;
+            for (int i = 0; i < count; i++) {
+                if (isNull.isNull(i)) {
+                    b.appendNull();
+                } else {
+                    BytesRef e = encoded[i];
+                    b.appendDoubleRange(
+                        (double) doubleHandle.get(e.bytes, e.offset),
+                        (double) doubleHandle.get(e.bytes, e.offset + Double.BYTES)
+                    );
+                    e.offset += Double.BYTES * 2;
+                    e.length -= Double.BYTES * 2;
                 }
             }
         }

@@ -1,0 +1,123 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_skips_below_mapped_fields, flattened_datatype ]
+      reason: "unmapped_fields=\"load_all\" and the flattened type are only supported once these capabilities exist"
+
+  # #158157 type-conflict case: bar is flattened in tc_flat, keyword in tc_keyword and unmapped in tc_unmapped.
+  # tc_flat maps bar as flattened, so bar.baz is a key of a flattened value there and is not an unmapped field.
+  - do:
+      indices.create:
+        index: tc_flat
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              bar:
+                type: flattened
+  - do:
+      index:
+        index: tc_flat
+        id: "1"
+        refresh: true
+        body:
+          id: "a"
+          bar:
+            baz: "fa"
+          note: "na"
+  # tc_keyword maps bar as a plain keyword - a different type from flattened, so bar is a type conflict across the FROM.
+  - do:
+      indices.create:
+        index: tc_keyword
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              bar:
+                type: keyword
+  - do:
+      index:
+        index: tc_keyword
+        id: "1"
+        refresh: true
+        body:
+          id: "b"
+          bar: "kb"
+          note: "nb"
+  # tc_unmapped maps nothing but id, so bar and bar.baz are plain unmapped fields there.
+  - do:
+      indices.create:
+        index: tc_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      index:
+        index: tc_unmapped
+        id: "1"
+        refresh: true
+        body:
+          id: "c"
+          bar:
+            baz: "uc"
+          note: "nc"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: tc_flat,tc_keyword,tc_unmapped
+
+---
+'a flattened field in conflict with a keyword field is unsupported under load_all':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM tc_flat,tc_keyword,tc_unmapped | KEEP id, bar | SORT id | LIMIT 100'
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "bar" }
+  - match: { columns.1.type: "unsupported" }
+  - match: { columns.1.original_types: [ "flattened", "keyword" ] }
+  - match: { values.0: [ "a", null ] }
+  - match: { values.1: [ "b", null ] }
+  - match: { values.2: [ "c", null ] }
+
+---
+'a flattened subfield is not surfaced from _source under load_all on the shard where the parent is flattened':
+  # The _unmapped_fields column is narrowed by the projection, so we project bar* (a wildcard - naming bar.baz
+  # explicitly would be rejected on the shard that maps bar as flattened) alongside note* to request bar's subkeys.
+  # On the shard that maps bar as flattened, bar.baz is a key inside the flattened value rather than an unmapped
+  # field, so it is not surfaced there. It is surfaced from _source on tc_unmapped, where nothing maps bar. It is
+  # absent on tc_keyword, whose document has no bar.baz. The parent bar is a flattened/keyword type conflict across
+  # the FROM, so it stays an unsupported column with null values.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM tc_flat,tc_keyword,tc_unmapped | KEEP id, note*, bar* | SORT id | LIMIT 100'
+  - length: { columns: 3 }
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "bar" }
+  - match: { columns.1.type: "unsupported" }
+  - match: { columns.1.original_types: [ "flattened", "keyword" ] }
+  - match: { columns.2.name: "_unmapped_fields" }
+  - match: { columns.2.type: "_source" }
+  - match: { values.0: [ "a", null, { note: "na" } ] }
+  - match: { values.1: [ "b", null, { note: "nb" } ] }
+  - match: { values.2: [ "c", null, { note: "nc", bar.baz: "uc" } ] }

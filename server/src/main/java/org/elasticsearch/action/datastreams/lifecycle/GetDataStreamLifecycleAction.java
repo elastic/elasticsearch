@@ -169,11 +169,13 @@ public class GetDataStreamLifecycleAction {
         public record DataStreamLifecycle(
             String dataStreamName,
             @Nullable org.elasticsearch.cluster.metadata.DataStreamLifecycle lifecycle,
-            boolean isInternalDataStream
+            boolean isInternalDataStream,
+            boolean minimumLifecycleEnabled
         ) implements Writeable, ToXContentObject {
 
             public static final ParseField NAME_FIELD = new ParseField("name");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
+            public static final ParseField MINIMUM_LIFECYCLE_ENABLED_FIELD = new ParseField("minimum_lifecycle_enabled");
 
             /**
              * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
@@ -213,6 +215,8 @@ public class GetDataStreamLifecycleAction {
                         globalRetention,
                         isInternalDataStream
                     );
+                } else if (minimumLifecycleEnabled) {
+                    builder.field(MINIMUM_LIFECYCLE_ENABLED_FIELD.getPreferredName(), minimumLifecycleEnabled);
                 }
                 builder.endObject();
                 return builder;

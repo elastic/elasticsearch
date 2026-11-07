@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.Translog;
@@ -201,6 +202,9 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             } catch (NoSuchFileException e) {
                 // It is possible for an indexing shard to delete a file since we listed files. This is valid as it is possible this file
                 // was not related to the shard we are recovering. Just proceed to read the next file.
+                // (Note that in case the translog file is modified while we are reading it, we intentionally
+                // throw `BlobVersionMismatchException` instead of `NoSuchFileException`, so the exception is not caught here and the
+                // recovery fails.)
                 logger.debug(
                     format("listed translog [%s] not found while searching for shard directory, moving to next file", translogGeneration),
                     e
@@ -265,7 +269,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                             eligibleOperations.add(operation);
                             updateOperationMetrics(operation);
                         }
-                    } else if (record instanceof Translog.IndexBatch batch) {
+                    } else if (record instanceof IndexOperationBatch.TranslogRecord batch) {
                         for (Translog.Operation operation : batch.explode()) {
                             opsRead++;
                             if (toSeqNo >= operation.seqNo() && fromSeqNo <= operation.seqNo()) {

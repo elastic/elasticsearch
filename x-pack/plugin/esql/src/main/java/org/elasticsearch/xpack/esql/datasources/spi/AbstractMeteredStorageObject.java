@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 
+import java.io.InputStream;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
@@ -17,13 +19,20 @@ import java.util.function.BiConsumer;
  * Base for the leaf {@link StorageObject} providers (S3, GCS, Azure, HTTP, local): owns the
  * {@link #counters} field and the {@link #metrics()} accessor that each used to re-declare
  * identically, plus the shared native-async read completion handling ({@link #onReadComplete} /
- * {@link #deliverRead}). Subclasses keep their provider-specific orchestration (failure mapping,
- * status checks, buffer allocation) inline. Decorators do not extend this; they forward
- * {@link #metrics()} to their delegate.
+ * {@link #deliverRead} / {@link #unwrapBreakerTrip}). Subclasses keep their provider-specific
+ * orchestration (failure mapping, status checks, buffer allocation) inline. Decorators do not extend
+ * this; they forward {@link #metrics()} to their delegate.
  */
 public abstract class AbstractMeteredStorageObject implements StorageObject {
 
     protected final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+
+    /**
+     * Must return the storage-configuration identity for this object, so that the footer cache
+     * partitions entries by storage configuration. See {@link StorageObject#storageIdentity()}.
+     */
+    @Override
+    public abstract StorageIdentity storageIdentity();
 
     @Override
     public final StorageObjectMetrics metrics() {
@@ -33,6 +42,20 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
     @Override
     public final void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
         counters.attach(metrics, scheme);
+    }
+
+    /**
+     * Wraps a leaf {@code newStream} return so received body bytes (not the planned range)
+     * enter {@link #counters}. Pass {@code onAbort} only when {@link InputStream#close()}
+     * would drain; S3 uses it to abort the typed SDK stream.
+     */
+    protected final InputStream metered(InputStream in) {
+        return metered(in, null);
+    }
+
+    protected final InputStream metered(InputStream in, Runnable onAbort) {
+        counters.bindPlanningIo();
+        return new MeteredInputStream(in, counters, onAbort);
     }
 
     /**
@@ -71,5 +94,30 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
             }
             throw e;
         }
+    }
+
+    /**
+     * Recovers a circuit-breaker rejection from anywhere in {@code failure}'s cause chain and returns it
+     * re-labelled with the object's {@code location}, or {@code null} if there is none. Native-async providers
+     * allocate the destination buffer inside the client's response pipeline, so the client (the AWS SDK's
+     * retry stage, {@code HttpClient}'s body-subscriber plumbing) hands back the
+     * {@link CircuitBreakingException} wrapped in a status-neutral exception of its own; mapping that to a
+     * plain {@link java.io.IOException} would report load shedding (429) as a permanent client error (400).
+     * The returned exception keeps the breaker's type, status, byte counts and durability — the payload the
+     * read boundary and telemetry consume — while its message names the object like every other mapped
+     * failure, and the original trip stays reachable as its cause.
+     */
+    protected static CircuitBreakingException unwrapBreakerTrip(Throwable failure, String context, String location) {
+        if (ExceptionsHelper.unwrap(failure, CircuitBreakingException.class) instanceof CircuitBreakingException trip) {
+            CircuitBreakingException withPath = new CircuitBreakingException(
+                context + " [" + location + "]: " + trip.getMessage(),
+                trip.getBytesWanted(),
+                trip.getByteLimit(),
+                trip.getDurability()
+            );
+            withPath.initCause(trip);
+            return withPath;
+        }
+        return null;
     }
 }

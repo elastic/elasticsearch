@@ -76,10 +76,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngineTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -668,7 +668,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
             indexDocs(indexName, randomIntBetween(1, 100));
             refresh(indexName);
             currentGeneration.set(indexEngine.getLastCommittedSegmentInfos().getGeneration());
-            final String compoundCommitFileName = StatelessCompoundCommit.blobNameFromGeneration(currentGeneration.get());
+            final String compoundCommitFileName = BatchedCompoundCommit.blobNameFromGeneration(currentGeneration.get());
             assertBusy(
                 () -> assertThat(
                     compoundCommitFileName + " not found",
@@ -1616,7 +1616,6 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         }
         flush(indexName);
 
-        // OBJECT_STORE_PREFETCH_FEATURE_FLAG is enabled by default on snapshot builds (all CI runs).
         // When enabled, Lucene read-ahead hints (BlobCacheIndexInput.prefetch) schedule async blob-store
         // downloads that can complete before the actual readInternal call for the same range. If that
         // race is lost, tryRead() succeeds (fast path) and CacheFileReader.read() — the only site that

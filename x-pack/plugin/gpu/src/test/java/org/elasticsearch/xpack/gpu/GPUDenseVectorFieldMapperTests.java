@@ -13,8 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.gpu.codec.ES97GpuHnswBBQVectorsFormat;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
@@ -68,6 +69,15 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
     }
 
     @Override
+    public void testKnnBBQHNSWVectorsFormat() throws IOException {
+        KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("bbq_hnsw");
+        String expectedStr = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, "
+            + "maxConn=12, beamWidth=22, hnswGraphThreshold=300, flatVectorFormat=ES93BinaryQuantizedVectorsFormat";
+        assertThat(knnVectorsFormat, instanceOf(ES97GpuHnswBBQVectorsFormat.class));
+        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
+    }
+
+    @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         b.field("type", "dense_vector").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");
         if (randomBoolean()) {
@@ -93,10 +103,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            codec = deduplicateFieldInfosCodec.delegate();
-        }
-        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-        return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        return ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
     }
 }

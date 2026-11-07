@@ -12,9 +12,8 @@ import com.github.luben.zstd.ZstdOutputStream;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.Zstd;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.zstd.Zstd;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
@@ -39,7 +38,7 @@ public class PanamaZstdInputStreamTests extends ESTestCase {
     @BeforeClass
     public static void resolveNative() {
         assumeTrue("native zstd binding required", PanamaZstd.instance().isAvailable());
-        zstd = NativeAccess.instance().getZstd();
+        zstd = Zstd.instance();
     }
 
     public void testRoundTripSmall() throws IOException {

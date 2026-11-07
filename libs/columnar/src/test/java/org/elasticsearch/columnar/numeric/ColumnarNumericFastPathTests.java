@@ -22,9 +22,11 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,7 +48,7 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.sparseSingleValuedCur
 public class ColumnarNumericFastPathTests extends ESTestCase {
 
     private byte[] segmentId;
-    private final List<IndexInput> opened = new ArrayList<>();
+    private final List<Closeable> opened = new ArrayList<>();
 
     public void testRangeAndBulkAcrossWorkloads() throws IOException {
         for (int iter = 0; iter < 40; iter++) {
@@ -351,21 +353,24 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
             }
         }
         NumericColumnMetadata written;
-        try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
-            ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
+        try (
+            ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "num", segmentId);
+            IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
+        ) {
+            ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
             written = NumericColumnWriter.write(
                 values.length,
                 numDocsWithField,
                 numDocsWithField,
+                true,
                 () -> sparseSingleValuedCursor(values),
                 NumericPipeline.defaultPipeline(randomValidBlockSize()),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 withSkipper ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
-                dir,
-                IOContext.DEFAULT,
-                out
+                out.outputs(),
+                skip
             );
-            ColumnarCodecUtil.writeFooter(out);
+            ColumnarCodecUtil.writeFooter(skip);
         }
         try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
@@ -511,27 +516,36 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
     }
 
     /** A readable column plus the state needed to build fresh readers/skippers over the same data. */
-    private record Opened(ColumnarNumericBinaryDocValues dv, NumericColumnMetadata meta, IndexInput data, int maxDoc) {}
+    private record Opened(
+        ColumnarNumericBinaryDocValues dv,
+        NumericColumnMetadata meta,
+        ColumnTestFiles.Inputs data,
+        IndexInput skipIndex,
+        int maxDoc
+    ) {}
 
     private Opened writeAndOpen(Directory dir, long[] values, boolean withSkipper) throws IOException {
         segmentId = new byte[16];
         random().nextBytes(segmentId);
         NumericColumnMetadata written;
-        try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
-            ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
+        try (
+            ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "num", segmentId);
+            IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
+        ) {
+            ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
             written = NumericColumnWriter.write(
                 values.length,
                 values.length,
                 values.length,
+                true,
                 () -> singleValuedCursor(values),
                 NumericPipeline.defaultPipeline(randomValidBlockSize()),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 withSkipper ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
-                dir,
-                IOContext.DEFAULT,
-                out
+                out.outputs(),
+                skip
             );
-            ColumnarCodecUtil.writeFooter(out);
+            ColumnarCodecUtil.writeFooter(skip);
         }
         try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
@@ -543,18 +557,26 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
 
     private Opened open(Directory dir, int maxDoc) throws IOException {
         final NumericColumnMetadata read = readNumericMeta(dir, "num.cnm", segmentId, maxDoc);
-        IndexInput data = dir.openInput("num.cnd", IOContext.DEFAULT);
+        ColumnTestFiles.Inputs data = ColumnTestFiles.open(dir, "num", segmentId);
         opened.add(data);
-        CodecUtil.checksumEntireFile(data);
-        ColumnarCodecUtil.checkHeader(data, "ColumNARData", segmentId, "");
-        NumericColumnReader reader = new NumericColumnReader(read, data);
+        IndexInput skipIndex = dir.openInput("num.cns", IOContext.DEFAULT);
+        opened.add(skipIndex);
+        CodecUtil.checksumEntireFile(skipIndex);
+        ColumnarCodecUtil.checkHeader(skipIndex, "ColumNARSkipIndex", segmentId, "");
+        NumericColumnReader reader = new NumericColumnReader(read, data.inputs());
         ColumnIterator iterator = reader.iterator();
-        return new Opened(new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, read.skipper(), data), read, data, maxDoc);
+        return new Opened(
+            new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, read.skipper(), skipIndex),
+            read,
+            data,
+            skipIndex,
+            maxDoc
+        );
     }
 
     /** A fresh (unadvanced) skipper over the column; {@link org.apache.lucene.index.DocValuesSkipper} is stateful. */
     private static NumericColumnSkipper freshSkipper(Opened opened) throws IOException {
-        return new NumericColumnSkipper(opened.meta().skipper(), opened.data());
+        return new NumericColumnSkipper(opened.meta().skipper(), opened.skipIndex());
     }
 
 }

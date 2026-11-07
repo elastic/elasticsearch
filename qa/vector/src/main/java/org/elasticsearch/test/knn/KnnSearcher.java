@@ -62,6 +62,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -808,7 +809,7 @@ public class KnnSearcher {
                     filterQuery,
                     visitRatio,
                     ivfQueryConfigResolver,
-                    PARTITION_ID_FIELD,
+                    SliceIndexing.SLICE_KEY_FIELD_NAME,
                     partition
                 );
             } else {
@@ -897,7 +898,7 @@ public class KnnSearcher {
                     filterQuery,
                     visitRatio,
                     ivfQueryConfigResolver,
-                    PARTITION_ID_FIELD,
+                    SliceIndexing.SLICE_KEY_FIELD_NAME,
                     partition
                 );
             } else {
@@ -922,15 +923,12 @@ public class KnnSearcher {
                 indexType == KnnIndexTester.IndexType.HNSW && searchParameters.earlyTermination()
             );
         }
+        // PostFilterKnnQuery takes the FINAL result count; the candidate pool it aims for comes from
+        // PostFilterableKnnQuery#postFilterExpectedBaseQueryDocMatches (k for HNSW, which was pre-oversampled above; the internal
+        // expansion for IVF). Passing overSampledTopK here would make the orchestrator demand an
+        // already-oversampled count of filter survivors before it accepted the post-filter result.
         if (searchParameters.postFilter() && filterQuery != null && knnQuery instanceof PostFilterableKnnQuery pfKnnQuery) {
-            knnQuery = new PostFilterKnnQuery(
-                pfKnnQuery,
-                filterQuery,
-                overSampledTopK,
-                VECTOR_FIELD,
-                null,
-                BENCHMARK_POST_FILTERING_THRESHOLD
-            );
+            knnQuery = new PostFilterKnnQuery(pfKnnQuery, filterQuery, resultK, VECTOR_FIELD, null, BENCHMARK_POST_FILTERING_THRESHOLD);
         }
         if (searchParameters.overSamplingFactor() > 1f && testConfiguration.autoCalibrate() == false) {
             knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, resultK, overSampledTopK, knnQuery);

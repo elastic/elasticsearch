@@ -252,7 +252,7 @@ public class CancellationTests extends ESTestCase {
     }
 
     private PlanExecutor planExecutor(Client client, IndexResolver indexResolver) {
-        return new PlanExecutor(client, indexResolver, new NoopCircuitBreaker("test"));
+        return new PlanExecutor(client, indexResolver, NoopCircuitBreaker.INSTANCE);
     }
 
     private ClusterService mockClusterService() {

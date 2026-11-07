@@ -22,8 +22,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 
 /**
@@ -98,6 +98,12 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 
     @Override
     protected AzureOpenAiSecretSettings updated(Map<String, SecureString> provided) {
-        return updateExactlyOneField(SERVICE_SETTINGS, CLIENT_SECRET_FIELD, getClientSecret(), provided, AzureOpenAiOAuth2Secrets::new);
+        return updateExactlyOneField(
+            SERVICE_SETTINGS.toString(),
+            CLIENT_SECRET_FIELD,
+            getClientSecret(),
+            provided,
+            AzureOpenAiOAuth2Secrets::new
+        );
     }
 }

@@ -36,6 +36,14 @@ public class BlockLoaderWarnings implements org.elasticsearch.index.mapper.block
     }
 
     @Override
+    public void registerWarning(String message) {
+        if (delegate == null) {
+            delegate = driverContext.createOnlyWarnings(source);
+        }
+        delegate.registerWarning(message);
+    }
+
+    @Override
     public String toString() {
         return "warnings for " + source;
     }

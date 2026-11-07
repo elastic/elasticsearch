@@ -110,6 +110,13 @@ public class OperatorFactoryRegistry {
         return sourceType != null && (sourceFactories.containsKey(sourceType) || pluginFactories.containsKey(sourceType));
     }
 
+    /**
+     * Whether a source type resolves to the built-in file factory used for registered datasets.
+     */
+    public boolean isFileSourceFactory(String sourceType) {
+        return sourceType != null && sourceFactories.get(sourceType) instanceof FileSourceFactory;
+    }
+
     public Map<String, ExternalSourceFactory> sourceFactories() {
         return sourceFactories;
     }

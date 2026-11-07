@@ -846,10 +846,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         writer.close();
         reader = DirectoryReader.open(dir);
 
-        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
-        final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG);
-        sortFieldLong.setMissingValue(Long.MAX_VALUE);
-        sortFieldDate.setMissingValue(Long.MAX_VALUE);
+        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG, false, Long.MAX_VALUE);
+        final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG, false, Long.MAX_VALUE);
         final Sort sortLong = new Sort(sortFieldLong);
         final Sort sortDate = new Sort(sortFieldDate);
         final Sort sortLongDate = new Sort(sortFieldLong, sortFieldDate);

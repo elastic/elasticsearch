@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.conventions;
 
 import groovy.util.Node;
-import nmcp.NmcpPlugin;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
@@ -67,7 +66,9 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPluginManager().apply(MavenPublishPlugin.class);
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
         project.getPluginManager().apply(LicensingPlugin.class);
-        project.getPluginManager().apply(NmcpPlugin.class);
+        // nmcp 1.x no longer exposes a public plugin class (the implementation moved to an
+        // internal Gratatouille-generated type), so apply the publishing plugin by its id.
+        project.getPluginManager().apply("com.gradleup.nmcp");
         project.getPluginManager().apply(SigningPlugin.class);
         configureJavadocJar(project);
         configureSourcesJar(project);
@@ -128,7 +129,7 @@ public class PublishPlugin implements Plugin<Project> {
      * Configuration generation of maven poms.
      */
     private void configurePomGeneration(Project project) {
-        var gitInfo = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getGitInfo();
+        var gitInfo = project.getPlugins().apply(GitInfoPlugin.class).getGitInfo();
         var generatePomTask = project.getTasks().register("generatePom");
         project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME).configure(assemble -> assemble.dependsOn(generatePomTask));
         var extensions = project.getExtensions();

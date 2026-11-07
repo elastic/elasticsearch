@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.security;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -63,7 +64,7 @@ public class AutomatonBuildBenchmark {
     private static final List<String> ALL_LITERALS = generateActions();
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             selfTest();
         }

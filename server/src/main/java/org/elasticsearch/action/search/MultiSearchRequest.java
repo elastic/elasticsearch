@@ -43,6 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -56,7 +57,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 public class MultiSearchRequest extends UntypedActionRequest implements CompositeIndicesRequest {
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
     private static final String ROUTING_AND_SLICE_COMBINATION_ERROR =
-        "[routing] and [slice] cannot be combined in the same _msearch request";
+        "[routing] and [_slice] cannot be combined in the same _msearch request";
 
     private int maxConcurrentSearchRequests = 0;
     private final List<SearchRequest> requests = new ArrayList<>();
@@ -200,6 +201,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
         readMultiLineFormat(
             xContent,
             parserConfig,
+            UnaryOperator.identity(),
             data,
             consumer,
             indices,
@@ -218,6 +220,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
     public static void readMultiLineFormat(
         XContent xContent,
         XContentParserConfiguration parserConfig,
+        UnaryOperator<XContentParser> trackParser,
         BytesReference data,
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
         String[] indices,
@@ -270,10 +273,8 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
             // now parse the action
             if (nextMarker - from > 0) {
                 try (
-                    XContentParser parser = XContentHelper.createParserNotCompressed(
-                        parserConfig,
-                        data.slice(from, nextMarker - from),
-                        xContent.type()
+                    XContentParser parser = trackParser.apply(
+                        XContentHelper.createParserNotCompressed(parserConfig, data.slice(from, nextMarker - from), xContent.type())
                     )
                 ) {
                     Map<String, Object> source = parser.map();
@@ -313,9 +314,8 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                                 throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
                             }
                             searchRequest.routing(nodeStringValue(value, null));
-                            searchRequest.searchSlice(null);
                             routingProvided = true;
-                        } else if (SliceIndexing.PARAM_NAME.equals(entry.getKey())) {
+                        } else if (SliceIndexing.FIELD_NAME.equals(entry.getKey())) {
                             if (routingProvided || topLevelHasRouting) {
                                 throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
                             }
@@ -371,10 +371,8 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                 break;
             }
             try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(
-                    parserConfig,
-                    data.slice(from, nextMarker - from),
-                    xContent.type()
+                XContentParser parser = trackParser.apply(
+                    XContentHelper.createParserNotCompressed(parserConfig, data.slice(from, nextMarker - from), xContent.type())
                 )
             ) {
                 consumer.accept(searchRequest, parser);
@@ -388,25 +386,21 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
     }
 
     private static void applySearchRoutingOrSlice(SearchRequest searchRequest, @Nullable SliceIndexing.ParsedRouting parsedRouting) {
-        if (parsedRouting == null) {
-            return;
+        if (parsedRouting != null) {
+            searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         }
-        searchRequest.routing(parsedRouting.routing());
-        searchRequest.searchSlice(
-            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
-        );
     }
 
     private static SliceIndexing.ParsedRouting parseSearchRoutingOrSlice(String sliceValue) {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [slice]");
+            throw new IllegalArgumentException("request does not support [_slice]");
         }
         if (SliceIndexing.SLICE_ALL.equals(sliceValue)) {
             return new SliceIndexing.ParsedRouting(null, true);
         }
         final String[] slices = Strings.splitStringByCommaToArray(sliceValue);
         if (slices.length == 0) {
-            throw new IllegalArgumentException("invalid [slice] value: value must be non-empty");
+            throw new IllegalArgumentException("invalid [_slice] value: value must be non-empty");
         }
         for (String slice : slices) {
             SliceIndexing.validateUserSliceValue(slice);
@@ -468,7 +462,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
             xContentBuilder.field("preference", request.preference());
         }
         if (request.isRoutingFromSlice()) {
-            xContentBuilder.field(SliceIndexing.PARAM_NAME, request.searchSlice());
+            xContentBuilder.field(SliceIndexing.FIELD_NAME, request.searchSlice());
         } else if (request.routing() != null) {
             xContentBuilder.field("routing", request.routing());
         }

@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 155710
+pr: 157017
+summary: Fix hash table corruption on breaker trip
+type: bug

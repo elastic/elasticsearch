@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.settings.Settings;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -33,6 +34,22 @@ import java.util.function.Supplier;
 public interface StorageProviderFactory {
 
     StorageProvider create(Settings settings);
+
+    /**
+     * Tests whether the storage backend described by {@code config} is reachable. The default implementation
+     * throws {@link TestConnectionNotSupportedException}; storage backends that support a lightweight probe (e.g. a
+     * bucket HEAD or a service-account ping) should override this.
+     *
+     * <p>Called from {@code DataSourceModule.testConnection} on a GENERIC thread — blocking I/O is allowed.
+     *
+     * @param config raw settings map for the data source (same keys as the PUT body {@code settings} object);
+     *               secrets arrive as plaintext strings because the data source has not been saved yet
+     * @throws IOException if the probe fails due to a network or I/O error
+     * @throws RuntimeException if the probe fails due to authentication or permission errors
+     */
+    default void testConnection(Map<String, Object> config) throws IOException {
+        throw new TestConnectionNotSupportedException("data source type does not support connection testing");
+    }
 
     /**
      * Per-query overload that takes a configuration map.
@@ -98,7 +115,57 @@ public interface StorageProviderFactory {
                 }
                 Configured<C> resolved = configFactory.apply(config);
                 StorageProvider provider = resolved.value() != null ? providerCtor.apply(resolved.value()) : defaultProvider.get();
-                return new Configured<>(provider, resolved.consumedKeys());
+                return new Configured<>(provider, resolved.consumedKeys(), resolved.identity(), resolved.secretIdentity());
+            }
+        };
+    }
+
+    /**
+     * {@link #of(Supplier, Function, Function)} for file-type stores, with the node's {@link CredentialPolicy} applied
+     * to the resolved configuration before {@code providerCtor} runs. The check sits here rather than in the registry
+     * because only the typed configuration knows which of its fields select a credential mechanism, and here rather
+     * than in the provider so a refused mode never allocates a client. Plugins take the policy from
+     * {@link StorageProviderServices#credentialPolicy()}.
+     */
+    static <C extends FileDataSourceConfiguration, P extends StorageProvider> StorageProviderFactory of(
+        Supplier<P> defaultProvider,
+        Function<Map<String, Object>, Configured<C>> configFactory,
+        Function<C, P> providerCtor,
+        CredentialPolicy credentialPolicy
+    ) {
+        return of(defaultProvider, configFactory, cfg -> {
+            credentialPolicy.check(cfg);
+            return providerCtor.apply(cfg);
+        });
+    }
+
+    /**
+     * Callable that probes a storage backend for connectivity. May throw a checked {@link IOException}.
+     */
+    @FunctionalInterface
+    interface TestProbe {
+        void test(Map<String, Object> config) throws IOException;
+    }
+
+    /**
+     * Returns a factory that delegates all methods to {@code base} but overrides
+     * {@link #testConnection(Map)} to call {@code probe} instead of throwing {@link TestConnectionNotSupportedException}.
+     */
+    static StorageProviderFactory withTestConnection(StorageProviderFactory base, TestProbe probe) {
+        return new StorageProviderFactory() {
+            @Override
+            public StorageProvider create(Settings settings) {
+                return base.create(settings);
+            }
+
+            @Override
+            public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
+                return base.createTrackingConsumedKeys(settings, config);
+            }
+
+            @Override
+            public void testConnection(Map<String, Object> config) throws IOException {
+                probe.test(config);
             }
         };
     }

@@ -71,10 +71,11 @@ public final class ClampMaxBooleanEvaluator implements ExpressionEvaluator {
   public BooleanBlock eval(int positionCount, BooleanBlock fieldBlock, BooleanBlock maxBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (fieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (fieldBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -82,10 +83,11 @@ public final class ClampMaxBooleanEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (maxBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (maxBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

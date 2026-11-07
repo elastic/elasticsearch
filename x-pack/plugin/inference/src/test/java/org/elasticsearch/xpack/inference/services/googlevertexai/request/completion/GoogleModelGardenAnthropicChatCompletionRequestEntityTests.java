@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
@@ -124,7 +124,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
             new Message(new ContentString(""), "assistant", null, List.of(toolCall)),
             new Message(new ContentString("72F and sunny"), "tool", "call_1", null)
         );
-        var unifiedRequest = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+        var unifiedRequest = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null);
         var entity = new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedRequest, false, EMPTY_SETTINGS);
         String actual;
         try (var builder = JsonXContent.contentBuilder()) {
@@ -156,6 +156,38 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
             """, ANTHROPIC_VERSION))));
         assertThat(actual, not(containsString("\"role\":\"tool\"")));
         assertThat(actual, not(containsString("\"tool_calls\"")));
+    }
+
+    public void testSystemMessagesAreHoistedToTopLevelSystemField() throws IOException {
+        // Regression: Anthropic has no "system" role, so system messages must be emitted as a top-level "system" array rather than
+        // inside "messages", which previously failed with "Unsupported role [system] for the Anthropic chat completion API.".
+        var messages = List.of(
+            new Message(new ContentString("You are a helpful assistant."), "system", null, null),
+            new Message(new ContentString("Answer briefly."), "system", null, null),
+            new Message(new ContentString(USER_MESSAGE_CONTENT), "user", null, null)
+        );
+        var unifiedRequest = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null);
+        var entity = new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedRequest, false, EMPTY_SETTINGS);
+        String actual;
+        try (var builder = JsonXContent.contentBuilder()) {
+            entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            actual = Strings.toString(builder);
+        }
+
+        assertThat(actual, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "anthropic_version": "%s",
+                "system": [
+                    {"type": "text", "text": "You are a helpful assistant."},
+                    {"type": "text", "text": "Answer briefly."}
+                ],
+                "messages": [
+                    {"role": "user", "content": [{"type": "text", "text": "%s"}]}
+                ],
+                "stream": false,
+                "max_tokens": 1024
+            }
+            """, ANTHROPIC_VERSION, USER_MESSAGE_CONTENT))));
     }
 
     private static void assertToolChoiceStringTranslation(String openAiValue, String anthropicType) throws IOException {
@@ -232,7 +264,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
         boolean stream,
         GoogleVertexAiChatCompletionTaskSettings taskSettings
     ) throws IOException {
-        var unifiedRequest = new UnifiedCompletionRequest(
+        var unifiedRequest = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString(USER_MESSAGE_CONTENT), "user", null, null)),
             null,
             maxCompletionTokens,

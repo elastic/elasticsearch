@@ -152,6 +152,12 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
                 // retention leases protect recent deletes from being merged away; sync them
                 // frequently so the merges below can reclaim the deletes promptly
                 .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                // Retention releases the two tombstones one sequence number at a time, so an expunge merge can reclaim one of them
+                // and fold the other into a larger segment. At the default of 10% that leftover tombstone is too small a fraction
+                // of the merged segment for findForcedDeletesMerges to ever select it again, and the assertBysy loop below would
+                // then spin forever on a single deleted doc.
+                // Zero makes any segment with a reclaimable delete eligible, so the loop always converges.
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING.getKey(), 0.0d)
                 .build()
         );
         ensureGreen(indexName);

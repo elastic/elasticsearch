@@ -91,6 +91,12 @@ SELECT INSERT('Insert [here] your comment!', 8, 20, '(random thoughts about Elas
 insertInline3
 SELECT INSERT('Insert [here] your comment!', 8, 19, '(random thoughts about Elasticsearch)') ins;
 
+insertEmptyWithLengthPastEnd
+SELECT INSERT('', 1, 2000000000, 'hello') ins;
+
+insertCutLongerThanInput
+SELECT INSERT('ab', 1, 2000000000, 'z') ins;
+
 positionInline1
 SELECT POSITION('a','Elasticsearch') pos;
 

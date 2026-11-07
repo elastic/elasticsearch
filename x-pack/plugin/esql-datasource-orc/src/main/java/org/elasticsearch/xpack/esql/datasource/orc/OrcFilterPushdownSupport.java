@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 
 import java.util.ArrayList;
@@ -33,12 +34,15 @@ public class OrcFilterPushdownSupport implements FilterPushdownSupport {
 
     @Override
     public PushdownResult pushFilters(List<Expression> filters) {
+        // Remainder keeps the original expressions (FilterExec already compares mixed types correctly).
+        // Pushed expressions are rewritten to column-typed literals so the Sarg is never stricter.
         List<Expression> remainder = new ArrayList<>(filters);
 
         List<Expression> pushed = new ArrayList<>();
         for (Expression filter : filters) {
-            if (OrcPushdownFilters.canConvert(filter)) {
-                pushed.add(filter);
+            Expression rewritten = PushdownLiteralConversion.rewrite(filter);
+            if (OrcPushdownFilters.canConvert(rewritten)) {
+                pushed.add(rewritten);
             }
         }
 
@@ -52,6 +56,6 @@ public class OrcFilterPushdownSupport implements FilterPushdownSupport {
 
     @Override
     public Pushability canPush(Expression expr) {
-        return OrcPushdownFilters.canConvert(expr) ? Pushability.RECHECK : Pushability.NO;
+        return OrcPushdownFilters.canConvert(PushdownLiteralConversion.rewrite(expr)) ? Pushability.RECHECK : Pushability.NO;
     }
 }

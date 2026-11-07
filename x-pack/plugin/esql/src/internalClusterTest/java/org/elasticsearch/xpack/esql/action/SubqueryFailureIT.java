@@ -9,45 +9,39 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Negative tests for subqueries in the {@code FROM} command.
- * <ul>
- *     <li>Batch-execution failures: failures during batched subquery execution are properly propagated, resources are cleaned up,
- *         and the correct error is reported.
- *     <li>Analysis-time rejections: a {@code FROM} pattern that matches <b>both a view and a real index</b> (e.g. the wildcard
- *         {@code airports*} matching the view {@code airports_view} and the index {@code airports}) resolves to a {@code ViewUnionAll}
- *         with a view branch and a concrete-index branch. Combined with a sibling subquery this nests a {@code UnionAll} under the
- *         subquery {@code UnionAll}, which the planner rejects with a message that names the offending pattern and its real cause (a
- *         pattern or view that expands to multiple sources) rather than the (misleading) generic "Nested subqueries are not supported".
- * </ul>
+ * Negative tests for subqueries in the {@code FROM} command: failures during batched subquery execution are properly propagated,
+ * resources are cleaned up, and the correct error is reported.
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
+
+    private static final int FAIL_SHARDS = 1;
+
+    private int okShards;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -63,11 +57,6 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();
-    }
-
-    @Before
-    public void checkSubqueryInFromCommandSupport() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
     }
 
     @Before
@@ -95,7 +84,14 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         }
         mapping.endObject();
         mapping.endObject();
-        client().admin().indices().prepareCreate("fail").setMapping(mapping).get();
+        // One primary so KEEP fail_me can fail every shard of this index. Extra empty shards would count as successful and hide the
+        // query-wide all-targets check.
+        client().admin()
+            .indices()
+            .prepareCreate("fail")
+            .setSettings(Settings.builder().put("index.number_of_shards", FAIL_SHARDS).put("index.number_of_replicas", 0))
+            .setMapping(mapping)
+            .get();
         client().prepareBulk()
             .add(new IndexRequest("fail").id("1").source("id", 1))
             .add(new IndexRequest("fail").id("2").source("id", 2))
@@ -103,10 +99,11 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             .get();
 
         // Create "ok" index with normal data
+        okShards = randomIntBetween(1, 3);
         client().admin()
             .indices()
             .prepareCreate("ok")
-            .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 3)))
+            .setSettings(Settings.builder().put("index.number_of_shards", okShards))
             .setMapping("id", "type=integer", "value", "type=keyword")
             .get();
         client().prepareBulk()
@@ -300,14 +297,32 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), equalTo("Accessing failing field"));
     }
 
+    public void testInnerMostFailureWithQueuedNestedSiblings() {
+        var query = """
+            FROM
+               ( FROM ok | WHERE id == 1 ),
+               ( FROM
+                    ( FROM ok | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM fail | KEEP fail_me | LIMIT 10 ),
+                         ( FROM ok | WHERE id == 3 )
+                    ),
+                    ( FROM ok | WHERE id == 1 )
+               ),
+               ( FROM ok | WHERE id == 2 )
+            | LIMIT 100
+            """;
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> run(syncEsqlQueryRequest(query).pragmas(batchPragmas(1))).close()
+        );
+        assertThat(e.getMessage(), equalTo("Accessing failing field"));
+    }
+
     /**
      * One subquery reads from both fail and ok indices — the fail shard fails but the ok shard succeeds.
      * With allowPartialResults=true, the overall query succeeds and returns rows from all ok shards
      * across all subqueries.
-     *
-     * TODO: the PARTIAL status is only set on the main plan, the overall cluster status is SUCCESSFUL
-     *  even though one shard failed inside a subquery, this should be addressed in a follow up. The
-     *  behavior being tested is that the query does NOT fail.
      */
     public void testPartialResultsWithFailingShardInSubquery() {
         var query = """
@@ -324,17 +339,121 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
                 .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1)
                 .build()
         );
-        var request = syncEsqlQueryRequest(query).pragmas(pragmas);
+        var request = executionMetadataRequest(query, pragmas);
         request.allowPartialResults(true);
-        request.acceptedPragmaRisks(true);
         try (EsqlQueryResponse resp = run(request)) {
+            assertTrue(resp.isPartial());
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             // subquery 1: ok shard returns 3 docs (fail_me=null), fail shard is swallowed
             // subquery 2: returns 1 doc (id==1)
             // subquery 3: returns 1 doc (id==2)
             // total = 3 + 1 + 1 = 5
             assertThat(rows.size(), equalTo(5));
+            // fail,ok once plus two ok-only branches
+            assertLocalShardCounts(resp, FAIL_SHARDS + 3 * okShards, 3 * okShards, FAIL_SHARDS);
+            assertLocalClusterStatus(resp, EsqlExecutionInfo.Cluster.Status.PARTIAL);
         }
+    }
+
+    /**
+     * Same scenario as {@link #testPartialResultsWithFailingShardInSubquery}, but the branch with the failing shard sits
+     * one level deeper, inside a nested union. The shard failure has to cross two merge levels on its way up: the nested
+     * {@code SubPlansExecutor}'s segment, then the outer one. With {@code allowPartialResults} the rows from every ok
+     * shard must still arrive, and the response must be marked partial - the flag travels through
+     * {@code EsqlExecutionInfo}, not the row stream, so losing it at a merge boundary would silently misreport a
+     * partial result as complete.
+     */
+    public void testPartialResultsWithFailingShardInNestedSubquery() {
+        var query = """
+            FROM
+               (FROM ok | WHERE id == 1),
+               (FROM
+                    (FROM fail,ok | KEEP fail_me | LIMIT 100),
+                    (FROM ok | WHERE id == 2)
+               )
+            | LIMIT 100
+            """;
+        var pragmas = new QueryPragmas(
+            Settings.builder()
+                .put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), randomIntBetween(1, 3))
+                .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1)
+                .build()
+        );
+        var request = executionMetadataRequest(query, pragmas);
+        request.allowPartialResults(true);
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse resp = run(request)) {
+            assertTrue("a failing shard inside the nested union must mark the response partial", resp.isPartial());
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            // outer branch: 1 doc (id==1); nested union: 3 docs from the ok shards of fail,ok plus 1 doc (id==2)
+            assertThat(rows.size(), equalTo(5));
+            assertLocalShardCounts(resp, FAIL_SHARDS + 3 * okShards, 3 * okShards, FAIL_SHARDS);
+            assertLocalClusterStatus(resp, EsqlExecutionInfo.Cluster.Status.PARTIAL);
+        }
+    }
+
+    /**
+     * First leaf loses every shard ({@code FROM fail} only). A later sibling still has healthy shards. {@code failIfAllShardsFailed} must
+     * not run against the shared {@code EsqlExecutionInfo} at the first leaf — that would cancel the query before {@code ok} executes.
+     */
+    public void testPartialResultsWhenFirstBranchLosesAllShards() {
+        var query = """
+            FROM
+               (FROM fail | KEEP fail_me | LIMIT 100),
+               (FROM ok | WHERE id == 1)
+            | LIMIT 100
+            """;
+        var request = executionMetadataRequest(query, partialBranchPragmas());
+        request.allowPartialResults(true);
+        try (EsqlQueryResponse resp = run(request)) {
+            assertTrue(resp.isPartial());
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            // fail branch: 0 rows; ok branch: 1 row (id==1)
+            assertThat(rows.size(), equalTo(1));
+            assertLocalShardCounts(resp, FAIL_SHARDS + okShards, okShards, FAIL_SHARDS);
+            assertLocalClusterStatus(resp, EsqlExecutionInfo.Cluster.Status.PARTIAL);
+            assertFalse(resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY).getFailures().isEmpty());
+        }
+    }
+
+    /**
+     * Healthy branch first (successful shards, zero rows), then a leaf that loses every shard. Shard counts must accumulate so the last
+     * writer cannot trip the query-wide all-targets check.
+     */
+    public void testPartialResultsWhenLaterBranchLosesAllShardsAfterEmptySuccess() {
+        var query = """
+            FROM
+               (FROM ok | WHERE id == 999),
+               (FROM fail | KEEP fail_me | LIMIT 100)
+            | LIMIT 100
+            """;
+        var request = executionMetadataRequest(query, partialBranchPragmas());
+        request.allowPartialResults(true);
+        try (EsqlQueryResponse resp = run(request)) {
+            assertTrue(resp.isPartial());
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows.size(), equalTo(0));
+            assertLocalShardCounts(resp, FAIL_SHARDS + okShards, okShards, FAIL_SHARDS);
+            assertLocalClusterStatus(resp, EsqlExecutionInfo.Cluster.Status.PARTIAL);
+            assertFalse(resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY).getFailures().isEmpty());
+        }
+    }
+
+    /**
+     * Every merge branch lost all of its shards. The root all-targets check must still fail the query even with
+     * {@code allowPartialResults}.
+     */
+    public void testFailsWhenEveryBranchLosesAllShards() {
+        var query = """
+            FROM
+               (FROM fail | KEEP fail_me | LIMIT 100),
+               (FROM fail | KEEP fail_me | LIMIT 100)
+            | LIMIT 100
+            """;
+        var request = executionMetadataRequest(query, partialBranchPragmas());
+        request.allowPartialResults(true);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> run(request).close());
+        assertThat(e.getMessage(), equalTo("Accessing failing field"));
     }
 
     /**
@@ -368,113 +487,159 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assertThat(cause.getMessage(), containsString("standard"));
     }
 
-    /**
-     * The main {@code FROM} pattern {@code airports*} matches both the {@code airports_view} view and the {@code airports} index, so it
-     * expands to a {@code ViewUnionAll}. Combined with the sibling {@code (FROM employees)} subquery it nests that {@code ViewUnionAll}
-     * under the subquery {@code UnionAll}, which is rejected.
-     */
-    public void testViewAndIndexInMainQueryWithSubquery() {
-        assumeViewBranchingSupported();
-        setupWildcardMatchingViewAndIndices();
-        try {
-            expectThrows(
-                VerificationException.class,
-                containsString(
-                    "a pattern that expands to multiple sources, [FROM airports*, (FROM employees)], cannot be combined with subqueries"
-                ),
-                () -> run("FROM airports*, (FROM employees)").close()
-            );
-        } finally {
-            deleteViews("airports_view");
-        }
-    }
-
-    /**
-     * A subquery whose body pattern {@code airports*} matches both the view and the real index expands to a {@code ViewUnionAll} inside
-     * the subquery, nesting it under the top-level {@code UnionAll}, which is rejected.
-     */
-    public void testViewAndIndexInsideSubquery() {
-        assumeViewBranchingSupported();
-        setupWildcardMatchingViewAndIndices();
-        try {
-            expectThrows(
-                VerificationException.class,
-                containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries"),
-                () -> run("FROM employees, (FROM airports*)").close()
-            );
-        } finally {
-            deleteViews("airports_view");
-        }
-    }
-
-    /**
-     * One of several sibling subqueries uses the pattern {@code airports*} that matches both the view and the real index; the resulting
-     * {@code ViewUnionAll} is nested inside that subquery, below the top-level {@code UnionAll}, which is rejected.
-     */
-    public void testViewAndIndexInOneOfMultipleSubqueries() {
-        assumeViewBranchingSupported();
-        setupWildcardMatchingViewAndIndices();
-        try {
-            expectThrows(
-                VerificationException.class,
-                containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries"),
-                () -> run("FROM (FROM airports*), (FROM employees)").close()
-            );
-        } finally {
-            deleteViews("airports_view");
-        }
-    }
-
-    private static void assumeViewBranchingSupported() {
-        assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
-        assumeTrue("Requires views with branching", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-    }
-
-    /**
-     * Creates the {@code airports} index and an {@code airports_view} view (both matched by the wildcard {@code airports*}), plus an
-     * {@code employees} index used as the sibling relation. The view body carries a processing command ({@code LIMIT}) so it is kept as
-     * a named view branch rather than compacted into the concrete index — this is what makes {@code airports*} expand to a branching
-     * {@code ViewUnionAll} of the view and the real index. The two indices share the same mapping so the top-level {@code UnionAll} has
-     * no column-type conflicts that would fail verification before the nested-subquery check.
-     */
-    private void setupWildcardMatchingViewAndIndices() {
-        client().admin().indices().prepareCreate("airports").setMapping("id", "type=integer", "name", "type=keyword").get();
-        client().prepareBulk()
-            .add(new IndexRequest("airports").id("1").source("id", 1, "name", "a"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-
-        client().admin().indices().prepareCreate("employees").setMapping("id", "type=integer", "name", "type=keyword").get();
-        client().prepareBulk()
-            .add(new IndexRequest("employees").id("1").source("id", 1, "name", "e"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-
-        ensureYellow("airports", "employees");
-        installView("airports_view", "FROM airports | LIMIT 10");
-    }
-
-    private static void installView(String name, String query) {
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query))
-            )
+    public void testNestedSubqueryExceedsMaxBranchCountPragma() {
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to 4 branches in total, exceeding the limit of 3 set by the [max_branch_count] query pragma"),
+            () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)).close()
         );
     }
 
-    private static void deleteViews(String... names) {
-        for (String name : names) {
-            assertAcked(
-                client().execute(
-                    DeleteViewAction.INSTANCE,
-                    new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
-                )
+    public void testNestedSubqueryExceedsMaxBranchLevelPragma() {
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build());
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to 3 nested union levels, exceeding the limit of 2 set by the [max_branch_level] query pragma"),
+            () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)).close()
+        );
+    }
+
+    public void testNestedSubqueryExceedsMaxBranchCountClusterSetting() {
+        var query = fourLeafThreeLevelQuery();
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey(), 3));
+            expectThrows(
+                VerificationException.class,
+                containsString(
+                    "query resolved to 4 branches in total, "
+                        + "exceeding the limit of 3 set by the [esql.query.max_branch_count] cluster setting"
+                ),
+                () -> run(query).close()
             );
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()));
+        }
+    }
+
+    public void testNestedSubqueryExceedsMaxBranchLevelClusterSetting() {
+        var query = fourLeafThreeLevelQuery();
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey(), 2));
+            expectThrows(
+                VerificationException.class,
+                containsString(
+                    "query resolved to 3 nested union levels, "
+                        + "exceeding the limit of 2 set by the [esql.query.max_branch_level] cluster setting"
+                ),
+                () -> run(query).close()
+            );
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey()));
+        }
+    }
+
+    public void testPragmaOverridesClusterMaxBranchCount() {
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4).build());
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey(), 3));
+            try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+                assertThat(resp.values().hasNext(), equalTo(true));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()));
+        }
+    }
+
+    public void testPragmaOverridesClusterMaxBranchLevel() {
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3).build());
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey(), 2));
+            try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+                assertThat(resp.values().hasNext(), equalTo(true));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey()));
+        }
+    }
+
+    /**
+     * Four leaf branches nested three merge levels deep. Each inner {@code LIMIT} applies across its union's combined
+     * output, so compaction cannot splice the inner branches into the outer union; without them the analyzer flattens
+     * the filter-only nesting into a single four-branch union (see
+     * {@link #testFilterOnlyNestedSubqueryFlattensBelowBranchLevelLimit}) and the plan never nests. The limits are
+     * high enough to let every row through, so tests that execute the query see the same results either way.
+     */
+    private static String fourLeafThreeLevelQuery() {
+        return """
+            FROM
+               ( FROM ok | WHERE id == 1 ),
+               ( FROM
+                    ( FROM ok | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM ok | WHERE id == 3 ),
+                         ( FROM ok | WHERE id == 4 )
+                    | LIMIT 1000
+                    )
+               | LIMIT 1000
+               )
+            | KEEP id
+            """;
+    }
+
+    /**
+     * Filter-only nested subqueries compact into a single flat union during analysis, so a query that syntactically
+     * nests three levels deep resolves to one union level and passes a level limit it would have exceeded before
+     * compaction. {@link #fourLeafThreeLevelQuery()} blocks that compaction with inner limits when the nesting itself
+     * is under test.
+     */
+    public void testFilterOnlyNestedSubqueryFlattensBelowBranchLevelLimit() {
+        var query = """
+            FROM
+               ( FROM ok | WHERE id == 1 ),
+               ( FROM
+                    ( FROM ok | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM ok | WHERE id == 3 ),
+                         ( FROM ok | WHERE id == 4 )
+                    )
+               )
+            | KEEP id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            // The flattened union must also be equivalent: each branch contributes its rows exactly once.
+            // The ok index holds ids 1-3, so the id == 4 branch is a legitimately empty branch in the flat union.
+            List<Integer> ids = EsqlTestUtils.getValuesList(resp).stream().map(row -> (Integer) row.get(0)).sorted().toList();
+            assertThat(ids, equalTo(List.of(1, 2, 3)));
         }
     }
 
     private static QueryPragmas batchPragmas(int batchSize) {
         return new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), batchSize).build());
+    }
+
+    private static EsqlQueryRequest executionMetadataRequest(String query, QueryPragmas pragmas) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas);
+        request.includeExecutionMetadata(true);
+        request.acceptedPragmaRisks(true);
+        return request;
+    }
+
+    /**
+     * Serial ({@code 1}) and overlapping ({@code >1}) dispatch both share one {@code EsqlExecutionInfo}; the all-targets check must be
+     * correct for either.
+     */
+    private static QueryPragmas partialBranchPragmas() {
+        return new QueryPragmas(
+            Settings.builder()
+                .put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), randomIntBetween(1, 3))
+                .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1)
+                .build()
+        );
     }
 }

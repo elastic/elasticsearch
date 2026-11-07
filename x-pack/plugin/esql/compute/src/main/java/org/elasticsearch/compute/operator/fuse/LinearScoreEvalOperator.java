@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CompleteInputCollectorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -168,8 +169,6 @@ public class LinearScoreEvalOperator extends CompleteInputCollectorOperator {
 
                 var weight = config.weights().get(discriminator) == null ? 1.0 : config.weights().get(discriminator);
 
-                initialScoreBlock.doesHaveMultivaluedFields();
-
                 Object scoreValue = BlockUtils.toJavaObject(initialScoreBlock, i);
                 if (scoreValue == null) {
                     warnings().registerException(new IllegalArgumentException("score column has null values; assigning null scores"));
@@ -242,6 +241,17 @@ public class LinearScoreEvalOperator extends CompleteInputCollectorOperator {
             "linearScoreEval",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("emit_nanos", ProfileSchema.integer())
+            .optional("emit_time", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .build();
 
         Status(StreamInput streamInput) throws IOException {
             this(streamInput.readLong(), streamInput.readInt(), streamInput.readInt(), streamInput.readLong(), streamInput.readLong());
@@ -272,8 +282,7 @@ public class LinearScoreEvalOperator extends CompleteInputCollectorOperator {
             out.writeLong(rowsEmitted);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("emit_nanos", emitNanos);
             if (builder.humanReadable()) {
@@ -284,6 +293,11 @@ public class LinearScoreEvalOperator extends CompleteInputCollectorOperator {
             builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
     }
 

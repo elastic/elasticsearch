@@ -74,12 +74,15 @@ public class ParallelDetector {
                     ? "hw.perflevel0.physicalcpu"
                     : "hw.physicalcpu";
 
-                String stdout = project.getProviders().exec(execSpec ->
-                        execSpec.commandLine("sysctl", "-n", query)
-                ).getStandardOutput().getAsText().get();
-
-
-                _defaultParallel = Integer.parseInt(stdout.trim());
+                var result = project.getProviders().exec(execSpec -> {
+                    execSpec.commandLine("sysctl", "-n", query);
+                    execSpec.setIgnoreExitValue(true);
+                });
+                String stdout = result.getStandardOutput().getAsText().get().trim();
+                // in sandbox envs the sysctl key might not be available, fall through to availableProcessors fallback
+                if (result.getResult().get().getExitValue() == 0 && stdout.isEmpty() == false) {
+                    _defaultParallel = Integer.parseInt(stdout);
+                }
             }
 
             if (_defaultParallel == null || _defaultParallel < 1) {

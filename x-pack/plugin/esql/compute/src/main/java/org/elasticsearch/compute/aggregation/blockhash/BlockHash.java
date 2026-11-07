@@ -235,9 +235,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
                 return new LongIntBlockHash(groups, blockFactory, emitBatchSize, true);
             }
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                return new LongBytesRefAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
+                return new LongBytesRefBlockHash(groups, blockFactory, emitBatchSize, false);
             } else if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                return new LongBytesRefAdaptiveBlockHash(groups, blockFactory, emitBatchSize, true);
+                return new LongBytesRefBlockHash(groups, blockFactory, emitBatchSize, true);
             }
             // TODO: wire (LONG, LONG) with adaptive
             if (allowBrokenOptimizations) {
@@ -291,6 +291,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             case INT -> new IntBlockHash(channel, blockFactory);
             case LONG -> new LongBlockHash(channel, blockFactory);
             case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
+            case DOUBLE_RANGE -> new DoubleRangeBlockHash(channel, blockFactory);
             case BYTES_REF -> new BytesRefBlockHash(channel, blockFactory);
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
@@ -316,5 +317,14 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public static long hashOrdToGroupNullReserved(long ord) {
         return hashOrdToGroup(ord) + 1;
+    }
+
+    /**
+     * Optionally hints to the blockhash to ensure the given capacity.
+     * The blockhash may ignore the hint or resize upfront as an optimization
+     * to avoid multiple resizes as the capacity is reached.
+     */
+    public void ensureCapacity(int size) {
+
     }
 }

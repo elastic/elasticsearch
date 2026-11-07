@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.ReadOnceHint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -24,8 +25,11 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -34,10 +38,12 @@ import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 
 import java.io.ByteArrayInputStream;
@@ -117,12 +123,23 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // Maps internal data (pending compound commits' headers, files, padding) to their offset in the virtual batched compound commit
     private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
+    private final AtomicLong logicalSize = new AtomicLong();
+    // Size fields technically don't need to be atomic since they are written under a lock.
+    // But having them volatile produces a warning in the IDE, and there is pretty much no logical difference between the two anyway.
+    private final AtomicLong headersSizeBytes = new AtomicLong();
+    private final AtomicLong replicatedContentSizeBytes = new AtomicLong();
+    private final AtomicLong copiedGenerationalFilesSizeBytes = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
     private final BlobFile blobFile;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
     private final long creationTimeInMillis;
     // VBCC can no longer be appended to once it is frozen
     private volatile boolean frozen = false;
+    // Local file refs acquired at freeze time to keep the underlying Lucene files on disk until the VBCC is closed.
+    // This allows getBytesByRange to serve BCC chunk requests from local disk during the search-tier notification window,
+    // even after updateCommit has called markAsUploaded on those files. Entries for files that are already freed from disk
+    // (e.g. from older BCCs) are no-op releasables.
+    private List<Releasable> localFileRefs;
 
     // Tracks search nodes notified that the non-uploaded VBCC's commits are available from the index node.
     // Search shards may move to new search nodes before the commits are uploaded and tracking in the BlobReference begins.
@@ -136,6 +153,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // This is used to avoid adding replicated content for files that are already included in the first region.
     private final int estimatedMaxHeaderSizeInBytes;
 
+    private final UploadStreamHook uploadStreamHook;
+
     public VirtualBatchedCompoundCommit(
         ShardId shardId,
         String nodeEphemeralId,
@@ -146,12 +165,36 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         int cacheRegionSize,
         int estimatedMaxHeaderSizeInBytes
     ) {
+        this(
+            shardId,
+            nodeEphemeralId,
+            primaryTerm,
+            generation,
+            uploadedBlobLocationsSupplier,
+            timeInMillisSupplier,
+            cacheRegionSize,
+            estimatedMaxHeaderSizeInBytes,
+            UploadStreamHook.NOOP
+        );
+    }
+
+    public VirtualBatchedCompoundCommit(
+        ShardId shardId,
+        String nodeEphemeralId,
+        long primaryTerm,
+        long generation,
+        Function<String, BlobLocation> uploadedBlobLocationsSupplier,
+        LongSupplier timeInMillisSupplier,
+        int cacheRegionSize,
+        int estimatedMaxHeaderSizeInBytes,
+        UploadStreamHook uploadStreamHook
+    ) {
         this.shardId = shardId;
         this.nodeEphemeralId = nodeEphemeralId;
         this.uploadedBlobLocationsSupplier = uploadedBlobLocationsSupplier;
         this.pendingCompoundCommits = new ConcurrentSkipListSet<>();
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
-        this.blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
+        this.blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
         this.notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
         this.cacheRegionSizeInBytes = cacheRegionSize;
@@ -161,6 +204,28 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             );
         }
         this.estimatedMaxHeaderSizeInBytes = estimatedMaxHeaderSizeInBytes;
+        this.uploadStreamHook = uploadStreamHook;
+    }
+
+    /**
+     * Intercepts the input stream returned by {@link #getFrozenInputStreamForUpload(long, long)} while it is consumed, so that tests can
+     * inject delays at specific points of the upload.
+     */
+    public interface UploadStreamHook {
+        UploadStreamHook NOOP = new UploadStreamHook() {};
+
+        /**
+         * Invoked when the upload stream opens an internal file as its next slice. Implementations may delay the call to {@code opener}
+         * or wrap the stream it returns.
+         */
+        default InputStream openInternalFile(String filename, CheckedSupplier<InputStream, IOException> opener) throws IOException {
+            return opener.get();
+        }
+
+        /**
+         * Invoked once the upload stream has been reset to its mark.
+         */
+        default void onReset() {}
     }
 
     public void addNotifiedSearchNodeIds(Collection<String> nodeIds) {
@@ -187,6 +252,15 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 return false;
             }
             frozen = true;
+            // Acquire local file refs for all InternalFileReader entries. This keeps the underlying Lucene files on disk
+            // even after StatelessCommitService calls updateCommit (which calls markAsUploaded), so that getBytesByRange
+            // can serve BCC chunk requests directly from local disk during the search-tier notification window.
+            // Files from older BCCs that have already been freed from disk get a no-op releasable.
+            localFileRefs = internalDataReadersByOffset.values()
+                .stream()
+                .filter(r -> r instanceof InternalFileReader)
+                .map(r -> ((InternalFileReader) r).acquireLocalRef())
+                .toList();
             logger.debug("VBCC is successfully frozen");
             return true;
         } finally {
@@ -243,6 +317,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         final var ccTermAndGen = new PrimaryTermAndGeneration(reference.getPrimaryTerm(), reference.getGeneration());
         final boolean isFirstCommit = ccTermAndGen.equals(primaryTermAndGeneration);
 
+        long initialOffset = currentOffset.get();
+
         // Ordered set of compound commit (CC) internal files
         var internalFiles = new TreeSet<InternalFile>();
 
@@ -250,13 +326,20 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         var referencedFiles = new HashMap<String, BlobLocation>();
 
         var internalFilesSize = 0L;
+        var copiedGenerationalFilesSize = 0L;
         for (String commitFile : reference.getCommitFiles()) {
             boolean isAdditionalFile = reference.getAdditionalFiles().contains(commitFile);
-            if (isAdditionalFile || (isFirstCommit && isGenerationalFile(commitFile))) {
+            boolean shouldCopyGenerationalFile = isFirstCommit && isGenerationalFile(commitFile);
+            if (isAdditionalFile || shouldCopyGenerationalFile) {
                 assert internalLocations.containsKey(commitFile) == false : commitFile;
                 var fileLength = reference.getDirectory().fileLength(commitFile);
                 internalFiles.add(new InternalFile(commitFile, fileLength));
                 internalFilesSize += fileLength;
+
+                if (isAdditionalFile == false && shouldCopyGenerationalFile) {
+                    // We are only interested in copies of generational files.
+                    copiedGenerationalFilesSize += fileLength;
+                }
             } else {
                 var blobLocation = internalLocations.get(commitFile);
                 assert blobLocation != null || isGenerationalFile(commitFile) == false : commitFile;
@@ -268,11 +351,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 referencedFiles.put(commitFile, blobLocation);
             }
         }
+        copiedGenerationalFilesSizeBytes.addAndGet(copiedGenerationalFilesSize);
 
         var replicatedContent = useInternalFilesReplicatedContent
             ? getReplicatedContent(ccTermAndGen, currentOffset.get(), internalFiles, internalFilesSize, reference.getDirectory())
             : ReplicatedContent.EMPTY;
         var replicatedContentHeader = replicatedContent.header();
+        replicatedContentSizeBytes.addAndGet(replicatedContentHeader.dataSizeInBytes());
 
         // We replicate referenced .si files into hollow commits as extra content appended after the internal files in the compound commit.
         final List<InternalFile> extraContentFiles = reference.isHollow() ? new ArrayList<>() : List.of();
@@ -296,6 +381,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             timestampFieldValueRange
         );
         final int headerLength = Math.toIntExact(headerReader.headerSize());
+        headersSizeBytes.addAndGet(headerLength);
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
@@ -388,6 +474,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             fileOffset += fileLength;
         }
         currentOffset.set(fileOffset);
+        logicalSize.addAndGet(currentOffset.get() - initialOffset - copiedGenerationalFilesSize);
 
         var pendingCompoundCommit = new PendingCompoundCommit(
             headerLength,
@@ -655,7 +742,15 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             protected InputStream openSlice(int slice) throws IOException {
                 final var offset = offsets.get(slice);
                 final var reader = internalDataReadersByOffset.get(offset);
+                if (reader instanceof InternalFileReader fileReader) {
+                    return uploadStreamHook.openInternalFile(fileReader.filename(), reader::getInputStream);
+                }
                 return reader.getInputStream();
+            }
+
+            @Override
+            protected void onReset() {
+                uploadStreamHook.onReset();
             }
 
             @Override
@@ -696,6 +791,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             @Override
             protected InputStream openSlice(int n) throws IOException {
                 var slice = slices.get(n);
+                if (slice.getValue() instanceof InternalFileReader fileReader) {
+                    return uploadStreamHook.openInternalFile(fileReader.filename(), () -> openSliceStream(slice, n));
+                }
+                return openSliceStream(slice, n);
+            }
+
+            private InputStream openSliceStream(Map.Entry<Long, InternalDataReader> slice, int n) throws IOException {
                 long skipBytes = Math.max(0L, offset - slice.getKey());
                 assert skipBytes == 0 || n == 0 : "can be non-zero only for the first entry, but got: " + skipBytes + " for slice " + n;
                 if (skipBytes > 0) {
@@ -718,6 +820,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     assert stream.markSupported();
                     return stream;
                 }
+            }
+
+            @Override
+            protected void onReset() {
+                uploadStreamHook.onReset();
             }
 
             @Override
@@ -754,6 +861,30 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return currentOffset.get();
     }
 
+    /// Returns the size of this VBCC excluding generational files copied from the previous VBCC.
+    /// This is used to determine if this VBCC matches the size threshold for upload.
+    /// We exclude copied generational files because in some cases they dominate the size of the VBCC
+    /// and would trigger frequent uploads resulting in write amplification.
+    public long sizeInBytesExcludingCopiedGenerationalFiles() {
+        return logicalSize.get();
+    }
+
+    /// Returns the total size (the sum) of headers of all compound commits in this batched commit.
+    public long headersSizeInBytes() {
+        return headersSizeBytes.get();
+    }
+
+    /// Returns the size of copied generational files in this batched commit.
+    /// Such files are copied into the first commit of a BCC only.
+    public long copiedGenerationalFilesSizeInBytes() {
+        return copiedGenerationalFilesSizeBytes.get();
+    }
+
+    /// Returns the total size (the sum) of replicated content of all compound commits in this batched commit.
+    public long replicatedContentSizeInBytes() {
+        return replicatedContentSizeBytes.get();
+    }
+
     public Map<String, BlobLocation> getInternalLocations() {
         return internalLocations;
     }
@@ -778,12 +909,16 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     @Override
     public void close() {
+        assert Transports.assertNotTransportThread("can invoke lucene deletion policy");
         decRef();
     }
 
     @Override
     protected void closeInternal() {
         IOUtils.closeWhileHandlingException(pendingCompoundCommits);
+        if (localFileRefs != null) {
+            Releasables.close(localFileRefs);
+        }
     }
 
     public List<PendingCompoundCommit> getPendingCompoundCommits() {
@@ -1086,12 +1221,30 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
      * Internal data reader for an internal file
      */
     private record InternalFileReader(String filename, Directory directory) implements InternalDataReader {
+
+        /**
+         * Acquires a local file reference (via {@link IndexDirectory#tryAcquireLocalFileRef}) if {@link #directory} is an
+         * {@link IndexDirectory}. This keeps the file on disk even after {@code markAsUploaded} is called, so that
+         * {@link Directory#openInput} with {@link IndexDirectory.PreferLocalHint} can serve reads from local disk during the
+         * search-tier notification window.
+         */
+        Releasable acquireLocalRef() {
+            if (directory instanceof IndexDirectory indexDir) {
+                return indexDir.tryAcquireLocalFileRef(filename);
+            }
+            return () -> {};
+        }
+
         @Override
         public InputStream getInputStream(long offset, long length) throws IOException {
             long fileLength = directory.fileLength(filename);
             assert offset < fileLength : "offset [" + offset + "] more than file length [" + fileLength + "]";
             long fileBytesToRead = Math.min(length, fileLength - offset);
-            var ioContext = filename.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
+            // withHints replaces all existing hints, so re-include ReadOnceHint for segments files so that
+            // non-IndexDirectory wrappers (e.g. MockDirectoryWrapper in tests) see the context they require.
+            var ioContext = filename.startsWith(IndexFileNames.SEGMENTS)
+                ? IOContext.READONCE.withHints(ReadOnceHint.INSTANCE, IndexDirectory.PreferLocalHint.INSTANCE)
+                : IOContext.DEFAULT.withHints(IndexDirectory.PreferLocalHint.INSTANCE);
             IndexInput input = directory.openInput(filename, ioContext);
             try {
                 input.seek(offset);
@@ -1115,7 +1268,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
          */
         @Override
         public InputStream getInputStream() throws IOException {
-            Store.VerifyingIndexInput input = new Store.VerifyingIndexInput(directory.openInput(filename, IOContext.READONCE));
+            var ioContext = filename.startsWith(IndexFileNames.SEGMENTS)
+                ? IOContext.READONCE.withHints(ReadOnceHint.INSTANCE, IndexDirectory.PreferLocalHint.INSTANCE)
+                : IOContext.DEFAULT.withHints(IndexDirectory.PreferLocalHint.INSTANCE);
+            Store.VerifyingIndexInput input = new Store.VerifyingIndexInput(directory.openInput(filename, ioContext));
             logger.trace("opening validating input for {}", filename);
 
             return new InputStreamIndexInput(input, input.length()) {

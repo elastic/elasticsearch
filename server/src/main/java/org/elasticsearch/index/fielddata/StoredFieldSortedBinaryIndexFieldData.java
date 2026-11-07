@@ -20,33 +20,33 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Per segment values for a field loaded from stored fields exposing {@link SortedBinaryDocValues}.
+ * Per segment values for a field loaded from stored fields exposing {@link SortableBinaryDocValues}.
  */
-public abstract class StoredFieldSortedBinaryIndexFieldData extends StoredFieldIndexFieldData<SortedBinaryDocValues> {
+public abstract class StoredFieldSortedBinaryIndexFieldData extends StoredFieldIndexFieldData<SortableBinaryDocValues> {
 
     protected StoredFieldSortedBinaryIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory
     ) {
         super(fieldName, valuesSourceType, toScriptFieldFactory);
     }
 
     @Override
-    protected SourceValueFetcherSortedBinaryDocValues loadLeaf(LeafStoredFieldLoader leafStoredFieldLoader) {
-        return new SourceValueFetcherSortedBinaryDocValues(leafStoredFieldLoader);
+    protected SourceValueFetcherSortableBinaryDocValues loadLeaf(LeafStoredFieldLoader leafStoredFieldLoader) {
+        return new SourceValueFetcherSortableBinaryDocValues(leafStoredFieldLoader);
     }
 
     protected abstract BytesRef storedToBytesRef(Object stored);
 
-    class SourceValueFetcherSortedBinaryDocValues extends SortedBinaryDocValues {
+    class SourceValueFetcherSortableBinaryDocValues extends SortableBinaryDocValues {
         private final LeafStoredFieldLoader loader;
         private final List<BytesRef> sorted = new ArrayList<>();
 
         private int current;
         private int docValueCount;
 
-        SourceValueFetcherSortedBinaryDocValues(LeafStoredFieldLoader loader) {
+        SourceValueFetcherSortableBinaryDocValues(LeafStoredFieldLoader loader) {
             super(null);
             this.loader = loader;
         }

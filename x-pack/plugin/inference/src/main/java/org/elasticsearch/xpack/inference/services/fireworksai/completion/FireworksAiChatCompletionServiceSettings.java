@@ -12,7 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -28,6 +27,8 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
+
 public class FireworksAiChatCompletionServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
@@ -42,12 +43,7 @@ public class FireworksAiChatCompletionServiceSettings extends FilteredXContentOb
     public static FireworksAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var modelId = ServiceUtils.extractRequiredString(
-            map,
-            ServiceFields.MODEL_ID,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        var modelId = ServiceUtils.extractRequiredString(map, ServiceFields.MODEL_ID, SERVICE_SETTINGS, validationException);
         var uri = ServiceUtils.extractOptionalUri(map, ServiceFields.URL, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 

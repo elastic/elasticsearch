@@ -9,6 +9,9 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import org.elasticsearch.ExceptionsHelper;
+
+import java.io.IOException;
 import java.util.Set;
 
 public interface MetricAttributes {
@@ -26,6 +29,9 @@ public interface MetricAttributes {
 
     // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
     String ERROR_TYPE = "error_type";
+
+    /** Index mode of the metered shard; the value is {@link org.elasticsearch.index.IndexMode#getName()}. */
+    String ES_INDEX_MODE = "es_index_mode";
 
     /** The version of the stack. */
     String ES_STACK_VERSION = "es_stack_version";
@@ -77,4 +83,13 @@ public interface MetricAttributes {
         "elastic-synthetics"
     );
 
+    /**
+     * The {@link #ERROR_TYPE} value for a failure: the simple class name of the corruption exception if one is anywhere in the cause or
+     * suppressed chain, otherwise of the innermost non-wrapper cause.
+     */
+    static String errorType(Throwable t) {
+        IOException corruption = ExceptionsHelper.unwrapCorruption(t);
+        Throwable cause = corruption != null ? corruption : ExceptionsHelper.unwrapCause(t);
+        return cause.getClass().getSimpleName();
+    }
 }

@@ -131,7 +131,8 @@ public record EndpointMetadataClusterState(Heuristics heuristics, Internal inter
      * empty/default values; their authoritative values live in the {@code .inference} system index.
      */
     public void writeAsFullEndpointMetadata(StreamOutput out) throws IOException {
-        new EndpointMetadata(heuristics, internal, Display.EMPTY_INSTANCE, List.of(), false).writeTo(out);
+        new EndpointMetadata(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE, heuristics, internal, Display.EMPTY_INSTANCE, List.of(), false)
+            .writeTo(out);
     }
 
 }

@@ -103,7 +103,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             notifyCommits(indexEngine, searchEngine);
             searchTaskQueue.runAllRunnableTasks();
 
-            try (Searcher searcher = searchEngine.acquireSearcher("test")) {
+            try (Searcher searcher = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 DirectoryReader reader = searcher.getDirectoryReader();
                 boolean sawCachingDir = false;
                 for (org.apache.lucene.index.LeafReaderContext leaf : reader.leaves()) {
@@ -373,7 +373,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             {
                 // new searcher is recorded
-                var searcher = searchEngine.acquireSearcher("test");
+                var searcher = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
                 assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(gen));
                 searcher.close();
             }
@@ -381,7 +381,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             {
                 // record is removed when all searchers are closed
                 var searchers = IntStream.range(0, randomIntBetween(2, 50))
-                    .mapToObj(i -> searchEngine.acquireSearcher("searcher#" + i))
+                    .mapToObj(i -> searchEngine.acquireSearcher("searcher#" + i, SplitShardCountSummary.IRRELEVANT))
                     .collect(Collectors.toCollection(ArrayList::new));
                 searchers.forEach(searcher -> assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(gen)));
 
@@ -424,7 +424,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
                     if (randomBoolean()) {
                         var key = new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration());
-                        searchers.put(key, searchEngine.acquireSearcher("searcher#" + i));
+                        searchers.put(key, searchEngine.acquireSearcher("searcher#" + i, SplitShardCountSummary.IRRELEVANT));
                     }
                 }
 
@@ -626,7 +626,10 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 assertThat(checkIndex.checkIndex().clean, is(true));
 
                 if (randomBoolean()) {
-                    searchers.put(segmentsNFileName(generation), searchEngine.acquireSearcher("searcher#" + i));
+                    searchers.put(
+                        segmentsNFileName(generation),
+                        searchEngine.acquireSearcher("searcher#" + i, SplitShardCountSummary.IRRELEVANT)
+                    );
                 }
                 if (randomBoolean() && searchers.isEmpty() == false) {
                     var file = randomFrom(searchers.keySet());
@@ -798,11 +801,16 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             searchTaskQueue.runAllRunnableTasks();
             searchTaskQueue.advanceTime();
 
-            try (var ignored = searchEngine.acquireSearcher("test")) {
+            try (var ignored = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 assertThat(searchEngine.getLastSearcherAcquiredTime(), is(0L));
             }
 
-            try (var ignored = searchEngine.acquireSearcher(randomFrom(Engine.CAN_MATCH_SEARCH_SOURCE, Engine.SEARCH_SOURCE))) {
+            try (
+                var ignored = searchEngine.acquireSearcher(
+                    randomFrom(Engine.CAN_MATCH_SEARCH_SOURCE, Engine.SEARCH_SOURCE),
+                    SplitShardCountSummary.IRRELEVANT
+                )
+            ) {
                 assertThat(searchEngine.getLastSearcherAcquiredTime(), is(searchTaskQueue.getCurrentTimeMillis()));
             }
         }
@@ -913,6 +921,80 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             assertTrue(searcherClosed.actionGet(TimeValue.timeValueSeconds(1L)));
 
             IOUtils.close(commit1, commit2);
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    /**
+     * Verifies that closing a relocated PIT {@link SearcherSupplier} before any search is issued
+     * ("unprimed") releases the store reference and shared commit reader that were acquired during
+     * {@link SearchEngine#acquireSearcherForCommit}.
+     *
+     * <p>{@link SearchEngine#acquireSearcherForCommit} registers a {@code RelocatedPITReader} in
+     * {@code SearchEngine.RelocatedPITReaderTracker} and returns a lazy-initialisation wrapper
+     * {@link SearcherSupplier}: the real underlying supplier (the {@code delegate}) is only acquired
+     * on the first {@code acquireSearcher} call, deferring the Lucene searcher open until a search
+     * actually arrives. Until then the supplier is "unprimed" — {@code delegate} is {@code null}.
+     * The supplier is handed to {@code PITRelocationService}, which registers it with
+     * {@code SearchService} once the shard reaches STARTED. When the {@code SearchService.Reaper}
+     * expires a context before any search is issued, it closes the supplier while {@code delegate}
+     * is still {@code null}. Closing an unprimed supplier must remove the {@code RelocatedPITReader}
+     * from {@code SearchEngine.RelocatedPITReaderTracker.trackedReaders} and release its
+     * {@code storeRef} and {@code PITCommitHandle}, because those resources are not owned by anyone
+     * else at that point.
+     */
+    public void testUnprimedRelocatedPITSearcherSupplierReleasesResourcesOnClose() throws IOException {
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            indexEngine.index(randomDoc("1"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            Engine.IndexCommitRef commit = searchEngine.acquireLastIndexCommit(false);
+            final String segmentsFileName = commit.getIndexCommit().getSegmentsFileName();
+            final Map<String, BlobFileRanges> metadata;
+            try (DirectoryReader reader = DirectoryReader.open(commit.getIndexCommit())) {
+                SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(reader.directory());
+                metadata = searchDirectory.getBlobFileRangesForFiles(commit.getIndexCommit().getFileNames());
+            }
+            IOUtils.close(commit);
+
+            final var store = searchEngine.config().getStore();
+            final int refCountBefore = store.refCount();
+            final int sharedReaderCountBefore = searchEngine.getSharedPITCommitReaderCount();
+
+            var supplierFuture = new PlainActionFuture<SearcherSupplier>();
+            searchEngine.acquireSearcherForCommit(
+                segmentsFileName,
+                metadata,
+                Function.identity(),
+                null,
+                SplitShardCountSummary.IRRELEVANT,
+                supplierFuture
+            );
+            searchTaskQueue.runAllRunnableTasks();
+            SearcherSupplier supplier = supplierFuture.actionGet(TimeValue.timeValueSeconds(5));
+
+            assertThat(store.refCount(), equalTo(refCountBefore + 1));
+            assertThat(searchEngine.getSharedPITCommitReaderCount(), equalTo(sharedReaderCountBefore + 1));
+
+            // Simulate closing the context before any search: close the supplier
+            // without ever calling acquireSearcher(), leaving the internal delegate null.
+            supplier.close();
+
+            // Closing an unprimed supplier must release the storeRef and PITCommitHandle
+            // that are still owned by the RelocatedPITReader in trackedReaders.
+            assertThat(store.refCount(), equalTo(refCountBefore));
+            assertThat(searchEngine.getSharedPITCommitReaderCount(), equalTo(sharedReaderCountBefore));
         }
         assertWarnings(
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "

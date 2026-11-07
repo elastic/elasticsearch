@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -67,14 +67,14 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
                     // `IgnoresNulls` and take it from there.
                     return aggregate;
                 }
-                Expression field = af.field();
-                if (field.foldable()) {
-                    // Ignore literals (e.g. COUNT(1))
-                    return aggregate;
-                }
-                Collection<Expression> attributes = InferIsNotNull.resolveExpressionAsRootAttributes(field, aliases, aggregate.inputSet());
-                // make sure the field exists at the source and is indexed (not runtime)
-                attributes = attributes.stream().filter(a -> a instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName())).toList();
+
+                List<Expression> attributes = af.fields()
+                    .stream()
+                    .filter(f -> f.foldable() == false)
+                    .flatMap(f -> InferIsNotNull.resolveExpressionAsRootAttributes(f, aliases, aggregate.inputSet()).stream())
+                    // make sure the field exists at the source and is indexed (not runtime)
+                    .filter(a -> a instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName()))
+                    .toList();
                 if (attributes.isEmpty()) {
                     // bail out, because all rows are needed for this aggregation and no filter can be added
                     return aggregate;

@@ -29,14 +29,13 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -267,41 +266,28 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
         this.parentTripCountTotalMetric = metrics.getTripCount();
 
-        metrics.registerMemoryGauges(this::collectMemoryLimits, this::collectMemoryEstimates);
+        metrics.registerMemoryGauges(this::recordMemoryLimits, this::recordMemoryEstimates);
     }
 
-    private Collection<LongWithAttributes> collectMemoryLimits() {
-        List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
+    private void recordMemoryLimits(LongAsyncMeasurement measurement) {
         for (CircuitBreaker breaker : this.breakers.values()) {
-            out.add(
-                new LongWithAttributes(
-                    breaker.getLimit(),
-                    Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())
-                )
-            );
+            measurement.record(breaker.getLimit(), Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName()));
         }
-        out.add(
-            new LongWithAttributes(
-                this.parentSettings.getLimit(),
-                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
-            )
+        measurement.record(
+            this.parentSettings.getLimit(),
+            Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
         );
-        return out;
     }
 
-    private Collection<LongWithAttributes> collectMemoryEstimates() {
-        List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
+    private void recordMemoryEstimates(LongAsyncMeasurement measurement) {
         for (CircuitBreaker breaker : this.breakers.values()) {
             long estimated = (long) (breaker.getUsed() * breaker.getOverhead());
-            out.add(new LongWithAttributes(estimated, Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())));
+            measurement.record(estimated, Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName()));
         }
-        out.add(
-            new LongWithAttributes(
-                memoryUsed(0L).totalUsage,
-                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
-            )
+        measurement.record(
+            memoryUsed(0L).totalUsage,
+            Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
         );
-        return out;
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -595,7 +581,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         MemoryUsage overLimit(MemoryUsage memoryUsed);
     }
 
-    static class G1OverLimitStrategy implements OverLimitStrategy {
+    public static class G1OverLimitStrategy implements OverLimitStrategy {
+        private static final int FILLER_ARRAY_HEADER_ALLOWANCE_BYTES = 64;
+
         private final long g1RegionSize;
         private final LongSupplier currentMemoryUsageSupplier;
         private final LongSupplier gcCountSupplier;
@@ -646,7 +634,37 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             }
         }
 
-        static long fallbackRegionSize(JvmInfo jvmInfo) {
+        /**
+         * At most one humongous allocation, followed by eden fillers under a budget derived from the estimate of free regions plus one.
+         * The fillers go through eden, so G1's own young sizing decides when to collect. Reaching a GC is best-effort: the caller falls
+         * back to a full GC if memory usage was not reduced.
+         */
+        static int triggerAllocationCount(long maxHeap, long baseUsage, long g1RegionSize) {
+            long regions = (maxHeap - baseUsage) / g1RegionSize + 1;
+            if (regions <= 0) {
+                return 0;
+            }
+            return Math.toIntExact(1 + regions * g1RegionSize / fillerAllocationSize(g1RegionSize) + 1);
+        }
+
+        static int triggerAllocationSize(int allocationIndex, long g1RegionSize) {
+            // An array of half a region or more is a humongous allocation in G1, and takes up whole regions directly from the free list.
+            // The first allocation is humongous on purpose: a humongous allocation makes G1 check the IHOP threshold, so when occupancy is
+            // above it G1 starts a concurrent cycle, and with it a young GC, right away. It is also a candidate for eager reclaim.
+            // The rest are regular eden allocations. Further humongous allocations would consume the free regions that G1 needs as
+            // evacuation targets, so the young GC they eventually force can fail evacuation. Eden fillers instead fill eden until G1
+            // decides to start a young GC itself.
+            return allocationIndex == 0 ? (int) (g1RegionSize >> 1) : fillerAllocationSize(g1RegionSize);
+        }
+
+        static int fillerAllocationSize(long g1RegionSize) {
+            return (int) (g1RegionSize >> 2) - FILLER_ARRAY_HEADER_ALLOWANCE_BYTES;
+        }
+
+        /**
+         * G1 region size to assume when the JVM does not report one, derived from the heap size the way G1 picks it.
+         */
+        public static long fallbackRegionSize(JvmInfo jvmInfo) {
             // mimic JDK calculation based on JDK 14 source:
             // https://hg.openjdk.java.net/jdk/jdk14/file/6c954123ee8d/src/hotspot/share/gc/g1/heapRegion.cpp#l65
             // notice that newer JDKs will have a slight variant only considering max-heap:
@@ -769,10 +787,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 long initialCollectionCount = gcCountSupplier.getAsLong();
                 logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
                 long localBlackHole = 0;
-                // number of allocations, corresponding to (approximately) number of free regions + 1
-                int allocationCount = Math.toIntExact((maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1);
-                // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
-                int allocationSize = (int) (g1RegionSize >> 1);
+                int allocationCount = triggerAllocationCount(maxHeap, memoryUsed.baseUsage, g1RegionSize);
                 long maxUsageObserved = memoryUsed.baseUsage;
                 for (; allocationIndex < allocationCount; ++allocationIndex) {
                     long current = currentMemoryUsageSupplier.getAsLong();
@@ -786,7 +801,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         break;
                     }
                     // noinspection ArrayHashCode - prevent array allocation from being optimized away
-                    localBlackHole += new byte[allocationSize].hashCode();
+                    localBlackHole += new byte[triggerAllocationSize(allocationIndex, g1RegionSize)].hashCode();
                 }
 
                 blackHole += localBlackHole;

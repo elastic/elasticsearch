@@ -755,6 +755,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertThat(composableIndexTemplate.composedOf().get(1), equalTo("syslog@custom"));
         assertThat(composableIndexTemplate.getIgnoreMissingComponentTemplates(), hasSize(1));
         assertThat(composableIndexTemplate.getIgnoreMissingComponentTemplates().get(0), equalTo("syslog@custom"));
+        assertTrue(composableIndexTemplate.isRegistryInstalled());
         assertNotNull(listener);
         calledTimes.incrementAndGet();
     }
@@ -1120,6 +1121,25 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             filter.test(
                 new Template(
                     Settings.builder().put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality").build(),
+                    null,
+                    null
+                )
+            ),
+            equalTo(true)
+        );
+        assertThat(filter.test(new Template(Settings.EMPTY, null, null)), equalTo(false));
+        assertThat(filter.test(null), equalTo(false));
+    }
+
+    public void testTsidPrefixedDimensionsSettingRequiresClusterFeature() {
+        Predicate<Template> filter = IndexTemplateRegistry.NODE_FEATURE_FILTERS.get(MapperFeatures.TSDB_TSID_PREFIXED_DIMENSIONS);
+        assertThat(filter, notNullValue());
+        assertThat(
+            filter.test(
+                new Template(
+                    Settings.builder()
+                        .putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "resource.attributes.*")
+                        .build(),
                     null,
                     null
                 )

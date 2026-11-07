@@ -43,7 +43,7 @@ public class ExternalHivePartitionPlusValueIT extends AbstractExternalDataSource
 
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
-        String dataset = registerDataset("hive_plus", glob, Map.of("hive_partitioning", true));
+        String dataset = registerDataset("hive_plus", glob, Map.of("partition_detection", "hive"));
 
         var request = syncEsqlQueryRequest("FROM " + dataset + " | WHERE tag == \"a+b\" | KEEP id | SORT id ASC");
         try (var response = run(request)) {

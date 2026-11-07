@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158858
+summary: Make metadata-only `COUNT`, `MIN`, and `MAX` match the scan under `first_file_wins`
+type: bug

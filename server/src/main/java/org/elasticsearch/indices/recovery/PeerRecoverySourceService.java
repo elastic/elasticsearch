@@ -24,8 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -36,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayDeque;
@@ -58,19 +57,6 @@ import java.util.function.Predicate;
 public class PeerRecoverySourceService extends AbstractLifecycleComponent implements IndexEventListener, ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
-
-    /// Maximum number of outgoing peer recoveries a node may run concurrently as a source.
-    /// Requests that arrive when all slots are occupied are queued in FIFO order and started as slots free up.
-    ///
-    /// TODO: register this setting in `BUILT_IN_CLUSTER_SETTINGS` before we start elasticsearch-team#2805
-    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING = Setting.intSetting(
-        "indices.recovery.max_concurrent_outgoing_recoveries",
-        // Throttling handled by master allocation for now.
-        Integer.MAX_VALUE,
-        1,
-        Property.NodeScope,
-        Property.Dynamic
-    );
 
     public static class Actions {
         public static final String START_RECOVERY = "internal:index/shard/recovery/start_recovery";
@@ -102,7 +88,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.ongoingRecoveries = new OngoingRecoveries(schedulingListeners);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
-                INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
                 ongoingRecoveries::updateMaxConcurrentOutgoingRecoveries
             );
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
@@ -359,13 +345,16 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 maxConcurrentOutgoingRecoveries = newMax;
             }
             if (oldMax < newMax) {
-                startRecoveriesUpToLimit();
+                // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
+                // applier thread stops before the thread pool shuts down so this can never be rejected.
+                transportService.getThreadPool().generic().execute(this::startRecoveriesUpToLimit);
             }
         }
 
         /// Dequeues and starts pending recoveries up to the max concurrency limit.
         /// Acquires the lock once per dequeued recovery and triggers recovery in same loop, outside the lock.
         void startRecoveriesUpToLimit() {
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             while (true) {
                 final PendingRecovery nextRecovery;
                 final RecoverySourceHandler nextHandler;

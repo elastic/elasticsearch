@@ -32,7 +32,7 @@ public class PackDimsAggSerializationTests extends AbstractExpressionSerializati
 
     @Override
     protected PackDimsAgg mutateInstance(PackDimsAgg instance) throws IOException {
-        List<Expression> dims = new ArrayList<>(instance.dims());
+        List<Expression> dims = new ArrayList<>(instance.fields());
         dims.set(0, randomValueOtherThan(dims.get(0), this::randomDimension));
         return PackDimsAgg.create(instance.source(), dims);
     }

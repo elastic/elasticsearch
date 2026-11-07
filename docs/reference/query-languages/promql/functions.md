@@ -8,11 +8,12 @@ products:
   - id: elasticsearch
 ---
 
-# PromQL functions [promql-functions]
+# {{promql}} functions [promql-functions]
 
-These functions are based on the [Prometheus query functions](https://prometheus.io/docs/prometheus/latest/querying/functions/). Refer to the Prometheus documentation for the full semantics, and note any {{es}}-specific differences called out per function.
+These functions are based on the [{{prom}} query functions](https://prometheus.io/docs/prometheus/latest/querying/functions/). Refer to the {{prom}} documentation for the full semantics.
+Each function entry lists its differences from {{prom}}, including the uses that aren't supported yet.
 
-## Functions overview [promql-functions-overview]
+## Supported functions [promql-functions-overview]
 
 ### Range vector functions
 
@@ -74,9 +75,29 @@ Functions that convert between scalars and instant vectors.
 :::
 ::::
 
-## Not yet supported [promql-not-supported]
+### Metadata functions
 
-The following PromQL functions are recognized but not yet supported in {{es}}. Using them returns a client error (4xx):
+Functions that derive new labels from existing label values.
+
+::::{dropdown} Metadata function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/metadata-overview.md
+:::
+::::
+
+### Sorting functions
+
+Functions that sort an instant vector by sample value.
+
+::::{dropdown} Sorting function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/sorting-overview.md
+:::
+::::
+
+## Not supported yet [promql-not-supported]
+
+The following {{promql}} functions are recognized but not supported yet in {{es}}. Using them returns a client error (4xx):
 
 :::{include} _snippets/generated/x-pack-esql/functions/not-supported.md
 :::

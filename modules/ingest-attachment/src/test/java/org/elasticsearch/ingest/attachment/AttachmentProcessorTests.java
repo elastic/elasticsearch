@@ -361,7 +361,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
         assertThat(attachmentData.get("language"), is("en"));
@@ -494,7 +494,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         attachmentProcessor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
         return attachmentData;
     }
 
@@ -702,6 +702,78 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("attachment field size"));
         assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
         assertThat(ex.getMessage(), containsString("source_field"));
+    }
+
+    public void testMaxAttachmentFieldSizeEnforcedOnByteArray() {
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            true,
+            100,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            new SetOnce<>()
+        );
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", new byte[101]);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> processor.execute(ingestDocument));
+        assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+        assertThat(ex.getMessage(), containsString("source_field"));
+    }
+
+    /**
+     * The size of a string field is its length, as it is received (one base64 character is one byte), not the length that it decodes to.
+     */
+    public void testMaxAttachmentFieldSizeIsTheLengthOfAStringField() throws Exception {
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            true,
+            8,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            new SetOnce<>()
+        );
+        // 8 characters is exactly at the limit (and decodes to just 6 bytes)
+        Map<String, Object> atLimit = new HashMap<>();
+        atLimit.put("source_field", "QUJDREVG");
+        processor.execute(RandomDocumentPicks.randomIngestDocument(random(), atLimit));
+
+        // 12 characters is over the limit, even though it decodes to just 8 bytes, which is not over it
+        Map<String, Object> overLimit = new HashMap<>();
+        overLimit.put("source_field", "QUJDREVGR0g=");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), overLimit);
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> processor.execute(ingestDocument));
+        assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+    }
+
+    public void testSourceFieldOfInvalidType() {
+        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", randomObject);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Content field [source_field] of unknown type [" + randomObject.getClass().getName() + "], must be string or byte array"
+            )
+        );
     }
 
     public void testMaxFieldBytesNotViolated() throws Exception {
@@ -1058,7 +1130,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         document.put("source_field", str.getBytes(StandardCharsets.US_ASCII));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
-        return ingestDocument.getSourceAndMetadata().get("target_field");
+        return ingestDocument.getSource().get("target_field");
     }
 
     private Object getAsBinaryOrBase64(String filename) throws Exception {
@@ -1072,5 +1144,35 @@ public class AttachmentProcessorTests extends ESTestCase {
                 return Base64.getEncoder().encodeToString(bytes);
             }
         }
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it.
+     */
+    public void testMalformedTargetFieldFailsAtExecutionTime() throws Exception {
+        Processor processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "a..b",
+            EnumSet.allOf(AttachmentProcessor.Property.class),
+            10000,
+            false,
+            null,
+            null,
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            new SetOnce<>()
+        );
+
+        // the source is fine, so it is the target that causes the failure
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", getAsBinaryOrBase64("text-in-english.txt"));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

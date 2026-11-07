@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.RemovedParquetDatasetSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -152,8 +153,36 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
     }
 
     /**
+     * Stored {@code optimized_reader} / {@code late_materialization} keys must not fail
+     * {@code FROM}: {@code DatasetRewriter} strips them before {@code ConfigKeyValidator}.
+     * TestValidator stores raw settings, so this is the tolerated-legacy window after an upgrade.
+     * A pushable {@code WHERE} pins that filtering is not suppressed: {@code COUNT(*)} alone
+     * can be answered from footer stats even if row-level late-mat were off.
+     */
+    public void testStoredRemovedParquetDatasetSettingsAreToleratedOnFrom() throws Exception {
+        int totalRows = 50;
+        Path parquetFile = writeParquetFile(totalRows, 100);
+        try {
+            String dataset = registerDataset(
+                "legacy_kill_switches",
+                StoragePath.fileUri(parquetFile),
+                Map.of(RemovedParquetDatasetSettings.OPTIMIZED_READER, false, RemovedParquetDatasetSettings.LATE_MATERIALIZATION, false)
+            );
+            String query = "FROM " + dataset + " | WHERE id < 10 | STATS c = COUNT(*)";
+            var request = syncEsqlQueryRequest(query);
+
+            try (var response = run(request)) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(10L));
+            }
+        } finally {
+            Files.deleteIfExists(parquetFile);
+        }
+    }
+
+    /**
      * End-to-end pin for the unknown-key rejection path. A query with a typo'd configuration key
-     * must surface as {@code IllegalArgumentException} naming the typo and the recognised options,
+     * must surface as an exception naming the typo and the recognised options,
      * proving the {@code ExternalSourceFactory.validateConfig} SPI hook fires before any read.
      */
     public void testUnknownConfigKeyIsRejectedAtPlanningTime() throws Exception {
@@ -167,19 +196,17 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
             var request = syncEsqlQueryRequest(query);
 
             Exception e = expectThrows(Exception.class, () -> { run(request).close(); });
-            // The validator's IllegalArgumentException is wrapped on the way up
-            // (DatasetRewriter → resolveSingleSource → ExternalSourceResolver). Walk the cause chain to find it.
-            Throwable validatorIae = null;
+            // The validator's IAE is wrapped as ExternalClientException by mapResolveFailure; the key name
+            // is preserved in the message. Walk the full chain in case wrapping changes in the future.
+            Throwable matchingThrowable = null;
             for (Throwable t = e; t != null; t = t.getCause()) {
-                if (t instanceof IllegalArgumentException
-                    && t.getMessage() != null
-                    && t.getMessage().contains("obviously_not_a_real_key")) {
-                    validatorIae = t;
+                if (t.getMessage() != null && t.getMessage().contains("obviously_not_a_real_key")) {
+                    matchingThrowable = t;
                     break;
                 }
             }
-            assertNotNull("expected validator IAE mentioning 'obviously_not_a_real_key' in cause chain of: " + e, validatorIae);
-            assertThat(validatorIae.getMessage(), containsString("unknown option"));
+            assertNotNull("expected an exception mentioning 'obviously_not_a_real_key' in cause chain of: " + e, matchingThrowable);
+            assertThat(matchingThrowable.getMessage(), containsString("unknown option"));
         } finally {
             Files.deleteIfExists(parquetFile);
         }

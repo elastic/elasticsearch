@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.highlight;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldContent;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 class SemanticChunkContentExtractor implements ChunkContentExtractor {
@@ -66,7 +64,12 @@ class SemanticChunkContentExtractor implements ChunkContentExtractor {
             throw new IllegalStateException("Field [" + sourceField + "] is not mapped");
         }
 
-        List<Object> rawFieldValues = HighlightUtils.loadFieldValues(sourceFieldType, searchContext, hitContext);
-        return new SemanticFieldContent(rawFieldValues);
+        return SemanticFieldContent.load(
+            sourceFieldType,
+            searchContext,
+            hitContext.readerContext(),
+            hitContext.source(),
+            hitContext.docId()
+        );
     }
 }

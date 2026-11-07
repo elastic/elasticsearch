@@ -31,4 +31,8 @@ public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory 
         return new DecimalDigitFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

@@ -17,14 +17,9 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
@@ -57,14 +52,14 @@ class BulkByPaginatedSearchParallelizationHelper {
 
     /**
      * Takes an action created by a {@link BulkByPaginatedSearchTask} and runs it with regard to whether the request is sliced or not.
-     *
+     * <p>
      * If the request is not sliced (i.e. the number of slices is 1), the worker action in the given {@link Runnable} will be started on
      * the local node. If the request is sliced (i.e. the number of slices is more than 1), then a subrequest will be created for each
      * slice and sent.
-     *
+     * <p>
      * If slices are set as {@code "auto"}, this class will resolve that to a specific number based on characteristics of the source
      * indices. A request with {@code "auto"} slices may end up being sliced or unsliced.
-     *
+     * <p>
      * This method is equivalent to calling {@link #initTaskState} followed by {@link #executeSlicedAction}
      */
     static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void startSlicedAction(
@@ -89,11 +84,11 @@ class BulkByPaginatedSearchParallelizationHelper {
     /**
      * Takes an action and a {@link BulkByPaginatedSearchTask} and runs it with regard to whether this task is a
      * leader or worker.
-     *
+     * <p>
      * If this task is a worker, the worker action is invoked with the given {@code remoteVersion} (may be null
      * for local reindex). If the task is a leader (i.e. the number of slices is more than 1), then a subrequest
      * will be created for each slice and sent.
-     *
+     * <p>
      * This method can only be called after the task state is initialized {@link #initTaskState}.
      *
      * @param remoteVersion the version of the remote cluster when reindexing from remote, or null for local reindex
@@ -120,7 +115,7 @@ class BulkByPaginatedSearchParallelizationHelper {
 
     /**
      * Takes a {@link BulkByPaginatedSearchTask} and ensures that its initial task state (leader or worker) is set.
-     *
+     * <p>
      * If slices are set as {@code "auto"}, this method will resolve that to a specific number based on
      * characteristics of the source indices. A request with {@code "auto"} slices may end up being sliced or
      * unsliced. This method does not execute the action. In order to execute the action see
@@ -141,7 +136,7 @@ class BulkByPaginatedSearchParallelizationHelper {
             client.execute(
                 TransportClusterSearchShardsAction.TYPE,
                 new ClusterSearchShardsRequest(request.getTimeout(), searchRequest.indices()).routing(searchRequest.routing())
-                    .searchSlice(searchRequest.searchSlice()),
+                    .setRoutingFromSlice(searchRequest.isRoutingFromSlice()),
                 listener.safeMap(response -> {
                     setWorkerCount(request, task, countSlicesBasedOnShards(response));
                     return null;
@@ -241,44 +236,5 @@ class BulkByPaginatedSearchParallelizationHelper {
             slices[slice] = searchRequest;
         }
         return slices;
-    }
-
-    /**
-     * Validates that {@code slice} is provided when any non-wildcard target index has
-     * {@code index.slice.enabled=true}. Unlike pure search requests (which default to {@code slice=_all}),
-     * write-backed operations such as update-by-query and delete-by-query require {@code slice} because
-     * the write phase always fails without it.
-     */
-    static void validateSliceRoutingForWriteBackedSearch(
-        AbstractBulkByPaginatedSearchRequest<?> request,
-        ProjectMetadata projectMetadata,
-        String requestDescription
-    ) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
-        if (request.getSearchRequest().isRoutingFromSlice() == false) {
-            var indicesLookup = projectMetadata.getIndicesLookup();
-            for (String indexName : request.getSearchRequest().indices()) {
-                IndexAbstraction abstraction = indicesLookup.get(indexName);
-                if (abstraction == null) {
-                    continue;
-                }
-                for (Index index : abstraction.getIndices()) {
-                    IndexMetadata meta = projectMetadata.index(index);
-                    if (meta != null && IndexSettings.SLICE_ENABLED.get(meta.getSettings())) {
-                        throw new IllegalArgumentException(
-                            "[slice] is required when [index.slice.enabled] is true for "
-                                + requestDescription
-                                + " targeting ["
-                                + indexName
-                                + "]"
-                        );
-                    }
-                }
-            }
-        } else {
-            SliceIndexing.validateUserSliceValue(request.getSearchRequest().searchSlice());
-        }
     }
 }

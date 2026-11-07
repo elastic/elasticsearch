@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
@@ -50,10 +51,11 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
-import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.engine.Engine;
@@ -62,6 +64,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -743,7 +746,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         for (var index : docsIndices) {
             var recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
             assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-            for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(index)) {
+            for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get(index)) {
+                var shardRecoveryState = recoveryInfo.recoveryState();
                 assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
                 assertThat(shardRecoveryState.getTargetNode(), notNullValue());
                 assertThat(shardRecoveryState.getTargetNode().getName(), equalTo(targetNode));
@@ -940,7 +944,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // Check that operations were successfully recovered locally
         var recoveryResponse = indicesAdmin().prepareRecoveries(backingIndex).get();
         assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-        for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(backingIndex)) {
+        for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get(backingIndex)) {
+            var shardRecoveryState = recoveryInfo.recoveryState();
             assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             assertThat(shardRecoveryState.getRecoverySource(), equalTo(RecoverySource.ExistingStoreRecoverySource.INSTANCE));
             assertThat((long) shardRecoveryState.getTranslog().totalOperationsOnStart(), equalTo(expectedRecoveredOperations));
@@ -1768,7 +1773,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false); // Sequence numbers are needed for id validation.
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false) // Sequence numbers are needed for id validation.
+            .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
 
         if (randomBoolean()) {
             settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
@@ -2069,7 +2075,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final int nbVisitedShards = internalCluster().forEveryIndexShard(indices, indexShard -> {
             long size = indexShard.withEngineOrNull(engine -> {
                 if (engine != null) {
-                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
+                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field", SplitShardCountSummary.IRRELEVANT)) {
                         long segmentsTotalSize = 0L;
 
                         for (var leaf : searcher.getLeafContexts()) {
@@ -2136,10 +2142,14 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     for (var indexShard : indexService) {
                         nbVisitedShards += indexShard.withEngineOrNull(engine -> {
                             if (engine != null) {
-                                assertThat(engine.config().getCodec().getName(), equalTo(ES94TSDBBestCompressionLucene104Codec.NAME));
-                                try (var searcher = engine.acquireSearcher("test_codec")) {
+                                assertThat(engine.config().getCodec().getName(), equalTo(Elasticsearch96Codec.NAME));
+                                try (var searcher = engine.acquireSearcher("test_codec", SplitShardCountSummary.IRRELEVANT)) {
                                     for (var leaf : searcher.getLeafContexts()) {
                                         var segInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo().info;
+                                        assertThat(
+                                            segInfo.getAttribute(ElasticsearchStoredFieldsFormat.MODE_KEY),
+                                            equalTo(ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION.name())
+                                        );
                                         assertThat(
                                             segInfo.getAttribute(Zstd814StoredFieldsFormat.MODE_KEY),
                                             equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION.name())

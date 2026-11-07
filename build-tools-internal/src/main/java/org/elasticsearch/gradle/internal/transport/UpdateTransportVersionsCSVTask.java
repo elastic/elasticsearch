@@ -46,29 +46,33 @@ public abstract class UpdateTransportVersionsCSVTask extends DefaultTask {
             throw new RuntimeException("Missing upper bound " + upperBoundName + " for stack version " + stackVersion);
         }
 
-        int expectedTransportVersionId = upperBound.definitionId().complete();
+        int upperBoundId = upperBound.definitionId().complete();
 
-        // Check if this version is already in the CSV file (idempotency check)
+        // Idempotency check to ensure we don't try to increment this again if there is already an entry in the CSV file for
+        // the given stack version.
         Integer existingTransportVersionId = getExistingTransportVersionId(stackVersion);
         if (existingTransportVersionId != null) {
-            if (existingTransportVersionId != expectedTransportVersionId) {
+            if (existingTransportVersionId > upperBoundId) {
                 throw new RuntimeException(
                     "Version "
                         + stackVersion
                         + " already exists in TransportVersions.csv with transport version ID "
                         + existingTransportVersionId
-                        + ", but expected "
-                        + expectedTransportVersionId
+                        + ", which is ahead of the "
+                        + upperBoundName
+                        + " upper bound "
+                        + upperBoundId
                 );
             }
             getLogger().lifecycle(
-                "Version {} already exists in TransportVersions.csv with correct transport version ID, skipping",
-                stackVersion
+                "Version {} already exists in TransportVersions.csv with transport version ID {}, skipping",
+                stackVersion,
+                existingTransportVersionId
             );
             return;
         }
 
-        addTransportVersionRecord(stackVersion, expectedTransportVersionId);
+        addTransportVersionRecord(stackVersion, upperBoundId);
     }
 
     private Integer getExistingTransportVersionId(Version stackVersion) throws IOException {

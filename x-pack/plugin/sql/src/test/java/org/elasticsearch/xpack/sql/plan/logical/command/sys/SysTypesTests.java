@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
@@ -67,7 +68,8 @@ public class SysTypesTests extends ESTestCase {
             null,
             false,
             false,
-            null
+            null,
+            SqlPlugin.DEFAULT_MAX_QUERY_LENGTH
         );
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
         Analyzer analyzer = analyzer(configuration, IndexResolution.valid(test));

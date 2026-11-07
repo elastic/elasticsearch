@@ -1,0 +1,6 @@
+TS k8s
+| FORK
+    (STATS metric_type = "cost", cnt = COUNT(COUNT_OVER_TIME(network.cost)) BY cluster)
+    (STATS metric_type = "cost_max", cnt = COUNT(MAX_OVER_TIME(network.cost)) BY cluster)
+| KEEP _fork, cluster, metric_type, cnt
+| SORT _fork, cluster

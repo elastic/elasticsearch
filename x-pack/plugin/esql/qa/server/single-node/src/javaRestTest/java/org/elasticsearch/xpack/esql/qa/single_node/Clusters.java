@@ -14,6 +14,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 
 import java.nio.file.Path;
 
@@ -59,9 +60,10 @@ public class Clusters {
 
     /**
      * A cluster with the feature registered but no {@link Federation#FEDERATION_ENABLED} in {@code elasticsearch.yml},
-     * so the node takes the build default: federation is on in a snapshot build and off in a release build. Used by
-     * {@link FederationBuildDefaultRestIT}, whose subject is the default itself. Every other suite here pins the
-     * setting, or unregisters the feature, so that its outcome does not depend on how the distribution was built.
+     * so the node takes the default: on for a stateful node, except on a Windows release build, which cannot serve the
+     * feature. Used by {@link FederationBuildDefaultRestIT}, whose subject is the default itself. Every other suite here
+     * pins the setting, or unregisters the feature, so that its outcome does not depend on the default; the one exception
+     * is {@link FederationSettingRestartRestIT}, which takes the default for its first phase only.
      */
     public static ElasticsearchCluster clusterWithoutFederationSettings() {
         return testCluster(CsvTestUtils.createCsvDataDirectory(), config -> {}, false, false);
@@ -87,13 +89,15 @@ public class Clusters {
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
             .setting("ingest.geoip.downloader.enabled", "false");
         if (federationSettings) {
-            // Federation is only on by default in snapshot builds; the data source and dataset suites here need it on
-            // in a release build too. A test that wants the unavailable surface turns it back off through the config
+            // Pinned so that the data source and dataset suites here do not depend on the default, which is off on a
+            // stateless release build. A test that wants the unavailable surface turns it back off through the config
             // provider applied below. This default is a supplier, not a plain value, so that a config provider can
             // override it with either form: explicit settings win over suppliers regardless of order, and among
             // suppliers the last one applied wins.
             builder.setting(Federation.FEDERATION_ENABLED.getKey(), () -> "true")
-                .setting("esql.external.local_allowed_paths", csvDataPath::toString);
+                .setting("esql.external.local_allowed_paths", csvDataPath::toString)
+                // Registered only while federation is; a node without the feature would refuse to start on it.
+                .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS);
         }
         builder.apply(() -> configProvider);
         if (securityEnabled) {

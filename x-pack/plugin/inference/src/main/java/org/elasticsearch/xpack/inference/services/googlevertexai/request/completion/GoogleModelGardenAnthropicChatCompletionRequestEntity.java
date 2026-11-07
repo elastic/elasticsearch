@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.request.completion;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -33,7 +33,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     private static final String STREAM_FIELD = "stream";
     public static final int DEFAULT_MAX_TOKENS = 1024;
 
-    private final UnifiedCompletionRequest unifiedRequest;
+    private final UnifiedCompletionRequestBody unifiedRequest;
     private final boolean stream;
     private final GoogleVertexAiChatCompletionTaskSettings taskSettings;
 
@@ -49,7 +49,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     }
 
     public GoogleModelGardenAnthropicChatCompletionRequestEntity(
-        UnifiedCompletionRequest unifiedRequest,
+        UnifiedCompletionRequestBody unifiedRequest,
         boolean stream,
         GoogleVertexAiChatCompletionTaskSettings taskSettings
     ) {
@@ -62,7 +62,9 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ANTHROPIC_VERSION, VERTEX_2023_10_16);
-        AnthropicToolUtils.writeMessages(builder, unifiedRequest.messages());
+        // Anthropic requires system prompts as a top-level "system" field, not inside the messages array.
+        AnthropicToolUtils.writeSystemMessages(builder, unifiedRequest.messages());
+        AnthropicToolUtils.writeMessages(builder, AnthropicToolUtils.excludeSystemMessages(unifiedRequest.messages()));
         if (unifiedRequest.temperature() != null) {
             builder.field(TEMPERATURE_FIELD, unifiedRequest.temperature());
         }

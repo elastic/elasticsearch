@@ -13,12 +13,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -51,12 +51,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean isPersistentContext) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            isPersistentContext,
-            Builder::new
-        );
-        AmazonBedrockServiceSettings.declareCommonFields(parser);
+        var parser = AmazonBedrockServiceSettings.buildCommonParser(isPersistentContext, Builder::new);
         // dimensions and dimensions_set_by_user cannot be updated via request
         if (isPersistentContext) {
             parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
@@ -250,15 +245,17 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     /**
      * Parses an update request, which may only contain the mutable {@code max_input_tokens} and {@code rate_limit} fields. Including any
      * immutable field (such as {@code region}, {@code model}, {@code provider}, {@code dimensions}, or {@code similarity}) causes the
-     * strict parser to reject the request.
+     * strict parser to reject the request. {@code access_key} and {@code secret_key} are tolerated so that credential rotation can be
+     * performed in the same request; they are extracted by {@link AwsSecretSettings} and not passed through to the update.
      */
     private static class Update extends AmazonBedrockServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+        private static final ObjectParser<Update, Void> PARSER = createUpdateParser();
 
-        static {
-            declareCommonUpdatableFields(PARSER);
-            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        private static ObjectParser<Update, Void> createUpdateParser() {
+            var parser = AmazonBedrockServiceSettings.buildCommonUpdateParser(Update::new);
+            parser.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+            return parser;
         }
 
         private Integer maxInputTokens;

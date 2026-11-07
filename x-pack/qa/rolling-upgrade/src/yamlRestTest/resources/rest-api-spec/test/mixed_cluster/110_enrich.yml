@@ -1,0 +1,14 @@
+---
+"Enrich stats query smoke test for mixed cluster":
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
+      reason: "Privilege change of enrich stats is backported to 7.9.0"
+
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Verifies coordinator count against upgraded-node state — must run exactly once"
+
+  - do:
+      enrich.stats: {}
+
+  - length: { coordinator_stats: 3 }

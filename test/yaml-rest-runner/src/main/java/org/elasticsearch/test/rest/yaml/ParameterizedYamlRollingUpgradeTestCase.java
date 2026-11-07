@@ -17,11 +17,16 @@ import org.elasticsearch.test.RollingUpgradePerformer;
 import org.elasticsearch.test.RollingUpgradePerformer.ClusterAndClients;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Base class for rolling upgrade YAML suites. YAML suites are run in phases: first the suites from the {@code old_cluster} directory are
@@ -33,6 +38,22 @@ import java.util.List;
  * {@code build.gradle}, otherwise a phase that passed in an earlier build attempt is skipped on retry and the later phase
  * it was setting up fails:
  * <pre>{@code smartRetry.pruneIndividualTests.set(false)}</pre>
+ * <p>
+ * <b>Synthetic cluster features for phase gating</b><br>
+ * The following synthetic feature IDs are injected into the YAML test runner so that individual test sections can gate themselves
+ * on the current upgrade phase using {@code requires.cluster_features} or {@code skip.cluster_features}:
+ * <ul>
+ *   <li>{@code rolling_upgrade.old_cluster}: all nodes are still on the old version</li>
+ *   <li>{@code rolling_upgrade.first_mixed_cluster}: exactly one node has been upgraded</li>
+ *   <li>{@code rolling_upgrade.mixed_cluster}: at least one but not all nodes have been upgraded</li>
+ *   <li>{@code rolling_upgrade.upgraded_cluster}: all nodes have been upgraded to the new version</li>
+ * </ul>
+ * Example: run a test only in the second mixed-cluster pass (two nodes upgraded, not one):
+ * <pre>{@code
+ * - skip:
+ *     cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+ *     reason: "Creates durable state — must run exactly once"
+ * }</pre>
  */
 public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYamlSuiteTestCase {
 
@@ -60,21 +81,57 @@ public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYa
      *   <li>upgradedNodes=2 -> {@code mixed_cluster}</li>
      *   <li>upgradedNodes=3 -> {@code upgraded_cluster}</li>
      * </ul>
+     * The per-task scoped {@code tests.rest.suite.<task path>} filter selects suites in every phase, because a
+     * phase depends on the same-named suites of the phases before it.
      */
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
+        String task = System.getProperty("tests.task");
+        String scoped = task == null ? null : System.getProperty(REST_TESTS_SUITE + "." + task);
+        return phaseParameters(scoped, "old_cluster", "mixed_cluster", "mixed_cluster", "upgraded_cluster");
+    }
+
+    // pkg private for tests
+    static List<Object[]> phaseParameters(String scoped, String... testPaths) throws Exception {
+        String suites = expandToEveryPhase(scoped, testPaths);
+        String global = System.getProperty(REST_TESTS_SUITE);
         List<Object[]> result = new ArrayList<>();
-        for (int i = 0; i <= NODE_NUM; i++) {
-            String testPath = switch (i) {
-                case 0 -> "old_cluster";
-                case NODE_NUM -> "upgraded_cluster";
-                default -> "mixed_cluster";
-            };
-            for (Object[] candidate : createParameters(testPath)) {
+        for (int i = 0; i < testPaths.length; i++) {
+            for (Object[] candidate : explicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), suites, global, testPaths[i])) {
                 result.add(new Object[] { i, candidate[0] });
             }
         }
         return result;
+    }
+
+    /**
+     * Adds all phases to each requested path below a phase directory.
+     * {@code mixed_cluster/10_basic} also runs the {@code old_cluster/10_basic} it depends on.
+     */
+    private static String expandToEveryPhase(String scoped, String... testPaths) {
+        if (scoped == null) {
+            return null;
+        }
+        Set<String> paths = new HashSet<>();
+        for (String path : scoped.split(",")) {
+            paths.add(path);
+            String phase = path.split("/", 2)[0];
+            if (List.of(testPaths).contains(phase)) {
+                String belowPhase = path.substring(phase.length());
+                for (String testPath : testPaths) {
+                    if (suiteExists(testPath + belowPhase)) {
+                        paths.add(testPath + belowPhase);
+                    }
+                }
+            }
+        }
+        return String.join(",", paths);
+    }
+
+    private static boolean suiteExists(String path) {
+        String resource = "rest-api-spec/test/" + path;
+        ClassLoader classLoader = ParameterizedYamlRollingUpgradeTestCase.class.getClassLoader();
+        return classLoader.getResource(resource) != null || classLoader.getResource(resource + ".yml") != null;
     }
 
     @Before
@@ -91,6 +148,28 @@ public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYa
     @AfterClass
     public static void resetNodes() {
         rollingUpgrade.reset();
+    }
+
+    /**
+     * Wraps the real {@link TestFeatureService} with synthetic rolling-upgrade phase features so that YAML test sections can use
+     * {@code requires.cluster_features} / {@code skip.cluster_features} to gate themselves on the current upgrade phase.
+     */
+    @Override
+    protected ClientYamlTestExecutionContext createRestTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        Set<String> nodesVersions,
+        TestFeatureService testFeatureService,
+        Set<String> osSet
+    ) {
+        TestFeatureService wrapped = (featureId, any) -> switch (featureId) {
+            case "rolling_upgrade.old_cluster" -> rollingUpgrade.isOldCluster();
+            case "rolling_upgrade.first_mixed_cluster" -> rollingUpgrade.isFirstMixedCluster();
+            case "rolling_upgrade.mixed_cluster" -> rollingUpgrade.isMixedCluster();
+            case "rolling_upgrade.upgraded_cluster" -> rollingUpgrade.isUpgradedCluster();
+            default -> testFeatureService.clusterHasFeature(featureId, any);
+        };
+        return super.createRestTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, nodesVersions, wrapped, osSet);
     }
 
     @Override

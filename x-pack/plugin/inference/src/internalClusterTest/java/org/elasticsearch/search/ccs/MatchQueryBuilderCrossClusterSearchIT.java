@@ -13,7 +13,6 @@ import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.model.TestModel;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -22,8 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-
-import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.deleteInferenceEndpoint;
 
 public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String TEXT_FIELD = "text-field";
@@ -50,18 +47,6 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
     @Before
     public void configureInferenceEndpoints() throws Exception {
         configureClusters();
-    }
-
-    @After
-    public void cleanup() {
-        // The cleanup method of base class only deletes user indices and not the system indices. Hence, we explicitly delete
-        // the inference endpoints so that next test can re-create them with the same inference ID values.
-        for (var entry : localInferenceIds.entrySet()) {
-            deleteInferenceEndpoint(client(LOCAL_CLUSTER), entry.getValue().taskType(), entry.getKey());
-        }
-        for (var entry : remoteInferenceIds.entrySet()) {
-            deleteInferenceEndpoint(client(REMOTE_CLUSTER), entry.getValue().taskType(), entry.getKey());
-        }
     }
 
     public void testMatchQueryWithCcsMinimizeRoundTripsTrue() throws Exception {

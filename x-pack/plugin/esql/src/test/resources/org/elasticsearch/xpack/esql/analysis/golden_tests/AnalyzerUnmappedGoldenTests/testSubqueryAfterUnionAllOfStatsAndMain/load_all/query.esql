@@ -1,0 +1,3 @@
+SET unmapped_fields="LOAD_ALL"; FROM employees,
+    (FROM employees | STATS c = count(*))
+| SORT does_not_exist

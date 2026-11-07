@@ -150,7 +150,9 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         }
         int finalWindowSize = windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
 
-        return innerBuildContext(finalWindowSize, context);
+        RescoreContext rescoreContext = innerBuildContext(finalWindowSize, context);
+        rescoreContext.setName(getWriteableName());
+        return rescoreContext;
     }
 
     /**

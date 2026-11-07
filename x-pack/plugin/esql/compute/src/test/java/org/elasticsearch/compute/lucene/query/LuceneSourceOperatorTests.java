@@ -9,19 +9,42 @@ package org.elasticsearch.compute.lucene.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.CheckedIntConsumer;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocIdStream;
+import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
@@ -37,6 +60,9 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitiveTests;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
@@ -77,6 +103,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
@@ -353,7 +381,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             );
             drivers.add(driver);
         }
-        new TestDriverRunner().run(drivers);
+        new TestDriverRunner().testDriverStatuses(randomBoolean()).run(drivers);
         for (SourceOperator source : sources) {
             logger.info("source status {}", source.status());
         }
@@ -438,6 +466,480 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         logger.info("{} received={} limit={} numResults={}", factory.dataPartitioning, count, limit, testCase.numResults(numDocs));
         assertThat(count, equalTo(Math.min(limit, testCase.numResults(numDocs))));
         testCase.assertSourceOperator(sourceOperator);
+    }
+
+    /**
+     * Simulates the production {@code TopNOperator → SharedMinCompetitive → LuceneSourceOperator}
+     * side channel by publishing a competitive bound directly, then verifies that
+     * {@link MinCompetitiveQuery} narrows Lucene collection via {@code competitiveIterator}.
+     */
+    public void testMinCompetitiveSkipsDocumentsWithDirectBound() throws IOException {
+        int numDocs = 1_000;
+        int limit = 100;
+        int maxPageSize = 50;
+        // Top-10 DESC over s = 0..999 would publish 990 as the worst kept value; docs with s >= 990
+        // are the only ones still competitive.
+        long minCompetitiveBound = numDocs - 10;
+
+        reader = simpleReader(directory, numDocs, /* commitEvery */ 50);
+        ShardContext ctx = new MockShardContext(reader, 0);
+
+        SharedMinCompetitive.Supplier minCompetitiveSupplier = timestampDescMinCompetitiveSupplier(driverContext().blockFactory());
+        SharedMinCompetitiveTests.offerLongDesc(driverContext().blockFactory(), minCompetitiveSupplier, minCompetitiveBound);
+
+        MinCompetitiveQuery.Factory minCompetitiveFactory = new MinCompetitiveQuery.Factory(minCompetitiveSupplier, (ignored, page) -> {
+            LongBlock block = page.getBlock(0);
+            long bound = block.getLong(0);
+            return SortedNumericDocValuesField.newSlowRangeQuery("s", bound, Long.MAX_VALUE);
+        });
+
+        LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            ignored -> TestCase.MATCH_ALL.queryAndExtra(),
+            DataPartitioning.SHARD,
+            DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            1,
+            maxPageSize,
+            limit,
+            false,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT,
+            minCompetitiveFactory
+        );
+
+        DriverContext driverContext = driverContext();
+        List<Page> results = new ArrayList<>();
+        LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(driverContext);
+        new TestDriverRunner().run(
+            TestDriverFactory.create(driverContext, sourceOperator, List.of(), new TestResultPageSinkOperator(results::add))
+        );
+        OperatorTestCase.assertDriverContext(driverContext);
+
+        int collectedRows = results.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat(collectedRows, equalTo(10));
+        assertThat(collectedRows, lessThan(limit));
+
+        LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) sourceOperator.status();
+        MinCompetitiveQuery.Status minCompetitive = status.minCompetitive();
+        assertThat(minCompetitive, notNullValue());
+        assertThat(minCompetitive.greaterThanMinCompetitive(), greaterThan(0));
+        assertThat(minCompetitive.updateInvocations(), greaterThan(0));
+
+        for (Page page : results) {
+            page.releaseBlocks();
+        }
+        SharedMinCompetitive channel = minCompetitiveSupplier.get();
+        channel.close();
+        channel.close();
+    }
+
+    /**
+     * Two operators share one {@link org.elasticsearch.compute.operator.Limiter}. Operator A buffers fewer than {@code minPageSize}
+     * docs from the sparse {@code [0,100]} slice (already charged to the limiter) while operator B drains the rest of the limit;
+     * A must still emit its buffered docs instead of reporting itself finished, otherwise the query returns fewer rows than LIMIT.
+     */
+    public void testBufferedDocsEmittedWhenSiblingDrainsLimiter() throws IOException {
+        int maxPageSize = 400;
+        int limit = 1103;
+        // segments: {0}, {1..2000}, {2001..3999} - segment 1 is wider than maxPageSize so the 100 matches of [0,100] stay buffered
+        reader = readerWithCommitsAfter(directory, 4000, 0, 2000);
+        ShardContext ctx = new MockShardContext(reader, 0);
+        LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            ignored -> TestCase.LTE_100_GT_100.queryAndExtra(),
+            DataPartitioning.SHARD,
+            DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            2,
+            maxPageSize,
+            limit,
+            scoring,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
+        );
+        assertThat(factory.taskConcurrency(), equalTo(2));
+
+        List<Page> pagesA = new ArrayList<>();
+        List<Page> pagesB = new ArrayList<>();
+        try (SourceOperator a = factory.get(driverContext()); SourceOperator b = factory.get(driverContext())) {
+            Page fromSegment0 = a.getOutput();
+            pagesA.add(fromSegment0);
+            assertThat(fromSegment0.getPositionCount(), equalTo(1));
+            Page buffered = a.getOutput();
+            if (buffered != null) {
+                pagesA.add(buffered);
+            }
+            assertThat(buffered, nullValue());
+            assertThat(a.isFinished(), equalTo(false));
+
+            int fromB = drainLikeDriver(b, pagesB);
+            assertThat(fromB, equalTo(limit - 1 - 100));
+
+            int fromA = fromSegment0.getPositionCount() + drainLikeDriver(a, pagesA);
+            assertThat(fromA + fromB, equalTo(limit));
+            assertThat(fromA, equalTo(101));
+            assertThat(a.isFinished(), equalTo(true));
+
+            assertAllTagged(pagesA, 123);
+            assertAllTagged(pagesB, 456);
+            Page flushed = pagesA.get(pagesA.size() - 1);
+            assertThat(flushed.getPositionCount(), equalTo(100));
+            DocVector docs = ((DocBlock) flushed.getBlock(0)).asVector();
+            assertThat(docs.segments().getInt(0), equalTo(1));
+            for (int p = 0; p < flushed.getPositionCount(); p++) {
+                assertThat(docs.docs().getInt(p), equalTo(p));
+            }
+            if (scoring) {
+                DoubleBlock scores = flushed.getBlock(1);
+                assertThat(scores.getPositionCount(), equalTo(100));
+                for (int p = 0; p < scores.getPositionCount(); p++) {
+                    assertThat(scores.getDouble(p), equalTo(1.0));
+                }
+            }
+        } finally {
+            for (Page page : pagesA) {
+                page.releaseBlocks();
+            }
+            for (Page page : pagesB) {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    private static void assertAllTagged(List<Page> pages, int tag) {
+        for (Page page : pages) {
+            IntBlock tags = page.getBlock(page.getBlockCount() - 1);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                assertThat(tags.getInt(p), equalTo(tag));
+            }
+        }
+    }
+
+    private static int drainLikeDriver(SourceOperator op, List<Page> into) {
+        int rows = 0;
+        while (op.isFinished() == false) {
+            Page page = op.getOutput();
+            if (page != null) {
+                into.add(page);
+                rows += page.getPositionCount();
+            }
+        }
+        return rows;
+    }
+
+    private static IndexReader readerWithCommitsAfter(Directory directory, int numDocs, int... commitAfter) throws IOException {
+        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+            for (int d = 0; d < numDocs; d++) {
+                Document doc = new Document();
+                doc.add(new SortedNumericDocValuesField("s", d));
+                writer.addDocument(doc);
+                for (int c : commitAfter) {
+                    if (c == d) {
+                        writer.commit();
+                    }
+                }
+            }
+            writer.commit();
+        }
+        return DirectoryReader.open(directory);
+    }
+
+    /**
+     * One weight serves every leaf of a shard, so the operator renders its query for the status once, however many leaves it reads.
+     */
+    public void testRendersTheQueryOnce() throws IOException {
+        int numDocs = 1_000;
+        reader = simpleReader(directory, numDocs, /* commitEvery */ 50);
+        assertThat(reader.leaves().size(), greaterThan(1));
+        ShardContext ctx = new MockShardContext(reader, 0);
+        RenderCountingQuery query = new RenderCountingQuery();
+        LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            ignored -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            DataPartitioning.SEGMENT,
+            DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            1,
+            between(10, 100),
+            LuceneOperator.NO_LIMIT,
+            scoring,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
+        );
+        DriverContext driverContext = driverContext();
+        LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(driverContext);
+        List<Page> results = new ArrayList<>();
+        new TestDriverRunner().run(
+            TestDriverFactory.create(driverContext, sourceOperator, List.of(), new TestResultPageSinkOperator(results::add))
+        );
+        OperatorTestCase.assertDriverContext(driverContext);
+
+        int rows = 0;
+        for (Page page : results) {
+            rows += page.getPositionCount();
+            page.releaseBlocks();
+        }
+        assertThat(rows, equalTo(numDocs));
+        LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) sourceOperator.status();
+        assertThat(status.processedQueries(), equalTo(List.of("RenderCountingQuery")));
+        assertThat(query.renders.get(), equalTo(1));
+    }
+
+    /**
+     * Runs the operator against a query whose {@link BulkScorer} delivers every scored window through
+     * {@link LeafCollector#collectRange}, the way Lucene's {@code DenseConjunctionBulkScorer} does for dense doc-id runs.
+     * Covers the counted-loop override in {@code LimitingCollector} and the per-document one in {@code ScoringCollector}
+     * (via the {@code scoring} parameter), including the limit cutting a range short.
+     */
+    public void testCollectRange() throws IOException {
+        testBulkCollection(false);
+    }
+
+    /** Same as {@link #testCollectRange} but delivering hits through {@link LeafCollector#collect(DocIdStream)}. */
+    public void testCollectDocIdStream() throws IOException {
+        testBulkCollection(true);
+    }
+
+    private void testBulkCollection(boolean useDocIdStream) throws IOException {
+        int numDocs = 1_000;
+        // Two segments (400 + 600 docs) so bulk ranges restart at doc 0 on the second leaf.
+        reader = readerWithCommitsAfter(directory, numDocs, 399);
+        ShardContext ctx = new MockShardContext(reader, 0);
+        int maxPageSize = 256;
+        // A limit below numDocs cuts a bulk range short mid-window, a limit above never does.
+        for (int limit : new int[] { 700, numDocs * 2 }) {
+            LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+                new IndexedByShardIdFromSingleton<>(ctx),
+                ignored -> List.of(new LuceneSliceQueue.QueryAndTags(new BulkCollectingQuery(useDocIdStream), List.of())),
+                DataPartitioning.SHARD,
+                DataPartitioning.AutoStrategy.DEFAULT,
+                LuceneOperator.SMALL_INDEX_BOUNDARY,
+                1,
+                maxPageSize,
+                limit,
+                scoring,
+                () -> 0L,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                QueryWarnings.EMIT
+            );
+            DriverContext driverContext = driverContext();
+            List<Page> results = new ArrayList<>();
+            new TestDriverRunner().run(
+                TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), new TestResultPageSinkOperator(results::add))
+            );
+            OperatorTestCase.assertDriverContext(driverContext);
+
+            int rows = 0;
+            int lastSegment = -1;
+            int lastDoc = -1;
+            for (Page page : results) {
+                DocVector docs = ((DocBlock) page.getBlock(0)).asVector();
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    int segment = docs.segments().getInt(p);
+                    if (segment != lastSegment) {
+                        assertThat(segment, greaterThan(lastSegment));
+                        lastSegment = segment;
+                        lastDoc = -1;
+                    }
+                    assertThat(docs.docs().getInt(p), equalTo(lastDoc + 1));
+                    lastDoc++;
+                }
+                if (scoring) {
+                    DoubleBlock scores = page.getBlock(1);
+                    assertThat(scores.getPositionCount(), equalTo(page.getPositionCount()));
+                    for (int p = 0; p < scores.getPositionCount(); p++) {
+                        assertThat(scores.getDouble(p), equalTo(1.0));
+                    }
+                }
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            assertThat(rows, equalTo(Math.min(limit, numDocs)));
+        }
+    }
+
+    /**
+     * Match-all query whose {@link BulkScorer} delivers each scored window through a bulk collection entry point —
+     * {@link LeafCollector#collectRange} or {@link LeafCollector#collect(DocIdStream)} — instead of per-document
+     * {@link LeafCollector#collect(int)} calls, emulating {@code DenseConjunctionBulkScorer}'s dense-run shortcut.
+     * {@code Weight#bulkScorer} is final, so the hook is {@link ScorerSupplier#bulkScorer}.
+     */
+    private static class BulkCollectingQuery extends Query {
+        private final boolean useDocIdStream;
+
+        BulkCollectingQuery(boolean useDocIdStream) {
+            this.useDocIdStream = useDocIdStream;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+            return new ConstantScoreWeight(this, boost) {
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                    int maxDoc = context.reader().maxDoc();
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) {
+                            return new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(maxDoc));
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() {
+                            return new BulkScorer() {
+                                @Override
+                                public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                                    collector.setScorer(new Scorable() {
+                                        @Override
+                                        public float score() {
+                                            return 1f;
+                                        }
+                                    });
+                                    int end = Math.min(max, maxDoc);
+                                    if (min < end) {
+                                        if (useDocIdStream) {
+                                            collector.collect(new RangeStream(min, end));
+                                        } else {
+                                            collector.collectRange(min, end);
+                                        }
+                                    }
+                                    return end >= maxDoc ? DocIdSetIterator.NO_MORE_DOCS : end;
+                                }
+
+                                @Override
+                                public long cost() {
+                                    return maxDoc;
+                                }
+                            };
+                        }
+
+                        @Override
+                        public long cost() {
+                            return maxDoc;
+                        }
+                    };
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext leafReaderContext) {
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "BulkCollectingQuery";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj) && ((BulkCollectingQuery) obj).useDocIdStream == useDocIdStream;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * classHash() + Boolean.hashCode(useDocIdStream);
+        }
+    }
+
+    /**
+     * Match-all query that counts how often it is rendered. Its weight reports this query, so the operator renders this one.
+     */
+    private static class RenderCountingQuery extends Query {
+        private final AtomicInteger renders = new AtomicInteger();
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new FilterWeight(this, Queries.ALL_DOCS_INSTANCE.createWeight(searcher, scoreMode, boost)) {};
+        }
+
+        @Override
+        public String toString(String field) {
+            renders.incrementAndGet();
+            return "RenderCountingQuery";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
+        }
+    }
+
+    /** A {@link DocIdStream} over a contiguous doc-id range. Lucene's own range stream is package-private. */
+    private static class RangeStream extends DocIdStream {
+        /**
+         * {@link #intoArray} deliberately copies at most this many doc ids per call — a partial batch is legal ("copy
+         * some matching doc IDs") — so the collector's {@code forEach} tail after {@code intoArray} is exercised too.
+         */
+        private static final int INTO_ARRAY_CHUNK = 100;
+
+        private int next;
+        private final int end; // exclusive
+
+        RangeStream(int min, int end) {
+            this.next = min;
+            this.end = end;
+        }
+
+        @Override
+        public void forEach(int upTo, CheckedIntConsumer<IOException> consumer) throws IOException {
+            int bound = Math.min(upTo, end);
+            while (next < bound) {
+                consumer.accept(next++);
+            }
+        }
+
+        @Override
+        public int count(int upTo) {
+            int bound = Math.min(upTo, end);
+            int count = Math.max(0, bound - next);
+            next += count;
+            return count;
+        }
+
+        @Override
+        public int intoArray(int upTo, int[] array) {
+            int bound = Math.min(upTo, end);
+            int count = Math.min(Math.min(array.length, INTO_ARRAY_CHUNK), Math.max(0, bound - next));
+            for (int i = 0; i < count; i++) {
+                array[i] = next++;
+            }
+            return count;
+        }
+
+        @Override
+        public boolean mayHaveRemaining() {
+            return next < end;
+        }
+    }
+
+    private static SharedMinCompetitive.Supplier timestampDescMinCompetitiveSupplier(BlockFactory blockFactory) {
+        SharedMinCompetitive.KeyConfig keyConfig = new SharedMinCompetitive.KeyConfig(
+            ElementType.LONG,
+            TopNEncoder.DEFAULT_SORTABLE,
+            false,
+            false
+        );
+        return new SharedMinCompetitive.Supplier(blockFactory.breaker(), List.of(keyConfig));
     }
 
     public void testAccumulateSearchLoad() throws IOException {

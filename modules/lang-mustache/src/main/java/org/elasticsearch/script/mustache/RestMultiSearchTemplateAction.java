@@ -16,6 +16,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -62,12 +64,22 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        if (client.threadPool() != null && client.threadPool().getThreadContext() != null) {
+            client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
+        }
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
-        return channel -> client.execute(
-            MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION,
-            multiRequest,
-            new RestRefCountedChunkedToXContentListener<>(channel)
-        );
+        return channel -> {
+            final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancellableClient.execute(
+                MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION,
+                multiRequest,
+                RestActions.wrapWithSearchMetricsHeader(
+                    client.threadPool().getThreadContext(),
+                    MultiSearchTemplateResponse::mergeDirectoryMetrics,
+                    new RestRefCountedChunkedToXContentListener<>(channel)
+                )
+            );
+        };
     }
 
     /**

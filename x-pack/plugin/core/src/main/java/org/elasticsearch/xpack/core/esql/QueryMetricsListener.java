@@ -22,21 +22,42 @@ public interface QueryMetricsListener {
     QueryMetricsListener NOOP = metrics -> {};
 
     /**
-     * Time spent on planning, from queryProfile.planning()
+     * Wall-clock time spent on planning, from queryProfile.planning(). Includes I/O and transport waits: object-store
+     * listings and metadata reads, field caps, enrich and inference round trips.
      */
     String PLANNING_NANOS = "planning_nanos";
     /**
-     * Time spent by drivers on compute, from result.completionInfo().cpuNanos()
+     * CPU time spent on planning (no I/O wait), from queryProfile.planningCpuNanos()
+     */
+    String PLANNING_CPU_NANOS = "planning_cpu_nanos";
+    /**
+     * Thread CPU time spent by drivers on compute, from result.completionInfo().cpuNanos(). Includes CPU time
+     * operators meter on other threads for their driver, such as parallel aggregation workers and the connector producer
+     * threads of {@code AsyncConnectorSourceOperatorFactory}. File-based format-reader producer threads are counted in
+     * {@link #READ_CPU_NANOS} instead.
      */
     String CPU_NANOS = "cpu_nanos";
+    /**
+     * Time drivers held a thread, from result.completionInfo().driverNanos(). Unlike {@link #CPU_NANOS} this includes
+     * time waiting for a core, GC pauses and time blocked inside an operator.
+     */
+    String DRIVER_NANOS = "driver_nanos";
     /**
      * Time spent by drivers on reading data, from result.completionInfo().readNanos()
      */
     String READ_NANOS = "read_nanos";
     /**
+     * CPU time spent by drivers on reading data (no IO wait), from result.completionInfo().readCpuNanos()
+     */
+    String READ_CPU_NANOS = "read_cpu_nanos";
+    /**
      * Time spent on discovering splits, from queryProfile.splitDiscoveryNanos()
      */
     String SPLIT_DISCOVERY_NANOS = "split_discovery_nanos";
+    /**
+     * CPU time spent discovering splits (no IO wait), from queryProfile.splitDiscoveryCpuNanos()
+     */
+    String SPLIT_DISCOVERY_CPU_NANOS = "split_discovery_cpu_nanos";
     /**
      * Bytes read by the query, both from external sources and Lucene.
      */

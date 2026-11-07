@@ -68,9 +68,14 @@ steps:
         timeout_in_minutes: 300
         retry:
           automatic:
+            - exit_status: -1
+              limit: 2
+              signal_reason: none
             - exit_status: 47
               limit: 3
               signal_reason: none
+            - signal_reason: agent_stop
+              limit: 2
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

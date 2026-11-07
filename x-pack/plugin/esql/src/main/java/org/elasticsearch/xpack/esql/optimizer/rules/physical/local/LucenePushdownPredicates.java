@@ -18,9 +18,10 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.querydsl.query.BestEffortQueryBuilder;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 /**
@@ -64,16 +65,71 @@ public interface LucenePushdownPredicates {
     boolean hasExactSubfield(FieldAttribute attr);
 
     /**
-     * For pushing down TopN and for pushing down filters with SingleValueQuery,
-     * we need to check if the field is indexed and has doc values.
+     * Whether every shard here can query this field from its values, as TopN and filters with SingleValueQuery need.
      */
-    boolean isIndexedAndHasDocValues(FieldAttribute attr);
+    boolean isQueryable(FieldAttribute attr);
 
     /**
      * For pushing down filters when multi-value results are allowed (spatial functions like ST_INTERSECTS),
      * we only need to know if the field is indexed.
      */
     boolean isIndexed(FieldAttribute attr);
+
+    /**
+     * These predicates, as if every shard could query the fields it holds, to push a filter to every shard, which runs it as well as
+     * it can (see {@link BestEffortQueryBuilder}). Each shard checks the field the query reads, so a field read through another, such
+     * as a {@code text} field through its {@code keyword} sub-field, keeps the decision of the node, and no shard holds a union type
+     * as the type it is converted to.
+     */
+    default LucenePushdownPredicates bestEffort() {
+        LucenePushdownPredicates predicates = this;
+        return new LucenePushdownPredicates() {
+            @Override
+            public TransportVersion minTransportVersion() {
+                return predicates.minTransportVersion();
+            }
+
+            @Override
+            public EsqlFlags flags() {
+                return predicates.flags();
+            }
+
+            @Override
+            public boolean hasExactSubfield(FieldAttribute attr) {
+                return predicates.hasExactSubfield(attr);
+            }
+
+            @Override
+            public boolean isQueryable(FieldAttribute attr) {
+                boolean readItself = attr.getExactInfo().hasExact() && attr.exactAttribute() == attr;
+                return (readItself && attr.field() instanceof UnionTypeEsField == false) || predicates.isQueryable(attr);
+            }
+
+            @Override
+            public boolean isIndexed(FieldAttribute attr) {
+                return predicates.isIndexed(attr);
+            }
+
+            @Override
+            public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+                return predicates.canUseEqualityOnSyntheticSourceDelegate(attr, value);
+            }
+
+            @Override
+            public boolean supportsLoaderConfig(
+                FieldAttribute field,
+                BlockLoaderFunctionConfig config,
+                MappedFieldType.FieldExtractPreference preference
+            ) {
+                return predicates.supportsLoaderConfig(field, config, preference);
+            }
+
+            @Override
+            public boolean hasValueQueries(FieldAttribute attr) {
+                return predicates.hasValueQueries(attr);
+            }
+        };
+    }
 
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
 
@@ -87,6 +143,30 @@ public interface LucenePushdownPredicates {
     boolean supportsLoaderConfig(FieldAttribute field, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
 
     /**
+     * Whether a predicate over this attribute's value can be answered from the values its doc values hold, which a
+     * {@code text} field keeping its values in a column can do. The index of such a field holds no exact form of the
+     * value - only the tokens it analyzes into - so this is the one way a predicate over it is pushed.
+     */
+    boolean hasValueQueries(FieldAttribute attr);
+
+    /**
+     * Whether a predicate over this attribute's value can be pushed to Lucene at all: either it is pushable as it
+     * stands - an exact form its index holds, or a metadata attribute - or its values answer the query themselves.
+     */
+    default boolean isPushableValueAttribute(Expression exp) {
+        if (isPushableAttribute(exp)) {
+            return true;
+        }
+        // A field the block loader synthesizes keeps no values of its own. A union-typed field keeps values of the type each
+        // index mapped, and the plan asks about the type they are converted to on load, so the values a column holds are not
+        // the ones the predicate names.
+        return exp instanceof FieldAttribute fa
+            && fa.field() instanceof FunctionEsField == false
+            && fa.field() instanceof UnionTypeEsField == false
+            && hasValueQueries(fa);
+    }
+
+    /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
      * as well as normal <code>FieldAttribute</code>'s which can only be pushed down if they are indexed.
@@ -95,18 +175,23 @@ public interface LucenePushdownPredicates {
      * support it, and relying on the compute engine for the nodes that do not.
      */
     default boolean isPushableFieldAttribute(Expression exp) {
-        // Potentially unmapped fields are not pushable: the field may be unmapped on some shards, and pushing down would produce wrong
-        // results (e.g., missing rows when the predicate is pushed to Lucene).
         // FunctionEsField values are synthesized by the block loader (e.g. LENGTH(kwd), field_extract(...)); there is no indexed Lucene
         // field behind them, so predicates and TopN over them must stay in the compute engine even though they are exact values.
         if (exp instanceof FieldAttribute fa
-            && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
             && fa.field() instanceof FunctionEsField == false
             && fa.getExactInfo().hasExact()
-            && isIndexedAndHasDocValues(fa)) {
+            && isQueryable(fa)) {
             return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);
         }
         return false;
+    }
+
+    /**
+     * Whether this attribute is pushable only over the values it keeps, which decides both the name a query names and
+     * the semantics it asks for: the value whole rather than the tokens a text field's index holds.
+     */
+    static boolean pushesOverValuesOnly(LucenePushdownPredicates predicates, Expression exp) {
+        return predicates.isPushableAttribute(exp) == false && predicates.isPushableValueAttribute(exp);
     }
 
     static boolean isPushableTextFieldAttribute(Expression exp) {
@@ -169,8 +254,8 @@ public interface LucenePushdownPredicates {
             }
 
             @Override
-            public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
-                // Is the FieldType.isAggregatable() check correct here? In FieldType isAggregatable usually only means hasDocValues
+            public boolean isQueryable(FieldAttribute attr) {
+                // Without the shards to ask, what field caps reports: every index that maps the field reads its values
                 return attr.field().isAggregatable();
             }
 
@@ -194,6 +279,12 @@ public interface LucenePushdownPredicates {
 
             @Override
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+                return false;
+            }
+
+            @Override
+            public boolean hasValueQueries(FieldAttribute attr) {
+                // No mapping access during can_match: a field's values are not known to answer anything.
                 return false;
             }
         };
@@ -223,13 +314,18 @@ public interface LucenePushdownPredicates {
             }
 
             @Override
-            public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
-                // We still consider the value of isAggregatable here, because some fields like ScriptFieldTypes are always aggregatable
-                // But this could hide issues with fields that are not indexed but are aggregatable
-                // This is the original behaviour for ES|QL, but is it correct?
-                return attr.field().isAggregatable()
-                    || stats.isIndexed(new FieldAttribute.FieldName(attr.name()))
-                        && stats.hasDocValues(new FieldAttribute.FieldName(attr.name()));
+            public boolean isQueryable(FieldAttribute attr) {
+                // What field caps reports for every index that maps the field, or what the shards of this node resolve it to
+                if (attr.field().isAggregatable()) {
+                    return true;
+                }
+                if (attr.field() instanceof UnionTypeEsField) {
+                    // A union type is converted on load from the type each index maps, so the shards never hold it as the type of the
+                    // column: it is pushed where every shard maps it with an index and doc values, which agree on the query
+                    FieldAttribute.FieldName name = new FieldAttribute.FieldName(attr.name());
+                    return stats.isIndexed(name) && stats.hasDocValues(name);
+                }
+                return stats.isQueryable(attr.fieldName(), attr.dataType(), attr.isPotentiallyUnmapped());
             }
 
             @Override
@@ -249,6 +345,11 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return stats.canUseEqualityOnSyntheticSourceDelegate(attr.fieldName(), value);
+            }
+
+            @Override
+            public boolean hasValueQueries(FieldAttribute attr) {
+                return stats.hasValueQueries(attr.fieldName());
             }
         };
     }

@@ -10,19 +10,22 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 /**
  * Base class for binary doc values queries that match documents using a {@link ByteRunAutomaton}.
  * Stores the automaton so it can be surfaced to {@link QueryVisitor#consumeTermsMatching} for
  * highlighter support, and provides a shared {@link #matchCost()} estimate and {@link #visit} implementation.
  */
-abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocValuesQuery {
+abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocValuesQuery implements Accountable {
 
     final ByteRunAutomaton automaton;
 
-    AbstractBinaryDocValuesAutomatonQuery(String fieldName, ByteRunAutomaton automaton, boolean arrayOrderInlineNull) {
-        super(fieldName, value -> automaton.run(value.bytes, value.offset, value.length), arrayOrderInlineNull);
+    AbstractBinaryDocValuesAutomatonQuery(String fieldName, ByteRunAutomaton automaton, BinaryDocValuesFormat binaryFormat) {
+        super(fieldName, value -> automaton.run(value.bytes, value.offset, value.length), binaryFormat);
         this.automaton = automaton;
     }
 
@@ -31,6 +34,18 @@ abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocVa
         if (visitor.acceptField(fieldName)) {
             visitor.consumeTermsMatching(this, fieldName, () -> automaton);
         }
+    }
+
+    /**
+     * Memory used by the class itself, not including parents and primitive fields.
+     */
+    protected long ownMemoryUsage() {
+        return 0;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return RamUsageEstimator.shallowSizeOf(this) + automaton.ramBytesUsed() + ownMemoryUsage();
     }
 
     @Override

@@ -422,14 +422,18 @@ languages.byte:integer | languages.long:long | languages.short:integer | last_na
 ;
 
 evalWithNull
+required_capability: warn_null_misuse
 from employees | eval nullsum = salary + null | sort nullsum asc, salary desc | keep nullsum, salary | limit 1;
+warning:Line 1:33: Expression [salary + null] always evaluates to NULL.
 
 nullsum:integer | salary:integer
 null | 74999
 ;
 
 evalWithNullAndAvg
+required_capability: warn_null_misuse
 from employees | eval nullsum = salary + null | stats avg(nullsum), count(nullsum);
+warning:Line 1:33: Expression [salary + null] always evaluates to NULL.
 
 avg(nullsum):double | count(nullsum):long
                null | 0

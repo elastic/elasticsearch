@@ -9,9 +9,20 @@
 
 package org.elasticsearch.painless.api;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.text.ReadLimitedCharSequence;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.painless.AllocationEstimators;
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.PainlessScript;
+import org.elasticsearch.script.field.BaseKeywordDocValuesField;
+import org.elasticsearch.script.field.BinaryDocValuesField;
+import org.elasticsearch.script.field.IpDocValuesField;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -1530,11 +1541,49 @@ public class Augmentation {
     }
 
     // CharSequence augmentation
+
+    private static CharSequence wrapRegexReceiver(CharSequence receiver, Pattern pattern, int limitFactor) {
+        // often, the default LimitExceededException is thrown in a place that doesn't know how to handle it.
+        // so ensure we always throw CircuitBreakingException instead of the limit exception
+        return limitFactor == UNLIMITED_PATTERN_FACTOR ? receiver : new ReadLimitedCharSequence(receiver, limitFactor) {
+            @Override
+            protected RuntimeException createLimitException() {
+                return limitExceeded(readLimit, receiver, pattern, limitFactor);
+            }
+        };
+    }
+
+    private static CircuitBreakingException limitExceeded(int readLimit, CharSequence receiver, Pattern pattern, int limitFactor) {
+        final int maxStringOutput = 64;
+        final String dots = "...";
+        String stringOutput = receiver.length() <= maxStringOutput
+            ? receiver.toString()
+            : receiver.subSequence(0, maxStringOutput - dots.length()) + dots;
+
+        return new CircuitBreakingException(
+            "[scripting] Regular expression considered too many characters, "
+                + (pattern != null ? "pattern: [" + pattern.pattern() + "], " : "")
+                + "limit factor: ["
+                + limitFactor
+                + "], "
+                + "char limit: ["
+                + readLimit
+                + "], "
+                + "wrapped: ["
+                + stringOutput
+                + "]"
+                + ", this limit can be changed by the ["
+                + CompilerSettings.REGEX_LIMIT_FACTOR.getKey()
+                + "] setting",
+            CircuitBreaker.Durability.TRANSIENT
+        );
+    }
+
     /**
      * Cancellation-aware {@code replaceAll(Pattern, Function)}.  Similar to {@link Matcher#replaceAll(String)} but lets the script
      * customise the replacement per match.  Two protections layered on top of the JDK call:
      * <ul>
-     *   <li>The receiver is wrapped in {@link LimitedCharSequence} so the regex engine's
+     *   <li>The receiver is wrapped in {@link ReadLimitedCharSequence} so the regex engine's
      *       {@code charAt} reads are bounded by the {@code script.painless.regex.limit-factor}
      *       setting (closing the gap that previously left {@code String.replaceAll(Pattern, Function)}
      *       unprotected against catastrophic backtracking).</li>
@@ -1550,8 +1599,7 @@ public class Augmentation {
         Pattern pattern,
         Function<Matcher, String> replacementBuilder
     ) {
-        CharSequence input = limitFactor == UNLIMITED_PATTERN_FACTOR ? receiver : new LimitedCharSequence(receiver, pattern, limitFactor);
-        Matcher m = pattern.matcher(input);
+        Matcher m = pattern.matcher(wrapRegexReceiver(receiver, pattern, limitFactor));
         if (false == m.find()) {
             // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
@@ -1573,7 +1621,7 @@ public class Augmentation {
 
     /**
      * Regex-limited {@code replaceFirst(Pattern, Function)}.  Similar to {@link Matcher#replaceFirst(String)} but lets the script
-     * customise the replacement based on the match.  The receiver is wrapped in {@link LimitedCharSequence} so the regex engine's
+     * customise the replacement based on the match.  The receiver is wrapped in {@link ReadLimitedCharSequence} so the regex engine's
      * {@code charAt} reads are bounded by the {@code script.painless.regex.limit-factor} setting (same protection as
      * {@link #replaceAll(PainlessScript, CharSequence, int, Pattern, Function)}).  Per-match polling is not added because at most
      * one match is performed.
@@ -1584,8 +1632,7 @@ public class Augmentation {
         Pattern pattern,
         Function<Matcher, String> replacementBuilder
     ) {
-        CharSequence input = limitFactor == UNLIMITED_PATTERN_FACTOR ? receiver : new LimitedCharSequence(receiver, pattern, limitFactor);
-        Matcher m = pattern.matcher(input);
+        Matcher m = pattern.matcher(wrapRegexReceiver(receiver, pattern, limitFactor));
         if (false == m.find()) {
             // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
@@ -1966,31 +2013,19 @@ public class Augmentation {
 
     // Regular Expression Pattern augmentations with limit factor injected
     public static String[] split(Pattern receiver, int limitFactor, CharSequence input) {
-        if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
-            return receiver.split(input);
-        }
-        return receiver.split(new LimitedCharSequence(input, receiver, limitFactor));
+        return receiver.split(wrapRegexReceiver(input, receiver, limitFactor));
     }
 
     public static String[] split(Pattern receiver, int limitFactor, CharSequence input, int limit) {
-        if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
-            return receiver.split(input, limit);
-        }
-        return receiver.split(new LimitedCharSequence(input, receiver, limitFactor), limit);
+        return receiver.split(wrapRegexReceiver(input, receiver, limitFactor), limit);
     }
 
     public static Stream<String> splitAsStream(Pattern receiver, int limitFactor, CharSequence input) {
-        if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
-            return receiver.splitAsStream(input);
-        }
-        return receiver.splitAsStream(new LimitedCharSequence(input, receiver, limitFactor));
+        return receiver.splitAsStream(wrapRegexReceiver(input, receiver, limitFactor));
     }
 
     public static Matcher matcher(Pattern receiver, int limitFactor, CharSequence input) {
-        if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
-            return receiver.matcher(input);
-        }
-        return receiver.matcher(new LimitedCharSequence(input, receiver, limitFactor));
+        return receiver.matcher(wrapRegexReceiver(input, receiver, limitFactor));
     }
 
     /**
@@ -2074,5 +2109,71 @@ public class Augmentation {
 
     public static int getYearOfEra(ZonedDateTime receiver) {
         throw new UnsupportedOperationException("[getYearOfEra] is no longer available; use [get(ChronoField.YEAR_OF_ERA)] instead");
+    }
+
+    // ---- Doc-value reads. The size of a read is only known once it has happened, so these wrap the read and charge the
+    // ---- script afterwards from the real result. A miss returns the default and charges nothing.
+
+    /** {@code ScriptDocValues.Strings.getValue()}, charged its byte copy and String, or its address decode and text for ip. */
+    public static String getValue(PainlessScript script, ScriptDocValues.Strings receiver) {
+        String value = receiver.getValue();
+        script.$checkAllocBytes(stringReadBytes(receiver, value));
+        return value;
+    }
+
+    /** {@code ScriptDocValues.Strings.get(index)}, charged its byte copy and String, or its address decode and text for ip. */
+    public static String get(PainlessScript script, ScriptDocValues.Strings receiver, int index) {
+        String value = receiver.get(index);
+        script.$checkAllocBytes(stringReadBytes(receiver, value));
+        return value;
+    }
+
+    /** Ip doc values hand out text through the same class as keywords, but decode an address before formatting it. */
+    private static long stringReadBytes(ScriptDocValues.Strings receiver, String value) {
+        return receiver.getSupplier() instanceof IpDocValuesField
+            ? AllocationEstimators.ipStringReadBytes(value.length())
+            : AllocationEstimators.termStringBytes(value.length());
+    }
+
+    /** {@code ScriptDocValues.BytesRefs.getValue()}, charged its byte copy. */
+    public static BytesRef getValue(PainlessScript script, ScriptDocValues.BytesRefs receiver) {
+        BytesRef value = receiver.getValue();
+        script.$checkAllocBytes(AllocationEstimators.termCopyBytes(value.length));
+        return value;
+    }
+
+    /** {@code ScriptDocValues.BytesRefs.get(index)}, charged its byte copy. */
+    public static BytesRef get(PainlessScript script, ScriptDocValues.BytesRefs receiver, int index) {
+        BytesRef value = receiver.get(index);
+        script.$checkAllocBytes(AllocationEstimators.termCopyBytes(value.length));
+        return value;
+    }
+
+    /** {@code BaseKeywordDocValuesField.get(defaultValue)}. */
+    public static String get(PainlessScript script, BaseKeywordDocValuesField receiver, String defaultValue) {
+        return get(script, receiver, 0, defaultValue);
+    }
+
+    /** {@code BaseKeywordDocValuesField.get(index, defaultValue)}, charged its byte copy and String unless it is the default. */
+    public static String get(PainlessScript script, BaseKeywordDocValuesField receiver, int index, String defaultValue) {
+        String value = receiver.get(index, defaultValue);
+        if (value != defaultValue) {
+            script.$checkAllocBytes(AllocationEstimators.termStringBytes(value.length()));
+        }
+        return value;
+    }
+
+    /** {@code BinaryDocValuesField.get(defaultValue)}. */
+    public static ByteBuffer get(PainlessScript script, BinaryDocValuesField receiver, ByteBuffer defaultValue) {
+        return get(script, receiver, 0, defaultValue);
+    }
+
+    /** {@code BinaryDocValuesField.get(index, defaultValue)}, charged its byte copy and buffer unless it is the default. */
+    public static ByteBuffer get(PainlessScript script, BinaryDocValuesField receiver, int index, ByteBuffer defaultValue) {
+        ByteBuffer value = receiver.get(index, defaultValue);
+        if (value != defaultValue) {
+            script.$checkAllocBytes(AllocationEstimators.byteBufferBytes(value.remaining()));
+        }
+        return value;
     }
 }

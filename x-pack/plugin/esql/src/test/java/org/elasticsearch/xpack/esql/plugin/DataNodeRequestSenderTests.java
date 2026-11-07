@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.node.Node;
@@ -675,6 +676,22 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Sender sender
     ) {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        newSender(SliceSelection.UNSPECIFIED, allowPartialResults, concurrentRequests, shards, resolver, sender).startComputeOnDataNodes(
+            Set.of(randomAlphaOfLength(10)),
+            () -> {},
+            future
+        );
+        return future;
+    }
+
+    private DataNodeRequestSender newSender(
+        SliceSelection slices,
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        Resolver resolver,
+        Sender sender
+    ) {
         TransportService transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,
@@ -689,7 +706,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
         );
-        new DataNodeRequestSender(
+        return new DataNodeRequestSender(
             null,
             null,
             transportService,
@@ -697,6 +714,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             task,
             new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS),
             null,
+            slices,
             "",
             allowPartialResults,
             concurrentRequests,
@@ -725,8 +743,35 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             ) {
                 sender.sendRequestToOneNode(node, shards, aliasFilters, listener);
             }
-        }.startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, future);
-        return future;
+        };
+    }
+
+    /**
+     * A selection of named slices routes the query to the shards that hold them. Without a slice-enabled index there is
+     * nothing to route by: the filter the selection is derived from matches no document.
+     */
+    public void testSliceSelectionRoutesShardResolution() {
+        Sender unused = (node, shardIds, aliasFilters, listener) -> { throw new AssertionError("no request is expected here"); };
+        Resolver noResolution = shardIds -> { throw new AssertionError("no shard resolution is expected here"); };
+
+        for (boolean anySliceEnabled : List.of(true, false)) {
+            var request = newSender(SliceSelection.UNSPECIFIED, false, 1, List.of(), noResolution, unused).searchShardsRequest(
+                anySliceEnabled
+            );
+            assertNull(request.routing());
+            assertFalse(request.isRoutingFromSlice());
+        }
+
+        var request = newSender(SliceSelection.of(List.of("s1", "s2")), false, 1, List.of(), noResolution, unused).searchShardsRequest(
+            true
+        );
+        assertThat(request.routing(), equalTo("s1,s2"));
+        assertTrue(request.isRoutingFromSlice());
+        assertThat(request.searchSlice(), equalTo("s1,s2"));
+
+        request = newSender(SliceSelection.of(List.of("s1", "s2")), false, 1, List.of(), noResolution, unused).searchShardsRequest(false);
+        assertNull(request.routing());
+        assertFalse(request.isRoutingFromSlice());
     }
 
     interface Resolver {

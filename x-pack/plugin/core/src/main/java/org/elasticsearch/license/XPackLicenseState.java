@@ -87,6 +87,12 @@ public class XPackLicenseState {
         messages.put(XPackField.REDACT_PROCESSOR, new String[] { "Executing a redact processor in an ingest pipeline will fail." });
         messages.put(XPackField.INFERENCE, new String[] { "The Inference API is disabled" });
         messages.put(XPackField.GPU_VECTOR_INDEXING, new String[] { "Indexing using a GPU is disabled." });
+        messages.put(
+            XPackField.ESQL,
+            new String[] {
+                "Creating and querying ES|QL datasets and data sources will be disabled.",
+                "Existing datasets and data sources can still be listed and deleted." }
+        );
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -118,15 +124,12 @@ public class XPackLicenseState {
         switch (newMode) {
             case BASIC:
                 switch (currentMode) {
-                    case STANDARD:
-                        return new String[] { "Security tokens will not be supported." };
                     case TRIAL:
                     case GOLD:
                     case PLATINUM:
                     case ENTERPRISE:
                         return new String[] {
                             "Authentication will be limited to the native and file realms.",
-                            "Security tokens will not be supported.",
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
@@ -251,7 +254,8 @@ public class XPackLicenseState {
     private static String[] esqlAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         /*
          * Provide an acknowledgement warning to customers that downgrade from Trial or Enterprise to a lower
-         * license level (Basic, Standard, Gold or Premium) that they will no longer be able to do CCS in ES|QL.
+         * license level (Basic, Standard, Gold or Premium) that they will no longer be able to do CCS or data
+         * federation in ES|QL.
          */
         switch (newMode) {
             case BASIC:
@@ -261,7 +265,16 @@ public class XPackLicenseState {
                 switch (currentMode) {
                     case TRIAL:
                     case ENTERPRISE:
-                        return new String[] { "ES|QL cross-cluster search will be disabled." };
+                        return new String[] {
+                            "ES|QL cross-cluster search will be disabled.",
+                            "Creating and querying ES|QL datasets and data sources will be disabled."
+                                + " Existing datasets and data sources can still be listed and deleted." };
+                    case BASIC:
+                    case STANDARD:
+                    case GOLD:
+                    case PLATINUM:
+                    case MISSING:
+                        break;
                 }
                 break;
         }

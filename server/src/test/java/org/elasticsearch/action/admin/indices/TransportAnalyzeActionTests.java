@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.admin.indices;
 
+import org.apache.lucene.analysis.CharFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.tests.analysis.MockTokenFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
@@ -49,6 +50,10 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -126,9 +131,26 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 }
             }
 
+            class TrickleCharFilterFactory extends AbstractCharFilterFactory {
+
+                TrickleCharFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+                    super(name);
+                }
+
+                @Override
+                public Reader create(Reader reader) {
+                    return new TrickleCharFilter(reader);
+                }
+
+                @Override
+                public Object sharingKey() {
+                    return this;
+                }
+            }
+
             @Override
             public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
-                return singletonMap("append", AppendCharFilterFactory::new);
+                return Map.of("append", AppendCharFilterFactory::new, "trickle", TrickleCharFilterFactory::new);
             }
 
             @Override
@@ -557,6 +579,102 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * A character filter that exceeds {@code index.analyze.max_char_count} must fail both the non-explain
+     * ({@code simpleAnalyze}) and explain ({@code detailAnalyze}) paths with a 400.
+     */
+    public void testExceedMaxCharCountLimit() {
+        int maxCharCount = 5;
+        String expectedMessage = "The number of characters produced by calling _analyze has exceeded the allowed maximum of ["
+            + maxCharCount
+            + "]."
+            + " This limit can be set by changing the [index.analyze.max_char_count] index level setting.";
+
+        // explain=false -> simpleAnalyze path; "abc" (3 chars) -> "abc0123456789" (13 chars).
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
+        request.tokenizer("standard");
+        request.addCharFilter(Map.of("type", "append", "suffix", "0123456789"));
+        request.text("abc");
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount, maxCharCount)
+        );
+        assertEquals(expectedMessage, e.getMessage());
+
+        // explain=true -> detailAnalyze path, same char filter.
+        AnalyzeAction.Request explainRequest = new AnalyzeAction.Request();
+        explainRequest.tokenizer("standard");
+        explainRequest.addCharFilter(Map.of("type", "append", "suffix", "0123456789"));
+        explainRequest.text("abc");
+        explainRequest.explain(true);
+        ElasticsearchStatusException explainException = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportAnalyzeAction.analyze(explainRequest, registry, mockIndexService(), maxTokenCount, maxCharCount)
+        );
+        assertEquals(expectedMessage, explainException.getMessage());
+    }
+
+    /**
+     * Within {@code index.analyze.max_char_count}, analysis is unaffected and returns the expected tokens.
+     */
+    public void testMaxCharCountNotExceededReturnsTokens() throws IOException {
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
+        request.tokenizer("standard");
+        request.addCharFilter(Map.of("type", "append", "suffix", "foo"));
+        request.text("quick brown"); // appends "foo" -> "quick brownfoo", well under the limit
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount, 1000);
+        List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
+        assertThat(tokens, hasSize(2));
+        assertEquals("quick", tokens.get(0).getTerm());
+        assertEquals("brownfoo", tokens.get(1).getTerm());
+    }
+
+    /**
+     * The limit is exclusive — a value at the limit is accepted, one more is rejected — including the
+     * no-character-filter case where the text itself crosses it.
+     */
+    public void testMaxCharCountBoundary() throws IOException {
+        AnalyzeAction.Request atLimit = new AnalyzeAction.Request();
+        atLimit.tokenizer("standard");
+        atLimit.text("abcde"); // exactly 5 characters
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(atLimit, registry, mockIndexService(), maxTokenCount, 5);
+        assertThat(analyze.getTokens(), hasSize(1));
+        assertEquals("abcde", analyze.getTokens().get(0).getTerm());
+
+        AnalyzeAction.Request overLimit = new AnalyzeAction.Request();
+        overLimit.tokenizer("standard");
+        overLimit.text("abcdef"); // 6 characters
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportAnalyzeAction.analyze(overLimit, registry, mockIndexService(), maxTokenCount, 5)
+        );
+        assertEquals(
+            "The number of characters produced by calling _analyze has exceeded the allowed maximum of [5]."
+                + " This limit can be set by changing the [index.analyze.max_char_count] index level setting.",
+            e.getMessage()
+        );
+    }
+
+    /**
+     * The explain path must drain a character filter fully. With a filter that yields one character per read, the
+     * whole text must still be captured — draining to {@code -1}, not stopping at the first short read.
+     */
+    public void testExplainDrainsCharFilterReaderFully() throws IOException {
+        String text = "the quick brown fox";
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
+        request.tokenizer("keyword");
+        request.addCharFilter(Map.of("type", "trickle"));
+        request.text(text);
+        request.explain(true);
+
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
+
+        AnalyzeAction.CharFilteredText[] charFilters = analyze.detail().charfilters();
+        assertThat(charFilters, arrayWithSize(1));
+        String[] texts = charFilters[0].getTexts();
+        assertThat(texts, arrayContaining(text));
+    }
+
     public void testDeprecationWarnings() throws IOException {
         AnalyzeAction.Request req = new AnalyzeAction.Request();
         req.tokenizer("standard");
@@ -573,5 +691,29 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(1, analyze.getTokens().size());
+    }
+
+    /**
+     * A character filter that returns at most one character per {@link #read} while input remains — the short
+     * reads a drain loop must not mistake for end-of-stream.
+     */
+    private static final class TrickleCharFilter extends CharFilter {
+
+        TrickleCharFilter(Reader input) {
+            super(input);
+        }
+
+        @Override
+        public int read(char[] cbuf, int off, int len) throws IOException {
+            if (len == 0) {
+                return 0;
+            }
+            return input.read(cbuf, off, 1);
+        }
+
+        @Override
+        protected int correct(int currentOff) {
+            return currentOff;
+        }
     }
 }

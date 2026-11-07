@@ -11,6 +11,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.Timestamp;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
@@ -74,16 +76,18 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
 
     @SuppressWarnings({ "unchecked" })
     public Ordinal ordinal(SearchHit hit) {
-        Object ts = timestamp.extract(hit);
-        if (ts instanceof Timestamp == false) {
-            throw new EqlIllegalArgumentException("Expected timestamp as a Timestamp but got {}", ts.getClass());
-        }
+        Timestamp ts = timestamp(hit);
 
         Comparable<Object> tbreaker = null;
         if (tiebreaker != null) {
             Object tb = tiebreaker.extract(hit);
             if (tb != null && tb instanceof Comparable == false) {
-                throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
+                // values come straight from the fields API, so a non-comparable one (a multi-valued field's list) is the data's fault
+                throw new InvalidArgumentException(
+                    "Expected tiebreaker field [{}] to hold a single comparable value but got [{}]",
+                    fieldName(tiebreaker),
+                    tb
+                );
             }
             tbreaker = (Comparable<Object>) tb;
         }
@@ -93,7 +97,7 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
             throw new EqlIllegalArgumentException("Expected _shard_doc/implicit tiebreaker as long but got [{}]", implicitTbreaker);
         }
         long timebreakerValue = ((Number) implicitTbreaker).longValue();
-        return new Ordinal((Timestamp) ts, tbreaker, timebreakerValue);
+        return new Ordinal(ts, tbreaker, timebreakerValue);
     }
 
     public boolean missing() {
@@ -102,10 +106,25 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
 
     public Timestamp timestamp(SearchHit hit) {
         Object ts = timestamp.extract(hit);
-        if (ts instanceof Timestamp == false) {
-            throw new EqlIllegalArgumentException("Expected timestamp as a Timestamp but got {}", ts.getClass());
+        if (ts instanceof Timestamp t) {
+            return t;
         }
-        return (Timestamp) ts;
+        // Only a single date or date_nanos value extracts as a Timestamp, so anything else stems from the data or its mapping
+        if (ts == null) {
+            throw new InvalidArgumentException(
+                "Expected timestamp field [{}] to have a value but got none; check that [_source] is enabled and includes the field",
+                fieldName(timestamp)
+            );
+        }
+        throw new InvalidArgumentException(
+            "Expected timestamp field [{}] to be mapped as [date] or [date_nanos] and to hold a single value but got [{}]",
+            fieldName(timestamp),
+            ts
+        );
+    }
+
+    private static String fieldName(HitExtractor extractor) {
+        return extractor instanceof AbstractFieldHitExtractor fieldExtractor ? fieldExtractor.fieldName() : String.valueOf(extractor);
     }
 
     @Override

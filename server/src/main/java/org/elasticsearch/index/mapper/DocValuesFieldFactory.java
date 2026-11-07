@@ -25,7 +25,7 @@ import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrder
  * {@code SortedSetSortField}) requires SORTED_NUMERIC / SORTED_SET doc values at segment-merge time.
  * <p>
  * Single-valuedness for {@code multi_value=false} fields is enforced at parse time via
- * {@link FieldMapper#isSingleValueEnforced()}, not by the Lucene doc-values type.
+ * {@link FieldMapper#shouldEnforceSingleValue(org.elasticsearch.xcontent.XContentParser.Token)}, not by the Lucene doc-values type.
  * <p>
  * The {@code multi_value} flag only governs binary doc values ({@link BinaryDocValuesField} vs
  * {@link MultiValuedBinaryDocValuesField}), where the distinction is irrelevant to index sorting.

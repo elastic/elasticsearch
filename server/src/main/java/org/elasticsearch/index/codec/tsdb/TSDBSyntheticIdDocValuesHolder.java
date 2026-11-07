@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
@@ -46,6 +47,7 @@ class TSDBSyntheticIdDocValuesHolder {
     private final @Nullable FieldInfo tombstoneFieldInfo;
     private final @Nullable FieldInfo softDeletesFieldInfo;
     private final DocValuesProducer docValuesProducer;
+    private final int maxDocs;
     private final boolean hasTsIdSkipper;
     private final boolean hasTimestampSkipper;
 
@@ -54,13 +56,19 @@ class TSDBSyntheticIdDocValuesHolder {
     private SortedDocValues tsIdDocValues; // sorted asc. order
     private NumericDocValues tombstoneDocValues;
     private NumericDocValues softDeletesDocValues;
+    // Resolved once; null when the layout only supports iteration.
+    private RandomAccessNumericValues randomAccessTimestamps;
+    private boolean randomAccessTimestampsResolved;
+    private RandomAccessNumericValues randomAccessTsIdOrds;
+    private boolean randomAccessTsIdOrdsResolved;
     // tsids in the same segment have the same length
     private int tsidFixedLength = -1;
     // Keep around the latest tsId ordinal and value
     private int cachedTsIdOrd = -1;
     private BytesRef cachedTsId;
 
-    TSDBSyntheticIdDocValuesHolder(FieldInfos fieldInfos, DocValuesProducer docValuesProducer) {
+    TSDBSyntheticIdDocValuesHolder(FieldInfos fieldInfos, DocValuesProducer docValuesProducer, int maxDocs) {
+        this.maxDocs = maxDocs;
         this.tsIdFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ID);
         this.timestampFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TIMESTAMP);
         this.routingHashFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ROUTING_HASH);
@@ -219,7 +227,7 @@ class TSDBSyntheticIdDocValuesHolder {
      * </p>
      */
     int findFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
-        final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
+        int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
         assert startDocId != DocIdSetIterator.NO_MORE_DOCS : startDocId;
 
         // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
@@ -230,6 +238,16 @@ class TSDBSyntheticIdDocValuesHolder {
         }
         assert 0 <= tsIdOrd : tsIdOrd;
         assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
+
+        final int bisected = bisectFirstDocWithTsIdOrdinalAtLeast(startDocId, tsIdOrd);
+        if (bisected == DocIdSetIterator.NO_MORE_DOCS) {
+            cachedTsIdOrd = -1;
+            cachedTsId = null;
+            return DocIdSetIterator.NO_MORE_DOCS;
+        }
+        if (bisected >= 0) {
+            startDocId = bisected;
+        }
 
         for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
             // Skip documents without _tsid (NOOP tombstones)
@@ -259,7 +277,7 @@ class TSDBSyntheticIdDocValuesHolder {
      * </p>
      */
     int findFirstDocWithTsIdOrdinalEqualTo(int tsIdOrd) throws IOException {
-        final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
+        int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
         assert startDocId != DocIdSetIterator.NO_MORE_DOCS : startDocId;
 
         // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
@@ -270,6 +288,16 @@ class TSDBSyntheticIdDocValuesHolder {
         }
         assert 0 <= tsIdOrd : tsIdOrd;
         assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
+
+        final int bisected = bisectFirstDocWithTsIdOrdinalAtLeast(startDocId, tsIdOrd);
+        if (bisected == DocIdSetIterator.NO_MORE_DOCS) {
+            cachedTsIdOrd = -1;
+            cachedTsId = null;
+            return DocIdSetIterator.NO_MORE_DOCS;
+        }
+        if (bisected >= 0) {
+            startDocId = bisected;
+        }
 
         for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
             // Skip documents without _tsid (NOOP tombstones)
@@ -301,6 +329,54 @@ class TSDBSyntheticIdDocValuesHolder {
         var skipper = docValuesProducer.getSkipper(timestampFieldInfo);
         assert skipper != null;
         return skipper;
+    }
+
+    /** Returns a random access reader over the timestamp column, or {@code null} if it only supports iteration. */
+    @Nullable
+    RandomAccessNumericValues randomAccessTimestamps() throws IOException {
+        if (randomAccessTimestampsResolved == false) {
+            randomAccessTimestampsResolved = true;
+            // Single valued, so the sorted numeric wraps a plain numeric column.
+            var unwrapped = DocValues.unwrapSingleton(docValuesProducer.getSortedNumeric(timestampFieldInfo));
+            if (unwrapped instanceof RandomAccessNumericValues.Provider provider) {
+                randomAccessTimestamps = provider.tryRandomAccess();
+            }
+        }
+        return randomAccessTimestamps;
+    }
+
+    /** Returns a random access reader over the _tsid ordinals, or {@code null} if the column only supports iteration. */
+    @Nullable
+    private RandomAccessNumericValues randomAccessTsIdOrdinals() throws IOException {
+        if (randomAccessTsIdOrdsResolved == false) {
+            randomAccessTsIdOrdsResolved = true;
+            if (docValuesProducer.getSorted(tsIdFieldInfo) instanceof RandomAccessNumericValues.Provider provider) {
+                randomAccessTsIdOrds = provider.tryRandomAccess();
+            }
+        }
+        return randomAccessTsIdOrds;
+    }
+
+    /**
+     * Returns the first document at or after {@code startDocID} whose _tsid ordinal is at least {@code tsIdOrd}, found by
+     * bisection since ordinals ascend with document id, or {@code -1} when the column only supports iteration.
+     */
+    private int bisectFirstDocWithTsIdOrdinalAtLeast(int startDocID, int tsIdOrd) throws IOException {
+        final var ords = randomAccessTsIdOrdinals();
+        if (ords == null) {
+            return -1;
+        }
+        int lo = startDocID;
+        int hi = maxDocs;
+        while (lo < hi) {
+            final int mid = (lo + hi) >>> 1;
+            if (ords.valueAt(mid) < tsIdOrd) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo == maxDocs ? DocIdSetIterator.NO_MORE_DOCS : lo;
     }
 
     int getTsIdValueCount() throws IOException {

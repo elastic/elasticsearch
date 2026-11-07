@@ -38,6 +38,10 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
 
     private final InsertDefaultInnerTimeSeriesAggregate rule = new InsertDefaultInnerTimeSeriesAggregate();
 
+    public InsertDefaultInnerTimeSeriesAggregateTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testSimpleImplicitOverTime() {
         assertStatsEqual("network.bytes_in", "last_over_time(network.bytes_in)");
         assertStatsEqual("sum(network.bytes_in)", "sum(last_over_time(network.bytes_in))");
@@ -116,7 +120,8 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
             List.of(aggregate),
             null,
             timestamp,
-            TimeSeriesAggregate.Origin.TS_COMMAND
+            TimeSeriesAggregate.Origin.TS_COMMAND,
+            false
         );
 
         // Must not throw; the unresolved sort should be left untouched for the Verifier to report.
@@ -155,7 +160,8 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
             List.of(aggregate),
             null,
             timestamp,
-            TimeSeriesAggregate.Origin.TS_COMMAND
+            TimeSeriesAggregate.Origin.TS_COMMAND,
+            false
         );
 
         // Must not throw; the unresolved sort should be left untouched for the Verifier to report.

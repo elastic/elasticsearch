@@ -34,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
@@ -70,7 +71,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
-import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Locale;
@@ -228,6 +228,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
             GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
+            ByteSizeValue.ofMb(1).getBytes(),
             BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(1), 3, TimeValue.timeValueSeconds(1)),
             new GcsRepositoryStatsCollector(),
             null,
@@ -665,16 +666,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             container.writeBlob(randomPurpose(), key, new BytesArray(updatedValue), false);
 
             // Read the rest of the stream, it should throw because the contents changed
-            String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
-            assertThat(
-                message,
-                startsWith(
-                    "Blob object ["
-                        + container.path().buildAsString()
-                        + key
-                        + "] generation [1] unavailable on resume (contents changed, or object deleted):"
-                )
-            );
+            String message = assertThrows(BlobVersionMismatchException.class, () -> readFully(inputStream)).getMessage();
+            assertThat(message, startsWith("blob [" + container.path().buildAsString() + key + "] version [1] is no longer available"));
         }
     }
 

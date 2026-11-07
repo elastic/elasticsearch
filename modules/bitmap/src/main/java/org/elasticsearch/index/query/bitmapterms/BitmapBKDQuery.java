@@ -106,10 +106,11 @@ public class BitmapBKDQuery extends Query implements Accountable {
                     return null;
                 }
 
+                // Read once and shared: every member that reports a cost returns this, and the streaming
+                // scan also carries it as its own DocIdSetIterator cost.
+                final long estimatedCost = estimateCost(pointValues.getDocCount(), segmentMin, segmentMax);
+
                 if (streams(reader, pointValues)) {
-                    // Both members below need it: cost() returns it, and the scan reports it as its own
-                    // DocIdSetIterator cost. Computing it inside cost() would only compute it twice.
-                    final long estimatedCost = estimateCost(pointValues.getDocCount(), segmentMin, segmentMax);
                     return new ScorerSupplier() {
                         @Override
                         public Scorer get(long leadCost) throws IOException {
@@ -133,8 +134,6 @@ public class BitmapBKDQuery extends Query implements Accountable {
                 }
 
                 return new ScorerSupplier() {
-                    long cost = -1;
-
                     @Override
                     public Scorer get(long leadCost) throws IOException {
                         DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), pointValues);
@@ -144,12 +143,7 @@ public class BitmapBKDQuery extends Query implements Accountable {
 
                     @Override
                     public long cost() {
-                        if (cost == -1) {
-                            // estimateDocCount only ever calls compare(), so the plain merge visitor is
-                            // enough here and no DocIdSetBuilder need be allocated.
-                            cost = pointValues.estimateDocCount(new MergePointVisitor());
-                        }
-                        return cost;
+                        return estimatedCost;
                     }
                 };
             }
@@ -186,17 +180,18 @@ public class BitmapBKDQuery extends Query implements Accountable {
     }
 
     /**
-     * Rough per-segment cost for the streaming path, from segment metadata alone: the bitmap's cardinality
-     * scaled by the average documents per distinct value, clamped to the segment's doc count. That factor is
-     * not 1 just because the field is single-valued &mdash; that bounds values per document, not documents
-     * per value, and many documents may share one. Spreading the documents evenly across the segment's value
-     * span is the only way to get it without reading the tree, since BKD records no distinct-value count.
+     * Rough per-segment cost, from segment metadata alone: the bitmap's cardinality scaled by the average
+     * documents per distinct value, clamped to the segment's doc count. That factor is not 1 just because
+     * the field is single-valued &mdash; that bounds values per document, not documents per value, and many
+     * documents may share one. Spreading the documents evenly across the segment's value span is the only
+     * way to get it without reading the tree, since BKD records no distinct-value count.
      * <p>
-     * {@link PointValues#estimateDocCount} is more accurate and is what the collecting path uses, but it
-     * walks the tree, and a bitmap of scattered values crosses most cells so that walk reaches nearly
-     * every leaf. The collecting path can afford it because it is about to traverse the tree anyway; the
-     * streaming path is built not to, and the built {@code DocIdSet} that would go on to report the true
-     * cost never exists.
+     * {@link PointValues#estimateDocCount} is more accurate, but it walks the tree, and a bitmap of
+     * scattered values crosses most cells so that walk reaches nearly every leaf. A {@code bool} query asks
+     * for a cost in order to decide which clause to lead with, so paying it there means traversing once to
+     * plan and again to execute &mdash; which is the work {@code cost()} is asked in order to avoid. The
+     * streaming path never traverses eagerly at all, and the {@code DocIdSet} that would go on to report a
+     * true cost never exists there.
      * <p>
      * Even spread is a crude assumption. A field holding dense ids plus one distant outlier has a span far
      * wider than its populated range, which flattens the average to one document per value and makes the
@@ -224,13 +219,12 @@ public class BitmapBKDQuery extends Query implements Accountable {
      * sides are scanned at most once, giving O(N_index_leaves + N_bitmap_values) total work across the
      * entire tree.
      * <p>
-     * This half decides <em>which cells match</em> and collects nothing, which is all
-     * {@link PointValues#estimateDocCount} needs — it calls only {@link #compare}. Collecting the
-     * matched documents costs somewhere to put them, so that lives in the subclasses:
-     * {@link CollectingMergePointVisitor} for the whole match set, and
+     * This half decides <em>which cells match</em> and collects nothing. Collecting the matched documents
+     * costs somewhere to put them, and the two paths want different somewheres, so that lives in the
+     * subclasses: {@link CollectingMergePointVisitor} for the whole match set, and
      * {@link BufferingMergePointVisitor} for one cell of it at a time.
      */
-    private class MergePointVisitor implements IntersectVisitor {
+    private abstract class MergePointVisitor implements IntersectVisitor {
         private final BitmapValues.PeekableIterator iterator;
         private final ArrayUtil.ByteArrayComparator comparator;
         /** The bitmap value being merged, encoded. Owned here, so nothing else can recycle it. */
@@ -280,16 +274,6 @@ public class BitmapBKDQuery extends Query implements Accountable {
             takeQueryPoint();
         }
 
-        @Override
-        public void visit(int docID) {
-            throw new UnsupportedOperationException("this visitor does not collect; use one of its subclasses");
-        }
-
-        @Override
-        public void visit(int docID, byte[] packedValue) {
-            throw new UnsupportedOperationException("this visitor does not collect; use one of its subclasses");
-        }
-
         protected boolean matches(byte[] packedValue) {
             while (hasQueryPoint) {
                 int cmp = comparator.compare(queryPoint, 0, packedValue, 0);
@@ -321,13 +305,19 @@ public class BitmapBKDQuery extends Query implements Accountable {
                     return Relation.CELL_OUTSIDE_QUERY;
                 }
 
-                if (cmpMin == 0 && cmpMax == 0) {
-                    // cell min and max are exactly equal to our point,
-                    // which can easily happen if many (> 512) docs share this one value
-                    return Relation.CELL_INSIDE_QUERY;
-                } else {
-                    return Relation.CELL_CROSSES_QUERY;
+                if (cmpMin == 0) {
+                    if (cmpMax == 0) {
+                        // cell min and max are exactly equal to our point,
+                        // which can easily happen if many (> 512) docs share this one value
+                        return Relation.CELL_INSIDE_QUERY;
+                    }
+                    // If the bitmap covers all values in the cell, match it whole without decoding any points.
+                    long cellMax = values.decode(maxPackedValue, 0);
+                    if (cellMax - queryValue < values.cardinality() && values.coversRange(queryValue, cellMax)) {
+                        return Relation.CELL_INSIDE_QUERY;
+                    }
                 }
+                return Relation.CELL_CROSSES_QUERY;
             }
 
             // We exhausted all points in the bitmap
@@ -336,10 +326,9 @@ public class BitmapBKDQuery extends Query implements Accountable {
     }
 
     /**
-     * Adds document collection to {@link MergePointVisitor}, for the pass that actually builds the
-     * matching doc set. Kept separate so that {@link PointValues#estimateDocCount}, which only calls
-     * {@link MergePointVisitor#compare}, does not have to allocate a {@link DocIdSetBuilder} it would
-     * never write to.
+     * Adds document collection to {@link MergePointVisitor}, accumulating the whole match set into a
+     * {@link DocIdSetBuilder}, which is what puts it in doc order. Used wherever the walk's own order
+     * cannot be relied on, which is every segment the index sort does not cover.
      */
     private class CollectingMergePointVisitor extends MergePointVisitor {
         private final DocIdSetBuilder result;
@@ -550,9 +539,10 @@ public class BitmapBKDQuery extends Query implements Accountable {
                 }
                 if (tree.moveToChild()) {
                     // Descend even when the whole cell matches, so that what is buffered is bounded by a
-                    // leaf's points rather than by however many documents an inner cell holds. The extra
-                    // comparisons are free: a child of a cell whose min equals its max has the same min
-                    // and max, so it takes the same branch without moving the bitmap cursor.
+                    // leaf's points rather than by however many documents an inner cell holds. The child
+                    // reaches the same verdict without moving the bitmap cursor, since it spans a subrange
+                    // of a range already found covered; what that costs is one more coversRange probe per
+                    // level, against a whole subtree's worth of documents held in memory at once.
                     continue;
                 }
                 visitor.reset();

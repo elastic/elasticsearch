@@ -77,10 +77,11 @@ public final class ToLongBaseEvaluator implements ExpressionEvaluator {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef stringScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (stringBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (stringBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -88,10 +89,11 @@ public final class ToLongBaseEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (baseBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (baseBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

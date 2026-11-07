@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.locationtech.jts.geom.Geometry;
@@ -35,9 +36,33 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
-public class StUnion extends BinarySpatialGeometryFunction implements AnyNullIsNull {
+/**
+ * ST_UNION returns the geometric union of two geometry expressions, or unions all multi-values of a
+ * single geometry field into one geometry.
+ * <p>
+ * The binary form (two arguments) is handled entirely by this class. When called with a single
+ * argument the {@link #DEFINITION} builder dispatches to {@link StUnionUnary}, which handles the
+ * multi-value union logic.
+ * </p>
+ */
+public class StUnion extends BinarySpatialGeometryFunction implements AnyNullIsNull, OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StUnion", StUnion::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StUnion.class).binary(StUnion::new).name("st_union");
+
+    /**
+     * The raw-type cast is required because {@link StUnionUnary} is not a subtype of {@link StUnion},
+     * so it cannot satisfy {@code BinaryBuilder<StUnion>} via the type system. The cast is safe at
+     * runtime because {@code FunctionCtors.binary} stores the builder result as {@code Function} and
+     * never casts it back to {@code StUnion}.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StUnion.class)
+        .binary(
+            (FunctionDefinition.BinaryBuilder) (source, left, right) -> right != null
+                ? new StUnion(source, left, right)
+                : new StUnionUnary(source, left)
+        )
+        .capabilities("unary")
+        .name("st_union");
 
     private static final SpatialBinaryGeometryBlockProcessor unspecifiedProcessor = new SpatialBinaryGeometryBlockProcessor(
         UNSPECIFIED,
@@ -51,10 +76,12 @@ public class StUnion extends BinarySpatialGeometryFunction implements AnyNullIsN
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
-        briefSummary = "Returns the geometric union of two geometries.",
+        briefSummary = "Returns the geometric union of two geometries, or unions all multi-values of a single geometry.",
         description = "Returns the geometric union of two geometries. "
             + "The result is a geometry that covers all points covered by either input geometry. "
             + "Both geometries must share the same coordinate reference system.",
+        detailedDescription = "{applies_to}`stack: preview 9.6.0`"
+            + "When called with a single multi-valued argument, all values at a position are unioned into one geometry.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         examples = @Example(file = "spatial-jts", tag = "st_union"),
@@ -73,7 +100,9 @@ public class StUnion extends BinarySpatialGeometryFunction implements AnyNullIsN
             type = { "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" },
             description = "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. "
                 + "Must share the same coordinate reference system as the first parameter. "
-                + "If `null`, the function returns `null`."
+                + "If `null`, the function returns `null`. "
+                + "When omitted, all multi-values of `geomA` are unioned into a single geometry.",
+            optional = true
         ) Expression right
     ) {
         this(source, left, right, false, false);
@@ -83,7 +112,7 @@ public class StUnion extends BinarySpatialGeometryFunction implements AnyNullIsN
         super(source, left, right, leftDocValues, rightDocValues);
     }
 
-    private StUnion(StreamInput in) throws IOException {
+    StUnion(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 

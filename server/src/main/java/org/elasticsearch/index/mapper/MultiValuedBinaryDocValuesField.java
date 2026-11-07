@@ -10,18 +10,21 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutputHelper;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
@@ -34,6 +37,22 @@ import java.util.TreeSet;
  * binary doc values for fields with multiple values per document.
  */
 public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
+
+    /**
+     * Whether a {@code null} the parser is looking at is kept as a slot, or is the field being absent.
+     *
+     * <p>In a strictly columnar index a null counts only where it is an element of the field's own array, which is the position
+     * synthetic source has to put it back into; {@code f: null} and {@code f: []} say the document has nothing for the field. That
+     * is a property of the mapping, so it holds whichever layout is writing the doc values — the ColumNAR codec's payload and the
+     * in-order column give the same answer, and so does {@code exists}. Everywhere else a null is kept as it always was.
+     *
+     * <p>The immediate parent rather than {@link DocumentParserContext#isPartOfArray()}: that is also true of a null inside an array
+     * of objects, where the position belongs to the objects, and flattening {@code obj: [{f: null}, {f: "a"}]} into
+     * {@code f: [null, "a"]} is not an order to promise.
+     */
+    public static boolean keepsNullSlot(DocumentParserContext context, IndexMode mode) {
+        return mode.isStrictColumnar() == false || context.isImmediateParentAnArray();
+    }
 
     // vints are unlike normal ints in that they may require 5 bytes instead of 4
     // see BytesStreamOutput.writeVInt()
@@ -116,6 +135,15 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     }
 
     /**
+     * Whether an index created on {@code indexVersion} writes multi-valued binary doc values in the {@link SeparateCount} layout (the
+     * value field plus a {@code .counts} companion) rather than the deprecated {@link IntegratedCount} one. Everything that writes the
+     * layout, including the columnar batch path, has to decide through this one predicate so that they cannot disagree.
+     */
+    static boolean useSeparateCount(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+    }
+
+    /**
      * This function exists for backwards compatibility with old indices that used {@link IntegratedCount}.
      * <p>
      * For indices created on or after {@link IndexVersions#DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}, the {@link SeparateCount}
@@ -128,7 +156,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         ValueOrdering ordering,
         IndexVersion indexVersion
     ) {
-        if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
+        if (useSeparateCount(indexVersion)) {
             SeparateCount.addToDoc(doc, fieldName, value, ordering);
         } else {
             IntegratedCount.addToDoc(doc, fieldName, value, ordering);
@@ -158,7 +186,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         } else {
             // In the non-nested case all ignored source values only need to be added to one Lucene document,
             // and then we can avoid the usage of LuceneDocument#addWithKey(...), which results in redundant hash map interaction.
-            final boolean useSeparateCount = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+            final boolean useSeparateCount = useSeparateCount(indexVersion);
             var ignoredSourceField = useSeparateCount ? new SeparateCount(fieldName, ordering) : new IntegratedCount(fieldName, ordering);
             var luceneDocument = ignoredFieldValues.iterator().next().doc();
             for (var value : ignoredFieldValues) {
@@ -728,6 +756,77 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                 pos += valueLength;
             }
             return pos;
+        }
+
+        /**
+         * Reads the slots of one document in the order they are stored. A slot that runs past the end of the document fails with a
+         * {@link CorruptIndexException} rather than being read from whatever follows it.
+         */
+        public static final class SlotReader {
+            private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+            private final BytesRef value = new BytesRef();
+            private byte[] bytes;
+            private int end;
+            private int remaining;
+            private int slotStart;
+            private int keyStart;
+            private int keyLength;
+            private int valueLength;
+
+            /** Positions before the first of the {@code count} slots of {@code slots}. */
+            public void reset(BytesRef slots, int count) {
+                bytes = slots.bytes;
+                end = slots.offset + slots.length;
+                remaining = count;
+                in.reset(slots.bytes, slots.offset, slots.length);
+            }
+
+            /** Moves to the next slot, and returns whether there is one. */
+            public boolean next() throws IOException {
+                if (remaining == 0) {
+                    return false;
+                }
+                remaining--;
+                slotStart = in.getPosition();
+                int prefix = in.readVInt();
+                keyStart = in.getPosition();
+                keyLength = ESVectorUtil.indexOf(bytes, keyStart, end - keyStart, (byte) 0);
+                valueLength = prefix - 1;
+                if (keyLength == -1 || prefix < 0 || valueLength > end - (keyStart + keyLength + 1)) {
+                    throw new CorruptIndexException("keyed slot runs past the end of the document", "binary doc values");
+                }
+                in.setPosition(slotEnd());
+                return true;
+            }
+
+            /** The key of the current slot. */
+            public String key() {
+                return new String(bytes, keyStart, keyLength, StandardCharsets.UTF_8);
+            }
+
+            /** Whether the current slot holds a null. */
+            public boolean isNull() {
+                return valueLength == -1;
+            }
+
+            /** The value of the current slot, shared with the next calls; only valid if it isn't {@link #isNull() null}. */
+            public BytesRef value() {
+                assert isNull() == false;
+                value.bytes = bytes;
+                value.offset = keyStart + keyLength + 1;
+                value.length = valueLength;
+                return value;
+            }
+
+            /** Where the current slot starts in the bytes of the document, its length prefix included. */
+            public int slotStart() {
+                return slotStart;
+            }
+
+            /** Where the current slot ends in the bytes of the document. */
+            public int slotEnd() {
+                return keyStart + keyLength + 1 + Math.max(valueLength, 0);
+            }
         }
 
         private static int streamSize(int byteCount, int slotCount) {

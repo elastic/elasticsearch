@@ -20,6 +20,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -88,20 +89,25 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         return boolQueryBuilder;
     }
 
-    private static void addRandomClause(BoolQueryBuilder boolQueryBuilder, QueryBuilder innerQueryBuilder) {
+    @Override
+    protected QueryBuilder createInnerQuery() {
+        return RandomQueryBuilder.createQuery(random());
+    }
+
+    private void addRandomClause(BoolQueryBuilder boolQueryBuilder, QueryBuilder innerQueryBuilder) {
         int iters = randomIntBetween(1, 3);
         for (int i = 0; i < iters; i++) {
             if (randomBoolean()) {
-                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : createInnerQuery());
             }
             if (randomBoolean()) {
-                boolQueryBuilder.should(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+                boolQueryBuilder.should(randomBoolean() ? innerQueryBuilder : createInnerQuery());
             }
             if (randomBoolean()) {
-                boolQueryBuilder.mustNot(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+                boolQueryBuilder.mustNot(randomBoolean() ? innerQueryBuilder : createInnerQuery());
             }
             if (randomBoolean()) {
-                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : createInnerQuery());
             }
         }
     }
@@ -879,7 +885,10 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         @Override
         protected Query doToQuery(SearchExecutionContext context) {
-            prefiltersToQueryNameMap.put(queryName(), context.autoPrefilteringScope().getPrefilters().stream().collect(Collectors.toSet()));
+            prefiltersToQueryNameMap.put(
+                queryName(),
+                context.autoPrefilteringScope().getPrefilters().stream().map(ScopedPrefilter::query).collect(Collectors.toSet())
+            );
             return new Query() {
                 @Override
                 public String toString(String field) {

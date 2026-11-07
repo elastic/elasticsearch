@@ -31,35 +31,30 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryDeprecationInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.snapshots.SnapshotsServiceUtils;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -182,22 +177,13 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
 
-    /**
-     * Artificial delay to introduce after a snapshot finalization or delete has finished so long as the repository is still using the
-     * backwards compatible snapshot format from before
-     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link IndexVersions#V_7_6_0}).
-     * This delay is necessary so that the eventually consistent nature of AWS S3 does not randomly result in repository corruption when
-     * doing repository operations in rapid succession on a repository in the old metadata format.
-     * This setting should not be adjusted in production when working with an AWS S3 backed repository. Doing so risks the repository
-     * becoming silently corrupted. To get rid of this waiting period, either create a new S3 repository or remove all snapshots older than
-     * {@link IndexVersions#V_7_6_0} from the repository which will trigger an upgrade of the repository metadata to the new
-     * format and disable the cooldown period.
-     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no-op and deprecated in v9, can be removed in v10
     static final Setting<TimeValue> COOLDOWN_PERIOD = Setting.timeSetting(
         "cooldown_period",
         new TimeValue(3, TimeUnit.MINUTES),
         new TimeValue(0, TimeUnit.MILLISECONDS),
-        Setting.Property.Dynamic
+        Setting.Property.Dynamic,
+        Setting.Property.Deprecated
     );
 
     /**
@@ -279,12 +265,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final String metadataStorageClass;
 
     private final String cannedACL;
-
-    /**
-     * Time period to delay repository operations by after finalizing or deleting a snapshot.
-     * See {@link #COOLDOWN_PERIOD} for details.
-     */
-    private final TimeValue coolDown;
 
     /**
      * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
@@ -370,7 +350,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             );
         }
 
-        coolDown = COOLDOWN_PERIOD.get(metadata.settings());
+        COOLDOWN_PERIOD.get(metadata.settings()); // Validate and warn about the deprecated setting, which no longer has any effect.
         supportsConditionalWrites = UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.get(metadata.settings()) == Boolean.FALSE;
 
         if (supportsConditionalWrites == false) {
@@ -408,6 +388,49 @@ class S3Repository extends MeteredBlobStoreRepository {
         UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey()
     );
 
+    static String deprecatedClientSettingDeprecationWarning(String settingKey) {
+        return Strings.format(
+            "This repository's settings include the deprecated S3 client setting [%s] which must be removed before upgrade.",
+            settingKey
+        );
+    }
+
+    static final String MISSING_ENDPOINT_SCHEME_DEPRECATION_MESSAGE = "S3 client endpoint is missing a URL scheme";
+
+    static final String REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE = "S3 client region is not configured";
+
+    static String missingEndpointSchemeDeprecationWarning(String configuredEndpoint, String endpointOverride) {
+        return Strings.format("""
+            This repository's S3 client endpoint [%s] is missing a URL scheme. Elasticsearch guessed it should be [%s]; \
+            add a scheme prefix to the endpoint before upgrade.""", configuredEndpoint, endpointOverride);
+    }
+
+    static String regionGuessedFromEndpointDeprecationWarning(String configuredEndpoint, String guessedRegionId) {
+        return Strings.format("""
+            This repository's S3 client has endpoint [%s] but no configured region. Elasticsearch guessed it should use [%s]; \
+            configure the region before upgrade.""", configuredEndpoint, guessedRegionId);
+    }
+
+    static String regionGuessedAsUsEast1DeprecationWarning(String endpointDescription) {
+        return Strings.format("""
+            This repository's S3 client has no configured region and %s. Elasticsearch is falling back to [us-east-1]; \
+            configure the region before upgrade.""", endpointDescription);
+    }
+
+    static String regionFellBackToCrossRegionAccessDeprecationWarning(String endpointDescription) {
+        return Strings.format("""
+            This repository's S3 client has no configured region and %s. Elasticsearch is falling back to [us-east-1] and enabling \
+            cross-region access; configure the region before upgrade.""", endpointDescription);
+    }
+
+    static final String CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE = "S3 repository client could not be created";
+
+    static String clientCreationFailureDeprecationWarning(String clientName) {
+        return Strings.format("""
+            This repository is configured to use S3 client [%s] which could not be created on this node. Configure that client, or \
+            change the repository's [%s] setting, before upgrade.""", clientName, CLIENT_NAME.getKey());
+    }
+
     @Override
     public Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
         final List<RepositoryDeprecationInfo> deprecationInfos = new ArrayList<>();
@@ -423,6 +446,24 @@ class S3Repository extends MeteredBlobStoreRepository {
                 )
             );
         }
+        for (String normalizedKey : S3ClientSettings.normalizeRepositorySettings(getMetadata().settings()).keySet()) {
+            for (Setting.AffixSetting<?> setting : S3RepositorySettings.DEPRECATED_CLIENT_SETTINGS) {
+                if (setting.match(normalizedKey)) {
+                    deprecationInfos.add(
+                        new RepositoryDeprecationInfo(
+                            RepositoryDeprecationInfo.Level.CRITICAL,
+                            "S3 repository explicitly configures a deprecated client setting",
+                            ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                            deprecatedClientSettingDeprecationWarning(
+                                normalizedKey.substring(S3ClientSettings.REPOSITORY_CLIENT_SETTINGS_PREFIX.length())
+                            ),
+                            false
+                        )
+                    );
+                    break;
+                }
+            }
+        }
         if (UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(getMetadata().settings())) {
             deprecationInfos.add(
                 new RepositoryDeprecationInfo(
@@ -434,7 +475,96 @@ class S3Repository extends MeteredBlobStoreRepository {
                 )
             );
         }
+        addClientDeprecationInfo(deprecationInfos);
         return deprecationInfos;
+    }
+
+    private void addClientDeprecationInfo(List<RepositoryDeprecationInfo> deprecationInfos) {
+        final S3ClientSettings clientSettings;
+        try {
+            clientSettings = service.settings(getProjectId(), getMetadata());
+        } catch (Exception ignored) {
+            // Client construction happens lazily so this repository might have an invalid config (e.g. if it was created before this node
+            // joined the cluster, or created with `?verify=false`). If so, we can't validate its client-specific config which might hide
+            // some critical deprecations, thus we must also consider this state to be critically-deprecated:
+            deprecationInfos.add(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE,
+                    ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                    clientCreationFailureDeprecationWarning(CLIENT_NAME.get(getMetadata().settings())),
+                    false
+                )
+            );
+            return;
+        }
+        final var deprecatedLeniencyHandler = new S3DeprecatedLeniencyHandler() {
+            @Override
+            public void missingEndpointScheme(String configuredEndpoint, String endpointOverride) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        MISSING_ENDPOINT_SCHEME_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        missingEndpointSchemeDeprecationWarning(configuredEndpoint, endpointOverride),
+                        false
+                    )
+                );
+            }
+
+            @Override
+            public void regionGuessedFromEndpoint(String configuredEndpoint, String guessedRegionId) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        regionGuessedFromEndpointDeprecationWarning(configuredEndpoint, guessedRegionId),
+                        false
+                    )
+                );
+            }
+
+            @Override
+            public void regionGuessedAsUsEast1(String endpointDescription) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        regionGuessedAsUsEast1DeprecationWarning(endpointDescription),
+                        false
+                    )
+                );
+            }
+
+            @Override
+            public void regionFellBackToCrossRegionAccess(String endpointDescription) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        regionFellBackToCrossRegionAccessDeprecationWarning(endpointDescription),
+                        false
+                    )
+                );
+            }
+        };
+        try {
+            service.getClientRegion(clientSettings, deprecatedLeniencyHandler);
+        } catch (Exception e) {
+            // unexpected, but we need to continue regardless
+            logger.warn("failure getting S3 client region", e);
+            assert false : e;
+        }
+        try {
+            service.getClientEndpoint(clientSettings, deprecatedLeniencyHandler);
+        } catch (Exception e) {
+            // e.g. URI.create failed? we need to continue regardless
+            logger.warn("failure getting S3 client endpoint", e);
+            assert e instanceof IllegalArgumentException && e.getCause() instanceof URISyntaxException : e;
+        }
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
@@ -468,87 +598,6 @@ class S3Repository extends MeteredBlobStoreRepository {
         } catch (BlobStoreException e) {
             throw new RepositoryException(repositoryName, settingKey + ": " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * Holds a reference to delayed repository operation {@link Scheduler.Cancellable} so it can be cancelled should the repository be
-     * closed concurrently.
-     */
-    private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
-
-    @Override
-    public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
-        final FinalizeSnapshotContext wrappedFinalizeContext;
-        if (SnapshotsServiceUtils.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
-            final ListenableFuture<Void> metadataDone = new ListenableFuture<>();
-            wrappedFinalizeContext = new FinalizeSnapshotContext(
-                finalizeSnapshotContext.serializeProjectMetadata(),
-                finalizeSnapshotContext.updatedShardGenerations(),
-                finalizeSnapshotContext.repositoryStateId(),
-                finalizeSnapshotContext.clusterMetadata(),
-                finalizeSnapshotContext.snapshotInfo(),
-                finalizeSnapshotContext.repositoryMetaVersion(),
-                wrapWithWeakConsistencyProtection(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
-                () -> metadataDone.addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        finalizeSnapshotContext.onDone();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        assert false : e; // never fails
-                    }
-                })
-            );
-        } else {
-            wrappedFinalizeContext = finalizeSnapshotContext;
-        }
-        super.finalizeSnapshot(wrappedFinalizeContext);
-    }
-
-    /**
-     * Wraps given listener such that it is executed with a delay of {@link #coolDown} on the snapshot thread-pool after being invoked.
-     * See {@link #COOLDOWN_PERIOD} for details.
-     */
-    @Override
-    protected ActionListener<RepositoryData> wrapWithWeakConsistencyProtection(ActionListener<RepositoryData> listener) {
-        final ActionListener<RepositoryData> wrappedListener = ActionListener.runBefore(listener, () -> {
-            final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-            assert cancellable != null;
-        });
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(RepositoryData response) {
-                logCooldownInfo();
-                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)), coolDown, snapshotExecutor)
-                );
-                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logCooldownInfo();
-                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, snapshotExecutor)
-                );
-                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-            }
-        };
-    }
-
-    private void logCooldownInfo() {
-        logger.info(
-            "Sleeping for [{}] after modifying repository [{}] because it contains snapshots older than version [{}]"
-                + " and therefore is using a backwards compatible metadata format that requires this cooldown period to avoid "
-                + "repository corruption. To get rid of this message and move to the new repository metadata format, either remove "
-                + "all snapshots older than version [{}] from the repository or create a new repository at an empty location.",
-            coolDown,
-            metadata.name(),
-            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION,
-            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION
-        );
     }
 
     private static BlobPath buildBasePath(RepositoryMetadata metadata) {
@@ -597,16 +646,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     @Override
-    protected void doClose() {
-        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-        if (cancellable != null) {
-            logger.debug("Repository [{}] closed during cool-down period", metadata.name());
-            cancellable.cancel();
-        }
-        super.doClose();
-    }
-
-    @Override
     public String getAnalysisFailureExtraDetail() {
         return Strings.format(
             """
@@ -626,7 +665,7 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,

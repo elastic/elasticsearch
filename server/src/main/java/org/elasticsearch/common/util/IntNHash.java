@@ -87,8 +87,8 @@ public final class IntNHash extends AbstractHash {
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                setId(index, id);
                 append(id, keys);
+                setId(index, id);
                 ++size;
                 return id;
             } else {

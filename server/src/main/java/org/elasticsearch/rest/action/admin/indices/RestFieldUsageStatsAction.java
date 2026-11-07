@@ -24,9 +24,12 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 @ServerlessScope(value = Scope.INTERNAL)
 public class RestFieldUsageStatsAction extends BaseRestHandler {
+
+    private static final String DOC_VALUES_SKIPPER_CAPABILITY = "doc_values_skipper";
 
     @Override
     public List<Route> routes() {
@@ -48,5 +51,10 @@ public class RestFieldUsageStatsAction extends BaseRestHandler {
             final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(FieldUsageStatsAction.INSTANCE, fusRequest, new RestRefCountedChunkedToXContentListener<>(channel));
         };
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(DOC_VALUES_SKIPPER_CAPABILITY);
     }
 }

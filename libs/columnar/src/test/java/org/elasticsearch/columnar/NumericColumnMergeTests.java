@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
@@ -42,6 +43,35 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
  * queryable.
  */
 public class NumericColumnMergeTests extends ESTestCase {
+
+    /** A numeric column is written without a temporary file, on flush and on merge alike. */
+    public void testANumericColumnWritesNoTemporaryFile() throws IOException {
+        final int numDocs = 3000;
+        final FieldType type = columnarBinaryFieldType();
+        final BytesRefBuilder builder = new BytesRefBuilder();
+        try (Directory real = newDirectory()) {
+            final ColumnarTestUtils.TempOutputRecorder dir = new ColumnarTestUtils.TempOutputRecorder(real);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG))
+                .setMergePolicy(new LogDocMergePolicy());
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int d = 0; d < numDocs; d++) {
+                    final Document doc = new Document();
+                    final long[] values = d % 3 == 0 ? new long[] { d, d * 7L } : new long[] { randomLong() };
+                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(NumericBinaryPayload.encode(values, values.length, builder)), type));
+                    writer.addDocument(doc);
+                    if ((d + 1) % 1000 == 0) {
+                        writer.commit();
+                    }
+                }
+                writer.forceMerge(1);
+            }
+            assertEquals("temporary files asked for", Set.of(), dir.columnarSuffixes);
+            try (DirectoryReader reader = DirectoryReader.open(real)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.leaves().get(0).reader().getBinaryDocValues(FIELD).cost());
+            }
+        }
+    }
 
     private static final String FIELD = "value";
     private static final String ID = "id";
@@ -55,12 +85,13 @@ public class NumericColumnMergeTests extends ESTestCase {
             }
             final boolean[] deleted = new boolean[numDocs];
 
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.LONG);
+            final FieldType type = columnarBinaryFieldType();
 
             try (Directory dir = newDirectory()) {
                 // LogDocMergePolicy merges adjacent segments, so the merged order stays insertion order
                 // and the ordered check below also verifies per-document association.
-                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG))
+                    .setMergePolicy(new LogDocMergePolicy());
                 final BytesRefBuilder builder = new BytesRefBuilder();
                 final int batch = Math.max(1, numDocs / between(2, 6));
                 try (IndexWriter writer = new IndexWriter(dir, iwc)) {

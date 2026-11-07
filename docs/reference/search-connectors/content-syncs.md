@@ -64,6 +64,7 @@ Incremental syncs are available for the following connectors:
 * [Box](/reference/search-connectors/es-connectors-box.md)
 * [Confluence](/reference/search-connectors/es-connectors-confluence.md)
 * [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)
+* [Exchange Server](/reference/search-connectors/es-connectors-exchange-server.md)
 * [GitHub](/reference/search-connectors/es-connectors-github.md)
 * [Gmail](/reference/search-connectors/es-connectors-gmail.md)
 * [Google Cloud Storage](/reference/search-connectors/es-connectors-google-cloud.md)

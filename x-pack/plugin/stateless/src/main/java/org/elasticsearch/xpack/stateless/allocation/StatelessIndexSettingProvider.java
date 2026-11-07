@@ -20,16 +20,23 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class StatelessIndexSettingProvider implements IndexSettingProvider {
 
     public StatelessIndexSettingProvider() {}
 
     @Override
+    public Set<String> affectedSettings() {
+        return Set.of(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey());
+    }
+
+    @Override
     public void provideAdditionalSettings(
         String indexName,
         @Nullable String dataStreamName,
         IndexMode templateIndexMode,
+        boolean registryInstalledTemplate,
         ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,

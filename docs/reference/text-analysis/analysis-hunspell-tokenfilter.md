@@ -29,6 +29,8 @@ Hunspell dictionaries are stored and detected on a dedicated `hunspell` director
     |    |    |-- en_US.aff
 ```
 
+The dictionaries must be available on every node in the cluster. How you add them depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
+
 Each dictionary can be configured with one setting:
 
 $$$analysis-hunspell-ignore-case-settings$$$

@@ -142,4 +142,34 @@ public class InsertProcessorTests extends AbstractWireSerializingTestCase<Insert
             () -> new Insert(EMPTY, l(str), l(1), l(replaceWith.length() - 1), l(replaceWith)).makePipe().asProcessor().process(null)
         );
     }
+
+    /**
+     * {@code length} is the requested cut, but {@link StringBuilder#replace} only
+     * deletes up to the end of the input. Subtracting the requested cut from the
+     * estimated size can under-count (or wrap as {@code int}) and skip
+     * {@link StringProcessor#MAX_RESULT_LENGTH}.
+     */
+    public void testInsertResultLengthWhenCutExceedsInput() {
+        String tooLong = "a".repeat((int) MAX_RESULT_LENGTH + 1);
+        maxResultLengthTest(
+            MAX_RESULT_LENGTH + 1,
+            () -> new Insert(EMPTY, l(""), l(1), l(2_000_000_000), l(tooLong)).makePipe().asProcessor().process(null)
+        );
+        maxResultLengthTest(
+            MAX_RESULT_LENGTH + 1,
+            () -> new Insert(EMPTY, l(""), l(1), l(Integer.MAX_VALUE), l(tooLong)).makePipe().asProcessor().process(null)
+        );
+
+        String maxReplacement = "a".repeat((int) MAX_RESULT_LENGTH);
+        // 'he' remains + 1MB replacement
+        maxResultLengthTest(
+            2L + MAX_RESULT_LENGTH,
+            () -> new Insert(EMPTY, l("hello"), l(3), l(100), l(maxReplacement)).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            MAX_RESULT_LENGTH,
+            new Insert(EMPTY, l(""), l(1), l(2_000_000_000), l(maxReplacement)).makePipe().asProcessor().process(null).toString().length()
+        );
+    }
 }

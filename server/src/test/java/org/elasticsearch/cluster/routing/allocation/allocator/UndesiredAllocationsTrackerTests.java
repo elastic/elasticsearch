@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -180,11 +181,7 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
 
         // start a relocation
-        shardRouting = shardRouting.relocate(
-            randomIdentifier(),
-            randomNonNegativeLong(),
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-        );
+        shardRouting = shardRouting.relocate(randomIdentifier(), randomNonNegativeLong(), RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
         assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
 

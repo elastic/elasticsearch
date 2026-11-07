@@ -53,12 +53,13 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
     @SuppressWarnings("unchecked")
     public void testRequestParameterDefaults() throws IOException {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> {
             assertThat(request, instanceOf(SubmitAsyncSearchRequest.class));
             SubmitAsyncSearchRequest submitRequest = (SubmitAsyncSearchRequest) request;
             assertThat(submitRequest.getWaitForCompletionTimeout(), equalTo(TimeValue.timeValueSeconds(1)));
             assertThat(submitRequest.isKeepOnCompletion(), equalTo(false));
-            assertThat(submitRequest.getKeepAlive(), equalTo(TimeValue.timeValueDays(5)));
+            // no keep_alive in the request → null means "use the cluster default"
+            assertNull(submitRequest.getKeepAlive());
             // check parameters we implicitly set in the SubmitAsyncSearchRequest ctor
             assertThat(submitRequest.getSearchRequest().isCcsMinimizeRoundtrips(), equalTo(false));
             assertThat(submitRequest.getSearchRequest().getBatchedReduceSize(), equalTo(5));
@@ -153,7 +154,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
         Function<SubmitAsyncSearchRequest, T> valueAccessor
     ) throws Exception {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> {
             assertThat(request, instanceOf(SubmitAsyncSearchRequest.class));
             assertThat(valueAccessor.apply((SubmitAsyncSearchRequest) request), equalTo(expectedValue));
             executeCalled.set(true);

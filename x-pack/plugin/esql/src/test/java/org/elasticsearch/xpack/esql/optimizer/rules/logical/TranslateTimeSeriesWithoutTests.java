@@ -36,6 +36,10 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimizerTests {
 
+    public TranslateTimeSeriesWithoutTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testLoweringReplacesGroupingAndOutputReferences() {
         FieldAttribute cluster = new FieldAttribute(
             Source.EMPTY,
@@ -54,7 +58,8 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
             List.of(timeSeriesGrouping.toAttribute()),
             null,
             null,
-            TimeSeriesAggregate.Origin.TS_COMMAND
+            TimeSeriesAggregate.Origin.TS_COMMAND,
+            false
         );
 
         TimeSeriesAggregate lowered = as(

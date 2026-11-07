@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.function.BiConsumer;
 
@@ -63,5 +65,18 @@ public interface PostAnalysisPlanVerificationAware {
      */
     default BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(AnalysisRegistry analysisRegistry) {
         return postAnalysisPlanVerification();
+    }
+
+    /**
+     * Overload that also exposes the request {@link QueryPragmas} and cluster {@link EsqlFlags}, for implementers that need request or
+     * cluster-level limits at verification time. By default it delegates to {@link #postAnalysisPlanVerification(AnalysisRegistry)},
+     * implementers that need the pragmas or cluster settings override this method instead.
+     */
+    default BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(
+        AnalysisRegistry analysisRegistry,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return postAnalysisPlanVerification(analysisRegistry);
     }
 }

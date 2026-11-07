@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 162323
+summary: Preserve doc id iterator in singleton double views
+type: bug

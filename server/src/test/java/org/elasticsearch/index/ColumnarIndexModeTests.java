@@ -77,7 +77,20 @@ public class ColumnarIndexModeTests extends ESTestCase {
         assertThat(IndexMode.LOGSDB.isColumnar(), equalTo(true));
         assertThat(IndexMode.COLUMNAR.isColumnar(), equalTo(true));
         assertThat(IndexMode.LOGSDB_COLUMNAR.isColumnar(), equalTo(true));
+        assertThat(IndexMode.VECTORDB_DOCUMENT.isColumnar(), equalTo(false));
+        assertThat(IndexMode.VECTORDB_COLUMNAR.isColumnar(), equalTo(true));
         assertThat(IndexMode.LOOKUP.isColumnar(), equalTo(false));
+    }
+
+    public void testIsSearchOptimizedColumnar() {
+        assertThat(IndexMode.STANDARD.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.TIME_SERIES.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.LOGSDB.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.COLUMNAR.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.VECTORDB_DOCUMENT.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.VECTORDB_COLUMNAR.isSearchOptimizedColumnar(), equalTo(true));
+        assertThat(IndexMode.LOOKUP.isSearchOptimizedColumnar(), equalTo(false));
     }
 
     public void testIndexDisabledByDefault() {

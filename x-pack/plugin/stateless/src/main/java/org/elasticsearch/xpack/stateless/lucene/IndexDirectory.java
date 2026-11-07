@@ -30,10 +30,12 @@ import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.NoHardLinksDirectory;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.SelfAccountingIndexInput;
 import org.elasticsearch.index.store.StoreMetrics;
@@ -66,6 +68,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
@@ -74,9 +77,20 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.store.Store.CORRUPTED_MARKER_NAME_PREFIX;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
-public class IndexDirectory extends ByteSizeDirectory {
+public class IndexDirectory extends ByteSizeDirectory implements NoHardLinksDirectory {
 
     private static final Logger logger = LogManager.getLogger(IndexDirectory.class);
+
+    /**
+     * An {@link IOContext.FileOpenHint} that instructs {@link #openInput} to prefer reading from local disk even for files that have
+     * already been uploaded to the object store. Passed by
+     * {@link org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit} to serve BCC chunk requests directly from the
+     * indexing node's local disk during the search-tier notification window.
+     * We should not rely on the cache having this filled, the indexing node's cache is for indexing, not for serving VBCCs to search.
+     */
+    public enum PreferLocalHint implements IOContext.FileOpenHint {
+        INSTANCE
+    }
 
     /**
      * Directory used to access files stored in the object store through the shared cache. Once a commit is uploaded to the object store,
@@ -237,15 +251,25 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        context = maybeAddStatelessAdviceHint(name, context);
+        boolean preferLocal = context.hints().contains(PreferLocalHint.INSTANCE);
+        if (preferLocal == false) {
+            context = maybeAddStatelessAdviceHint(name, context);
+        }
 
-        if (cacheDirectory.containsFile(name) == false) {
+        // Enter the local-disk path if the file has not yet been uploaded (normal path) or if the caller
+        // explicitly requests local disk via PreferLocalHint (e.g. VirtualBatchedCompoundCommit serving BCC
+        // chunk requests during the search-tier notification window, where even uploaded files must be read
+        // from local disk instead of the blob-store cache).
+        if (preferLocal || cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
             try (var ignored = readLock.acquire()) {
                 localFile = localFiles.get(name);
             }
-            if (localFile != null && localFile.tryIncRefNotUploaded()) {
+            if (localFile != null && (preferLocal ? localFile.tryIncRef() : localFile.tryIncRefNotUploaded())) {
                 try {
+                    if (preferLocal) {
+                        return super.openInput(name, context);
+                    }
                     // Index inputs opened with READONCE IO context are expected to be read and closed within the same thread
                     // (see https://github.com/apache/lucene/pull/13535). This is not the case for ReopeningIndexInput that can be closed
                     // by the uploading thread.
@@ -267,6 +291,23 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         return cacheDirectory.openInput(name, context);
+    }
+
+    /**
+     * Acquires a reference to a local file via {@link LocalFileRef#tryIncRef()}, keeping it on disk even after
+     * {@link LocalFileRef#markAsUploaded()} has been called. Returns a no-op {@link Releasable} if the file is not locally available
+     * (e.g. it was from an older BCC and has already been freed from disk). The caller must close the returned {@link Releasable} when
+     * the local file is no longer needed.
+     */
+    public Releasable tryAcquireLocalFileRef(String name) {
+        LocalFileRef ref;
+        try (var ignored = readLock.acquire()) {
+            ref = localFiles.get(name);
+        }
+        if (ref != null && ref.tryIncRef()) {
+            return ref::decRef;
+        }
+        return () -> {};
     }
 
     /**
@@ -326,6 +367,12 @@ public class IndexDirectory extends ByteSizeDirectory {
         localFile.markAsDeleted();
         if (onGenerationalFileDeletion != null && isGenerationalFile(name)) {
             onGenerationalFileDeletion.accept(cacheDirectory.getShardId(), name);
+        }
+    }
+
+    private Set<String> localFiles() {
+        try (var ignored = readLock.acquire()) {
+            return Set.copyOf(localFiles.keySet());
         }
     }
 
@@ -474,6 +521,9 @@ public class IndexDirectory extends ByteSizeDirectory {
                     localFile.markAsUploaded();
                 }
             });
+        }
+        if (cacheDirectory.getCacheService().isEvictObsoleteRegionsEnabled()) {
+            cacheDirectory.maybeScheduleObsoleteRegionsEviction(this::localFiles);
         }
     }
 
@@ -1143,8 +1193,12 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         @Override
-        public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action)
-            throws IOException {
+        public boolean withMemorySegmentSlice(
+            long offset,
+            long length,
+            IntFunction<MemorySegment> scratch,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) throws IOException {
             if (length < getBufferSize()) {
                 // A read this small is cheaper through the buffer: one refill serves several consecutive reads, whereas every
                 // direct access pays for an executeLocallyOrReopen. This is the same trade-off readBytes makes with its own
@@ -1172,7 +1226,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                     return true;
                 }
                 if (inner instanceof DirectAccessInput dai) {
-                    return dai.withMemorySegmentSlice(offset, length, action);
+                    return dai.withMemorySegmentSlice(offset, length, scratch, action);
                 }
                 return false;
             });

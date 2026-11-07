@@ -15,7 +15,6 @@ import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
@@ -28,6 +27,7 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import java.util.Map;
 import java.util.Properties;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
@@ -41,13 +41,16 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
         var psService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService();
 
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         Property<BuildParameterExtension> buildParams = loadBuildParams(project);
 
         Properties versions = (Properties) project.getExtensions().getByName(VersionPropertiesPlugin.VERSIONS_EXT);
         Version currentVersion = Version.fromString(versions.getProperty("elasticsearch"));
 
         var resourceRoot = getResourceRoot(project);
+        // Only repositories which have a branch tracking serverless production set this. Where it is unset,
+        // transport versions are never generated or validated as patch ids.
+        Provider<String> patchBranchName = project.getProviders().gradleProperty("org.elasticsearch.transport.patchBranch");
 
         String taskGroup = "Transport Versions";
 
@@ -84,6 +87,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.getShouldValidatePrimaryIdNotPatch().convention(true);
                 t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
                 t.getCI().set(buildParams.get().getCi());
+                t.getPatchBranchName().convention(patchBranchName);
             });
         project.getTasks().named(PrecommitPlugin.PRECOMMIT_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
@@ -105,6 +109,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         validateTask.configure(t -> {
             t.mustRunAfter(generateDefinitionsTask);
             t.getIncrement().set(generateDefinitionsTask.flatMap(GenerateTransportVersionDefinitionTask::getIncrement));
+            t.getPatchBranch().set(generateDefinitionsTask.flatMap(GenerateTransportVersionDefinitionTask::getPatchBranch));
         });
 
         var resolveConflictTask = project.getTasks()
@@ -118,6 +123,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             t.setGroup(taskGroup);
             t.getIncrement().convention(1000);
             t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
+            t.getPatchBranchName().convention(patchBranchName);
         });
 
         var generateInitialTask = project.getTasks()

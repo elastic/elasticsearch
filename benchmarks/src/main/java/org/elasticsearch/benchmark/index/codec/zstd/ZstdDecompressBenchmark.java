@@ -18,11 +18,15 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
+import org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -91,7 +95,7 @@ public class ZstdDecompressBenchmark {
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         tempDir = Files.createTempDirectory("zstd-bench");
         ZstdCompressionMode mode = new ZstdCompressionMode(1);
         decompressor = mode.newDecompressor();
@@ -168,7 +172,13 @@ public class ZstdDecompressBenchmark {
     }
 
     private Directory newDirectory() throws IOException {
-        return directoryType.newDirectory(Files.createDirectories(tempDir.resolve("data")));
+        Path path = Files.createDirectories(tempDir.resolve("data"));
+        return switch (directoryType) {
+            case NIO -> new NIOFSDirectory(path);
+            case MMAP -> new MMapDirectory(path);
+            case SNAP -> SearchableSnapshotDirectoryFactory.newDirectory(path);
+            case STATELESS_INDEX_LOCAL -> StatelessDirectoryFactory.newIndexDirectory(path);
+        };
     }
 
     private static byte[] compress(ZstdCompressionMode mode, byte[] data) throws IOException {

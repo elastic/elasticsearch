@@ -139,11 +139,6 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     }
 
     @Before
-    public void checkCapability() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-    }
-
-    @Before
     public void setupIndices() {
         // ESIntegTestCase wipes indices between tests, so we (re)create the shared main / sub indices in @Before. Both indices contain
         // one field per testable type; the sample data for that type fills the field so that for valid pairs the IN match succeeds.
@@ -734,42 +729,34 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     // covering passes, per-column failures, both-column failures, and unsupported types.
 
     public void testMultiColumnInSubqueryStrings() {
-        assumeTrue("Requires multi-column IN subquery support", Build.current().isSnapshot());
         testMultiColumnInSubqueryTypes("mc-strings");
     }
 
     public void testMultiColumnInSubqueryIntegers() {
-        assumeTrue("Requires multi-column IN subquery support", Build.current().isSnapshot());
         testMultiColumnInSubqueryTypes("mc-integers");
     }
 
     public void testMultiColumnInSubqueryFloats() {
-        assumeTrue("Requires multi-column IN subquery support", Build.current().isSnapshot());
         testMultiColumnInSubqueryTypes("mc-floats");
     }
 
     public void testMultiColumnInSubqueryMixedNumerical() {
-        assumeTrue("Requires multi-column IN subquery support", Build.current().isSnapshot());
         testMultiColumnInSubqueryTypes("mc-mixed-numerical");
     }
 
     public void testMultiColumnInSubqueryMixedTemporal() {
-        assumeTrue("Requires multi-column IN subquery support", Build.current().isSnapshot());
         testMultiColumnInSubqueryTypes("mc-mixed-temporal");
     }
 
     public void testMultiColumnInSubqueryUnsupported() {
-        assumeTrue("Requires multi-column IN subquery support", Build.current().isSnapshot());
         testMultiColumnInSubqueryTypes("mc-unsupported");
     }
 
     public void testMultiColumnInSubquerySame() {
-        assumeTrue("Requires multi-column IN subquery support", Build.current().isSnapshot());
         testMultiColumnInSubqueryTypes("mc-same");
     }
 
     public void testMultiColumnInSubqueryOthers() {
-        assumeTrue("Requires multi-column IN subquery support", Build.current().isSnapshot());
         testMultiColumnInSubqueryTypes("mc-others");
     }
 

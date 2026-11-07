@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.common.util;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaESVectorUtilSupport;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 public class ContainsBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "20", "35", "50", "100", "500", "1000" })

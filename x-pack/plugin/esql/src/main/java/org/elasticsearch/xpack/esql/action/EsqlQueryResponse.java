@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.PlanProfile;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
@@ -55,8 +57,38 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_TIMESTAMPS_INFO = TransportVersion.fromName("esql_timestamps_info");
     private static final TransportVersion ESQL_RESPONSE_TIMEZONE_FORMAT = TransportVersion.fromName("esql_response_timezone_format");
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
+    private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
+    private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
+
+    /** Schema and chunked writer for the value of the response's {@code profile} field. */
+    public static final ProfileSchema<ProfileValue> PROFILE_SCHEMA = ProfileSchema.chunked(
+        ProfileValue.class,
+        (value, params) -> Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((builder, chunkParams) -> {
+            if (value.queryProfile() != null) {
+                EsqlQueryProfile.PROFILE_SCHEMA.write(builder, value.queryProfile(), chunkParams);
+            }
+            return builder;
+        }),
+            ChunkedToXContentHelper.array("drivers", value.profile().drivers().iterator(), params),
+            ChunkedToXContentHelper.array("plans", value.profile().plans().iterator()),
+            Iterators.single((builder, chunkParams) -> {
+                TransportVersion minimumVersion = value.profile().minimumVersion();
+                builder.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
+                return builder;
+            }),
+            ChunkedToXContentHelper.endObject()
+        )
+    )
+        .include(EsqlQueryProfile.PROFILE_SCHEMA)
+        .required("drivers", ProfileSchema.array(ProfileSchema.ref("DriverProfile")))
+        .required("plans", ProfileSchema.array(ProfileSchema.ref("PlanProfile")))
+        .required("minimumTransportVersion", ProfileSchema.nullable(ProfileSchema.integer()))
+        .build();
+
+    /** Values needed to render the flattened {@code profile} response object. */
+    public record ProfileValue(Profile profile, @Nullable EsqlQueryProfile queryProfile) {}
 
     private final List<ColumnInfoImpl> columns;
     private final List<Page> pages;
@@ -65,7 +97,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final long rowsEmitted;
     private final long bytesRead;
     private final long readNanos;
+    private final long readCpuNanos;
     private final long cpuNanos;
+    private final long driverNanos;
     private final Profile profile;
     private final boolean columnar;
     private final String asyncExecutionId;
@@ -79,6 +113,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     private final ZoneId zoneId;
 
+    /**
+     * Tri-state: null when query approximation was not requested (field omitted from the response),
+     * otherwise whether approximation was actually applied for the query.
+     */
+    private final Boolean approximationApplied;
+
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -87,7 +127,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long rowsEmitted,
         long bytesRead,
         long readNanos,
+        long readCpuNanos,
         long cpuNanos,
+        long driverNanos,
         @Nullable Profile profile,
         boolean columnar,
         @Nullable String asyncExecutionId,
@@ -96,16 +138,20 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         ZoneId zoneId,
         long startTimeMillis,
         long expirationTimeMillis,
-        EsqlExecutionInfo executionInfo
+        EsqlExecutionInfo executionInfo,
+        @Nullable Boolean approximationApplied
     ) {
         this.columns = columns;
         this.pages = pages;
         this.valuesLoaded = valuesLoaded;
         this.documentsFound = documentsFound;
+        this.approximationApplied = approximationApplied;
         this.rowsEmitted = rowsEmitted;
         this.bytesRead = bytesRead;
         this.readNanos = readNanos;
+        this.readCpuNanos = readCpuNanos;
         this.cpuNanos = cpuNanos;
+        this.driverNanos = driverNanos;
         this.profile = profile;
         this.columnar = columnar;
         this.asyncExecutionId = asyncExecutionId;
@@ -141,6 +187,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             0L,
             0L,
             0L,
+            0L,
+            0L,
             profile,
             columnar,
             asyncExecutionId,
@@ -149,7 +197,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             zoneId,
             startTimeMillis,
             expirationTimeMillis,
-            executionInfo
+            executionInfo,
+            null
         );
     }
 
@@ -207,12 +256,16 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             long rowsEmitted = 0;
             long bytesRead = 0;
             long readNanos = 0;
+            long readCpuNanos = 0;
             long cpuNanos = 0;
             if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
                 rowsEmitted = in.readVLong();
                 bytesRead = in.readVLong();
                 readNanos = in.readVLong();
                 cpuNanos = in.readVLong();
+            }
+            if (in.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+                readCpuNanos = in.readVLong();
             }
             Profile profile = in.readOptionalWriteable(Profile::readFrom);
             boolean columnar = in.readBoolean();
@@ -230,6 +283,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }
 
             EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
+            Boolean approximationApplied = in.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED) ? in.readOptionalBoolean() : null;
+            long driverNanos = in.getTransportVersion().supports(ESQL_DRIVER_NANOS) ? in.readVLong() : 0;
             EsqlQueryResponse response = new EsqlQueryResponse(
                 columns,
                 pages,
@@ -238,7 +293,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 rowsEmitted,
                 bytesRead,
                 readNanos,
+                readCpuNanos,
                 cpuNanos,
+                driverNanos,
                 profile,
                 columnar,
                 asyncExecutionId,
@@ -247,7 +304,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 zoneId,
                 startTimeMillis,
                 expirationTimeMillis,
-                executionInfo
+                executionInfo,
+                approximationApplied
             );
             success = true;
             return response;
@@ -275,6 +333,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeVLong(readNanos);
             out.writeVLong(cpuNanos);
         }
+        if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            out.writeVLong(readCpuNanos);
+        }
         out.writeOptionalWriteable(profile);
         out.writeBoolean(columnar);
 
@@ -288,6 +349,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
 
         out.writeOptionalWriteable(executionInfo);
+        if (out.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED)) {
+            out.writeOptionalBoolean(approximationApplied);
+        }
+        if (out.getTransportVersion().supports(ESQL_DRIVER_NANOS)) {
+            out.writeVLong(driverNanos);
+        }
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {
@@ -333,8 +400,22 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return readNanos;
     }
 
+    public long readCpuNanos() {
+        return readCpuNanos;
+    }
+
+    /**
+     * Thread CPU nanos used by all drivers.
+     */
     public long cpuNanos() {
         return cpuNanos;
+    }
+
+    /**
+     * Nanos all drivers held a thread, including time waiting for a core, GC pauses and time blocked inside an operator.
+     */
+    public long driverNanos() {
+        return driverNanos;
     }
 
     public long documentsFound() {
@@ -343,6 +424,15 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public long valuesLoaded() {
         return valuesLoaded;
+    }
+
+    /**
+     * Whether query approximation was actually applied, or {@code null} when approximation was not requested (in which
+     * case the {@code approximation_applied} response field is omitted).
+     */
+    @Nullable
+    public Boolean approximationApplied() {
+        return approximationApplied;
     }
 
     public Profile profile() {
@@ -412,13 +502,18 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }));
         }
         content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+            if (approximationApplied != null) {
+                builder.field("approximation_applied", approximationApplied);
+            }
             builder //
                 .field("documents_found", documentsFound)
                 .field("values_loaded", valuesLoaded)
                 .field("rows_emitted", rowsEmitted)
                 .field("bytes_read", bytesRead)
                 .field("read_nanos", readNanos)
-                .field("cpu_nanos", cpuNanos);
+                .field("read_cpu_nanos", readCpuNanos)
+                .field("cpu_nanos", cpuNanos)
+                .field("driver_nanos", driverNanos);
 
             if (startTimeMillis != 0L) {
                 builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
@@ -445,21 +540,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(ChunkedToXContentHelper.field("_clusters", executionInfo, params));
         }
         if (profile != null) {
-            content.add(ChunkedToXContentHelper.startObject("profile"));
-            content.add(ChunkedToXContentHelper.chunk((b, p) -> {
-                if (executionInfo != null) {
-                    executionInfo.queryProfile().toXContent(b, p);
-                }
-                return b;
-            }));
-            content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
-            content.add(ChunkedToXContentHelper.array("plans", profile.plans.iterator()));
-            content.add(ChunkedToXContentHelper.chunk((b, p) -> {
-                TransportVersion minimumVersion = profile.minimumVersion();
-                b.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
-                return b;
-            }));
-            content.add(ChunkedToXContentHelper.endObject());
+            content.add(profileXContent(profile, executionInfo).toXContentChunked(params));
         }
         content.add(ChunkedToXContentHelper.endObject());
 
@@ -495,10 +576,13 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
             && documentsFound == that.documentsFound
             && valuesLoaded == that.valuesLoaded
+            && Objects.equals(approximationApplied, that.approximationApplied)
             && rowsEmitted == that.rowsEmitted
             && bytesRead == that.bytesRead
             && readNanos == that.readNanos
+            && readCpuNanos == that.readCpuNanos
             && cpuNanos == that.cpuNanos
+            && driverNanos == that.driverNanos
             && Objects.equals(profile, that.profile)
             && Objects.equals(executionInfo, that.executionInfo);
     }
@@ -513,10 +597,13 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
             documentsFound,
             valuesLoaded,
+            approximationApplied,
             rowsEmitted,
             bytesRead,
             readNanos,
+            readCpuNanos,
             cpuNanos,
+            driverNanos,
             profile,
             executionInfo
         );
@@ -577,6 +664,13 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public long getRowCount() {
         return pages.stream().mapToLong(Page::getPositionCount).sum();
+    }
+
+    public static ChunkedToXContent profileXContent(Profile profile, @Nullable EsqlExecutionInfo executionInfo) {
+        return params -> Iterators.concat(
+            ChunkedToXContentHelper.chunk((builder, chunkParams) -> builder.field("profile")),
+            PROFILE_SCHEMA.toXContentChunked(new ProfileValue(profile, executionInfo == null ? null : executionInfo.queryProfile()), params)
+        );
     }
 
     public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) implements Writeable {

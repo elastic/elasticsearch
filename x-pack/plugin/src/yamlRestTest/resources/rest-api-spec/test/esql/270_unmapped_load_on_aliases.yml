@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [optional_fields_v2]
+          capabilities: [optional_fields_v5]
       reason: "uses SET unmapped_fields=\"load\""
 
   - do:
@@ -96,6 +96,14 @@ setup:
 
 ---
 'profile includes unmapped load mode':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          # No capability gates profile.unmapped_fields (#152762 only versioned the wire format), so use one that was added after it.
+          capabilities: [optional_fields_fix_implicit_cast_on_small_numeric_punk]
+      reason: "profile.unmapped_fields is not reported by 9.4 coordinators"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -124,6 +132,13 @@ setup:
 
 ---
 'filter on unmapped field IS NULL via alias':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_unmapped_load_auto_cast_two_legged_punks]
+      reason: "9.4 rejects partially unmapped non-KEYWORD fields outside KEEP/DROP/casts"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -137,6 +152,13 @@ setup:
 
 ---
 'filter on unmapped field IS NOT NULL via alias':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_unmapped_load_auto_cast_two_legged_punks]
+      reason: "9.4 rejects partially unmapped non-KEYWORD fields outside KEEP/DROP/casts"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -151,7 +173,16 @@ setup:
 
 ---
 'stats on unmapped field via alias':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_unmapped_load_auto_cast_two_legged_punks]
+      reason: "9.4 rejects partially unmapped non-KEYWORD fields outside KEEP/DROP/casts"
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM alias-test-both | STATS total = SUM(event_duration), c = COUNT(event_duration)'
@@ -178,6 +209,13 @@ setup:
 
 ---
 'eval on unmapped field via alias':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_unmapped_load_auto_cast_two_legged_punks]
+      reason: "9.4 rejects partially unmapped non-KEYWORD fields outside KEEP/DROP/casts"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -409,7 +447,16 @@ setup:
 
 ---
 'multiple stats aggregations on unmapped field via alias':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_unmapped_load_auto_cast_two_legged_punks]
+      reason: "9.4 rejects partially unmapped non-KEYWORD fields outside KEEP/DROP/casts"
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM alias-test-both | STATS s = SUM(event_duration), mn = MIN(event_duration), mx = MAX(event_duration), avg = AVG(event_duration), c = COUNT(event_duration)'

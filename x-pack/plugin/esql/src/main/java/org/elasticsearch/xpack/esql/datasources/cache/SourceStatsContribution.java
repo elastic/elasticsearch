@@ -27,8 +27,22 @@ import java.util.Map;
  */
 sealed interface SourceStatsContribution {
 
-    /** A complete read of the whole file; its row count already covers every row, so duplicates are deduplicated rather than summed. */
-    record WholeFile(SourceStatistics stats, long mtimeMillis, String configFingerprint) implements SourceStatsContribution {}
+    /**
+     * A complete read of the whole file; its row count already covers every row, so duplicates are deduplicated
+     * rather than summed.
+     * <p>
+     * {@code readConfig} and {@code rowCountReadConfigIndependent} ride alongside the config fingerprint because the
+     * identity gate needs both: a whole-file contribution that arrives without its shape compares against
+     * {@code null}, and the gate then passes everything silently — which is the failure mode this record shape invites
+     * already.
+     */
+    record WholeFile(
+        SourceStatistics stats,
+        long mtimeMillis,
+        String configFingerprint,
+        String readConfig,
+        boolean rowCountReadConfigIndependent
+    ) implements SourceStatsContribution {}
 
     /**
      * The records of one canonical stripe that a single chunk observed — the unit of the orthogonal
@@ -58,6 +72,8 @@ sealed interface SourceStatsContribution {
         SourceStatistics stats,
         long mtimeMillis,
         String configFingerprint,
+        String readConfig,
+        boolean rowCountReadConfigIndependent,
         long stripeSize,
         long ordinal,
         long start,
@@ -71,7 +87,14 @@ sealed interface SourceStatsContribution {
         }
     }
 
-    /** A chunk dropped rows mid-scan (SKIP_ROW); the file's whole contribution set must be discarded to avoid an under-count. */
+    /**
+     * A scan of the file did not complete cleanly — the parallel coordinators publish
+     * {@link ExternalStats#CHUNK_HAD_ERRORS_KEY} from their close paths on an error, a truncated read, or an
+     * early close (LIMIT, cancellation) that left chunks unconsumed — so the scan's extent is not deterministic
+     * and the reconciler discards the file's whole contribution set rather than commit stats another scan would
+     * not reproduce. A row dropped by the error policy is NOT poison: a clean-completing scan commits its
+     * survivor statistics, and the readers themselves suppress the publish when the projection decided the drops.
+     */
     record Poison() implements SourceStatsContribution {}
 
     /**
@@ -93,8 +116,10 @@ sealed interface SourceStatsContribution {
         SourceStatistics stats = SourceStatisticsSerializer.extractStatistics(raw).orElse(null);
         long mtime = raw.get(ExternalStats.MTIME_MILLIS_KEY) instanceof Number n ? n.longValue() : -1L;
         String fingerprint = raw.get(ExternalStats.CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
+        String readConfig = raw.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
+        boolean rowCountReadConfigIndependent = Boolean.TRUE.equals(raw.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
         if (Boolean.TRUE.equals(raw.get(ExternalStats.PARTIAL_CHUNK_KEY)) == false) {
-            return new WholeFile(stats, mtime, fingerprint);
+            return new WholeFile(stats, mtime, fingerprint, readConfig, rowCountReadConfigIndependent);
         }
         long stripeSize = raw.get(ExternalStats.STRIPE_SIZE_KEY) instanceof Number n ? n.longValue() : -1L;
         long ordinal = raw.get(ExternalStats.STRIPE_ORDINAL_KEY) instanceof Number n ? n.longValue() : -1L;
@@ -103,6 +128,19 @@ sealed interface SourceStatsContribution {
         boolean atStart = Boolean.TRUE.equals(raw.get(ExternalStats.STRIPE_AT_START_KEY));
         boolean atEnd = Boolean.TRUE.equals(raw.get(ExternalStats.STRIPE_AT_END_KEY));
         boolean eof = Boolean.TRUE.equals(raw.get(ExternalStats.COVERAGE_IS_LAST_KEY));
-        return new StripeFragment(stats, mtime, fingerprint, stripeSize, ordinal, start, end, atStart, atEnd, eof);
+        return new StripeFragment(
+            stats,
+            mtime,
+            fingerprint,
+            readConfig,
+            rowCountReadConfigIndependent,
+            stripeSize,
+            ordinal,
+            start,
+            end,
+            atStart,
+            atEnd,
+            eof
+        );
     }
 }

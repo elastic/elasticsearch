@@ -11,28 +11,41 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.column.page.PageReadStore;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Map;
+import java.util.Optional;
+import java.util.PrimitiveIterator;
 
 /**
  * In-memory {@link PageReadStore} backed by per-column {@link PrefetchedPageReader}s. Replaces
  * parquet-mr's {@code ColumnChunkPageReadStore} on the optimized iterator's read path.
  *
- * <p>Each {@link PrefetchedPageReader} owns native decompression buffers ({@link
- * org.apache.arrow.memory.ArrowBuf}s) allocated from the supplied {@code BufferAllocator}.
- * {@link #close()} releases all per-column readers and is idempotent; callers must ensure no
- * {@link DictionaryPage} or {@link org.apache.parquet.column.page.DataPage} returned from a
- * reader is used after close.
+ * <p>Each {@link PrefetchedPageReader} charges heap decompression output to the request
+ * breaker for the current page and cached dictionary. {@link #close()} releases those charges
+ * and is idempotent. Uncompressed pages may alias prefetched I/O bytes; those must not be used
+ * after the backing chunks are released.
+ *
+ * <p>Filtered stores expose a fresh selected-row iterator through {@link #getRowIndexes()}.
+ * {@code ColumnReadStoreImpl} uses it to select parquet-mr's synchronizing reader for repeated
+ * columns, whose page boundaries need not match those of the predicate columns.
  */
 final class PrefetchedPageReadStore implements PageReadStore, DictionaryPageReadStore {
 
     private final Map<ColumnDescriptor, PrefetchedPageReader> readers;
     private final long rowCount;
+    @Nullable
+    private final RowRanges rowRanges;
 
     PrefetchedPageReadStore(Map<ColumnDescriptor, PrefetchedPageReader> readers, long rowCount) {
+        this(readers, rowCount, null);
+    }
+
+    PrefetchedPageReadStore(Map<ColumnDescriptor, PrefetchedPageReader> readers, long rowCount, @Nullable RowRanges rowRanges) {
         this.readers = Map.copyOf(readers);
         this.rowCount = rowCount;
+        this.rowRanges = rowRanges;
     }
 
     @Override
@@ -56,6 +69,11 @@ final class PrefetchedPageReadStore implements PageReadStore, DictionaryPageRead
     public DictionaryPage readDictionaryPage(ColumnDescriptor descriptor) {
         PrefetchedPageReader reader = readers.get(descriptor);
         return reader == null ? null : reader.readDictionaryPage();
+    }
+
+    @Override
+    public Optional<PrimitiveIterator.OfLong> getRowIndexes() {
+        return rowRanges == null || rowRanges.isAll() ? Optional.empty() : Optional.of(rowRanges.rowIndexes());
     }
 
     @Override

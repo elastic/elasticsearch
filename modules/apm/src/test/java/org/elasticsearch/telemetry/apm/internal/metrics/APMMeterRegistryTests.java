@@ -25,24 +25,25 @@ import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.TestAPMMeterService;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
+import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -124,19 +125,21 @@ public class APMMeterRegistryTests extends ESTestCase {
         );
         APMMeterRegistry registry = apmMeter.getMeterRegistry();
 
-        Supplier<DoubleWithAttributes> doubleObserver = () -> new DoubleWithAttributes(1.5, Collections.emptyMap());
+        Consumer<DoubleAsyncMeasurement> doubleCallback = measurement -> measurement.record(1.5);
         DoubleCounter dc = registry.registerDoubleCounter("es.test.dc.total", "", "");
         DoubleUpDownCounter dudc = registry.registerDoubleUpDownCounter("es.test.dudc.current", "", "");
         DoubleHistogram dh = registry.registerDoubleHistogram("es.test.dh.histogram", "", "");
-        DoubleAsyncCounter dac = registry.registerDoubleAsyncCounter("es.test.dac.total", "", "", doubleObserver);
-        DoubleGauge dg = registry.registerDoubleGauge("es.test.dg.current", "", "", doubleObserver);
+        DoubleGauge dg = registry.registerDoubleGauge("es.test.dg.total", "", "");
+        DoubleAsyncCounter dac = registry.registerDoubleAsyncCounter("es.test.dac.total", "", "", doubleCallback);
+        DoubleAsyncGauge dag = registry.registerDoubleAsyncGauge("es.test.dag.current", "", "", doubleCallback);
 
-        Supplier<LongWithAttributes> longObserver = () -> new LongWithAttributes(100, Collections.emptyMap());
+        Consumer<LongAsyncMeasurement> longCallback = measurement -> measurement.record(100);
         LongCounter lc = registry.registerLongCounter("es.test.lc.total", "", "");
         LongUpDownCounter ludc = registry.registerLongUpDownCounter("es.test.ludc.total", "", "");
         LongHistogram lh = registry.registerLongHistogram("es.test.lh.histogram", "", "");
-        LongAsyncCounter lac = registry.registerLongAsyncCounter("es.test.lac.total", "", "", longObserver);
-        LongGauge lg = registry.registerLongGauge("es.test.lg.current", "", "", longObserver);
+        LongGauge lg = registry.registerLongGauge("es.test.lg.total", "", "");
+        LongAsyncCounter lac = registry.registerLongAsyncCounter("es.test.lac.total", "", "", longCallback);
+        LongAsyncGauge lag = registry.registerLongAsyncGauge("es.test.lag.current", "", "", longCallback);
 
         apmMeter.setEnabled(true);
 
@@ -144,21 +147,25 @@ public class APMMeterRegistryTests extends ESTestCase {
         dc.increment();
         dudc.add(1.0);
         dh.record(1.0);
+        dg.set(1.0);
         lc.increment();
         ludc.add(1);
         lh.record(1);
+        lg.set(1);
 
         hasOneDouble(dc, 1.0d);
         hasOneDouble(dudc, 1.0d);
         hasOneDouble(dh, 1.0d);
+        hasOneDouble(dg, 1.0d);
         hasOneDouble(dac, 1.5d);
-        hasOneDouble(dg, 1.5d);
+        hasOneDouble(dag, 1.5d);
 
         hasOneLong(lc, 1L);
         hasOneLong(ludc, 1L);
         hasOneLong(lh, 1L);
+        hasOneLong(lg, 1L);
         hasOneLong(lac, 100L);
-        hasOneLong(lg, 100L);
+        hasOneLong(lag, 100L);
     }
 
     public void testInstrumentsResumeAfterDisableAndReEnable() {
@@ -176,7 +183,7 @@ public class APMMeterRegistryTests extends ESTestCase {
         String counterName = "es.test.resume_counter.total";
         String gaugeName = "es.test.resume_gauge.current";
         LongCounter counter = registry.registerLongCounter(counterName, "", "");
-        registry.registerLongGauge(gaugeName, "", "", () -> new LongWithAttributes(7L, Collections.emptyMap()));
+        registry.registerLongAsyncGauge(gaugeName, "", "", () -> 7L);
 
         apmMeter.setEnabled(true);
         counter.increment();
@@ -210,7 +217,7 @@ public class APMMeterRegistryTests extends ESTestCase {
         Meter otelMeter = provider.get("elasticsearch");
         APMMeterRegistry registry = new APMMeterService(timingEnabled, () -> otelMeter, () -> noopOtel).getMeterRegistry();
 
-        registry.registerLongGauge("es.test.timed.current", "", "", () -> new LongWithAttributes(7L, Collections.emptyMap()));
+        registry.registerLongAsyncGauge("es.test.timed.current", "", "", () -> 7L);
 
         List<String> timedInstruments = collectionTimeInstruments(reader.collectAllMetrics());
         assertThat(timedInstruments, contains("es.test.timed.current"));

@@ -39,7 +39,7 @@ final class EscfBoolColumn extends EscfColumn {
     }
 
     @Override
-    boolean getBooleanValue(int row) {
+    public boolean getBooleanValue(int row) {
         return bitSet(row);
     }
 
@@ -47,6 +47,15 @@ final class EscfBoolColumn extends EscfColumn {
         // values is null or covers [0, docCount), so no length guard is needed.
         return values != null && values.get(row);
     }
+
+    // A boolean is one bit, which rounds to 0 bytes (SourceValueType.elemDataSize(TRUE/FALSE) == 0).
+    @Override
+    public int sizeInBytes(int row) {
+        return 0;
+    }
+
+    @Override
+    public void addSizesInBytes(int[] sizes) {}
 
     @Override
     EscfColumn sliceInternal(int from, int count) {

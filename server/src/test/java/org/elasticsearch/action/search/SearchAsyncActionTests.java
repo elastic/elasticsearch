@@ -16,11 +16,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -152,6 +154,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             null,
             new ArraySearchPhaseResults<>(filteredShardsIter.size()),
+            NoopCircuitBreaker.INSTANCE,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             mock(SearchResponseMetrics.class),
@@ -264,6 +267,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
+                NoopCircuitBreaker.INSTANCE,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -385,6 +389,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
+                NoopCircuitBreaker.INSTANCE,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -527,6 +532,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     Map.of()
                 ),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
+                NoopCircuitBreaker.INSTANCE,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -640,6 +646,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
+                NoopCircuitBreaker.INSTANCE,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -730,6 +737,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             null,
             new ArraySearchPhaseResults<>(0),
+            NoopCircuitBreaker.INSTANCE,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             mock(SearchResponseMetrics.class),
@@ -798,7 +806,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             if (primaryNode != null) {
                 routing = routing.initialize(primaryNode.getId(), i + "p", 0);
@@ -812,7 +820,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     RecoverySource.PeerRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
                     ShardRouting.Role.DEFAULT,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                    RecoveryPriority.UNASSIGNED_EXPECTED
                 );
                 if (replicaNode != null) {
                     routing = routing.initialize(replicaNode.getId(), i + "r", 0);

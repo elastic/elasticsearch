@@ -105,6 +105,15 @@ public class IndexSource implements Writeable, Releasable {
     }
 
     /**
+     * Replaces the inline source bytes with an empty reference, records the row index into the shard-level batch,
+     * and sets the content type. Use this overload when no prior {@link #source} call has been made.
+     */
+    public void setSourceRow(SourceBatch batch, int rowIndex, XContentType contentType) {
+        this.contentType = contentType;
+        setSourceRow(batch, rowIndex);
+    }
+
+    /**
      * Replaces the inline source bytes with an empty reference and records the row index into the shard-level batch.
      * The {@link XContentType} is preserved so downstream code can still identify the original content type.
      */

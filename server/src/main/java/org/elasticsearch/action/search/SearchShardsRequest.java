@@ -39,8 +39,6 @@ public final class SearchShardsRequest extends UntypedActionRequest implements I
 
     @Nullable
     private final String routing;
-    @Nullable
-    private final String searchSlice;
     private final boolean routingFromSlice;
     @Nullable
     private final String preference;
@@ -69,7 +67,7 @@ public final class SearchShardsRequest extends UntypedActionRequest implements I
         boolean allowPartialSearchResults,
         String clusterAlias
     ) {
-        this(indices, indicesOptions, query, routing, null, false, preference, allowPartialSearchResults, clusterAlias);
+        this(indices, indicesOptions, query, routing, false, preference, allowPartialSearchResults, clusterAlias);
     }
 
     public SearchShardsRequest(
@@ -77,7 +75,6 @@ public final class SearchShardsRequest extends UntypedActionRequest implements I
         IndicesOptions indicesOptions,
         QueryBuilder query,
         String routing,
-        String searchSlice,
         boolean routingFromSlice,
         String preference,
         boolean allowPartialSearchResults,
@@ -87,7 +84,6 @@ public final class SearchShardsRequest extends UntypedActionRequest implements I
         this.indicesOptions = indicesOptions;
         this.query = query;
         this.routing = routing;
-        this.searchSlice = searchSlice;
         this.routingFromSlice = routingFromSlice;
         this.preference = preference;
         this.allowPartialSearchResults = allowPartialSearchResults;
@@ -101,10 +97,22 @@ public final class SearchShardsRequest extends UntypedActionRequest implements I
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.routing = in.readOptionalString();
         if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
-            this.searchSlice = in.readOptionalString();
-            this.routingFromSlice = in.readBoolean();
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION)) {
+                this.routingFromSlice = in.readBoolean();
+            } else {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                this.routingFromSlice = in.readBoolean();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
         } else {
-            this.searchSlice = null;
             this.routingFromSlice = false;
         }
         this.preference = in.readOptionalString();
@@ -120,7 +128,9 @@ public final class SearchShardsRequest extends UntypedActionRequest implements I
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalString(routing);
         if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
-            out.writeOptionalString(searchSlice);
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
             out.writeBoolean(routingFromSlice);
         }
         out.writeOptionalString(preference);
@@ -182,9 +192,13 @@ public final class SearchShardsRequest extends UntypedActionRequest implements I
         return routing;
     }
 
+    /**
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
+     */
     @Nullable
     public String searchSlice() {
-        return searchSlice;
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
     }
 
     public boolean isRoutingFromSlice() {
@@ -208,9 +222,6 @@ public final class SearchShardsRequest extends UntypedActionRequest implements I
             + query
             + ", routing='"
             + routing
-            + '\''
-            + ", searchSlice='"
-            + searchSlice
             + '\''
             + ", routingFromSlice="
             + routingFromSlice
@@ -237,7 +248,6 @@ public final class SearchShardsRequest extends UntypedActionRequest implements I
             && Objects.equals(indicesOptions, request.indicesOptions)
             && Objects.equals(query, request.query)
             && Objects.equals(routing, request.routing)
-            && Objects.equals(searchSlice, request.searchSlice)
             && routingFromSlice == request.routingFromSlice
             && Objects.equals(preference, request.preference)
             && allowPartialSearchResults == request.allowPartialSearchResults
@@ -246,16 +256,7 @@ public final class SearchShardsRequest extends UntypedActionRequest implements I
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(
-            indicesOptions,
-            query,
-            routing,
-            searchSlice,
-            routingFromSlice,
-            preference,
-            allowPartialSearchResults,
-            clusterAlias
-        );
+        int result = Objects.hash(indicesOptions, query, routing, routingFromSlice, preference, allowPartialSearchResults, clusterAlias);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

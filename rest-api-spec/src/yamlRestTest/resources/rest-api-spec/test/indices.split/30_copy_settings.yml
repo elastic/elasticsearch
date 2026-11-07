@@ -3,6 +3,9 @@
   - skip:
       features: [arbitrary_key]
 
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
   - do:
       nodes.info:
         node_id: data:true
@@ -21,6 +24,8 @@
             index.number_of_shards: 1
             index.number_of_routing_shards: 4
             index.merge.scheduler.max_merge_count: 4
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   # make it read-only
   - do:

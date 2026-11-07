@@ -682,7 +682,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             assertThat(masterService.numberOfPendingTasks(), equalTo(submitThreads.length + 1));
-            final var sources = masterService.pendingTasks().stream().map(t -> t.getSource().string()).collect(Collectors.toSet());
+            final var sources = masterService.pendingTasks().stream().map(PendingClusterTask::getSource).collect(Collectors.toSet());
             assertThat(sources, hasSize(submitThreads.length + 1));
             assertTrue(sources.contains("block"));
             for (int i = 0; i < submitThreads.length; i++) {
@@ -2139,6 +2139,73 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Runs a random mix of state-changing and no-op tasks, with each publication randomly succeeding or failing to commit, and
+     * verifies that the publication counter reports the number of publications for each result, and does not count no-op tasks.
+     */
+    public void testClusterStatePublicationCounter() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var meterRegistry = new RecordingMeterRegistry();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        try (
+            var masterService = createMasterService(
+                true,
+                null,
+                threadPool,
+                new StoppableExecutorServiceWrapper(threadPool.generic()),
+                meterRegistry
+            )
+        ) {
+            final var expectedSuccesses = new AtomicLong();
+            final var expectedFailures = new AtomicLong();
+            final var publishedState = new AtomicReference<>(masterService.state());
+            masterService.setClusterStateSupplier(publishedState::get);
+            masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
+                if (randomBoolean()) {
+                    publishedState.set(clusterStatePublicationEvent.getNewState());
+                    expectedSuccesses.incrementAndGet();
+                    publishListener.onResponse(null);
+                } else {
+                    expectedFailures.incrementAndGet();
+                    publishListener.onFailure(new FailedToCommitClusterStateException("simulated publish failure"));
+                }
+            });
+
+            final int taskCount = between(1, 20);
+            for (int i = 0; i < taskCount; i++) {
+                final boolean changesState = frequently();
+                masterService.submitUnbatchedStateUpdateTask("task-" + i, new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return changesState ? ClusterState.builder(currentState).build() : currentState;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
+                    }
+                });
+            }
+            deterministicTaskQueue.runAllTasks();
+
+            meterRegistry.getRecorder().collect();
+            final var measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, "es.cluster.state_update.published.total");
+            assertThat(measurements.size(), equalTo(2));
+
+            final var countsByResult = new HashMap<Object, Long>();
+            for (final var measurement : measurements) {
+                countsByResult.put(measurement.attributes().get("es_cluster_state_publication_outcome"), measurement.getLong());
+            }
+            assertThat(countsByResult, equalTo(Map.of("success", expectedSuccesses.get(), "failure", expectedFailures.get())));
+
+            final var stats = masterService.getClusterStateUpdateStats();
+            assertThat(stats.getPublicationSuccessCount(), equalTo(expectedSuccesses.get()));
+            assertThat(stats.getPublicationFailureCount(), equalTo(expectedFailures.get()));
+        }
+    }
+
     private static void assertMasterQueueMetrics(
         RecordingMeterRegistry meterRegistry,
         String metricName,
@@ -2148,14 +2215,14 @@ public class MasterServiceTests extends ESTestCase {
         meterRegistry.getRecorder().resetCalls();
         meterRegistry.getRecorder().collect();
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, pendingTasksMetricName(metricName)),
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, pendingTasksMetricName(metricName)),
             measures(expectedValue)
         );
         for (final var priority : Priority.values()) {
             assertThat(
                 priority.toString(),
                 meterRegistry.getRecorder()
-                    .getMeasurements(InstrumentType.LONG_GAUGE, priorityPendingTasksMetricName(priority, metricName)),
+                    .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, priorityPendingTasksMetricName(priority, metricName)),
                 measures(expectedValuePerPriority.applyAsLong(priority))
             );
         }
@@ -2343,7 +2410,7 @@ public class MasterServiceTests extends ESTestCase {
                         .findFirst()
                         .orElseThrow(() -> new AssertionError("task not found"));
 
-                    assertEquals(getSource(), pendingTaskEntry.getSource().string());
+                    assertEquals(getSource(), pendingTaskEntry.getSource());
                     assertEquals(expectExecuting, pendingTaskEntry.isExecuting());
                     assertEquals(priority, pendingTaskEntry.getPriority());
                     assertEquals(

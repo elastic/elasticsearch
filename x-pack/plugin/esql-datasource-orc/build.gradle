@@ -84,6 +84,7 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
   // At runtime these are provided by esql-datasource-compression-libs parent plugin;
   // at test time we need them explicitly since there's no parent plugin classloader.
   // lz4-java is already on the test classpath via server → libs/lz4.

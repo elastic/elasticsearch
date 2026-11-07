@@ -156,6 +156,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
@@ -188,6 +190,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -198,6 +201,7 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.action.MockDataSourceRequest;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -661,6 +665,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         roleMap.put("manage_security_role", role);
         for (String action : LoggingAuditTrail.SECURITY_CHANGE_ACTIONS) {
+            if (action.startsWith("cluster:admin/xpack/security") == false) {
+                continue;
+            }
             TransportRequest request = mock(TransportRequest.class);
             authorize(authentication, action, request);
             verify(auditTrail).accessGranted(
@@ -671,6 +678,61 @@ public class AuthorizationServiceTests extends ESTestCase {
                 authzInfoRoles(new String[] { role.getName() })
             );
         }
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testAuthorizationForEsqlSecurityChange() {
+        final Authentication authentication = createAuthentication(new User("user", "manage_datasources_role"));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        RoleDescriptor role = new RoleDescriptor(
+            "manage_datasources_role",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("manage_dataset").build() },
+            null,
+            new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.DatasourcePrivileges(
+                    List.of(
+                        new ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup(
+                            new String[] { "*" },
+                            new String[] { "manage" }
+                        )
+                    )
+                ) },
+            null,
+            null,
+            null
+        );
+        roleMap.put("manage_datasources_role", role);
+        for (String action : List.of(
+            EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
+            EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME
+        )) {
+            var request = new MockIndicesRequest(null, "my_dataset");
+            authorize(authentication, action, request);
+            verify(auditTrail).accessGranted(
+                eq(requestId),
+                eq(authentication),
+                eq(action),
+                eq(request),
+                authzInfoRoles(new String[] { role.getName() })
+            );
+        }
+
+        for (String action : List.of(
+            EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
+            EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME
+        )) {
+            var request = new MockDataSourceRequest(action, "my_datasource");
+            authorize(authentication, action, request);
+            verify(auditTrail).accessGranted(
+                eq(requestId),
+                eq(authentication),
+                eq(action),
+                eq(request),
+                authzInfoRoles(new String[] { role.getName() })
+            );
+        }
+
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1617,6 +1679,38 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(authentication),
             eq(SearchTransportService.QUERY_ACTION_NAME),
             eq(shardRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testSearchPITAgainstUnauthorizedIndexIsDenied() {
+        RoleDescriptor role = new RoleDescriptor(
+            "search_public",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("public").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("pit-attacker", role.getName()));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        final ClusterState clusterState = mockMetadataWithIndex("private");
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index("private");
+
+        PointInTimeBuilder pit = new PointInTimeBuilder(createEncodedPIT(indexMetadata.getIndex()));
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().pointInTimeBuilder(pit))
+            .allowPartialSearchResults(false);
+        this.setFakeOriginatingAction = false;
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest),
+            TransportSearchAction.TYPE.name(),
+            "pit-attacker"
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(searchRequest),
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
@@ -4481,5 +4575,49 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(1L));
         assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
         assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
+    }
+
+    public void testProjectRoutingFailureWithLocalApiKey() {
+        var origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // local API key can only access the origin project
+            callback.onResponse(new TargetProjects(origin));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        var emptyResultResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                return TargetProjects.EMPTY;
+            }
+        };
+
+        authorizationService = createCpsAuthorizationService(emptyResultResolver, new UsageService());
+        var authentication = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(new User(randomAlphaOfLengthBetween(3, 8)), Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20))),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        var request = new ResolveIndexAction.Request(
+            new String[] { randomAlphanumericOfLength(8) },
+            ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS,
+            null,
+            "_alias:linked"
+        );
+        var ex = expectThrows(
+            NoMatchingProjectException.class,
+            () -> authorize(authentication, ResolveIndexAction.NAME, request, true, null)
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("an Elasticsearch API key, which can only access the origin project and never linked projects")
+        );
     }
 }

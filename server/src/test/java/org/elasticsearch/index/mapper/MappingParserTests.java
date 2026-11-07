@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 public class MappingParserTests extends MapperServiceTestCase {
 
@@ -50,12 +50,13 @@ public class MappingParserTests extends MapperServiceTestCase {
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
-        Supplier<MappingParserContext> mappingParserContextSupplier = () -> new MappingParserContext(
+        Function<MapperService.MergeReason, MappingParserContext> mappingParserContextSupplier = reason -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexSettings.getIndexVersionCreated(),
             () -> transportVersion,
+            f -> true,
             () -> {
                 throw new UnsupportedOperationException();
             },
@@ -69,7 +70,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        MappingParserContext ctx = mappingParserContextSupplier.get();
+        MappingParserContext ctx = mappingParserContextSupplier.apply(MapperService.MergeReason.MAPPING_RECOVERY);
         Map<String, MetadataFieldMapper.Builder> metadataBuilders = new LinkedHashMap<>();
         for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
             MetadataFieldMapper.Builder builder = parser.getDefaultBuilder(ctx);

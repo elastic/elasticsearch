@@ -16,8 +16,11 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
@@ -25,10 +28,10 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -111,7 +114,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField NAME = new ParseField("name");
         public static final ParseField COMPONENT_TEMPLATES = new ParseField("component_templates");
         public static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
@@ -193,19 +196,25 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.startArray(COMPONENT_TEMPLATES.getPreferredName());
-            for (Map.Entry<String, ComponentTemplate> componentTemplate : this.componentTemplates.entrySet()) {
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.startArray(COMPONENT_TEMPLATES.getPreferredName()),
+                Iterators.map(componentTemplates.entrySet().iterator(), this::componentTemplateChunk),
+                ChunkedToXContentHelper.endArray(),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
+
+        private ToXContent componentTemplateChunk(Map.Entry<String, ComponentTemplate> componentTemplate) {
+            return (builder, params) -> {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
                 builder.field(COMPONENT_TEMPLATE.getPreferredName());
                 componentTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
-            }
-            builder.endArray();
-            builder.endObject();
-            return builder;
+                return builder;
+            };
         }
 
     }

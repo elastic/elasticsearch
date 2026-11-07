@@ -15,22 +15,26 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import java.util.Locale;
+import java.util.function.Supplier;
+
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3MinioBasicCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
-    private static final String PREFIX = getIdentifierPrefix("RepositoryS3MinioBasicCredentialsRestIT").toLowerCase(Locale.ROOT);
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base-path";
+    private static final String PREFIX = getIdentifierPrefix("RepositoryS3MinioBasicCredentialsRestIT");
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "minio_client";
 
-    private static final MinioTestContainer minioFixture = new MinioTestContainer(true, ACCESS_KEY, SECRET_KEY, BUCKET);
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
+
+    private static final LazyMinioFixture minioFixture = new LazyMinioFixture();
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
@@ -42,6 +46,25 @@ public class RepositoryS3MinioBasicCredentialsRestIT extends AbstractRepositoryS
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(minioFixture).around(cluster);
 
+    private static class LazyMinioFixture extends ExternalResource {
+        private MinioTestContainer minioTestContainer;
+
+        @Override
+        protected void before() {
+            minioTestContainer = new MinioTestContainer(true, ACCESS_KEY, SECRET_KEY, bucketSupplier.get());
+            minioTestContainer.start();
+        }
+
+        @Override
+        protected void after() {
+            minioTestContainer.stop();
+        }
+
+        String getAddress() {
+            return minioTestContainer.getAddress();
+        }
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
@@ -49,12 +72,12 @@ public class RepositoryS3MinioBasicCredentialsRestIT extends AbstractRepositoryS
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
     protected String getBasePath() {
-        return BASE_PATH;
+        return basePathSupplier.get();
     }
 
     @Override

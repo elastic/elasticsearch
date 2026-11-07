@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -626,6 +627,84 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         assertThat(result.containsKey("tree-model"), equalTo(true));
         assertThat(result.get("tree-model").getModelSizeBytes(), equalTo(512L));
         assertThat(result.get("tree-model").getRequiredNativeMemoryBytes(), equalTo(0L));
+    }
+
+    /**
+     * A deployed PyTorch model must surface the OS-reported resident set size summed across its nodes as the
+     * runtime/peak native memory, alongside the a priori {@code required_native_memory_bytes} estimate.
+     */
+    public void testBuildModelSizeStatsByKeySumsRuntimeNativeMemory() {
+        TrainedModelConfig pytorchModel = TrainedModelConfig.builder()
+            .setModelId("model-rss")
+            .setModelType(TrainedModelType.PYTORCH)
+            .setInput(new TrainedModelInput(List.of()))
+            .build();
+
+        AssignmentStats.NodeStats node1 = AssignmentStats.NodeStats.forStartedState(
+            DiscoveryNodeUtils.create("node_1"),
+            5L,
+            1.0,
+            1.0,
+            0,
+            0,
+            0L,
+            0,
+            0,
+            Instant.now(),
+            Instant.now(),
+            1,
+            1,
+            0L,
+            0L,
+            1.0,
+            0L,
+            100L, // avg rss
+            150L  // peak rss
+        );
+        AssignmentStats.NodeStats node2 = AssignmentStats.NodeStats.forStartedState(
+            DiscoveryNodeUtils.create("node_2"),
+            5L,
+            1.0,
+            1.0,
+            0,
+            0,
+            0L,
+            0,
+            0,
+            Instant.now(),
+            Instant.now(),
+            1,
+            1,
+            0L,
+            0L,
+            1.0,
+            0L,
+            200L, // avg rss
+            250L  // peak rss
+        );
+
+        AssignmentStats stats = new AssignmentStats(
+            "dep-rss",
+            "model-rss",
+            1,
+            2,
+            null,
+            null,
+            null,
+            Instant.now(),
+            List.of(node1, node2),
+            Priority.NORMAL
+        );
+
+        Map<String, TrainedModelSizeStats> result = TransportGetTrainedModelsStatsAction.buildModelSizeStatsByKey(
+            List.of(pytorchModel),
+            Map.of("model-rss", 1000L),
+            Map.of("dep-rss", stats)
+        );
+
+        assertThat(result.containsKey("dep-rss"), equalTo(true));
+        assertThat(result.get("dep-rss").getRuntimeNativeMemoryBytes(), equalTo(300L));
+        assertThat(result.get("dep-rss").getPeakRuntimeNativeMemoryBytes(), equalTo(400L));
     }
 
 }

@@ -23,15 +23,17 @@ public class IndexPropertiesTests extends ESTestCase {
     public void testShardCountAndModeArePreserved() {
         IndexMode mode = randomFrom(IndexMode.availableModes());
         int count = between(0, 1000);
-        IndexProperties props = new IndexProperties(mode, count);
+        int createdVersion = randomIntBetween(1, Integer.MAX_VALUE);
+        IndexProperties props = new IndexProperties(mode, count, createdVersion);
         assertEquals(count, props.numberOfShards());
+        assertEquals(createdVersion, props.createdVersion());
         assertEquals(mode, props.indexMode());
     }
 
     public void testSerializationRoundTripCurrentVersion() throws IOException {
         IndexMode mode = randomFrom(IndexMode.availableModes());
         int count = between(0, 1000);
-        IndexProperties original = new IndexProperties(mode, count);
+        IndexProperties original = new IndexProperties(mode, count, randomIntBetween(1, Integer.MAX_VALUE));
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersion.current());
@@ -49,10 +51,13 @@ public class IndexPropertiesTests extends ESTestCase {
      * produces a shard count of 0 ("unknown").
      */
     public void testDeserializationFromPreShardCountsVersionDefaultsToZero() throws IOException {
-        // Use the version just before SHARD_COUNTS: modern enough to support all IndexModes, but
-        // the wire stream won't include a shard count.
+        // Use the version just before SHARD_COUNTS so the wire stream omits shard count. Skip
+        // IndexModes that cannot be serialized at that version (e.g. vectordb_columnar).
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(IndexProperties.SHARD_COUNTS);
-        IndexMode mode = randomFrom(IndexMode.availableModes());
+        IndexMode mode = randomValueOtherThanMany(
+            m -> m.supportsVersion(oldVersion) == false,
+            () -> randomFrom(IndexMode.availableModes())
+        );
         int count = between(1, 1000);
         IndexProperties original = new IndexProperties(mode, count);
 

@@ -63,6 +63,8 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
  *       "error":{<standard ES error shape with root_cause, type, reason, caused_by>}}}</li>
  *   <li>Failure before the first values line: the terminal record is the only line, and the response carries
  *       the error HTTP status code.</li>
+ *   <li>Consumer timeout after the response was sent: the client stopped reading, so the connection is closed and the
+ *       stream ends without a terminal line.</li>
  * </ul>
  *
  * <p>The HTTP response is not sent until the publisher delivers the first page, the success footer or the
@@ -315,6 +317,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 }
                 if (next != null) {
                     next.onResponse(footerPart);
+                }
+                if (publisher.consumerTimedOut()) {
+                    logger.debug("closing the connection: the streaming consumer timed out");
+                    channel.request().getHttpChannel().close();
                 }
             }
         }

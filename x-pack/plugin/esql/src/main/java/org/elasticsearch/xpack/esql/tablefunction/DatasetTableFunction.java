@@ -42,6 +42,16 @@ public final class DatasetTableFunction implements TableFunction {
 
     public static final String NAME = "dataset";
 
+    /**
+     * The name the built {@link Dataset} carries, since an inline definition claims none. Deliberately not a legal
+     * dataset name: it reaches no cluster state and no cache address ({@code DefinitionVersion.of} folds the resource
+     * and the settings, never the name), but it DOES reach diagnostics and operator labels through
+     * {@code ExternalSourceResolver#DATASET_CONTEXT_KEY}. A real data source's name would read there as a dataset,
+     * and a dataset may legitimately share a data source's name — the two live in different namespaces — so a failure
+     * would be attributed to a dataset that exists and was never read.
+     */
+    static final String INLINE_DATASET_NAME = "<inline>";
+
     @Override
     public String name() {
         return NAME;
@@ -91,9 +101,7 @@ public final class DatasetTableFunction implements TableFunction {
         Dataset dataset = DatasetService.validateDefinition(
             validator,
             parent,
-            // The definition claims no name. The data source's own is used, which is always a valid dataset name
-            // (both run the same checks) and reaches neither cluster state nor a cache address.
-            dataSourceName,
+            INLINE_DATASET_NAME,
             dataSourceName,
             definition.resource(),
             definition.description(),

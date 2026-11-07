@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
@@ -24,15 +25,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
+
 /**
  * A dataset definition supplied inline by a {@code DATASET(<data source>, {...})} table function, read out of the
  * payload the parser already folded to plain values.
  * <p>
- * The payload is the same JSON a {@code PUT _query/dataset/<name>} body carries, minus the two things the call site
- * supplies instead: the name, which an inline definition never has, and {@code data_source}, which is the call's
- * positional argument. Supplying either in the payload is refused rather than ignored — a definition naming one data
- * source positionally and another in its body has no defensible reading, and silently preferring one would decide
- * which credentials the query runs under.
+ * The payload is the same JSON a {@code PUT _query/dataset/<name>} body carries, except for {@code data_source},
+ * which the call supplies positionally. Naming it in the payload too is refused rather than ignored: a definition
+ * naming one data source positionally and another in its body has no defensible reading, and silently preferring one
+ * would decide which credentials the query runs under. Neither shape carries a name — PUT takes that from the URL,
+ * and an inline definition has none at all.
  * <p>
  * Key names come from {@link PutDatasetAction.Request}'s own {@link ParseField}s and {@code mappings} is parsed by the
  * same {@link DatasetMapping#parseMappings} the registration API uses, so neither the vocabulary nor the mapping
@@ -114,15 +117,27 @@ public final class InlineDatasetDefinition {
                 "unknown dataset definition " + (unknown.size() == 1 ? "key " : "keys ") + unknown + ", expected one of " + KNOWN_KEYS
             );
         }
+        // The two checks PUT makes in Request#validate rather than in its parser, so a definition that registration
+        // would refuse is refused here too. A blank resource would otherwise reach the validator, and only a
+        // file-type validator happens to refuse one.
         String resource = stringValue(payload, PutDatasetAction.Request.RESOURCE.getPreferredName());
-        if (resource == null) {
+        if (Strings.hasText(resource) == false) {
             throw new IllegalArgumentException(
-                "dataset definition requires [" + PutDatasetAction.Request.RESOURCE.getPreferredName() + "]"
+                "dataset definition [" + PutDatasetAction.Request.RESOURCE.getPreferredName() + "] is missing or empty"
+            );
+        }
+        String description = stringValue(payload, PutDatasetAction.Request.DESCRIPTION.getPreferredName());
+        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException(
+                "dataset description is too large: "
+                    + description.length()
+                    + " characters, the maximum allowed is "
+                    + MAX_DESCRIPTION_LENGTH
             );
         }
         return new InlineDatasetDefinition(
             resource,
-            stringValue(payload, PutDatasetAction.Request.DESCRIPTION.getPreferredName()),
+            description,
             mapValue(payload, PutDatasetAction.Request.SETTINGS.getPreferredName()),
             parseMapping(mapValue(payload, PutDatasetAction.Request.MAPPINGS.getPreferredName()))
         );

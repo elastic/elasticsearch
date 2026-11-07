@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
 
@@ -18,7 +20,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -107,17 +111,43 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("no_such_source"));
     }
 
-    /** The definition goes through the registration API's validator, so an unknown setting is refused here too. */
-    public void testUnknownSettingIsRefusedByTheDatasetValidator() throws Exception {
-        Path file = writeRows("inline_bad_setting", "a.ndjson", "{\"id\":1}\n");
+    /**
+     * The definition goes through the registration API's own validator — asserted as parity rather than by matching a
+     * message: the same bad definition is offered to {@code PUT _query/dataset} and to an inline call, and the two
+     * refusals have to agree. A message assertion would pass for any error that merely echoed the key back.
+     */
+    public void testInlineDefinitionDrawsTheSameRefusalAsPut() throws Exception {
+        Path file = writeRows("inline_parity", "a.ndjson", "{\"id\":1}\n");
         String dataSource = registerLocalFileDataSource();
-        String query = "FROM DATASET("
-            + dataSource
-            + ", {\"resource\": \""
-            + StoragePath.fileUri(file)
-            + "\", \"settings\": {\"no_such_setting\": \"x\"}})";
-        Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query)));
-        assertThat(e.getMessage(), containsString("no_such_setting"));
+        String resource = StoragePath.fileUri(file);
+
+        Exception viaPut = expectThrows(
+            Exception.class,
+            () -> client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "inline_parity_dataset",
+                    dataSource,
+                    resource,
+                    null,
+                    new HashMap<>(Map.of("no_such_setting", "x"))
+                )
+            ).actionGet()
+        );
+        Exception viaQuery = expectThrows(
+            Exception.class,
+            () -> run(
+                syncEsqlQueryRequest(
+                    "FROM DATASET(" + dataSource + ", {\"resource\": \"" + resource + "\", \"settings\": {\"no_such_setting\": \"x\"}})"
+                )
+            )
+        );
+
+        String putCause = ExceptionsHelper.unwrapCause(viaPut).getMessage();
+        assertThat(putCause, containsString("no_such_setting"));
+        assertThat(ExceptionsHelper.unwrapCause(viaQuery).getMessage(), equalTo(putCause));
     }
 
     /** The resource is the definition's own, so omitting it is refused rather than defaulted. */

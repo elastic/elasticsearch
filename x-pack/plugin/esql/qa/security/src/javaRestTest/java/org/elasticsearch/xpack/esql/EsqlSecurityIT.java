@@ -3840,6 +3840,93 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    private boolean tableFunctionsSupported() throws IOException {
+        return clusterHasCapability(
+            adminClient(),
+            "POST",
+            "/_query",
+            List.of(),
+            List.of(EsqlCapabilities.Cap.FROM_TABLE_FUNCTION.capabilityName())
+        ).orElse(false);
+    }
+
+    /**
+     * {@code DATASET(<data source>, {...})} reads a data source with no dataset in front of it, so nothing in the
+     * index namespace authorizes it. A caller with no {@code global.data_source} grant on the named data source is
+     * refused, naming the cluster action the privilege is evaluated through — the same refusal PUT dataset gives.
+     */
+    public void testFromDatasetTableFunctionDeniedWithoutDatasourcePrivilege() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        assumeTrue("table functions in FROM not supported by cluster", tableFunctionsSupported());
+        ensureSecurityItDatasourcesForTests();
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand(
+                "ds_dataset_query_no_datasource",
+                "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
+            )
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/dataset/authorize_datasource"));
+    }
+
+    /**
+     * {@code read_metadata} is enough to GET a data source and not enough to query out of one, exactly as it is not
+     * enough to attach a dataset to one.
+     */
+    public void testFromDatasetTableFunctionDeniedWithReadMetadataOnlyDatasource() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        assumeTrue("table functions in FROM not supported by cluster", tableFunctionsSupported());
+        ensureSecurityItDatasourcesForTests();
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand(
+                "ds_read_metadata_datasource",
+                "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
+            )
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/dataset/authorize_datasource"));
+    }
+
+    /**
+     * {@code read} on the data source admits the query: it then fails on the bucket the definition names, not on
+     * authorization. Asserted as "not a refusal" rather than as a success, the way the registered-dataset read test
+     * does it, because no real object backs the resource here.
+     */
+    public void testFromDatasetTableFunctionAllowedWithDatasourceRead() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        assumeTrue("table functions in FROM not supported by cluster", tableFunctionsSupported());
+        ensureSecurityItDatasourcesForTests();
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand(
+                "ds_read_datasource",
+                "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
+            )
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), not(equalTo(HttpStatus.SC_FORBIDDEN)));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), not(equalTo(HttpStatus.SC_UNAUTHORIZED)));
+        assertThat(ex.getMessage(), not(containsString("authorize_datasource")));
+        assertThat(ex.getMessage(), not(containsString("unauthorized")));
+    }
+
+    /** A data source the caller may read but that is not registered is reported as missing, not as a refusal. */
+    public void testFromDatasetTableFunctionUnregisteredDatasource() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        assumeTrue("table functions in FROM not supported by cluster", tableFunctionsSupported());
+        ensureSecurityItDatasourcesForTests();
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand(
+                "ds_read_datasource",
+                "FROM DATASET(security_it_absent_ds, {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
+            )
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
+        assertThat(ex.getMessage(), containsString("security_it_absent_ds"));
+    }
+
     /** Datasets are incompatible with DLS/FLS: a DLS-restricted role targeting a dataset via FROM is rejected. */
     public void testFromDatasetDeniedWithDlsOnName() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());

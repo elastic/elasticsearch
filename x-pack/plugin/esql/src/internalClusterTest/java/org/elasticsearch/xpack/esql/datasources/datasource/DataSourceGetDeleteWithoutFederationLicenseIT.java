@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 
@@ -20,6 +24,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -49,6 +55,24 @@ public class DataSourceGetDeleteWithoutFederationLicenseIT extends ESIntegTestCa
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.license.self_generated.type", "basic")
             .build();
+    }
+
+    /**
+     * The mirror of the cases below: reading a data source IS federation, so {@code DATASET(...)} must be refused on
+     * a Basic cluster. Registering a dataset over a data source is licence-gated, so querying one inline has to be
+     * too — otherwise the licence would turn on which syntax was used.
+     * <p>
+     * No data source is registered here, and none can be on Basic. It does not matter: the licence is checked before
+     * the name is looked up, which is also what makes this discriminating — without the check the query fails saying
+     * the data source was not found.
+     */
+    public void testFromDatasetTableFunctionRefusedWithoutFederationLicense() {
+        assumeTrue("requires table functions in FROM", EsqlCapabilities.Cap.FROM_TABLE_FUNCTION.isEnabled());
+        EsqlQueryRequest request = syncEsqlQueryRequest(
+            "FROM DATASET(some_ds, {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
+        );
+        Exception err = expectThrows(Exception.class, () -> client().execute(EsqlQueryAction.INSTANCE, request).actionGet());
+        assertThat(ExceptionsHelper.unwrapCause(err).getMessage(), containsString("Enterprise"));
     }
 
     /**

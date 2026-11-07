@@ -83,9 +83,9 @@ public class EsqlAuthorizeDatasourceAction extends TransportLocalProjectMetadata
 
     @Override
     protected void localClusterStateOperation(Task task, Request request, ProjectState project, ActionListener<Response> listener) {
-        // Registration, not authorization: the privilege was evaluated by the security layer before this ran. A name
-        // the caller may read but this node does not have is reported as absent, and the caller turns that into the
-        // same refusal an unauthorized name gets, so neither answer tells a prober which of the two happened.
+        // Registration, not authorization: the security layer evaluated the privilege before this ran, and a cluster
+        // action is all-or-nothing, so every name asked about here is one the caller may read. An absent name
+        // therefore means only that this project has not registered it.
         DataSourceMetadata dataSources = DataSourceMetadata.get(project.metadata());
         Set<String> registered = new LinkedHashSet<>();
         for (String name : request.dataSourceNames()) {
@@ -102,8 +102,9 @@ public class EsqlAuthorizeDatasourceAction extends TransportLocalProjectMetadata
 
         /**
          * @param dataSourceNames exact data source names, never patterns. The privilege's request predicate requires
-         *                        the caller's grant to cover every one of them, and an empty array would therefore be
-         *                        vacuously covered — so a caller with nothing to ask about must not build a request.
+         *                        the caller's grant to cover every one of them, and refuses an empty array outright —
+         *                        so a caller with nothing to ask about would be denied rather than waved through, and
+         *                        must not build a request at all.
          */
         public Request(TimeValue masterTimeout, String[] dataSourceNames) {
             super(masterTimeout);

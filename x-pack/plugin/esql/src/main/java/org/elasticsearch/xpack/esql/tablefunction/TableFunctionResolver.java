@@ -6,16 +6,19 @@
  */
 package org.elasticsearch.xpack.esql.tablefunction;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.action.EsqlAuthorizeDatasourceAction;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
+import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -35,33 +38,53 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  * abstraction, so the caller's index {@code read} privilege on its name governs it and the dataset resolve action is
  * what applies that. A data source is in no index namespace, so no index privilege says anything about it; what
  * governs it is {@code read} under {@code global.data_source}, applied by dispatching
- * {@link EsqlAuthorizeDatasourceAction} in the caller's own thread context. The security layer evaluates the
- * privilege before the handler runs, and the handler reports which of the names this project actually has.
+ * {@link EsqlAuthorizeDatasourceAction} in the caller's own thread context.
+ * <p>
+ * That action is a cluster action, so the decision is all-or-nothing and the security layer makes it before the
+ * handler runs: a caller whose grant does not cover every name asked for never reaches the handler, and sees the
+ * authorization layer's own refusal. What the handler answers is therefore only which of those names this project has
+ * registered, and a name missing from its answer means exactly one thing — not registered here — which is why that
+ * case is reported the way the registration API reports it.
  * <p>
  * One round-trip for the whole plan, not one per leaf. The dataset gate is per-relation because exclusions are
  * per-relation — {@code -logs_test} in one FROM must not narrow another — and a table function has no exclusions and
  * no wildcards at all: {@code TableFunction#validate} has already refused anything but a single exact name, so the
  * names from every call in the query compose into one request with nothing to disambiguate.
  * <p>
- * A name the caller may read but this project does not have, and a name the caller may not read, both come back
- * absent and draw one refusal, so neither answer tells a prober which of the two happened.
+ * Federation availability and the Enterprise licence are checked here for the reason the dataset path checks them: a
+ * data source is federation whichever syntax reaches it. Registering a dataset over one is licence-gated
+ * ({@code TransportPutDatasetAction}), so reading one inline has to be too, or the licence would turn on which of the
+ * two syntaxes was used.
  */
 public class TableFunctionResolver {
 
     private final Client client;
     private final Executor executor;
+    private final boolean federationAvailable;
+    private final FederationLicense federationLicense;
     private final Map<String, DataSourceValidator> validatorsByType;
 
     /**
      * @param executor where the decision is delivered. The authorize action can complete on another thread (the
      *                 security filter's role resolution, a cluster-state block wait), so the continuation is moved
      *                 back off it, as {@code ExternalSourceAuthorizer} does.
+     * @param federationAvailable resolved once by the caller ({@link Federation#isAvailable}), since both of its
+     *                            levers are read at startup
+     * @param federationLicense queried per query rather than captured, so the check reflects the current licence
      * @param validatorsByType the registration API's own per-type validators, so an inline definition meets the bar
      *                         a registered one does
      */
-    public TableFunctionResolver(Client client, Executor executor, Map<String, DataSourceValidator> validatorsByType) {
+    public TableFunctionResolver(
+        Client client,
+        Executor executor,
+        boolean federationAvailable,
+        FederationLicense federationLicense,
+        Map<String, DataSourceValidator> validatorsByType
+    ) {
         this.client = client;
         this.executor = executor;
+        this.federationAvailable = federationAvailable;
+        this.federationLicense = federationLicense;
         this.validatorsByType = Map.copyOf(validatorsByType);
     }
 
@@ -83,8 +106,11 @@ public class TableFunctionResolver {
             listener.onResponse(parsed);
             return;
         }
-        if (projectMetadata == null) {
-            listener.onFailure(notAuthorized(leaves.get(0).call().name()));
+
+        // Unlike a dataset name, a call has nothing to fall through to when federation is off: it cannot be read as an
+        // index pattern, so the plan cannot simply be handed back untouched.
+        if (federationAvailable == false) {
+            listener.onFailure(Federation.notAvailableException());
             return;
         }
 
@@ -98,6 +124,18 @@ public class TableFunctionResolver {
         }
         assert dataSourceNames.isEmpty() == false : "a table function that reads no data source needs no authorization path";
 
+        // Before the round-trip, so a non-Enterprise cluster answers with the licence rather than with whether the
+        // named data source happens to exist. Usage is recorded only once a read is actually built, below.
+        if (federationLicense.isAllowedWithoutTracking() == false) {
+            listener.onFailure(EsqlLicenseChecker.invalidLicenseForFederationException(federationLicense.get()));
+            return;
+        }
+
+        if (projectMetadata == null) {
+            listener.onFailure(notRegistered(dataSourceNames.iterator().next()));
+            return;
+        }
+
         EsqlAuthorizeDatasourceAction.Request request = new EsqlAuthorizeDatasourceAction.Request(
             REST_MASTER_TIMEOUT_DEFAULT,
             dataSourceNames.toArray(String[]::new)
@@ -105,22 +143,30 @@ public class TableFunctionResolver {
         client.execute(
             EsqlAuthorizeDatasourceAction.TYPE,
             request,
-            new ThreadedActionListener<>(executor, true, listener.delegateFailureAndWrap((delegate, response) -> {
-                for (String name : dataSourceNames) {
-                    if (response.dataSources().contains(name) == false) {
-                        delegate.onFailure(notAuthorized(name));
-                        return;
+            new ThreadedActionListener<>(
+                executor,
+                // Metering is re-established across the hand-off, as the dataset gate does it: the rewrite below runs
+                // the validator and the mapping round-trip, which is planning CPU and would otherwise go uncounted.
+                PlanningCpuTracker.inheritMeteredCpu(listener.delegateFailureAndWrap((delegate, response) -> {
+                    for (String name : dataSourceNames) {
+                        if (response.dataSources().contains(name) == false) {
+                            delegate.onFailure(notRegistered(name));
+                            return;
+                        }
                     }
-                }
-                delegate.onResponse(rewrite(parsed, leaves, projectMetadata));
-            }))
+                    LogicalPlan rewritten = rewrite(parsed, leaves, projectMetadata);
+                    federationLicense.isAllowed(); // records feature-usage telemetry; the licence is checked above
+                    delegate.onResponse(rewritten);
+                }))
+            )
         );
     }
 
     /**
-     * Binds each leaf and swaps it into the plan. Built before the walk and keyed by identity, because two calls that
-     * are written identically are equal and must still be replaced by their own relation rather than one of them
-     * twice — the relations differ in nothing today, which is exactly why relying on that would be a trap later.
+     * Binds each leaf and swaps it into the plan. Keyed by identity rather than equality: two calls written
+     * identically at different offsets are already unequal, because a {@link TableFunctionCall} carries its
+     * {@code Source} — so equality would work today, and would start collapsing leaves the moment a call's identity
+     * stopped including its position.
      */
     private LogicalPlan rewrite(LogicalPlan parsed, List<UnresolvedTableFunctionRelation> leaves, ProjectMetadata projectMetadata) {
         TableFunctionContext context = new TableFunctionContext(projectMetadata, validatorsByType);
@@ -138,12 +184,12 @@ public class TableFunctionResolver {
     }
 
     /**
-     * The one refusal for a data source the caller cannot read here, whether it is unregistered, outside the grant or
-     * not registered at all. {@code 403} rather than the dataset gate's {@code 400}: a dataset name that resolves to
-     * nothing is indistinguishable from a missing index and is reported as one, while a data source is named
-     * explicitly by a syntax that means nothing else, so there is nothing for it to be mistaken for.
+     * The refusal for a data source this project has not registered. The status and wording the registration API
+     * gives, because by the time this can be raised the caller is known to be authorized for the name: an
+     * unauthorized one is refused by the security layer before the handler runs, so this reveals nothing the caller
+     * is not entitled to.
      */
-    private static ElasticsearchStatusException notAuthorized(String dataSourceName) {
-        return new ElasticsearchStatusException("data source [{}] is not available to this query", RestStatus.FORBIDDEN, dataSourceName);
+    private static ResourceNotFoundException notRegistered(String dataSourceName) {
+        return new ResourceNotFoundException("data source [{}] not found", dataSourceName);
     }
 }

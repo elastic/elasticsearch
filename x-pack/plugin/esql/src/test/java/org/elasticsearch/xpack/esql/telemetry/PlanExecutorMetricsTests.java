@@ -819,7 +819,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
      * executor or validator — nulls are never dereferenced, for the same reason as above.
      */
     private static TableFunctionResolver noTableFunctionsResolver() {
-        return new TableFunctionResolver(null, null, Map.of());
+        return new TableFunctionResolver(null, null, true, new FederationLicense(() -> null), Map.of());
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

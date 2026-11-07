@@ -136,11 +136,9 @@ public class DatasetService {
      * <em>registering</em> rather than about the definition: finding the parent, picking its validator, and the
      * index-namespace collision check, which an inline definition cannot trip because it claims no name.
      *
-     * @param name the dataset name recorded on the returned {@link Dataset}. For an inline definition this is the
-     *             data source's own name — it reaches no cluster state and no cache address
-     *             ({@code DefinitionVersion.of} folds the resource and the settings, never the name), and the
-     *             dataset context it annotates failures with carries the data source beside it, so the two reading
-     *             alike is what marks the definition as unregistered.
+     * @param name the dataset name recorded on the returned {@link Dataset}. An inline definition claims none and
+     *             passes a synthetic one ({@code DatasetTableFunction#INLINE_DATASET_NAME}), which never reaches
+     *             cluster state; what it does reach is the dataset context that annotates failures.
      */
     public static Dataset validateDefinition(
         DataSourceValidator validator,

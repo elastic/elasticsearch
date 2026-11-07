@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.RegressionTests;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.notifications.MlNotificationTelemetry;
 import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -46,7 +48,8 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
                 client(),
                 getInstanceFromNode(ClusterService.class),
                 TestIndexNameExpressionResolver.newInstance(),
-                randomBoolean()
+                randomBoolean(),
+                new MlNotificationTelemetry(MeterRegistry.NOOP)
             ),
             getInstanceFromNode(ClusterService.class)
         );

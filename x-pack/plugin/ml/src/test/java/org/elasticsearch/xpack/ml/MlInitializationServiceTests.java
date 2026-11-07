@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
@@ -82,7 +83,8 @@ public class MlInitializationServiceTests extends ESTestCase {
             true,
             true,
             true,
-            true
+            true,
+            MeterRegistry.NOOP
         );
         initializationService.onMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
@@ -101,7 +103,8 @@ public class MlInitializationServiceTests extends ESTestCase {
             true,
             true,
             true,
-            true
+            true,
+            MeterRegistry.NOOP
         );
         initializationService.offMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(false));

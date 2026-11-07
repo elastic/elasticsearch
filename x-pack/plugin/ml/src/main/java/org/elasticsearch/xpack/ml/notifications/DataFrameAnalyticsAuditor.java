@@ -19,9 +19,10 @@ public class DataFrameAnalyticsAuditor extends AbstractMlAuditor<DataFrameAnalyt
         Client client,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        boolean includeNodeInfo
+        boolean includeNodeInfo,
+        MlNotificationTelemetry telemetry
     ) {
-        super(client, DataFrameAnalyticsAuditMessage::new, clusterService, indexNameExpressionResolver);
+        super(client, DataFrameAnalyticsAuditMessage::new, clusterService, indexNameExpressionResolver, telemetry);
         this.includeNodeInfo = includeNodeInfo;
     }
 

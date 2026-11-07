@@ -19,10 +19,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessageFactory;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
+import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MlIndexTemplateRegistry;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
@@ -30,11 +32,14 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
 
     private static final Logger logger = LogManager.getLogger(AbstractMlAuditor.class);
 
+    private final MlNotificationTelemetry telemetry;
+
     protected AbstractMlAuditor(
         Client client,
         AbstractAuditMessageFactory<T> messageFactory,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MlNotificationTelemetry telemetry
     ) {
         super(
             new OriginSettingClient(client, ML_ORIGIN),
@@ -45,6 +50,14 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
             indexNameExpressionResolver,
             clusterService.threadPool().generic()
         );
+        this.telemetry = Objects.requireNonNull(telemetry);
+    }
+
+    // Every info/warning/error shortcut funnels through here, so each notification is counted once, on the node that writes it.
+    @Override
+    public void audit(Level level, String resourceId, String message) {
+        telemetry.recordNotification(level);
+        super.audit(level, resourceId, message);
     }
 
     @Override

@@ -19,9 +19,10 @@ public class AnomalyDetectionAuditor extends AbstractMlAuditor<AnomalyDetectionA
         Client client,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        boolean includeNodeInfo
+        boolean includeNodeInfo,
+        MlNotificationTelemetry telemetry
     ) {
-        super(client, AnomalyDetectionAuditMessage::new, clusterService, indexNameExpressionResolver);
+        super(client, AnomalyDetectionAuditMessage::new, clusterService, indexNameExpressionResolver, telemetry);
         this.includeNodeInfo = includeNodeInfo;
     }
 

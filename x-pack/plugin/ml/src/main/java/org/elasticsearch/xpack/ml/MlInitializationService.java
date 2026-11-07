@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
@@ -74,7 +75,8 @@ public final class MlInitializationService implements ClusterStateListener {
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
         boolean isNlpEnabled,
-        boolean isIlmEnabled
+        boolean isIlmEnabled,
+        MeterRegistry meterRegistry
     ) {
         this(
             client,
@@ -91,7 +93,8 @@ public final class MlInitializationService implements ClusterStateListener {
                 isAnomalyDetectionEnabled,
                 isDataFrameAnalyticsEnabled,
                 isNlpEnabled,
-                isIlmEnabled
+                isIlmEnabled,
+                meterRegistry
             ),
             adaptiveAllocationsScalerService,
             clusterService

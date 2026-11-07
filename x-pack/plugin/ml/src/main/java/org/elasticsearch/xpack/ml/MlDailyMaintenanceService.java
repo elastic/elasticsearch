@@ -54,6 +54,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -81,10 +84,13 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -106,6 +112,20 @@ public class MlDailyMaintenanceService implements Releasable {
     // This is added in order to avoid multiple clusters running the maintenance tasks at the same time.
     private static final int MAX_TIME_OFFSET_MINUTES = 120;
 
+    public static final String RUNS_METRIC = "es.ml.maintenance.runs.total";
+    public static final String LAST_SUCCESS_AGE_METRIC = "es.ml.maintenance.last_success_age.current";
+    public static final String RUN_RESULT_ATTRIBUTE = "es_run_result";
+
+    private enum RunResult {
+        SUCCESS,
+        FAILURE,
+        SKIPPED;
+
+        Map<String, Object> attributes() {
+            return Map.of(RUN_RESULT_ATTRIBUTE, name().toLowerCase(Locale.ROOT));
+        }
+    }
+
     private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
@@ -125,6 +145,13 @@ public class MlDailyMaintenanceService implements Releasable {
     private final boolean isNlpEnabled;
     private final boolean isIlmEnabled;
 
+    private final MeterRegistry meterRegistry;
+    private final LongCounter runsCounter;
+    // Relative time of the latest run with no failed step, or of service start while there has been none since then.
+    private final AtomicLong lastSuccessOrStartMillis = new AtomicLong();
+    // Registered only while started: this runs on the elected master, and a stopped service must not report a stale age.
+    private LongAsyncGauge lastSuccessAgeGauge;
+
     private volatile Scheduler.Cancellable cancellable;
     private volatile float deleteExpiredDataRequestsPerSecond;
     private volatile ByteSizeValue rolloverMaxSize;
@@ -142,7 +169,8 @@ public class MlDailyMaintenanceService implements Releasable {
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
         boolean isNlpEnabled,
-        boolean isIlmEnabled
+        boolean isIlmEnabled,
+        MeterRegistry meterRegistry
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(client);
@@ -158,6 +186,12 @@ public class MlDailyMaintenanceService implements Releasable {
         this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
         this.isNlpEnabled = isNlpEnabled;
         this.isIlmEnabled = isIlmEnabled;
+        this.meterRegistry = Objects.requireNonNull(meterRegistry);
+        this.runsCounter = meterRegistry.registerLongCounter(
+            RUNS_METRIC,
+            "Count of scheduled ML maintenance runs on this node, by result.",
+            "runs"
+        );
     }
 
     public MlDailyMaintenanceService(
@@ -172,7 +206,8 @@ public class MlDailyMaintenanceService implements Releasable {
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
         boolean isNlpEnabled,
-        boolean isIlmEnabled
+        boolean isIlmEnabled,
+        MeterRegistry meterRegistry
     ) {
         this(
             settings,
@@ -186,7 +221,8 @@ public class MlDailyMaintenanceService implements Releasable {
             isAnomalyDetectionEnabled,
             isDataFrameAnalyticsEnabled,
             isNlpEnabled,
-            isIlmEnabled
+            isIlmEnabled,
+            meterRegistry
         );
     }
 
@@ -229,6 +265,17 @@ public class MlDailyMaintenanceService implements Releasable {
 
     public synchronized void start() {
         logger.debug("Starting ML daily maintenance service");
+        lastSuccessOrStartMillis.set(threadPool.relativeTimeInMillis());
+        if (lastSuccessAgeGauge == null) {
+            lastSuccessAgeGauge = meterRegistry.registerLongAsyncGauge(
+                LAST_SUCCESS_AGE_METRIC,
+                "Seconds since the last ML maintenance run that completed without a failed step, or since this service started.",
+                "s",
+                measurement -> measurement.record(
+                    TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - lastSuccessOrStartMillis.get()).seconds()
+                )
+            );
+        }
         scheduleNext();
     }
 
@@ -236,6 +283,10 @@ public class MlDailyMaintenanceService implements Releasable {
         logger.debug("Stopping ML daily maintenance service");
         if (cancellable != null && cancellable.isCancelled() == false) {
             cancellable.cancel();
+        }
+        if (lastSuccessAgeGauge != null) {
+            lastSuccessAgeGauge.close();
+            lastSuccessAgeGauge = null;
         }
     }
 
@@ -264,16 +315,21 @@ public class MlDailyMaintenanceService implements Releasable {
         try {
             if (MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode()) {
                 logger.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
+                recordRun(RunResult.SKIPPED);
                 return;
             }
             if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
                 logger.warn("skipping scheduled [ML] maintenance tasks because machine learning feature reset is in progress");
+                recordRun(RunResult.SKIPPED);
                 return;
             }
             logger.info("triggering scheduled [ML] maintenance tasks");
 
             if (isAnomalyDetectionEnabled) {
                 triggerAnomalyDetectionMaintenance();
+            } else {
+                // The anomaly detection chain reports its own result on completion; with it disabled there is nothing to fail.
+                recordRun(RunResult.SUCCESS);
             }
             if (isDataFrameAnalyticsEnabled) {
                 triggerDataFrameAnalyticsMaintenance();
@@ -291,44 +347,70 @@ public class MlDailyMaintenanceService implements Releasable {
         // The maintenance tasks are chained, where each subsequent task is executed regardless of whether the previous one
         // succeeded or failed.
 
+        // A step that fails or reports a negative acknowledgement marks the whole run as failed, even if later steps succeed.
+        AtomicBoolean anyStepFailed = new AtomicBoolean();
+
         // Final step: Log completion
-        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
-            response -> logger.info("Completed [ML] maintenance tasks"),
-            e -> logger.warn("An error occurred during [ML] maintenance tasks execution", e)
-        );
+        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(response -> {
+            if (response.isAcknowledged() == false) {
+                anyStepFailed.set(true);
+            }
+            logger.info("Completed [ML] maintenance tasks");
+            recordRun(anyStepFailed.get() ? RunResult.FAILURE : RunResult.SUCCESS);
+        }, e -> {
+            logger.warn("An error occurred during [ML] maintenance tasks execution", e);
+            recordRun(RunResult.FAILURE);
+        });
 
         // Step 6: Roll over state indices
         Runnable rollStateIndices = () -> triggerRollStateIndicesIfNecessaryTask(finalListener);
 
         // Step 5: Roll over results indices
         Runnable rollResultsIndices = () -> triggerRollResultsIndicesIfNecessaryTask(
-            continueOnFailureListener("roll-state-indices", rollStateIndices)
+            continueOnFailureListener("roll-state-indices", rollStateIndices, anyStepFailed)
         );
 
         // Step 4: Delete expired data
         Runnable deleteExpiredData = () -> triggerDeleteExpiredDataTask(
-            continueOnFailureListener("roll-results-indices", rollResultsIndices)
+            continueOnFailureListener("roll-results-indices", rollResultsIndices, anyStepFailed)
         );
 
         // Step 3: Close idle jobs with stopped datafeeds
         Runnable closeIdleJobs = () -> triggerCloseIdleJobsWithStoppedDatafeeds(
-            continueOnFailureListener("delete-expired-data", deleteExpiredData)
+            continueOnFailureListener("delete-expired-data", deleteExpiredData, anyStepFailed)
         );
 
         // Step 2: Reset jobs that are in resetting state without a task
         Runnable resetJobs = () -> triggerResetJobsInStateResetWithoutResetTask(
-            continueOnFailureListener("close-idle-jobs", closeIdleJobs)
+            continueOnFailureListener("close-idle-jobs", closeIdleJobs, anyStepFailed)
         );
 
         // Step 1: Delete jobs that are in deleting state without a task
-        triggerDeleteJobsInStateDeletingWithoutDeletionTask(continueOnFailureListener("reset-jobs", resetJobs));
+        triggerDeleteJobsInStateDeletingWithoutDeletionTask(continueOnFailureListener("reset-jobs", resetJobs, anyStepFailed));
     }
 
-    private ActionListener<AcknowledgedResponse> continueOnFailureListener(String nextTaskName, Runnable next) {
-        return ActionListener.wrap(response -> next.run(), e -> {
+    private ActionListener<AcknowledgedResponse> continueOnFailureListener(
+        String nextTaskName,
+        Runnable next,
+        AtomicBoolean anyStepFailed
+    ) {
+        return ActionListener.wrap(response -> {
+            if (response.isAcknowledged() == false) {
+                anyStepFailed.set(true);
+            }
+            next.run();
+        }, e -> {
+            anyStepFailed.set(true);
             logger.warn(() -> "A maintenance task failed, but maintenance will continue. Triggering next task [" + nextTaskName + "].", e);
             next.run();
         });
+    }
+
+    private void recordRun(RunResult result) {
+        runsCounter.incrementBy(1, result.attributes());
+        if (result == RunResult.SUCCESS) {
+            lastSuccessOrStartMillis.set(threadPool.relativeTimeInMillis());
+        }
     }
 
     private void triggerDataFrameAnalyticsMaintenance() {

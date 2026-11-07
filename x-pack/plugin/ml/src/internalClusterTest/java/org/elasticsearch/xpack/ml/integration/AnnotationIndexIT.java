@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.notifications.MlNotificationTelemetry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -392,7 +394,8 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
             client(),
             getInstanceFromNode(ClusterService.class),
             TestIndexNameExpressionResolver.newInstance(),
-            includeNodeInfo
+            includeNodeInfo,
+            new MlNotificationTelemetry(MeterRegistry.NOOP)
         );
         auditor.info("whatever", "blah");
     }

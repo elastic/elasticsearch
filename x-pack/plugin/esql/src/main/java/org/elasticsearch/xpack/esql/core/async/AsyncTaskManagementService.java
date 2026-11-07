@@ -185,7 +185,7 @@ public class AsyncTaskManagementService<
         this.threadPool = threadPool;
     }
 
-    public static String ASYNC_ACTION_SUFFIX = "[a]";
+    public static final String ASYNC_ACTION_SUFFIX = "[a]";
 
     /**
      * Marker stored in {@code exclusiveListener} when the submit task is cancelled before the

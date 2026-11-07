@@ -83,6 +83,8 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.spill.SpillSettings;
+import org.elasticsearch.xpack.esql.spill.disk.DiskSpillPlugin;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -108,6 +110,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -121,6 +124,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -164,6 +169,14 @@ public class CsvIT extends ESTestCase {
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
+
+    /**
+     * The suite's spill mode, from the system property {@code tests.esql.spill}: {@code always} sends every case with a
+     * budget its operators cross at their first page and no own-state minimum, so every operator that can spill does;
+     * {@code never} sends none; {@code random}, the default, a quarter of them. A case's own pragmas win over the
+     * mode's. The results must be those of a run that fits, which is the contract every spilling operator keeps.
+     */
+    private static final String SPILL_MODE = System.getProperty("tests.esql.spill", "random");
 
     /**
      * Hook for tests that want to load datasets with a transformed mapping and/or transformed source documents,
@@ -337,12 +350,16 @@ public class CsvIT extends ESTestCase {
             new NodeConfigurationSource() {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-                    return Settings.builder()
+                    Settings.Builder settings = Settings.builder()
                         .put("xpack.security.enabled", false)
                         .put("xpack.license.self_generated.type", "trial")
                         .put("ingest.geoip.downloader.enabled", false)
-                        .put(PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getKey(), 0)
-                        .build();
+                        .put(PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getKey(), 0);
+                    if (SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled()) {
+                        // registered behind the flag only; the spill mode sends the pragmas that make a case spill
+                        settings.put(SpillSettings.ENABLED.getKey(), true);
+                    }
+                    return settings.build();
                 }
 
                 @Override
@@ -357,6 +374,7 @@ public class CsvIT extends ESTestCase {
                 // EncryptionService binding for the always-registered data-source CRUD actions.
                 TestEncryptionServicePlugin.class,
                 EsqlTestPlugin.class,
+                DiskSpillPlugin.class,
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
                 CommonAnalysisPlugin.class,
@@ -434,6 +452,13 @@ public class CsvIT extends ESTestCase {
         if (randomBoolean()) {
             pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
         }
+        boolean spilling = spillThisCase()
+            && spillChangesMembership(transformed.query()) == false
+            && approximates(transformed.query()) == false;
+        if (spilling) {
+            pragmaSettings.put(QueryPragmas.SPILL_BUDGET.getKey(), "1kb");
+            pragmaSettings.put(QueryPragmas.SPILL_MIN_BYTES.getKey(), "0b");
+        }
         pragmaSettings.put(transformed.extraPragmas());
         testCase.pragmas.forEach(pragmaSettings::put);
         if (pragmaSettings.build().isEmpty() == false) {
@@ -464,7 +489,7 @@ public class CsvIT extends ESTestCase {
             CsvAssert.assertDataWithValueConverter(
                 expected,
                 actual.values(),
-                testCase.ignoreOrder,
+                testCase.ignoreOrder || (spilling && spillChangesOrder(transformed.query())),
                 indexLoadStrategy.ignoreValueOrder(),
                 false,
                 assertionLogger
@@ -498,6 +523,110 @@ public class CsvIT extends ESTestCase {
         return false;
     }
 
+    /**
+     * Whether spilling may change the order of the case's rows: a grouping aggregation, {@code LIMIT ... BY} or
+     * {@code DEDUP} spilled puts its groups out in the order of its partition runs rather than of its input, which is
+     * the contract these commands keep, and a {@code SORT} after the last of them restores a deterministic order.
+     */
+    static boolean spillChangesOrder(String query) {
+        int lastChanger = -1;
+        for (Pattern changer : ORDER_CHANGERS) {
+            Matcher matcher = changer.matcher(query);
+            while (matcher.find()) {
+                lastChanger = Math.max(lastChanger, matcher.start());
+            }
+        }
+        if (lastChanger < 0) {
+            return false;
+        }
+        int lastSort = -1;
+        Matcher sort = SORT.matcher(query);
+        while (sort.find()) {
+            lastSort = Math.max(lastSort, sort.start());
+        }
+        return lastSort < lastChanger;
+    }
+
+    /**
+     * Whether spilling may change which rows the case returns, not only their order: {@code LIMIT ... BY} or
+     * {@code DEDUP} keeps the first rows per key in arrival order and a plain {@code LIMIT} the first rows, so one fed
+     * by a grouping aggregation, {@code LIMIT ... BY} or {@code DEDUP} with no {@code SORT} between them keeps rows
+     * that depend on an order no command fixed. Such a case is sent without the spill pragmas, since its expectation
+     * holds for one arrival order only.
+     */
+    static boolean spillChangesMembership(String query) {
+        List<int[]> keepers = new ArrayList<>();
+        for (Pattern keeper : ROW_KEEPERS) {
+            Matcher matcher = keeper.matcher(query);
+            while (matcher.find()) {
+                keepers.add(new int[] { matcher.start() });
+            }
+        }
+        for (int[] keeper : keepers) {
+            int at = keeper[0];
+            int lastChanger = -1;
+            for (Pattern changer : ORDER_CHANGERS) {
+                Matcher matcher = changer.matcher(query);
+                while (matcher.find()) {
+                    if (matcher.start() < at) {
+                        lastChanger = Math.max(lastChanger, matcher.start());
+                    }
+                }
+            }
+            if (lastChanger < 0) {
+                continue;
+            }
+            int lastSort = -1;
+            Matcher sort = SORT.matcher(query);
+            while (sort.find()) {
+                if (sort.start() < at) {
+                    lastSort = Math.max(lastSort, sort.start());
+                }
+            }
+            if (lastSort < lastChanger) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final List<Pattern> ROW_KEEPERS = List.of(
+        Pattern.compile("(?i)\\bLIMIT\\s+\\S+\\s+BY\\b"),
+        Pattern.compile("(?i)\\bDEDUP\\b"),
+        // a plain limit keeps the first rows of an order no command fixed as well
+        Pattern.compile("(?i)\\bLIMIT\\s+\\d+\\b(?!\\s+BY\\b)")
+    );
+    private static final List<Pattern> ORDER_CHANGERS = List.of(
+        Pattern.compile("(?i)\\bSTATS\\b"),
+        Pattern.compile("(?i)\\bLIMIT\\s+\\S+\\s+BY\\b"),
+        Pattern.compile("(?i)\\bDEDUP\\b"),
+        // a grouped change point puts its groups out in the order of its grouping operator
+        Pattern.compile("(?i)\\bCHANGE_POINT\\b[^|]*\\bBY\\b")
+    );
+    private static final Pattern SORT = Pattern.compile("(?i)\\bSORT\\b");
+
+    /**
+     * An approximated case expects ranges, which the unordered comparison a spilled case needs cannot sort, and
+     * samples rows in an order of its own: such a case is sent without the spill pragmas.
+     */
+    private static boolean approximates(String query) {
+        return APPROXIMATION.matcher(query).find();
+    }
+
+    private static final Pattern APPROXIMATION = Pattern.compile("(?i)\\bapproximation\\b");
+
+    private static boolean spillThisCase() {
+        if (SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled() == false) {
+            return false;
+        }
+        return switch (SPILL_MODE) {
+            case "always" -> true;
+            case "never" -> false;
+            case "random" -> randomInt(3) == 0;
+            default -> throw new IllegalArgumentException("tests.esql.spill is one of always, never or random, not [" + SPILL_MODE + "]");
+        };
+    }
+
     public static class EsqlTestPlugin extends EsqlPlugin implements NetworkPlugin, AnalysisPlugin {
         protected XPackLicenseState getLicenseState() {
             return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
@@ -505,7 +634,8 @@ public class CsvIT extends ESTestCase {
 
         @Override
         public void loadExtensions(ExtensionLoader loader) {
-            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
+            // the spill store providers only: the rest would clash with super's SPI discoverer, which adds data source plugins
+            loadSpillStoreProviders(loader);
         }
 
         @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -197,6 +198,136 @@ public class TableFunctionResolverTests extends ESTestCase {
         );
         assertThat(call.arguments().size(), equalTo(2));
         assertThat(call.namedValues(1), equalTo(Map.of("k", "v")));
+    }
+
+    /**
+     * Declares one {@code LONG} column and hands back whatever it was built with, so a test can put a value of a
+     * different Java type, or a row of a different width, through the base class.
+     */
+    private static class Mismatched extends CoordinatorRowsFunction {
+
+        private final List<List<Object>> rows;
+
+        Mismatched(List<List<Object>> rows) {
+            this.rows = rows;
+        }
+
+        @Override
+        public String name() {
+            return "numbers";
+        }
+
+        @Override
+        public TableFunctionSignature signature() {
+            return TableFunctionSignature.of(TableFunctionSignature.name("upto"));
+        }
+
+        @Override
+        protected List<Attribute> columns(TableFunctionInvocation call, TableFunctionContext context) {
+            return List.of(column("n", DataType.LONG));
+        }
+
+        @Override
+        protected void rows(TableFunctionInvocation call, TableFunctionContext context, ActionListener<List<List<Object>>> listener) {
+            computed(listener, () -> rows);
+        }
+    }
+
+    /** Throws where a function may well throw: working out its own columns, before the listener goes anywhere. */
+    private static class Throwing extends CoordinatorRowsFunction {
+
+        @Override
+        public String name() {
+            return "boom";
+        }
+
+        @Override
+        public TableFunctionSignature signature() {
+            return TableFunctionSignature.of(TableFunctionSignature.name("x"));
+        }
+
+        @Override
+        protected List<Attribute> columns(TableFunctionInvocation call, TableFunctionContext context) {
+            throw new IllegalStateException("cannot say what my columns are");
+        }
+
+        @Override
+        protected void rows(TableFunctionInvocation call, TableFunctionContext context, ActionListener<List<List<Object>>> listener) {
+            throw new AssertionError("not reached");
+        }
+    }
+
+    /**
+     * A function may throw instead of completing its listener, and the failure has to arrive the way every other
+     * failure does: through the listener. Without the guard the exception escapes this method synchronously - so a
+     * caller that catches it and then waits on the listener waits for good, because the ref acquired before the
+     * function ran is never released and the count never reaches zero. Verified by mutation: replacing the guarded
+     * dispatch with a bare call makes this throw out of {@code resolveTableFunctions} rather than out of the future.
+     */
+    public void testFunctionThrowingInsteadOfCompletingFailsTheQuery() {
+        TableFunctionResolver resolver = new TableFunctionResolver(new TableFunctionRegistry(List.of(new Throwing())));
+        Source source = Source.EMPTY;
+        UnresolvedTableFunctionRelation leaf = new UnresolvedTableFunctionRelation(
+            source,
+            new TableFunctionInvocation(source, "boom", List.of(new TableFunctionArgument.Name(source, "1"))),
+            List.of()
+        );
+        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
+        resolver.resolveTableFunctions(leaf, null, future);
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("cannot say what my columns are"));
+    }
+
+    /**
+     * The declared column type is the block's type, so a value of another Java type is refused against the column
+     * that declared it. Typed from the data instead, an {@code Integer} would have quietly produced an {@code INT}
+     * block under a {@code LONG} attribute, and only a consumer casting the block would have noticed.
+     */
+    public void testValueDisagreeingWithItsDeclaredTypeIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Mismatched(List.of(List.of(1), List.of(2))), call("2"))
+        );
+        assertThat(e.getMessage(), containsString("produced [Integer] for column [n] declared [long]"));
+    }
+
+    /** The declared type is what the block carries when the function does agree with it. */
+    public void testBlockIsTypedFromTheDeclaration() {
+        LocalRelation rows = (LocalRelation) resolve(new Mismatched(List.of(List.of(1L), List.of(2L))), call("2"));
+
+        assertThat(rows.output().get(0).dataType(), equalTo(DataType.LONG));
+        assertThat(rows.supplier().get().getBlock(0).elementType(), equalTo(ElementType.LONG));
+        assertThat(rows.supplier().get().getPositionCount(), equalTo(2));
+    }
+
+    /** A function disagreeing with its own column list is refused rather than building a page of another width. */
+    public void testRowOfTheWrongWidthIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Mismatched(List.of(List.of(1L, 2L))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("row of [2] values for [1] columns"));
+    }
+
+    /**
+     * Two leaves can compare equal - {@link UnresolvedTableFunctionRelation}'s equality excludes its own source -
+     * so each must still bind and receive its own relation. Keyed by equality instead, both would collapse onto
+     * one relation instance and the same attribute ids would be installed twice in one plan.
+     */
+    public void testTwoCallsSharingASourceEachGetTheirOwnRelation() {
+        UnresolvedTableFunctionRelation left = call("2");
+        UnresolvedTableFunctionRelation right = call("2");
+        assertThat(left, equalTo(right));
+
+        Numbers function = new Numbers();
+        LogicalPlan resolved = resolve(function, new UnionAll(Source.EMPTY, List.of(left, right), List.of()));
+
+        assertThat(function.bindings.get(), equalTo(2));
+        List<LogicalPlan> children = resolved.children();
+        assertThat(children.get(0), instanceOf(LocalRelation.class));
+        assertThat(children.get(1), instanceOf(LocalRelation.class));
+        assertThat(children.get(0) == children.get(1), equalTo(false));
     }
 
     private static UnresolvedTableFunctionRelation call(String argument) {

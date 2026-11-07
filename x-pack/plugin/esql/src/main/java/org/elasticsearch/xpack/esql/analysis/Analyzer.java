@@ -912,7 +912,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedSource.schemaMap(),
                 plan.datasetName(),
                 bindResult.unresolvedMetadata(),
-                resolvedSource.declaredReadSpec()
+                resolvedSource.declaredReadSpec(),
+                plan.fromExternalCommand(),
+                plan.tableFunctionRequest()
             );
             return relation;
         }
@@ -4726,11 +4728,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // External metadata is hidden from default output (and surfaced via KEEP) ONLY for the
             // EXTERNAL command. Its shim auto-injects the whole _file.* family because EXTERNAL has
             // no METADATA grammar to be selective, so KEEP is how the user picks what surfaces. On
-            // the FROM <dataset> path the user names metadata explicitly in a METADATA clause, so it
-            // must surface unconditionally — KEEP there is ordinary projection, not a metadata gate.
-            // The two are distinguishable on the relation: a FROM <dataset> leaf carries a
-            // datasetName; the EXTERNAL shim's leaf does not.
-            boolean hasExternalCommandRelation = plan.anyMatch(p -> p instanceof ExternalRelation er && er.datasetName() == null);
+            // every FROM form the user names metadata explicitly in a METADATA clause, so it must
+            // surface unconditionally — KEEP there is ordinary projection, not a metadata gate.
+            // Asked of the leaf's origin, not of whether it has a registered dataset name: a table
+            // function call has no such name either, and is on the FROM path, so keying on the name
+            // stripped the columns a DATASET(...) call's METADATA clause had explicitly asked for.
+            boolean hasExternalCommandRelation = plan.anyMatch(p -> p instanceof ExternalRelation er && er.fromExternalCommand());
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
             for (Attribute attr : output) {

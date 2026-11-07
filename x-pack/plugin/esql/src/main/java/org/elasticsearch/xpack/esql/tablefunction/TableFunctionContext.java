@@ -10,33 +10,24 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
-
-import java.util.Map;
 
 /**
- * What a table function needs from the coordinator to bind a call: this coordinator's view of the project, and the
- * per-type validators the registration API validates with.
+ * What every table function needs and no more: the project as the node doing the binding has applied it.
  * <p>
- * The validators are here because they are plugin-contributed and the query path has no other handle on them — the
- * registration services each hold their own copy, and {@code DatasetRewriter} says in as many words that it cannot
- * reach them. Passing them in is what lets an inline definition meet the same bar a registered one does instead of a
- * second, drifting approximation of it.
+ * The same type serves the coordinator and an executing node, which is the point — a function derives its read
+ * against whichever project it is handed, so the node's own state is what a node binds against rather than anything
+ * the plan carried.
+ * <p>
+ * Nothing belonging to one function appears here. A function that needs more than the project is constructed with
+ * it, and {@link TableFunctionRegistry#of} is where that happens.
  *
- * @param projectMetadata the project the query runs in, as this coordinator has applied it
- * @param validatorsByType data source type to its validator, keyed as {@code DataSource#type} reports it
+ * @param projectMetadata the project the query runs in, as this node has applied it
  */
-public record TableFunctionContext(ProjectMetadata projectMetadata, Map<String, DataSourceValidator> validatorsByType) {
+public record TableFunctionContext(ProjectMetadata projectMetadata) {
 
     /** The named data source, or {@code null} when this project has none. */
     @Nullable
     public DataSource dataSource(String name) {
         return DataSourceMetadata.get(projectMetadata).get(name);
-    }
-
-    /** The validator for a data source type, or {@code null} when no plugin registered one. */
-    @Nullable
-    public DataSourceValidator validator(String type) {
-        return validatorsByType.get(type);
     }
 }

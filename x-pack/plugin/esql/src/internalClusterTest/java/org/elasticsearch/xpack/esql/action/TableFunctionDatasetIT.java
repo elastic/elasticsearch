@@ -28,9 +28,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
- * {@code FROM DATASET(<data source>, {<definition>})} end to end: a dataset that was never registered, read over a
+ * {@code FROM DATASET(<data source>, <resource>, {<options>})} end to end: a dataset that was never registered, read over a
  * data source that was.
  * <p>
  * The point of reading real rows here rather than asserting a plan is that everything between the two is what the
@@ -62,7 +63,7 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
     public void testReadsAnUnregisteredDefinitionOverARegisteredDataSource() throws Exception {
         Path file = writeRows("inline_basic", "a.ndjson", "{\"id\":1,\"v\":10}\n{\"id\":2,\"v\":20}\n");
         String dataSource = registerLocalFileDataSource();
-        String query = "FROM DATASET(" + dataSource + ", {\"resource\": \"" + StoragePath.fileUri(file) + "\"}) | SORT id | KEEP id, v";
+        String query = "FROM DATASET(" + dataSource + ", \"" + StoragePath.fileUri(file) + "\") | SORT id | KEEP id, v";
         try (var response = run(syncEsqlQueryRequest(query))) {
             // NDJSON infers a whole number as `integer`; COUNT/SUM below are Long because the aggregate is.
             assertThat(getValuesList(response), equalTo(List.of(List.of(1, 10), List.of(2, 20))));
@@ -76,9 +77,9 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
         String dataSource = registerLocalFileDataSource();
         String query = "FROM DATASET("
             + dataSource
-            + ", {\"resource\": \""
+            + ", \""
             + StoragePath.fileUri(file.getParent())
-            + "/*.ndjson\"}) | STATS count = COUNT(*), total = SUM(v)";
+            + "/*.ndjson\") | STATS count = COUNT(*), total = SUM(v)";
         try (var response = run(syncEsqlQueryRequest(query))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2L, 30L))));
         }
@@ -94,19 +95,19 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
         String resource = StoragePath.fileUri(file);
         Exception unquoted = expectThrows(
             Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM DATASET(file_*, {\"resource\": \"" + resource + "\"})"))
+            () -> run(syncEsqlQueryRequest("FROM DATASET(file_*, \"" + resource + "\")"))
         );
         assertThat(unquoted.getMessage(), containsString("extraneous input '*'"));
         Exception quoted = expectThrows(
             Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM DATASET(\"file_*\", {\"resource\": \"" + resource + "\"})"))
+            () -> run(syncEsqlQueryRequest("FROM DATASET(\"file_*\", \"" + resource + "\")"))
         );
         assertThat(quoted.getMessage(), containsString("reads one data source"));
     }
 
     public void testUnknownDataSourceIsRefused() throws Exception {
         Path file = writeRows("inline_unknown", "a.ndjson", "{\"id\":1}\n");
-        String query = "FROM DATASET(no_such_source, {\"resource\": \"" + StoragePath.fileUri(file) + "\"})";
+        String query = "FROM DATASET(no_such_source, \"" + StoragePath.fileUri(file) + "\")";
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query)));
         assertThat(e.getMessage(), containsString("no_such_source"));
     }
@@ -140,7 +141,7 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
             Exception.class,
             () -> run(
                 syncEsqlQueryRequest(
-                    "FROM DATASET(" + dataSource + ", {\"resource\": \"" + resource + "\", \"settings\": {\"no_such_setting\": \"x\"}})"
+                    "FROM DATASET(" + dataSource + ", \"" + resource + "\", {\"settings\": {\"no_such_setting\": \"x\"}})"
                 )
             )
         );
@@ -151,12 +152,10 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /** The resource is the definition's own, so omitting it is refused rather than defaulted. */
-    public void testDefinitionWithoutAResourceIsRefused() {
+    /** The resource is its own argument now, so omitting it is an arity error rather than a missing key. */
+    public void testResourceIsRequired() {
         String dataSource = registerLocalFileDataSource();
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM DATASET(" + dataSource + ", {\"description\": \"no resource\"})"))
-        );
+        Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM DATASET(" + dataSource + ")")));
         assertThat(e.getMessage(), containsString("resource"));
     }
 
@@ -166,9 +165,9 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
         String dataSource = registerLocalFileDataSource();
         String query = "FROM DATASET("
             + dataSource
-            + ", {\"resource\": \""
+            + ", \""
             + StoragePath.fileUri(file)
-            + "\", \"data_source\": \"other\"})";
+            + "\", {\"data_source\": \"other\"})";
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query)));
         assertThat(e.getMessage(), containsString("data_source"));
     }
@@ -181,9 +180,9 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
         client().prepareIndex("local_idx").setSource("id", 1).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         String query = "FROM local_idx, DATASET("
             + dataSource
-            + ", {\"resource\": \""
+            + ", \""
             + StoragePath.fileUri(file)
-            + "\"}) | STATS count = COUNT(*)";
+            + "\") | STATS count = COUNT(*)";
         try (var response = run(syncEsqlQueryRequest(query))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2L))));
         }
@@ -195,7 +194,7 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
         String dataSource = registerLocalFileDataSource();
         try (
             var response = run(
-                syncEsqlQueryRequest("FROM DATASET(" + dataSource + ", {\"resource\": \"" + StoragePath.fileUri(file) + "\"})")
+                syncEsqlQueryRequest("FROM DATASET(" + dataSource + ", \"" + StoragePath.fileUri(file) + "\")")
             )
         ) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
@@ -220,14 +219,14 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
         String resource = StoragePath.fileUri(file);
         String asKeyword = "FROM DATASET("
             + dataSource
-            + ", {\"resource\": \""
+            + ", \""
             + resource
-            + "\", \"mappings\": {\"dynamic\": false, \"properties\": {\"id\": {\"type\": \"keyword\"}}}}) | KEEP id";
+            + "\", {\"mappings\": {\"dynamic\": false, \"properties\": {\"id\": {\"type\": \"keyword\"}}}}) | KEEP id";
         String asLong = "FROM DATASET("
             + dataSource
-            + ", {\"resource\": \""
+            + ", \""
             + resource
-            + "\", \"mappings\": {\"dynamic\": false, \"properties\": {\"id\": {\"type\": \"long\"}}}}) | KEEP id";
+            + "\", {\"mappings\": {\"dynamic\": false, \"properties\": {\"id\": {\"type\": \"long\"}}}}) | KEEP id";
         try (var keyword = run(syncEsqlQueryRequest(asKeyword))) {
             assertThat(keyword.columns().get(0).type().typeName(), equalTo("keyword"));
         }
@@ -243,15 +242,50 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
         String dataSource = registerLocalFileDataSource();
         String query = "FROM DATASET("
             + dataSource
-            + ", {\"resource\": \""
+            + ", \""
             + StoragePath.fileUri(first)
-            + "\"}), DATASET("
+            + "\"), DATASET("
             + dataSource
-            + ", {\"resource\": \""
+            + ", \""
             + StoragePath.fileUri(second)
-            + "\"}) | STATS count = COUNT(*), total = SUM(v)";
+            + "\") | STATS count = COUNT(*), total = SUM(v)";
         try (var response = run(syncEsqlQueryRequest(query))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2L, 30L))));
         }
     }
+
+    /**
+     * A METADATA column named on an inline call surfaces in the default output, as it does on the registered-dataset
+     * path (see {@code FromDatasetIT}: "No KEEP: METADATA _file.record_ref surfaces on its own").
+     */
+    public void testMetadataColumnSurfacesWithoutKeep() throws Exception {
+        Path file = writeRows("inline_metadata", "a.ndjson", "{\"id\":1}\n");
+        String dataSource = registerLocalFileDataSource();
+        String query = "FROM DATASET(" + dataSource + ", \"" + StoragePath.fileUri(file) + "\") METADATA _file.name";
+        try (var response = run(syncEsqlQueryRequest(query))) {
+            List<String> names = response.columns().stream().map(c -> c.name()).toList();
+            assertThat(names, hasItem("_file.name"));
+        }
+    }
+
+
+    /**
+     * An inline definition must not be able to supply the {@code _datasource} config sub-map, which is where
+     * credentials, role and endpoint live. This is the shape of esql-planning#2326 (fixed by elasticsearch#162545):
+     * a plan choosing the storage config rather than the node resolving it. The data source here is registered with
+     * no settings, so {@code DatasetRewriter.mergeSettings} skips the put that would otherwise overwrite a supplied
+     * value -- the validator's unknown-key refusal is the only thing holding, which is why it is pinned.
+     */
+    public void testInlineDefinitionCannotInjectDatasourceConfig() throws Exception {
+        Path file = writeRows("inline_inject", "a.ndjson", "{\"id\":1}\n");
+        String dataSource = registerLocalFileDataSource();
+        String query = "FROM DATASET("
+            + dataSource
+            + ", \""
+            + StoragePath.fileUri(file)
+            + "\", {\"settings\": {\"_datasource\": {\"endpoint\": \"http://attacker.invalid\"}}})";
+        Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query)));
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("_datasource"));
+    }
+
 }

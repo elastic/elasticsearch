@@ -515,23 +515,29 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private TableFunctionCall tableFunctionCall(EsqlBaseParser.TableFunctionContext ctx) {
         Source source = source(ctx);
         String name = ctx.name.getText();
-        TableFunction function = TableFunctionRegistry.INSTANCE.resolve(source, name);
-
-        List<TableFunctionArgument> arguments = new ArrayList<>(ctx.tableFunctionArgument().size());
+        // One flat list with the map appended last, as ExpressionBuilder.visitFunctionExpression builds a scalar
+        // function's arguments: the grammar keeps the map a separate trailing alternative, the builder folds it in.
+        List<TableFunctionArgument> arguments = new ArrayList<>(ctx.tableFunctionArgument().size() + 1);
         for (EsqlBaseParser.TableFunctionArgumentContext argumentCtx : ctx.tableFunctionArgument()) {
-            arguments.add(new TableFunctionArgument(source(argumentCtx), tableFunctionArgument(argumentCtx)));
+            arguments.add(new TableFunctionArgument.Name(source(argumentCtx), tableFunctionArgumentName(argumentCtx)));
         }
-
-        Map<String, Object> payload = ctx.mapExpression() == null
-            ? null
-            : foldTableFunctionPayload(name, visitMapExpression(ctx.mapExpression()), "");
-        TableFunctionCall call = new TableFunctionCall(source, name, arguments, payload);
-        function.validate(call);
-        return call;
+        if (ctx.mapExpression() != null) {
+            arguments.add(
+                new TableFunctionArgument.NamedValues(
+                    source(ctx.mapExpression()),
+                    foldTableFunctionPayload(name, visitMapExpression(ctx.mapExpression()), "")
+                )
+            );
+        }
+        // Not resolved against the registry here, as a scalar function is not: ExpressionBuilder leaves an
+        // UnresolvedFunction for the analyzer to bind. TableFunctionResolver resolves this one, and raises the
+        // unknown-name, shape and per-function errors against the Source carried below — so the user sees the same
+        // message at the same position, just not from the parser.
+        return new TableFunctionCall(source, name, arguments);
     }
 
     /** The name one positional argument denotes: a bare or backquoted identifier, or a quoted string. */
-    private String tableFunctionArgument(EsqlBaseParser.TableFunctionArgumentContext ctx) {
+    private String tableFunctionArgumentName(EsqlBaseParser.TableFunctionArgumentContext ctx) {
         if (ctx.identifier() != null) {
             return visitIdentifier(ctx.identifier());
         }
@@ -1318,7 +1324,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // The config is whatever the user typed. Framework keys are stripped here because the unknown-key check
         // deliberately ignores them, so nothing else would reject one a user supplied -- and a supplied
         // _definition_version would otherwise address a registered dataset's cache entries.
-        return new UnresolvedExternalRelation(source, tablePath, ConfigKeyValidator.withoutFrameworkKeys(config), metadataFields);
+        return UnresolvedExternalRelation.externalCommand(
+            source,
+            tablePath,
+            ConfigKeyValidator.withoutFrameworkKeys(config),
+            metadataFields
+        );
     }
 
     /**

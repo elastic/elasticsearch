@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -21,6 +22,11 @@ public class TableFunctionRegistryTests extends ESTestCase {
 
     /** A function that is only a name: the registry resolves one, it never calls through to it. */
     private record NamedOnly(String name) implements TableFunction {
+        @Override
+        public TableFunctionSignature signature() {
+            throw new AssertionError("the registry must not read a call's shape");
+        }
+
         @Override
         public void validate(TableFunctionCall call) {
             throw new AssertionError("the registry must not validate a call");
@@ -68,6 +74,6 @@ public class TableFunctionRegistryTests extends ESTestCase {
     }
 
     public void testDatasetIsRegistered() {
-        assertEquals(DatasetTableFunction.NAME, TableFunctionRegistry.INSTANCE.resolve(Source.EMPTY, "DATASET").name());
+        assertEquals(DatasetTableFunction.NAME, TableFunctionRegistry.of(Map.of()).resolve(Source.EMPTY, "DATASET").name());
     }
 }

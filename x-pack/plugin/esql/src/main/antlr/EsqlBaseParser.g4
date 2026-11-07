@@ -133,15 +133,21 @@ indexPatternOrSubquery
 // The name is resolved against the table-function registry while the plan is built, so an unknown name
 // is a parse error naming the functions that do exist rather than a missing-index error later on.
 //
-// The trailing mapExpression is the function's configuration payload, in the same position and with the
-// same shape functionExpression gives it, which is why its keys must be double-quoted. A positional
-// argument is a name, never an expression: a source list is read before anything is in scope for an
-// expression to refer to.
+// Shaped after functionExpression, including the trailing optional mapExpression: the map stays a separate
+// alternative in the grammar -- so it can only be written last, and writing it elsewhere is a parse error --
+// and is folded into the one argument list in the builder, exactly as
+// ExpressionBuilder.visitFunctionExpression appends it to the args it collected. A table function therefore
+// sees a map as its last argument rather than as a slot beside them, and there is no payload concept.
 tableFunction
     : {this.isDevVersion()}? name=DEV_TABLE_FUNCTION_NAME LP (tableFunctionArgument (COMMA tableFunctionArgument)* (COMMA mapExpression)?)? RP
     ;
 
-// No parameter here, deliberately. A value parameter cannot name anything -- unresolvedAttributeNameInParam
+// Narrower than functionExpression's booleanExpression, and only here: a source list is read before anything
+// is in scope for an expression to refer to, so there is nothing one could mean. The tokens are the same ones
+// -- DEV_TABLE_FUNCTION_NAME's mode hands straight to EXPRESSION_MODE -- so widening this to admit a numeric
+// literal is a change to this rule alone.
+//
+// No parameter either, deliberately. A value parameter cannot name anything -- unresolvedAttributeNameInParam
 // refuses a Literal -- and an UNBOUND identifier parameter (??p) is worse than refused: ExpressionBuilder
 // returns an UnresolvedAttribute whose name is the string "null" and records no error, so the call would
 // quietly name a data source "null". Admitting parameters here means fixing that path first.

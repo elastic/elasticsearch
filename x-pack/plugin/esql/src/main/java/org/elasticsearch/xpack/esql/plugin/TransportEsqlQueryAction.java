@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
@@ -178,7 +179,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             requestExecutor,
             Federation.isAvailable(clusterService.getSettings()),
             federationLicense,
-            planExecutor.datasetValidators()
+            // Equivalent to the plugin's own: both are built from the same immutable validator map, and a registry
+            // holds no state of its own. The plugin's is built before the plan executor exists, so it cannot be
+            // threaded through here without reordering component construction.
+            TableFunctionRegistry.of(planExecutor.datasetValidators())
         );
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;

@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.action.EsqlAuthorizeDatasourceAction;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FederationLicense;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
@@ -62,7 +61,7 @@ public class TableFunctionResolver {
     private final Executor executor;
     private final boolean federationAvailable;
     private final FederationLicense federationLicense;
-    private final Map<String, DataSourceValidator> validatorsByType;
+    private final TableFunctionRegistry registry;
 
     /**
      * @param executor where the decision is delivered. The authorize action can complete on another thread (the
@@ -71,21 +70,20 @@ public class TableFunctionResolver {
      * @param federationAvailable resolved once by the caller ({@link Federation#isAvailable}), since both of its
      *                            levers are read at startup
      * @param federationLicense queried per query rather than captured, so the check reflects the current licence
-     * @param validatorsByType the registration API's own per-type validators, so an inline definition meets the bar
-     *                         a registered one does
+     * @param registry the functions this node plans against, each already holding whatever it needs of its own
      */
     public TableFunctionResolver(
         Client client,
         Executor executor,
         boolean federationAvailable,
         FederationLicense federationLicense,
-        Map<String, DataSourceValidator> validatorsByType
+        TableFunctionRegistry registry
     ) {
         this.client = client;
         this.executor = executor;
         this.federationAvailable = federationAvailable;
         this.federationLicense = federationLicense;
-        this.validatorsByType = Map.copyOf(validatorsByType);
+        this.registry = registry;
     }
 
     /**
@@ -107,22 +105,38 @@ public class TableFunctionResolver {
             return;
         }
 
-        // Unlike a dataset name, a call has nothing to fall through to when federation is off: it cannot be read as an
-        // index pattern, so the plan cannot simply be handed back untouched.
-        if (federationAvailable == false) {
-            listener.onFailure(Federation.notAvailableException());
-            return;
-        }
-
         // Resolved from the registry rather than carried on the call: the parser already resolved the name to raise
         // an unknown-function error at the right position, and a plan node holding a registry entry would make the
         // node's identity depend on it.
         Set<String> dataSourceNames = new LinkedHashSet<>();
         for (UnresolvedTableFunctionRelation leaf : leaves) {
             TableFunctionCall call = leaf.call();
-            dataSourceNames.addAll(TableFunctionRegistry.INSTANCE.resolve(call.source(), call.name()).dataSourceNames(call));
+            // Resolving the name, then the shape, then whatever else the function requires — all of it before any
+            // authorization, so a malformed call is answered by its own diagnostic rather than by a round-trip.
+            TableFunction function = registry.resolve(call.source(), call.name());
+            function.signature().check(call);
+            function.validate(call);
+            dataSourceNames.addAll(function.dataSourceNames(call));
         }
-        assert dataSourceNames.isEmpty() == false : "a table function that reads no data source needs no authorization path";
+
+        // A call that reads no data source is bound here and asks the cluster nothing. The three gates below are
+        // properties of reading a data source, not of being a table function, so none of them applies: there is no
+        // name to authorize, nothing federated to be unavailable, and no federation feature to licence. Keeping them
+        // keyed on the names rather than on the facility is what lets a generator, or anything built from the request
+        // itself, join the registry without the facility having to learn about it.
+        if (dataSourceNames.isEmpty()) {
+            // completeWith, not onResponse: the rewrite runs a function's own binding and can throw, and on this path
+            // there is no delegateFailureAndWrap above us to turn that into a failed listener.
+            ActionListener.completeWith(listener, () -> rewrite(parsed, leaves, projectMetadata));
+            return;
+        }
+
+        // Unlike a dataset name, a call has nothing to fall through to when federation is off: it cannot be read as an
+        // index pattern, so the plan cannot simply be handed back untouched.
+        if (federationAvailable == false) {
+            listener.onFailure(Federation.notAvailableException());
+            return;
+        }
 
         // Before the round-trip, so a non-Enterprise cluster answers with the licence rather than with whether the
         // named data source happens to exist. Usage is recorded only once a read is actually built, below.
@@ -169,11 +183,11 @@ public class TableFunctionResolver {
      * stopped including its position.
      */
     private LogicalPlan rewrite(LogicalPlan parsed, List<UnresolvedTableFunctionRelation> leaves, ProjectMetadata projectMetadata) {
-        TableFunctionContext context = new TableFunctionContext(projectMetadata, validatorsByType);
+        TableFunctionContext context = new TableFunctionContext(projectMetadata);
         Map<UnresolvedTableFunctionRelation, LogicalPlan> bound = new IdentityHashMap<>(leaves.size());
         for (UnresolvedTableFunctionRelation leaf : leaves) {
             TableFunctionCall call = leaf.call();
-            TableFunction function = TableFunctionRegistry.INSTANCE.resolve(call.source(), call.name());
+            TableFunction function = registry.resolve(call.source(), call.name());
             bound.put(leaf, function.toRelation(call, leaf.metadataFields(), context));
         }
         return parsed.transformDown(UnresolvedTableFunctionRelation.class, leaf -> {

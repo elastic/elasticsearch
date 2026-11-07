@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -819,7 +820,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
      * executor or validator — nulls are never dereferenced, for the same reason as above.
      */
     private static TableFunctionResolver noTableFunctionsResolver() {
-        return new TableFunctionResolver(null, null, true, new FederationLicense(() -> null), Map.of());
+        return new TableFunctionResolver(null, null, true, new FederationLicense(() -> null), TableFunctionRegistry.of(Map.of()));
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

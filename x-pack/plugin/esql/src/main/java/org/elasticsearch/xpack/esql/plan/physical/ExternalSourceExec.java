@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRequest;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -95,6 +96,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private static final TransportVersion ESQL_EXTERNAL_DATASET_NAME = TransportVersion.fromName("esql_external_dataset_name");
     private static final TransportVersion DATA_SOURCE_ENCRYPTED_DATA = TransportVersion.fromName("data_source_encrypted_data");
     private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
+    private static final TransportVersion ESQL_TABLE_FUNCTION_REQUEST = TransportVersion.fromName("esql_table_function_request");
 
     // --- Execution inputs (serialized; see class Javadoc) ---
     private final String sourcePath;
@@ -150,6 +152,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * create a SourceExtractors registry that nothing ever closes).
      */
     private final boolean deferredExtraction;
+    /**
+     * The table-function call this read came from, or {@code null} for every other source form. The node derives the
+     * resource and configuration from it against its own cluster state, rather than trusting what the plan carried;
+     * see {@link org.elasticsearch.xpack.esql.tablefunction.TableFunctionRequest} and
+     * {@link org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver#rebind}.
+     */
+    @Nullable
+    private final TableFunctionRequest tableFunctionRequest;
 
     /**
      * Public 13-arg ctor used by {@link #info()} (via constructor reference) and by tree tests.
@@ -216,7 +226,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         List<ExternalSplit> splits,
         @Nullable String datasetName,
-        DeclaredReadSpec declaredReadSpec
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable TableFunctionRequest tableFunctionRequest
     ) {
         this(
             source,
@@ -236,7 +247,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             false,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -282,7 +294,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             null,
             false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            null
         );
     }
 
@@ -304,7 +317,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         List<ExternalSplit> splits,
         @Nullable String datasetName,
         boolean deferredExtraction,
-        DeclaredReadSpec declaredReadSpec
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable TableFunctionRequest tableFunctionRequest
     ) {
         super(source);
         if (sourcePath == null) {
@@ -333,6 +347,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.datasetName = datasetName;
         this.deferredExtraction = deferredExtraction;
         this.declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
+        this.tableFunctionRequest = tableFunctionRequest;
     }
 
     /**
@@ -411,6 +426,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         DeclaredReadSpec declaredReadSpec = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)
             ? DeclaredReadSpec.readFrom(in)
             : DeclaredReadSpec.NONE;
+        TableFunctionRequest tableFunctionRequest = in.getTransportVersion().supports(ESQL_TABLE_FUNCTION_REQUEST)
+            ? in.readOptionalWriteable(TableFunctionRequest::readFrom)
+            : null;
 
         return new ExternalSourceExec(
             source,
@@ -430,7 +448,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             false,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -460,6 +479,16 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             // unparsed dates). Reject loudly instead — mirrors PutDatasetAction's older-master reject.
             throw new IllegalArgumentException(
                 "declared dataset read-instructions are not supported on all nodes in the cluster; retry after the upgrade"
+            );
+        }
+        // Last, matching readFrom: an older reader stops before this field entirely.
+        if (out.getTransportVersion().supports(ESQL_TABLE_FUNCTION_REQUEST)) {
+            out.writeOptionalWriteable(tableFunctionRequest);
+        } else if (tableFunctionRequest != null) {
+            // Dropping it would hand the node a read it cannot derive for itself, which it then refuses as
+            // unregistered — an opaque error for a cluster that is merely mid-upgrade. Say what it is, as above.
+            throw new IllegalArgumentException(
+                "table functions in FROM are not supported on all nodes in the cluster; retry after the upgrade"
             );
         }
     }
@@ -579,7 +608,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             newSplits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -607,7 +637,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -635,7 +666,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -658,7 +690,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -681,7 +714,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -704,7 +738,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -739,7 +774,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -765,7 +801,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -804,7 +841,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -847,7 +885,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             true,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -876,7 +915,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             newDatasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -905,7 +945,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -922,6 +963,41 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()} after construction;
      * {@code declaredReadSpec} also flows through {@link #info()} so node-reflection reconstruction preserves it.
      */
+    /**
+     * Returns a copy carrying the table-function call this read came from. Applied by
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}, so the call reaches the
+     * data node and {@code DatasetConfigResolver} can derive the read from it rather than from the plan's config.
+     */
+    public ExternalSourceExec withTableFunctionRequest(@Nullable TableFunctionRequest newTableFunctionRequest) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits,
+            datasetName,
+            deferredExtraction,
+            declaredReadSpec,
+            newTableFunctionRequest
+        );
+    }
+
+    /** The table-function call this read came from, or {@code null} for every other source form. */
+    @Nullable
+    public TableFunctionRequest tableFunctionRequest() {
+        return tableFunctionRequest;
+    }
+
     public ExternalSourceExec withDeclaredReadSpec(DeclaredReadSpec newDeclaredReadSpec) {
         return new ExternalSourceExec(
             source(),
@@ -941,7 +1017,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            newDeclaredReadSpec
+            newDeclaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -971,7 +1048,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -1013,7 +1091,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             splits,
             datasetName,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 
@@ -1036,7 +1115,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            tableFunctionRequest
         );
     }
 

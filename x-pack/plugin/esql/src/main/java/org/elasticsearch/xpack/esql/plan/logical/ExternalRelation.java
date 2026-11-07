@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRequest;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
@@ -65,6 +66,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
     private static final TransportVersion ESQL_EXTERNAL_DATASET_NAME = TransportVersion.fromName("esql_external_dataset_name");
     private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
+    private static final TransportVersion ESQL_TABLE_FUNCTION_REQUEST = TransportVersion.fromName("esql_table_function_request");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -103,6 +105,24 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * {@code dataset_declared_schema}.
      */
     private final DeclaredReadSpec declaredReadSpec;
+    /**
+     * Whether the inline {@code EXTERNAL} command produced this leaf, carried over from
+     * {@link UnresolvedExternalRelation#fromExternalCommand()}. Coordinator-only and intentionally omitted from
+     * {@link #writeTo} / {@link #readFrom}, as {@link #schemaMap} and {@link #metadataFields} are: its only reader
+     * is the analyzer's final-output rule, which has already run by the time this node crosses the wire.
+     * <p>
+     * Distinct from {@code datasetName == null}, which answered this question until a table function call became a
+     * third way to reach this node with no registered dataset name while still being on the {@code FROM} path.
+     */
+    private final boolean fromExternalCommand;
+    /**
+     * The table-function call this leaf came from, or {@code null} for every other source form. Rides the wire so
+     * the executing node can derive the read from the call against its own cluster state rather than trust the
+     * configuration the plan carried; see
+     * {@link org.elasticsearch.xpack.esql.tablefunction.TableFunctionRequest}.
+     */
+    @Nullable
+    private final TableFunctionRequest tableFunctionRequest;
 
     public ExternalRelation(
         Source source,
@@ -138,7 +158,25 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         List<? extends NamedExpression> metadataFields,
         DeclaredReadSpec declaredReadSpec
     ) {
+        this(source, sourcePath, metadata, output, fileList, schemaMap, datasetName, metadataFields, declaredReadSpec, false, null);
+    }
+
+    public ExternalRelation(
+        Source source,
+        String sourcePath,
+        SourceMetadata metadata,
+        List<Attribute> output,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        @Nullable String datasetName,
+        List<? extends NamedExpression> metadataFields,
+        DeclaredReadSpec declaredReadSpec,
+        boolean fromExternalCommand,
+        @Nullable TableFunctionRequest tableFunctionRequest
+    ) {
         super(source);
+        this.fromExternalCommand = fromExternalCommand;
+        this.tableFunctionRequest = tableFunctionRequest;
         if (sourcePath == null) {
             throw new IllegalArgumentException("sourcePath must not be null");
         }
@@ -180,6 +218,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         DeclaredReadSpec declaredReadSpec = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)
             ? DeclaredReadSpec.readFrom(in)
             : DeclaredReadSpec.NONE;
+        TableFunctionRequest tableFunctionRequest = in.getTransportVersion().supports(ESQL_TABLE_FUNCTION_REQUEST)
+            ? in.readOptionalWriteable(TableFunctionRequest::readFrom)
+            : null;
         var metadata = new SimpleSourceMetadata(sourceSchema, sourceType, sourcePath, null, null, sourceMetadata, config);
         return new ExternalRelation(
             source,
@@ -190,7 +231,10 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             Map.of(),
             datasetName,
             List.of(),
-            declaredReadSpec
+            declaredReadSpec,
+            // fromExternalCommand is coordinator-only; by here the analyzer rule that reads it has long since run.
+            false,
+            tableFunctionRequest
         );
     }
 
@@ -218,6 +262,16 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
                 "declared dataset read-instructions are not supported on all nodes in the cluster; retry after the upgrade"
             );
         }
+        // Last, so the read side can append it too: an older reader stops before this field entirely.
+        if (out.getTransportVersion().supports(ESQL_TABLE_FUNCTION_REQUEST)) {
+            out.writeOptionalWriteable(tableFunctionRequest);
+        } else if (tableFunctionRequest != null) {
+            // Dropping it would hand a node a read it cannot derive for itself, which it then refuses as
+            // unregistered — an opaque error for a cluster that is merely mid-upgrade. Say what it is, as above.
+            throw new IllegalArgumentException(
+                "table functions in FROM are not supported on all nodes in the cluster; retry after the upgrade"
+            );
+        }
     }
 
     @Override
@@ -237,12 +291,19 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             schemaMap,
             datasetName,
             metadataFields,
-            declaredReadSpec
+            declaredReadSpec,
+            fromExternalCommand,
+            tableFunctionRequest
         );
     }
 
     public String sourcePath() {
         return sourcePath;
+    }
+
+    /** See {@link #fromExternalCommand} — true only for the inline {@code EXTERNAL} command's leaf. */
+    public boolean fromExternalCommand() {
+        return fromExternalCommand;
     }
 
     public SourceMetadata metadata() {
@@ -321,7 +382,10 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             fileList,
             schemaMap,
             List.of()
-        ).withUnifiedSchema(dataOnlyUnifiedSchema()).withDatasetName(datasetName).withDeclaredReadSpec(declaredReadSpec);
+        ).withUnifiedSchema(dataOnlyUnifiedSchema())
+            .withDatasetName(datasetName)
+            .withDeclaredReadSpec(declaredReadSpec)
+            .withTableFunctionRequest(tableFunctionRequest);
     }
 
     /**
@@ -360,7 +424,18 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, metadata, output, fileList, schemaMap, datasetName, metadataFields, declaredReadSpec);
+        return Objects.hash(
+            sourcePath,
+            metadata,
+            output,
+            fileList,
+            schemaMap,
+            datasetName,
+            metadataFields,
+            declaredReadSpec,
+            fromExternalCommand,
+            tableFunctionRequest
+        );
     }
 
     @Override
@@ -381,7 +456,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             && Objects.equals(schemaMap, other.schemaMap)
             && Objects.equals(datasetName, other.datasetName)
             && Objects.equals(metadataFields, other.metadataFields)
-            && Objects.equals(declaredReadSpec, other.declaredReadSpec);
+            && Objects.equals(declaredReadSpec, other.declaredReadSpec)
+            && fromExternalCommand == other.fromExternalCommand
+            && Objects.equals(tableFunctionRequest, other.tableFunctionRequest);
     }
 
     @Override
@@ -415,7 +492,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             schemaMap,
             datasetName,
             metadataFields,
-            declaredReadSpec
+            declaredReadSpec,
+            fromExternalCommand,
+            tableFunctionRequest
         );
     }
 
@@ -434,7 +513,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             schemaMap,
             datasetName,
             metadataFields,
-            declaredReadSpec
+            declaredReadSpec,
+            fromExternalCommand,
+            tableFunctionRequest
         );
     }
 
@@ -453,7 +534,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             newSchemaMap,
             datasetName,
             metadataFields,
-            declaredReadSpec
+            declaredReadSpec,
+            fromExternalCommand,
+            tableFunctionRequest
         );
     }
 }

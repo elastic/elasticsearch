@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRequest;
 
 import java.util.Collections;
 import java.util.List;
@@ -48,6 +49,22 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     private final String datasetName;
     @Nullable
     private final DatasetMapping mapping;
+    /**
+     * Whether the inline {@code EXTERNAL} command produced this leaf, as opposed to any of the {@code FROM} source
+     * forms. Not the same question as {@code datasetName == null}, which it used to be answered by: a table function
+     * call also has no registered dataset name, and is on the {@code FROM} path. Only the analyzer's final-output
+     * rule and the file-source-factory check need it, and both of those decide something about the EXTERNAL shim
+     * specifically — chiefly that the shim auto-injects the whole {@code _file.*} family, having no {@code METADATA}
+     * clause to be selective with, so those columns stay out of default output unless a KEEP lists them.
+     */
+    private final boolean fromExternalCommand;
+    /**
+     * The table-function call this leaf came from, or {@code null} for every other {@code FROM} form and for the
+     * {@code EXTERNAL} command. Carried so it can reach the data node, where the function derives the read again
+     * from its own cluster state; see {@link org.elasticsearch.xpack.esql.tablefunction.TableFunctionRequest}.
+     */
+    @Nullable
+    private final TableFunctionRequest tableFunctionRequest;
     private final String unresolvedMsg;
 
     /**
@@ -119,12 +136,41 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
         @Nullable String datasetName,
         @Nullable DatasetMapping mapping
     ) {
+        this(source, tablePath, config, metadataFields, datasetName, mapping, false, null);
+    }
+
+    /**
+     * The leaf the inline {@code EXTERNAL} command produces. A separate entry point rather than a seventh argument
+     * at every call site, because exactly one caller is that command and every other leaf is on the {@code FROM}
+     * path; see {@link #fromExternalCommand}.
+     */
+    public static UnresolvedExternalRelation externalCommand(
+        Source source,
+        Expression tablePath,
+        Map<String, Object> config,
+        List<NamedExpression> metadataFields
+    ) {
+        return new UnresolvedExternalRelation(source, tablePath, config, metadataFields, null, null, true, null);
+    }
+
+    public UnresolvedExternalRelation(
+        Source source,
+        Expression tablePath,
+        Map<String, Object> config,
+        List<NamedExpression> metadataFields,
+        @Nullable String datasetName,
+        @Nullable DatasetMapping mapping,
+        boolean fromExternalCommand,
+        @Nullable TableFunctionRequest tableFunctionRequest
+    ) {
         super(source);
+        this.tableFunctionRequest = tableFunctionRequest;
         this.tablePath = tablePath;
         this.config = config;
         this.metadataFields = Objects.requireNonNull(metadataFields, "metadataFields");
         this.datasetName = datasetName;
         this.mapping = mapping;
+        this.fromExternalCommand = fromExternalCommand;
         this.unresolvedMsg = "Unknown external table or Parquet file [" + extractTablePathValue(tablePath) + "]";
     }
 
@@ -151,7 +197,19 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
 
     @Override
     protected NodeInfo<UnresolvedExternalRelation> info() {
-        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config, metadataFields, datasetName, mapping);
+        // fromExternalCommand is included: info() is how transformDown/Up rebuild this node, so a field left out
+        // here is silently reset to its default by the first rule that rewrites the leaf.
+        return NodeInfo.create(
+            this,
+            UnresolvedExternalRelation::new,
+            tablePath,
+            config,
+            metadataFields,
+            datasetName,
+            mapping,
+            fromExternalCommand,
+            tableFunctionRequest
+        );
     }
 
     public Expression tablePath() {
@@ -185,6 +243,17 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
         return mapping;
     }
 
+    /** See {@link #fromExternalCommand} — true only for the inline {@code EXTERNAL} command's leaf. */
+    public boolean fromExternalCommand() {
+        return fromExternalCommand;
+    }
+
+    /** See {@link #tableFunctionRequest} — non-null only for a leaf a table function produced. */
+    @Nullable
+    public TableFunctionRequest tableFunctionRequest() {
+        return tableFunctionRequest;
+    }
+
     @Override
     public boolean resolved() {
         return false;
@@ -209,7 +278,16 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     public int hashCode() {
         // No source(): equals() below ignores it, and the equals/hashCode contract requires equal
         // nodes to hash equal (same node parsed at two positions must collapse in plan-node sets).
-        return Objects.hash(tablePath, config, metadataFields, datasetName, mapping, unresolvedMsg);
+        return Objects.hash(
+            tablePath,
+            config,
+            metadataFields,
+            datasetName,
+            mapping,
+            fromExternalCommand,
+            tableFunctionRequest,
+            unresolvedMsg
+        );
     }
 
     @Override
@@ -228,6 +306,8 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
             && Objects.equals(metadataFields, other.metadataFields)
             && Objects.equals(datasetName, other.datasetName)
             && Objects.equals(mapping, other.mapping)
+            && fromExternalCommand == other.fromExternalCommand
+            && Objects.equals(tableFunctionRequest, other.tableFunctionRequest)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 

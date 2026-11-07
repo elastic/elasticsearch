@@ -165,6 +165,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -540,10 +541,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             listingService
         );
 
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
-
         services.ipLocationService()
             .addDatabaseAvailabilityListener(
                 (projectId, databaseFile) -> logger.trace(
@@ -633,6 +630,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        // Built here rather than held statically, as the function registry is: a table function declares its own
+        // dependencies by being constructed with them, which is what keeps the facility from carrying any one
+        // function's. Needs crudValidators above it, which is why this sits below the validator wiring.
+        TableFunctionRegistry tableFunctionRegistry = TableFunctionRegistry.of(crudValidators);
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
+
         ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));

@@ -374,11 +374,6 @@ tests:
   - :server:test
   method: testAllFieldsLoaderReleasesItsReservationWhenItFails
   issue: https://github.com/elastic/elasticsearch/issues/163868
-- class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testAggregationEmitPartialResultPeriodically
-  issue: https://github.com/elastic/elasticsearch/issues/163688
 - class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

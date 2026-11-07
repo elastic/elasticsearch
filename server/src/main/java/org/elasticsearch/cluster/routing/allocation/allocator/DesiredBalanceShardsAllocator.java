@@ -115,9 +115,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @FunctionalInterface
     public interface RecoveryDirectCancellationCallback {
-        RecoveryDirectCancellationCallback NO_OP = (desiredBalance, routingAllocation) -> {};
+        RecoveryDirectCancellationCallback NO_OP = (desiredBalance, routingAllocation, convergedWithLatestInput) -> {};
 
-        void apply(DesiredBalance desiredBalance, RoutingAllocation routingAllocation);
+        void apply(DesiredBalance desiredBalance, RoutingAllocation routingAllocation, boolean convergedWithLatestInput);
     }
 
     @FunctionalInterface
@@ -231,12 +231,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         index
                     );
                     // We cancel even on a partial (not-yet-converged) balance to avoid delaying freeing recovery slots
-                    // on data nodes. This is consistent with reconciling on the same partial balance below, but comes at
-                    // the cost of potential cancellation/allocation back and forth if the final balance reverses the
-                    // decision.
+                    // on data nodes. This is consistent with reconciling on the same partial balance below. Since the
+                    // final balance may reverse the decision, only queued recoveries of shards that cannot remain on
+                    // their current node are cancelled, to limit cancellation/allocation back and forth.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
-                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);
                     }
                     submitReconcileTask(currentDesiredBalance);
                     var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
@@ -244,17 +244,29 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 } else if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
+
+                    // Run the full cancellation pass even if the assignments did not change. The same assignments may
+                    // previously only have been seen by the restricted pass (e.g. when they were computed from an input that
+                    // was then superseded), and canRemain decisions may have changed without the assignments changing.
+                    //
                     // TODO: A reconcile round from a recent balance could be in progress while a new balance gets computed,
                     // in which case the currentAllocation captured below could miss an initializing shard created by
                     // that concurrent reconciliation. This is not a correctness problem, as recovery cancellation
                     // is best-effort, but we should find a way to catch those cases.
-                    if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
-                        final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
-                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
-                    }
+                    final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
+                    recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, true);
                     submitReconcileTask(currentDesiredBalance);
                 } else {
-                    logger.debug("Desired balance computation for [{}] is discarded as newer one is submitted", index);
+                    logger.debug("Desired balance computation for [{}] is superseded by newer input", index);
+                    // Trigger cancellation even if the desired balance computation got superseeded by a newer input.
+                    // On a large busy cluster with a steady stream of new input (e.g. during a rolling upgrade) a
+                    // computation may not converge for a little time. However, because this balance did not have the
+                    // latest input, only cancel queued recoveries of shards whose canRemain decision on their current node
+                    // is NO. Shards moved for rebalancing purposes are more likely to be moved back by the later computation.
+                    if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
+                        final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);
+                    }
                 }
             }
 

@@ -487,6 +487,17 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
     }
 
     @Override
+    protected SemanticTextFieldMapper.Builder newUpdateBuilder() {
+        return new SemanticTextFieldMapper.Builder(
+            leafName(),
+            fieldType().getChunksField().bitsetProducer(),
+            fieldType().getChunksField().indexSettings(),
+            modelRegistry,
+            vectorsFormatProviders
+        );
+    }
+
+    @Override
     public SemanticTextFieldMapper.Builder getMergeBuilder() {
         return new Builder(this);
     }

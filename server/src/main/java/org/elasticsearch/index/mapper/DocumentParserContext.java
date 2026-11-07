@@ -884,6 +884,39 @@ public abstract class DocumentParserContext {
         return true;
     }
 
+    /**
+     * Registers a dynamically discovered multi-field on a field that is already mapped. The update is a delta: the parent is
+     * re-created as an empty builder of its own type carrying only the new sub-field, so it asserts nothing else about the
+     * parent, whose other parameters are left as the mapping has them when the update is merged.
+     *
+     * @param parentFullPath the full dotted path of the existing field that gets the multi-field
+     * @param multiField     the builder for the new multi-field
+     * @throws IllegalArgumentException if there is no field mapped at {@code parentFullPath}, or if its type can not be created
+     *                                  without parameters and so can not host a multi-field in an update
+     */
+    public void addDynamicMultiField(String parentFullPath, FieldMapper.Builder multiField) {
+        if (mappingLookup.getMapper(parentFullPath) instanceof FieldMapper == false) {
+            throw new IllegalArgumentException(
+                "cannot add multi-field [" + multiField.leafName() + "] to [" + parentFullPath + "], which is not a mapped field"
+            );
+        }
+        // the content type is what the type parser is registered under; the type name is that of the field type, which can differ
+        // from it, as it does for token_count fields that are integers
+        String parentType = ((FieldMapper) mappingLookup.getMapper(parentFullPath)).contentType();
+        String parentLeafName = parentFullPath.substring(parentFullPath.lastIndexOf('.') + 1);
+        Mapper.TypeParser typeParser = mappingParserContext.typeParser(parentType);
+        FieldMapper.Builder host;
+        try {
+            host = (FieldMapper.Builder) typeParser.parse(parentLeafName, new HashMap<>(), dynamicTemplateParserContext(null));
+        } catch (MapperParsingException e) {
+            throw new IllegalArgumentException(
+                "cannot add multi-field [" + multiField.leafName() + "] to field [" + parentFullPath + "] of type [" + parentType + "]",
+                e
+            );
+        }
+        addDynamicMapper(host.addMultiField(multiField), parentFullPath);
+    }
+
     /*
      * Returns an approximation of the number of dynamically mapped fields and runtime fields that will be added to the mapping.
      * This is to validate early and to fail fast during document parsing.
@@ -1006,7 +1039,7 @@ public abstract class DocumentParserContext {
      *
      * @return the mapper, or null if the field limit was exceeded
      */
-    final Mapper getDynamicMapper(Mapper.Builder builder, @Nullable Mapper preBuiltMapper, MapperBuilderContext builderContext) {
+    public final Mapper getDynamicMapper(Mapper.Builder builder, @Nullable Mapper preBuiltMapper, MapperBuilderContext builderContext) {
         String fullPath = builderContext.buildFullName(builder.leafName());
         Mapper existing = builtDynamicMappers.get(fullPath);
         if (existing != null) {

@@ -746,4 +746,10 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         ScaledFloatFieldMapper ignored = (ScaledFloatFieldMapper) before.documentMapper().mappers().getMapper("field");
         assertThat(ignored.docValuesParameters().multiValue(), equalTo(true));
     }
+
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        // a scaled_float can not be created without its scaling_factor, so it can not stand in for an existing field in an update
+        return false;
+    }
 }

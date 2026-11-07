@@ -106,13 +106,33 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertNull(doc.rootDoc().getField("field"));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_UPDATE);
+        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_AUTO_UPDATE);
         String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
 
         doc = updatedMapper.parse(source(b -> b.field("field", "foo")));
         assertNull(doc.rootDoc().getField("field"));
         assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    /**
+     * The first document fixes the value with a dynamic update, which must leave the parameters the mapping already carries alone.
+     */
+    public void testDynamicValueKeepsMeta() throws Exception {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "constant_keyword").startObject("meta").field("unit", "bytes").endObject())
+        );
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "foo")));
+        assertNotNull(doc.dynamicMappingsUpdate());
+
+        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_AUTO_UPDATE);
+        String expectedMapping = Strings.toString(
+            fieldMapping(
+                b -> b.field("type", "constant_keyword").field("value", "foo").startObject("meta").field("unit", "bytes").endObject()
+            )
+        );
+        assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
     }
 
     public void testDynamicValueFieldLimit() throws Exception {
@@ -125,7 +145,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertNull(doc.rootDoc().getField("field"));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_UPDATE);
+        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_AUTO_UPDATE);
         String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
 
@@ -313,4 +333,9 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        // a constant_keyword field has a single fixed value, so a multi-field has no effect, and adding one is only warned about
+        return false;
+    }
 }

@@ -303,16 +303,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         // leaves validation and merging of the parsed values unaffected.
         @Override
         protected void serializeParameters(XContentBuilder builder, Params params) throws IOException {
-            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             if (isSharedInstance(resolveSourceMode()) == false) {
-                enabled.toXContent(builder, includeDefaults);
+                enabled.toXContent(builder, params);
                 Mode serializedMode = serializedMode();
                 if (serializedMode != null) {
                     builder.field(mode.name, serializedMode.toString().toLowerCase(Locale.ROOT));
                 }
             }
-            includes.toXContent(builder, includeDefaults);
-            excludes.toXContent(builder, includeDefaults);
+            includes.toXContent(builder, params);
+            excludes.toXContent(builder, params);
         }
 
         @Override

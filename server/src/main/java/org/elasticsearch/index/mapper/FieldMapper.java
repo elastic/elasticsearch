@@ -1363,11 +1363,25 @@ public abstract class FieldMapper extends Mapper {
             }
         }
 
-        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        /**
+         * Writes the parameter, if the serializer's check says that it should be. Honours {@code include_defaults} and
+         * {@link Mapper#EXPLICIT_ONLY_PARAM}, which an override has to as well, by way of {@link #isOmittedBy}.
+         */
+        protected void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            if (isOmittedBy(params)) {
+                return;
+            }
             T value = getValue();
-            if (serializerCheck.check(includeDefaults, isConfigured(), value)) {
+            if (serializerCheck.check(params.paramAsBoolean("include_defaults", false), isConfigured(), value)) {
                 serializer.serialize(builder, name, value);
             }
+        }
+
+        /**
+         * Whether the parameter is not written because only explicitly set parameters were asked for, and it never was.
+         */
+        protected final boolean isOmittedBy(ToXContent.Params params) {
+            return isSet == false && params.paramAsBoolean(EXPLICIT_ONLY_PARAM, false);
         }
 
         /**
@@ -2108,7 +2122,12 @@ public abstract class FieldMapper extends Mapper {
             super.setValue(backingValue(value.enabled, value.cardinality));
         }
 
-        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        @Override
+        protected void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            if (isOmittedBy(params)) {
+                return;
+            }
+            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             Values value = getValue();
             if (supportsTopLevelAttributes) {
                 if (includeDefaults || value.enabled != getDefaultValue().enabled) {
@@ -2307,19 +2326,33 @@ public abstract class FieldMapper extends Mapper {
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             Parameter<?>[] myParams = getParameters();
             Parameter<?>[] theirParams = incoming.getParameters();
-            // Freeze parameter values before merging to prevent dynamic defaults from
-            // changing mid-merge when earlier parameters are updated (e.g., normalizer
-            // changing affects normalizer_skip_store_original_value's default)
-            for (Parameter<?> param : myParams) {
-                param.freezeValue();
+            // Dynamic updates are deltas, so we can ignore missing parameters in those cases
+            boolean autoUpdate = mergeContext.getMapperBuilderContext().getMergeReason().isAutoUpdate();
+            if (autoUpdate == false) {
+                // Freeze parameter values before merging to prevent dynamic defaults from
+                // changing mid-merge when earlier parameters are updated (e.g., normalizer
+                // changing affects normalizer_skip_store_original_value's default)
+                for (int i = 0; i < myParams.length; i++) {
+                    if (theirParams[i].isSet()) {
+                        myParams[i].freezeValue();
+                    }
+                }
             }
             for (int i = 0; i < myParams.length; i++) {
+                // For dynamic updates, skip unset parameters
+                if (autoUpdate && theirParams[i].isSet() == false) {
+                    continue;
+                }
                 myParams[i].mergeFrom(theirParams[i], conflicts);
             }
             MapperMergeContext childContext = mergeContext.createChildContext(incoming.leafName(), null);
             multiFieldsBuilder.mergeFrom(incoming.multiFieldsBuilder, childContext);
-            this.copyTo = incoming.copyTo;
-            this.sourceKeepMode = incoming.sourceKeepMode;
+            if (autoUpdate == false || incoming.copyTo.copyToFields().isEmpty() == false) {
+                this.copyTo = incoming.copyTo;
+            }
+            if (autoUpdate == false || incoming.sourceKeepMode.isPresent()) {
+                this.sourceKeepMode = incoming.sourceKeepMode;
+            }
             validate();
         }
 
@@ -2370,9 +2403,8 @@ public abstract class FieldMapper extends Mapper {
          * Writes the current builder parameter values as XContent
          */
         protected void serializeParameters(XContentBuilder builder, Params params) throws IOException {
-            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             for (Parameter<?> parameter : getParameters()) {
-                parameter.toXContent(builder, includeDefaults);
+                parameter.toXContent(builder, params);
             }
         }
 

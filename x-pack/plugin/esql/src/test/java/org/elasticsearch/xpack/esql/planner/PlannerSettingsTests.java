@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
@@ -56,5 +57,45 @@ public class PlannerSettingsTests extends ESTestCase {
         PlannerSettings updated = holder.get();
         assertThat(updated.partialEmitKeysThreshold(), equalTo(12_345));
         assertThat("the time-series chunk rows updates independently", updated.timeSeriesTargetChunkRows(), equalTo(999));
+    }
+
+    public void testBlockLoaderSizesDefaultIndependently() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(PlannerSettings.settings()));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        PlannerSettings settings = new PlannerSettings.Holder(clusterService).get();
+
+        assertThat(settings.blockLoaderSizeOrdinals(), equalTo(PlannerSettings.BLOCK_LOADER_SIZE_ORDINALS.getDefault(Settings.EMPTY)));
+        assertThat(settings.blockLoaderSizeScript(), equalTo(PlannerSettings.BLOCK_LOADER_SIZE_SCRIPT.getDefault(Settings.EMPTY)));
+    }
+
+    public void testUpdatingBlockLoaderSizeScriptUpdatesOnlyScriptSize() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(PlannerSettings.settings()));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        PlannerSettings.Holder holder = new PlannerSettings.Holder(clusterService);
+
+        ByteSizeValue updated = ByteSizeValue.ofKb(1234);
+        clusterSettings.applySettings(
+            Settings.builder().put(PlannerSettings.BLOCK_LOADER_SIZE_SCRIPT.getKey(), updated.getStringRep()).build()
+        );
+
+        PlannerSettings settings = holder.get();
+        assertThat(settings.blockLoaderSizeScript(), equalTo(updated));
+        assertThat(settings.blockLoaderSizeOrdinals(), equalTo(PlannerSettings.BLOCK_LOADER_SIZE_ORDINALS.getDefault(Settings.EMPTY)));
+    }
+
+    public void testConfiguredBlockLoaderSizeOrdinalsIsNotOverwritten() {
+        ByteSizeValue configured = ByteSizeValue.ofKb(1234);
+        ClusterSettings configuredSettings = new ClusterSettings(
+            Settings.builder().put(PlannerSettings.BLOCK_LOADER_SIZE_ORDINALS.getKey(), configured.getStringRep()).build(),
+            new HashSet<>(PlannerSettings.settings())
+        );
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(configuredSettings);
+
+        PlannerSettings settings = new PlannerSettings.Holder(clusterService).get();
+        assertThat(settings.blockLoaderSizeOrdinals(), equalTo(configured));
+        assertThat(settings.blockLoaderSizeScript(), equalTo(PlannerSettings.BLOCK_LOADER_SIZE_SCRIPT.getDefault(Settings.EMPTY)));
     }
 }

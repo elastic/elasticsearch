@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.inference.services.voyageai.request.Voyage
 
 public class VoyageAIEmbeddingsModel extends VoyageAIModel {
     public static VoyageAIEmbeddingsModel of(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var requestTaskSettings = VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings);
+        var requestTaskSettings = VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings, ConfigurationParseContext.REQUEST);
         return new VoyageAIEmbeddingsModel(model, VoyageAIEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
@@ -48,7 +48,7 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
             inferenceId,
             service,
             VoyageAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings),
+            VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets, context),
             buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri)

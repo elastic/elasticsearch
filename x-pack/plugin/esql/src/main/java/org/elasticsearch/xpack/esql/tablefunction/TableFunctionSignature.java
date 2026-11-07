@@ -51,7 +51,7 @@ public record TableFunctionSignature(List<Argument> arguments) {
         return new TableFunctionSignature(List.of(arguments));
     }
 
-    /** A required name, such as a data source. */
+    /** A required argument written as a bare or quoted name. */
     public static Argument name(String name) {
         return new Argument(name, Kind.NAME, true);
     }
@@ -78,7 +78,7 @@ public record TableFunctionSignature(List<Argument> arguments) {
         }
     }
 
-    /** How the arguments read in a diagnostic: {@code data source, resource, [settings]}. */
+    /** The argument list as a diagnostic spells it, with optional arguments in brackets. */
     private String describe() {
         StringBuilder sb = new StringBuilder();
         for (Argument argument : arguments) {

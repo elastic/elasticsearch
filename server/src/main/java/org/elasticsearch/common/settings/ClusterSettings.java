@@ -102,6 +102,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
@@ -722,6 +723,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED,
+        AnalysisRegistry.SHARED_ANALYZERS_ENABLED_SETTING,
         QueryLogger.QUERY_LOGGER_ENABLED,
         QueryLogger.QUERY_LOGGER_THRESHOLD,
         QueryLogger.QUERY_LOGGER_LEVEL,

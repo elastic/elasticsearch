@@ -256,6 +256,10 @@ gradlePlugin {
       id = 'elasticsearch.transport-version-resources'
       implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin'
     }
+    todoReport {
+      id = 'elasticsearch.todo-report'
+      implementationClass = 'org.elasticsearch.gradle.internal.todo.TodoReportPlugin'
+    }
   }
 }
 

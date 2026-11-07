@@ -126,7 +126,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected HasParentQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        return new HasParentQueryBuilder("type", queryBuilder, randomBoolean());
+        return new HasParentQueryBuilder(PARENT_DOC, queryBuilder, randomBoolean());
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.apache.lucene.queries.spans.SpanWithinQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.ChargeProbeQueryBuilder;
 
 import java.io.IOException;
 
@@ -24,6 +25,11 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
     protected SpanWithinQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(2);
         return new SpanWithinQueryBuilder(spanTermQueries[0], spanTermQueries[1]);
+    }
+
+    @Override
+    protected ChargeProbeQueryBuilder createChargeProbe() {
+        return new SpanChargeProbeQueryBuilder();
     }
 
     @Override

@@ -158,7 +158,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     @Override
     protected HasChildQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        return new HasChildQueryBuilder("type", queryBuilder, ScoreMode.None);
+        return new HasChildQueryBuilder(CHILD_DOC, queryBuilder, ScoreMode.None);
     }
 
     @Override

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -24,6 +26,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -192,65 +195,115 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                     if (store.isClosing() || store.tryIncRef() == false) {
                         return;
                     }
-                    long offset = (long) i * cacheService.getRegionSize();
                     long blobLength = siRange.fileOffset() + siRange.fileLength();
-                    // Determine the maximum bytes to read, limited by either the cache region size or the remaining
-                    // blob content. This boundary check is specifically required by the IndexingShardCacheBlobReader
-                    // implementation, which cannot read past the end of the non-uploaded blob when fetching from
-                    // indexing nodes.
-                    var lengthToRead = Math.min(cacheService.getRegionSize(), blobLength - offset);
-                    var range = cacheBlobReader.getRange(offset, Math.toIntExact(lengthToRead), blobLength - offset);
-                    logger.trace("online prewarming for key [{}] and region [{}] triggered", cacheKey, i);
-                    long segmentWarmingTriggeredMillis = threadPool.relativeTimeInMillis();
-                    cacheService.maybeFetchRange(
+                    final int region = i;
+                    ActionListener<Boolean> regionListener = ActionListener.runAfter(refs.acquire().map(b -> null), store::decRef);
+                    prewarmRegion(
+                        indexShard,
+                        cacheBlobReader,
                         cacheKey,
-                        i,
-                        range,
+                        region,
                         blobLength,
-                        new LazyRangeMissingHandler<>(
-                            () -> new SequentialRangeMissingHandler(
-                                this,
-                                cacheKey.fileName(),
-                                range,
-                                cacheBlobReader,
-                                () -> writeBuffer.get().clear(),
-                                bytesCopiedForShard::addAndGet,
-                                // Can be executed on different thread pool depending whether we read from
-                                // the SharedBlobCacheWarmingService (PREWARM_THREAD_POOL pool) or the IndexingShardCacheBlobReader (VBCC
-                                // pool)
-                                PREWARM_THREAD_POOL,
-                                FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
-                            )
-                        ),
-                        fetchRangeRunnable -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
-                            @Override
-                            public void onResponse(Releasable releasable) {
-                                try (releasable) {
-                                    long segmentWarmingStartedMillis = threadPool.relativeTimeInMillis();
-                                    fetchRangeRunnable.run();
-                                    long segmentWarmingCompleteMillis = threadPool.relativeTimeInMillis();
-                                    long segmentTaskWaitTimeMillis = segmentWarmingStartedMillis - segmentWarmingTriggeredMillis;
-                                    segmentExecutionWaitTimeMillisHistogram.record(segmentTaskWaitTimeMillis);
-                                    logger.trace(
-                                        "online prewarming for key [{}], offset [{}], complete in [{}]ms.wait to process time was [{}]ms",
-                                        cacheKey,
-                                        offset,
-                                        segmentWarmingCompleteMillis - segmentWarmingTriggeredMillis,
-                                        segmentTaskWaitTimeMillis
-                                    );
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.error(() -> format("%s failed to online prewarm cache key %s", indexShard.shardId(), cacheKey), e);
-                            }
-                        }),
                         timestampMillis,
-                        ActionListener.runAfter(refs.acquire().map(b -> null), store::decRef)
+                        bytesCopiedForShard,
+                        regionListener.delegateResponse((l, e) -> {
+                            if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
+                                // The blob was a VBCC on the indexing node when the reader was created and has been uploaded since. The
+                                // reader has learned about the upload from the indexing node's reply, so the retry reads from the
+                                // object store.
+                                logger.debug(
+                                    () -> format("retrying online prewarming of %s region %d from object store", cacheKey, region),
+                                    e
+                                );
+                                prewarmRegion(
+                                    indexShard,
+                                    cacheBlobReader,
+                                    cacheKey,
+                                    region,
+                                    blobLength,
+                                    timestampMillis,
+                                    bytesCopiedForShard,
+                                    l
+                                );
+                            } else {
+                                l.onFailure(e);
+                            }
+                        })
                     );
                 }
             }
         }
+    }
+
+    /**
+     * Fetches the given region of a blob into the cache. Can be called again with the same reader if the first attempt failed with a
+     * {@link ResourceAlreadyUploadedException}, since the range to read may differ once the reader switches to the object store.
+     */
+    private void prewarmRegion(
+        IndexShard indexShard,
+        CacheBlobReader cacheBlobReader,
+        FileCacheKey cacheKey,
+        int region,
+        long blobLength,
+        long timestampMillis,
+        AtomicInteger bytesCopiedForShard,
+        ActionListener<Boolean> listener
+    ) {
+        long offset = (long) region * cacheService.getRegionSize();
+        // Determine the maximum bytes to read, limited by either the cache region size or the remaining
+        // blob content. This boundary check is specifically required by the IndexingShardCacheBlobReader
+        // implementation, which cannot read past the end of the non-uploaded blob when fetching from
+        // indexing nodes.
+        var lengthToRead = Math.min(cacheService.getRegionSize(), blobLength - offset);
+        var range = cacheBlobReader.getRange(offset, Math.toIntExact(lengthToRead), blobLength - offset);
+        logger.trace("online prewarming for key [{}] and region [{}] triggered", cacheKey, region);
+        long segmentWarmingTriggeredMillis = threadPool.relativeTimeInMillis();
+        cacheService.maybeFetchRange(
+            cacheKey,
+            region,
+            range,
+            blobLength,
+            new LazyRangeMissingHandler<>(
+                () -> new SequentialRangeMissingHandler(
+                    this,
+                    cacheKey.fileName(),
+                    range,
+                    cacheBlobReader,
+                    () -> writeBuffer.get().clear(),
+                    bytesCopiedForShard::addAndGet,
+                    // Can be executed on different thread pool depending whether we read from
+                    // the SharedBlobCacheWarmingService (PREWARM_THREAD_POOL pool) or the IndexingShardCacheBlobReader (VBCC
+                    // pool)
+                    PREWARM_THREAD_POOL,
+                    FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                )
+            ),
+            fetchRangeRunnable -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        long segmentWarmingStartedMillis = threadPool.relativeTimeInMillis();
+                        fetchRangeRunnable.run();
+                        long segmentWarmingCompleteMillis = threadPool.relativeTimeInMillis();
+                        long segmentTaskWaitTimeMillis = segmentWarmingStartedMillis - segmentWarmingTriggeredMillis;
+                        segmentExecutionWaitTimeMillisHistogram.record(segmentTaskWaitTimeMillis);
+                        logger.trace(
+                            "online prewarming for key [{}], offset [{}], complete in [{}]ms.wait to process time was [{}]ms",
+                            cacheKey,
+                            offset,
+                            segmentWarmingCompleteMillis - segmentWarmingTriggeredMillis,
+                            segmentTaskWaitTimeMillis
+                        );
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(() -> format("%s failed to online prewarm cache key %s", indexShard.shardId(), cacheKey), e);
+                }
+            }),
+            timestampMillis,
+            listener
+        );
     }
 }

@@ -210,11 +210,13 @@ public sealed interface DatasetReference extends Writeable {
             out.writeOptionalWriteable(reference);
             return;
         }
-        if (out.getTransportVersion().supports(DATASET_NAME) == false) {
-            return;
-        }
+        // Before the slot's own version check, which returns without writing: an inline arm toward a node that has
+        // no slot at all is just as unreadable there, and returning would drop it silently.
         if (reference instanceof Inline) {
             throw new IllegalArgumentException(NOT_EVERYWHERE);
+        }
+        if (out.getTransportVersion().supports(DATASET_NAME) == false) {
+            return;
         }
         out.writeOptionalString(reference == null ? null : ((Named) reference).name());
     }

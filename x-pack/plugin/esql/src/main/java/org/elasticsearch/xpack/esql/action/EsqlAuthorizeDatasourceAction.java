@@ -103,7 +103,12 @@ public class EsqlAuthorizeDatasourceAction extends TransportLocalProjectMetadata
      */
     public static class Request extends LocalClusterStateRequest implements IndicesRequest, DataSourceRequestInfo {
 
-        /** Nothing here is a pattern and nothing expands it, so the options only let a name not exist as an index. */
+        /**
+         * Immaterial to whether the name has to exist: this request is not {@link IndicesRequest.Replaceable}, so
+         * its names reach authorization unexpanded and unresolved whatever the options say. Spelled out rather than
+         * defaulted because {@link IndicesOptions#DEFAULT} errors on an unavailable target, which would read as the
+         * opposite intent.
+         */
         private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.builder()
             .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchClosed(true).includeHidden(true))
             .build();

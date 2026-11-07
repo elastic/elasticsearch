@@ -117,7 +117,7 @@ public final class DatasetConfigResolver {
         Resolved resolved = reference instanceof DatasetReference.Named named
             ? resolveRegistered(named.name())
             : resolveSupplied((DatasetReference.Inline) reference);
-        return bind(exec, reference.describe(), resolved);
+        return bind(exec, reference, resolved);
     }
 
     /** A definition this node resolved for itself, and the data source whose credentials read it. */
@@ -167,8 +167,9 @@ public final class DatasetConfigResolver {
      * What both arms do once resolved, and the reason they share it: a check added here has to cover a read however
      * its dataset was named, and two copies is how one of them would stop.
      */
-    private ExternalSourceExec bind(ExternalSourceExec exec, String name, Resolved resolved) {
-        Map<String, Object> config = DatasetRewriter.datasetConfig(resolved.dataSource(), resolved.dataset());
+    private ExternalSourceExec bind(ExternalSourceExec exec, DatasetReference reference, Resolved resolved) {
+        String name = reference.describe();
+        Map<String, Object> config = DatasetRewriter.datasetConfig(resolved.dataSource(), resolved.dataset(), registeredName(reference));
         Object planVersion = exec.config().get(DefinitionVersion.CONFIG_KEY);
         if (planVersion != null && planVersion.equals(config.get(DefinitionVersion.CONFIG_KEY)) == false) {
             throw new ElasticsearchStatusException(
@@ -189,6 +190,12 @@ public final class DatasetConfigResolver {
             checkSplit(name, split, resources);
         }
         return exec.withSourcePathAndConfig(resolved.dataset().resource(), config);
+    }
+
+    /** The registered dataset's name, or {@code null} when the read has none to report. */
+    @Nullable
+    private static String registeredName(DatasetReference reference) {
+        return reference instanceof DatasetReference.Named named ? named.name() : null;
     }
 
     /**

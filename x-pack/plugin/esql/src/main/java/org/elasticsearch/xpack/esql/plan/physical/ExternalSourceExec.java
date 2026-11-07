@@ -809,8 +809,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
 
     /**
      * Which dataset this exec reads, carried from
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#datasetReference()}, or {@code null} if it
-     * came from inline {@code EXTERNAL}. Resolved on the reading node by {@code DatasetConfigResolver}.
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#datasetReference()}, or {@code null} if no
+     * dataset stands behind the source. Resolved on the reading node by {@code DatasetConfigResolver}.
      */
     @Nullable
     public DatasetReference datasetReference() {
@@ -1100,10 +1100,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");
         }
-        if (datasetReference != null) {
-            // describe() is the registered name, or the data source an inline definition reads through. Never the
-            // definition itself: a definition can carry a credential-bearing setting and this reaches EXPLAIN.
-            sb.append("[dataset=").append(mapper.location(datasetReference.describe())).append("]");
+        // Never the definition itself: it can carry a credential-bearing setting and this reaches EXPLAIN. And the
+        // label says which object the name belongs to, so an inline read does not appear to name a dataset.
+        if (datasetReference instanceof DatasetReference.Named named) {
+            sb.append("[dataset=").append(mapper.location(named.name())).append("]");
+        } else if (datasetReference != null) {
+            sb.append("[datasource=").append(mapper.location(datasetReference.describe())).append("]");
         }
         NodeUtils.toString(sb, attributes, format, mapper);
     }

@@ -36,13 +36,14 @@ import java.util.List;
  * <h2>What a function cannot do, and why</h2>
  *
  * <ul>
- *   <li><b>It cannot authorize anything the facility could do for it.</b> A privilege is a property of what one
- *       particular function reads, so the function owns the check: it is constructed with the client it needs
- *       (see {@code EsqlPlugin#extraTableFunctions}) and asks before it binds, inside {@link #toRelation}, in the
- *       caller's thread context. {@link TableFunctionContext} stays a project and nothing else, so a function that
- *       reads something needing a privilege has to have been given the means to check it — and one that was given
- *       nothing can only return a leaf the ordinary analyzer resolves, which is authorized where every other leaf
- *       is.</li>
+ *   <li><b>It authorizes what it reads, and the facility does not do it for it.</b> A privilege is a property of
+ *       what one particular function reads, so the function owns the check: it is constructed with the client it
+ *       needs (see {@code EsqlPlugin#extraTableFunctions}) and asks before it binds, inside {@link #toRelation}, in
+ *       the caller's thread context. {@link TableFunctionContext} stays a project and nothing else, so a function
+ *       needing more is given it where it is constructed. <b>Nothing here checks that a function did ask.</b> A leaf
+ *       returned from {@link #toRelation} is not re-authorized — a function may name any dataset the project has,
+ *       and resolution will read it — so a function that reads something privileged and does not ask has opened a
+ *       hole no later stage closes.</li>
  *   <li><b>It cannot choose where it runs.</b> Placement follows the leaf it returned: {@code Mapper#mapLeaf}
  *       sends some leaf types to data nodes through a fragment and keeps others on the coordinator. A function
  *       picks what it denotes, not where that is read.</li>

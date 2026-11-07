@@ -438,7 +438,11 @@ public class DatasetConfigResolverTests extends ESTestCase {
     public void testRebindInlineRefusesADataSourceEditedWhilePlanning() {
         ProjectMetadata planned = project(dataSource(Map.of("endpoint", "https://one")), dataset(Map.of()));
         ProjectMetadata edited = project(dataSource(Map.of("endpoint", "https://two")), dataset(Map.of()));
-        Map<String, Object> planConfig = DatasetRewriter.datasetConfig(DataSourceMetadata.get(planned).get(PARENT), inlineDataset());
+        Map<String, Object> planConfig = DatasetRewriter.datasetConfig(
+            DataSourceMetadata.get(planned).get(PARENT),
+            inlineDataset(),
+            null
+        );
 
         assertRegisteredInlineConfig(inlineResolver(planned).rebind(inlineExec(planConfig, inlineDefinition())), planned);
         ElasticsearchStatusException e = expectThrows(
@@ -452,7 +456,9 @@ public class DatasetConfigResolverTests extends ESTestCase {
 
     private static void assertRegisteredInlineConfig(ExternalSourceExec rebound, ProjectMetadata project) {
         DataSource parent = DataSourceMetadata.get(project).get(PARENT);
-        assertThat(rebound.config(), equalTo(DatasetRewriter.datasetConfig(parent, inlineDataset())));
+        // Null name: the Dataset an inline arm validates to carries the data source's as a placeholder, and the
+        // config must not report that placeholder as a dataset a user could look up.
+        assertThat(rebound.config(), equalTo(DatasetRewriter.datasetConfig(parent, inlineDataset(), null)));
     }
 
     /** The definition the plan carries. */

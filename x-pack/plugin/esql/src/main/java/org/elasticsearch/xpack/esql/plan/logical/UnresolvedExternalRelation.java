@@ -85,9 +85,9 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
      * <p>
      * {@code datasetReference} says which dataset is read: a registered name, when
      * {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} created the relation from a
-     * {@code FROM <dataset>} pattern, or a definition the query supplied. It is {@code null} for the inline
-     * {@code EXTERNAL} command path, which has no dataset behind it at all. The name arm reaches the operator
-     * factory so the per-file {@code _index} synthesizer can emit it rather than the raw resource path.
+     * {@code FROM <dataset>} pattern, or a definition the query supplied. It is {@code null} for a source with no
+     * dataset behind it at all. The name arm reaches the operator factory so the per-file {@code _index}
+     * synthesizer can emit it rather than the raw resource path.
      *
      * @param source the source location in the query
      * @param tablePath the resource path or external table identifier (a {@code Literal} or parameter reference)
@@ -168,7 +168,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
 
     /**
      * Which dataset this relation reads — a registered name, or a definition the query supplied. {@code null} when
-     * there is no dataset behind the source at all, which only the inline {@code EXTERNAL} command plans.
+     * there is no dataset behind the source at all.
      */
     @Nullable
     public DatasetReference datasetReference() {

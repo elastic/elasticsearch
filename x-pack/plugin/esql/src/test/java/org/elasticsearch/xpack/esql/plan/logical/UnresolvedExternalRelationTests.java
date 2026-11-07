@@ -125,7 +125,7 @@ public class UnresolvedExternalRelationTests extends ESTestCase {
         Expression tablePath = Literal.keyword(source, "s3://bucket/table");
 
         UnresolvedExternalRelation inline = new UnresolvedExternalRelation(source, tablePath, new HashMap<>());
-        assertNull("inline EXTERNAL path references no dataset", inline.datasetReference());
+        assertNull("a source with no dataset behind it references none", inline.datasetReference());
 
         UnresolvedExternalRelation viaDataset = new UnresolvedExternalRelation(
             source,

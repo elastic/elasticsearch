@@ -13,14 +13,13 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
 import java.util.ArrayList;
@@ -37,10 +36,10 @@ import static org.elasticsearch.xpack.security.authz.RBACEngine.maybeGetRBACEngi
  * If so, then the request is rejected, because views and datasets are not compatible with DLS or FLS.
  * <p>
  * A dataset a query defines rather than names is covered too, and has to be asked about differently. Its read is
- * authorized under the name of the data source it reads through, which is not an index abstraction, and
- * {@code IndicesPermission} records neither DLS nor FLS for a name that resolves to nothing — so the access control
- * this reads for a registered name is unrestricted there whatever the role says. For that action the role's own
- * privilege groups are consulted instead.
+ * authorized under the name of the data source it reads through, and where that name resolves to no index
+ * abstraction {@code IndicesPermission} records neither DLS nor FLS for it — so the access control this reads for a
+ * registered name is unrestricted there whatever the role says. For that action the role is asked directly, and the
+ * answer fails closed; see {@link #interceptInlineDatasetRead}.
  */
 public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestInterceptor {
     private static final Logger logger = LogManager.getLogger(ViewAndDatasetDlsFlsRequestInterceptor.class);
@@ -103,24 +102,32 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
     }
 
     /**
-     * Refuses an inline dataset read whose authorized name is covered by a privilege group carrying DLS or FLS. The
-     * group's own patterns are matched rather than the resolved access control, for the reason in the class javadoc;
-     * a group that restricts documents or fields anywhere over that name is enough, because an external read applies
-     * neither and would otherwise serve the whole resource.
+     * Refuses an inline dataset read whose authorized name is covered by a grant that narrows documents or fields.
+     * <p>
+     * Two sources, in this order, because neither alone answers for every shape. The resolved access control answers
+     * when the name happens to resolve to an index abstraction — a data source may be named after one, nothing stops
+     * it — and it answers whichever authorization engine produced it. Otherwise the role is asked
+     * ({@link Role#hasDocumentOrFieldLevelSecurityFor}), which matches with the matcher authorization itself matches
+     * with and answers for an intersection of grants, where there is no single {@code IndicesPermission} to walk.
+     * <p>
+     * <b>Fails closed.</b> A read that cannot honour a document filter and is let through returns every row, so a
+     * caller this can interrogate neither way — a non-RBAC engine whose access control said nothing — is refused
+     * rather than assumed unrestricted.
      */
     private SubscribableListener<Void> interceptInlineDatasetRead(
         AuthorizationEngine.RequestInfo requestInfo,
         IndicesRequest indicesRequest,
         AuthorizationEngine.AuthorizationInfo authorizationInfo
     ) {
-        // A custom AuthorizationEngine does not use an RBAC Role; DLS/FLS compatibility is enforced there instead.
-        Role role = maybeGetRBACEngineRole(authorizationInfo);
-        if (role == null || indicesRequest.indices() == null) {
+        final String[] names = indicesRequest.indices();
+        if (names == null || names.length == 0) {
             return SubscribableListener.nullSuccess();
         }
-        List<String> restricted = new ArrayList<>();
-        for (String name : indicesRequest.indices()) {
-            if (anyGroupRestrictsDocumentsOrFields(role, name)) {
+        final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
+        final Role role = maybeGetRBACEngineRole(authorizationInfo);
+        final List<String> restricted = new ArrayList<>();
+        for (String name : names) {
+            if (restrictsDocumentsOrFields(name, indicesAccessControl, role)) {
                 restricted.add(name);
             }
         }
@@ -135,16 +142,19 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
         return SubscribableListener.newFailed(getDlsFlsException(List.of(), restricted));
     }
 
-    private static boolean anyGroupRestrictsDocumentsOrFields(Role role, String name) {
-        for (IndicesPermission.Group group : role.indices().groups()) {
-            if (Regex.simpleMatch(group.indices(), name) == false) {
-                continue;
-            }
-            if (group.getQuery() != null || group.getFieldPermissions().hasFieldLevelSecurity()) {
-                return true;
-            }
+    private static boolean restrictsDocumentsOrFields(
+        String name,
+        @Nullable IndicesAccessControl indicesAccessControl,
+        @Nullable Role role
+    ) {
+        if (indicesAccessControl != null && hasDlsOrFls(indicesAccessControl.getIndexPermissions(name))) {
+            return true;
         }
-        return false;
+        if (role != null) {
+            return role.hasDocumentOrFieldLevelSecurityFor(name);
+        }
+        // Neither source available: refuse rather than read every row under a grant that said otherwise.
+        return indicesAccessControl == null;
     }
 
     private boolean isInterceptorApplicable(IndicesRequest indicesRequest, String action) {

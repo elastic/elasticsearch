@@ -4732,8 +4732,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // the FROM <dataset> path the user names metadata explicitly in a METADATA clause, so it
             // must surface unconditionally — KEEP there is ordinary projection, not a metadata gate.
             // The two are distinguishable on the relation by whether a dataset stands behind it at all: every
-            // FROM <dataset> leaf references one, named or defined inline, and the EXTERNAL shim's leaf references
-            // none.
+            // FROM <dataset> leaf references one, named or defined inline, and the shim's leaf references none.
             boolean hasExternalCommandRelation = plan.anyMatch(p -> p instanceof ExternalRelation er && er.datasetReference() == null);
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());

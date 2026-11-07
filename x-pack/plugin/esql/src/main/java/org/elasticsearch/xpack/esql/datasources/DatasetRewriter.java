@@ -655,7 +655,19 @@ public final class DatasetRewriter {
      * so the two cannot diverge.
      */
     public static Map<String, Object> datasetConfig(DataSource parent, Dataset dataset) {
-        Map<String, Object> merged = mergeSettings(parent, dataset);
+        return datasetConfig(parent, dataset, dataset.name());
+    }
+
+    /**
+     * The same config, told what to call the read.
+     *
+     * @param datasetName the name a diagnostic and a telemetry label report, or {@code null} when there is no
+     *                    registered dataset to name. A definition a query supplied is validated as a registration,
+     *                    which requires a name, so its {@code Dataset} carries the data source's as a placeholder —
+     *                    and a placeholder must not reach anything a user reads.
+     */
+    public static Map<String, Object> datasetConfig(DataSource parent, Dataset dataset, @Nullable String datasetName) {
+        Map<String, Object> merged = mergeSettings(parent, dataset, datasetName);
         // Everything cached about this dataset's files is derived from these two definitions, so it is
         // addressed by a version of them. An edit to either takes the derived entries out of reach
         // without anything having to notice the edit and invalidate them.
@@ -725,7 +737,7 @@ public final class DatasetRewriter {
      * the only such key today, and retiring it from the data-source vocabulary entirely is not
      * planned, so the hardcoded strip is intentional.
      */
-    private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
+    private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset, @Nullable String datasetName) {
         Map<String, Object> merged = new HashMap<>();
         merged.putAll(dataset.settings());
         merged.keySet().removeAll(RemovedParquetDatasetSettings.KEYS);
@@ -744,11 +756,16 @@ public final class DatasetRewriter {
             merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
         }
         // Attach dataset context so operators can annotate classified failures without the full path.
-        // Stripped from storageConfig() before reaching any provider; never sent to the object store.
-        merged.put(
-            ExternalSourceResolver.DATASET_CONTEXT_KEY,
-            Map.of("dataset", dataset.name(), "datasource", parent.name(), "type", parent.type())
-        );
+        // Stripped from storageConfig() before reaching any provider; never sent to the object store. The dataset
+        // entry is absent when there is no registered dataset to name, which ExternalException.buildDatasetLabel
+        // reads as "say nothing about a dataset" rather than naming the data source twice.
+        Map<String, Object> context = new HashMap<>();
+        if (datasetName != null) {
+            context.put("dataset", datasetName);
+        }
+        context.put("datasource", parent.name());
+        context.put("type", parent.type());
+        merged.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, context);
         return merged;
     }
 

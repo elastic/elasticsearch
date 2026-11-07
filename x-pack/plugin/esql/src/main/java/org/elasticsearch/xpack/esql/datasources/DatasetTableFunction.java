@@ -139,7 +139,7 @@ public final class DatasetTableFunction implements TableFunction {
         return new UnresolvedExternalRelation(
             call.source(),
             Literal.keyword(call.source(), bound.dataset().resource()),
-            DatasetRewriter.datasetConfig(bound.dataSource(), bound.dataset()),
+            DatasetRewriter.datasetConfig(bound.dataSource(), bound.dataset(), null),
             metadataFields,
             inline,
             bound.dataset().mapping()

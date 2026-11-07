@@ -79,6 +79,33 @@ public class DatasetReferenceTests extends ESTestCase {
         }
     }
 
+    /**
+     * And toward a node so old it has no dataset slot at all. That arm is as unreadable there as one version up, so
+     * the refusal comes before the slot's own version check rather than after it — where it would have returned
+     * having written nothing.
+     */
+    public void testTheInlineArmCannotBeWrittenForANodeWithoutTheSlot() throws IOException {
+        TransportVersion beforeTheSlot = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_NAME);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(beforeTheSlot);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DatasetReference.writeOptional(out, INLINE));
+            assertThat(e.getMessage(), containsString("not supported on all nodes in the cluster"));
+        }
+    }
+
+    /** A name arm toward such a node writes nothing, because that node has nowhere to put it. */
+    public void testTheNameArmWritesNothingForANodeWithoutTheSlot() throws IOException {
+        TransportVersion beforeTheSlot = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_NAME);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(beforeTheSlot);
+            DatasetReference.writeOptional(out, NAMED);
+            assertThat(out.bytes().length(), equalTo(0));
+        }
+        assertThat(roundTrip(NAMED, beforeTheSlot), nullValue());
+    }
+
     public void testAPlanCarryingAnInlineArmIsRefusedOnAnOlderCluster() {
         TransportVersion before = TransportVersionUtils.getPreviousVersion(DatasetReference.DATASET_REFERENCE);
 

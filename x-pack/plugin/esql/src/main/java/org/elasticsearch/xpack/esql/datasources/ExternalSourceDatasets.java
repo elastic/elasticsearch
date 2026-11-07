@@ -30,8 +30,8 @@ import java.util.Set;
  * privilege a registration against that source needs. The two are reported separately because they are different
  * privileges on different objects, not because of where either was written.
  * <p>
- * A node with neither cannot be authorized at all; only the snapshot-only inline {@code EXTERNAL} command plans such
- * a node, and its presence is reported separately so the caller can apply the release/snapshot rule
+ * A node with neither cannot be authorized at all; only a snapshot-only source with no dataset behind it is planned
+ * that way, and its presence is reported separately so the caller can apply the release/snapshot rule
  * {@link DatasetConfigResolver#rebind} applies.
  */
 public final class ExternalSourceDatasets {

@@ -130,6 +130,11 @@ public class SimpleRole implements Role {
     }
 
     @Override
+    public boolean hasDocumentOrFieldLevelSecurityFor(String name) {
+        return indices.hasDocumentOrFieldLevelSecurityFor(name);
+    }
+
+    @Override
     public IsResourceAuthorizedPredicate allowedIndicesMatcher(String action) {
         return indices.allowedIndicesMatcher(action);
     }

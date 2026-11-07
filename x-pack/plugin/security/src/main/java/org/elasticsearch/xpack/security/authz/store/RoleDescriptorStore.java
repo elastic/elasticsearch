@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore.ProjectScoped;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -39,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -60,14 +59,15 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
-    private final Cache<ProjectScoped<String>, Boolean> negativeLookupCache;
+    // Tests whether a role name is recorded as missing in a project; this is the only access the resolver has to the role caches
+    private final BiPredicate<ProjectId, String> isKnownMissing;
 
     public RoleDescriptorStore(
         RoleProviders roleProviders,
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         ProjectResolver projectResolver,
-        Cache<ProjectScoped<String>, Boolean> negativeLookupCache,
+        BiPredicate<ProjectId, String> isKnownMissing,
         XPackLicenseState licenseState,
         ThreadContext threadContext,
         Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
@@ -79,7 +79,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         this.licenseState = Objects.requireNonNull(licenseState);
         this.threadContext = threadContext;
         this.effectiveRoleDescriptorsConsumer = Objects.requireNonNull(effectiveRoleDescriptorsConsumer);
-        this.negativeLookupCache = negativeLookupCache;
+        this.isKnownMissing = Objects.requireNonNull(isKnownMissing);
     }
 
     @Override
@@ -252,7 +252,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
 
     private void roleDescriptors(Set<String> roleNames, ProjectId projectId, ActionListener<RolesRetrievalResult> rolesResultListener) {
         final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
-            if (negativeLookupCache.get(new ProjectScoped<>(projectId, s)) != null) {
+            if (isKnownMissing.test(projectId, s)) {
                 logger.debug(() -> "Requested role [" + s + "] does not exist in [" + projectId + "] (cached)");
                 return false;
             } else {

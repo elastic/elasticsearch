@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.InlineDatasetDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -259,6 +260,35 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
         ExternalSourceExec original = randomExternalSourceExec(before).withDeclaredReadSpec(spec);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(original, before));
         assertThat(e.getMessage(), containsString("not supported on all nodes"));
+    }
+
+    /** A definition the query carried rides the wire; without it the reading node has nothing to bind. */
+    public void testInlineDefinitionSurvivesRoundTripWhenSupported() throws IOException {
+        InlineDatasetDefinition inline = new InlineDatasetDefinition(
+            "s3_source",
+            Map.of("resource", "s3://bucket/*.csv", "settings", Map.of("format", "csv"))
+        );
+        ExternalSourceExec original = randomExternalSourceExec().withInlineDefinition(inline);
+
+        assertThat(copyInstance(original, TransportVersion.current()).inlineDefinition(), equalTo(inline));
+    }
+
+    /** Toward a node predating {@code esql_inline_dataset_definition} the definition is refused rather than dropped. */
+    public void testInlineDefinitionRejectedForOlderTransportVersion() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_inline_dataset_definition"));
+        InlineDatasetDefinition inline = new InlineDatasetDefinition("s3_source", Map.of("resource", "s3://bucket/*.csv"));
+        ExternalSourceExec original = randomExternalSourceExec(before).withInlineDefinition(inline);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(original, before));
+        assertThat(e.getMessage(), containsString("dataset definition carried by a query is not supported on all nodes"));
+    }
+
+    /** A source with no definition still serializes toward such a node; only a present one is refused. */
+    public void testNoInlineDefinitionSerializesToOlderTransportVersion() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_inline_dataset_definition"));
+        ExternalSourceExec original = randomExternalSourceExec(before);
+
+        assertNull(copyInstance(original, before).inlineDefinition());
     }
 
     /**

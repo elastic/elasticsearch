@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.InlineDatasetDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 
@@ -117,6 +118,47 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
             "metadata.schema() must preserve the source's full column layout across the wire, " + "not the (potentially narrower) output",
             fullSchema,
             roundTripped.metadata().schema()
+        );
+    }
+
+    /** A definition the query carried rides the wire; without it the reading node has nothing to bind. */
+    public void testInlineDefinitionSurvivesRoundTripWhenSupported() throws IOException {
+        InlineDatasetDefinition inline = new InlineDatasetDefinition(
+            "s3_source",
+            Map.of("resource", "s3://bucket/*.csv", "settings", Map.of("format", "csv"))
+        );
+        ExternalRelation roundTripped = copyInstance(relationWith(inline, randomFieldAttributes(1, 3, false)), TransportVersion.current());
+
+        assertThat(roundTripped.inlineDefinition(), equalTo(inline));
+    }
+
+    /**
+     * Toward a node predating {@code esql_inline_dataset_definition} the definition is refused rather than dropped:
+     * a node that receives the source without it has neither a name nor a definition to bind, so it would refuse the
+     * query anyway and with a less useful message.
+     */
+    public void testInlineDefinitionRejectedForOlderTransportVersion() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_inline_dataset_definition"));
+        InlineDatasetDefinition inline = new InlineDatasetDefinition("s3_source", Map.of("resource", "s3://bucket/*.csv"));
+        ExternalRelation original = relationWith(inline, randomFieldAttributes(1, 3, false, before));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(original, before));
+        assertThat(e.getMessage(), containsString("dataset definition carried by a query is not supported on all nodes"));
+    }
+
+    private static ExternalRelation relationWith(InlineDatasetDefinition inline, List<Attribute> output) {
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", "s3://bucket/x.csv", null, null, Map.of(), Map.of());
+        return new ExternalRelation(
+            randomSource(),
+            metadata.location(),
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            null,
+            List.of(),
+            DeclaredReadSpec.NONE,
+            inline
         );
     }
 

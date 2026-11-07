@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Properties;
+import java.util.Set;
 
 public class JdbcDatabaseMetaDataTests extends ESTestCase {
 
@@ -92,6 +93,98 @@ public class JdbcDatabaseMetaDataTests extends ESTestCase {
 
     public void testGetAttributes() throws Exception {
         testEmptySet(() -> md.getAttributes(null, null, null, null));
+    }
+
+    public void testGetNumericFunctions() throws Exception {
+        Set<String> expected = Set.of(
+            "ABS",
+            "ACOS",
+            "ASIN",
+            "ATAN",
+            "ATAN2",
+            "CEILING",
+            "COS",
+            "DEGREES",
+            "EXP",
+            "FLOOR",
+            "LOG",
+            "LOG10",
+            "MOD",
+            "PI",
+            "POWER",
+            "RADIANS",
+            "RAND",
+            "ROUND",
+            "SIGN",
+            "SIN",
+            "SQRT",
+            "TAN",
+            "TRUNCATE"
+        );
+        String[] numericFunctions = md.getNumericFunctions().split(",");
+        assertEquals(expected, Set.of(numericFunctions));
+        // check the list does not have duplicates
+        assertEquals(expected.size(), numericFunctions.length);
+    }
+
+    public void testGetStringFunctions() throws Exception {
+        Set<String> expected = Set.of(
+            "ASCII",
+            "BIT_LENGTH",
+            "CHAR",
+            "CHAR_LENGTH",
+            "CHARACTER_LENGTH",
+            "CONCAT",
+            "INSERT",
+            "LCASE",
+            "LEFT",
+            "LENGTH",
+            "LOCATE",
+            "LTRIM",
+            "OCTET_LENGTH",
+            "POSITION",
+            "REPEAT",
+            "REPLACE",
+            "RIGHT",
+            "RTRIM",
+            "SPACE",
+            "SUBSTRING",
+            "UCASE"
+        );
+        String[] stringFunctions = md.getStringFunctions().split(",");
+        assertEquals(expected, Set.of(stringFunctions));
+        // check the list does not have duplicates
+        assertEquals(expected.size(), stringFunctions.length);
+    }
+
+    public void testGetSystemFunctions() throws Exception {
+        Set<String> expected = Set.of("DATABASE", "IFNULL", "USER");
+        String[] systemFunctions = md.getSystemFunctions().split(",");
+        assertEquals(expected, Set.of(systemFunctions));
+        // check the list does not have duplicates
+        assertEquals(expected.size(), systemFunctions.length);
+    }
+
+    public void testGetTimeDateFunctions() throws Exception {
+        Set<String> expected = Set.of(
+            "DAYNAME",
+            "DAYOFMONTH",
+            "DAYOFWEEK",
+            "DAYOFYEAR",
+            "EXTRACT",
+            "HOUR",
+            "MINUTE",
+            "MONTH",
+            "MONTHNAME",
+            "QUARTER",
+            "SECOND",
+            "WEEK",
+            "YEAR"
+        );
+        String[] timeDateFunctions = md.getTimeDateFunctions().split(",");
+        assertEquals(expected, Set.of(timeDateFunctions));
+        // check the list does not have duplicates
+        assertEquals(expected.size(), timeDateFunctions.length);
     }
 
     public void testGetFunctions() throws Exception {

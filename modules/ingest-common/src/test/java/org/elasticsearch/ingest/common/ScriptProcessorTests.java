@@ -28,6 +28,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class ScriptProcessorTests extends ESTestCase {
 
@@ -61,6 +62,78 @@ public class ScriptProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = randomDocument();
         processor.execute(ingestDocument);
         assertIngestDocument(ingestDocument);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testScriptCanAddArbitraryIngestMetadata() {
+        String scriptName = "arbitrary_ingest_key";
+        ScriptService scriptService = scriptService(scriptName, ctx -> {
+            ((Map<String, Object>) ctx.get("_ingest")).put("foo", "bar");
+            return null;
+        });
+        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of());
+        IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, factory, scriptService);
+        IngestDocument ingestDocument = randomDocument();
+
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getIngestMetadata().get("foo"), equalTo("bar"));
+    }
+
+    public void testScriptAssignmentToIngestKeyWritesSourceField() {
+        String scriptName = "replace_ingest";
+        ScriptService scriptService = scriptService(scriptName, ctx -> {
+            ctx.put("ingest_value_before_assignment", ((Map<?, ?>) ctx.get("_ingest")).get("_value"));
+            ctx.put("_ingest", Map.of("_value", "source-value"));
+            ctx.put("ingest_value_after_assignment", ((Map<?, ?>) ctx.get("_ingest")).get("_value"));
+            return null;
+        });
+        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of());
+        IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, factory, scriptService);
+        IngestDocument ingestDocument = randomDocument();
+        ingestDocument.getIngestMetadata().put("_value", "metadata-value");
+
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSource().get("_ingest"), equalTo(Map.of("_value", "source-value")));
+        assertThat(ingestDocument.getSource().get("ingest_value_before_assignment"), equalTo("metadata-value"));
+        assertThat(ingestDocument.getSource().get("ingest_value_after_assignment"), equalTo("source-value"));
+        assertThat(ingestDocument.getIngestMetadata(), not(hasKey("_ingest")));
+    }
+
+    public void testSourceIngestFieldTakesPrecedenceOverIngestMetadata() {
+        String scriptName = "read_ingest";
+        ScriptService scriptService = scriptService(scriptName, ctx -> {
+            ctx.put("ingest_value", ctx.get("_ingest"));
+            return null;
+        });
+        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of());
+        IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, factory, scriptService);
+        IngestDocument ingestDocument = randomDocument();
+        ingestDocument.setFieldValue("_ingest", "source-value");
+
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSource().get("ingest_value"), equalTo("source-value"));
+    }
+
+    public void testFieldApiAccessesSourceNotIngestMetadata() {
+        IngestScript.Factory factory = (params, ctx) -> new IngestScript(params, ctx) {
+            @Override
+            public void execute() {
+                field("_ingest").set("source-value");
+            }
+        };
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, factory, scriptService);
+        IngestDocument ingestDocument = randomDocument();
+
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSource().get("_ingest"), equalTo("source-value"));
+        assertThat(ingestDocument.getIngestMetadata(), not(hasKey("_ingest")));
     }
 
     private ScriptService scriptService(String scriptName, java.util.function.Function<Map<String, Object>, Object> script) {

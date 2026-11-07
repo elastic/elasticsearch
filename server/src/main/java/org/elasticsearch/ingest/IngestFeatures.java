@@ -24,6 +24,7 @@ public class IngestFeatures implements FeatureSpecification {
     // Guards YAML tests for the pipeline size/count limits (see IngestSettings.MAX_PIPELINE_SIZE, MAX_TOTAL_METADATA_SIZE,
     // MAX_PIPELINES) so they don't run against older nodes in mixed-cluster/BWC tests, which don't have these settings registered.
     private static final NodeFeature INGEST_PIPELINE_SIZE_LIMITS = new NodeFeature("ingest.pipeline_size_limits", true);
+    private static final NodeFeature INGEST_PAINLESS_INGEST_METADATA = new NodeFeature("ingest.painless.ingest_metadata", true);
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -39,7 +40,8 @@ public class IngestFeatures implements FeatureSpecification {
             RANDOM_SAMPLING,
             INGEST_APPEND_IGNORE_EMPTY_VALUES_FIX,
             DYNAMIC_STRINGS_AUTO_TEXT_SETTING,
-            INGEST_PIPELINE_SIZE_LIMITS
+            INGEST_PIPELINE_SIZE_LIMITS,
+            INGEST_PAINLESS_INGEST_METADATA
         );
     }
 }

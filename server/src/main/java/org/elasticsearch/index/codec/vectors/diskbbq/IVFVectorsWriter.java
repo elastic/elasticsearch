@@ -42,6 +42,9 @@ import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.AbstractList;
@@ -795,11 +798,15 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                     // Merge always produces float centroids for float fields
                     @SuppressWarnings("unchecked")
                     CentroidInformation<float[]> floatCentroidAssignments = (CentroidInformation<float[]>) centroidAssignments;
-                    final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES)
-                        .order(ByteOrder.LITTLE_ENDIAN);
-                    for (float[] centroid : floatCentroidAssignments.centroids()) {
-                        buffer.asFloatBuffer().put(centroid);
-                        centroidTemp.writeBytes(buffer.array(), buffer.array().length);
+                    ValueLayout floatOrder = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
+                    try (Arena arena = Arena.ofConfined()) {
+                        MemorySegment buffer = arena.allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
+                        byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
+                        for (float[] centroid : floatCentroidAssignments.centroids()) {
+                            MemorySegment.copy(centroid, 0, buffer, floatOrder, 0, centroid.length);
+                            MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
+                            centroidTemp.writeBytes(byteBuffer, byteBuffer.length);
+                        }
                     }
                     assignments = centroidAssignments.centroidAssignments();
                     byteCentroidsWritten = false;
@@ -918,38 +925,44 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         VectorEncoding encoding = fieldInfo.getVectorEncoding();
 
         // Encoding-specific scratch buffers
-        final ByteBuffer floatBuffer = encoding == VectorEncoding.FLOAT32
-            ? ByteBuffer.allocate(dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
-            : null;
-        final float[] floatScratch = preconditioner != null ? new float[dim] : null;
-        final byte[] byteScratch = (encoding == VectorEncoding.BYTE && preconditioner != null) ? new byte[dim] : null;
+        ValueLayout floatOrder = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
+        try (Arena arena = Arena.ofConfined()) {
+            final MemorySegment floatBuffer = encoding == VectorEncoding.FLOAT32
+                ? arena.allocate((long) dim * Float.BYTES, Float.BYTES)
+                : null;
+            final float[] floatScratch = preconditioner != null ? new float[dim] : null;
+            final byte[] byteScratch = (encoding == VectorEncoding.BYTE && preconditioner != null)
+                ? new byte[dim]
+                : new byte[dim * Float.BYTES];
 
-        final KnnVectorValues.DocIndexIterator iterator = mergedVectorValues.iterator();
-        for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
-            numVectors++;
-            switch (encoding) {
-                case BYTE -> {
-                    byte[] vector = ((ByteVectorValues) mergedVectorValues).vectorValue(iterator.index());
-                    if (preconditioner != null) {
-                        preconditioner.applyTransformToBytes(vector, byteScratch, floatScratch);
-                        vectorsOut.writeBytes(byteScratch, dim);
-                    } else {
-                        vectorsOut.writeBytes(vector, dim);
+            final KnnVectorValues.DocIndexIterator iterator = mergedVectorValues.iterator();
+            for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+                numVectors++;
+                switch (encoding) {
+                    case BYTE -> {
+                        byte[] vector = ((ByteVectorValues) mergedVectorValues).vectorValue(iterator.index());
+                        if (preconditioner != null) {
+                            preconditioner.applyTransformToBytes(vector, byteScratch, floatScratch);
+                            vectorsOut.writeBytes(byteScratch, dim);
+                        } else {
+                            vectorsOut.writeBytes(vector, dim);
+                        }
+                    }
+                    case FLOAT32 -> {
+                        float[] vector = ((FloatVectorValues) mergedVectorValues).vectorValue(iterator.index());
+                        if (preconditioner != null) {
+                            preconditioner.applyTransform(vector, floatScratch);
+                            MemorySegment.copy(floatScratch, 0, floatBuffer, floatOrder, 0, dim);
+                        } else {
+                            MemorySegment.copy(vector, 0, floatBuffer, floatOrder, 0, dim);
+                        }
+                        MemorySegment.copy(floatBuffer, ValueLayout.JAVA_BYTE, 0, byteScratch, 0, dim * Float.BYTES);
+                        vectorsOut.writeBytes(byteScratch, byteScratch.length);
                     }
                 }
-                case FLOAT32 -> {
-                    float[] vector = ((FloatVectorValues) mergedVectorValues).vectorValue(iterator.index());
-                    if (preconditioner != null) {
-                        preconditioner.applyTransform(vector, floatScratch);
-                        floatBuffer.asFloatBuffer().put(floatScratch);
-                    } else {
-                        floatBuffer.asFloatBuffer().put(vector);
-                    }
-                    vectorsOut.writeBytes(floatBuffer.array(), floatBuffer.array().length);
+                if (docsOut != null) {
+                    docsOut.writeInt(iterator.docID());
                 }
-            }
-            if (docsOut != null) {
-                docsOut.writeInt(iterator.docID());
             }
         }
         return numVectors;

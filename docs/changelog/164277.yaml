@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 164277
+summary: Add hard-limit job count and job/datafeed total gauges
+type: enhancement

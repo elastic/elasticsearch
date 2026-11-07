@@ -140,6 +140,14 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 () -> nativeMemFree
             )
         );
+        metrics.add(
+            meterRegistry.registerLongAsyncGauge(
+                "es.ml.anomaly_detectors.hard_limit.current",
+                "Count of anomaly detection jobs on this node whose model memory status is hard_limit.",
+                "jobs",
+                autodetectProcessManager::countJobsAtHardLimit
+            )
+        );
     }
 
     private void registerMasterNodeMetrics(MeterRegistry meterRegistry) {

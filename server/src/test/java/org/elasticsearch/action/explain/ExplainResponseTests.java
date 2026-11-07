@@ -87,13 +87,19 @@ public class ExplainResponseTests extends AbstractXContentSerializingTestCase<Ex
 
     @Override
     protected ExplainResponse createTestInstance() {
-        String index = randomAlphaOfLength(5);
-        String id = String.valueOf(randomIntBetween(1, 100));
-        boolean exist = randomBoolean();
-        Explanation explanation = randomExplanation(randomExplanation(randomExplanation()), randomExplanation());
+        return new ExplainResponse(
+            randomAlphaOfLength(5),
+            String.valueOf(randomIntBetween(1, 100)),
+            randomBoolean(),
+            randomExplanation(randomExplanation(randomExplanation()), randomExplanation()),
+            createRandomGetResult()
+        );
+    }
+
+    private GetResult createRandomGetResult() {
         String fieldName = randomAlphaOfLength(10);
         List<Object> values = Arrays.asList(randomAlphaOfLengthBetween(3, 10), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        GetResult getResult = new GetResult(
+        return new GetResult(
             randomAlphaOfLengthBetween(3, 10),
             randomAlphaOfLengthBetween(3, 10),
             0,
@@ -104,12 +110,23 @@ public class ExplainResponseTests extends AbstractXContentSerializingTestCase<Ex
             singletonMap(fieldName, new DocumentField(fieldName, values)),
             null
         );
-        return new ExplainResponse(index, id, exist, explanation, getResult);
     }
 
     @Override
     protected ExplainResponse mutateInstance(ExplainResponse instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String index = instance.getIndex();
+        String id = instance.getId();
+        Explanation explanation = instance.getExplanation();
+        // note: the "exists" flag is not part of ExplainResponse#equals, so only mutate the fields it compares
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> index = randomValueOtherThan(index, () -> randomAlphaOfLength(5));
+            case 1 -> id = randomValueOtherThan(id, () -> String.valueOf(randomIntBetween(1, 100)));
+            default -> explanation = randomValueOtherThan(
+                explanation,
+                () -> randomExplanation(randomExplanation(randomExplanation()), randomExplanation())
+            );
+        }
+        return new ExplainResponse(index, id, instance.isExists(), explanation, instance.getGetResult());
     }
 
     @Override

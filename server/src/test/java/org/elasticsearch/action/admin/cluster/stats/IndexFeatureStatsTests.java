@@ -29,7 +29,15 @@ public class IndexFeatureStatsTests extends AbstractWireSerializingTestCase<Inde
 
     @Override
     protected IndexFeatureStats mutateInstance(IndexFeatureStats instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        IndexFeatureStats mutated = new IndexFeatureStats(instance.name);
+        mutated.count = instance.count;
+        mutated.indexCount = instance.indexCount;
+        if (randomBoolean()) {
+            mutated.count = randomValueOtherThan(instance.count, () -> randomIntBetween(0, Integer.MAX_VALUE));
+        } else {
+            mutated.indexCount = randomValueOtherThan(instance.indexCount, () -> randomIntBetween(0, Integer.MAX_VALUE));
+        }
+        return mutated;
     }
 
     public void testToXContent() {

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.junit.Before;
 
@@ -146,6 +147,19 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         Exception[] holder = new ElasticsearchException[1];
         communicator.flushJob(params, (aVoid, e1) -> holder[0] = e1);
         assertEquals("[foo] Unexpected death of autodetect: Mock process is dead", holder[0].getMessage());
+    }
+
+    public void testForecastJobGivenFlushFailureShouldReportErrorAfterCommandWasWritten() throws Exception {
+        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
+        when(process.flushJob(any())).thenThrow(new IOException("flush failed"));
+        AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutodetectResultProcessor.class));
+        ForecastParams params = ForecastParams.builder().build();
+        Exception[] holder = new Exception[1];
+
+        communicator.forecastJob(params, (aVoid, e) -> holder[0] = e);
+
+        verify(process).forecastJob(params);
+        assertNotNull(holder[0]);
     }
 
     public void testFlushJob_givenFlushWaitReturnsTrueOnSecondCall() throws Exception {

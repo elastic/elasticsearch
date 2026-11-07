@@ -126,6 +126,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private final NamedXContentRegistry xContentRegistry;
 
     private final AnomalyDetectionAuditor auditor;
+    private final ForecastTelemetry forecastTelemetry;
 
     private volatile boolean upgradeInProgress;
     private volatile boolean resetInProgress;
@@ -146,9 +147,11 @@ public class AutodetectProcessManager implements ClusterStateListener {
         AutodetectProcessFactory autodetectProcessFactory,
         NormalizerFactory normalizerFactory,
         NativeStorageProvider nativeStorageProvider,
-        IndexNameExpressionResolver expressionResolver
+        IndexNameExpressionResolver expressionResolver,
+        ForecastTelemetry forecastTelemetry
     ) {
         this.client = client;
+        this.forecastTelemetry = Objects.requireNonNull(forecastTelemetry);
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.maxAllowedRunningJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
@@ -366,6 +369,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 jobId
             );
             logger.debug(message);
+            // No command was written, so no results processor will ever report this forecast.
+            forecastTelemetry.recordFailed();
             handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
         }
@@ -800,7 +805,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
             annotationPersister,
             process,
             autodetectParams.modelSizeStats(),
-            autodetectParams.timingStats()
+            autodetectParams.timingStats(),
+            forecastTelemetry
         );
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {

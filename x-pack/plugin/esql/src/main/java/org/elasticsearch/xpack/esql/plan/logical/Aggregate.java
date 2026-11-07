@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -258,7 +257,7 @@ public class Aggregate extends UnaryPlan
     }
 
     static void checkUnsupportedGroupingType(Expression e, Failures failures) {
-        if ((e instanceof FieldAttribute f && f.dataType().isCounter())
+        if (e.dataType().isCounter()
             || e.dataType() == AGGREGATE_METRIC_DOUBLE
             || e.dataType() == DATE_PERIOD
             || e.dataType() == DATE_RANGE

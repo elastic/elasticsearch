@@ -28,6 +28,7 @@ public class CiPartPlannerTests {
         CiPartPlanner.Config config = new CiPartPlanner.Config(2, 8, Map.of(), List.of());
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
             Map.of(":server:test", 600.0, ":server:internalClusterTest", 590.0, ":a:test", 100.0, ":b:test", 100.0),
+            Map.of(),
             Map.of()
         );
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
@@ -39,6 +40,7 @@ public class CiPartPlannerTests {
         CiPartPlanner.Config config = new CiPartPlanner.Config(2, 100, Map.of(), List.of(List.of(":p:a", ":q:b")));
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
             Map.of(":p:a", 10.0, ":q:b", 10.0, ":r:c", 1000.0),
+            Map.of(),
             Map.of()
         );
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
@@ -52,7 +54,7 @@ public class CiPartPlannerTests {
             tests.put(":p" + i + ":test", 60.0 + (i * 7) % 300);
         }
         CiPartPlanner.Config config = new CiPartPlanner.Config(6, 4, Map.of(), List.of());
-        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(tests, Map.of());
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(tests, Map.of(), Map.of());
         double[] minutes = CiPartPlanner.estimatedMinutes(CiPartPlanner.plan(config, durations), config, durations);
         double max = 0, min = Double.MAX_VALUE;
         for (double m : minutes) {
@@ -70,7 +72,7 @@ public class CiPartPlannerTests {
             Map.of(":x:yamlRestTest", new CiPartAssignment.Split(3, CiPartAssignment.SplitBy.YAML_FILE)),
             List.of()
         );
-        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:yamlRestTest", 900.0, ":y:test", 10.0), Map.of(":y", 5.0));
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:yamlRestTest", 900.0, ":y:test", 10.0), Map.of(), Map.of(":y", 5.0));
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
         assertThat(assignment.tests().keySet(), equalTo(java.util.Set.of(":x:yamlRestTest#0", ":x:yamlRestTest#1", ":x:yamlRestTest#2", ":y:test")));
         assertThat(
@@ -83,13 +85,31 @@ public class CiPartPlannerTests {
     }
 
     @Test
+    public void testShardEstimatesOverrideEvenShares() {
+        CiPartPlanner.Config config = new CiPartPlanner.Config(
+            2,
+            1,
+            Map.of(":x:javaRestTest", new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.CLASS)),
+            List.of()
+        );
+        // shard 0 holds one long class; an even split would put :y:test (300s) next to it
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(":x:javaRestTest", 1000.0, ":y:test", 300.0),
+            Map.of(":x:javaRestTest#0", 800.0, ":x:javaRestTest#1", 200.0),
+            Map.of()
+        );
+        CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
+        assertThat(assignment.partOfTest(":y:test"), equalTo(assignment.partOfShard(":x:javaRestTest", 1)));
+    }
+
+    @Test
     public void testDeterministic() {
         Map<String, Double> tests = new HashMap<>();
         for (int i = 0; i < 50; i++) {
             tests.put(":p" + (i % 7) + ":t" + i, 100.0);
         }
         CiPartPlanner.Config config = new CiPartPlanner.Config(5, 3, Map.of(), List.of());
-        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(tests, Map.of());
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(tests, Map.of(), Map.of());
         assertThat(CiPartPlanner.plan(config, durations).toJson(), equalTo(CiPartPlanner.plan(config, durations).toJson()));
     }
 

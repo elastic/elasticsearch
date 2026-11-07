@@ -312,6 +312,71 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat(forks.get(), equalTo(0));
     }
 
+    /**
+     * A value of the wrong Java type is refused for the string-backed types too, where the block builder would
+     * have accepted anything: {@code BlockUtils.appendValue}'s {@code BYTES_REF} arm stringifies rather than
+     * casting, so typing the builder from the declaration does not catch this on its own.
+     */
+    public void testAnIntegerIsRefusedForAKeywordColumn() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.KEYWORD, List.of(List.of(42))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("produced [Integer] for column [c] declared [keyword]"));
+    }
+
+    /**
+     * And a String is refused for a type whose bytes are an encoding rather than the text: an ip is the sixteen
+     * bytes InetAddressPoint encodes, not the seven characters someone typed.
+     */
+    public void testAStringIsRefusedForAnIpColumn() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.IP, List.of(List.of("1.2.3.4"))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared [ip], which needs an encoded BytesRef"));
+    }
+
+    /** A String is what a keyword column is for, so that one passes. */
+    public void testAStringIsAcceptedForAKeywordColumn() {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.KEYWORD, List.of(List.of("ok"))), call("1"));
+
+        assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
+        assertThat(rows.supplier().get().getBlock(0).elementType(), equalTo(ElementType.BYTES_REF));
+    }
+
+    /** Declares one column of a given type and hands back whatever it was built with. */
+    private static class Typed extends CoordinatorRowsFunction {
+
+        private final DataType type;
+        private final List<List<Object>> rows;
+
+        Typed(DataType type, List<List<Object>> rows) {
+            this.type = type;
+            this.rows = rows;
+        }
+
+        @Override
+        public String name() {
+            return "numbers";
+        }
+
+        @Override
+        public TableFunctionSignature signature() {
+            return TableFunctionSignature.of(TableFunctionSignature.name("upto"));
+        }
+
+        @Override
+        protected List<Attribute> columns(TableFunctionInvocation call, TableFunctionContext context) {
+            return List.of(column("c", type));
+        }
+
+        @Override
+        protected void rows(TableFunctionInvocation call, TableFunctionContext context, ActionListener<List<List<Object>>> listener) {
+            computed(listener, () -> rows);
+        }
+    }
+
     /** Answers its listener only when told to, so a test can hold two binds open at once. */
     private static class Deferred extends CoordinatorRowsFunction {
 

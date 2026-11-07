@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.tablefunction;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -81,6 +82,41 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
     }
 
     /**
+     * Refuses a value the declared type cannot hold, for the types where the block builder would not refuse it
+     * itself.
+     * <p>
+     * {@code BlockUtils.appendValue} casts for the numeric and boolean families, so a wrong Java type there fails
+     * on its own. The string-backed family does not: its arm is {@code appendBytesRef(toBytesRef(val))}, and
+     * {@code BytesRefs.toBytesRef} ends in {@code new BytesRef(value.toString())} — so anything at all is
+     * accepted and quietly stringified. For {@code KEYWORD} and {@code TEXT} that is what is wanted. For every
+     * other type that maps to {@code BYTES_REF} it is wrong in a way nothing downstream can see: declare
+     * {@code IP}, hand back {@code "1.2.3.4"}, and the block carries seven UTF-8 bytes where the engine expects
+     * the sixteen {@code InetAddressPoint} encodes, under an attribute that says {@code ip}.
+     */
+    private static void refuseIfNotTheDeclaredType(Attribute column, Object value) {
+        if (value == null) {
+            return;
+        }
+        DataType declared = column.dataType();
+        if (PlannerUtils.toElementType(declared) != ElementType.BYTES_REF || value instanceof BytesRef) {
+            return;
+        }
+        if ((declared == DataType.KEYWORD || declared == DataType.TEXT) && value instanceof String) {
+            return;
+        }
+        throw new IllegalStateException(
+            "table function produced ["
+                + value.getClass().getSimpleName()
+                + "] for column ["
+                + column.name()
+                + "] declared ["
+                + declared.typeName()
+                + "], which needs "
+                + (declared == DataType.KEYWORD || declared == DataType.TEXT ? "a String or a BytesRef" : "an encoded BytesRef")
+        );
+    }
+
+    /**
      * The declared columns are the only source of each block's type.
      * <p>
      * {@code BlockUtils.fromList} would infer an element type per column from the first non-null value it found,
@@ -88,6 +124,9 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
      * {@code Integer}, and the page carries an {@code INT} block under a {@code LONG} attribute with nothing
      * between the two to notice. A zero-row answer still owes one empty block per column for the same reason,
      * which is why there is no special case for it here.
+     * <p>
+     * Typing the builder from the declaration is not by itself enough to catch a value of the wrong Java type —
+     * see {@link #refuseIfNotTheDeclaredType}, which covers the family where the builder would accept anything.
      */
     private static Page page(List<Attribute> columns, List<List<Object>> rows) {
         BlockUtils.BuilderWrapper[] wrappers = new BlockUtils.BuilderWrapper[columns.size()];
@@ -106,6 +145,7 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
                 }
                 for (int i = 0; i < wrappers.length; i++) {
                     Object value = row.get(i);
+                    refuseIfNotTheDeclaredType(columns.get(i), value);
                     try {
                         wrappers[i].accept(value);
                     } catch (ClassCastException e) {

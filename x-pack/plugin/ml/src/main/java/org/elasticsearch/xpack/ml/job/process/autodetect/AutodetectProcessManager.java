@@ -97,6 +97,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -127,6 +128,9 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     private final AnomalyDetectionAuditor auditor;
 
+    private final AutodetectJobTelemetry telemetry;
+    private final Predicate<String> jobHasRealtimeDatafeedPastLookback;
+
     private volatile boolean upgradeInProgress;
     private volatile boolean resetInProgress;
     private volatile boolean nodeDying;
@@ -146,8 +150,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
         AutodetectProcessFactory autodetectProcessFactory,
         NormalizerFactory normalizerFactory,
         NativeStorageProvider nativeStorageProvider,
-        IndexNameExpressionResolver expressionResolver
+        IndexNameExpressionResolver expressionResolver,
+        AutodetectJobTelemetry telemetry,
+        Predicate<String> jobHasRealtimeDatafeedPastLookback
     ) {
+        this.telemetry = Objects.requireNonNull(telemetry);
+        this.jobHasRealtimeDatafeedPastLookback = Objects.requireNonNull(jobHasRealtimeDatafeedPastLookback);
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
@@ -537,12 +545,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
             return;
         }
         logger.info("Opening job [{}]", jobId);
+        long openBeginMillis = threadPool.relativeTimeInMillis();
 
         // Start the process
         ActionListener<Boolean> stateAliasHandler = ActionListener.wrap(
             r -> jobManager.getJob(
                 jobId,
-                ActionListener.wrap(job -> startProcess(jobTask, job, closeHandler), e -> closeHandler.accept(e, true))
+                ActionListener.wrap(job -> startProcess(jobTask, job, closeHandler, openBeginMillis), e -> closeHandler.accept(e, true))
             ),
             e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof InvalidAliasNameException) {
@@ -609,7 +618,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         );
     }
 
-    private void startProcess(JobTask jobTask, Job job, BiConsumer<Exception, Boolean> closeHandler) {
+    private void startProcess(JobTask jobTask, Job job, BiConsumer<Exception, Boolean> closeHandler, long openBeginMillis) {
         if (job.getJobVersion() == null) {
             closeHandler.accept(
                 ExceptionsHelper.badRequestException(
@@ -659,8 +668,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                 return;
                             }
                             processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
+                            long stateWriteBeginMillis = threadPool.relativeTimeInMillis();
                             setJobState(jobTask, JobState.OPENED, null, e -> {
-                                if (e != null) {
+                                if (e == null) {
+                                    // Recorded only on the OPENED ack so failed, killed and retried opens add no observations.
+                                    telemetry.recordOpenPhaseDuration(
+                                        AutodetectJobTelemetry.OpenPhase.PROCESS_START,
+                                        stateWriteBeginMillis - openBeginMillis
+                                    );
+                                    telemetry.recordOpenPhaseDuration(
+                                        AutodetectJobTelemetry.OpenPhase.STATE_WRITE,
+                                        threadPool.relativeTimeInMillis() - stateWriteBeginMillis
+                                    );
+                                } else {
                                     logSetJobStateFailure(JobState.OPENED, job.getId(), e);
                                     auditor.warning(
                                         job.getId(),
@@ -800,7 +820,9 @@ public class AutodetectProcessManager implements ClusterStateListener {
             annotationPersister,
             process,
             autodetectParams.modelSizeStats(),
-            autodetectParams.timingStats()
+            autodetectParams.timingStats(),
+            telemetry,
+            () -> jobHasRealtimeDatafeedPastLookback.test(jobId)
         );
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {

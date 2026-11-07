@@ -33,6 +33,8 @@ serverless: preview
   with a warning.
 - To get the k nearest vectors, sort and limit the results explicitly, for example `SORT _score DESC | LIMIT 10`.
 
+To learn more, refer to [runtime search](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-knn).
+
 :::{tip}
 Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
 :::

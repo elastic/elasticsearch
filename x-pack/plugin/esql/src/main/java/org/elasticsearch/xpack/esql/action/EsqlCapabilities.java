@@ -4720,6 +4720,11 @@ public class EsqlCapabilities {
         FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
 
         /**
+         * Run time-series aggregation single pass on data nodes when possible
+         */
+        TIME_SERIES_SINGLE_PASS,
+
+        /**
          * Table functions in a {@code FROM} source list — {@code FROM foo, bar*, DATASET(ds, {...})} — and
          * {@code DATASET} as the first of them. Snapshot-only, and gated twice over: the {@code tableFunction}
          * parser rule in {@code EsqlBaseParser.g4} carries {@code isDevVersion()}, which is what decides

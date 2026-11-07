@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
@@ -73,7 +74,9 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
@@ -130,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -2373,9 +2377,9 @@ public class EsqlSession {
     static Map<String, DatasetMapping> extractDeclaredMappings(LogicalPlan plan) {
         Map<String, DatasetMapping> declaredMappings = new HashMap<>();
         Set<String> unmappedPaths = new HashSet<>();
-        plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            if (p.tablePath() instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
-                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
+        plan.forEachUp(UnresolvedExternalRelation.class, p -> {
+            if (p.tablePath() instanceof Literal literal && literal.value() != null) {
+                String path = BytesRefs.toString(literal.value());
                 if (p.mapping() != null) {
                     DatasetMapping previous = declaredMappings.putIfAbsent(path, p.mapping());
                     if (previous != null && previous.equals(p.mapping()) == false) {
@@ -2404,15 +2408,22 @@ public class EsqlSession {
     // package-private for testing
     static Map<String, Map<String, Object>> extractExternalConfigs(LogicalPlan plan) {
         Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
-        plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            org.elasticsearch.xpack.esql.core.expression.Expression tablePath = p.tablePath();
-            if (tablePath instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
-                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
-                // If two UnresolvedExternalRelation nodes share the same literal path the later config
-                // overwrites the earlier one. Today the dataset-rewrite pipeline produces at most one
-                // UER per concrete path, so this is benign; if plan shapes evolve to allow per-call
-                // config divergence at the same path this needs to become a merge or a verifier check.
-                pathConfigs.put(path, p.config());
+        plan.forEachUp(UnresolvedExternalRelation.class, p -> {
+            Expression tablePath = p.tablePath();
+            if (tablePath instanceof Literal literal && literal.value() != null) {
+                String path = BytesRefs.toString(literal.value());
+                // Resolution is keyed by this path, so one path yields one listing and one schema. Two
+                // relations reading it under different configurations would therefore have to share
+                // whichever was visited last, and the other would be resolved against settings nobody
+                // asked for: a different format, a different header, a different data source's
+                // credentials. Refuse instead, the way a mapping divergence on one path is already
+                // refused in extractDeclaredMappings.
+                Map<String, Object> previous = pathConfigs.putIfAbsent(path, p.config());
+                if (previous != null && sameRead(previous, p.config()) == false) {
+                    throw new IllegalArgumentException(
+                        "resource [" + path + "] is read through datasets with different configurations in one query"
+                    );
+                }
             } else {
                 throw new IllegalStateException(
                     "UnresolvedExternalRelation tablePath is not a non-null Literal: ["
@@ -2422,6 +2433,28 @@ public class EsqlSession {
             }
         });
         return pathConfigs;
+    }
+
+    /**
+     * Whether two configurations describe the same read of one resource.
+     * <p>
+     * Everything that decides what gets read is compared: the dataset's own settings, the parent's
+     * credentials under {@code _datasource}, and the folded {@code _definition_version}. Only
+     * {@code _dataset_context} is excluded, because it carries the dataset's own name for diagnostics
+     * and so differs between two registered datasets that are otherwise twins — which read identically
+     * and must keep sharing one resolution.
+     */
+    private static boolean sameRead(Map<String, Object> left, Map<String, Object> right) {
+        return withoutDatasetContext(left).equals(withoutDatasetContext(right));
+    }
+
+    private static Map<String, Object> withoutDatasetContext(Map<String, Object> config) {
+        if (config.containsKey(ExternalSourceResolver.DATASET_CONTEXT_KEY) == false) {
+            return config;
+        }
+        Map<String, Object> stripped = new HashMap<>(config);
+        stripped.remove(ExternalSourceResolver.DATASET_CONTEXT_KEY);
+        return stripped;
     }
 
     /**

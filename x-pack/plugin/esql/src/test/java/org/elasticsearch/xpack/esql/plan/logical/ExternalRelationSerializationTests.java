@@ -134,7 +134,8 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
             Map.of(),
             null,
             List.of(),
-            spec
+            spec,
+            null
         );
         ExternalRelation roundTripped = copyInstance(original, TransportVersion.current());
         assertThat(roundTripped.declaredReadSpec(), equalTo(spec));
@@ -158,7 +159,8 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
             Map.of(),
             null,
             List.of(),
-            spec
+            spec,
+            null
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(original, before));
         assertThat(e.getMessage(), containsString("not supported on all nodes"));

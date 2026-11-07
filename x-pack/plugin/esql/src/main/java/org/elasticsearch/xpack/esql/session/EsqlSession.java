@@ -235,6 +235,7 @@ public class EsqlSession {
     }
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
+    private static final TransportVersion ESQL_INLINE_DATASET_DEFINITION = TransportVersion.fromName("esql_inline_dataset_definition");
 
     private final String sessionId;
     private final TransportVersion localClusterMinimumVersion;
@@ -1827,6 +1828,7 @@ public class EsqlSession {
                     rewritten,
                     projectMetadata,
                     planningCpu.meteredCpu(delegate.delegateFailureAndWrap((tableFunctionDelegate, resolved) -> {
+                        ensureInlineDefinitionsCanTravel(resolved);
                         analyzedPlanAfterDatasetResolution(
                             scopeIndexPatternsInViews(resolved, unmappedResolution, viewSettings),
                             unmappedResolution,
@@ -1841,6 +1843,27 @@ public class EsqlSession {
                 );
             }))
         );
+    }
+
+    /**
+     * Refuses a query carrying a dataset definition when some node in this cluster could not carry it, here rather
+     * than where the plan is serialized: a leaf is read on whichever nodes hold the files, so a per-node refusal
+     * would fail some of the work and leave the rest of it reading, and which nodes those are is not known yet.
+     * {@code localClusterMinimumVersion} is the oldest node this coordinator can see, so a cluster that passes here
+     * has no target that cannot be sent to.
+     */
+    private void ensureInlineDefinitionsCanTravel(LogicalPlan plan) {
+        if (localClusterMinimumVersion.supports(ESQL_INLINE_DATASET_DEFINITION)) {
+            return;
+        }
+        plan.forEachDown(UnresolvedExternalRelation.class, relation -> {
+            if (relation.inlineDefinition() != null) {
+                throw new VerificationException(
+                    "a dataset definition carried by a query is not supported on all nodes in the cluster; "
+                        + "retry after the upgrade, or register the dataset"
+                );
+            }
+        });
     }
 
     private void analyzedPlanAfterDatasetResolution(

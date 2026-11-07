@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
@@ -228,6 +229,7 @@ public class ComputeService {
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
     /** Which nodes of the cluster state may be given external splits right now; see {@link #externalWorkers()}. */
     private final ExternalWorkerReadiness externalWorkerReadiness;
+    private final DatasetDefinitionValidator datasetDefinitionValidator;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -240,10 +242,12 @@ public class ComputeService {
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
         FormatReaderRegistry formatReaderRegistry,
+        DatasetDefinitionValidator datasetDefinitionValidator,
         Client client,
         ExternalWorkerReadiness externalWorkerReadiness
     ) {
         this.externalWorkerReadiness = externalWorkerReadiness;
+        this.datasetDefinitionValidator = datasetDefinitionValidator;
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
@@ -298,6 +302,10 @@ public class ComputeService {
 
     FormatReaderRegistry formatReaderRegistry() {
         return formatReaderRegistry;
+    }
+
+    DatasetDefinitionValidator datasetDefinitionValidator() {
+        return datasetDefinitionValidator;
     }
 
     /**
@@ -2017,7 +2025,7 @@ public class ComputeService {
             // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
             // snapshots cannot disagree on anything that is read.
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-            DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
+            DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata, datasetDefinitionValidator);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),

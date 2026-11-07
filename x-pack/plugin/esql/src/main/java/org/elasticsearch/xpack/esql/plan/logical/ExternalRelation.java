@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.InlineDatasetDefinition;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -65,6 +66,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
     private static final TransportVersion ESQL_EXTERNAL_DATASET_NAME = TransportVersion.fromName("esql_external_dataset_name");
     private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
+    private static final TransportVersion ESQL_INLINE_DATASET_DEFINITION = TransportVersion.fromName("esql_inline_dataset_definition");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -103,6 +105,13 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * {@code dataset_declared_schema}.
      */
     private final DeclaredReadSpec declaredReadSpec;
+    /**
+     * The definition behind this relation when the query carried one instead of naming a registered dataset, or
+     * {@code null}. Rides the wire gated on {@code esql_inline_dataset_definition}, because the reading node rebuilds
+     * the read configuration from it; see {@link InlineDatasetDefinition}.
+     */
+    @Nullable
+    private final InlineDatasetDefinition inlineDefinition;
 
     public ExternalRelation(
         Source source,
@@ -112,7 +121,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
     ) {
-        this(source, sourcePath, metadata, output, fileList, schemaMap, null, List.of(), DeclaredReadSpec.NONE);
+        this(source, sourcePath, metadata, output, fileList, schemaMap, null, List.of(), DeclaredReadSpec.NONE, null);
     }
 
     public ExternalRelation(
@@ -124,7 +133,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         @Nullable String datasetName
     ) {
-        this(source, sourcePath, metadata, output, fileList, schemaMap, datasetName, List.of(), DeclaredReadSpec.NONE);
+        this(source, sourcePath, metadata, output, fileList, schemaMap, datasetName, List.of(), DeclaredReadSpec.NONE, null);
     }
 
     public ExternalRelation(
@@ -136,7 +145,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         @Nullable String datasetName,
         List<? extends NamedExpression> metadataFields,
-        DeclaredReadSpec declaredReadSpec
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable InlineDatasetDefinition inlineDefinition
     ) {
         super(source);
         if (sourcePath == null) {
@@ -156,6 +166,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         this.datasetName = datasetName;
         this.metadataFields = metadataFields != null ? metadataFields : List.of();
         this.declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
+        this.inlineDefinition = inlineDefinition;
     }
 
     private static ExternalRelation readFrom(StreamInput in) throws IOException {
@@ -180,6 +191,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         DeclaredReadSpec declaredReadSpec = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)
             ? DeclaredReadSpec.readFrom(in)
             : DeclaredReadSpec.NONE;
+        InlineDatasetDefinition inlineDefinition = in.getTransportVersion().supports(ESQL_INLINE_DATASET_DEFINITION)
+            ? in.readOptionalWriteable(InlineDatasetDefinition::readFrom)
+            : null;
         var metadata = new SimpleSourceMetadata(sourceSchema, sourceType, sourcePath, null, null, sourceMetadata, config);
         return new ExternalRelation(
             source,
@@ -190,7 +204,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             Map.of(),
             datasetName,
             List.of(),
-            declaredReadSpec
+            declaredReadSpec,
+            inlineDefinition
         );
     }
 
@@ -218,6 +233,16 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
                 "declared dataset read-instructions are not supported on all nodes in the cluster; retry after the upgrade"
             );
         }
+        if (out.getTransportVersion().supports(ESQL_INLINE_DATASET_DEFINITION)) {
+            out.writeOptionalWriteable(inlineDefinition);
+        } else if (inlineDefinition != null) {
+            // The query is refused cluster-wide while it is planned (EsqlSession), so reaching here means a target
+            // older than the minimum the coordinator saw. Dropping the definition would leave the node with nothing
+            // to bind and no way to know it was ever there.
+            throw new IllegalArgumentException(
+                "a dataset definition carried by a query is not supported on all nodes in the cluster; retry after the upgrade"
+            );
+        }
     }
 
     @Override
@@ -237,7 +262,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             schemaMap,
             datasetName,
             metadataFields,
-            declaredReadSpec
+            declaredReadSpec,
+            inlineDefinition
         );
     }
 
@@ -272,6 +298,12 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      */
     public DeclaredReadSpec declaredReadSpec() {
         return declaredReadSpec;
+    }
+
+    /** The definition behind this relation when the query carried one, or {@code null}. Carried to the exec. */
+    @Nullable
+    public InlineDatasetDefinition inlineDefinition() {
+        return inlineDefinition;
     }
 
     @Override
@@ -321,7 +353,10 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             fileList,
             schemaMap,
             List.of()
-        ).withUnifiedSchema(dataOnlyUnifiedSchema()).withDatasetName(datasetName).withDeclaredReadSpec(declaredReadSpec);
+        ).withUnifiedSchema(dataOnlyUnifiedSchema())
+            .withDatasetName(datasetName)
+            .withDeclaredReadSpec(declaredReadSpec)
+            .withInlineDefinition(inlineDefinition);
     }
 
     /**
@@ -360,7 +395,17 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, metadata, output, fileList, schemaMap, datasetName, metadataFields, declaredReadSpec);
+        return Objects.hash(
+            sourcePath,
+            metadata,
+            output,
+            fileList,
+            schemaMap,
+            datasetName,
+            metadataFields,
+            declaredReadSpec,
+            inlineDefinition
+        );
     }
 
     @Override
@@ -381,7 +426,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             && Objects.equals(schemaMap, other.schemaMap)
             && Objects.equals(datasetName, other.datasetName)
             && Objects.equals(metadataFields, other.metadataFields)
-            && Objects.equals(declaredReadSpec, other.declaredReadSpec);
+            && Objects.equals(declaredReadSpec, other.declaredReadSpec)
+            && Objects.equals(inlineDefinition, other.inlineDefinition);
     }
 
     @Override
@@ -415,7 +461,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             schemaMap,
             datasetName,
             metadataFields,
-            declaredReadSpec
+            declaredReadSpec,
+            inlineDefinition
         );
     }
 
@@ -434,7 +481,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             schemaMap,
             datasetName,
             metadataFields,
-            declaredReadSpec
+            declaredReadSpec,
+            inlineDefinition
         );
     }
 
@@ -453,7 +501,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             newSchemaMap,
             datasetName,
             metadataFields,
-            declaredReadSpec
+            declaredReadSpec,
+            inlineDefinition
         );
     }
 }

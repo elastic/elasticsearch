@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.InlineDatasetDefinition;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -559,6 +560,20 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 Map.of(randomAlphaOfLength(4), randomAlphaOfLength(5)),
                 Map.of(randomAlphaOfLength(4), "yyyy-MM-dd"),
                 Set.of(randomAlphaOfLength(4), randomAlphaOfLength(5))
+            );
+        } else if (argClass == InlineDatasetDefinition.class) {
+            // A record, so unmockable; a definition with settings and a mapping block, so a transform that dropped a
+            // nested level would show.
+            return new InlineDatasetDefinition(
+                randomAlphaOfLength(6),
+                Map.of(
+                    "resource",
+                    "s3://" + randomAlphaOfLength(6) + "/*.csv",
+                    "settings",
+                    Map.of("format", "csv"),
+                    "mappings",
+                    Map.of("properties", Map.of(randomAlphaOfLength(4), Map.of("type", "keyword")))
+                )
             );
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked

@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
+import org.elasticsearch.xpack.esql.action.EsqlAuthorizeDatasourceAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
@@ -108,6 +109,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryMetrics;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetListingService;
+import org.elasticsearch.xpack.esql.datasources.DatasetTableFunction;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FederationLicense;
@@ -116,6 +118,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
@@ -635,7 +638,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Built here rather than held statically, as the function registry is: a table function declares its own
         // dependencies by being constructed with them, which is what keeps the facility from carrying any one
         // function's.
-        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(extraTableFunctions(services.client()));
+        DatasetDefinitionValidator datasetDefinitionValidator = new DatasetDefinitionValidator(crudValidators);
+        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(
+            extraTableFunctions(services.client(), datasetDefinitionValidator)
+        );
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
 
@@ -674,7 +680,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
                 maxListedObjects::get,
-                tableFunctionRegistry
+                tableFunctionRegistry,
+                datasetDefinitionValidator
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -806,6 +813,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
             new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
+            new ActionHandler(EsqlAuthorizeDatasourceAction.TYPE, EsqlAuthorizeDatasourceAction.class),
             new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
@@ -983,12 +991,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * both overridden by test subclasses.
      * <p>
      * A function needing collaborators is constructed with them here; that is why the registry takes
-     * already-constructed functions rather than names, and why the client is a parameter here rather than
-     * something a function reaches for: a function that has to ask the cluster something is given the one
-     * handle it needs, and the facility itself never acquires one.
+     * already-constructed functions rather than names, and why the client and the dataset validator are parameters
+     * here rather than something a function reaches for: a function that has to ask the cluster something, or to
+     * hold a definition to what a registration is held to, is given the handles it needs, and the facility itself
+     * never acquires one.
      */
-    protected List<TableFunction> extraTableFunctions(Client client) {
-        return List.of();
+    protected List<TableFunction> extraTableFunctions(Client client, DatasetDefinitionValidator datasetDefinitionValidator) {
+        return List.of(new DatasetTableFunction(client, datasetDefinitionValidator));
     }
 
     @Override

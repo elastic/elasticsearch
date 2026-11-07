@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.InlineDatasetDefinition;
 
 import java.util.Collections;
 import java.util.List;
@@ -48,6 +49,8 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     private final String datasetName;
     @Nullable
     private final DatasetMapping mapping;
+    @Nullable
+    private final InlineDatasetDefinition inlineDefinition;
     private final String unresolvedMsg;
 
     /**
@@ -119,12 +122,30 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
         @Nullable String datasetName,
         @Nullable DatasetMapping mapping
     ) {
+        this(source, tablePath, config, metadataFields, datasetName, mapping, null);
+    }
+
+    /**
+     * Full constructor, carrying the definition itself for a dataset the query defines where it reads it
+     * ({@link InlineDatasetDefinition}) rather than naming one that is registered. A registered read passes
+     * {@code null}: it has a {@code datasetName} and the reading node looks the definition up under it.
+     */
+    public UnresolvedExternalRelation(
+        Source source,
+        Expression tablePath,
+        Map<String, Object> config,
+        List<NamedExpression> metadataFields,
+        @Nullable String datasetName,
+        @Nullable DatasetMapping mapping,
+        @Nullable InlineDatasetDefinition inlineDefinition
+    ) {
         super(source);
         this.tablePath = tablePath;
         this.config = config;
         this.metadataFields = Objects.requireNonNull(metadataFields, "metadataFields");
         this.datasetName = datasetName;
         this.mapping = mapping;
+        this.inlineDefinition = inlineDefinition;
         this.unresolvedMsg = "Unknown external table or Parquet file [" + extractTablePathValue(tablePath) + "]";
     }
 
@@ -151,7 +172,16 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
 
     @Override
     protected NodeInfo<UnresolvedExternalRelation> info() {
-        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config, metadataFields, datasetName, mapping);
+        return NodeInfo.create(
+            this,
+            UnresolvedExternalRelation::new,
+            tablePath,
+            config,
+            metadataFields,
+            datasetName,
+            mapping,
+            inlineDefinition
+        );
     }
 
     public Expression tablePath() {
@@ -185,6 +215,15 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
         return mapping;
     }
 
+    /**
+     * The definition this leaf carries, or {@code null} when it reads a registered dataset (or the inline
+     * {@code EXTERNAL} command's bare path). See {@link InlineDatasetDefinition} for why it travels.
+     */
+    @Nullable
+    public InlineDatasetDefinition inlineDefinition() {
+        return inlineDefinition;
+    }
+
     @Override
     public boolean resolved() {
         return false;
@@ -209,7 +248,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     public int hashCode() {
         // No source(): equals() below ignores it, and the equals/hashCode contract requires equal
         // nodes to hash equal (same node parsed at two positions must collapse in plan-node sets).
-        return Objects.hash(tablePath, config, metadataFields, datasetName, mapping, unresolvedMsg);
+        return Objects.hash(tablePath, config, metadataFields, datasetName, mapping, inlineDefinition, unresolvedMsg);
     }
 
     @Override
@@ -228,6 +267,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
             && Objects.equals(metadataFields, other.metadataFields)
             && Objects.equals(datasetName, other.datasetName)
             && Objects.equals(mapping, other.mapping)
+            && Objects.equals(inlineDefinition, other.inlineDefinition)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 

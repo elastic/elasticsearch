@@ -144,7 +144,8 @@ public class EsqlSessionTests extends ESTestCase {
             ),
             null,
             List.of(),
-            DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of("y"))
+            DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of("y")),
+            null
         ) {
             @Override
             public String sourcePath() {

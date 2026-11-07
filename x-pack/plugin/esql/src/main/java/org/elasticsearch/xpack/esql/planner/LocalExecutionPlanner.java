@@ -2323,11 +2323,13 @@ public class LocalExecutionPlanner {
         // have run.
         Federation.ensureEnabled(settings);
         // Credential backstop. Every path that brings an external source to this point has already rebound the exec
-        // to this node's registered dataset (DatasetConfigResolver, in PlannerUtils.localPlan and in ComputeService
-        // .runCompute), which refuses a source with no dataset behind it on a release build. Repeat that one check
+        // to this node's own definition of it (DatasetConfigResolver, in PlannerUtils.localPlan and in ComputeService
+        // .runCompute), which refuses a source with no definition behind it on a release build. Repeat that one check
         // here: it catches a future path that builds the operator from an unbound exec, though not one that skips the
-        // rebind for a named exec, which only the rebind itself can guard.
-        if (externalSource.datasetName() == null && snapshotBuild == false) {
+        // rebind for a bound exec, which only the rebind itself can guard. A source whose definition the query
+        // carried is bound too, by its data source, so it passes for the same reason a named one does.
+        boolean hasDefinition = externalSource.datasetName() != null || externalSource.inlineDefinition() != null;
+        if (hasDefinition == false && snapshotBuild == false) {
             throw DatasetConfigResolver.notRegistered(null);
         }
 
@@ -2342,11 +2344,12 @@ public class LocalExecutionPlanner {
         if (operatorFactoryRegistry == null) {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
         }
-        // The plan carries the source type, but registered dataset settings are only valid with the file source factory.
-        if (externalSource.datasetName() != null && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false) {
+        // The plan carries the source type, but dataset settings are only valid with the file source factory, however
+        // the definition they came from reached this node.
+        if (hasDefinition && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false) {
             throw new IllegalArgumentException(
                 "external dataset ["
-                    + externalSource.datasetName()
+                    + (externalSource.datasetName() != null ? externalSource.datasetName() : externalSource.inlineDefinition().dataSource())
                     + "] cannot be read through non-file source type ["
                     + externalSource.sourceType()
                     + "]"

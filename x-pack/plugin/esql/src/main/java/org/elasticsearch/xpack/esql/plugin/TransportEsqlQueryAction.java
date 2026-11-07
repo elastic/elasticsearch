@@ -263,6 +263,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
             dataSourceModule.formatReaderRegistry(),
+            planExecutor.datasetDefinitionValidator(),
             client,
             externalWorkerReadiness
         );

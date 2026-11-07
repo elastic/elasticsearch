@@ -28,12 +28,19 @@ public record TableFunctionSignature(List<Argument> arguments) {
     /** What one argument is called, what kind it is, and whether it may be omitted. */
     public record Argument(String name, Kind kind, boolean required) {}
 
-    /** The kinds the grammar admits, matching {@link TableFunctionArgument}'s two shapes. */
+    /** The kinds the grammar admits, matching {@link TableFunctionArgument}'s two shapes plus the choice of them. */
     public enum Kind {
         /** A bare or quoted name. */
         NAME("a name"),
         /** A {@code {...}} of named values. */
-        NAMED_VALUES("a {...}");
+        NAMED_VALUES("a {...}"),
+        /**
+         * Either shape, for an argument where one of them is shorthand for the other — a definition whose only
+         * interesting field may be written on its own. Not a way around declaring a shape: a function accepting
+         * this still writes no shape-checking code, because the two spellings denote the same argument and it
+         * normalizes them before reading anything.
+         */
+        NAME_OR_NAMED_VALUES("a name or a {...}");
 
         private final String describedAs;
 
@@ -59,6 +66,11 @@ public record TableFunctionSignature(List<Argument> arguments) {
     /** A required {@code {...}}. */
     public static Argument namedValues(String name) {
         return new Argument(name, Kind.NAMED_VALUES, true);
+    }
+
+    /** A required argument written either way; see {@link Kind#NAME_OR_NAMED_VALUES}. */
+    public static Argument nameOrNamedValues(String name) {
+        return new Argument(name, Kind.NAME_OR_NAMED_VALUES, true);
     }
 
     /** The same argument, allowed to be left out. Every argument after an optional one must also be optional. */
@@ -111,6 +123,8 @@ public record TableFunctionSignature(List<Argument> arguments) {
             boolean matches = switch (expected.kind()) {
                 case NAME -> actual instanceof TableFunctionArgument.Name;
                 case NAMED_VALUES -> actual instanceof TableFunctionArgument.NamedValues;
+                case NAME_OR_NAMED_VALUES -> actual instanceof TableFunctionArgument.Name
+                    || actual instanceof TableFunctionArgument.NamedValues;
             };
             if (matches == false) {
                 throw new ParsingException(actual.source(), "[{}] expects {} for [{}]", call.name(), expected.kind(), expected.name());

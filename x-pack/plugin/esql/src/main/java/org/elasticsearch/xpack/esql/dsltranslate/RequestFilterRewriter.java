@@ -203,7 +203,9 @@ public final class RequestFilterRewriter {
      */
     private static String name(LogicalPlan node) {
         if (node instanceof ExternalRelation relation) {
-            return relation.datasetName() != null ? relation.datasetName() : ExternalFailures.redactHttpUrl(relation.sourcePath());
+            return relation.datasetReference() != null
+                ? relation.datasetReference().describe()
+                : ExternalFailures.redactHttpUrl(relation.sourcePath());
         }
         return node.nodeName();
     }

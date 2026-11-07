@@ -13,22 +13,34 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
+import static org.elasticsearch.xpack.security.authz.RBACEngine.maybeGetRBACEngineRole;
 
 /**
  * An interceptor which checks if the requested views or datasets have any DLS or FLS permissions applied.
  * If so, then the request is rejected, because views and datasets are not compatible with DLS or FLS.
+ * <p>
+ * A dataset a query defines rather than names is covered too, and has to be asked about differently. Its read is
+ * authorized under the name of the data source it reads through, which is not an index abstraction, and
+ * {@code IndicesPermission} records neither DLS nor FLS for a name that resolves to nothing — so the access control
+ * this reads for a registered name is unrestricted there whatever the role says. For that action the role's own
+ * privilege groups are consulted instead.
  */
 public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestInterceptor {
     private static final Logger logger = LogManager.getLogger(ViewAndDatasetDlsFlsRequestInterceptor.class);
@@ -58,6 +70,10 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
         AuthorizationEngine.AuthorizationInfo authorizationInfo
     ) {
         if (requestInfo.getRequest() instanceof IndicesRequest indicesRequest
+            && EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME.equals(requestInfo.getAction())) {
+            return interceptInlineDatasetRead(requestInfo, indicesRequest, authorizationInfo);
+        }
+        if (requestInfo.getRequest() instanceof IndicesRequest indicesRequest
             && isInterceptorApplicable(indicesRequest, requestInfo.getAction())) {
 
             final ProjectMetadata projectMetadata = projectMetadataSupplier.get();
@@ -84,6 +100,51 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
             }
         }
         return SubscribableListener.nullSuccess();
+    }
+
+    /**
+     * Refuses an inline dataset read whose authorized name is covered by a privilege group carrying DLS or FLS. The
+     * group's own patterns are matched rather than the resolved access control, for the reason in the class javadoc;
+     * a group that restricts documents or fields anywhere over that name is enough, because an external read applies
+     * neither and would otherwise serve the whole resource.
+     */
+    private SubscribableListener<Void> interceptInlineDatasetRead(
+        AuthorizationEngine.RequestInfo requestInfo,
+        IndicesRequest indicesRequest,
+        AuthorizationEngine.AuthorizationInfo authorizationInfo
+    ) {
+        // A custom AuthorizationEngine does not use an RBAC Role; DLS/FLS compatibility is enforced there instead.
+        Role role = maybeGetRBACEngineRole(authorizationInfo);
+        if (role == null || indicesRequest.indices() == null) {
+            return SubscribableListener.nullSuccess();
+        }
+        List<String> restricted = new ArrayList<>();
+        for (String name : indicesRequest.indices()) {
+            if (anyGroupRestrictsDocumentsOrFields(role, name)) {
+                restricted.add(name);
+            }
+        }
+        if (restricted.isEmpty()) {
+            return SubscribableListener.nullSuccess();
+        }
+        logger.debug(
+            "User [{}] requested an inline dataset read under a DLS or FLS grant: {}",
+            requestInfo.getAuthentication(),
+            restricted
+        );
+        return SubscribableListener.newFailed(getDlsFlsException(List.of(), restricted));
+    }
+
+    private static boolean anyGroupRestrictsDocumentsOrFields(Role role, String name) {
+        for (IndicesPermission.Group group : role.indices().groups()) {
+            if (Regex.simpleMatch(group.indices(), name) == false) {
+                continue;
+            }
+            if (group.getQuery() != null || group.getFieldPermissions().hasFieldLevelSecurity()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isInterceptorApplicable(IndicesRequest indicesRequest, String action) {

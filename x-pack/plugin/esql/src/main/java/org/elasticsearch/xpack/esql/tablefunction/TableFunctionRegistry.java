@@ -22,9 +22,9 @@ import java.util.TreeMap;
  * carries no privilege of its own. Built from a list of already-constructed functions, so a function that needs
  * collaborators is handed them where it is created and nothing shared has to know about them.
  * <p>
- * <b>Empty in this change, deliberately.</b> The facility arrives with no functions in it, which is what makes
- * the separation checkable rather than asserted: everything below is exercised by a function defined in the
- * tests, so nothing here can be shaped by one real function's needs.
+ * <b>Exercised by a function that exists only in the tests, deliberately.</b> That is what keeps the separation
+ * checkable rather than asserted: nothing here is reached only through the one shipped function, so nothing here
+ * can quietly come to depend on what that function happens to need.
  */
 public final class TableFunctionRegistry {
 

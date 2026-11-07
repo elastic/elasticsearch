@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.plan.logical.ClassifiedAs;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -116,7 +117,12 @@ public final class MaterializeRelationClassAndName extends OptimizerRules.Optimi
     private static Expression relationName(Attribute attr, ClassifiedAs classified, Attribute indexAttribute) {
         // A dataset has one name, which is unknown when a bare glob named no dataset.
         if (classified instanceof ExternalRelation externalRelation) {
-            return MetadataAttribute.keywordOrNull(attr.source(), externalRelation.datasetName());
+            // Only a registered dataset has a name to fold; a definition the query supplied has none, so _name is
+            // NULL there, as it is for a source with no dataset behind it.
+            return MetadataAttribute.keywordOrNull(
+                attr.source(),
+                externalRelation.datasetReference() instanceof DatasetReference.Named named ? named.name() : null
+            );
         }
         return indexAttribute;
     }

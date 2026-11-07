@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
-import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -23,18 +22,14 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.ConfigChangeTelemetry;
-import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.MaxDatasetsCountException;
-import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 
@@ -61,7 +56,7 @@ public class DatasetService {
     );
 
     protected final ClusterService clusterService;
-    private final Map<String, DataSourceValidator> validatorsByType;
+    private final DatasetDefinitionValidator definitionValidator;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
     private final ExternalSourceMetrics metrics;
 
@@ -73,7 +68,7 @@ public class DatasetService {
 
     public DatasetService(ClusterService clusterService, Map<String, DataSourceValidator> validatorsByType, ExternalSourceMetrics metrics) {
         this.clusterService = clusterService;
-        this.validatorsByType = Map.copyOf(validatorsByType);
+        this.definitionValidator = new DatasetDefinitionValidator(validatorsByType);
         this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-dataset-metadata",
@@ -96,10 +91,9 @@ public class DatasetService {
      * on missing parent, unknown validator, or validation failure.
      */
     Dataset validatePutDataset(ProjectMetadata projectMetadata, PutDatasetAction.Request request) {
-        final DataSource parent = DataSourceMetadata.get(projectMetadata).get(request.dataSource());
-        if (parent == null) {
-            throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
-        }
+        // Before the collision check below, which is the order the one message-per-cause set has always had: a
+        // request naming no registered data source is told that, not that some index already holds the name.
+        definitionValidator.requireDataSource(projectMetadata, request.dataSource());
         final IndexAbstraction existing = projectMetadata.getIndicesLookup().get(request.name());
         if (existing != null && existing.getType() != IndexAbstraction.Type.DATASET) {
             throw new ResourceAlreadyExistsException(
@@ -108,52 +102,9 @@ public class DatasetService {
                 existing.getType().getDisplayName()
             );
         }
-        final DataSourceValidator validator = validatorsByType.get(parent.type());
-        if (validator == null) {
-            throw new IllegalStateException("no validator registered for data source type [" + parent.type() + "]");
-        }
-        // Pre-validator shadow check: if a raw setting key matches a parent secret, report the
-        // specific shadow-rejection message rather than the generic "unknown setting [key]" the
-        // format validator would produce when it sees an unrecognised key.
-        if (request.rawSettings() != null) {
-            for (String key : request.rawSettings().keySet()) {
-                DataSourceSetting parentSetting = parent.settings().get(key);
-                if (parentSetting != null && parentSetting.secret()) {
-                    throwShadowError(key);
-                }
-            }
-        }
-        final Map<String, Object> validatedSettings = validator.validateDataset(
-            parent.settings().asMap(),
-            request.resource(),
-            request.rawSettings()
-        );
-        // Post-validator shadow check: a validator that strips a key before returning would otherwise
-        // mask the shadow attempt at the wire boundary.
-        for (String key : validatedSettings.keySet()) {
-            DataSourceSetting parentSetting = parent.settings().get(key);
-            if (parentSetting != null && parentSetting.secret()) {
-                throwShadowError(key);
-            }
-        }
-        // Shape-only validation of the declared mapping (no file I/O): declarable types and rename name collisions.
-        // A `path` column rename is honored by all formats (translation is centralized at the reader boundary).
-        DeclaredSchemaValidator.validate(request.mapping());
-        Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, request.mapping());
-        return new Dataset(
-            request.name(),
-            new DataSourceReference(request.dataSource()),
-            request.resource(),
-            request.description(),
-            settings,
-            request.mapping()
-        );
-    }
-
-    private static void throwShadowError(String key) {
-        ValidationException ex = new ValidationException();
-        ex.addValidationError("dataset setting [" + key + "] shadows a secret data-source setting; remove from dataset settings");
-        throw ex;
+        // Everything that is about the definition rather than about occupying a name lives in the validator, which a
+        // query reading a definition inline runs too.
+        return definitionValidator.validate(projectMetadata, request);
     }
 
     /**

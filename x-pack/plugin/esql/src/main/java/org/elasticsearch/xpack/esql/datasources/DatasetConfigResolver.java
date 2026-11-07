@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
@@ -61,6 +63,7 @@ public final class DatasetConfigResolver {
 
     private final ProjectMetadata project;
     private final boolean snapshotBuild;
+    private final DatasetDefinitionValidator definitionValidator;
 
     /**
      * @param project       this node's view of the project the request runs in; the same instance the local planner
@@ -70,12 +73,22 @@ public final class DatasetConfigResolver {
      *                      when the suite runs against a release build
      */
     public DatasetConfigResolver(ProjectMetadata project, boolean snapshotBuild) {
-        this.project = Objects.requireNonNull(project, "project");
-        this.snapshotBuild = snapshotBuild;
+        this(project, snapshotBuild, new DatasetDefinitionValidator(Map.of()));
     }
 
-    public static DatasetConfigResolver forProduction(ProjectMetadata project) {
-        return new DatasetConfigResolver(project, Build.current().isSnapshot());
+    /**
+     * @param definitionValidator the one validator a registration goes through, so a definition the plan carried is
+     *                            held to what a registered one is held to — including the checks that stop a dataset
+     *                            setting shadowing one of the data source's secrets
+     */
+    public DatasetConfigResolver(ProjectMetadata project, boolean snapshotBuild, DatasetDefinitionValidator definitionValidator) {
+        this.project = Objects.requireNonNull(project, "project");
+        this.snapshotBuild = snapshotBuild;
+        this.definitionValidator = Objects.requireNonNull(definitionValidator, "definitionValidator");
+    }
+
+    public static DatasetConfigResolver forProduction(ProjectMetadata project, DatasetDefinitionValidator definitionValidator) {
+        return new DatasetConfigResolver(project, Build.current().isSnapshot(), definitionValidator);
     }
 
     /** Whether a source with no registered dataset behind it is allowed through (snapshot builds only). */
@@ -84,8 +97,9 @@ public final class DatasetConfigResolver {
     }
 
     /**
-     * Returns {@code exec} reading the registered dataset's resource under the registered config, or throws. Idempotent:
-     * a rebound exec carries the recomputed version and the registry map, so a second pass changes nothing.
+     * Returns {@code exec} reading, under the configuration this node computed, the resource of whichever dataset its
+     * {@link DatasetReference} names — one registered here, or one the plan supplied a definition for. Idempotent: a
+     * rebound exec carries the recomputed version and the registry map, so a second pass changes nothing.
      * <p>
      * The refusals are decided against {@code project} as this node has applied it. A caller whose applied cluster state
      * is older than the one the plan was built from must not surface a binding refusal as the {@code 400}: the dataset may
@@ -93,21 +107,70 @@ public final class DatasetConfigResolver {
      * See the external-worker readiness handling in {@code DataNodeComputeHandler}.
      */
     public ExternalSourceExec rebind(ExternalSourceExec exec) {
-        String name = exec.datasetName();
-        if (name == null) {
+        DatasetReference reference = exec.datasetReference();
+        if (reference == null) {
             if (snapshotBuild) {
                 return exec;
             }
             throw notRegistered(null);
         }
+        Resolved resolved = reference instanceof DatasetReference.Named named
+            ? resolveRegistered(named.name())
+            : resolveSupplied((DatasetReference.Inline) reference);
+        return bind(exec, reference.describe(), resolved);
+    }
+
+    /** A definition this node resolved for itself, and the data source whose credentials read it. */
+    private record Resolved(DataSource dataSource, Dataset dataset) {}
+
+    /** The definition registered here under {@code name}. */
+    private Resolved resolveRegistered(String name) {
         Dataset dataset = DatasetMetadata.get(project).get(name);
         DataSource parent = dataset == null ? null : DataSourceMetadata.get(project).get(dataset.dataSource().getName());
         if (dataset == null || parent == null) {
             throw notRegistered(name);
         }
-        Map<String, Object> resolved = DatasetRewriter.datasetConfig(parent, dataset);
+        return new Resolved(parent, dataset);
+    }
+
+    /**
+     * The definition the plan supplied, re-validated here against this node's own data source. What the plan
+     * supplied is the definition — user input, carrying no privilege — while the credentials stay in this node's
+     * registry, so a crafted plan can describe a read and still not choose an identity to make it with. It goes
+     * through the validator a registration goes through, which is also what stops a setting shadowing one of that
+     * source's secrets.
+     * <p>
+     * Every refusal is a {@code 400} {@link ElasticsearchStatusException}, including the ones the validator raises as
+     * a {@link ResourceNotFoundException} or an {@link IllegalStateException}: a data source registered in a state
+     * this node has not applied yet looks exactly like one that does not exist, and
+     * {@code DataNodeComputeHandler.isDatasetRefusalWhileBehind} can only wait for the state to arrive on a refusal
+     * of that shape.
+     */
+    private Resolved resolveSupplied(DatasetReference.Inline inline) {
+        try {
+            DatasetDefinitionValidator.BoundDataset bound = definitionValidator.validateInline(project, inline);
+            return new Resolved(bound.dataSource(), bound.dataset());
+        } catch (ElasticsearchStatusException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new ElasticsearchStatusException(
+                "external data source [{}] cannot be read on this node: {}",
+                RestStatus.BAD_REQUEST,
+                e,
+                inline.dataSource(),
+                e.getMessage()
+            );
+        }
+    }
+
+    /**
+     * What both arms do once resolved, and the reason they share it: a check added here has to cover a read however
+     * its dataset was named, and two copies is how one of them would stop.
+     */
+    private ExternalSourceExec bind(ExternalSourceExec exec, String name, Resolved resolved) {
+        Map<String, Object> config = DatasetRewriter.datasetConfig(resolved.dataSource(), resolved.dataset());
         Object planVersion = exec.config().get(DefinitionVersion.CONFIG_KEY);
-        if (planVersion != null && planVersion.equals(resolved.get(DefinitionVersion.CONFIG_KEY)) == false) {
+        if (planVersion != null && planVersion.equals(config.get(DefinitionVersion.CONFIG_KEY)) == false) {
             throw new ElasticsearchStatusException(
                 "external dataset [{}] definition changed while the query was planned",
                 RestStatus.BAD_REQUEST,
@@ -116,7 +179,7 @@ public final class DatasetConfigResolver {
         }
         final List<ResourcePath> resources;
         try {
-            resources = resourcePaths(dataset.resource());
+            resources = resourcePaths(resolved.dataset().resource());
         } catch (IllegalArgumentException e) {
             // PUT validation parses the resource for every file-type data source, so this is a definition this node's
             // readers cannot bind to; keep the one binding-failure message rather than leak the parser's.
@@ -125,7 +188,7 @@ public final class DatasetConfigResolver {
         for (ExternalSplit split : exec.splits()) {
             checkSplit(name, split, resources);
         }
-        return exec.withSourcePathAndConfig(dataset.resource(), resolved);
+        return exec.withSourcePathAndConfig(resolved.dataset().resource(), config);
     }
 
     /**

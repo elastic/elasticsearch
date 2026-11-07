@@ -1504,7 +1504,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 computeService.formatReaderRegistry(),
                 request.externalSplits(),
                 planTimeProfile,
-                DatasetConfigResolver.forProduction(projectResolver.getProjectMetadata(state))
+                DatasetConfigResolver.forProduction(projectResolver.getProjectMetadata(state), computeService.datasetDefinitionValidator())
             );
         } catch (Exception e) {
             if (isDatasetRefusalWhileBehind(e, request, state)) {

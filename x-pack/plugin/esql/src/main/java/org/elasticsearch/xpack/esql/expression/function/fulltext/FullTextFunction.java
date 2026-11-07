@@ -422,7 +422,9 @@ public abstract class FullTextFunction extends Function
                                 "{} is not supported on federated data sources [{}]; it requires an index. Use "
                                     + "MATCH(field, \"term\") for full-text search on non-indexed data.",
                                 typeErrorMsgProvider.apply(exp),
-                                externalRelation.datasetName() != null ? externalRelation.datasetName() : lp.sourceText()
+                                externalRelation.datasetReference() != null
+                                    ? externalRelation.datasetReference().describe()
+                                    : lp.sourceText()
                             )
                         );
                         return;

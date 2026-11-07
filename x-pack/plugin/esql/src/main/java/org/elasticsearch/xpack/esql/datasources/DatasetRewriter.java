@@ -636,7 +636,14 @@ public final class DatasetRewriter {
             );
         }
         Literal path = Literal.keyword(source, dataset.resource());
-        return new UnresolvedExternalRelation(source, path, datasetConfig(parent, dataset), metadataFields, name, dataset.mapping());
+        return new UnresolvedExternalRelation(
+            source,
+            path,
+            datasetConfig(parent, dataset),
+            metadataFields,
+            new DatasetReference.Named(name),
+            dataset.mapping()
+        );
     }
 
     /**

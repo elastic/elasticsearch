@@ -36,11 +36,13 @@ import java.util.List;
  * <h2>What a function cannot do, and why</h2>
  *
  * <ul>
- *   <li><b>It cannot authorize anything, and must not try.</b> {@link TableFunctionContext} hands it a project and
- *       no client, listener or thread context, so it could not dispatch a check if it wanted to. A function that
- *       reads something needing a privilege declares that by implementing the corresponding marker, and the
- *       facility performs the check — before {@link #toRelation} is ever called. What a function cannot declare,
- *       this facility cannot authorize, and will not read.</li>
+ *   <li><b>It cannot authorize anything the facility could do for it.</b> A privilege is a property of what one
+ *       particular function reads, so the function owns the check: it is constructed with the client it needs
+ *       (see {@code EsqlPlugin#extraTableFunctions}) and asks before it binds, inside {@link #toRelation}, in the
+ *       caller's thread context. {@link TableFunctionContext} stays a project and nothing else, so a function that
+ *       reads something needing a privilege has to have been given the means to check it — and one that was given
+ *       nothing can only return a leaf the ordinary analyzer resolves, which is authorized where every other leaf
+ *       is.</li>
  *   <li><b>It cannot choose where it runs.</b> Placement follows the leaf it returned: {@code Mapper#mapLeaf}
  *       sends some leaf types to data nodes through a fragment and keeps others on the coordinator. A function
  *       picks what it denotes, not where that is read.</li>
@@ -93,8 +95,8 @@ public interface TableFunction {
      * resolver this runs inside is already asynchronous. A function needing none completes inline, and the base
      * classes do that for it, so the simple case never handles a listener.
      * <p>
-     * Called only after the shape has been checked, {@link #validate} has passed, and the facility has performed
-     * whatever authorization this function declared.
+     * Called only after the shape has been checked and {@link #validate} has passed. Whatever privilege the rows
+     * behind this call need is this function's to check, here, before it binds anything.
      *
      * @param metadataFields the names from the user's {@code METADATA} clause, threaded to every leaf in the source
      *                       list. A leaf that binds its own metadata consumes them; one that does not may ignore

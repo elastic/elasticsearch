@@ -158,7 +158,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 String bucket,
                 String client,
                 String basePath,
-                @Nullable ByteSizeValue multiPartThreshold
+                @Nullable ByteSizeValue multiPartThreshold,
+                @Nullable Integer objectStoreAccessConcurrency
             ) {
                 return Settings.builder().put("location", basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket).build();
             }
@@ -169,9 +170,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 String bucket,
                 String client,
                 String basePath,
-                @Nullable ByteSizeValue multiPartThreshold
+                @Nullable ByteSizeValue multiPartThreshold,
+                @Nullable Integer objectStoreAccessConcurrency
             ) {
-                return FS.createRepositorySettings(bucket, client, basePath, multiPartThreshold);
+                return FS.createRepositorySettings(bucket, client, basePath, multiPartThreshold, objectStoreAccessConcurrency);
             }
         },
         S3("bucket") {
@@ -180,13 +182,18 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 String bucket,
                 String client,
                 String basePath,
-                @Nullable ByteSizeValue multiPartThreshold
+                @Nullable ByteSizeValue multiPartThreshold,
+                @Nullable Integer objectStoreAccessConcurrency
             ) {
                 Settings.Builder builder = Settings.builder()
-                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold))
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold, objectStoreAccessConcurrency))
                     .put("add_purpose_custom_query_parameter", "true");
                 if (multiPartThreshold != null) {
                     builder.put(S3_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
+                }
+                if (objectStoreAccessConcurrency != null) {
+                    String key = S3_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY;
+                    builder.put(key, objectStoreAccessConcurrency);
                 }
                 return builder.build();
             }
@@ -197,10 +204,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 String bucket,
                 String client,
                 String basePath,
-                @Nullable ByteSizeValue multiPartThreshold
+                @Nullable ByteSizeValue multiPartThreshold,
+                @Nullable Integer objectStoreAccessConcurrency
             ) {
                 Settings.Builder builder = Settings.builder()
-                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold));
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold, objectStoreAccessConcurrency));
                 if (multiPartThreshold != null) {
                     builder.put(GCS_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
                 }
@@ -213,10 +221,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 String bucket,
                 String client,
                 String basePath,
-                @Nullable ByteSizeValue multiPartThreshold
+                @Nullable ByteSizeValue multiPartThreshold,
+                @Nullable Integer objectStoreAccessConcurrency
+
             ) {
                 Settings.Builder builder = Settings.builder()
-                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold));
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold, objectStoreAccessConcurrency));
                 if (multiPartThreshold != null) {
                     // Azure has both the part size and threshold settings so we update both of them.
                     // This has the same effect as other repositories.
@@ -232,6 +242,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         builder.put(AZURE_MULTIPART_PART_SIZE_SETTING_KEY, multiPartThreshold);
                     }
                 }
+                if (objectStoreAccessConcurrency != null) {
+                    String key = AZURE_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY;
+                    builder.put(key, objectStoreAccessConcurrency);
+                }
                 return builder.build();
             }
         };
@@ -246,7 +260,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             String bucket,
             String client,
             String basePath,
-            @Nullable ByteSizeValue multiPartThreshold
+            @Nullable ByteSizeValue multiPartThreshold,
+            @Nullable Integer objectStoreAccessConcurrency
         ) {
             Settings.Builder builder = Settings.builder();
             builder.put(bucketSettingName, bucket);
@@ -430,6 +445,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     static final String GCS_MULTIPART_THRESHOLD_SETTING_KEY = "multipart_upload_chunk_size";
     static final String AZURE_MULTIPART_THRESHOLD_SETTING_KEY = "max_single_part_upload_size";
     static final String AZURE_MULTIPART_PART_SIZE_SETTING_KEY = "multipart_upload_part_size";
+    static final String AZURE_CLIENT_SETTING_PREFIX = "azure.client";
+    static final String S3_CLIENT_SETTING_PREFIX = "s3.client";
+    static final String MAX_CONNECTIONS_SETTING_KEY = "max_connections";
+
+    static final String S3_MAX_CONNECTIONS_SETTING_KEY = "s3.client.default.max_connections";
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
@@ -453,6 +473,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
 
+    private final Integer objectStoreAccessConcurrency;
+
     private final boolean concurrentMultipartUploads;
     private final boolean cacheSearchRecoveryBcc;
 
@@ -468,6 +490,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         ThreadPool threadPool,
         ClusterService clusterService,
         ProjectResolver projectResolver,
+        @Nullable Integer objectStoreAccessConcurrency,
         MeterRegistry meterRegistry
     ) {
         this.settings = settings;
@@ -492,6 +515,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         } else {
             projectObjectStoreExceptions = null;
         }
+        this.objectStoreAccessConcurrency = objectStoreAccessConcurrency;
         this.permits = new Semaphore(0);
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
@@ -745,7 +769,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             BUCKET_SETTING.get(settings),
             CLIENT_SETTING.get(settings),
             BASE_PATH_SETTING.get(settings),
-            multiPartThreshold
+            multiPartThreshold,
+            objectStoreAccessConcurrency
         );
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -886,9 +887,18 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             ThreadPool threadPool,
             ClusterService clusterService,
             ProjectResolver projectResolver,
+            @Nullable Integer objectStoreAccessConcurrency,
             MeterRegistry meterRegistry
         ) {
-            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
+            return new TestObjectStoreService(
+                settings,
+                repositoriesService,
+                threadPool,
+                clusterService,
+                projectResolver,
+                objectStoreAccessConcurrency,
+                meterRegistry
+            );
         }
     }
 
@@ -900,9 +910,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             ThreadPool threadPool,
             ClusterService clusterService,
             ProjectResolver projectResolver,
+            @Nullable Integer expectedBlobStoreConcurrency,
             MeterRegistry meterRegistry
         ) {
-            super(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
+            super(settings, repositoriesService, threadPool, clusterService, projectResolver, expectedBlobStoreConcurrency, meterRegistry);
         }
 
         @Override

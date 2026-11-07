@@ -844,6 +844,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 threadPool,
                 clusterService,
                 projectResolver,
+                null,
                 MeterRegistry.NOOP
             );
             this.cacheService = new StatelessSharedBlobCacheService(

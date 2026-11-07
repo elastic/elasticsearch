@@ -3853,7 +3853,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * {@code DATASET(<data source>, {...})} reads a data source with no dataset in front of it, so nothing in the
+     * {@code DATASET(<data source>, <resource>)} reads a data source with no dataset in front of it, so nothing in the
      * index namespace authorizes it. A caller with no {@code global.data_source} grant on the named data source is
      * refused, naming the cluster action the privilege is evaluated through — the same refusal PUT dataset gives.
      * <p>
@@ -3870,7 +3870,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand(
                 "ds_dataset_query_no_datasource",
-                "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
+                "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", \"s3://bucket/path/*.parquet\") | STATS COUNT(*)"
             )
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
@@ -3889,7 +3889,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand(
                 "ds_query_read_metadata_datasource",
-                "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
+                "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", \"s3://bucket/path/*.parquet\") | STATS COUNT(*)"
             )
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
@@ -3918,7 +3918,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand(
                 "ds_query_read_datasource",
-                "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
+                "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", \"s3://bucket/path/*.parquet\") | STATS COUNT(*)"
             )
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), not(equalTo(HttpStatus.SC_FORBIDDEN)));
@@ -3938,7 +3938,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand(
                 "ds_query_read_datasource",
-                "FROM DATASET(security_it_absent_ds, {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
+                "FROM DATASET(security_it_absent_ds, \"s3://bucket/path/*.parquet\") | STATS COUNT(*)"
             )
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));

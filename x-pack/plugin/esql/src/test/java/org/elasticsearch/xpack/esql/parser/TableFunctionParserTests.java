@@ -299,4 +299,16 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
         assertEquals(2, unionAll.children().size());
         as(unionAll.children().get(0), UnresolvedRelation.class);
     }
+
+    /**
+     * TS admits the same source list as FROM, so a call reaches it and is refused there with its own wording
+     * rather than the subquery message that shares the branch.
+     */
+    public void testTimeSeriesCommandRefusesALoneTableFunction() {
+        expectError("TS numbers(a)", "Table functions are not supported in TS command");
+    }
+
+    public void testTimeSeriesCommandRefusesATableFunctionBesideAPattern() {
+        expectError("TS foo, numbers(a)", "Table functions are not supported in TS command");
+    }
 }

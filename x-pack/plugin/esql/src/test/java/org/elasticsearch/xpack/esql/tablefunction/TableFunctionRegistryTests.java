@@ -9,14 +9,19 @@ package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class TableFunctionRegistryTests extends ESTestCase {
 
@@ -74,8 +79,32 @@ public class TableFunctionRegistryTests extends ESTestCase {
     }
 
     public void testRegistryStartsEmpty() {
-        // The facility arrives with no functions, so this is the whole of what an empty registry says.
+        // The facility arrives with no functions, so this is the whole of what an empty registry says - and it
+        // says it without listing an empty set, which would read as an engine fault rather than an answer.
         ParsingException e = expectThrows(ParsingException.class, () -> new TableFunctionRegistry(List.of()).resolve(Source.EMPTY, "x"));
-        assertThat(e.getMessage(), containsString("unknown table function [x], expected one of []"));
+        assertThat(e.getMessage(), containsString("no table functions are registered, so [x] cannot be used here"));
+    }
+
+    /**
+     * One capability per registered function, so a client can ask for a particular one. Untested until now, and
+     * untestable from production code while the registry ships empty.
+     */
+    public void testCapabilityPerRegisteredFunction() {
+        TableFunctionRegistry registry = new TableFunctionRegistry(List.of(new NamedOnly("thing"), new NamedOnly("other")));
+
+        Set<String> capabilities = EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), registry, false).capabilities();
+
+        assertThat(capabilities, hasItem("table_fn_thing"));
+        assertThat(capabilities, hasItem("table_fn_other"));
+        // The facility's own capability is a separate question from whether a given function exists.
+        assertThat(capabilities, hasItem("from_table_function"));
+    }
+
+    /** An empty registry contributes no per-function capability, which is the state this change ships in. */
+    public void testNoCapabilitiesWithoutFunctions() {
+        Set<String> capabilities = EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), new TableFunctionRegistry(List.of()), false)
+            .capabilities();
+
+        assertThat(capabilities.stream().anyMatch(c -> c.startsWith("table_fn_")), equalTo(false));
     }
 }

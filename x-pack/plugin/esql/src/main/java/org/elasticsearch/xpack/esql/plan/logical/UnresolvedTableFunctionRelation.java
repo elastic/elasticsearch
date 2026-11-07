@@ -109,8 +109,8 @@ public final class UnresolvedTableFunctionRelation extends LeafPlan implements U
 
     @Override
     public List<Object> nodeProperties() {
-        // The call's payload is omitted: a dataset definition can carry a credential-bearing setting, and
-        // nodeProperties() reaches EXPLAIN.
+        // The arguments are omitted, the map above all: a map argument can carry a credential-bearing setting,
+        // and nodeProperties() reaches EXPLAIN. The name alone is what identifies the leaf to a reader.
         return List.of(call.name());
     }
 

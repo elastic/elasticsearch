@@ -13,8 +13,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * One table-function call as written in a source list, with its name already resolved against
- * {@link TableFunctionRegistry}.
+ * One table-function call exactly as written in a source list. Its name is not yet known to denote anything:
+ * the parser never consults {@link TableFunctionRegistry}, so resolution happens later.
  * <p>
  * Named an invocation rather than a call because {@code *FunctionCall} already means a plan node in this
  * tree — {@code PromqlFunctionCall} and {@code HistogramFunctionCall} both extend {@code UnaryPlan} — and

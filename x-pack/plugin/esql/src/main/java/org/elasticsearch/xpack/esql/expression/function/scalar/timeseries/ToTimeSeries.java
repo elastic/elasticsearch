@@ -9,18 +9,17 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
  * Casts the keyword {@code _timeseries} - the source of a series' dimensions, as nodes without typed metadata read it - to
@@ -30,18 +29,22 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * <p>
  * Internal: PromQL resolution places it on the coordinator, above every aggregate, where the typed type is supported.
  */
-public final class TimeSeriesFromKeyword extends UnaryScalarFunction {
+public final class ToTimeSeries extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "TimeSeriesFromKeyword",
-        TimeSeriesFromKeyword::new
+        "ToTimeSeries",
+        ToTimeSeries::new
     );
 
-    public TimeSeriesFromKeyword(Source source, Expression field) {
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.of(KEYWORD, (source, field) -> {
+        throw new UnsupportedOperationException("time-series metadata evaluation is not implemented yet");
+    });
+
+    public ToTimeSeries(Source source, Expression field) {
         super(source, field);
     }
 
-    private TimeSeriesFromKeyword(StreamInput in) throws IOException {
+    private ToTimeSeries(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -51,11 +54,8 @@ public final class TimeSeriesFromKeyword extends UnaryScalarFunction {
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        if (childrenResolved() == false) {
-            return new TypeResolution("Unresolved children");
-        }
-        return isType(field(), type -> type == DataType.KEYWORD, sourceText(), ParamOrdinal.DEFAULT, "keyword");
+    protected Map<DataType, BuildFactory> factories() {
+        return EVALUATORS;
     }
 
     @Override
@@ -69,17 +69,12 @@ public final class TimeSeriesFromKeyword extends UnaryScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        throw new UnsupportedOperationException("time-series metadata evaluation is not implemented yet");
+    public ToTimeSeries replaceChildren(List<Expression> newChildren) {
+        return new ToTimeSeries(source(), newChildren.getFirst());
     }
 
     @Override
-    public TimeSeriesFromKeyword replaceChildren(List<Expression> newChildren) {
-        return new TimeSeriesFromKeyword(source(), newChildren.getFirst());
-    }
-
-    @Override
-    protected NodeInfo<TimeSeriesFromKeyword> info() {
-        return NodeInfo.create(this, TimeSeriesFromKeyword::new, field());
+    protected NodeInfo<ToTimeSeries> info() {
+        return NodeInfo.create(this, ToTimeSeries::new, field());
     }
 }

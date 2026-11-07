@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.core.util;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -260,24 +259,11 @@ public final class TimeSeriesMetadata {
 
     /**
      * Writes opaque metadata, using the same encoding for equivalent normalized label sets. Callers must
-     * not interpret this encoding; use {@link #writeKeyTo(OutputStream)} for a series fingerprint.
+     * not interpret this encoding.
      * The caller supplies circuit-breaker-accounted storage; the stream is flushed but never closed.
      */
     public void writeTo(OutputStream output) throws IOException {
         writeJson(output);
-    }
-
-    /**
-     * Writes a 128-bit series fingerprint using the ingest TSID hash over normalized string labels.
-     * This is independent of both the metadata encoding and the index-version-specific stored TSID layout.
-     * Identity comparisons rely on the hash, as they do for stored series identifiers.
-     * The caller supplies circuit-breaker-accounted storage; the stream is flushed but never closed.
-     */
-    public void writeKeyTo(OutputStream output) throws IOException {
-        var builder = new TsidBuilder(labels.size());
-        labels.forEach((name, values) -> values.forEach(value -> builder.addStringDimension(name, value)));
-        output.write(builder.hash().getBytes());
-        output.flush();
     }
 
     /**

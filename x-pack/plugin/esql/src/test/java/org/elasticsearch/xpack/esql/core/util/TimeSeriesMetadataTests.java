@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.core.util;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -39,31 +38,17 @@ public class TimeSeriesMetadataTests extends ESTestCase {
         TimeSeriesMetadata decoded = TimeSeriesMetadata.read(
             new BytesRef("{ \"b\": \"2\", \"\\u0061\": \"\\u0031\", \"empty\":\"\", \"null\":null }")
         );
-        assertEquals(key(expected), key(decoded));
-        assertNotEquals(key(expected), key(expected.set("a", "2")));
-        assertNotEquals(key(expected), key(expected.unset(List.of("b"))));
+        assertEquals(encode(expected), encode(decoded));
+        assertNotEquals(encode(expected), encode(expected.set("a", "2")));
+        assertNotEquals(encode(expected), encode(expected.unset(List.of("b"))));
     }
 
-    public void testKeyUsesIngestHashOfNormalizedStringLabels() throws IOException {
-        var labels = Map.of("job", "api", "rack", "1", "dot.name", "with\nnewlines", "\u65e5\u672c\u8a9e", "\ud83d\ude80");
-        var builder = new TsidBuilder();
-        List<String> names = new ArrayList<>(labels.keySet());
-        Collections.shuffle(names, random());
-        for (String name : names) {
-            builder.addStringDimension(name, labels.get(name));
-        }
-        BytesRef actual = key(TimeSeriesMetadata.of(labels));
-        assertEquals(16, actual.length);
-        assertEquals(new BytesRef(builder.hash().getBytes()), actual);
-    }
-
-    public void testEmptyKeyUsesIngestHashWithoutStorageLayout() throws IOException {
-        BytesRef expected = new BytesRef(new TsidBuilder().hash().getBytes());
-        assertEquals(16, expected.length);
+    public void testEmptyMetadataHasOneEncoding() throws IOException {
+        BytesRef expected = encode(TimeSeriesMetadata.read(null));
         for (BytesRef metadata : new BytesRef[] { null, new BytesRef("{}"), new BytesRef("{\"null\":null,\"empty\":\"\"}") }) {
-            assertEquals(expected, key(TimeSeriesMetadata.read(metadata)));
+            assertEquals(expected, encode(TimeSeriesMetadata.read(metadata)));
         }
-        assertEquals(expected, key(TimeSeriesMetadata.of(Map.of("pod", "a")).set("pod", "")));
+        assertEquals(expected, encode(TimeSeriesMetadata.of(Map.of("pod", "a")).set("pod", "")));
     }
 
     public void testAbsentNullAndEmptyHaveSameIdentity() throws IOException {
@@ -113,8 +98,8 @@ public class TimeSeriesMetadataTests extends ESTestCase {
         TimeSeriesMetadata original = TimeSeriesMetadata.of(Map.of("host", "one", "job", "test", "cluster", "prod"));
         List<String> host = original.get("host");
         TimeSeriesMetadata residual = original.unset(List.of("host"));
-        assertEquals(key(original), key(residual.withLabelValues(Map.of("host", host))));
-        assertNotEquals(key(original), key(residual.withLabels(Map.of("host", "two"))));
+        assertEquals(encode(original), encode(residual.withLabelValues(Map.of("host", host))));
+        assertNotEquals(encode(original), encode(residual.withLabels(Map.of("host", "two"))));
     }
 
     public void testEscapedAndUnicodeLabelsRoundTrip() throws IOException {
@@ -140,20 +125,20 @@ public class TimeSeriesMetadataTests extends ESTestCase {
             labels.put(randomAlphaOfLengthBetween(1, 20), randomUnicodeOfLengthBetween(1, 30));
         }
         TimeSeriesMetadata metadata = TimeSeriesMetadata.of(labels);
-        BytesRef expected = key(metadata);
+        BytesRef expected = encode(metadata);
         List<String> names = new ArrayList<>(labels.keySet());
         Collections.shuffle(names, random());
         var reordered = new LinkedHashMap<String, String>();
         for (String name : names) {
             reordered.put(name, labels.get(name));
         }
-        assertEquals(expected, key(TimeSeriesMetadata.of(reordered)));
-        assertEquals(expected, key(TimeSeriesMetadata.read(encode(metadata))));
+        assertEquals(expected, encode(TimeSeriesMetadata.of(reordered)));
+        assertEquals(expected, encode(TimeSeriesMetadata.read(encode(metadata))));
     }
 
     public void testDifferentLabelBoundariesHaveDifferentKeys() throws IOException {
-        assertNotEquals(key(TimeSeriesMetadata.of(Map.of("a", "bc"))), key(TimeSeriesMetadata.of(Map.of("ab", "c"))));
-        assertNotEquals(key(TimeSeriesMetadata.of(Map.of("a", "1,b=2"))), key(TimeSeriesMetadata.of(Map.of("a", "1", "b", "2"))));
+        assertNotEquals(encode(TimeSeriesMetadata.of(Map.of("a", "bc"))), encode(TimeSeriesMetadata.of(Map.of("ab", "c"))));
+        assertNotEquals(encode(TimeSeriesMetadata.of(Map.of("a", "1,b=2"))), encode(TimeSeriesMetadata.of(Map.of("a", "1", "b", "2"))));
     }
 
     public void testMultipleValuesNormalizeEmptyMembersAndSingletons() throws IOException {
@@ -195,18 +180,14 @@ public class TimeSeriesMetadataTests extends ESTestCase {
         assertSame(TimeSeriesMetadata.EMPTY, original.unset(List.of("region")));
     }
 
-    /** The ingest builder hashes every array member in source order; no joining, sorting or deduplication is added here. */
-    public void testMultipleValueKeysUseIngestOrderAndDuplicates() throws IOException {
+    /** Every array member counts in source order; no joining, sorting or deduplication is added here. */
+    public void testMultipleValuesKeepOrderAndDuplicates() throws IOException {
         var values = List.of("west", "east", "west", "north");
-        var builder = new TsidBuilder();
-        builder.addStringDimension("job", "api");
-        values.forEach(value -> builder.addStringDimension("region", value));
         var metadata = TimeSeriesMetadata.ofValues(Map.of("region", values, "job", List.of("api")));
-        assertEquals(new BytesRef(builder.hash().getBytes()), key(metadata));
-        assertNotEquals(key(metadata), key(metadata.withLabelValues(Map.of("region", values.reversed()))));
-        assertNotEquals(key(metadata), key(metadata.withLabelValues(Map.of("region", List.of("west", "east", "north")))));
+        assertNotEquals(encode(metadata), encode(metadata.withLabelValues(Map.of("region", values.reversed()))));
+        assertNotEquals(encode(metadata), encode(metadata.withLabelValues(Map.of("region", List.of("west", "east", "north")))));
         var residual = metadata.unset(List.of("region"));
-        assertEquals(key(metadata), key(residual.withLabelValues(Map.of("region", metadata.get("region")))));
+        assertEquals(encode(metadata), encode(residual.withLabelValues(Map.of("region", metadata.get("region")))));
     }
 
     public void testRejectsDuplicateLabelsIncludingAbsentValues() {
@@ -306,18 +287,6 @@ public class TimeSeriesMetadataTests extends ESTestCase {
         output.reset();
         TimeSeriesMetadata.of(Map.of("b", "2")).renderTo(output);
         assertEquals("{\"b\":\"2\"}", output.toString(StandardCharsets.UTF_8));
-        output.reset();
-        TimeSeriesMetadata metadata = TimeSeriesMetadata.of(Map.of("c", "3"));
-        metadata.writeKeyTo(output);
-        assertEquals(key(metadata), new BytesRef(output.toByteArray()));
-    }
-
-    private static BytesRef key(TimeSeriesMetadata metadata) throws IOException {
-        var bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1)).withCircuitBreaking();
-        try (var output = new ReleasableBytesStreamOutput(bigArrays)) {
-            metadata.writeKeyTo(output);
-            return BytesRef.deepCopyOf(output.bytes().toBytesRef());
-        }
     }
 
     private static BytesRef encode(TimeSeriesMetadata metadata) throws IOException {

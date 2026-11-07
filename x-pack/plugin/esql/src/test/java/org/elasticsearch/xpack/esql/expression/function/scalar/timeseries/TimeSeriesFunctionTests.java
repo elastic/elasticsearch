@@ -29,67 +29,46 @@ public class TimeSeriesFunctionTests extends ESTestCase {
     /** The functions are PromQL-internal: ES|QL cannot name them. */
     public void testNotRegistered() {
         var registry = new EsqlFunctionRegistry();
-        for (String name : List.of("ts_get", "ts_set", "ts_unset", "ts_hash", "ts_to_string")) {
+        for (String name : List.of("ts_get", "ts_unset", "to_timeseries", "ts_to_string")) {
             assertFalse(name, registry.functionExists(name));
         }
     }
 
     public void testMetadataTypes() {
         assumeTrue("requires functional time-series metadata", EsqlCapabilities.Cap.ENABLE_TIMESERIES_DATA_TYPE.isEnabled());
-        var metadata = Literal.NULL;
         var label = label("pod");
-        var set = new TimeSeriesSet(Source.EMPTY, metadata, label, label("a"));
-        var unset = new TimeSeriesUnset(Source.EMPTY, set, List.of(label));
-        assertEquals(DataType.TIMESERIES_DATA_TYPE, set.dataType());
+        var unset = new TimeSeriesUnset(Source.EMPTY, METADATA, List.of(label));
         assertEquals(DataType.TIMESERIES_DATA_TYPE, unset.dataType());
-        assertTrue(set.typeResolved().resolved());
         assertTrue(unset.typeResolved().resolved());
         assertEquals(DataType.KEYWORD, new TimeSeriesGet(Source.EMPTY, unset, label).dataType());
-        assertEquals(DataType.TSID_DATA_TYPE, new TimeSeriesHash(Source.EMPTY, unset, List.of()).dataType());
         assertEquals(DataType.KEYWORD, new ToString(Source.EMPTY, unset, TEST_CFG).dataType());
+        var cast = new ToTimeSeries(Source.EMPTY, label("{}"));
+        assertEquals(DataType.TIMESERIES_DATA_TYPE, cast.dataType());
+        assertTrue(cast.typeResolved().resolved());
     }
 
     public void testRejectsUntypedMetadata() {
         var untyped = label("{}");
         for (Expression expression : List.of(
             new TimeSeriesGet(Source.EMPTY, untyped, label("pod")),
-            new TimeSeriesSet(Source.EMPTY, untyped, label("pod"), label("a")),
-            new TimeSeriesUnset(Source.EMPTY, untyped, List.of(label("pod"))),
-            new TimeSeriesHash(Source.EMPTY, untyped, List.of())
+            new TimeSeriesUnset(Source.EMPTY, untyped, List.of(label("pod")))
         )) {
             assertThat(expression.typeResolved().message(), containsString("_timeseries"));
         }
     }
 
-    public void testSupportedLabelValues() {
-        for (Expression value : List.of(
-            label("value"),
-            Literal.TRUE,
-            Literal.integer(Source.EMPTY, 1),
-            Literal.fromLong(Source.EMPTY, 1L),
-            Literal.fromDouble(Source.EMPTY, 1.5),
-            Literal.NULL
-        )) {
-            assertTrue(new TimeSeriesSet(Source.EMPTY, METADATA, label("label"), value).typeResolved().resolved());
-            assertTrue(new TimeSeriesHash(Source.EMPTY, METADATA, List.of(label("label"), value)).typeResolved().resolved());
+    /** Only the keyword source form converts to typed metadata. */
+    public void testCastReadsKeywordOnly() {
+        for (Expression field : List.of(METADATA, Literal.integer(Source.EMPTY, 1), Literal.TRUE)) {
+            assertTrue(field.toString(), new ToTimeSeries(Source.EMPTY, field).typeResolved().unresolved());
         }
-    }
-
-    public void testRejectsUnsupportedLabelValues() {
-        var nested = new TimeSeriesSet(Source.EMPTY, Literal.NULL, label("nested"), label("value"));
-        var set = new TimeSeriesSet(Source.EMPTY, METADATA, label("label"), nested);
-        assertThat(set.typeResolved().message(), containsString("must be [string, boolean, integer, long, unsigned_long, double or ip]"));
-        var hash = new TimeSeriesHash(Source.EMPTY, METADATA, List.of(label("label"), nested));
-        assertThat(hash.typeResolved().message(), containsString("must be [string, boolean, integer, long, unsigned_long, double or ip]"));
     }
 
     public void testRejectsInvalidLabelArguments() {
         for (Expression expression : List.of(
             new TimeSeriesGet(Source.EMPTY, METADATA, Literal.integer(Source.EMPTY, 42)),
             new TimeSeriesGet(Source.EMPTY, METADATA, label("")),
-            new TimeSeriesSet(Source.EMPTY, METADATA, Literal.NULL, label("a")),
-            new TimeSeriesHash(Source.EMPTY, METADATA, List.of(label("pod"))),
-            new TimeSeriesHash(Source.EMPTY, METADATA, List.of(label("pod"), label("a"), label("pod"), label("b")))
+            new TimeSeriesUnset(Source.EMPTY, METADATA, List.of(Literal.NULL))
         )) {
             assertTrue(expression.toString(), expression.typeResolved().unresolved());
         }

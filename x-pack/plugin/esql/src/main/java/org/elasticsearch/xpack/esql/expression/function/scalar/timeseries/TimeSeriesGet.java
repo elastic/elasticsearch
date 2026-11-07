@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 /** Reads a label; an absent label returns null. */
-public final class TimeSeriesGet extends TimeSeriesFunction {
+public final class TimeSeriesGet extends AbstractTimeSeriesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "TimeSeriesGet",

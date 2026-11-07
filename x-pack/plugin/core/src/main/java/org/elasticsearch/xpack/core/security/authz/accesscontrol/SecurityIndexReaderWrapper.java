@@ -21,12 +21,14 @@ import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -90,7 +92,17 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             DirectoryReader wrappedReader = reader;
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
             if (documentPermissions.hasDocumentLevelPermissions()) {
-                BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, searchExecutionContextProvider);
+                final AuthorizationEngine.AuthorizationInfo authorizationInfo = AuthorizationServiceField.AUTHORIZATION_INFO_VALUE.get(
+                    securityContext.getThreadContext()
+                );
+                BooleanQuery filterQuery = documentPermissions.filter(
+                    getUser(),
+                    scriptService,
+                    shardId,
+                    searchExecutionContextProvider,
+                    authorizationInfo == null ? Map.of() : authorizationInfo.getApplicationResources(),
+                    authorizationInfo == null ? Map.of() : authorizationInfo.getApplicationPrivileges()
+                );
                 if (filterQuery != null) {
                     wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
                 }

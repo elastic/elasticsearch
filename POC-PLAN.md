@@ -385,7 +385,33 @@ it. Without this the loader would have passed on single-segment pages and thrown
 which is the worst available failure shape. `FieldInfoBuilderSupplierTests` pins all three cases,
 including that a union handed the default supplier throws with the element type's own message.
 
-**4b. The loader itself.** In `EsPhysicalOperationProviders.blockLoaderAndConverter`,
+**4b. The loader. Done, bar its end-to-end test.** `blockLoaderAndConverter` gains a arm before the
+multi-type one, since a `UnionEsField` is a sibling of `UnionTypeEsField` and matches none of its
+guards: it reads the shard's own mapped family type, finds the leg, loads natively at `NONE`, and wraps
+with `UnionLegConverter`, which converts nothing and only records which leg the values landed in. Two
+arms return constant nulls - unmapped on this shard, and a shard whose type is not among the declared
+legs because the mapping moved between field_caps and execution. The second returns nulls rather than
+failing because the leg list is a wire contract fixed when the plan was built, and widening it here
+would change what every other node's tags mean.
+
+`PlannerUtils.unionLegElementTypes` is the single source of the leg element types, used by both the
+converter and the `FieldInfo` builder supplier, so the block the loader builds and the block a
+multi-segment page assembles into cannot disagree about what a tag indexes. Legs always load at
+`NONE`, which is what makes a leg's element type a function of its type alone.
+
+**The ownership contract had to be read rather than assumed**, and it is the trap here:
+`TypeConverter`'s own loader hands the page's block straight through with no ref count and the
+generated convert evaluators close it, so a `ConverterEvaluator` owns and must release what it is
+handed. `UnionLegConverterTests` asserts that, and the assertion was shown to discriminate - dropping
+the `try`-with-resources fails it.
+
+**What it still owes: an end-to-end test over two shards of different mappings.** The converter is
+covered in isolation, including the multi-valued and all-null shapes and the release; what is not is
+the planner arm choosing the right leg per shard, which needs the two-shard harness that
+`ValueSourceReaderTypeConversionTests` builds. Until then nothing proves a page spanning two mappings
+carries both legs.
+
+**4c. What the loader does not yet reach.** In `EsPhysicalOperationProviders.blockLoaderAndConverter`,
 for a `FieldAttribute` over a `UnionEsField`: read the shard's mapped type exactly as the
 `CompactMultiTypeEsField` arm does, compute the leg, load natively with the shard's own loader at
 `NONE`, and convert by appending each value into a `UnionBlockBuilder` under that tag, multi-valued

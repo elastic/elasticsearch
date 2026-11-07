@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
@@ -755,6 +756,20 @@ public class PlannerUtils {
     /**
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
      */
+    /**
+     * The element type of each leg of a union field, in the leg order the block and the response share.
+     * <p>
+     * Legs always load at {@link MappedFieldType.FieldExtractPreference#NONE}. That is what makes a leg's element type
+     * a function of its type alone, since the preference is the only other thing that moves it, and a union-typed
+     * attribute never enters the doc-values, centroid or bounds sets that ask for another one. Both the block the
+     * loader builds and the builder a multi-segment page assembles into must come from here, or the two disagree about
+     * what leg an index names.
+     * </p>
+     */
+    public static List<ElementType> unionLegElementTypes(UnionEsField union) {
+        return union.legTypes().stream().map(t -> toElementType(t, MappedFieldType.FieldExtractPreference.NONE)).toList();
+    }
+
     public static ElementType toElementType(DataType dataType) {
         return toElementType(dataType, NONE);
     }

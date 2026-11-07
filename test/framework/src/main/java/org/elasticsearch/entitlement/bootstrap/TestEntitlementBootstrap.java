@@ -95,7 +95,7 @@ public class TestEntitlementBootstrap {
 
     private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
         var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
-        var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
+        var serverTestBuildInfo = TestBuildInfoParser.parseServerAndLibTestBuildInfo();
         List<String> pluginNames = pluginsTestBuildInfo.stream().map(TestBuildInfo::component).toList();
 
         var pluginDescriptors = parsePluginsDescriptors(pluginNames);

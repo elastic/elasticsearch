@@ -214,6 +214,18 @@ public class CsvIT extends ESTestCase {
         ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected);
 
         /**
+         * Transforms the actual column names, types and values before they are compared against the expected results.
+         */
+        default ExpectedResults transformActualResults(
+            String testId,
+            CsvSpecReader.CsvTestCase testCase,
+            ExpectedResults expected,
+            ExpectedResults actual
+        ) {
+            return actual;
+        }
+
+        /**
          * Normalizes a single warning string before warnings are compared. The <em>same</em>
          * function is applied to both the expected warnings declared in the csv-spec entry (via
          * {@link CsvSpecReader.CsvTestCase#adjustExpectedWarnings(java.util.function.Function)}) and
@@ -459,11 +471,18 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
+            var actualResults = indexLoadStrategy.transformActualResults(
+                groupName + "." + testName,
+                testCase,
+                expected,
+                new ExpectedResults(actual.columnNames(), actual.columnTypes(), actual.values())
+            );
+
             var assertionLogger = logResults() ? logger : null;
-            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), assertionLogger);
+            CsvAssert.assertMetadata(expected, actualResults.columnNames(), actualResults.columnTypes(), assertionLogger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
-                actual.values(),
+                actualResults.values(),
                 testCase.ignoreOrder,
                 indexLoadStrategy.ignoreValueOrder(),
                 false,

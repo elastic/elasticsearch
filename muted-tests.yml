@@ -165,9 +165,6 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/157535
-- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
-  method: testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes
-  issue: https://github.com/elastic/elasticsearch/issues/157799
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testUploadedCommitPrefetchNeverHitsIndexingNode
   issue: https://github.com/elastic/elasticsearch/issues/157813
@@ -372,11 +369,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
-- class: org.elasticsearch.xpack.esql.action.ExternalLaggingWorkerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testFallbackThatCannotBeSentTheSplitsFailsTheQuery
-  issue: https://github.com/elastic/elasticsearch/issues/163761
 - class: org.elasticsearch.index.mapper.UnmappedFieldsTests
   tasks:
   - :server:test
@@ -485,16 +477,16 @@ tests:
   - :test:test-clusters:test
   method: testWaitsForLiveFileRecreatedAfterRename
   issue: https://github.com/elastic/elasticsearch/issues/164549
-- class: org.elasticsearch.xpack.esql.action.ExternalLaggingWorkerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testFallbackWhoseExchangeCannotBeOpenedFailsTheQuery
-  issue: https://github.com/elastic/elasticsearch/issues/164583
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   tasks:
   - :modules:repository-azure:test
   method: testContentsChangeWhileStreaming
   issue: https://github.com/elastic/elasticsearch/issues/164636
+- class: org.elasticsearch.xpack.inference.external.http.ByteArrayFlowPublisherTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testCompletionIsWithheldUntilDemandIsAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/164701
 - class: org.elasticsearch.xpack.stateless.engine.translog.TranslogUploadHedgeIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -539,3 +531,28 @@ tests:
   - :test:framework:integTest
   method: testLeakingRecyclerBackedByteArrayIsDetected
   issue: https://github.com/elastic/elasticsearch/issues/164889
+- class: org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldTypeTests
+  tasks:
+  - :x-pack:plugin:spatial:test
+  method: testFetchVectorTile
+  issue: https://github.com/elastic/elasticsearch/issues/164908
+- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/164936
+- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorForceDocSequenceTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/164938
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
+  method: test {yaml=esql/317_unmapped_fields_mapped_later/LOAD_ALL does not return the old values in _unmapped_fields either}
+  issue: https://github.com/elastic/elasticsearch/issues/164963
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
+  method: test {yaml=esql/317_unmapped_fields_mapped_later/the result is the same without LOAD}
+  issue: https://github.com/elastic/elasticsearch/issues/164974

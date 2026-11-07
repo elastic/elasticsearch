@@ -1818,11 +1818,11 @@ public class EsqlSession {
             flags,
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
-                // Then the table functions a source list named, each becoming an external relation too. Separate from
-                // the rewrite above because the two are authorized by different privileges on different objects: a
-                // dataset by index `read` on its own name, a data source by `read` under global.data_source. Both must
-                // precede pre-analysis, which is where a source leaf's fields are collected. Completes synchronously
-                // when the query names no table function, which is the ordinary case.
+                // Then the table functions a source list named, each becoming whatever relation its function
+                // returns. Separate from the rewrite above because this step authorizes nothing: a function that
+                // reaches something access-controlled does that itself. Both must precede pre-analysis, which is
+                // where a source leaf's fields are collected. Completes synchronously when the query names no
+                // table function, which is the ordinary case.
                 tableFunctionResolver.resolveTableFunctions(
                     rewritten,
                     projectMetadata,

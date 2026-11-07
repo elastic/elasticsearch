@@ -188,16 +188,56 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat(function.bindings.get(), equalTo(0));
     }
 
-    /** A map argument reaches the function as the last element of one flat list, as a scalar function's does. */
+    /**
+     * A map argument reaches the function as the last element of one flat list, as a scalar function's does - and
+     * this goes through the resolver so that it is the function, not the record, that is shown to receive it.
+     */
     public void testMapArrivesAsAnArgument() {
+        MapReading function = new MapReading();
         Source source = Source.EMPTY;
-        TableFunctionInvocation call = new TableFunctionInvocation(
+        UnresolvedTableFunctionRelation leaf = new UnresolvedTableFunctionRelation(
             source,
-            "numbers",
-            List.of(new TableFunctionArgument.Name(source, "1"), new TableFunctionArgument.NamedValues(source, Map.of("k", "v")))
+            new TableFunctionInvocation(
+                source,
+                "mapreading",
+                List.of(new TableFunctionArgument.Name(source, "1"), new TableFunctionArgument.NamedValues(source, Map.of("k", "v")))
+            ),
+            List.of()
         );
-        assertThat(call.arguments().size(), equalTo(2));
-        assertThat(call.namedValues(1), equalTo(Map.of("k", "v")));
+
+        resolve(function, leaf);
+
+        assertThat(function.seen, equalTo(Map.of("k", "v")));
+    }
+
+    /** Records the named values it was handed, so a test can assert the function saw them rather than the record. */
+    private static class MapReading extends CoordinatorRowsFunction {
+
+        private Map<String, Object> seen;
+
+        @Override
+        public String name() {
+            return "mapreading";
+        }
+
+        @Override
+        public TableFunctionSignature signature() {
+            return TableFunctionSignature.of(
+                TableFunctionSignature.name("upto"),
+                TableFunctionSignature.optional(TableFunctionSignature.namedValues("options"))
+            );
+        }
+
+        @Override
+        protected List<Attribute> columns(TableFunctionInvocation call, TableFunctionContext context) {
+            seen = call.namedValues(1);
+            return List.of(column("n", DataType.LONG));
+        }
+
+        @Override
+        protected void rows(TableFunctionInvocation call, TableFunctionContext context, ActionListener<List<List<Object>>> listener) {
+            computed(listener, List::of);
+        }
     }
 
     /**

@@ -816,8 +816,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     /**
-     * These tests name no table function, so the resolver completes on the walk and never touches a client,
-     * executor or validator — nulls are never dereferenced, for the same reason as above.
+     * These tests name no table function, so the resolver completes on its one plan walk without asking the
+     * registry for anything. The registry is empty rather than null because the resolver holds it directly;
+     * unlike the resolver above, it has no collaborators to leave unset.
      */
     private static TableFunctionResolver noTableFunctionsResolver() {
         return new TableFunctionResolver(new TableFunctionRegistry(List.of()));

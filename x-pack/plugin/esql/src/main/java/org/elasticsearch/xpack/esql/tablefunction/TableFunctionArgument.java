@@ -19,7 +19,7 @@ import java.util.Objects;
  * A flat list of these is the whole invocation, which is how a scalar function's arguments already work:
  * {@code ExpressionBuilder#visitFunctionExpression} appends a trailing map to the same list it collected the other
  * arguments into, so a scalar function sees a map as its last argument rather than as a separate slot. Following
- * that is why there is no "payload" concept here — a map is an argument.
+ * that is why a map is an argument here rather than a slot beside the arguments.
  * <p>
  * Two kinds, because the grammar admits two. <b>Not a general expression</b>, which is where this departs from a
  * scalar function and has to: a source list is read before anything is in scope for an expression to refer to, so

@@ -36,11 +36,11 @@ import java.util.List;
  * <h2>What a function cannot do, and why</h2>
  *
  * <ul>
- *   <li><b>It cannot authorize anything, and must not try.</b> {@link TableFunctionContext} hands it a project and
- *       no client, listener or thread context, so it could not dispatch a check if it wanted to. A function that
- *       reads something needing a privilege declares that by implementing the corresponding marker, and the
- *       facility performs the check — before {@link #toRelation} is ever called. What a function cannot declare,
- *       this facility cannot authorize, and will not read.</li>
+ *   <li><b>It cannot lean on the facility to authorize anything.</b> Nothing here checks a privilege, and there is
+ *       no notion of visibility for a function to declare. A function that reaches something access-controlled
+ *       authorizes it itself, with a collaborator it was constructed with, and the way to do that without
+ *       inventing a rule is to dispatch the same action the equivalent REST endpoint dispatches: the security
+ *       layer then decides exactly what it already decides there, and the two cannot drift apart.</li>
  *   <li><b>It cannot choose where it runs.</b> Placement follows the leaf it returned: {@code Mapper#mapLeaf}
  *       sends some leaf types to data nodes through a fragment and keeps others on the coordinator. A function
  *       picks what it denotes, not where that is read.</li>
@@ -68,8 +68,8 @@ public interface TableFunction {
 
     /**
      * The shape of invocation this function accepts: its arity, and the kind of each argument. Checked before
-     * {@link #validate} and before anything is authorized, with wording shared by every table function, so no
-     * function writes arity code of its own and two functions cannot word the same complaint differently.
+     * {@link #validate}, with wording shared by every table function, so no function writes arity code of its own
+     * and two functions cannot word the same complaint differently.
      * <p>
      * Because the shape is known to hold by the time a function reads its arguments, the accessors on
      * {@link TableFunctionInvocation} may cast without testing.
@@ -93,8 +93,8 @@ public interface TableFunction {
      * resolver this runs inside is already asynchronous. A function needing none completes inline, and the base
      * classes do that for it, so the simple case never handles a listener.
      * <p>
-     * Called only after the shape has been checked, {@link #validate} has passed, and the facility has performed
-     * whatever authorization this function declared.
+     * Called after the shape has been checked and {@link #validate} has passed — for every call in the query, not
+     * just this one, so a malformed call elsewhere in the source list is reported before any function does work.
      *
      * @param metadataFields the names from the user's {@code METADATA} clause, threaded to every leaf in the source
      *                       list. A leaf that binds its own metadata consumes them; one that does not may ignore

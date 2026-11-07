@@ -977,8 +977,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     /**
      * The table functions this node registers. Empty here, because this change adds the facility and no function.
      * <p>
-     * A seam rather than a constant so that the facility can be exercised end to end by a function defined in a
-     * test, which is the only way to show that nothing in it was shaped by one real function's needs. The
+     * A seam rather than a constant so that a function can be registered without the facility naming one. Nothing
+     * overrides it here and no query in this change runs a table function: the facility is covered by unit tests
+     * that drive a function defined in the test through the real resolver and registry. The
      * precedent for a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState},
      * both overridden by test subclasses.
      * <p>

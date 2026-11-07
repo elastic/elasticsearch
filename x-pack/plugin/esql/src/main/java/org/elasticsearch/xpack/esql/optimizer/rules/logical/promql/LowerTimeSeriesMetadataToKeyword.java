@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesUnset;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeries;
+import org.elasticsearch.xpack.esql.plan.logical.DistinctBy;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
@@ -52,8 +53,9 @@ import java.util.Set;
  * null. An {@code or} keeps one series per label set on its metadata as a whole, {@code __name__} included, rather than
  * on the match key that leaves {@code __name__} out: the verifier admits on keyword metadata only the unions where the
  * two agree. A key that compares labels in slots of their own compares them in its metadata too, rather than leaving
- * them out of it, as keyword vector matching always has. What has no keyword form fails: reading a label out of metadata,
- * or leaving labels out of it after the collapse ({@link AbstractTimeSeriesFunction}).
+ * them out of it, as keyword vector matching always has. A check that a result holds one series per label set goes where
+ * keyword metadata cannot state the label set, as it always has. What has no keyword form fails: reading a label out of
+ * metadata, or leaving labels out of it after the collapse ({@link AbstractTimeSeriesFunction}).
  * <p>
  * The rule goes once the minimum supported version reads typed metadata.
  */
@@ -70,7 +72,7 @@ public final class LowerTimeSeriesMetadataToKeyword extends ParameterizedRule<Lo
     /** {@code plan} over keyword metadata. */
     static LogicalPlan lower(LogicalPlan plan) {
         Lowering lowering = new Lowering();
-        return lowering.lower(dropUnread(lowering.keyOnMetadata(matchOnMetadata(plan))));
+        return lowering.lower(dropUnread(lowering.keyOnMetadata(withoutUnstatedChecks(matchOnMetadata(plan)))));
     }
 
     /** Every {@code or} keeping its series apart by their metadata, without a match key of its own. */
@@ -108,6 +110,32 @@ public final class LowerTimeSeriesMetadataToKeyword extends ParameterizedRule<Lo
 
     private static boolean isMatchKey(NamedExpression projection) {
         return projection.name().equals(VectorBinarySet.OR_MATCH_KEY);
+    }
+
+    /**
+     * {@code plan} without the checks for repeated label sets whose label set reads metadata derived after the collapse: a
+     * keyword key cannot state it.
+     */
+    private static LogicalPlan withoutUnstatedChecks(LogicalPlan plan) {
+        Set<NameId> derived = new HashSet<>();
+        plan.forEachUp(Eval.class, eval -> {
+            for (Alias field : eval.fields()) {
+                if (field.child()
+                    .anyMatch(e -> e instanceof AbstractTimeSeriesFunction || (e instanceof Attribute a && derived.contains(a.id())))) {
+                    derived.add(field.id());
+                }
+            }
+        });
+        if (derived.isEmpty()) {
+            return plan;
+        }
+        return plan.transformUp(
+            DistinctBy.class,
+            check -> check.failOnDuplicate()
+                && check.child() instanceof PackDims key
+                && key.packed().id().equals(check.key().id())
+                && key.dims().stream().anyMatch(dim -> derived.contains(dim.id())) ? key.child() : check
+        );
     }
 
     /** {@code plan} without the typed metadata it computes and never reads: such a column needs no keyword form. */

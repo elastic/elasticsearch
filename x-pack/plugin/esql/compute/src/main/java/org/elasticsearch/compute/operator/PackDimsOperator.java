@@ -14,40 +14,53 @@ import java.util.Arrays;
 
 public class PackDimsOperator extends AbstractPageMappingOperator {
 
-    public record Factory(int[] channels) implements OperatorFactory {
+    /**
+     * @param emptyAsAbsent pack a zero-length value as absent, as PromQL reads an empty label
+     */
+    public record Factory(int[] channels, boolean emptyAsAbsent) implements OperatorFactory {
+        public Factory(int[] channels) {
+            this(channels, false);
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
-            return new PackDimsOperator(driverContext, channels);
+            return new PackDimsOperator(driverContext, channels, emptyAsAbsent);
         }
 
         @Override
         public String describe() {
-            return "PackDimsOperator[channels=" + Arrays.toString(channels) + "]";
+            return "PackDimsOperator[channels=" + Arrays.toString(channels) + (emptyAsAbsent ? ", emptyAsAbsent" : "") + "]";
         }
     }
 
     private final DriverContext driverContext;
     private final int[] channels;
+    private final boolean emptyAsAbsent;
 
     public PackDimsOperator(DriverContext driverContext, int[] channels) {
+        this(driverContext, channels, false);
+    }
+
+    public PackDimsOperator(DriverContext driverContext, int[] channels, boolean emptyAsAbsent) {
         this.driverContext = driverContext;
         this.channels = channels;
+        this.emptyAsAbsent = emptyAsAbsent;
     }
 
     @Override
     protected Page process(Page page) {
         if (channels.length == 1) {
-            return page.appendBlock(DimsPacker.packSingleColumn(driverContext, page.getBlock(channels[0])).asBlock());
+            return page.appendBlock(DimsPacker.packSingleColumn(driverContext, page.getBlock(channels[0]), emptyAsAbsent).asBlock());
         }
         Block[] blocks = new Block[channels.length];
         for (int i = 0; i < channels.length; i++) {
             blocks[i] = page.getBlock(channels[i]);
         }
-        return page.appendBlock(DimsPacker.packMultiColumns(driverContext, blocks).asBlock());
+        return page.appendBlock(DimsPacker.packMultiColumns(driverContext, blocks, emptyAsAbsent).asBlock());
     }
 
     @Override
     public String toString() {
-        return "PackDimsOperator[channels=" + Arrays.toString(channels) + "]";
+        return "PackDimsOperator[channels=" + Arrays.toString(channels) + (emptyAsAbsent ? ", emptyAsAbsent" : "") + "]";
     }
 }

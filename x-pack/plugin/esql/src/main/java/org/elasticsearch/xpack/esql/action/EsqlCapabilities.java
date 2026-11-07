@@ -2760,10 +2760,10 @@ public class EsqlCapabilities {
 
         /**
          * Typed time-series metadata: PromQL carries {@code _timeseries} internally as a typed column, which the PromQL
-         * shapes that modify it rely on; the user always gets the keyword form. Also the release gate for that behavior.
-         * Disabled until PromQL uses the typed column end to end.
+         * shapes that modify it rely on; the user always gets the keyword form. Snapshot-only until released; also the
+         * release gate for that behavior.
          */
-        ENABLE_TIMESERIES_DATA_TYPE(false),
+        ENABLE_TIMESERIES_DATA_TYPE(Build.current().isSnapshot()),
 
         /**
          * Corrected output shape for PromQL {@code without}: a {@code without} over a concrete-output child (e.g.
@@ -2772,6 +2772,11 @@ public class EsqlCapabilities {
          * tests so mixed-version clusters skip them on older nodes that still emit {@code _timeseries}.
          */
         FIX_PROMQL_WITHOUT_OUTPUT,
+
+        /**
+         * PromQL WITHOUT drops the metric name while retaining every other grouping label, including for WITHOUT ().
+         */
+        FIX_PROMQL_WITHOUT_METRIC_NAME,
 
         /**
          * PromQL groups by a non-dimension label under {@code by(...)} also when an inner {@code without(...)} carries it, as it
@@ -2784,6 +2789,12 @@ public class EsqlCapabilities {
          * computed from the source, such as {@code scalar(sum(x))}, may be the right-hand side.
          */
         FIX_PROMQL_SCALAR_COMPARISON,
+
+        /**
+         * PromQL {@code or} with {@code on(...)}/{@code ignoring(...)} keeps every left series and the right series no left
+         * series matches on the listed labels.
+         */
+        PROMQL_SET_OPERATOR_MATCHING,
 
         /**
          * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
@@ -2806,6 +2817,23 @@ public class EsqlCapabilities {
          * Gates csv-spec coverage of those shapes.
          */
         PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Under typed {@code _timeseries}, a vector match's signature slot leaves the named key labels out and a side
+         * without metadata packs the empty signature, so an opaque operand matches a concrete or promoted-label sibling
+         * under {@code ignoring(...)} / default matching the way Prometheus signatures do, and a raw source serves two
+         * metadata views that neither contain each other ({@code a * ignoring(pod) group_left(region) b}).
+         * Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL shapes the translation admits by reading labels through references bound after it, rather than from
+         * concrete label columns: the {@code and} and {@code unless} set operators, vector matching between operands whose
+         * labels stay in time-series metadata, unmatched comparisons nested under aggregations, {@code label_replace}
+         * or reductions, and a filter comparison with a computed scalar on the left. Gates test coverage of those shapes.
+         */
+        PROMQL_LABEL_REFERENCES(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
@@ -4226,6 +4254,18 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code sort} and {@code sort_desc} below the top level. They pass their input through, and the result keeps
+         * their order through steps that pass the values through unchanged.
+         */
+        PROMQL_SORT_BELOW_TOP_LEVEL(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code label_replace} and {@code label_join} overwriting a label of a {@code by(...)} aggregation they are
+         * applied over. Two series left with one label set fail the query, as in Prometheus.
+         */
+        PROMQL_LABEL_FUNCTIONS_OVERWRITE(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,

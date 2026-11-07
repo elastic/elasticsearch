@@ -1,0 +1,83 @@
+// In the first hour, prom-metrics-name contains requests_total samples of 10 and 20, and a coll sample of 2.
+// WITHOUT must combine them when no other label distinguishes the groups, even if __name__ is not projected.
+// The fixture requires promql_label_functions; these queries use only aggregation and run with either metadata representation.
+
+without_removes_metric_name_from_source_grouping
+required_capability: fix_promql_without_metric_name
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name start="2024-05-10T00:00:00Z" end="2024-05-10T01:00:00Z" step=1h result=(sum without (pod, zone, idx) (metrics.requests))
+| KEEP result;
+
+result:double
+32.0
+;
+
+
+// The inner WITHOUT keeps its three distinct label sets even when the outer count requests no labels.
+empty_without_preserves_groups_under_count
+required_capability: fix_promql_without_metric_name
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name start="2024-05-10T00:00:00Z" end="2024-05-10T01:00:00Z" step=1h result=(count(sum without () (metrics.requests)))
+| KEEP result;
+
+result:double
+3.0
+;
+
+
+without_removes_metric_name_from_named_grouping
+required_capability: fix_promql_without_metric_name
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name start="2024-05-10T00:00:00Z" end="2024-05-10T01:00:00Z" step=1h result=(sum without (pod, zone, idx) (sum by (__name__, pod, zone, idx) (metrics.requests)))
+| KEEP result;
+
+result:double
+32.0
+;
+
+
+// An empty exclusion list still removes the metric name.
+empty_without_removes_metric_name
+required_capability: fix_promql_without_metric_name
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name start="2024-05-10T00:00:00Z" end="2024-05-10T01:00:00Z" step=1h result=(sum without () (sum by (__name__) (metrics.requests)))
+| KEEP result;
+
+result:double
+32.0
+;
+
+
+// Explicit BY must retain the metric name as a grouping key and an output label.
+by_preserves_metric_name
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name start="2024-05-10T00:00:00Z" end="2024-05-10T01:00:00Z" step=1h result=(sum by (__name__) (metrics.requests))
+| KEEP result, __name__
+| SORT result;
+
+result:double | __name__:keyword
+2.0           | coll
+30.0          | requests_total
+;

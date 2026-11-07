@@ -40,13 +40,10 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
@@ -378,6 +375,15 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /**
+     * The identity of each series of {@code operand}. A filter keeps or drops whole series, so the collapse it filters keeps
+     * one row per series, however few labels the filter's consumer reads: keyed by those labels alone, the collapse would
+     * merge the series sharing them into one multivalued value and compare that instead.
+     */
+    private List<Attribute> seriesIdentity(LogicalPlan operand) {
+        return UnresolvedPromqlLabelRef.tsIdentity(source(), operand.output());
+    }
+
+    /**
      * Scalar with no source-backed selector: a literal, {@code time()}, {@code pi()}, or arithmetic over those.
      * Contrasts with {@code scalar(sum(...))}, which collapses source data and must broadcast independently.
      */
@@ -387,12 +393,6 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     private static boolean hasSourceBackedExpression(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
-    }
-
-    protected static boolean aggregatesAcrossSeries(LogicalPlan plan) {
-        return plan.anyMatch(
-            p -> p instanceof AcrossSeriesAggregate || p instanceof AcrossSeriesReduction || p instanceof ScalarConversionFunction
-        );
     }
 
     /**
@@ -443,16 +443,26 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * (label_replace, avg, topk, ...) see an already-filtered vector.
      */
     private IntermediateResult translateOverSharedFrame(TranslationContext context) {
-        IntermediateResult left = context.translate(left());
-        if (this instanceof VectorBinaryComparison comp && comp.filterMode() && right() instanceof LiteralSelector lit) {
-            // Filter-mode comparison (v > lit): keep the left value, drop non-matching rows.
-            IntermediateResult table = left.kind().afterInitialAggregation ? left : context.emitInitialAggregate(left, left.value());
+        if (this instanceof VectorBinaryComparison comp
+            && comp.filterMode()
+            && (left() instanceof LiteralSelector || right() instanceof LiteralSelector)) {
+            // Filter-mode comparison with a number (v > lit, lit < v): keep the vector's value, drop non-matching rows.
+            boolean literalLeft = left() instanceof LiteralSelector;
+            LogicalPlan vector = literalLeft ? right() : left();
+            IntermediateResult translated = context.translate(vector);
+            IntermediateResult table = translated.kind().afterInitialAggregation
+                ? translated
+                : context.emitInitialAggregate(translated, seriesIdentity(vector), translated.value());
             Expression value = new ToDouble(table.value().source(), table.value());
+            LiteralSelector lit = (LiteralSelector) (literalLeft ? left() : right());
             Expression threshold = new ToDouble(lit.source(), lit.literal());
-            Expression condition = comp.op().asFunction().create(source(), value, threshold, context.configuration());
-            return table.with(new Filter(source(), table.plan(), condition), value);
+            Expression condition = literalLeft
+                ? comp.op().asFunction().create(source(), threshold, value, context.configuration())
+                : comp.op().asFunction().create(source(), value, threshold, context.configuration());
+            return table.with(new Filter(source(), table.plan(), condition), table.value());
         }
 
+        IntermediateResult left = context.translate(left());
         IntermediateResult right = context.translate(right());
         // The operands as translated: the join fallback finishes these as independent pipelines rather than translating again.
         IntermediateResult leftTranslated = left;
@@ -467,11 +477,16 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         // would embed the raw side's pending aggregate in an Eval outside STATS). A pure scalar needs no frame of its own.
         boolean mixed = left.kind().afterInitialAggregation != right.kind().afterInitialAggregation;
         if (filterModeVector || (mixed && scalarOperand == false)) {
-            if (left.kind().afterInitialAggregation == false) {
-                left = context.emitInitialAggregate(left, left.value());
+            // A pure scalar (time(), a number) has no series to collapse; it composes over the vector's table.
+            if (left.kind().afterInitialAggregation == false && isPureScalar(left()) == false) {
+                left = filterModeVector
+                    ? context.emitInitialAggregate(left, seriesIdentity(left()), left.value())
+                    : context.emitInitialAggregate(left, left.value());
             }
-            if (right.kind().afterInitialAggregation == false) {
-                right = context.emitInitialAggregate(right, right.value());
+            if (right.kind().afterInitialAggregation == false && isPureScalar(right()) == false) {
+                right = filterModeVector
+                    ? context.emitInitialAggregate(right, seriesIdentity(right()), right.value())
+                    : context.emitInitialAggregate(right, right.value());
             }
         }
         boolean collapsed = left.kind().afterInitialAggregation && right.kind().afterInitialAggregation;
@@ -526,7 +541,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             } else {
                 filter = combineAndNullable(Arrays.asList(left.pendingFilter(), right.pendingFilter()));
             }
-        } else if (mixed && scalarOperand) {
+        } else if (left.kind().afterInitialAggregation != right.kind().afterInitialAggregation && scalarOperand) {
             // A pure scalar over a collapsed vector: the expression composes over the vector's table.
             plan = left.kind().afterInitialAggregation ? left.plan() : right.plan();
             filter = combineAndNullable(Arrays.asList(left.pendingFilter(), right.pendingFilter()));
@@ -561,6 +576,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             plan = new Filter(source(), plan, binaryExpr);
             // A filter keeps the vector's value, wherever the scalar sits, as Prometheus does.
             binaryExpr = PromqlPlan.returnsScalar(left()) ? rightExpr : leftExpr;
+        } else if (this instanceof VectorBinaryComparison) {
+            // bool yields 1 or 0: a number, which an enclosing aggregate reads like any other value
+            binaryExpr = new ToDouble(source(), binaryExpr);
         }
         IntermediateResult result = new IntermediateResult(plan, null, step, filter, kind);
         return context.eval(result, binaryExpr);
@@ -764,6 +782,15 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         return List.copyOf(names);
     }
 
+    /** Whether {@code operand}'s series can carry {@code label}: it names it, or its metadata does not leave it out. */
+    private static boolean hasLabel(LogicalPlan operand, String label) {
+        if (namedLabels(operand).contains(label)) {
+            return true;
+        }
+        UnresolvedPromqlLabelRef metadata = PromqlLabels.metadataLabel(operand.output());
+        return metadata != null && metadata.unset().contains(label) == false;
+    }
+
     /** The labels an operand names, without its time-series metadata. */
     private static List<String> namedLabels(LogicalPlan operand) {
         return PromqlLabels.labelNames(
@@ -798,7 +825,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         // aggregates) resolve it by id, not just by name.
         Alias stepAlias = new Alias(step.source(), step.name(), step, context.stepAttr().id());
         Alias valueAlias = new Alias(source(), cmd.valueColumnName(), value, new NameId());
-        LogicalPlan plan = new Eval(cmd.source(), join, List.of(valueAlias, stepAlias));
+        // Right over the join: the value and step Evals shadow the operands' columns of the same name. Prometheus fails a
+        // group_left/group_right match before it compares values: copying the one side's labels over the many side's can
+        // leave two many side series with the same labels.
+        LogicalPlan matched = match.grouping() == Joining.NONE ? join : context.uniqueSeries(cmd.source(), join, step, output());
+        LogicalPlan plan = new Eval(cmd.source(), matched, List.of(valueAlias, stepAlias));
         if (filter != null) {
             plan = new Filter(source(), plan, filter);
         }
@@ -905,16 +936,19 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         PromqlCommand cmd = context.cmd();
         IntermediateResult input = operand.result();
         List<Attribute> key = joinKey(context, operand.node(), keyLabels);
+        // A series without a sample at a step is no element there: a metric read from series of another one (rate(req)
+        // over the series storing mem) must neither match nor count toward a duplicate match group.
+        LogicalPlan present = PromqlCommand.emitNullsFilter(cmd.source(), input.plan(), input.valueColumn());
         LogicalPlan plan;
         List<Attribute> fields;
         if (key.isEmpty()) {
-            plan = input.plan();
+            plan = present;
             fields = List.of(input.step());
         } else {
             // Prometheus treats an empty label value as absent. label_replace's delete sentinel is {@code ""}, while a
             // sibling that never had the label packs null - normalize empties to null before PackDims so signatures match.
             // Only named key labels (keyword) are rewritten; metadata / empty-signature slots stay as-is.
-            LogicalPlan keyed = input.plan();
+            LogicalPlan keyed = present;
             List<Attribute> packKey = new ArrayList<>(key.size());
             List<Alias> emptyToNull = new ArrayList<>();
             for (Attribute dim : key) {
@@ -922,6 +956,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                     || dim.name().equals(EMPTY_SIGNATURE_KEY)
                     || keyLabels.contains(dim.name()) == false) {
                     packKey.add(dim);
+                    continue;
+                }
+                if (hasLabel(operand.node(), dim.name()) == false) {
+                    // A label the operand has no series with packs null: read from its input, it could key a constant
+                    // (vector(1)) by the source's series.
+                    Alias absent = new Alias(cmd.source(), dim.name(), new Literal(cmd.source(), null, DataType.KEYWORD), new NameId());
+                    emptyToNull.add(absent);
+                    packKey.add(absent.toAttribute());
                     continue;
                 }
                 Expression absentIfEmpty = new Case(
@@ -1140,8 +1182,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             return agg;
         });
 
+        // Restacked over the left operand's Evals, the right one's must not shadow them: both define `value`.
         for (Eval eval : rightFrame.evals().reversed()) {
-            result = new Eval(eval.source(), result, eval.fields());
+            List<Alias> fields = eval.fields().stream().map(f -> new Alias(f.source(), names.next(f.name()), f.child(), f.id())).toList();
+            result = new Eval(eval.source(), result, fields);
         }
         return result;
     }

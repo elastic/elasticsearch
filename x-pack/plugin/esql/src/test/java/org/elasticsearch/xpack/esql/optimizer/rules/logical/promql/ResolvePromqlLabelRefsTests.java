@@ -20,16 +20,19 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlLabelRef;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 /**
- * Tracing names metadata after what it leaves out of the source's series. Plan-level binding is covered by the PromQL plan
- * and golden tests.
+ * Tracing names metadata after what it leaves out of the source's series; key selection carries the labels a grouping
+ * boundary must keep. Plan-level binding is covered by the PromQL plan and golden tests.
  */
 public class ResolvePromqlLabelRefsTests extends ESTestCase {
+    private static final List<String> LABELS = List.of("pod", "event", "unmentioned_dimension");
 
     /** An Eval stating metadata names the metadata above it after everything it leaves out of the source's series. */
     public void testStatementNamesMetadataAbove() {
@@ -54,6 +57,85 @@ public class ResolvePromqlLabelRefsTests extends ESTestCase {
         assertRead(project, Set.of("pod", "dst"), "_timeseries$dst$pod");
     }
 
+    /**
+     * Every grouping boundary over three labels: each subset declared and wanted, metadata declared or not, up to two
+     * metadata views wanted, and every initial and per-series mode. An independent oracle picks the metadata view a
+     * source must read: the one retaining the least information from which every wanted view derives.
+     */
+    public void testKeySelectionOverAllBoundedGrains() {
+        List<List<Integer>> viewDemands = new ArrayList<>();
+        viewDemands.add(List.of());
+        for (int a = 0; a < 8; a++) {
+            viewDemands.add(List.of(a));
+            for (int b = 0; b < 8; b++) {
+                viewDemands.add(List.of(a, b));
+            }
+        }
+        long checked = 0;
+        for (int declaredView = -1; declaredView < 8; declaredView++) {
+            for (int declaredLabels = 0; declaredLabels < 8; declaredLabels++) {
+                for (int wantedLabels = 0; wantedLabels < 8; wantedLabels++) {
+                    for (List<Integer> wantedViews : viewDemands) {
+                        for (int mode = 0; mode < 4; mode++) {
+                            boolean initial = (mode & 1) != 0;
+                            boolean perSeries = (mode & 2) != 0;
+                            var grain = new ResolvePromqlLabelRefs.Grain(
+                                declaredView < 0 ? null : view(declaredView),
+                                labels(declaredLabels),
+                                perSeries
+                            );
+                            var needs = new ArrayList<UnresolvedPromqlLabelRef>();
+                            wantedViews.forEach(v -> needs.add(view(v)));
+                            needs.addAll(labels(wantedLabels));
+                            boolean source = initial && perSeries;
+                            var keys = ResolvePromqlLabelRefs.selectKeys(grain, needs, initial);
+                            int expectedView = expectedView(declaredView, wantedViews, source);
+                            assertEquals(
+                                expectedView < 0 ? null : names(expectedView),
+                                keys.metadata() == null ? null : keys.metadata().unset()
+                            );
+                            var expectedLabels = new HashSet<>(names(declaredLabels));
+                            for (String label : names(wantedLabels)) {
+                                if (source || (declaredView >= 0 && names(declaredView).contains(label) == false)) {
+                                    expectedLabels.add(label);
+                                }
+                            }
+                            var actualLabels = keys.labels().stream().map(UnresolvedPromqlLabelRef::name).toList();
+                            assertEquals(expectedLabels, new HashSet<>(actualLabels));
+                            assertEquals(expectedLabels.size(), actualLabels.size());
+                            checked++;
+                        }
+                    }
+                }
+            }
+        }
+        assertEquals(168192L, checked);
+    }
+
+    /**
+     * The view a source reads: the largest set of exclusions contained in every requested view. A source keeps one row per
+     * series whatever view it reads, so a declared grain nobody reads is no requirement.
+     */
+    private static int expectedView(int declared, List<Integer> requested, boolean source) {
+        if (source == false || requested.isEmpty()) {
+            return declared;
+        }
+        int best = 0;
+        for (int candidate = 0; candidate < 8; candidate++) {
+            boolean derivesAll = true;
+            for (int desired : requested) {
+                // a view derives another only by leaving more labels out
+                if ((candidate & desired) != candidate) {
+                    derivesAll = false;
+                }
+            }
+            if (derivesAll && Integer.bitCount(candidate) > Integer.bitCount(best)) {
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
     private static Alias statement(Set<String> unset) {
         return new Alias(Source.EMPTY, MetadataAttribute.TIMESERIES, UnresolvedPromqlLabelRef.metadata(Source.EMPTY, unset));
     }
@@ -68,5 +150,26 @@ public class ResolvePromqlLabelRefsTests extends ESTestCase {
         UnresolvedPromqlLabelRef ref = as(projected.child(), UnresolvedPromqlLabelRef.class);
         assertEquals(unset, ref.unset());
         assertEquals(name, ref.name());
+    }
+
+    private static UnresolvedPromqlLabelRef view(int excluded) {
+        return UnresolvedPromqlLabelRef.metadata(Source.EMPTY, names(excluded)).againstSource(names(excluded));
+    }
+
+    private static List<UnresolvedPromqlLabelRef> labels(int mask) {
+        return LABELS.stream()
+            .filter(name -> names(mask).contains(name))
+            .map(name -> UnresolvedPromqlLabelRef.label(Source.EMPTY, name))
+            .toList();
+    }
+
+    private static Set<String> names(int mask) {
+        var names = new HashSet<String>();
+        for (int i = 0; i < LABELS.size(); i++) {
+            if ((mask & (1 << i)) != 0) {
+                names.add(LABELS.get(i));
+            }
+        }
+        return names;
     }
 }

@@ -465,6 +465,15 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             List<String> groupingList = visitLabelList(modifierCtx.groupLabels);
             if (modifierCtx.joining != null) {
                 joining = modifierCtx.GROUP_LEFT() != null ? VectorMatch.Joining.LEFT : VectorMatch.Joining.RIGHT;
+                // Prometheus reads a parenthesis right after group_x as its labels, never as the right operand.
+                if (modifierCtx.groupLabels == null && ctx.right.getStart().getType() == PromqlBaseParser.LP) {
+                    throw new ParsingException(
+                        source(ctx.right),
+                        "Unexpected expression in the grouping labels of [{}]; list the labels before the operand: [{} () ...]",
+                        modifierCtx.joining.getText(),
+                        modifierCtx.joining.getText()
+                    );
+                }
 
                 // grouping not allowed with logic operators
                 switch (opType) {
@@ -477,7 +486,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 // label declared in ON cannot appear in grouping
                 if (modifierCtx.ON() != null) {
                     List<String> repeatedLabels = new ArrayList<>(groupingList);
-                    if (filterList.isEmpty() == false && repeatedLabels.retainAll(filterList) && repeatedLabels.isEmpty() == false) {
+                    repeatedLabels.retainAll(filterList);
+                    if (repeatedLabels.isEmpty() == false) {
                         throw new ParsingException(
                             source(modifierCtx.ON()),
                             "Label{} {} must not occur in ON and GROUP clause at once",

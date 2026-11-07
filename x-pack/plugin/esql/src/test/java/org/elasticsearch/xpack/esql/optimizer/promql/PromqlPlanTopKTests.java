@@ -137,20 +137,45 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
     }
 
-    public void testTopkWithoutGroupingNotYetSupported() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("topk"));
+    public void testTopkWithoutGroupingPartitionsByTheRest() {
+        assertWithoutPartitionsByTheRest("topk");
     }
 
-    public void testBottomkWithoutGroupingNotYetSupported() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(bottomk(2, network.bytes_in) without (pod))", true)
+    public void testBottomkWithoutGroupingPartitionsByTheRest() {
+        assertWithoutPartitionsByTheRest("bottomk");
+    }
+
+    /**
+     * {@code without (pod)} partitions the ranking by every label but {@code pod} and the metric name, as Prometheus groups a
+     * {@code without}: the series' metadata leaving them out. The winning series keep their full identity. Keyword metadata
+     * cannot derive that view beside the full one, so it requires typed metadata.
+     */
+    private void assertWithoutPartitionsByTheRest(String function) {
+        String query = "PROMQL index=k8s step=1h result=(" + function + "(2, network.bytes_in) without (pod))";
+        if (typedTimeSeriesMetadata() == false) {
+            var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
+            assertThat(e.getMessage(), containsString("requires typed time-series metadata"));
+            return;
+        }
+        var plan = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(
+            topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(),
+            equalTo(List.of("step", "_timeseries$__name__$pod"))
         );
-        assertThat(e.getMessage(), containsString("bottomk"));
+    }
+
+    /** Over named labels {@code without} partitions by the labels it does not list, whatever the metadata representation. */
+    public void testTopkWithoutGroupingOverNamedLabelsPartitionsByTheRest() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(topk(1, sum by (pod, region) (network.bytes_in)) without (pod))", false)
+        );
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(
+            topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(),
+            equalTo(List.of("step", "region"))
+        );
     }
 
     /**
@@ -224,14 +249,9 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
     }
 
-    public void testLimitkWithoutGroupingNotYetSupported() {
+    public void testLimitkWithoutGroupingPartitionsByTheRest() {
         assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
-
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("limitk"));
+        assertWithoutPartitionsByTheRest("limitk");
     }
 
     public void testLimitkOverSumByWrapsPassthroughInValues() {

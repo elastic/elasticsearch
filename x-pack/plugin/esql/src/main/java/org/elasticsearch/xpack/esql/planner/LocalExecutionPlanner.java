@@ -815,7 +815,7 @@ public class LocalExecutionPlanner {
             channels[i] = source.layout.get(packDimsExec.dims().get(i).id()).channel();
         }
         Layout layout = source.layout.builder().append(packDimsExec.packed()).build();
-        return source.with(new PackDimsOperator.Factory(channels), layout);
+        return source.with(new PackDimsOperator.Factory(channels, packDimsExec.emptyAsAbsent()), layout);
     }
 
     private PhysicalOperation planUnpackDims(UnpackDimsExec unpackDimsExec, LocalExecutionPlannerContext context) {
@@ -1799,11 +1799,14 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planDistinctBy(DistinctByExec distinctBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(distinctBy.child(), context);
         var key = source.layout.get(distinctBy.key().id());
-        if (key == null || PlannerUtils.toElementType(key.type()) != ElementType.INT) {
-            throw new IllegalStateException("distinct-by requires non-null integer key, got [" + distinctBy.key() + "]");
+        ElementType keyType = key == null ? null : PlannerUtils.toElementType(key.type());
+        if (keyType == ElementType.INT) {
+            return source.with(new DistinctByOperator.OrdinalIntKeyFactory(key.channel(), distinctBy.failOnDuplicate()), source.layout);
         }
-
-        return source.with(new DistinctByOperator.OrdinalIntKeyFactory(key.channel(), distinctBy.failOnDuplicate()), source.layout);
+        if (keyType == ElementType.BYTES_REF) {
+            return source.with(new DistinctByOperator.BytesRefKeyFactory(key.channel(), distinctBy.failOnDuplicate()), source.layout);
+        }
+        throw new IllegalStateException("distinct-by requires an integer or bytes key, got [" + distinctBy.key() + "]");
     }
 
     private PhysicalOperation planLookupJoin(LookupJoinExec join, LocalExecutionPlannerContext context) {

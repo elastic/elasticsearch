@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -32,8 +31,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -121,14 +122,10 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      * Translates an {@link AcrossSeriesReduction} ({@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio}):
      * collapses the child to one row per series, then keeps rows within each step and partition: ranked by value
      * for the order-statistic functions, or an approximate ratio for {@code limit_ratio}.
-     * A {@code by} clause only partitions the reduction; it does not change the output schema.
+     * A {@code by} or {@code without} clause only partitions the reduction; it does not change the output schema.
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        if (grouping() == WITHOUT) {
-            throw new VerificationException("function [{}] is not yet supported with [{}]", functionName(), WITHOUT.name());
-        }
-
         // Ranking happens per series (see input()); limit_ratio is membership-neutral, so outer partitions are
         // neither required from the child nor materialized below.
         List<String> partitions = PromqlLabels.labelNames(groupings());
@@ -224,14 +221,32 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
     }
 
     /**
-     * The grouping a reduction keeps rows within: the step bucket plus one key per {@code by} partition label. A
-     * partition label absent from every series binds to null and ranks as one partition, like Prometheus.
+     * The grouping a reduction keeps rows within: the step bucket plus its partition. {@code by} partitions by its labels: a
+     * partition label absent from every series binds to null and ranks as one partition, like Prometheus. {@code without}
+     * partitions by every label of a series but its labels and the metric name, as Prometheus groups a {@code without}: the
+     * series' metadata leaving them out, and each promoted label they do not name.
      */
     private List<Expression> reductionGrouping(TranslationContext context, IntermediateResult table, List<String> partitions) {
         var groupings = new ArrayList<Expression>();
         groupings.add(table.step());
-        if (grouping() == AcrossSeriesAggregate.Grouping.BY) {
-            partitions.forEach(partition -> groupings.add(UnresolvedPromqlLabelRef.label(source(), partition)));
+        switch (grouping()) {
+            case BY -> partitions.forEach(partition -> groupings.add(UnresolvedPromqlLabelRef.label(source(), partition)));
+            case WITHOUT -> {
+                var leftOut = new LinkedHashSet<>(partitions);
+                leftOut.add(LabelMatcher.NAME);
+                for (Attribute attribute : output()) {
+                    if (PromqlLabels.isMetadataLabel(attribute) && attribute instanceof UnresolvedPromqlLabelRef metadata) {
+                        var unset = new LinkedHashSet<>(metadata.unset());
+                        unset.addAll(leftOut);
+                        groupings.add(UnresolvedPromqlLabelRef.metadata(source(), unset));
+                    } else if (leftOut.contains(PromqlLabels.labelName(attribute)) == false) {
+                        groupings.add(UnresolvedPromqlLabelRef.label(source(), PromqlLabels.labelName(attribute)));
+                    }
+                }
+            }
+            case NONE -> {
+                // one partition per step
+            }
         }
         return groupings;
     }

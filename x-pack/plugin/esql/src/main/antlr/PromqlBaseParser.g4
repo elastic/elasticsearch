@@ -121,6 +121,10 @@ evaluation
     | at offset?
     ;
 
+// TODO: duration is a full expression, so the offset swallows a following binary operator: `foo offset 5m > 1`
+// parses as `foo offset (5m > 1)` and fails with "Expected duration or numeric value", as does
+// `foo unless (foo offset 5m > 1)`. Prometheus binds the offset to its selector before any binary operator.
+// https://github.com/elastic/elasticsearch/pull/164542
 offset
     : OFFSET MINUS? duration
     ;

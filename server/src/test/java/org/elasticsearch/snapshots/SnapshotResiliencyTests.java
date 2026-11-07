@@ -365,7 +365,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testCloneAbortedByDifferentMaster() {
-        setupTestCluster(randomFrom(3, 5), randomIntBetween(1, 3), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, false);
+        setupTestCluster(randomFrom(3, 5), randomIntBetween(1, 3));
 
         final var repoName = "repo";
         final var index = randomIndexName();

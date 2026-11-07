@@ -65,6 +65,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -103,6 +104,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 
@@ -437,9 +439,11 @@ public class KnnSearcher {
                 logger.debug("Segment layout: {}", segmentInfo);
                 finalResults.numSegments = segCount;
                 finalResults.totalIndexVectors = totalIndexVectors;
-                IndexSearcher searcher = searchParameters.searchThreads() > 1
-                    ? new IndexSearcher(reader, executorService)
-                    : new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(
+                    reader,
+                    searchParameters.searchThreads() > 1 ? executorService : null,
+                    searchParameters.searchThreads()
+                );
 
                 boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced && !searchParameters.exact();
 
@@ -564,6 +568,8 @@ public class KnnSearcher {
         finalResults.overSamplingFactor = searchParameters.overSamplingFactor();
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
         finalResults.numCandidates = searchParameters.numCandidates();
+        finalResults.searchThreads = searchParameters.searchThreads();
+        finalResults.numSearchers = searchParameters.numSearchers();
         finalResults.topK = searchParameters.topK();
         finalResults.earlyTermination = searchParameters.earlyTermination();
         finalResults.postFilter = searchParameters.postFilter();
@@ -768,6 +774,41 @@ public class KnnSearcher {
             }
         }
         return true;
+    }
+
+    /**
+     * A plain {@link IndexSearcher}, or, when {@code -Dbench.ivf_slices} is set, the {@link ContextIndexSearcher} Elasticsearch
+     * searches with, with DiskBBQ slices turned on or off; comparing slices must use the same searcher in both arms. Like Elasticsearch, it runs at most as many slices in parallel
+     * as the pool has threads, unless {@code -Dbench.max_slices} says otherwise.
+     */
+    private static IndexSearcher newSearcher(DirectoryReader reader, ExecutorService executor, int searchThreads) throws IOException {
+        String slices = System.getProperty("bench.ivf_slices");
+        if (slices == null) {
+            return executor == null ? new IndexSearcher(reader) : new IndexSearcher(reader, executor);
+        }
+        IndexSearcher plain = new IndexSearcher(reader);
+        ContextIndexSearcher searcher = executor == null
+            ? new ContextIndexSearcher(reader, plain.getSimilarity(), plain.getQueryCache(), plain.getQueryCachingPolicy(), false)
+            : new ContextIndexSearcher(
+                reader,
+                plain.getSimilarity(),
+                plain.getQueryCache(),
+                plain.getQueryCachingPolicy(),
+                false,
+                executor,
+                Integer.getInteger("bench.max_slices", searchThreads),
+                1
+            );
+        if (executor instanceof ThreadPoolExecutor pool) {
+            searcher.setIdleThreads(() -> pool.getMaximumPoolSize() - pool.getActiveCount());
+        }
+        searcher.setIvfSlicesEnabled(Boolean.parseBoolean(slices));
+        logger.info(
+            "searching with ContextIndexSearcher, ivf slices: {}, max parallel slices: {}",
+            Boolean.parseBoolean(slices),
+            ContextIndexSearcher.maximumParallelSlices(searcher)
+        );
+        return searcher;
     }
 
     TopDocs doVectorQuery(

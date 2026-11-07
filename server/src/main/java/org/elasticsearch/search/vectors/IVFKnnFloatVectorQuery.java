@@ -15,15 +15,11 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
@@ -32,7 +28,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.LongSupplier;
 
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
@@ -159,37 +154,27 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio,
         boolean usePrecondition
     ) throws IOException {
-        final LeafReader reader = ctx.reader();
-        final Bits liveDocs = reader.getLiveDocs();
-        final int maxDoc = reader.maxDoc();
-        final float[] leafQuery = segmentQuery(ctx, usePrecondition);
-
-        if (filterWeight == null) {
-            return approximateSearch(
-                ctx,
-                liveDocs == null ? new ESAcceptDocs.ESAcceptDocsAll() : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc),
-                Integer.MAX_VALUE,
-                knnCollectorManager,
-                visitRatio,
-                leafQuery
-            );
-        }
-
-        ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
-        if (supplier == null) {
+        AcceptDocs acceptDocs = leafAcceptDocs(ctx, filterWeight);
+        if (acceptDocs == null) {
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
-        // no need to cache iterator as we are calling it once
-        IOSupplier<DocIdSetIterator> docIdIteratorSupplier = () -> supplier.get(Long.MAX_VALUE).iterator();
-        LongSupplier costSupplier = () -> supplier.cost();
-        return approximateSearch(
-            ctx,
-            new ESAcceptDocs.ScorerSupplierAcceptDocs(docIdIteratorSupplier, costSupplier, liveDocs, maxDoc),
-            Integer.MAX_VALUE,
-            knnCollectorManager,
-            visitRatio,
-            leafQuery
-        );
+        return approximateSearch(ctx, acceptDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio, segmentQuery(ctx, usePrecondition));
+    }
+
+    @Override
+    boolean canSplitLeaves() {
+        return getClass() == IVFKnnFloatVectorQuery.class; // subclasses (sliced, nested) search their leaves whole
+    }
+
+    @Override
+    PartSearch partSearch(LeafReaderContext ctx, Weight filterWeight, boolean usePrecondition) throws IOException {
+        float[] leafQuery = segmentQuery(ctx, usePrecondition);
+        return collector -> {
+            AcceptDocs acceptDocs = leafAcceptDocs(ctx, filterWeight);
+            if (acceptDocs != null) {
+                ctx.reader().searchNearestVectors(field, leafQuery, collector, acceptDocs);
+            }
+        };
     }
 
     private TopDocs approximateSearch(

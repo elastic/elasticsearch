@@ -212,6 +212,7 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
+                Executor searchPool = executor;
                 // Always wrap: cache and directory metrics must be collected on worker threads.
                 this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(executor, currentThreadDirectoryMetricsCapture);
                 executor = this.metricsAwareExecutor;
@@ -226,6 +227,9 @@ final class DefaultSearchContext extends SearchContext {
                     maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );
+                if (searchPool instanceof ThreadPoolExecutor tpe) {
+                    this.searcher.setIdleThreads(() -> tpe.getMaximumPoolSize() - tpe.getActiveCount());
+                }
             }
             if (circuitBreaker != null) {
                 this.searcher.setCircuitBreaker(circuitBreaker);

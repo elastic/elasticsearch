@@ -23,9 +23,10 @@ import java.util.Objects;
  * {@link DataType#UNSUPPORTED}. It carries the types its values can have, as legs, in the order
  * {@link TypeConflictedField#unionLegTypes()} fixes.
  * <p>
- * The order is the whole of the contract between the block and the response: the block holds one sub-block per
- * leg in this order, and the response declares these types in this order, so a value's tag names the same type
- * on both sides. Neither side carries the order to the other, because both derive it from the leg types.
+ * The order is the whole of the contract between the block and whatever renders it: the block holds one sub-block per leg in
+ * this order, so a value's tag names a position in this list and nothing else. A renderer has to derive the same order from the
+ * same leg types rather than be handed it, which is what makes the two sides unable to drift. Nothing populates the response's
+ * leg types yet, so that half is a requirement rather than something the tree does.
  * </p>
  * <p>
  * Not aggregatable, like the other multi-type fields: there is no single doc-values type to aggregate over.

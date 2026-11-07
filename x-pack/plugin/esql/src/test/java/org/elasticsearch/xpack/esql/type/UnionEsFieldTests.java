@@ -143,6 +143,15 @@ public class UnionEsFieldTests extends AbstractEsFieldTypeTests<UnionEsField> {
         }
     }
 
+    /**
+     * A union is not sortable, which is a statement about the type rather than about any one plan: two values of different types
+     * have no order between them. For a field the exactness check refuses {@code SORT} first, so this is the gate that will carry
+     * it once a union can be the type of something that is not a field.
+     */
+    public void testAUnionIsNotSortable() {
+        assertFalse(DataType.isSortable(DataType.UNION));
+    }
+
     /** Nothing in the exclusion list may be a leg type: the two halves would then disagree about the same type. */
     public void testTheExclusionListHoldsOnlyNonLegTypes() {
         for (DataType type : NOT_LEG_TYPES_ON_PURPOSE.keySet()) {

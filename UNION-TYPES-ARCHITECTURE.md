@@ -386,9 +386,11 @@ constant time, it answers for an absent value, and it is what Arrow's union call
 
 The leg types in the block are physical, not logical. The block lives in the compute module, which does
 not depend on `esql-core` outside its tests and so cannot name a `DataType` at all. The logical type of
-each leg therefore travels beside the column as the leg order, which the plan and the response agree on,
-and `ColumnInfoImpl.originalTypes` is the field that already carries exactly that list to clients for a
-conflicted column today. So a date stays a date rather than becoming the number it is stored as, but it
+each leg therefore travels beside the column as the leg order, which the plan and the response have to
+derive separately from the same leg types rather than carry to one another.
+`ColumnInfoImpl.originalTypes` is the field that already carries exactly that list to clients for a
+conflicted column, though only for an unsupported one: nothing populates it for a union column yet, so
+the response half of that agreement is a requirement rather than something the tree does. So a date stays a date rather than becoming the number it is stored as, but it
 does so because leg two is declared a date and the value is tagged two, not because the block holds the
 word "date". Two legs may share an element type while differing logically, which is why a leg is
 addressed by index and never by its element type.
@@ -449,6 +451,23 @@ mechanism: a single NDJSON row holding a mixed-type array is folded inside the f
 inferrer, below the per-file granularity both designs work at.
 
 ## What's unsettled
+
+The response is not yet told the leg types. `ColumnInfoImpl.originalTypes` is populated only for an
+`UnsupportedAttribute`, in `TransportEsqlQueryAction` and `TransportEsqlStreamQueryAction`, so a union
+column arrives at the renderer with no leg list and the render path refuses it. The leg order is a
+function of the leg types precisely so that filling this in cannot introduce a disagreement, but until it
+is filled in, nothing renders.
+
+A union cannot cross a merge, and the reason is where the union is created. `MergePlan` fixes its output
+attributes in its constructor, during resolution, while a type conflict only becomes a union in
+`UnionTypesCleanup`, after resolution has finished. So a `FORK` whose branches produce a union would carry
+an output column still typed `UNSUPPORTED`, which renders as null rather than as an error. The same
+late-retype shape is why `SORT` over a union reported "Unknown column" before the type was gated: the
+verifier's suppression of a stale unresolved attribute stops applying once cleanup makes its parent
+resolved. Both are refused for now. Lifting either means creating the union where the attribute is born,
+in `Analyzer.mappingAsAttributes`, rather than at the end; the obstacle is that `ResolveUnionTypes` needs
+the `TypeConflictedField` to build the per-type conversions a cast uses, and that field cannot be carried
+inside a `UnionEsField` because it has no entry in `EsField.readers` and so cannot serialize at all.
 
 Pushdown works, with one condition we control and one we don't. There is a dedicated branch for this:
 `if (attr.field() instanceof UnionTypeEsField) { FieldName name = new FieldName(attr.name()); return

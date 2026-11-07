@@ -908,7 +908,9 @@ public enum DataType implements Writeable {
             || t == FLATTENED
             || t == HISTOGRAM
             || t == TIME_DURATION
-            || t == TSID_DATA_TYPE);
+            || t == TSID_DATA_TYPE
+            // Two values of different types have no order between them, so a union column has none.
+            || t == UNION);
     }
 
     public String nameUpper() {

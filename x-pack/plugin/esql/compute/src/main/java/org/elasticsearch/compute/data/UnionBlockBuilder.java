@@ -110,7 +110,8 @@ public final class UnionBlockBuilder extends AbstractDelegatingCompoundBlock.Abs
 
     /**
      * Whether a leg can hold values of this element type. The declared leg types are checked against this at construction, so
-     * {@link #appendValue} never has to refuse one, and the logical side asks this before it offers a field as a union.
+     * {@link #appendValue} never has to refuse one. The logical layer keeps its own list of the types it will offer as legs, in
+     * another module that cannot call this; a test is what holds the two lists together.
      * <p>
      * {@link ElementType#NULL} is not among them even though a leg's own block may be a {@link ConstantNullBlock}: that is a leg
      * which happens to hold no values, whereas a leg declared {@code NULL} could never hold one.

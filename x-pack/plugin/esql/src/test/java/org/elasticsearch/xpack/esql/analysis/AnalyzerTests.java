@@ -5673,7 +5673,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * With the pragma on the same conflict becomes a union-typed field whose legs are its types in the canonical order, which is
-     * what the block and the response both derive their leg order from.
+     * the order the block lays its sub-blocks out in and the order a renderer has to derive for itself.
      */
     public void testATypeConflictBecomesAUnionUnderThePragma() {
         FieldAttribute id = as(analyzedIdAttribute(unionTypedAnalyzer(), "keyword", "long"), FieldAttribute.class);
@@ -5699,6 +5699,22 @@ public class AnalyzerTests extends AnalyzerTestCase {
         List<Attribute> output = plan.output();
         assertThat(output, hasSize(1));
         return output.getFirst();
+    }
+
+    /**
+     * The two things a union is refused for. {@code SORT} is in the design's own refusal list, because values of different types
+     * have no order between them, and it is decided by {@link DataType#isSortable} rather than by anything about the field. The
+     * merge case is not a design decision but a consequence of where the union is created; the comment below says why.
+     */
+    public void testCommandsThatCannotWorkOnAUnionAreRefused() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        analyzer.error("FROM union_index* | SORT id", containsString("cannot sort on union"));
+        // A merge fixes its output attributes when the node is built, during resolution, and the conflict only becomes a union
+        // after resolution has finished, so the merge's own attribute would keep the unsupported type the conflict had then.
+        analyzer.error(
+            "FROM union_index* | FORK (WHERE id IS NOT NULL) (LIMIT 1) | KEEP id",
+            containsString("Column [id] holds more than one type, which cannot be used across subqueries")
+        );
     }
 
     private TestAnalyzer unionTypedAnalyzer() {

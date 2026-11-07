@@ -257,9 +257,12 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
     /**
-     * When {@code true}, a field whose indices disagree on its type becomes a union-typed field rather than an unsupported one,
-     * so the query can read it. Off while the union type is being built: with it off nothing produces a union, and every path
-     * that handles one is unreachable.
+     * When {@code true}, a field whose indices disagree on its type becomes a union-typed field rather than an unsupported one.
+     * <p>
+     * A switch for building the union type, not a usable feature: with it off nothing produces a union and every path that
+     * handles one is unreachable, and with it on no field loader produces a union block yet, so reading such a field fails on the
+     * data node. The commands that cannot work on a union are refused by the verifier, which is what this is useful for so far.
+     * </p>
      */
     public static final Setting<Boolean> UNION_TYPED_FIELDS = Setting.boolSetting("union_typed_fields", false);
 

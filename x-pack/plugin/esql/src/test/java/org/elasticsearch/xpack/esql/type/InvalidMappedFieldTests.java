@@ -12,11 +12,14 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMappedField> {
     static InvalidMappedField randomInvalidMappedField(int maxPropertiesDepth) {
@@ -114,17 +117,38 @@ public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMap
 
     /** The order does not depend on the order the types were discovered in. */
     public void testUnionLegTypeOrderIsIndependentOfDiscoveryOrder() {
-        Map<String, Set<String>> forward = new TreeMap<>(Map.of("long", Set.of("a"), "keyword", Set.of("b"), "boolean", Set.of("c")));
-        List<DataType> fromForward = new InvalidMappedField("flow", forward).unionLegTypes();
-        List<DataType> fromReversed = new InvalidMappedField("flow", new java.util.LinkedHashMap<>() {
-            {
-                put("long", Set.of("a"));
-                put("keyword", Set.of("b"));
-                put("boolean", Set.of("c"));
-            }
-        }).unionLegTypes();
-        assertEquals(fromForward, fromReversed);
-        assertEquals(List.of(DataType.BOOLEAN, DataType.KEYWORD, DataType.LONG), fromForward);
+        // A TreeMap iterates boolean, keyword, long; the LinkedHashMap below iterates long, keyword, boolean.
+        Map<String, Set<String>> sorted = new TreeMap<>(Map.of("long", Set.of("a"), "keyword", Set.of("b"), "boolean", Set.of("c")));
+        Map<String, Set<String>> insertionOrdered = new LinkedHashMap<>();
+        insertionOrdered.put("long", Set.of("a"));
+        insertionOrdered.put("keyword", Set.of("b"));
+        insertionOrdered.put("boolean", Set.of("c"));
+
+        List<DataType> fromSorted = new InvalidMappedField("flow", sorted).unionLegTypes();
+        assertEquals(fromSorted, new InvalidMappedField("flow", insertionOrdered).unionLegTypes());
+        assertEquals(List.of(DataType.BOOLEAN, DataType.KEYWORD, DataType.LONG), fromSorted);
+    }
+
+    /**
+     * A field unmapped in some of its indices gets a keyword leg for what those indices load from {@code _source}. Without it a
+     * value loaded there would have no leg to go in, and the error message for the same field already counts that type.
+     */
+    public void testAPotentiallyUnmappedConflictGetsAKeywordLeg() {
+        InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(
+            "flow",
+            new TreeMap<>(Map.of("ip", Set.of("index-1"), "long", Set.of("index-2")))
+        );
+        assertEquals(List.of(DataType.IP, DataType.KEYWORD, DataType.LONG), field.unionLegTypes());
+        assertThat(field.errorMessage(), containsString("[keyword] due to loading from _source"));
+    }
+
+    /** The keyword leg is declared once, not twice, when the field is also mapped as a keyword somewhere. */
+    public void testTheUnmappedKeywordLegIsNotDuplicated() {
+        InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(
+            "flow",
+            new TreeMap<>(Map.of("keyword", Set.of("index-1"), "long", Set.of("index-2")))
+        );
+        assertEquals(List.of(DataType.KEYWORD, DataType.LONG), field.unionLegTypes());
     }
 
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -217,6 +218,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * {@link #escapeRanks()} makes bounded work by recording how many came before every
      * {@link #escapeRankBlockSize()} values.
      *
+     * <p>{@link #fingerprint()} names the dictionary's terms in ordinal order, so a reader can tell that two segments
+     * share a dictionary without reading either. It is null only for a column written before
+     * {@link FormatVersion#DICTIONARY_FINGERPRINT}.
+     *
      * <p>Two ordinals are reserved. {@link #NULL_ORDINAL} names a null, so the {@link #dictionarySize()} terms
      * take the ordinals from {@link #FIRST_TERM_ORDINAL} up, and {@link #escapeOrdinal()} — the first ordinal
      * past them — marks a value the dictionary does not hold. Naming a null rather than tabling it keeps this
@@ -244,6 +249,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         int escapeRankBlockSize,
         int dictionarySize,
         boolean valuesSorted,
+        @Nullable DictionaryFingerprint fingerprint,
         Summary summary
     ) implements StringColumnMetadata {
 
@@ -286,6 +292,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 escapeRankBlockSize,
                 dictionarySize,
                 valuesSorted,
+                fingerprint,
                 summary
             );
         }
@@ -300,6 +307,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 out.writeVInt(escapeRankBlockSize);
                 writeTable(out, escapeRanks);
             }
+            // Only a column read from a version before the fingerprint has none, and those are never written again.
+            assert fingerprint != null : "a dictionary column is written with its fingerprint";
+            fingerprint.writeTo(out);
         }
     }
 
@@ -353,7 +363,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         MonotonicWriter.Table escapeRanks,
         int escapeRankBlockSize,
         int dictionarySize,
-        boolean valuesSorted
+        boolean valuesSorted,
+        @Nullable DictionaryFingerprint fingerprint
     ) {
         return new Dictionary(
             iterator,
@@ -371,6 +382,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             escapeRankBlockSize,
             dictionarySize,
             valuesSorted,
+            fingerprint,
             null
         );
     }
@@ -465,6 +477,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 final ValueStream.Metadata escapes = ValueStream.Metadata.readFrom(in);
                 final int escapeRankBlockSize = escapes.numValues() > 0 ? in.readVInt() : 0;
                 final MonotonicWriter.Table escapeRanks = escapes.numValues() > 0 ? readTable(in) : MonotonicWriter.Table.NONE;
+                final DictionaryFingerprint fingerprint = formatVersion.onOrAfter(FormatVersion.DICTIONARY_FINGERPRINT)
+                    ? DictionaryFingerprint.readFrom(in)
+                    : null;
                 yield dictionary(
                     iterator,
                     numDocsWithField,
@@ -480,7 +495,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     escapeRanks,
                     escapeRankBlockSize,
                     dictionarySize,
-                    valuesSorted
+                    valuesSorted,
+                    fingerprint
                 );
             }
         };

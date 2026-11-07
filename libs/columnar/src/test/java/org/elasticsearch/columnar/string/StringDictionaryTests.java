@@ -364,7 +364,45 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             assertEquals("ordinals", dictionaryOf(metadata).ordinals().numValues(), dictionaryOf(read).ordinals().numValues());
             assertEquals("numValues", metadata.numValues(), read.numValues());
             assertEquals("escapes", dictionaryOf(metadata).escapes().numValues(), dictionaryOf(read).escapes().numValues());
+            assertEquals("fingerprint", dictionaryOf(metadata).fingerprint(), dictionaryOf(read).fingerprint());
         });
+    }
+
+    /**
+     * The fingerprint names the dictionary and nothing else about the column, so columns holding the same terms share it
+     * however many documents they have and in whatever order, and a column with one more term does not.
+     */
+    public void testTheSameTermsGiveTheSameFingerprint() throws IOException {
+        final String[] terms = { "DEBUG", "ERROR", "INFO", "TRACE", "WARN" };
+        final DictionaryFingerprint first = fingerprintOf(repeated(terms, between(500, 3000)));
+        final List<String> shuffled = new ArrayList<>(List.of(terms));
+        Collections.shuffle(shuffled, random());
+        assertEquals(first, fingerprintOf(repeated(shuffled.toArray(String[]::new), between(500, 3000))));
+
+        final String[] more = Arrays.copyOf(terms, terms.length + 1);
+        more[terms.length] = "FATAL";
+        assertNotEquals("one more term", first, fingerprintOf(repeated(more, between(500, 3000))));
+        // The same bytes, split between the terms differently.
+        assertNotEquals(fingerprintOf(repeated(new String[] { "ab", "c" }, 600)), fingerprintOf(repeated(new String[] { "a", "bc" }, 600)));
+    }
+
+    private static BytesRef[] repeated(String[] terms, int numDocs) {
+        final BytesRef[] docValues = new BytesRef[numDocs];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef(terms[d % terms.length]);
+        }
+        return docValues;
+    }
+
+    private DictionaryFingerprint fingerprintOf(BytesRef[] docValues) throws IOException {
+        final DictionaryFingerprint[] fingerprint = new DictionaryFingerprint[1];
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            fingerprint[0] = dictionaryOf(metadata).fingerprint();
+            assertNotNull("a dictionary column records its fingerprint", fingerprint[0]);
+            assertEquals("the reader hands it over", fingerprint[0], reader.dictionaryFingerprint());
+        });
+        return fingerprint[0];
     }
 
     /** The same, over a column that escaped values, so the rank table is written and read too. */

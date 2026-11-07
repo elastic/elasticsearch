@@ -46,8 +46,11 @@ public record FormatVersion(int version) {
     /** First shipped format: numeric long/double columns, adaptive pipeline, multi-level skip index. */
     public static final FormatVersion BASELINE = new FormatVersion(0);
 
-    /** Equals {@link #BASELINE} until the first format bump; update this when a new layout version ships. */
-    public static final FormatVersion CURRENT = BASELINE;
+    /** A dictionary string column records the {@code DictionaryFingerprint} of its dictionary. */
+    public static final FormatVersion DICTIONARY_FINGERPRINT = new FormatVersion(1);
+
+    /** The version this build writes; update this when a new layout version ships. */
+    public static final FormatVersion CURRENT = DICTIONARY_FINGERPRINT;
 
     public FormatVersion {
         if (version < 0) {

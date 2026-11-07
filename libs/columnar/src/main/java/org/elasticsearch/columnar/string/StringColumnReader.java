@@ -22,6 +22,7 @@ import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -323,6 +324,16 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /** How many terms the dictionary holds, or zero on a column that stores its values. */
     public int dictionarySize() {
         return 0;
+    }
+
+    /**
+     * The fingerprint of the dictionary, or null on a column that stores its values or that was written before the
+     * fingerprint was recorded. Equal fingerprints mean equal dictionaries, so the same dense ordinal names the same term
+     * in either column.
+     */
+    @Nullable
+    public DictionaryFingerprint dictionaryFingerprint() {
+        return null;
     }
 
     /**

@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.DictionaryFingerprint;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
@@ -40,12 +41,17 @@ import java.util.function.LongConsumer;
  *
  * <p>The cache holds buckets of one owning bucket ordinal, zero. A document collected for another owning bucket goes to
  * the per-document collector.
+ *
+ * <p>A segment whose dictionary has the {@link DictionaryFingerprint} of the segment collected before it keeps the cache
+ * that segment filled. The buckets belong to the aggregator rather than to a segment, and equal fingerprints mean the
+ * same ordinal names the same term, so every bucket found there is still the bucket of its ordinal here.
  */
 final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
 
     /**
-     * The largest dictionary the cache covers. The cache is cleared for each segment, so the cost of a segment grows
-     * with the dictionary and not with the documents that match. Past this size, the cost of clearing it can be more
+     * The largest dictionary the cache covers. The cache is cleared for each segment that does not share the dictionary
+     * of the segment before it, so the cost of such a segment grows with the dictionary and not with the documents that
+     * match. Past this size, the cost of clearing it can be more
      * than the hashing it saves.
      *
      * <p>This number is an estimate, not a measurement. It was chosen as a round, conservative size. The benchmark covers
@@ -59,18 +65,36 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
 
     /**
      * The bucket of each ordinal for the segment being collected. One instance serves all the segments of an
-     * aggregator, so the memory it takes does not add up over the segments.
+     * aggregator, so the memory it takes does not add up over the segments. It must not be shared between aggregators,
+     * since what it keeps across segments are one aggregator's buckets.
      */
     static final class OrdinalBuckets {
         private long[] buckets = new long[0];
+        /** The dictionary the cache holds the buckets of, or null when it holds none that a later segment can use. */
+        @Nullable
+        private DictionaryFingerprint dictionary;
 
         /** Clears the cache for a segment with a dictionary of {@code size} terms, charging the breaker for growth. */
         long[] reset(int size, LongConsumer addRequestCircuitBreakerBytes) {
+            return reset(size, null, addRequestCircuitBreakerBytes);
+        }
+
+        /**
+         * Readies the cache for a segment with a dictionary of {@code size} terms named by {@code fingerprint}. When the
+         * previous segment had the same dictionary, its buckets are kept; otherwise the cache is cleared, charging the
+         * breaker for growth. A null fingerprint is never the same as another.
+         */
+        long[] reset(int size, @Nullable DictionaryFingerprint fingerprint, LongConsumer addRequestCircuitBreakerBytes) {
+            if (fingerprint != null && fingerprint.equals(dictionary)) {
+                assert buckets.length >= size : "same dictionary, but the cache holds " + buckets.length + " of " + size;
+                return buckets;
+            }
             if (buckets.length < size) {
                 addRequestCircuitBreakerBytes.accept((long) (size - buckets.length) * Long.BYTES);
                 buckets = new long[size];
             }
             Arrays.fill(buckets, 0, size, UNSEEN);
+            dictionary = fingerprint;
             return buckets;
         }
     }
@@ -97,7 +121,11 @@ final class ColumnarOrdinalTermsCollector extends LeafBucketCollectorBase {
         }
         final int dictionarySize = source.reader().dictionarySize();
         if (source.reader().hasDictionary() && dictionarySize <= MAX_DICTIONARY_SIZE) {
-            final long[] buckets = ordinalBuckets.reset(dictionarySize, addRequestCircuitBreakerBytes);
+            final long[] buckets = ordinalBuckets.reset(
+                dictionarySize,
+                source.reader().dictionaryFingerprint(),
+                addRequestCircuitBreakerBytes
+            );
             return new ColumnarOrdinalTermsCollector(
                 values,
                 (BinaryDocValues) source,

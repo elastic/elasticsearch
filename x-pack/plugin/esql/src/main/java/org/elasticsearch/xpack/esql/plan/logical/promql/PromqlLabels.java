@@ -35,7 +35,11 @@ public final class PromqlLabels {
      * name, with the {@code labels.} passthrough prefix stripped so {@code labels.pod} and a bare {@code pod} compare equal.
      */
     public static String labelName(Attribute attribute) {
-        String name = attribute instanceof FieldAttribute field ? field.fieldName().string() : attribute.name();
+        return labelName(attribute instanceof FieldAttribute field ? field.fieldName().string() : attribute.name());
+    }
+
+    /** Canonical label name for a mapped source field. */
+    public static String labelName(String name) {
         return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
     }
 }

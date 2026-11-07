@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -307,7 +308,7 @@ public class RemoteClusterSecurityEsqlExternalSourceIT extends AbstractRemoteClu
         List<ExternalSplit> splits = List.of(
             new FileSplit("csv", StoragePath.of("s3://attacker/whatever/rows.csv"), 0, 10, "csv", Map.of(), Map.of())
         );
-        return exec.withDatasetName(dataset).withSplits(splits);
+        return exec.withDatasetReference(new DatasetReference.Named(dataset)).withSplits(splits);
     }
 
     private static Configuration configuration() {

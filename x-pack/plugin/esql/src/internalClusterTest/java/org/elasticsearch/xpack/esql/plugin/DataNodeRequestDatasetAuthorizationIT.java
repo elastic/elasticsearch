@@ -364,6 +364,16 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
         assertThat(refusal.getMessage(), containsString("local to the cluster that registered them"));
     }
 
+    /**
+     * The same for a plan carrying the definition rather than a name. Nothing about the refusal depends on the arm —
+     * it fires on the presence of an external source at all — but nothing else exercises that, and an arm added
+     * later to {@code ExternalSourceDatasets} without this would open the cross-cluster door silently.
+     */
+    public void testCrossClusterAccessAuthenticationIsRefusedForACarriedDefinition() throws Exception {
+        Outcome outcome = send(crossClusterAccessAuthentication(), externalRequest(inlineExec(fileA)));
+        assertThat(outcome.refusal().getMessage(), containsString("local to the cluster that registered them"));
+    }
+
     public void testMalformedDatasetNamesAreRefused() throws Exception {
         for (String name : List.of("", "*", "-" + DATASET_A, DATASET_A + ",*", "remote:" + DATASET_A)) {
             assertRefused(sendExternal(READER, exec(name, fileA)), name);

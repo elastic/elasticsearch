@@ -438,11 +438,7 @@ public class DatasetConfigResolverTests extends ESTestCase {
     public void testRebindInlineRefusesADataSourceEditedWhilePlanning() {
         ProjectMetadata planned = project(dataSource(Map.of("endpoint", "https://one")), dataset(Map.of()));
         ProjectMetadata edited = project(dataSource(Map.of("endpoint", "https://two")), dataset(Map.of()));
-        Map<String, Object> planConfig = DatasetRewriter.datasetConfig(
-            DataSourceMetadata.get(planned).get(PARENT),
-            inlineDataset(),
-            null
-        );
+        Map<String, Object> planConfig = DatasetRewriter.datasetConfig(DataSourceMetadata.get(planned).get(PARENT), inlineDataset(), null);
 
         assertRegisteredInlineConfig(inlineResolver(planned).rebind(inlineExec(planConfig, inlineDefinition())), planned);
         ElasticsearchStatusException e = expectThrows(

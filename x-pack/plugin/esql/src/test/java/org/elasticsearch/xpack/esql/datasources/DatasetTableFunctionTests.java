@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * What {@code DATASET(...)} accepts and refuses before anything is authorized or bound. The binding itself is
- * covered where the validator is ({@code InlineDatasetDefinitionValidationTests}) and where the node-side rebind is
+ * covered where the validator is ({@code InlineDefinitionValidationParityTests}) and where the node-side rebind is
  * ({@link DatasetConfigResolverTests}); nothing here needs a cluster.
  */
 public class DatasetTableFunctionTests extends ESTestCase {

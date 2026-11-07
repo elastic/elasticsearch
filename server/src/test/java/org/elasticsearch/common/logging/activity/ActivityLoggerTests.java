@@ -18,8 +18,15 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -107,6 +114,57 @@ public class ActivityLoggerTests extends ESTestCase {
 
         assertThat(wrapped, sameInstance(listener));
         verifyNoInteractions(builder);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFollowersAreCalledWhenLoggingIsDisabled() {
+        TestContext context = new TestContext(100);
+        ActivityLoggerContextBuilder<TestContext, String, String> builder = mock(ActivityLoggerContextBuilder.class);
+        when(builder.build("response")).thenReturn(context);
+        List<TestContext> followed = new ArrayList<>();
+        AtomicReference<String> response = new AtomicReference<>();
+
+        ActionListener<String> wrapped = actionLogger.wrap(
+            ActionListener.wrap(response::set, e -> fail("the action did not fail")),
+            builder,
+            List.of(followed::add)
+        );
+        wrapped.onResponse("response");
+
+        assertThat(followed, contains(context));
+        assertThat(response.get(), equalTo("response"));
+        verifyNoInteractions(writer);
+    }
+
+    public void testFollowersAreCalledWhateverTheThreshold() {
+        actionLogger.enabled = true;
+        actionLogger.threshold = TimeValue.timeValueMillis(100).nanos();
+        TestContext context = new TestContext(TimeValue.timeValueMillis(50).nanos());
+        List<TestContext> followed = new ArrayList<>();
+
+        actionLogger.logAction(context, List.of(followed::add));
+
+        assertThat(followed, contains(context));
+        verifyNoInteractions(writer);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFailingFollowerDoesNotFailTheAction() {
+        ActivityLoggerContextBuilder<TestContext, String, String> builder = mock(ActivityLoggerContextBuilder.class);
+        when(builder.build("response")).thenReturn(new TestContext(100));
+        List<TestContext> followed = new ArrayList<>();
+        AtomicReference<String> response = new AtomicReference<>();
+        Consumer<TestContext> failing = context -> { throw new IllegalStateException("a listener that fails"); };
+
+        ActionListener<String> wrapped = actionLogger.wrap(
+            ActionListener.wrap(response::set, e -> fail("the action did not fail")),
+            builder,
+            List.of(failing, followed::add)
+        );
+        wrapped.onResponse("response");
+
+        assertThat("the next follower is still called", followed, hasSize(1));
+        assertThat("and so is the caller", response.get(), equalTo("response"));
     }
 
     private static class TestContext extends ActivityLoggerContext {

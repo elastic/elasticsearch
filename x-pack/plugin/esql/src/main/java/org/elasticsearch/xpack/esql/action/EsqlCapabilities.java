@@ -4696,6 +4696,11 @@ public class EsqlCapabilities {
         METRICS_INFO_FIELD_PRESENCE,
 
         /**
+         * {@code LOOKUP JOIN _coordinator:<index>}, on the coordinating node.
+         */
+        LOOKUP_JOIN_ON_COORDINATOR,
+
+        /**
          * Each shard resolves a field the plan reads that some shards may not map to what it holds, and runs a filter pushed to it
          * where it can query that field, or matches every document for the filter to check.
          */

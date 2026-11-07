@@ -8,16 +8,20 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.generator.Column;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Tests the predicates that classify known generative-test failures as allowed failures,
  * and the schema-propagation helpers used by the generative pipeline.
  */
 public class GenerativeRestTestTests extends ESTestCase {
+
+    private static final String LOOKUP_JOIN_ON_COORDINATOR = EsqlCapabilities.Cap.LOOKUP_JOIN_ON_COORDINATOR.capabilityName();
 
     public void testFullTextAfterSubqueryMatchesLimitInsideSubquery() {
         String query = "FROM books, (FROM books | LIMIT 1) | WHERE match(title, \"quick\")";
@@ -527,6 +531,38 @@ public class GenerativeRestTestTests extends ESTestCase {
     public void testInjectedUnmappedFieldWithoutUnmappedFieldsColumnIsNotAllowed() {
         String query = "SET unmapped_fields=\"load_all\";from employees | keep emp_no | drop unmapped_field_foo";
         assertFalse(allowsUnknownUnmappedFields(unknownColumn(query, "unmapped_field_foo", "unmapped_field_foo"), query));
+    }
+
+    public void testCapabilityAddedAfterItsFeatureIsSupportedFromTheVersionTheFeatureShippedIn() {
+        assertTrue(supportedByVersion(LOOKUP_JOIN_ON_COORDINATOR, Set.of("9.6.0")));
+        assertTrue(supportedByVersion(LOOKUP_JOIN_ON_COORDINATOR, Set.of("9.6.0-SNAPSHOT")));
+        assertTrue(supportedByVersion(LOOKUP_JOIN_ON_COORDINATOR, Set.of("9.7.1")));
+    }
+
+    public void testCapabilityAddedAfterItsFeatureIsNotSupportedBeforeTheVersionTheFeatureShippedIn() {
+        assertFalse(supportedByVersion(LOOKUP_JOIN_ON_COORDINATOR, Set.of("9.5.6")));
+    }
+
+    public void testCapabilityAddedAfterItsFeatureRequiresEveryNodeToHaveTheFeature() {
+        assertFalse(supportedByVersion(LOOKUP_JOIN_ON_COORDINATOR, Set.of("9.6.0", "9.5.6")));
+    }
+
+    public void testCapabilityAddedAfterItsFeatureIsNotSupportedByNonSemanticVersions() {
+        assertFalse(supportedByVersion(LOOKUP_JOIN_ON_COORDINATOR, Set.of("serverless")));
+    }
+
+    public void testCapabilityAddedAfterItsFeatureIsNotSupportedWithoutNodeVersions() {
+        assertFalse(supportedByVersion(LOOKUP_JOIN_ON_COORDINATOR, Set.of()));
+    }
+
+    public void testOtherCapabilitiesAreNeverSupportedByVersion() {
+        assertFalse(
+            supportedByVersion(EsqlCapabilities.Cap.FIX_ROUND_TO_PUSHDOWN_SINGLE_POINT_NULL_BUCKET.capabilityName(), Set.of("9.7.0"))
+        );
+    }
+
+    private static boolean supportedByVersion(String capability, Set<String> nodeVersions) {
+        return GenerativeRestTest.featureShippedBeforeItsCapability(capability, nodeVersions);
     }
 
     private static boolean allowsUnknownUnmappedFields(String error, String query) {

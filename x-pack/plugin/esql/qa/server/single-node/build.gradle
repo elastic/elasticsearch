@@ -149,16 +149,15 @@ tasks.named('javaRestTest') {
   }
 }
 
-// Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes this by name.
-tasks.register('generativeTests', StandaloneRestIntegTestTask) {
-  usesDefaultDistribution("to be triaged")
-  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
-  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-  classpath = sourceSets.javaRestTest.runtimeClasspath
-  filter {
+ext.generativeTestsConfig = { StandaloneRestIntegTestTask task ->
+  task.jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  task.testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  task.classpath = sourceSets.javaRestTest.runtimeClasspath
+  task.filter {
     includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT'
   }
 }
+apply from: serverProject.file('generative-tests.gradle')
 
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")

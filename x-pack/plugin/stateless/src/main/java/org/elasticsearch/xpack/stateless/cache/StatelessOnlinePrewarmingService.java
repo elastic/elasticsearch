@@ -247,6 +247,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                             }
                         }),
                         timestampMillis,
+                        false,
                         ActionListener.runAfter(refs.acquire().map(b -> null), store::decRef)
                     );
                 }

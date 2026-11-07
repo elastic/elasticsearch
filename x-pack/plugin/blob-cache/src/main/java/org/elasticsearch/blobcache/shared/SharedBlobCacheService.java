@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -692,7 +693,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 return;
             }
             final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region, timestampMillis);
-            entry.populate(regionRange, writer, fetchExecutor, listener);
+            entry.populate(regionRange, writer, fetchExecutor, false, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -714,6 +715,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param writer           a writer that handles writing of newly downloaded data to the shared cache
      * @param fetchExecutor    an executor to use for reading from the blob store
      * @param timestampMillis  representative data timestamp to stamp on the cache region
+     * @param awaitPendingFill when {@code true} and the range is pending fetching via another thread, the listener is not completed until
+     *                         that other thread is done. See {@link CacheFileRegion#populate} for the effect on the listener contract.
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
      *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
      *                         if the range to write is already available in cache, if the range is pending fetching via another thread or
@@ -727,9 +730,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final RangeMissingHandler writer,
         final Executor fetchExecutor,
         final long timestampMillis,
+        final boolean awaitPendingFill,
         final ActionListener<Boolean> listener
     ) {
-        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, false, timestampMillis, listener);
+        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, false, timestampMillis, awaitPendingFill, listener);
     }
 
     /**
@@ -753,6 +757,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param force            flag indicating whether the cache should free an occupied region to accommodate the requested
      *                         range when none are free.
      * @param timestampMillis  representative data timestamp to stamp on the cache region
+     * @param awaitPendingFill when {@code true} and the range is pending fetching via another thread, the listener is not completed until
+     *                         that other thread is done. See {@link CacheFileRegion#populate} for the effect on the listener contract.
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
      *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
      *                         if the range to write is already available in cache, if the range is pending fetching via another thread or
@@ -767,6 +773,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final Executor fetchExecutor,
         final boolean force,
         final long timestampMillis,
+        final boolean awaitPendingFill,
         final ActionListener<Boolean> listener
     ) {
         if (force == false && freeRegions.isEmpty()) {
@@ -794,6 +801,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 regionRange,
                 writerWithOffset(writer, Math.toIntExact(range.start() - getRegionStart(region))),
                 fetchExecutor,
+                awaitPendingFill,
                 listener
             );
         } catch (Exception e) {
@@ -1414,16 +1422,22 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * @param rangeToWrite the range of bytes to populate
          * @param writer a writer that handles writing of newly downloaded data to the shared cache
          * @param executor the executor used to download and to write new data
-         * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of the
-         *                 range, in which case the listener is completed once writing is done. The listener is completed with {@code false}
-         *                 if the range to write is already available in cache or if another thread will download and write the range. The
-         *                 listener may be invoked on the current thread, and executor thread or another executor thread used by another
-         *                 caller.
+         * @param awaitPendingFill when {@code true}, the listener is not completed until every byte of the range is resident in cache,
+         *                         including bytes that another caller is downloading and writing. Use this when the caller must not report
+         *                         success for bytes that are not resident in cache yet.
+         * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of (part
+         *                 of) the range, and with {@code false} if the range is already available in cache or another caller is downloading
+         *                 and writing all of it. Without {@code awaitPendingFill}, {@code false} says nothing about whether the range is
+         *                 resident and {@code true} only covers the gaps this caller wrote. With {@code awaitPendingFill}, either value is
+         *                 delivered only once the whole range is resident, and a failed download or write anywhere in the range, by this
+         *                 or another caller, completes the listener with that exception instead. The listener may be invoked on the current
+         *                 thread, an executor thread or another executor thread used by another caller.
          */
         void populate(
             final ByteRange rangeToWrite,
             final RangeMissingHandler writer,
             final Executor executor,
+            final boolean awaitPendingFill,
             final ActionListener<Boolean> listener
         ) {
             if (rangeToWrite.isEmpty()) {
@@ -1433,15 +1447,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             try {
                 incRefEnsureOpen();
                 try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
+                    final SubscribableListener<Void> rangeAvailable = awaitPendingFill ? new SubscribableListener<>() : null;
+                    ActionListener<Void> trackerListener = rangeAvailable != null ? rangeAvailable : ActionListener.noop();
+                    if (Assertions.ENABLED) {
+                        trackerListener = ActionListener.runBefore(
+                            trackerListener,
+                            () -> { assert blobCacheService.regionOwners.get(nonVolatileIO()) == this; }
+                        );
+                    }
                     final var gapsOpt = tracker.waitForRange(
                         rangeToWrite,
                         rangeToWrite,
-                        Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                            assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
-                        }), refs.acquire()) : refs.acquireListener()
+                        ActionListener.releaseAfter(trackerListener, refs.acquire())
                     );
                     if (gapsOpt.isEmpty()) {
-                        listener.onResponse(false);
+                        completePopulateWithFetchedBoolean(rangeAvailable, listener, false);
                         return;
                     }
                     executor.execute(new AbstractRunnable() {
@@ -1451,7 +1471,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         protected void doRun() {
                             final List<SparseFileTracker.Gap> gaps = gapsOpt.get().claim();
                             if (gaps.isEmpty()) {
-                                listener.onResponse(false);
+                                completePopulateWithFetchedBoolean(rangeAvailable, listener, false);
                                 return;
                             }
                             final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
@@ -1462,9 +1482,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     streamFactory == null ? "without" : "with"
                                 )
                             );
+                            final ActionListener<Void> ownGapsDoneListener = listener.delegateFailure(
+                                (l, unused) -> completePopulateWithFetchedBoolean(rangeAvailable, l, true)
+                            );
                             final ActionListener<Void> gapsDoneListener = streamFactory != null
-                                ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
-                                : listener.map(unused -> true);
+                                ? ActionListener.releaseBefore(streamFactory, ownGapsDoneListener)
+                                : ownGapsDoneListener;
                             try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
                                 // Use current thread to fill the gaps in order
                                 for (SparseFileTracker.Gap gap : gaps) {
@@ -1491,6 +1514,18 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             } catch (Exception e) {
                 listener.onFailure(e);
+            }
+        }
+
+        private static void completePopulateWithFetchedBoolean(
+            @Nullable SubscribableListener<Void> rangeAvailable,
+            ActionListener<Boolean> listener,
+            boolean fetched
+        ) {
+            if (rangeAvailable == null) {
+                listener.onResponse(fetched);
+            } else {
+                rangeAvailable.addListener(listener.map(ignored -> fetched));
             }
         }
 

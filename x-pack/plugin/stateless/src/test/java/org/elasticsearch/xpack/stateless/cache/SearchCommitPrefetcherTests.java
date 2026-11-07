@@ -333,6 +333,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                     Executor fetchExecutor,
                     boolean force,
                     long timestampMillis,
+                    boolean awaitPendingFill,
                     ActionListener<Boolean> listener
                 ) {
                     // Capture the timestamp the prefetcher passes per region instead of populating a real region.

@@ -237,6 +237,48 @@ public class FieldPermissionsTests extends ESTestCase {
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out3.bytes())), is(true));
     }
 
+    /**
+     * A flattened field is partially granted when the role grants something at or below it but not every path below it. Patterns keep
+     * their object-like meaning, so naming the field alone grants no key.
+     */
+    public void testPartiallyGrantsFlattenedField() {
+        String field = randomAlphaOfLength(5);
+        String nested = randomAlphaOfLength(5) + "." + field;
+        assertPartiallyGrants(true, field, new String[] { "*" }, new String[] { field + ".secret" });
+        assertPartiallyGrants(true, field, new String[] { "name", field + ".env" }, null);
+        assertPartiallyGrants(true, field, new String[] { "name", field }, null);
+        assertPartiallyGrants(true, field, new String[] { "*" }, new String[] { field + ".*" });
+        assertPartiallyGrants(true, nested, new String[] { "*" }, new String[] { nested + ".secret" });
+        assertPartiallyGrants(false, field, new String[] { "name", field, field + ".*" }, null);
+        assertPartiallyGrants(false, field, new String[] { "name", field + ".*" }, null);
+        assertPartiallyGrants(false, field, new String[] { "*" }, new String[] { field });
+        assertPartiallyGrants(false, field, new String[] { "*" }, null);
+        assertPartiallyGrants(false, field, new String[] { "name" }, null);
+        assertPartiallyGrants(false, field, new String[] { "name", field + "_internal" }, null);
+
+        // a group that grants the key another group excepts makes the role see every key
+        FieldPermissions groups = new FieldPermissions(
+            new FieldPermissionsDefinition(
+                Set.of(
+                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "*" }, new String[] { field + ".secret" }),
+                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { field + ".secret" }, null)
+                )
+            )
+        );
+        assertThat(groups.partiallyGrants(field), is(false));
+
+        // an API key limited by its owner's role sees only the keys both see
+        FieldPermissions owner = new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { field + ".secret" }));
+        FieldPermissions apiKey = new FieldPermissions(fieldPermissionDef(new String[] { field, field + ".*" }, null));
+        assertThat(apiKey.partiallyGrants(field), is(false));
+        assertThat(apiKey.limitFieldPermissions(owner).partiallyGrants(field), is(true));
+    }
+
+    private static void assertPartiallyGrants(boolean expected, String field, String[] granted, String[] denied) {
+        FieldPermissions permissions = new FieldPermissions(fieldPermissionDef(granted, denied));
+        assertThat(Arrays.toString(granted) + " except " + Arrays.toString(denied), permissions.partiallyGrants(field), is(expected));
+    }
+
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
         return new FieldPermissionsDefinition(granted, denied);
     }

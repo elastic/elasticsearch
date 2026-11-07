@@ -17,19 +17,27 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Marks the visited query as not cacheable if it touches a field not granted by FLS, has a leaf that does not report a field,
- * or wraps an additional query or value source it does not report. The result is available from {@link #isCacheable()}.
+ * Marks the visited query as not cacheable if it touches a field not granted by FLS or the storage the reader hides of a partially
+ * granted flattened field, has a leaf that does not report a field, or wraps an additional query or value source it does not report.
+ * The result is available from {@link #isCacheable()}.
  */
 final class FieldCheckingVisitor extends QueryVisitor {
     private final IndicesAccessControl.IndexAccessControl permissions;
+    private final Set<String> flattenedFields;
     private boolean cacheable = true;
 
-    FieldCheckingVisitor(IndicesAccessControl.IndexAccessControl permissions) {
+    /**
+     * @param flattenedFields the full paths of the index's flattened fields
+     */
+    FieldCheckingVisitor(IndicesAccessControl.IndexAccessControl permissions, Set<String> flattenedFields) {
         this.permissions = permissions;
+        this.flattenedFields = flattenedFields;
     }
 
     boolean isCacheable() {
@@ -101,10 +109,24 @@ final class FieldCheckingVisitor extends QueryVisitor {
         }
 
         // don't cache any internal fields (e.g. _field_names), these are complicated.
-        if (field.startsWith("_") || permissions.getFieldPermissions().grantsAccessTo(field) == false) {
+        FieldPermissions fieldPermissions = permissions.getFieldPermissions();
+        if (field.startsWith("_") || fieldPermissions.grantsAccessTo(field) == false || isHiddenFlattenedStorage(field, fieldPermissions)) {
             cacheable = false;
         }
         return cacheable;
+    }
+
+    /**
+     * The reader hides the storage of a flattened field the role partially grants (ex. labels, labels._keyed) although the role grants
+     * those names, so a query on it must not share cached results with roles that can read it.
+     */
+    private boolean isHiddenFlattenedStorage(String field, FieldPermissions fieldPermissions) {
+        for (String flattenedField : flattenedFields) {
+            if (FieldPermissions.isFlattenedStorage(flattenedField, field) && fieldPermissions.partiallyGrants(flattenedField)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

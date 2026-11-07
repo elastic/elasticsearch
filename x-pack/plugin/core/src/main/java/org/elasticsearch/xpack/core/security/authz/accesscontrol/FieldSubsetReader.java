@@ -96,19 +96,36 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
         Function<String, Boolean> isMapped
     ) throws IOException {
-        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
+        return wrap(in, filter, filter, ignoredSourceFormat, isMapped);
+    }
+
+    /**
+     * Like {@link #wrap(DirectoryReader, CharacterRunAutomaton, IgnoredSourceFieldMapper.IgnoredSourceFormat, Function)}, but exposes the
+     * Lucene fields {@code fieldFilter} accepts while {@code filter} filters the paths inside {@code _source}, {@code _ignored_source} and
+     * {@code _unmapped}. They differ when one Lucene field holds the values of paths the role does not all grant, like a flattened field.
+     */
+    public static DirectoryReader wrap(
+        DirectoryReader in,
+        CharacterRunAutomaton filter,
+        CharacterRunAutomaton fieldFilter,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+        Function<String, Boolean> isMapped
+    ) throws IOException {
+        return new FieldSubsetDirectoryReader(in, filter, fieldFilter, ignoredSourceFormat, isMapped);
     }
 
     // wraps subreaders with fieldsubsetreaders.
     static class FieldSubsetDirectoryReader extends FilterDirectoryReader {
 
         private final CharacterRunAutomaton filter;
+        private final CharacterRunAutomaton fieldFilter;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
         private final Function<String, Boolean> isMapped;
 
         FieldSubsetDirectoryReader(
             DirectoryReader in,
             final CharacterRunAutomaton filter,
+            final CharacterRunAutomaton fieldFilter,
             final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
             Function<String, Boolean> isMapped
         ) throws IOException {
@@ -116,13 +133,14 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     try {
-                        return new FieldSubsetReader(reader, filter, ignoredSourceFormat, isMapped);
+                        return new FieldSubsetReader(reader, filter, fieldFilter, ignoredSourceFormat, isMapped);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 }
             });
             this.filter = filter;
+            this.fieldFilter = fieldFilter;
             this.ignoredSourceFormat = ignoredSourceFormat;
             this.isMapped = isMapped;
             verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
@@ -130,7 +148,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
+            return new FieldSubsetDirectoryReader(in, filter, fieldFilter, ignoredSourceFormat, isMapped);
         }
 
         /** Return the automaton that is used to filter fields. */
@@ -166,18 +184,19 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     private static final String UNMAPPED_SINK_COUNTS = UNMAPPED_SINK_KEYED
         + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
-    /** An automaton that only accepts authorized fields. */
+    /** An automaton that only accepts authorized paths, filtering {@code _source}, {@code _ignored_source} and {@code _unmapped}. */
     private final CharacterRunAutomaton filter;
     private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
     /** {@link Terms} cache with filtered stats for the {@link FieldNamesFieldMapper} field. */
     private volatile Optional<Terms> fieldNamesFilterTerms;
 
     /**
-     * Wrap a single segment, exposing a subset of its fields.
+     * Wrap a single segment, exposing the Lucene fields {@code fieldFilter} accepts.
      */
     FieldSubsetReader(
         LeafReader in,
         CharacterRunAutomaton filter,
+        CharacterRunAutomaton fieldFilter,
         IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
         Function<String, Boolean> isMapped
     ) throws IOException {
@@ -224,7 +243,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 continue;
             }
 
-            if (filter.run(name)) {
+            if (fieldFilter.run(name)) {
                 filteredInfos.add(fi);
             }
         }
@@ -395,7 +414,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     /** Step through all characters of the provided string, and return the
      *  resulting state, or -1 if that did not lead to a valid state. */
-    private static int step(CharacterRunAutomaton automaton, String key, int state) {
+    public static int step(CharacterRunAutomaton automaton, String key, int state) {
         for (int i = 0; state != -1 && i < key.length();) {
             final int cp = key.codePointAt(i);
             state = automaton.step(state, cp);

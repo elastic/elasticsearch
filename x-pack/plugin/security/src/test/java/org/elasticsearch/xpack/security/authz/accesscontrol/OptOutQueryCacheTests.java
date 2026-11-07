@@ -106,80 +106,123 @@ public class OptOutQueryCacheTests extends ESTestCase {
             new FieldPermissions(fieldPermissionDef(new String[] { "foo", "no" }, null)),
             DocumentPermissions.allowAll()
         );
-        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(new String[] { "foo", "no" }, new String[] {})),
             DocumentPermissions.allowAll()
         );
-        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] {})),
             DocumentPermissions.allowAll()
         );
-        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(new String[] { "*" }, null)),
             DocumentPermissions.allowAll()
         );
-        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { "oof" })),
             DocumentPermissions.allowAll()
         );
-        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(new String[] { "f*", "n*" }, new String[] {})),
             DocumentPermissions.allowAll()
         );
-        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         // check we don't cache if a field is not allowed
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(new String[] { "foo" }, null)),
             DocumentPermissions.allowAll()
         );
-        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(new String[] { "a*" }, new String[] { "aa" })),
             DocumentPermissions.allowAll()
         );
-        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(null, new String[] { "no" })),
             DocumentPermissions.allowAll()
         );
-        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(null, new String[] { "*" })),
             DocumentPermissions.allowAll()
         );
-        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(new String[] { "foo", "no" }, new String[] { "no" })),
             DocumentPermissions.allowAll()
         );
-        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(new String[] {}, new String[] {})),
             DocumentPermissions.allowAll()
         );
-        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
 
         permissions = new IndicesAccessControl.IndexAccessControl(
             new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
             DocumentPermissions.allowAll()
         );
-        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
+        assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of()));
+    }
+
+    /**
+     * Under partial access the reader hides a flattened field's storage although the role grants those names, so a query on them must not
+     * share cached results with roles that can read them. Under full access it is cached as before, and a mapped sub-field, which the
+     * reader leaves visible, is cached under either.
+     */
+    public void testCachingIsSafeForFlattenedFields() throws IOException {
+        String field = randomBoolean() ? randomAlphaOfLength(5) : randomAlphaOfLength(5) + "." + randomAlphaOfLength(5);
+        String luceneField = randomFrom(
+            field,
+            field + "._keyed",
+            field + "._keyed." + randomAlphaOfLength(5),
+            field + ".offsets",
+            field + ".offsets.counts",
+            field + ".counts"
+        );
+        Weight weight = new TermQuery(new Term(luceneField, "x")).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        IndicesAccessControl.IndexAccessControl partial = new IndicesAccessControl.IndexAccessControl(
+            new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { field + ".secret" })),
+            DocumentPermissions.allowAll()
+        );
+        IndicesAccessControl.IndexAccessControl full = new IndicesAccessControl.IndexAccessControl(
+            new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { randomAlphaOfLength(6) })),
+            DocumentPermissions.allowAll()
+        );
+        assertFalse(OptOutQueryCache.cachingIsSafe(weight, partial, Set.of(field)));
+        assertTrue(OptOutQueryCache.cachingIsSafe(weight, full, Set.of(field)));
+        // the same names outside a flattened field are cached as the role automaton allows
+        assertTrue(OptOutQueryCache.cachingIsSafe(weight, partial, Set.of()));
+        Weight subField = new TermQuery(new Term(field + ".response_time", "x")).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        assertTrue(OptOutQueryCache.cachingIsSafe(subField, partial, Set.of(field)));
+        // a mapped sub-field named like a storage field has the same Lucene name, so it is refused too, as the reader hides it
+        Weight storageNamedSubField = new TermQuery(new Term(field + ".counts", "x")).createWeight(
+            searcher,
+            ScoreMode.COMPLETE_NO_SCORES,
+            1f
+        );
+        assertFalse(OptOutQueryCache.cachingIsSafe(storageNamedSubField, partial, Set.of(field)));
+        assertTrue(OptOutQueryCache.cachingIsSafe(storageNamedSubField, full, Set.of(field)));
+        // without subobjects a flattened field can be named like another one's storage, which the reader hides under the outer field
+        Weight inner = new TermQuery(new Term(field + ".counts", "x")).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        assertFalse(OptOutQueryCache.cachingIsSafe(inner, partial, Set.of(field, field + ".counts")));
     }
 
     /**
@@ -228,21 +271,29 @@ public class OptOutQueryCacheTests extends ESTestCase {
 
             try (
                 DirectoryReader flsReader = permissions.getFieldPermissions()
-                    .filter(unfilteredReader, IndexSettingsModule.newIndexSettings("index", Settings.EMPTY), field -> true)
+                    .filter(unfilteredReader, IndexSettingsModule.newIndexSettings("index", Settings.EMPTY), field -> true, Set.of())
             ) {
                 IndexSearcher flsSearcher = newSearcher(flsReader);
                 for (int i = 0; i < 100; i++) {
                     // production rewrites before the query cache is consulted
                     RandomQuery query = randomQuery(flsSearcher, allowedFields, disallowedFields, denseFields).rewrite(flsSearcher);
                     Weight weight = query.query().createWeight(flsSearcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
-                    assertEquals(query.query().toString(), query.cacheable(), OptOutQueryCache.cachingIsSafe(weight, permissions));
+                    assertEquals(
+                        query.query().toString(),
+                        query.cacheable(),
+                        OptOutQueryCache.cachingIsSafe(weight, permissions, Set.of())
+                    );
 
                     // ESToParentBlockJoinQuery visits its child but its weight reports a Lucene query that doesn't, so a compound query
                     // that visits it is checked more precisely than the bare query's weight. Only the bare query is asserted for it.
                     if (query.query() instanceof ESToParentBlockJoinQuery == false) {
                         Query wrapped = wrapInCompoundQuery(query.query());
                         Weight wrappedWeight = wrapped.createWeight(flsSearcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
-                        assertEquals(wrapped.toString(), query.cacheable(), OptOutQueryCache.cachingIsSafe(wrappedWeight, permissions));
+                        assertEquals(
+                            wrapped.toString(),
+                            query.cacheable(),
+                            OptOutQueryCache.cachingIsSafe(wrappedWeight, permissions, Set.of())
+                        );
                     }
                 }
             }
@@ -253,7 +304,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final OptOutQueryCache cache = new OptOutQueryCache(indexMetadata.getIndex(), indicesQueryCache, threadContext);
+        final OptOutQueryCache cache = new OptOutQueryCache(indexMetadata.getIndex(), indicesQueryCache, threadContext, Set::of);
         final Weight weight = mock(Weight.class);
         final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
         final Weight w = cache.doCache(weight, policy);
@@ -271,7 +322,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         when(indicesAccessControl.getIndexPermissions("index")).thenReturn(indexAccessControl);
         when(indicesAccessControl.isGranted()).thenReturn(true);
         new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(indicesAccessControl);
-        final OptOutQueryCache cache = new OptOutQueryCache(indexMetadata.getIndex(), indicesQueryCache, threadContext);
+        final OptOutQueryCache cache = new OptOutQueryCache(indexMetadata.getIndex(), indicesQueryCache, threadContext, Set::of);
         final Weight weight = mock(Weight.class);
         final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
         cache.doCache(weight, policy);

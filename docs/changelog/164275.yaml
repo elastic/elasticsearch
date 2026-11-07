@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 164275
+summary: Add datafeed horizon lag and expected real-time datafeed metrics
+type: enhancement

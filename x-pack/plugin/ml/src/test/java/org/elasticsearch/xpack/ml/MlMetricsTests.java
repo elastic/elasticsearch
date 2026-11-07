@@ -8,11 +8,25 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -32,15 +46,21 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MlMetricsTests extends ESTestCase {
 
@@ -83,6 +103,59 @@ public class MlMetricsTests extends ESTestCase {
         assertThat(counts.dfaAnalyzingCount(), is(1));
         assertThat(counts.dfaStoppingCount(), is(1));
         assertThat(counts.dfaFailedCount(), is(2));
+    }
+
+    public void testFindTaskStatusesShouldCountOnlyStartedRealtimeDatafeedsWithOpenedJobs() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobAndDatafeed("rt-ok", "node1", JobState.OPENED, DatafeedState.STARTED, null, tasksBuilder);
+        addJobAndDatafeed("rt-unassigned", null, JobState.OPENED, DatafeedState.STARTED, null, tasksBuilder);
+        addJobAndDatafeed("rt-job-opening", "node1", JobState.OPENING, DatafeedState.STARTED, null, tasksBuilder);
+        addJobAndDatafeed("rt-job-failed", "node1", JobState.FAILED, DatafeedState.STARTED, null, tasksBuilder);
+        addJobAndDatafeed("rt-job-closing", "node1", JobState.CLOSING, DatafeedState.STARTED, null, tasksBuilder);
+        addJobAndDatafeed("rt-starting", "node1", JobState.OPENED, DatafeedState.STARTING, null, tasksBuilder);
+        addJobAndDatafeed("rt-stopping", "node1", JobState.OPENED, DatafeedState.STOPPING, null, tasksBuilder);
+        addJobAndDatafeed("rt-no-state", "node1", JobState.OPENED, null, null, tasksBuilder);
+        addJobAndDatafeed("lookback-only", "node1", JobState.OPENED, DatafeedState.STARTED, 1_000_000L, tasksBuilder);
+        addDatafeedTaskWithJob("rt-job-closed", "no-such-job", "node1", DatafeedState.STARTED, null, tasksBuilder);
+
+        MlMetrics.MlTaskStatusCounts counts = MlMetrics.findTaskStatuses(tasksBuilder.build());
+
+        assertThat(counts.datafeedRealtimeExpectedCount(), is(2));
+    }
+
+    public void testFindTaskStatusesShouldNotCountDatafeedTaskWithoutJobId() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        MlMemoryAutoscalingDeciderTests.addJobTask("job1", "node1", JobState.OPENED, tasksBuilder);
+        addDatafeedTask("datafeed1", "node1", DatafeedState.STARTED, tasksBuilder);
+
+        assertThat(MlMetrics.findTaskStatuses(tasksBuilder.build()).datafeedRealtimeExpectedCount(), is(0));
+    }
+
+    public void testRealtimeExpectedGaugeShouldReportCountWithIsMasterAttributeOnMaster() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobAndDatafeed("rt-ok", "node1", JobState.OPENED, DatafeedState.STARTED, null, tasksBuilder);
+        addJobAndDatafeed("rt-unassigned", null, JobState.OPENED, DatafeedState.STARTED, null, tasksBuilder);
+        addJobAndDatafeed("lookback-only", "node1", JobState.OPENED, DatafeedState.STARTED, 1_000_000L, tasksBuilder);
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        MlMetrics mlMetrics = startedMasterMetrics(meterRegistry);
+
+        mlMetrics.clusterChanged(masterClusterChangedEvent(tasksBuilder.build(), null));
+
+        assertThat(
+            realtimeExpectedMeasurements(meterRegistry),
+            equalTo(List.of(new Measurement(2L, Map.of("es.ml.is_master", true), false)))
+        );
+    }
+
+    public void testRealtimeExpectedGaugeShouldNotUpdateWhileGatewayIsNotRecovered() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobAndDatafeed("rt-ok", "node1", JobState.OPENED, DatafeedState.STARTED, null, tasksBuilder);
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        MlMetrics mlMetrics = startedMasterMetrics(meterRegistry);
+
+        mlMetrics.clusterChanged(masterClusterChangedEvent(tasksBuilder.build(), GatewayService.STATE_NOT_RECOVERED_BLOCK));
+
+        assertThat(realtimeExpectedMeasurements(meterRegistry).get(0).getLong(), is(0L));
     }
 
     public void testFindDfaMemoryUsage() {
@@ -187,14 +260,84 @@ public class MlMetricsTests extends ESTestCase {
         DatafeedState datafeedState,
         PersistentTasksCustomMetadata.Builder builder
     ) {
+        addDatafeedTaskWithJob(datafeedId, null, nodeId, datafeedState, null, builder);
+    }
+
+    private static void addJobAndDatafeed(
+        String name,
+        String nodeId,
+        JobState jobState,
+        DatafeedState datafeedState,
+        Long datafeedEndTime,
+        PersistentTasksCustomMetadata.Builder builder
+    ) {
+        MlMemoryAutoscalingDeciderTests.addJobTask("job-" + name, nodeId, jobState, builder);
+        addDatafeedTaskWithJob("datafeed-" + name, "job-" + name, nodeId, datafeedState, datafeedEndTime, builder);
+    }
+
+    private static void addDatafeedTaskWithJob(
+        String datafeedId,
+        String jobId,
+        String nodeId,
+        DatafeedState datafeedState,
+        Long endTime,
+        PersistentTasksCustomMetadata.Builder builder
+    ) {
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(datafeedId, System.currentTimeMillis());
+        params.setJobId(jobId);
+        params.setEndTime(endTime);
         builder.addTask(
             MlTasks.datafeedTaskId(datafeedId),
             MlTasks.DATAFEED_TASK_NAME,
-            new StartDatafeedAction.DatafeedParams(datafeedId, System.currentTimeMillis()),
+            params,
             nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
         if (datafeedState != null) {
             builder.updateTaskState(MlTasks.datafeedTaskId(datafeedId), datafeedState);
         }
+    }
+
+    static MlMetrics startedMasterMetrics(RecordingMeterRegistry meterRegistry) {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(USE_AUTO_MACHINE_MEMORY_PERCENT, MachineLearning.MAX_MACHINE_MEMORY_PERCENT))
+        );
+        MlMetrics mlMetrics = new MlMetrics(
+            meterRegistry,
+            clusterService,
+            Settings.builder().putList("node.roles", DiscoveryNodeRole.MASTER_ROLE.roleName()).build(),
+            mock(AutodetectProcessManager.class),
+            mock(DataFrameAnalyticsManager.class)
+        );
+        mlMetrics.start();
+        return mlMetrics;
+    }
+
+    private ClusterChangedEvent masterClusterChangedEvent(PersistentTasksCustomMetadata tasks, ClusterBlock block) {
+        var localNode = DiscoveryNodeUtils.create(
+            "node-1",
+            buildNewFakeTransportAddress(),
+            Map.of(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
+        );
+        ClusterBlocks.Builder blocks = ClusterBlocks.builder();
+        if (block != null) {
+            blocks.addGlobalBlock(block);
+        }
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasks))
+            .blocks(blocks)
+            .build();
+        ClusterChangedEvent event = mock(ClusterChangedEvent.class);
+        when(event.localNodeMaster()).thenReturn(true);
+        when(event.state()).thenReturn(state);
+        when(event.metadataChanged()).thenReturn(true);
+        return event;
+    }
+
+    private static List<Measurement> realtimeExpectedMeasurements(RecordingMeterRegistry meterRegistry) {
+        meterRegistry.getRecorder().collect();
+        return meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.ml.datafeeds.realtime_expected.current");
     }
 }

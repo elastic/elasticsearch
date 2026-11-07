@@ -275,6 +275,7 @@ public class DatafeedJobBuilder {
             buildDataDescription(job),
             frequency.millis(),
             queryDelay.millis(),
+            job.getAnalysisConfig().getBucketSpan().millis(),
             dataExtractorFactory,
             timingStatsReporter,
             parentTaskAssigningClient,
@@ -288,7 +289,8 @@ public class DatafeedJobBuilder {
             latestRecordTimeMs,
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            DatafeedSearchTelemetry.classifyExtractorType(datafeedConfig, xContentRegistry)
         );
         listener.onResponse(datafeedJob);
     }

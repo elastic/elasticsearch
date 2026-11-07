@@ -408,11 +408,6 @@ tests:
   - :x-pack:plugin:esql:test
   method: testStaleTestDirectoriesNameNoMethodOfTheSuite
   issue: https://github.com/elastic/elasticsearch/issues/164167
-- class: org.elasticsearch.telemetry.apm.internal.APMAgentSettingsTests
-  tasks:
-  - :modules:apm:test
-  method: testUpdateMaxSpansPropagatesToTracer
-  issue: https://github.com/elastic/elasticsearch/issues/164198
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest

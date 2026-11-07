@@ -117,7 +117,6 @@ import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.joni.exception.SyntaxException;
 
 import java.time.Duration;
@@ -437,8 +436,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             });
         }
-        // Resolved and shape-checked before any of the source list becomes a plan, so a call that cannot stand
-        // fails as a parse error at the call rather than somewhere downstream.
+        // Collected, not resolved: the name is unknown to the parser and stays so. Each call becomes an
+        // UnresolvedTableFunctionRelation below, and TableFunctionResolver binds it during analysis.
         List<TableFunctionInvocation> tableFunctionInvocations = new ArrayList<>(tableFunctionsCtx.size());
         for (EsqlBaseParser.TableFunctionContext tableFunctionCtx : tableFunctionsCtx) {
             tableFunctionInvocations.add(tableFunctionInvocation(tableFunctionCtx));
@@ -504,12 +503,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     /**
-     * Reads one {@code NAME(...)} from a source list into a {@link TableFunctionInvocation}, validated by the
-     * function it names.
+     * Reads one {@code NAME(...)} from a source list into a {@link TableFunctionInvocation}.
      * <p>
-     * The name is resolved against {@link TableFunctionRegistry} here rather than during analysis, so an
-     * unknown one reads as a parse error listing the functions that exist instead of surviving to index
-     * resolution and reading as a missing index.
+     * The name is not looked up here, and nor are the arguments checked against any function's signature: this
+     * builds the call and nothing else. {@code TableFunctionResolver} does all of it later, raising the
+     * unknown-name, shape and per-function errors against the {@link Source} carried below, so the user still
+     * reads about their own syntax at the position they wrote it.
      */
     private TableFunctionInvocation tableFunctionInvocation(EsqlBaseParser.TableFunctionContext ctx) {
         Source source = source(ctx);
@@ -524,7 +523,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             arguments.add(
                 new TableFunctionArgument.NamedValues(
                     source(ctx.mapExpression()),
-                    foldTableFunctionPayload(name, visitMapExpression(ctx.mapExpression()), "")
+                    foldNamedValues(name, visitMapExpression(ctx.mapExpression()), "")
                 )
             );
         }
@@ -552,7 +551,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      * the list is a whitelist so that anything outside it is refused, and so that whatever validates a
      * payload later can rely on the set rather than re-deriving it.
      */
-    private static final Set<DataType> TABLE_FUNCTION_PAYLOAD_TYPES = Set.of(
+    private static final Set<DataType> TABLE_FUNCTION_VALUE_TYPES = Set.of(
         DataType.KEYWORD,
         DataType.TEXT,
         DataType.INTEGER,
@@ -564,7 +563,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     /**
      * Folds a table function's payload to the plain nested map its function validates.
      * <p>
-     * A value is a constant of one of {@link #TABLE_FUNCTION_PAYLOAD_TYPES} or another payload, and
+     * A value is a constant of one of {@link #TABLE_FUNCTION_VALUE_TYPES} or a nested map, and
      * nothing else: a dataset definition nests, and it is read while the plan is built, so there is
      * nothing an expression in it could be evaluated against. {@link BytesRef} normalizes to
      * {@link String}, inside a list as well as at top level, so the folded map has the shape an XContent
@@ -573,13 +572,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      * @param path the dotted keys already descended through, so a diagnostic deep in a nested payload names
      *             the key the user has to find rather than only its last segment
      */
-    private static Map<String, Object> foldTableFunctionPayload(String functionName, MapExpression payload, String path) {
+    private static Map<String, Object> foldNamedValues(String functionName, MapExpression payload, String path) {
         Map<String, Object> folded = new LinkedHashMap<>();
         for (EntryExpression entry : payload.entryExpressions()) {
             // visitMapExpression built every key as a keyword Literal out of the QUOTED_STRING the grammar
             // demanded, so anything else here is a broken invariant rather than something a query can write.
             if ((entry.key() instanceof Literal) == false) {
-                throw new IllegalStateException("payload key is not a literal: " + entry.key());
+                throw new IllegalStateException("named-values key is not a literal: " + entry.key());
             }
             Literal keyLiteral = (Literal) entry.key();
             String key = BytesRefs.toString(keyLiteral.value());
@@ -591,35 +590,35 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             // Diagnostics are raised against the KEY's source: a value that came from a parameter carries
             // Source.EMPTY, which would report line -1:-1 and point the user at nothing.
-            Object value = foldTableFunctionPayloadValue(functionName, path + key, keyLiteral.source(), entry.value());
+            Object value = foldNamedValue(functionName, path + key, keyLiteral.source(), entry.value());
             if (folded.put(key, value) != null) {
                 // visitMapExpression refuses a repeated key only when the FIRST occurrence had a scalar
-                // value -- it never records a key whose value was a nested payload -- so
+                // value -- it never records a key whose value was a nested map -- so
                 // {"a": {..}, "a": {..}} arrives here with both entries, and is refused here rather than
                 // silently keeping the last one.
-                throw new ParsingException(keyLiteral.source(), "[{}] definition sets [{}] more than once", functionName, path + key);
+                throw new ParsingException(keyLiteral.source(), "[{}] sets [{}] more than once", functionName, path + key);
             }
         }
         return Collections.unmodifiableMap(folded);
     }
 
-    private static Object foldTableFunctionPayloadValue(String functionName, String path, Source keySource, Expression value) {
+    private static Object foldNamedValue(String functionName, String path, Source keySource, Expression value) {
         if (value instanceof MapExpression nested) {
-            return foldTableFunctionPayload(functionName, nested, path + ".");
+            return foldNamedValues(functionName, nested, path + ".");
         }
-        // visitMapExpression admits a nested payload or a constant and refuses everything else, so a Literal
+        // visitMapExpression admits a nested map or a constant and refuses everything else, so a Literal
         // is all that is left here.
         if ((value instanceof Literal) == false) {
-            throw new IllegalStateException("payload value is neither a nested payload nor a constant: " + value);
+            throw new IllegalStateException("named value is neither a nested map nor a constant: " + value);
         }
         Literal literal = (Literal) value;
         if (literal.value() == null) {
-            throw new ParsingException(keySource, "[{}] definition sets [{}] to null", functionName, path);
+            throw new ParsingException(keySource, "[{}] sets [{}] to null", functionName, path);
         }
-        if (TABLE_FUNCTION_PAYLOAD_TYPES.contains(literal.dataType()) == false) {
+        if (TABLE_FUNCTION_VALUE_TYPES.contains(literal.dataType()) == false) {
             throw new ParsingException(
                 keySource,
-                "[{}] definition cannot set [{}] to a value of type [{}]",
+                "[{}] cannot set [{}] to a value of type [{}]",
                 functionName,
                 path,
                 literal.dataType().typeName()

@@ -51,7 +51,7 @@ public record TableFunctionSignature(List<Argument> arguments) {
         return new TableFunctionSignature(List.of(arguments));
     }
 
-    /** A required name, such as a data source. */
+    /** A required argument written as a bare or quoted name. */
     public static Argument name(String name) {
         return new Argument(name, Kind.NAME, true);
     }
@@ -68,17 +68,34 @@ public record TableFunctionSignature(List<Argument> arguments) {
 
     public TableFunctionSignature {
         arguments = List.copyOf(arguments);
+        // Thrown rather than asserted, as TableFunctionRegistry throws for its own bad declarations: assertions
+        // are off in production, so an assert here would refuse exactly nothing where it matters. Each of these is
+        // a shape no call could ever satisfy, so a function declaring one is broken at startup rather than on the
+        // first query that reaches it.
         boolean seenOptional = false;
-        for (Argument argument : arguments) {
-            // A required argument after an optional one could never be supplied positionally, so refuse the
-            // declaration rather than letting a function ship a shape no call can satisfy.
-            assert argument.required() == false || seenOptional == false
-                : "required argument [" + argument.name() + "] follows an optional one";
+        for (int i = 0; i < arguments.size(); i++) {
+            Argument argument = arguments.get(i);
+            if (argument.required() && seenOptional) {
+                throw new IllegalStateException("required argument [" + argument.name() + "] follows an optional one");
+            }
             seenOptional |= argument.required() == false;
+            // The grammar admits a map only as the last argument and only after at least one name, so any other
+            // position is syntax no query can write: `tableFunctionArgument (COMMA tableFunctionArgument)*
+            // (COMMA mapExpression)?`. Without this a function would simply be unreachable, with nothing said.
+            if (argument.kind() == Kind.NAMED_VALUES) {
+                if (i != arguments.size() - 1) {
+                    throw new IllegalStateException("argument [" + argument.name() + "] takes " + Kind.NAMED_VALUES + " and is not last");
+                }
+                if (i == 0) {
+                    throw new IllegalStateException(
+                        "argument [" + argument.name() + "] takes " + Kind.NAMED_VALUES + " and is the only one"
+                    );
+                }
+            }
         }
     }
 
-    /** How the arguments read in a diagnostic: {@code data source, resource, [settings]}. */
+    /** The argument list as a diagnostic spells it, with optional arguments in brackets. */
     private String describe() {
         StringBuilder sb = new StringBuilder();
         for (Argument argument : arguments) {

@@ -19,9 +19,10 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * A table function standing in a source list: {@code FROM DATASET(my_source, {"resource": "s3://bucket/*.parquet"})}.
- * The parser shape-checks the call but cannot bind it — the name is a data source, which lives in cluster state — so
- * the call is parked here and rewritten in pre-analysis into the leaf that reads ({@link UnresolvedExternalRelation}).
+ * A table function standing in a source list: {@code FROM foo, SOMEFUNC(a_name, {"key": "value"})}.
+ * The parser neither resolves the name nor checks the call against any signature — it does not know what functions
+ * exist — so the call is parked here, and {@code TableFunctionResolver} replaces this leaf during analysis with
+ * whatever relation the named function returns.
  * <p>
  * Deliberately NOT a {@link UnresolvedSourceRelation}: that marker is for traversals wanting any FROM-style leaf, and
  * all of them run after the rewrite, so joining it would add a branch per site for a shape that cannot arrive. Being
@@ -34,8 +35,8 @@ public final class UnresolvedTableFunctionRelation extends LeafPlan implements U
     private final List<NamedExpression> metadataFields;
 
     /**
-     * @param call the parsed, shape-checked call; the parser resolved its name against the registry, so only the
-     *             binding is outstanding
+     * @param call the call exactly as written: its name is not yet known to denote anything, and its arguments
+     *             have not been checked against a signature
      * @param metadataFields the source command's {@code METADATA} names, verbatim, so a table function carries
      *                       metadata exactly as a pattern does
      */
@@ -108,8 +109,8 @@ public final class UnresolvedTableFunctionRelation extends LeafPlan implements U
 
     @Override
     public List<Object> nodeProperties() {
-        // The call's payload is omitted: a dataset definition can carry a credential-bearing setting, and
-        // nodeProperties() reaches EXPLAIN.
+        // The arguments are omitted, the map above all: a map argument can carry a credential-bearing setting,
+        // and nodeProperties() reaches EXPLAIN. The name alone is what identifies the leaf to a reader.
         return List.of(call.name());
     }
 

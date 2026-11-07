@@ -515,11 +515,6 @@ public class PlanExecutor {
     }
 
     /**
-     * The registration API's per-type data source validators, so the query path can hold an inline dataset
-     * definition to the same bar a registered one meets. They reach here rather than {@link DataSourceModule}
-     * because they are wired FROM that module and so are built after it.
-     */
-    /**
      * The one registry this node plans against, built by the plugin. Held here so the transport action can reach
      * it rather than building a second one: two registries built from the same inputs are equivalent until the day
      * they are not, and nothing would catch the drift.

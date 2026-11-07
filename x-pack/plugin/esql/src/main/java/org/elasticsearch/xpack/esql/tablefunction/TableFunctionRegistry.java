@@ -49,7 +49,8 @@ public final class TableFunctionRegistry {
 
     /**
      * Adds one capability per registered function, named {@code table_fn_<name>}, so a client can ask whether this
-     * cluster has a particular function and not only whether it has the facility at all. The facility's own
+     * cluster has a particular function and not only whether it has the facility at all. Emits nothing while no
+     * function is registered, which is the state this change ships in. The facility's own
      * capability stays separate ({@link EsqlCapabilities.Cap#FROM_TABLE_FUNCTION}), because the two become
      * different questions the moment there is a second function.
      * <p>
@@ -73,6 +74,12 @@ public final class TableFunctionRegistry {
     public TableFunction resolve(Source source, String name) {
         TableFunction function = byName.get(name);
         if (function == null) {
+            // Its own arm when nothing is registered: "expected one of []" reads as a bug in the engine rather
+            // than as the answer to what the user asked, and on a build with no function registered it is the
+            // only message this method can produce.
+            if (byName.isEmpty()) {
+                throw new ParsingException(source, "no table functions are registered, so [{}] cannot be used here", name);
+            }
             throw new ParsingException(
                 source,
                 "unknown table function [{}], expected one of [{}]",

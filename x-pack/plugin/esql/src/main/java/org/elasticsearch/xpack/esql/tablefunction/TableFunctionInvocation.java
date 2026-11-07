@@ -13,8 +13,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * One table-function call as written in a source list, with its name already resolved against
- * {@link TableFunctionRegistry}.
+ * One table-function call exactly as written in a source list. Its name is not yet known to denote anything:
+ * the parser never consults {@link TableFunctionRegistry}, so resolution happens later.
  * <p>
  * Named an invocation rather than a call because {@code *FunctionCall} already means a plan node in this
  * tree — {@code PromqlFunctionCall} and {@code HistogramFunctionCall} both extend {@code UnaryPlan} — and
@@ -22,7 +22,7 @@ import java.util.Objects;
  * <p>
  * One flat argument list, as a scalar function has: {@code ExpressionBuilder.visitFunctionExpression} appends a
  * trailing map to the same list it collected the other arguments into, so a map is a scalar function's last
- * argument rather than a slot beside them. Following that is why there is no payload here.
+ * argument rather than a slot beside them. Following that is why a map is one of them rather than a slot beside them.
  * <p>
  * A carrier, with no validation of its own: what shape of call a function accepts is
  * {@link TableFunction#signature()}'s question and what else is true of it is {@link TableFunction#validate}'s, and

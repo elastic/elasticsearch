@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -79,20 +80,59 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
         return new ReferenceAttribute(Source.EMPTY, name, type);
     }
 
+    /**
+     * The declared columns are the only source of each block's type.
+     * <p>
+     * {@code BlockUtils.fromList} would infer an element type per column from the first non-null value it found,
+     * which is a second derivation of what {@link #columns} already states: declare {@code LONG}, hand back an
+     * {@code Integer}, and the page carries an {@code INT} block under a {@code LONG} attribute with nothing
+     * between the two to notice. A zero-row answer still owes one empty block per column for the same reason,
+     * which is why there is no special case for it here.
+     */
     private static Page page(List<Attribute> columns, List<List<Object>> rows) {
-        if (rows.isEmpty()) {
-            // BlockUtils.fromList answers an empty list with no blocks at all, which is right for a ROW with no
-            // fields and wrong here: the columns are declared, so a zero-row answer still owes one empty block per
-            // column, typed, or the page disagrees with the output it is attached to.
-            Block[] empty = new Block[columns.size()];
-            for (int i = 0; i < empty.length; i++) {
+        BlockUtils.BuilderWrapper[] wrappers = new BlockUtils.BuilderWrapper[columns.size()];
+        try {
+            for (int i = 0; i < wrappers.length; i++) {
                 ElementType type = PlannerUtils.toElementType(columns.get(i).dataType());
-                try (var wrapper = BlockUtils.wrapperFor(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, type, 0)) {
-                    empty[i] = wrapper.builder().build();
+                wrappers[i] = BlockUtils.wrapperFor(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, type, rows.size());
+            }
+            for (List<Object> row : rows) {
+                // Checked rather than asserted: a function that disagrees with its own column list would otherwise
+                // build a page of a different width than the output it is attached to, and do it in production only.
+                if (row.size() != wrappers.length) {
+                    throw new IllegalStateException(
+                        "table function produced a row of [" + row.size() + "] values for [" + wrappers.length + "] columns"
+                    );
+                }
+                for (int i = 0; i < wrappers.length; i++) {
+                    Object value = row.get(i);
+                    try {
+                        wrappers[i].accept(value);
+                    } catch (ClassCastException e) {
+                        // The builder is typed from the declaration, so it rejects a value of another Java type. That
+                        // is the behaviour we want; the bare cast failure is not, as it names neither the column nor
+                        // the declaration it disagreed with.
+                        Attribute column = columns.get(i);
+                        throw new IllegalStateException(
+                            "table function produced ["
+                                + (value == null ? "null" : value.getClass().getSimpleName())
+                                + "] for column ["
+                                + column.name()
+                                + "] declared ["
+                                + column.dataType().typeName()
+                                + "]",
+                            e
+                        );
+                    }
                 }
             }
-            return new Page(0, empty);
+            Block[] blocks = new Block[wrappers.length];
+            for (int i = 0; i < blocks.length; i++) {
+                blocks[i] = wrappers[i].builder().build();
+            }
+            return new Page(rows.size(), blocks);
+        } finally {
+            Releasables.close(wrappers);
         }
-        return new Page(BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, rows));
     }
 }

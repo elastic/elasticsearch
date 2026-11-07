@@ -8,15 +8,19 @@ package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 
 /**
  * Turns every {@link UnresolvedTableFunctionRelation} the parser left in a plan into the leaf that reads.
@@ -33,9 +37,19 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TableFunctionResolver {
 
     private final TableFunctionRegistry registry;
+    private final Executor executor;
 
-    public TableFunctionResolver(TableFunctionRegistry registry) {
+    /**
+     * @param executor the pool planning continues on. A function may complete its listener from anywhere - a
+     *                 transport response lands on a transport worker, a field-caps handler on
+     *                 {@code search_coordination} - and the caller resumes planning on {@code search} and asserts
+     *                 it. Making that the facility's business rather than each function's is the difference
+     *                 between a contract and a thing every function has to remember; the sibling
+     *                 {@code DatasetResolver} takes the same executor for the same reason.
+     */
+    public TableFunctionResolver(TableFunctionRegistry registry, Executor executor) {
         this.registry = registry;
+        this.executor = executor;
     }
 
     /**
@@ -70,22 +84,32 @@ public class TableFunctionResolver {
             return;
         }
 
-        // Identity-keyed: two calls written identically at different offsets are already unequal, because an
-        // invocation carries its Source - so equality would work today and would start collapsing leaves the moment
-        // a call's identity stopped including its position.
-        Map<UnresolvedTableFunctionRelation, LeafPlan> bound = new ConcurrentHashMap<>(leaves.size());
+        // Keyed by identity, and it has to be: UnresolvedTableFunctionRelation's equals excludes its own Source, so
+        // two leaves in one plan can compare equal, and an equality-keyed map would collapse them onto a single
+        // relation instance - the same attribute NameIds installed in two places. Synchronized because the binds
+        // below run concurrently.
+        Map<UnresolvedTableFunctionRelation, LeafPlan> bound = Collections.synchronizedMap(new IdentityHashMap<>(leaves.size()));
         TableFunctionContext context = new TableFunctionContext(projectMetadata);
+        // Forked here and not on the early return above: a query naming no function never leaves the caller's
+        // thread, so it pays nothing for this.
+        ActionListener<LogicalPlan> onPlanningPool = new ThreadedActionListener<>(executor, PlanningCpuTracker.inheritMeteredCpu(listener));
         try (
             var refs = new RefCountingListener(
-                listener.delegateFailureAndWrap((delegate, ignored) -> delegate.onResponse(substitute(parsed, bound)))
+                onPlanningPool.delegateFailureAndWrap((delegate, ignored) -> delegate.onResponse(substitute(parsed, bound)))
             )
         ) {
             for (int i = 0; i < leaves.size(); i++) {
                 UnresolvedTableFunctionRelation leaf = leaves.get(i);
+                TableFunction function = functions.get(i);
                 // Concurrently, not in sequence: a source list naming several functions that each need I/O should
                 // cost one round-trip's latency rather than one per leaf.
-                functions.get(i)
-                    .toRelation(leaf.call(), leaf.metadataFields(), context, refs.acquire(relation -> bound.put(leaf, relation)));
+                //
+                // ActionListener.run, not a bare call: acquire() takes the ref before toRelation runs, so a function
+                // that throws instead of completing would leave the count above zero for good and this method would
+                // never answer its own listener. A function is not required to be no-throw, so the facility carries
+                // the cost of one that is not.
+                ActionListener<LeafPlan> bind = refs.acquire(relation -> bound.put(leaf, relation));
+                ActionListener.run(bind, l -> function.toRelation(leaf.call(), leaf.metadataFields(), context, l));
             }
         }
     }

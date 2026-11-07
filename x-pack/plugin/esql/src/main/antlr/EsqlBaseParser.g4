@@ -129,15 +129,15 @@ indexPatternOrSubquery
     | tableFunction
     ;
 
-// A table function in a source list: FROM foo, bar*, DATASET(my_source, {"resource": "s3://b/*.parquet"}).
-// The name is resolved against the table-function registry while the plan is built, so an unknown name
-// is a parse error naming the functions that do exist rather than a missing-index error later on.
+// A table function in a source list: FROM foo, bar*, SOMEFUNC(a_name, {"key": "value"}).
+// The name is not resolved here and the parser never consults the registry, so any name followed by '('
+// parses. An unknown one is refused during analysis, at the position it was written.
 //
 // Shaped after functionExpression, including the trailing optional mapExpression: the map stays a separate
 // alternative in the grammar -- so it can only be written last, and writing it elsewhere is a parse error --
 // and is folded into the one argument list in the builder, exactly as
 // ExpressionBuilder.visitFunctionExpression appends it to the args it collected. A table function therefore
-// sees a map as its last argument rather than as a slot beside them, and there is no payload concept.
+// sees a map as its last argument rather than as a slot beside them.
 tableFunction
     : {this.isDevVersion()}? name=DEV_TABLE_FUNCTION_NAME LP (tableFunctionArgument (COMMA tableFunctionArgument)* (COMMA mapExpression)?)? RP
     ;

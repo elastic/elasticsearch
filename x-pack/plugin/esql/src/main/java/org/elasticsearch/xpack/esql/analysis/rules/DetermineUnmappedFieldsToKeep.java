@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -111,14 +112,42 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             // Projects snapshot before this rule, and replaceChild on a ResolvingProject would re-append it.
             return plan;
         } else {
-            // Project pass before merge finish keeps _unmapped_fields on branch Projects. The pass after
-            // picks it up on Projects above the merge, whose child output only includes the column after refresh.
+            // One bottom-up pass over Projects and merges, so each node sees the column of its children: a branch Project gets it
+            // before its merge looks for it, and a Project above a merge gets it once the merge has refreshed its output. Separate
+            // passes got this wrong where a merge sits under another one, e.g. a FORK after a union of subqueries: the alignment
+            // Project of each FORK branch sits on the union, so it only got the column after the FORK had looked for it.
             LogicalPlan annotated = annotate(plan, pattern);
-            result = ViewUtils.transformUpOutsideViews(annotated, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
-            result = ViewUtils.transformUpOutsideViews(result, MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields);
-            result = ViewUtils.transformUpOutsideViews(result, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+            result = ViewUtils.transformUpOutsideViews(annotated, DetermineUnmappedFieldsToKeep::finishUnmappedFields);
         }
-        return result;
+        return unmappedFieldsLast(result);
+    }
+
+    /**
+     * The {@code _unmapped_fields} column is the last one of the output, wherever the commands of the query add their own. It is
+     * stamped on the relation, so it would otherwise sit right after the columns of the relation and before the ones that {@code EVAL},
+     * {@code INLINE STATS} and the like add, while the output of a {@code FORK} or a union has it last, as it unions it at the end. The
+     * same query should not return the columns in another order because a {@code FORK} follows.
+     */
+    private static LogicalPlan unmappedFieldsLast(LogicalPlan plan) {
+        List<Attribute> output = plan.output();
+        int column = -1;
+        for (int i = 0; i < output.size(); i++) {
+            if (output.get(i) instanceof UnmappedFieldsAttribute) {
+                column = i;
+                break;
+            }
+        }
+        if (column < 0 || column == output.size() - 1) {
+            return plan;
+        }
+        // A ResolvingProject computes its projections from the output of its child, and appends the unmapped fields after the others,
+        // which is what moves it. Like a KEEP *, it is also kept up to date when later rules change that output, which a plain Project
+        // would not be, e.g. for the columns that FILLNULL loads late.
+        return new ResolvingProject(
+            Source.EMPTY,
+            plan,
+            new ResolvingProject.Command(ResolvingProject.Kind.KEEP, List.of(new UnresolvedStar(Source.EMPTY, null)), attrs -> attrs)
+        );
     }
 
     /**
@@ -223,6 +252,16 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         return pattern.isNone() || esr.indexMode() == IndexMode.LOOKUP
             ? esr
             : esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern));
+    }
+
+    private static LogicalPlan finishUnmappedFields(LogicalPlan plan) {
+        if (plan instanceof Project project) {
+            return passThroughUnmappedFields(project);
+        }
+        if (plan instanceof MergePlan merge) {
+            return finishMergeUnmappedFields(merge);
+        }
+        return plan;
     }
 
     /**

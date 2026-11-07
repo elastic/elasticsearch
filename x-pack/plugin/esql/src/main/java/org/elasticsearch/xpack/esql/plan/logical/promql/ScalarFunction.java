@@ -109,12 +109,15 @@ public final class ScalarFunction extends LeafPlan implements PromqlPlan {
         }
     }
 
-    /** Translates a scalar function (time(), etc.): an expression over the unchanged source. */
+    /**
+     * Translates a scalar function (time(), etc.): an expression over the unchanged source. It reads the step of the frame
+     * it translates under, which an independent pipeline keys afresh; typed as the command's step, since the frame's may not
+     * be resolved yet.
+     */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        var function = buildEsqlFunction(
-            new PromqlContext(context.cmd().timestamp(), null, context.cmd().stepAttribute(), context.configuration())
-        );
-        return new IntermediateResult(context.cmd().child(), TranslationSchema.EMPTY, function, context.stepAttr());
+        Attribute step = context.cmd().stepAttribute().withId(context.stepAttr().id());
+        var function = buildEsqlFunction(new PromqlContext(context.cmd().timestamp(), null, step, context.configuration()));
+        return new IntermediateResult(context.cmd().child(), function, context.stepAttr());
     }
 }

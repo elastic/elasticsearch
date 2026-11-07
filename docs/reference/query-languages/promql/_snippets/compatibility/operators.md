@@ -46,6 +46,8 @@ Each [operator reference entry](/reference/query-languages/promql/operators.md) 
 
 `==`, `!=`, `>`, `<`, `>=`, and `<=` between an instant vector and a number, such as `rate(x[5m]) > 100`, with or without `bool`, such as `x > bool 100`.
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A number as the first operand, such as `100 < x`, a function such as `time()` as the second operand, such as `x > time()`, and two instant vectors, such as `x > y`.
+
 **Not supported yet**
 
 :::{table}
@@ -53,10 +55,13 @@ Each [operator reference entry](/reference/query-languages/promql/operators.md) 
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 16 | Filter with a scalar as the first operand | `100 < x`, `time() <= x` | Swap the operands: `x > 100` | [#158184]({{es-issue}}158184) |
-| 17 | Non-literal scalar as the second operand | `x > time()`, `x > scalar(y)` | - | [#158184]({{es-issue}}158184) |
-| 18 | Two vectors, or `bool` with a scalar as the first operand | `x > y`, `100 > bool x` | For `bool`, swap the operands: `x < bool 100` | [#158184]({{es-issue}}158184) |
-| 19 | Comparison inside another expression | `(x > 100) + 1`, `count(x > 100)` | - | [#158184]({{es-issue}}158184) |
+| 16 | Filter with a scalar as the first operand {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `100 < x`, `time() <= x` | Swap the operands: `x > 100` | [#158184]({{es-issue}}158184) |
+| 17 | Filter with a function as the first operand {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `time() <= x`, `scalar(y) < x` | Swap the operands: `x >= time()` | [#158184]({{es-issue}}158184) |
+| 18 | Non-literal scalar as the second operand {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `x > time()`, `x > scalar(y)` | - | [#158184]({{es-issue}}158184) |
+| 19 | `scalar()` of a vector as the second operand {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `x > scalar(y)` | - | [#158184]({{es-issue}}158184) |
+| 20 | Two vectors, or `bool` with a scalar as the first operand {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `x > y`, `100 > bool x` | For `bool`, swap the operands: `x < bool 100` | [#158184]({{es-issue}}158184) |
+| 21 | Two different metrics stored as separate series with a `__name__` dimension, such as data ingested with {{prom}} remote write {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `a > b` | Aggregate both by the labels to compare on: `sum by (instance) (a) > sum by (instance) (b)` | [#158184]({{es-issue}}158184) |
+| 22 | Comparison inside another expression | `(x > 100) + 1`, `count(x > 100)` | - | [#158184]({{es-issue}}158184) |
 :::
 
 #### Logical/set binary operators [prometheus-compatibility-logical-set-binary-operators]
@@ -75,9 +80,9 @@ An `or` chain takes at most 8 operands by default.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 20 | `and`, `unless` | `a and b`, `a unless b` | - | [#158184]({{es-issue}}158184) |
-| 21 | `or` with `on(...)` or `ignoring(...)` | `a or on(job) b` | - | [#158184]({{es-issue}}158184) |
-| 22 | `or` inside another expression | `(sum(a) or sum(b)) * 2`, `count(a or b)` | - | [#158184]({{es-issue}}158184) |
+| 23 | `and`, `unless` | `a and b`, `a unless b` | - | [#158184]({{es-issue}}158184) |
+| 24 | `or` with `on(...)` or `ignoring(...)` | `a or on(job) b` | - | [#158184]({{es-issue}}158184) |
+| 25 | `or` inside another expression | `(sum(a) or sum(b)) * 2`, `count(a or b)` | - | [#158184]({{es-issue}}158184) |
 :::
 
 ### Vector matching [prometheus-compatibility-vector-matching]
@@ -91,6 +96,10 @@ Arithmetic between operands aggregated without grouping, such as `sum(a) / sum(b
 {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` One-to-one, many-to-one, and one-to-many matching between operands aggregated with `by(...)`, including `on`, `ignoring`, `group_left`, and `group_right`.
 For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` Arithmetic between different unaggregated metrics stored as separate series with a `__name__` dimension, such as data ingested with {{prom}} remote write: `a / b` matches series on their other labels.
+
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A different `offset` per operand, such as `rate(x[5m]) / rate(x[5m] offset 1h)`.
+
 **Not supported yet**
 
 :::{table}
@@ -98,13 +107,13 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 23 | Different unaggregated metrics stored as separate series with a `__name__` dimension, such as data ingested with {{prom}} remote write {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `a / b` | Aggregate both by the labels to match on: `sum by (instance) (a) / sum by (instance) (b)` | [#158184]({{es-issue}}158184) |
-| 24 | `on`, `ignoring`, `group_left`, or `group_right` with an operand that isn't aggregated | `a / on(instance) b`, `a * on(pod) group_left(node) b` | Aggregate both operands by the labels to match on | [#157669]({{es-issue}}157669) |
-| 25 | Operands aggregated differently {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `sum(a) / b`, `b / scalar(sum(a))`, `topk(2, a) * b` | Aggregate both operands alike: `sum(a) / sum(b)`. A number, such as `sum(a) * 2`, and `or` are supported | [#158184]({{es-issue}}158184) |
-| 26 | Nested aggregation next to an operand that reads a metric {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `count(count by (pod) (a)) / sum(b)` | - | [#158184]({{es-issue}}158184) |
-| 27 | A different `offset` per operand {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `rate(x[5m]) / rate(x[5m] offset 1h)` | `or` is supported | [#158184]({{es-issue}}158184) |
-| 28 | `label_replace` or `label_join` as an operand | `label_replace(a, ...) * on(pod) group_left(node) b` | - | [#157672]({{es-issue}}157672) |
-| 29 | `fill()`, `fill_left()`, and `fill_right()` ({{prom}}: `promql-binop-fill-modifiers` feature flag) | `a + fill(0) b` | - | [#164223]({{es-issue}}164223) |
+| 26 | Different unaggregated metrics stored as separate series with a `__name__` dimension, such as data ingested with {{prom}} remote write {applies_to}`stack: ga =9.6` | `a / b` | Aggregate both by the labels to match on: `sum by (instance) (a) / sum by (instance) (b)` | [#158184]({{es-issue}}158184) |
+| 27 | `on`, `ignoring`, `group_left`, or `group_right` with an operand that isn't aggregated | `a / on(instance) b`, `a * on(pod) group_left(node) b` | Aggregate both operands by the labels to match on | [#157669]({{es-issue}}157669) |
+| 28 | Operands aggregated differently {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `sum(a) / b`, `b / scalar(sum(a))`, `topk(2, a) * b` | Aggregate both operands alike: `sum(a) / sum(b)`. A number, such as `sum(a) * 2`, and `or` are supported | [#158184]({{es-issue}}158184) |
+| 29 | Nested aggregation next to an operand that reads a metric {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `count(count by (pod) (a)) / sum(b)` | - | [#158184]({{es-issue}}158184) |
+| 30 | A different `offset` per operand {applies_to}`stack: ga 9.5-9.6` | `rate(x[5m]) / rate(x[5m] offset 1h)` | `or` is supported | [#158184]({{es-issue}}158184) |
+| 31 | `label_replace` or `label_join` as an operand | `label_replace(a, ...) * on(pod) group_left(node) b` | - | [#157672]({{es-issue}}157672) |
+| 32 | `fill()`, `fill_left()`, and `fill_right()` ({{prom}}: `promql-binop-fill-modifiers` feature flag) | `a + fill(0) b` | - | [#164223]({{es-issue}}164223) |
 :::
 
 **Behaves differently**
@@ -114,7 +123,7 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 30 | Different unaggregated metrics stored as separate series {applies_to}`stack: preview =9.4, ga =9.5` | `a / b` | No results | Series matched on their other labels | [#158184]({{es-issue}}158184) |
+| 33 | Different unaggregated metrics stored as separate series {applies_to}`stack: preview =9.4, ga =9.5` | `a / b` | No results | Series matched on their other labels | [#158184]({{es-issue}}158184) |
 :::
 
 ### Aggregation operators [prometheus-compatibility-aggregation-operators]
@@ -131,12 +140,12 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 31 | `group`, `count_values` | `group by (job) (x)`, `count_values("v", x)` | - | [#164009]({{es-issue}}164009), [#136248]({{es-issue}}136248) |
-| 32 | `topk`, `bottomk`, `limitk`, or `limit_ratio` with `without(...)` | `topk without (instance) (1, x)` | Use `by(...)` | [#157671]({{es-issue}}157671) |
-| 33 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225]({{es-issue}}164225) |
-| 34 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
-| 35 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308]({{es-issue}}145308) |
-| 36 | Grouping by a label named `step` | `sum by (step) (x)` | `step` is an output column of the `PROMQL` command | - |
+| 34 | `group`, `count_values` | `group by (job) (x)`, `count_values("v", x)` | - | [#164009]({{es-issue}}164009), [#136248]({{es-issue}}136248) |
+| 35 | `topk`, `bottomk`, `limitk`, or `limit_ratio` with `without(...)` | `topk without (instance) (1, x)` | Use `by(...)` | [#157671]({{es-issue}}157671) |
+| 36 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225]({{es-issue}}164225) |
+| 37 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
+| 38 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308]({{es-issue}}145308) |
+| 39 | Grouping by a label named `step` | `sum by (step) (x)` | `step` is an output column of the `PROMQL` command | - |
 :::
 
 **Behaves differently**
@@ -146,6 +155,6 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 37 | `quantile` | `quantile(0.9, x)` | Approximate, using t-digest | Exact, with linear interpolation | - |
-| 38 | `limitk`, `limit_ratio` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `limitk(10, x)` | A different, equally valid subset | A deterministic pseudo-random subset, with the `promql-experimental-functions` feature flag | - |
+| 40 | `quantile` | `quantile(0.9, x)` | Approximate, using t-digest | Exact, with linear interpolation | - |
+| 41 | `limitk`, `limit_ratio` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `limitk(10, x)` | A different, equally valid subset | A deterministic pseudo-random subset, with the `promql-experimental-functions` feature flag | - |
 :::

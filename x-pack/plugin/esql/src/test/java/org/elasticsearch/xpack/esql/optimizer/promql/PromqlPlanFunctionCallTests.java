@@ -548,4 +548,13 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         });
         return nonFiniteExpressions;
     }
+
+    /** No label has an empty name: {@code label_replace} reads one as the empty string, as Prometheus does. */
+    public void testLabelReplaceFromEmptySourceLabel() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1h result=(sum by (pod) (label_replace(network.bytes_in, \"pod\", \"$1\", \"\", \"(.*)\")))"
+        );
+        assertTrue(plan.resolved());
+    }
 }

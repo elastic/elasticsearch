@@ -15,43 +15,21 @@ import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
- * Shared naming conventions for PromQL labels represented as ES|QL fields.
+ * Label naming and identification shared by PromQL translators.
  */
 public final class PromqlLabels {
     private PromqlLabels() {}
 
     public static final String PROMETHEUS_LABELS_PREFIX = "labels.";
-
-    /**
-     * Whether {@code name} is a valid PromQL label name, used at analysis time to validate the destination (and, for
-     * {@code label_join}, source) label names of {@code label_replace}/{@code label_join}. This mirrors the UTF-8
-     * label-name validation Prometheus applies to these functions - a label name is valid when it is non-empty - rather
-     * than the legacy {@code [a-zA-Z_][a-zA-Z0-9_]*} grammar. Derived labels are materialized as ordinary ES|QL columns,
-     * which admit dotted names such as {@code service.name}, so the legacy grammar would reject names that Prometheus and
-     * the surrounding query both accept.
-     */
-    public static boolean isValidLabelName(String name) {
-        return name != null && name.isEmpty() == false;
-    }
-
-    /**
-     * The PromQL label name an attribute carries: a {@link FieldAttribute}'s backing field name, otherwise the attribute
-     * name, with the {@code labels.} passthrough prefix stripped so {@code labels.pod} and a bare {@code pod} compare equal.
-     */
-    public static String labelName(Attribute attribute) {
-        return labelName(attribute instanceof FieldAttribute field ? field.fieldName().string() : attribute.name());
-    }
-
-    /** Canonical label name for a mapped source field. */
-    public static String labelName(String name) {
-        return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
-    }
 
     /** labels container the plan does not promote, or null when every label is promoted. */
     public static @Nullable UnresolvedPromqlLabelRef metadataLabel(List<Attribute> labels) {
@@ -66,6 +44,49 @@ public final class PromqlLabels {
     /** Whether the label is _timeseries metadata */
     public static boolean isMetadataLabel(Attribute label) {
         return label instanceof UnresolvedPromqlLabelRef reference && reference.isMetadata();
+    }
+
+    /**
+     * Labels excluded from the result's residual metadata; they may still exist as promoted columns.
+     * Null when the result has no residual metadata. The output contract already composes child exclusions.
+     */
+    public static @Nullable Set<String> excluded(LogicalPlan node) {
+        UnresolvedPromqlLabelRef metadata = metadataLabel(node.output());
+        return metadata == null ? null : metadata.unset();
+    }
+
+    /**
+     * Whether {@code name} is a valid PromQL label name, used at analysis time to validate the destination (and, for
+     * {@code label_join}, source) label names of {@code label_replace}/{@code label_join}. This mirrors the UTF-8
+     * label-name validation Prometheus applies to these functions - a label name is valid when it is non-empty - rather
+     * than the legacy {@code [a-zA-Z_][a-zA-Z0-9_]*} grammar. Derived labels are materialized as ordinary ES|QL columns,
+     * which admit dotted names such as {@code service.name}, so the legacy grammar would reject names that Prometheus and
+     * the surrounding query both accept.
+     */
+    public static boolean isValidLabelName(String name) {
+        return name != null && name.isEmpty() == false;
+    }
+
+    /**
+     * A mapped field's PromQL label name strips the {@code labels.} passthrough prefix. Derived labels retain their
+     * declared name, so a derived {@code labels.pod} remains distinct from the mapped label {@code pod}.
+     */
+    public static String labelName(Attribute attribute) {
+        return attribute instanceof FieldAttribute field ? labelName(field.fieldName().string()) : attribute.name();
+    }
+
+    /** Canonical label name for a mapped source field. */
+    public static String labelName(String name) {
+        return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
+    }
+
+    /** Canonical label names in declaration order, without duplicates. */
+    public static List<String> labelNames(Collection<? extends Attribute> attributes) {
+        var strings = new LinkedHashSet<String>();
+        for (var attribute : attributes) {
+            strings.add(labelName(attribute));
+        }
+        return new ArrayList<>(strings);
     }
 
     /** Column name for metadata after applying unset (e.g. _timeseries$pod after without(pod)). */
@@ -103,9 +124,21 @@ public final class PromqlLabels {
      * {@link DataType#isString} themselves.
      */
     public static @Nullable Attribute getLabel(LogicalPlan source, String label) {
+        return getField(source, label, true);
+    }
+
+    /**
+     * The field of {@code source} carrying {@code label}, by canonical name, dimension or not, or null when the source has
+     * none. A label an aggregate groups by need not be a dimension: any field of the series is one of its labels.
+     */
+    public static @Nullable Attribute getField(LogicalPlan source, String label) {
+        return getField(source, label, false);
+    }
+
+    private static @Nullable Attribute getField(LogicalPlan source, String label, boolean dimension) {
         for (Attribute attribute : source.output()) {
             if (attribute instanceof FieldAttribute field
-                && field.isDimension()
+                && (dimension == false || field.isDimension())
                 && (attribute instanceof TimeSeriesMetadataAttribute) == false
                 && labelName(attribute).equals(label)) {
                 return attribute;
@@ -113,4 +146,5 @@ public final class PromqlLabels {
         }
         return null;
     }
+
 }

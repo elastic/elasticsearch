@@ -16,6 +16,9 @@ import com.diffplug.spotless.LineEnding;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.configuration.BuildFeatures;
+
+import javax.inject.Inject;
 
 import java.io.File;
 
@@ -42,7 +45,10 @@ import java.io.File;
  * <p>See also the <a href="https://github.com/diffplug/spotless/tree/master/plugin-gradle"
  * >Spotless project page</a>.
  */
-public class FormattingPrecommitPlugin implements Plugin<Project> {
+public abstract class FormattingPrecommitPlugin implements Plugin<Project> {
+
+    @Inject
+    protected abstract BuildFeatures getBuildFeatures();
 
     /**
      * The Eclipse release whose formatter Spotless should use. Eclipse 4.36 bundles JDT 3.42.0,
@@ -54,6 +60,10 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        // Spotless 6 shares root-project tasks and cannot run with project isolation.
+        if (getBuildFeatures().getIsolatedProjects().getActive().get()) {
+            return;
+        }
         project.getPluginManager().withPlugin("java-base", javaBasePlugin -> {
             project.getPlugins().apply(PrecommitTaskPlugin.class);
             project.getPlugins().apply(SpotlessPlugin.class);

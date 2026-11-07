@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -75,11 +75,7 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
-        protected void rows(
-            TableFunctionInvocation call,
-            TableFunctionContext context,
-            ActionListener<List<List<Object>>> listener
-        ) {
+        protected void rows(TableFunctionInvocation call, TableFunctionContext context, ActionListener<List<List<Object>>> listener) {
             bindings.incrementAndGet();
             long upto = Long.parseLong(call.name(0));
             computed(listener, () -> {
@@ -93,7 +89,14 @@ public class TableFunctionResolverTests extends ESTestCase {
     }
 
     public void testPlanWithNoTableFunctionIsHandedBackUntouched() {
-        LogicalPlan plan = new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, "logs"), false, List.of(), IndexMode.STANDARD, null);
+        LogicalPlan plan = new UnresolvedRelation(
+            Source.EMPTY,
+            new IndexPattern(Source.EMPTY, "logs"),
+            false,
+            List.of(),
+            IndexMode.STANDARD,
+            null
+        );
         assertSame(plan, resolve(new Numbers(), plan));
     }
 
@@ -118,7 +121,10 @@ public class TableFunctionResolverTests extends ESTestCase {
     public void testFunctionBesideAnIndexPattern() {
         LogicalPlan plan = new UnionAll(
             Source.EMPTY,
-            List.of(new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, "logs"), false, List.of(), IndexMode.STANDARD, null), call("2")),
+            List.of(
+                new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, "logs"), false, List.of(), IndexMode.STANDARD, null),
+                call("2")
+            ),
             List.of()
         );
 
@@ -187,10 +193,7 @@ public class TableFunctionResolverTests extends ESTestCase {
         TableFunctionInvocation call = new TableFunctionInvocation(
             source,
             "numbers",
-            List.of(
-                new TableFunctionArgument.Name(source, "1"),
-                new TableFunctionArgument.NamedValues(source, Map.of("k", "v"))
-            )
+            List.of(new TableFunctionArgument.Name(source, "1"), new TableFunctionArgument.NamedValues(source, Map.of("k", "v")))
         );
         assertThat(call.arguments().size(), equalTo(2));
         assertThat(call.namedValues(1), equalTo(Map.of("k", "v")));

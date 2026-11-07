@@ -12,11 +12,16 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -39,6 +44,8 @@ import java.util.function.Supplier;
  * @see StreamingFetchPhaseDocsIterator
  */
 abstract class FetchPhaseDocsIterator {
+
+    private static final Logger LOGGER = LogManager.getLogger(FetchPhaseDocsIterator.class);
 
     /**
      * Accounts for FetchPhase memory usage.
@@ -77,6 +84,138 @@ abstract class FetchPhaseDocsIterator {
      * @param docsInLeaf the reader-specific docids to be fetched in this leaf reader
      */
     protected abstract void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException;
+
+    /**
+     * Whether to ask the codec to prefetch the data needed to load the hits of every segment before loading the first hit, see
+     * {@link SearchService#FETCH_PHASE_PREFETCH_ENABLED}. Defaults to {@code false}.
+     */
+    protected boolean prefetch() {
+        return false;
+    }
+
+    /**
+     * Prefetches the doc values that {@link #setNextReader} reads for a segment that has hits, such as the {@code _id}. Called once for
+     * every such segment before the first {@link #setNextReader} call, when {@link #prefetch()} is {@code true}. Defaults to a no-op.
+     */
+    protected void prefetchDocValues(LeafReaderContext ctx) throws IOException {}
+
+    /**
+     * Whether loading the hits reads their stored fields, so that it is worth prefetching them. Defaults to {@code true}.
+     */
+    protected boolean loadsStoredFields() {
+        return true;
+    }
+
+    /**
+     * The maximum number of hits whose stored fields are prefetched ahead of the hit being loaded, see
+     * {@link SearchService#FETCH_PHASE_PREFETCH_MAX_DOCS}. Only used when {@link #prefetch()} is {@code true}.
+     */
+    protected int prefetchMaxDocs() {
+        return SearchService.FETCH_PHASE_PREFETCH_MAX_DOCS.get(Settings.EMPTY);
+    }
+
+    /**
+     * Returns a {@link HitsPrefetcher} for these hits that has prefetched what loading the first hits reads, or {@code null} if
+     * {@link #prefetch()} is {@code false}.
+     *
+     * @param docs the hits, sorted by doc id
+     */
+    final HitsPrefetcher startPrefetching(IndexReader indexReader, DocIdToIndex[] docs) {
+        if (prefetch() == false) {
+            return null;
+        }
+        HitsPrefetcher prefetcher = new HitsPrefetcher(indexReader, docs, prefetchMaxDocs(), loadsStoredFields());
+        prefetcher.start();
+        return prefetcher;
+    }
+
+    /**
+     * Keeps what loading the next hits reads prefetched, so that a directory that reads from slow storage can fetch the data of many
+     * hits concurrently rather than one hit after the other, while bounding how much is prefetched at once. Best effort: failures stop
+     * the prefetching, and loading the hits reads the data anyway.
+     * <p>
+     * The doc values of every segment that has hits are prefetched first, once per segment. Then the stored fields of at most
+     * {@code maxDocs} hits ahead of the hit being loaded are prefetched: the first {@code maxDocs} hits before the first one is loaded,
+     * and the next half window each time loading reaches the middle of the prefetched hits. The reads of the next hits are then in flight
+     * while the current ones are loaded, and a fetch of {@code n} hits waits for about {@code 2n / maxDocs} rounds of reads instead of
+     * {@code n}.
+     * <p>
+     * The doc values go first because {@link StoredFields#prefetch} reads the stored fields index synchronously to locate the block of a
+     * document, which would otherwise delay the doc values prefetch of the following segments.
+     * <p>
+     * Not thread-safe: a fetch calls it from one thread at a time.
+     */
+    final class HitsPrefetcher {
+        private final IndexReader indexReader;
+        private final DocIdToIndex[] docs;
+        private final int maxDocs;
+        private final boolean storedFields;
+        private boolean failed;
+        // index in docs of the first hit whose stored fields are not prefetched yet
+        private int prefetchedUpTo;
+        private LeafReaderContext leaf;
+        private StoredFields leafStoredFields;
+        // StoredFields instances are not shared between threads: a streaming fetch can produce its chunks on different threads
+        private Thread leafThread;
+
+        private HitsPrefetcher(IndexReader indexReader, DocIdToIndex[] docs, int maxDocs, boolean storedFields) {
+            this.indexReader = indexReader;
+            this.docs = docs;
+            this.maxDocs = Math.max(1, maxDocs);
+            this.storedFields = storedFields;
+        }
+
+        private void start() {
+            try {
+                for (int i = 0; i < docs.length;) {
+                    LeafReaderContext ctx = leaf(indexReader, docs[i].docId);
+                    prefetchDocValues(ctx);
+                    i = endReaderIdx(ctx, i, docs);
+                }
+            } catch (Exception e) {
+                onFailure(e);
+            }
+            beforeHit(0);
+        }
+
+        /**
+         * Called before loading {@code docs[index]}. Prefetches the stored fields of the next half window of hits once loading reaches
+         * the middle of the prefetched hits.
+         */
+        void beforeHit(int index) {
+            if (failed || storedFields == false || prefetchedUpTo >= docs.length || prefetchedUpTo - index > maxDocs / 2) {
+                return;
+            }
+            prefetchedUpTo = Math.max(prefetchedUpTo, index);
+            int end = Math.min(docs.length, index + maxDocs);
+            try {
+                if (leafThread != Thread.currentThread()) {
+                    leaf = null;
+                    leafThread = Thread.currentThread();
+                }
+                for (; prefetchedUpTo < end; prefetchedUpTo++) {
+                    int docId = docs[prefetchedUpTo].docId;
+                    if (leaf == null || docId >= leaf.docBase + leaf.reader().maxDoc()) {
+                        leaf = leaf(indexReader, docId);
+                        leafStoredFields = leaf.reader().storedFields();
+                    }
+                    leafStoredFields.prefetch(docId - leaf.docBase);
+                }
+            } catch (Exception e) {
+                onFailure(e);
+            }
+        }
+
+        private void onFailure(Exception e) {
+            failed = true;
+            // only a hint: loading the hits reads the same data and reports any failure
+            LOGGER.debug("failed to prefetch the hits to fetch", e);
+        }
+    }
+
+    private static LeafReaderContext leaf(IndexReader indexReader, int docId) {
+        return indexReader.leaves().get(ReaderUtil.subIndex(docId, indexReader.leaves()));
+    }
 
     /**
      * Called for each document within a leaf reader.
@@ -139,6 +278,7 @@ abstract class FetchPhaseDocsIterator {
             if (docs.length == 0) {
                 return new IterateResult(searchHits);
             }
+            HitsPrefetcher prefetcher = startPrefetching(indexReader, docs);
 
             int leafOrd = ReaderUtil.subIndex(docs[0].docId, indexReader.leaves());
             LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
@@ -161,6 +301,9 @@ abstract class FetchPhaseDocsIterator {
                         endReaderIdx = endReaderIdx(ctx, i, docs);
                         docsInLeaf = docIdsInLeaf(i, endReaderIdx, docs, ctx.docBase);
                         setNextReader(ctx, docsInLeaf);
+                    }
+                    if (prefetcher != null) {
+                        prefetcher.beforeHit(i);
                     }
                     currentDoc = docs[i].docId;
                     assert searchHits[docs[i].index] == null;

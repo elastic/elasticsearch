@@ -1,0 +1,5 @@
+area: CCR
+issues: []
+pr: 164023
+summary: Keep CCR retention lease renewal running when the `ccr` thread pool is full
+type: bug

@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -201,6 +205,72 @@ public class PrometheusQueryExemplarsResponseListenerTests extends ESTestCase {
         assertThat(path.evaluate("data.0.exemplars.1.labels"), equalTo(Map.of("trace_id", "t", "span_id", "s")));
     }
 
+    /**
+     * The exemplars held in memory until the response is built are accounted for in the circuit breaker, which breaks if there are too
+     * many. Once the response is built or the breaker broke, their memory is released, which {@link ESTestCase} checks after each test.
+     */
+    public void testCircuitBreaker() throws IOException {
+        List<List<Object>> rows = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            rows.add(row("2026-01-01T00:01:00Z", "m", i, "trace-" + i, "span-" + i, "{\"labels\":{\"host\":\"host-" + i + "\"}}", "{}"));
+        }
+        List<Page> pages = List.of(new Page(BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows)));
+
+        CircuitBreaker limitedBreaker = newLimitedBreaker(ByteSizeValue.ofKb(10));
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> PrometheusQueryExemplarsResponseListener.convertToPrometheusJson(
+                pages,
+                COLUMNS,
+                ZoneOffset.UTC,
+                limitedBreaker,
+                START,
+                END
+            )
+        );
+        assertThat(limitedBreaker.getUsed(), equalTo(0L));
+
+        ObjectPath path = convertPages(pages);
+        assertThat(path.evaluate("data"), hasSize(1000));
+    }
+
+    /**
+     * A breaker that breaks at random points while the exemplars are collected, possibly after accounting for some of them, leaves
+     * no memory accounted for, whether it broke or let the conversion finish.
+     */
+    public void testCrankyCircuitBreaker() throws IOException {
+        CircuitBreaker crankyBreaker = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        for (int attempt = 0; attempt < 100; attempt++) {
+            int seriesCount = between(1, 5);
+            List<List<Object>> rows = new ArrayList<>();
+            for (int i = between(1, 30); i > 0; i--) {
+                String series = "{\"labels\":{\"host\":\"host-" + between(1, seriesCount) + "\"}}";
+                rows.add(row("2026-01-01T00:01:00Z", "m", i, "trace-" + i, "span-" + i, series, "{}"));
+            }
+            List<Page> pages = List.of(new Page(BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows)));
+            try (
+                XContentBuilder builder = PrometheusQueryExemplarsResponseListener.convertToPrometheusJson(
+                    pages,
+                    COLUMNS,
+                    ZoneOffset.UTC,
+                    crankyBreaker,
+                    START,
+                    END
+                )
+            ) {
+                List<Object> data = toObjectPath(builder).evaluate("data");
+                int exemplarCount = 0;
+                for (Object series : data) {
+                    exemplarCount += ObjectPath.<List<Object>>evaluate(series, "exemplars").size();
+                }
+                assertThat(exemplarCount, equalTo(rows.size()));
+            } catch (CircuitBreakingException e) {
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            }
+            assertThat("breaker leaked on attempt " + attempt, crankyBreaker.getUsed(), equalTo(0L));
+        }
+    }
+
     /** Without any exemplar data stream, the exemplars query is an empty relation without columns. */
     public void testNoColumns() throws IOException {
         try (
@@ -208,6 +278,7 @@ public class PrometheusQueryExemplarsResponseListenerTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 ZoneOffset.UTC,
+                breaker(),
                 START,
                 END
             )
@@ -231,18 +302,26 @@ public class PrometheusQueryExemplarsResponseListenerTests extends ESTestCase {
     }
 
     private static ObjectPath convert(List<List<Object>> rows) throws IOException {
-        List<Page> pages = List.of(new Page(BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows)));
+        return convertPages(List.of(new Page(BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows))));
+    }
+
+    private static ObjectPath convertPages(List<Page> pages) throws IOException {
         try (
             XContentBuilder builder = PrometheusQueryExemplarsResponseListener.convertToPrometheusJson(
                 pages,
                 COLUMNS,
                 ZoneOffset.UTC,
+                breaker(),
                 START,
                 END
             )
         ) {
             return toObjectPath(builder);
         }
+    }
+
+    private static CircuitBreaker breaker() {
+        return newLimitedBreaker(ByteSizeValue.ofMb(100));
     }
 
     private static ColumnInfoImpl col(String name, String type) {

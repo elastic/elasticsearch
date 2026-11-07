@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -104,12 +106,16 @@ public class PrometheusQueryExemplarsRestAction extends BaseRestHandler {
     ).toList();
 
     private final Supplier<TimeValue> maxQueryTimeout;
+    private final CircuitBreakerService circuitBreakerService;
 
     /**
      * @param maxQueryTimeout supplies the default and maximum query timeout, see {@link PromqlQueryExecutor#resolveTimeout}
+     * @param circuitBreakerService provides the {@link CircuitBreaker#REQUEST request} breaker that accounts for the exemplars held in
+     *                              memory while building the response
      */
-    public PrometheusQueryExemplarsRestAction(Supplier<TimeValue> maxQueryTimeout) {
+    public PrometheusQueryExemplarsRestAction(Supplier<TimeValue> maxQueryTimeout, CircuitBreakerService circuitBreakerService) {
         this.maxQueryTimeout = maxQueryTimeout;
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     @Override
@@ -174,7 +180,7 @@ public class PrometheusQueryExemplarsRestAction extends BaseRestHandler {
             request.getHttpChannel(),
             esqlRequest,
             timeout,
-            new PrometheusQueryExemplarsResponseListener(channel, start, end)
+            new PrometheusQueryExemplarsResponseListener(channel, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST), start, end)
         );
     }
 

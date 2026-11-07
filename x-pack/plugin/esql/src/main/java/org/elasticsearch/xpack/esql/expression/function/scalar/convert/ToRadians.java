@@ -42,7 +42,11 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
         "ToRadians",
         ToRadians::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToRadians.class).unary(ToRadians::new).name("to_radians");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToRadians.class)
+        .unary(ToRadians::new)
+        // Fix the optimizer dropping the conversion of a double field as a no-op.
+        .capabilities("fix_double_field")
+        .name("to_radians");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .unaryValueTransformation(ToRadians::new)
         .description("Converts input values from degrees to radians for all elements in the input vector.")

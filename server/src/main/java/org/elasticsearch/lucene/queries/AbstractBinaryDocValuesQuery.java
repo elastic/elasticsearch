@@ -28,6 +28,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -128,9 +129,18 @@ abstract class AbstractBinaryDocValuesQuery extends Query implements BinaryDocVa
             }
             case SEPARATE_COUNT -> {
                 final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
-                yield counts != null
-                    ? multiValuedIterator(values, counts, matcher, matchCost)
-                    : singleValuedIterator(values, matcher, matchCost);
+                if (counts != null) {
+                    yield multiValuedIterator(values, counts, matcher, matchCost);
+                }
+                // PROTOTYPE, only for the proof of concept of the Parquet doc values format: a reader that can run the matcher more
+                // cheaply than a document at a time says so, see BlockLoader.OptionalColumnAtATimeReader#tryMatchIterator
+                if (values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                    final DocIdSetIterator matching = direct.tryMatchIterator(matcher);
+                    if (matching != null) {
+                        yield matching;
+                    }
+                }
+                yield singleValuedIterator(values, matcher, matchCost);
             }
         };
     }

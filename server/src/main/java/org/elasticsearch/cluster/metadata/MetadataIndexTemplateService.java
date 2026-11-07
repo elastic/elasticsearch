@@ -41,6 +41,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -397,6 +398,7 @@ public class MetadataIndexTemplateService {
                 throw validationFailure;
             }
         }
+        validateSliceEnabledUnchangedForDataStreams(project, projectWithComponentTemplateAdded, "component template [" + name + "]");
 
         if (finalComponentTemplate.template().lifecycle() != null) {
             // We do not know if this lifecycle will belong to an internal data stream, so we fall back to a non internal.
@@ -542,7 +544,13 @@ public class MetadataIndexTemplateService {
             logger.info("removing component template [{}]", templateName);
             builder.removeComponentTemplate(templateName);
         }
-        return builder.build();
+        final ProjectMetadata updatedProject = builder.build();
+        validateSliceEnabledUnchangedForDataStreams(
+            project,
+            updatedProject,
+            "removing component templates " + new TreeSet<>(templateNames)
+        );
+        return updatedProject;
     }
 
     /**
@@ -738,13 +746,15 @@ public class MetadataIndexTemplateService {
         }
 
         validateIndexTemplateV2(project, name, finalIndexTemplate);
+        final ProjectMetadata updatedProject = ProjectMetadata.builder(project).put(name, finalIndexTemplate).build();
+        validateSliceEnabledUnchangedForDataStreams(project, updatedProject, "composable template [" + name + "]");
         logger.info(
             "{} index template [{}] for index patterns {}",
             existing == null ? "adding" : "updating",
             name,
             template.indexPatterns()
         );
-        return ProjectMetadata.builder(project).put(name, finalIndexTemplate).build();
+        return updatedProject;
     }
 
     /**
@@ -957,6 +967,84 @@ public class MetadataIndexTemplateService {
                 }
             }
         }
+    }
+
+    /**
+     * Rejects a template change that would change the effective {@code index.slice.enabled} setting for an existing data stream. The
+     * setting is final per index, so a change would only reach later backing indices and leave the stream mixing indices with and without
+     * slices: slice writes would start failing at an arbitrary rollover and slice searches would silently skip some generations. Changing
+     * it requires a new data stream.
+     */
+    private static void validateSliceEnabledUnchangedForDataStreams(
+        ProjectMetadata currentProject,
+        ProjectMetadata updatedProject,
+        String changeDescription
+    ) {
+        if (hasSliceEnabledSetting(currentProject) == false && hasSliceEnabledSetting(updatedProject) == false) {
+            return;
+        }
+        final Map<Boolean, List<String>> changed = new TreeMap<>();
+        for (DataStream dataStream : currentProject.dataStreams().values()) {
+            if (dataStream.isSystem() || dataStream.getIndices().isEmpty()) {
+                continue;
+            }
+            final Optional<Boolean> currentSliceEnabled = resolveSliceEnabled(currentProject, dataStream.getName());
+            final Optional<Boolean> updatedSliceEnabled = resolveSliceEnabled(updatedProject, dataStream.getName());
+            if (updatedSliceEnabled.isEmpty() || updatedSliceEnabled.equals(currentSliceEnabled)) {
+                continue;
+            }
+            final IndexMetadata writeIndex = currentProject.index(dataStream.getWriteIndex());
+            if (writeIndex == null) {
+                // a data stream can reference a backing index that is not in the metadata, for example mid-restore; nothing to compare
+                continue;
+            }
+            final boolean writeIndexSliceEnabled = IndexSettings.SLICE_ENABLED.get(writeIndex.getSettings());
+            if (writeIndexSliceEnabled != updatedSliceEnabled.get()) {
+                changed.computeIfAbsent(updatedSliceEnabled.get(), ignored -> new ArrayList<>()).add(dataStream.getName());
+            }
+        }
+        if (changed.isEmpty() == false) {
+            final String changes = changed.entrySet()
+                .stream()
+                .map(entry -> "to [" + entry.getKey() + "] for data streams " + entry.getValue())
+                .collect(Collectors.joining(" and "));
+            throw new IllegalArgumentException(
+                changeDescription
+                    + " would change ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] "
+                    + changes
+                    + ", which would mix indices with and without slices in one data stream. Create a new data stream instead"
+            );
+        }
+    }
+
+    private static boolean hasSliceEnabledSetting(ProjectMetadata project) {
+        for (ComposableIndexTemplate template : project.templatesV2().values()) {
+            if (template.template() != null
+                && template.template().settings() != null
+                && IndexSettings.SLICE_ENABLED.exists(template.template().settings())) {
+                return true;
+            }
+        }
+        for (ComponentTemplate template : project.componentTemplates().values()) {
+            if (template.template().settings() != null && IndexSettings.SLICE_ENABLED.exists(template.template().settings())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Optional<Boolean> resolveSliceEnabled(ProjectMetadata project, String dataStreamName) {
+        final String templateName = findV2Template(project, dataStreamName, false);
+        if (templateName == null) {
+            return Optional.empty();
+        }
+        final ComposableIndexTemplate template = project.templatesV2().get(templateName);
+        if (template.getDataStreamTemplate() == null) {
+            return Optional.empty();
+        }
+        return Optional.of(IndexSettings.SLICE_ENABLED.get(resolveSettings(template, project.componentTemplates())));
     }
 
     /**
@@ -1233,7 +1321,13 @@ public class MetadataIndexTemplateService {
             logger.info("removing index template [{}]", templateName);
             builder.removeIndexTemplate(templateName);
         }
-        return builder.build();
+        final ProjectMetadata updatedProject = builder.build();
+        validateSliceEnabledUnchangedForDataStreams(
+            project,
+            updatedProject,
+            "removing composable templates " + new TreeSet<>(templateNames)
+        );
+        return updatedProject;
     }
 
     /**

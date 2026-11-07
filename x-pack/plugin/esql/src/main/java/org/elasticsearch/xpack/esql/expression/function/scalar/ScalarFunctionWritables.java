@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.union.TypeOf;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -100,6 +101,7 @@ public class ScalarFunctionWritables {
         entries.add(FieldExtract.ENTRY);
         entries.add(FromAggregateMetricDouble.ENTRY);
         entries.add(Typed.ENTRY);
+        entries.add(TypeOf.ENTRY);
         entries.add(Greatest.ENTRY);
         entries.add(CopySign.ENTRY);
         entries.add(Hash.ENTRY);

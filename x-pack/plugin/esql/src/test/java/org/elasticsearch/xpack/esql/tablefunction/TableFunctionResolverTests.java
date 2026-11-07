@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.tablefunction;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.compute.data.ElementType;
@@ -28,6 +29,8 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
@@ -208,6 +211,95 @@ public class TableFunctionResolverTests extends ESTestCase {
         resolve(function, leaf);
 
         assertThat(function.seen, equalTo(Map.of("k", "v")));
+    }
+
+    /**
+     * Two functions that answer only once released bind concurrently: neither completes while the other is still
+     * outstanding, so the resolver cannot be answering them one at a time. This is what the facility's refcounting
+     * is for, and every other function here completes inline.
+     */
+    public void testFunctionsBindConcurrently() throws Exception {
+        Deferred left = new Deferred("left");
+        Deferred right = new Deferred("right");
+        TableFunctionResolver resolver = new TableFunctionResolver(new TableFunctionRegistry(List.of(left, right)));
+        LogicalPlan plan = new UnionAll(Source.EMPTY, List.of(named("left"), named("right")), List.of());
+        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
+
+        resolver.resolveTableFunctions(plan, null, future);
+
+        // Both were asked before either answered, which an implementation binding in sequence could not manage.
+        assertThat(left.asked.await(10, TimeUnit.SECONDS), equalTo(true));
+        assertThat(right.asked.await(10, TimeUnit.SECONDS), equalTo(true));
+        assertThat(future.isDone(), equalTo(false));
+
+        left.release();
+        right.release();
+        LogicalPlan resolved = future.actionGet(10, TimeUnit.SECONDS);
+        assertThat(resolved.children().get(0), instanceOf(LocalRelation.class));
+        assertThat(resolved.children().get(1), instanceOf(LocalRelation.class));
+    }
+
+    /** A function that fails its listener fails the query, rather than the resolver answering with a partial plan. */
+    public void testBindFailureFailsTheQuery() {
+        Deferred failing = new Deferred("left");
+        TableFunctionResolver resolver = new TableFunctionResolver(new TableFunctionRegistry(List.of(failing)));
+        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
+
+        resolver.resolveTableFunctions(named("left"), null, future);
+        failing.fail(new IllegalStateException("listing refused"));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("listing refused"));
+    }
+
+    /** Answers its listener only when told to, so a test can hold two binds open at once. */
+    private static class Deferred extends CoordinatorRowsFunction {
+
+        private final String name;
+        private final CountDownLatch asked = new CountDownLatch(1);
+        private final SetOnce<ActionListener<List<List<Object>>>> listener = new SetOnce<>();
+
+        Deferred(String name) {
+            this.name = name;
+        }
+
+        void release() {
+            listener.get().onResponse(List.of());
+        }
+
+        void fail(Exception e) {
+            listener.get().onFailure(e);
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public TableFunctionSignature signature() {
+            return TableFunctionSignature.of(TableFunctionSignature.name("x"));
+        }
+
+        @Override
+        protected List<Attribute> columns(TableFunctionInvocation call, TableFunctionContext context) {
+            return List.of(column("n", DataType.LONG));
+        }
+
+        @Override
+        protected void rows(TableFunctionInvocation call, TableFunctionContext context, ActionListener<List<List<Object>>> listener) {
+            this.listener.set(listener);
+            asked.countDown();
+        }
+    }
+
+    private static UnresolvedTableFunctionRelation named(String function) {
+        Source source = Source.EMPTY;
+        return new UnresolvedTableFunctionRelation(
+            source,
+            new TableFunctionInvocation(source, function, List.of(new TableFunctionArgument.Name(source, "1"))),
+            List.of()
+        );
     }
 
     /** Records the named values it was handed, so a test can assert the function saw them rather than the record. */

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,7 +17,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -49,9 +53,35 @@ public record InlineDatasetDefinition(String dataSource, Map<String, Object> def
     /** The key the data source occupies in a registration body, which this record carries separately. */
     private static final String DATA_SOURCE_FIELD = "data_source";
 
+    /** The version from which a node can read a definition off the wire. */
+    private static final TransportVersion SUPPORTED_FROM = TransportVersion.fromName("esql_inline_dataset_definition");
+
     public InlineDatasetDefinition {
         Objects.requireNonNull(dataSource, "dataSource");
         definition = Map.copyOf(Objects.requireNonNull(definition, "definition"));
+    }
+
+    /**
+     * Refuses {@code plan} if it carries a definition and some node in the cluster could not carry one, which is
+     * decided here rather than where the plan is serialized: a leaf is read on whichever nodes hold its files, so a
+     * refusal at the serializer would fail part of the query and leave the rest of it reading, and which nodes those
+     * are is not known while the plan is still being analyzed.
+     *
+     * @param minimumVersion the oldest transport version in this cluster, so a plan that passes has no target it
+     *                       cannot be sent to
+     */
+    public static void ensureEveryDefinitionCanTravel(LogicalPlan plan, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(SUPPORTED_FROM)) {
+            return;
+        }
+        plan.forEachDown(UnresolvedExternalRelation.class, relation -> {
+            if (relation.inlineDefinition() != null) {
+                throw new VerificationException(
+                    "a dataset definition carried by a query is not supported on all nodes in the cluster; "
+                        + "retry after the upgrade, or register the dataset"
+                );
+            }
+        });
     }
 
     public static InlineDatasetDefinition readFrom(StreamInput in) throws IOException {

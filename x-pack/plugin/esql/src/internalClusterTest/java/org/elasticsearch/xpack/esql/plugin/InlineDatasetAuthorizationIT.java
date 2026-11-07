@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * A dataset defined where it is read names one object, the data source, and both privileges that govern that object
@@ -145,7 +146,10 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
         assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
         if (fixture == null) {
             Path dir = createTempDir();
-            fixture = Files.writeString(dir.resolve("a.csv"), "a\na1\na2\n", StandardCharsets.UTF_8);
+            Files.writeString(dir.resolve("a.csv"), "a\na1\n", StandardCharsets.UTF_8);
+            Files.writeString(dir.resolve("b.csv"), "a\na2\n", StandardCharsets.UTF_8);
+            Files.writeString(dir.resolve("c.csv"), "a\na3\n", StandardCharsets.UTF_8);
+            fixture = dir;
         }
         assertAcked(
             client().execute(
@@ -157,7 +161,7 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
 
     public void testBothPrivilegesTogetherRead() {
         try (EsqlQueryResponse response = query(FULL)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of("a1"), List.of("a2"))));
+            assertThat(getValuesList(response), equalTo(List.of(List.of("a1"), List.of("a2"), List.of("a3"))));
         }
     }
 
@@ -178,43 +182,50 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
     }
 
     /**
-     * The same two refusals for a read pinned to the coordinator, where no data node request is sent at all: without
-     * the coordinator's own gate nothing would be asked, and the query would read under a privilege the caller does
-     * not hold.
+     * The same two refusals for a read that never leaves the coordinator: pinned there, and with no operator above
+     * the scan that would need a gather, so the splits are collapsed onto local drivers and no data node request is
+     * sent. The coordinator's own gate is the only thing between the caller and the read.
      */
-    public void testTheDataSourcePrivilegeIsRequiredOnACoordinatorOnlyRead() {
-        Exception e = expectThrows(Exception.class, () -> query(NO_DATASOURCE, coordinatorOnly()).close());
+    public void testTheDataSourcePrivilegeIsRequiredOnAReadThatNeverLeavesTheCoordinator() {
+        Exception e = expectThrows(Exception.class, () -> collapsedQuery(NO_DATASOURCE).close());
         assertThat(
             ExceptionsHelper.unwrapCause(e).getMessage(),
             containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME + "] is unauthorized")
         );
     }
 
-    public void testTheNamePrivilegeIsRequiredOnACoordinatorOnlyRead() {
-        Exception e = expectThrows(Exception.class, () -> query(NO_NAME, coordinatorOnly()).close());
+    public void testTheNamePrivilegeIsRequiredOnAReadThatNeverLeavesTheCoordinator() {
+        Exception e = expectThrows(Exception.class, () -> collapsedQuery(NO_NAME).close());
         assertThat(
             ExceptionsHelper.unwrapCause(e).getMessage(),
             containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME + "] is unauthorized")
         );
     }
 
-    public void testACoordinatorOnlyReadStillWorksForTheFullCaller() {
-        try (EsqlQueryResponse response = query(FULL, coordinatorOnly())) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of("a1"), List.of("a2"))));
+    public void testAReadThatNeverLeavesTheCoordinatorStillWorksForTheFullCaller() {
+        try (EsqlQueryResponse response = collapsedQuery(FULL)) {
+            assertThat(getValuesList(response), hasSize(3));
         }
     }
 
-    /** Keeps every split on the coordinator, so no data node request carries the definition anywhere. */
-    private static QueryPragmas coordinatorOnly() {
-        return new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "coordinator_only").build());
-    }
-
+    /** Distributed: three files, a SORT above the scan, so the splits are spread over the data nodes. */
     private EsqlQueryResponse query(String user) {
-        return query(user, QueryPragmas.EMPTY);
+        return query(user, "| SORT a", QueryPragmas.EMPTY);
     }
 
-    private EsqlQueryResponse query(String user, QueryPragmas pragmas) {
-        String query = "FROM DATASET(" + DATA_SOURCE + ", \"" + StoragePath.fileUri(fixture) + "\") | SORT a";
+    /**
+     * Collapsed onto the coordinator's own drivers: pinned there, and a plain {@code LIMIT} needs no gather, so
+     * {@code ComputeService} reads the splits locally instead of sending itself a data node request.
+     */
+    private EsqlQueryResponse collapsedQuery(String user) {
+        QueryPragmas pinned = new QueryPragmas(
+            Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "coordinator_only").build()
+        );
+        return query(user, "| LIMIT 10", pinned);
+    }
+
+    private EsqlQueryResponse query(String user, String suffix, QueryPragmas pragmas) {
+        String query = "FROM DATASET(" + DATA_SOURCE + ", \"" + StoragePath.fileUri(fixture) + "/*.csv\") " + suffix;
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.pragmas(pragmas);
         return client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(user, PASSWORD)))

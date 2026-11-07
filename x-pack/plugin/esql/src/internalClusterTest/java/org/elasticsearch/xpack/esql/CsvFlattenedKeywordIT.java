@@ -1527,6 +1527,13 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "SPARKLINE:to is missing",
         // TEXT_EMBEDDING requires an inference service unavailable in the csv-spec test cluster.
         "TEXT_EMBEDDING:text is missing",
+        // TYPED and TYPEOF both report or select by the type a value's own index mapped it as, so the parameter this
+        // check wants exercised with a keyword field can only be exercised meaningfully by a column of more than one
+        // type - and a csv-spec cannot express one, since CsvTestUtils.Type is one type per column. Their csv-spec
+        // cases therefore read an ip and a long. Rewriting such a column into a flattened subfield would also change
+        // the mapping these functions answer about, which is the thing under test rather than an incidental detail.
+        "TYPED:field is missing",
+        "TYPEOF:field is missing",
         // WITHOUT is a time-series grouping helper valid only inside TS queries, and its dimension arguments
         // must be real index dimension fields. Rewriting a dimension to a flattened subfield destroys its
         // dimension nature, and TS tests are skipped by the coverage check entirely (see the ts_info_command

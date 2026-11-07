@@ -50,6 +50,21 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
         assertKeyValue("message", "keyword", responseMap);
     }
 
+    public void testJsonObjectDetectionTruncatedFinalDocument() throws IOException {
+        String jsonSample = """
+            {"timestamp": "1478261151445", "id": 1, "message": "Connection established"}
+            {"timestamp": "1478261151446", "id": 2, "message": "Request processed"}
+            {"timestamp": "1478261151447", "id": 3, "message": "Data w
+            """;
+
+        Map<String, Object> responseMap = executeAndVerifyRequest(jsonSample, null);
+
+        assertKeyValue("timestamp", "date", responseMap);
+        assertKeyValue("id", "long", responseMap);
+        assertKeyValue("message", "keyword", responseMap);
+        assertThat(responseMap.get("num_messages_analyzed"), equalTo(2));
+    }
+
     public void testNestedJsonObjectDetectionDefaultBehavior() throws IOException {
         String nestedJsonSample = """
             {"host": {"id": 1, "category": "NETWORKING DEVICE"}, "timestamp": "1478261151445"}

@@ -19,6 +19,7 @@ const partList = (parts: number): number[] => Array.from({ length: parts }, (_, 
 const PARTS = readPartCount("assignment.json");
 const ALL_PARTS = partList(PARTS);
 const BC_UPGRADE_PARTS = partList(readPartCount("bc-upgrade", "assignment.json"));
+const ESQL_RELEASE_PARTS = partList(readPartCount("esql-release", "assignment.json"));
 
 const pipelineFiles = (dir: string): string[] =>
   readdirSync(dir).flatMap((name) => {
@@ -51,6 +52,12 @@ describe("CI parts", () => {
       const parts = [...(matrix?.[1] ?? "").matchAll(/\d+/g)].map((m) => Number(m[0]));
       expect(parts, script).toEqual(BC_UPGRADE_PARTS);
     }
+  });
+
+  test("the ES|QL release test pipeline runs every releaseTestCheckEsqlPartN", () => {
+    const yaml = readFileSync(join(PIPELINES, "pull-request", "esql-release-tests.yml"), "utf-8");
+    const parts = [...new Set([...yaml.matchAll(/\breleaseTestCheckEsqlPart(\d+)\b/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
+    expect(parts).toEqual(ESQL_RELEASE_PARTS);
   });
 
   test("every pull request part variant has one pipeline per part", () => {

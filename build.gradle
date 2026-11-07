@@ -584,77 +584,70 @@ tasks.register("generateBcUpgradeTestPartAssignment", GenerateCiPartAssignmentTa
   assignmentFile = layout.settingsDirectory.file('.ci/test-parts/bc-upgrade/assignment.json')
 }
 
+tasks.register("generateEsqlReleaseTestPartAssignment", GenerateCiPartAssignmentTask) {
+  group = 'build'
+  description = 'Regenerates .ci/test-parts/esql-release/assignment.json from config.json and durations.json.'
+  configFile = layout.settingsDirectory.file('.ci/test-parts/esql-release/config.json')
+  durationsFile = layout.settingsDirectory.file('.ci/test-parts/esql-release/durations.json')
+  assignmentFile = layout.settingsDirectory.file('.ci/test-parts/esql-release/assignment.json')
+}
+
 tasks.register("checkBuildLogic").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
   dependsOn tasks.named("validateBuildGradleScripts")
 }
 
-[
-  releaseTestCheckEsqlEngine: [
-    ':x-pack:plugin:esql',
-    ':x-pack:plugin:esql:compute',
-    ':x-pack:plugin:esql:compute:ann',
-    ':x-pack:plugin:esql:compute:gen',
-    ':x-pack:plugin:esql:compute:test',
-    ':x-pack:plugin:esql:profile-schema',
-    ':x-pack:plugin:esql:qa:testFixtures',
-    ':x-pack:plugin:esql:tools',
-    ':x-pack:plugin:esql-core',
-  ],
-  // The ESQL QA suite is sharded so no job exceeds the CI timeout. The three heaviest,
-  // independently-growing workloads are kept apart:
-  //   Qa1: single-node's csvSpecTests (~1h 10m) run in isolation.
-  //   Qa2: mixed-cluster runs the spec/yaml suites once per supported BWC version.
-  //   Qa3: single-node's REST tests plus the remaining lightweight QA projects.
-  releaseTestCheckEsqlQa1: [
-    // Explicit task path — the loop appends :releaseTestCheck only for plain project paths.
-    ':x-pack:plugin:esql:qa:server:single-node:releaseTestCheckCsvSpec',
-  ],
-  releaseTestCheckEsqlQa2: [
-    ':x-pack:plugin:esql:qa:server:mixed-cluster',
-    ':x-pack:plugin:esql:qa:server:multi-node',
-    ':x-pack:plugin:esql:qa:security',
-  ],
-  releaseTestCheckEsqlQa3: [
-    ':x-pack:plugin:esql:qa:action',
-    ':x-pack:plugin:esql:qa:server',
-    // Explicit task path — runs only the REST variants (csvSpecTests runs in its own Qa1 job).
-    ':x-pack:plugin:esql:qa:server:single-node:releaseTestCheckRest',
-    ':x-pack:plugin:esql:qa:server:multi-clusters',
-  ],
-  releaseTestCheckEsqlDatasourceCore: [
-    ':x-pack:plugin:esql-datasource-azure',
-    ':x-pack:plugin:esql-datasource-brotli',
-    ':x-pack:plugin:esql-datasource-bzip2',
-    ':x-pack:plugin:esql-datasource-compression-libs',
-    ':x-pack:plugin:esql-datasource-csv',
-    ':x-pack:plugin:esql-datasource-gcs',
-    ':x-pack:plugin:esql-datasource-grpc',
-    ':x-pack:plugin:esql-datasource-gzip',
-    ':x-pack:plugin:esql-datasource-http',
-    ':x-pack:plugin:esql-datasource-iceberg',
-    ':x-pack:plugin:esql-datasource-lz4',
-    ':x-pack:plugin:esql-datasource-ndjson',
-    ':x-pack:plugin:esql-datasource-netty-commons',
-    ':x-pack:plugin:esql-datasource-orc',
-  ],
-  releaseTestCheckEsqlDatasourceQa: [
-    ':x-pack:plugin:esql-datasource-csv:qa',
-    ':x-pack:plugin:esql-datasource-iceberg:qa',
-    ':x-pack:plugin:esql-datasource-ndjson:qa',
-    ':x-pack:plugin:esql-datasource-orc:qa',
-    ':x-pack:plugin:esql-datasource-parquet',
-    ':x-pack:plugin:esql-datasource-parquet:qa',
-    ':x-pack:plugin:esql-datasource-snappy',
-    ':x-pack:plugin:esql-datasource-zstd',
-  ],
-].each { taskName, taskPaths ->
-  tasks.register(taskName) {
-    group = 'Verification'
-    description = "Runs ${taskName} tasks."
-    // Plain project paths get :releaseTestCheck appended; explicit task paths are used as-is.
-    dependsOn taskPaths.collect { path -> path.contains(':releaseTestCheck') ? path : "${path}:releaseTestCheck" }
+// The ES|QL release test jobs (.buildkite/pipelines/pull-request/esql-release-tests.yml) run the release-build
+// checks of these projects, split into releaseTestCheckEsqlPartN by the elasticsearch.ci-parts plugin from
+// .ci/test-parts/esql-release. From single-node they run only the test suites; its precommit runs in checkPartN.
+def esqlReleaseTestProjects = [
+  ':x-pack:plugin:esql',
+  ':x-pack:plugin:esql-core',
+  ':x-pack:plugin:esql-datasource-azure',
+  ':x-pack:plugin:esql-datasource-brotli',
+  ':x-pack:plugin:esql-datasource-bzip2',
+  ':x-pack:plugin:esql-datasource-compression-libs',
+  ':x-pack:plugin:esql-datasource-csv',
+  ':x-pack:plugin:esql-datasource-csv:qa',
+  ':x-pack:plugin:esql-datasource-gcs',
+  ':x-pack:plugin:esql-datasource-grpc',
+  ':x-pack:plugin:esql-datasource-gzip',
+  ':x-pack:plugin:esql-datasource-http',
+  ':x-pack:plugin:esql-datasource-iceberg',
+  ':x-pack:plugin:esql-datasource-iceberg:qa',
+  ':x-pack:plugin:esql-datasource-lz4',
+  ':x-pack:plugin:esql-datasource-ndjson',
+  ':x-pack:plugin:esql-datasource-ndjson:qa',
+  ':x-pack:plugin:esql-datasource-netty-commons',
+  ':x-pack:plugin:esql-datasource-orc',
+  ':x-pack:plugin:esql-datasource-orc:qa',
+  ':x-pack:plugin:esql-datasource-parquet',
+  ':x-pack:plugin:esql-datasource-parquet:qa',
+  ':x-pack:plugin:esql-datasource-snappy',
+  ':x-pack:plugin:esql-datasource-zstd',
+  ':x-pack:plugin:esql:compute',
+  ':x-pack:plugin:esql:compute:ann',
+  ':x-pack:plugin:esql:compute:gen',
+  ':x-pack:plugin:esql:compute:test',
+  ':x-pack:plugin:esql:profile-schema',
+  ':x-pack:plugin:esql:qa:action',
+  ':x-pack:plugin:esql:qa:security',
+  ':x-pack:plugin:esql:qa:server',
+  ':x-pack:plugin:esql:qa:server:mixed-cluster',
+  ':x-pack:plugin:esql:qa:server:multi-clusters',
+  ':x-pack:plugin:esql:qa:server:multi-node',
+  ':x-pack:plugin:esql:qa:testFixtures',
+  ':x-pack:plugin:esql:tools',
+]
+// single-node registers its own esqlReleaseTestCheck, for its test suites only
+allprojects {
+  if (esqlReleaseTestProjects.contains(path)) {
+    tasks.register('esqlReleaseTestCheck') {
+      group = 'Verification'
+      description = 'Runs the checks of the ES|QL release test jobs for this project.'
+      dependsOn 'releaseTestCheck'
+    }
   }
 }
 

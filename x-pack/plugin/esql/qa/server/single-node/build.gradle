@@ -195,19 +195,12 @@ tasks.named('yamlRestTest') {
   usesDefaultDistribution("to be triaged")
 }
 
-// Runs only the CSV spec suite — used by the dedicated releaseTestCheckEsqlQa1 CI job.
-tasks.register('releaseTestCheckCsvSpec') {
+// The ES|QL release test jobs run only this project's test suites; its precommit runs in the check parts. The root
+// build registers esqlReleaseTestCheck on the other projects those jobs cover.
+tasks.register('esqlReleaseTestCheck') {
   group = 'Verification'
-  description = 'Runs csvSpecTests against a release distribution.'
-  dependsOn csvSpecTests
-}
-
-// Runs only the two REST test variants — used by the releaseTestCheckEsqlQa3 CI job.
-// csvSpecTests is excluded here; it runs in its own job via releaseTestCheckCsvSpec.
-tasks.register('releaseTestCheckRest') {
-  group = 'Verification'
-  description = 'Runs the REST test suites against a release distribution.'
-  dependsOn 'javaRestTest', 'yamlRestTest'
+  description = 'Runs the test suites of the ES|QL release test jobs for this project.'
+  dependsOn 'csvSpecTests', 'javaRestTest', 'yamlRestTest'
 }
 
 // Uncomment this to start automatically running this as part of CI

@@ -377,7 +377,15 @@ from the exclusion list in `BlockMultiValuedTests`, because that suite needs `lo
 `TopNOperatorTests` needs increment 7 first. Both exclusions stay, and the suite's own neighbours
 explain why.
 
-**4. The loader, with the builder-supplier fix.** In `EsPhysicalOperationProviders.blockLoaderAndConverter`,
+**4a. The builder-supplier fix. Done.** `ValuesSourceReaderOperator.FieldInfo` now carries a supplier
+for the destination block a multi-segment page is assembled into, with a four-argument constructor that
+derives it from the element type exactly as before - so every existing field is untouched - and a
+five-argument one for a shape the element type cannot describe. `ValuesReader.initFinalBuilders` uses
+it. Without this the loader would have passed on single-segment pages and thrown on multi-segment ones,
+which is the worst available failure shape. `FieldInfoBuilderSupplierTests` pins all three cases,
+including that a union handed the default supplier throws with the element type's own message.
+
+**4b. The loader itself.** In `EsPhysicalOperationProviders.blockLoaderAndConverter`,
 for a `FieldAttribute` over a `UnionEsField`: read the shard's mapped type exactly as the
 `CompactMultiTypeEsField` arm does, compute the leg, load natively with the shard's own loader at
 `NONE`, and convert by appending each value into a `UnionBlockBuilder` under that tag, multi-valued

@@ -110,6 +110,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
+    /**
+     * Hints that {@link #leaf} is about to be called for {@code reader}, so that the doc values it reads the {@code _id} from can be
+     * prefetched, for instance before loading the hits of several segments. A no-op unless the {@code _id} is loaded from doc values.
+     */
+    default void prefetch(LeafReader reader) throws IOException {}
+
     BlockLoader blockLoader(ByteSizeValue ordinalsByteSize);
 
     /**
@@ -596,6 +602,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     final class DocValuesIdLoader implements IdLoader {
 
         @Override
+        public void prefetch(LeafReader reader) throws IOException {
+            // the codec prefetches the first page of the values and their addresses when it creates the doc values
+            DocValues.getBinary(reader, IdFieldMapper.NAME);
+        }
+
+        @Override
         public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
             BinaryDocValues binaryDocValues = DocValues.getBinary(reader, IdFieldMapper.NAME);
             if (docIdsInLeaf == null) {
@@ -633,6 +645,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
      * {@link IdFieldMapper#decodeIdentity} to recover the user-visible plain id.
      */
     final class SliceDocValuesIdLoader implements IdLoader {
+
+        @Override
+        public void prefetch(LeafReader reader) throws IOException {
+            // the codec prefetches the first page of the values and their addresses when it creates the doc values
+            DocValues.getBinary(reader, IdFieldMapper.NAME);
+        }
 
         @Override
         public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {

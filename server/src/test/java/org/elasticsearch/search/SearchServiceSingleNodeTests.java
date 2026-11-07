@@ -144,6 +144,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -1589,6 +1590,45 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     /**
      * test that getting more than the allowed number of docvalue_fields throws an exception
      */
+    /**
+     * The fetch phase returns the same hits with {@link SearchService#FETCH_PHASE_PREFETCH_ENABLED} on and off, over a shard with several
+     * segments, and the setting can be updated dynamically.
+     */
+    public void testFetchPhasePrefetchDoesNotChangeHits() {
+        createIndex("index", Settings.EMPTY, "n", "type=long");
+        int numDocs = 0;
+        for (int segment = 0; segment < 5; segment++) {
+            for (int i = 0; i < 10; i++) {
+                prepareIndex("index").setId("id-" + numDocs).setSource("n", numDocs, "text", "value " + numDocs).get();
+                numDocs++;
+            }
+            indicesAdmin().prepareRefresh("index").get();
+        }
+        boolean fetchSource = randomBoolean();
+        List<String> hitsWithoutPrefetch = fetchPhasePrefetchTestHits(fetchSource);
+        updateClusterSettings(Settings.builder().put(SearchService.FETCH_PHASE_PREFETCH_ENABLED.getKey(), true).build());
+        try {
+            List<String> hitsWithPrefetch = fetchPhasePrefetchTestHits(fetchSource);
+            assertThat(hitsWithPrefetch.size(), equalTo(numDocs));
+            assertThat(hitsWithPrefetch, equalTo(hitsWithoutPrefetch));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(SearchService.FETCH_PHASE_PREFETCH_ENABLED.getKey()).build());
+        }
+    }
+
+    private List<String> fetchPhasePrefetchTestHits(boolean fetchSource) {
+        List<String> hits = new ArrayList<>();
+        assertNoFailuresAndResponse(
+            client().prepareSearch("index").setSize(1000).addSort("n", SortOrder.ASC).setFetchSource(fetchSource),
+            response -> {
+                for (SearchHit hit : response.getHits().getHits()) {
+                    hits.add(hit.getId() + ":" + (fetchSource ? hit.getSourceAsString() : null));
+                }
+            }
+        );
+        return hits;
+    }
+
     public void testMaxDocvalueFieldsSearch() throws IOException {
         final Settings settings = Settings.builder().put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 1).build();
         createIndex("index", settings);

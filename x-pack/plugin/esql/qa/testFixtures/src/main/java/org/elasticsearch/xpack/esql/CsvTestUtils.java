@@ -870,7 +870,8 @@ public final class CsvTestUtils {
                 case TDIGEST -> TDIGEST;
                 case LONG_RANGE -> DATE_RANGE;
                 case DOUBLE_RANGE -> DOUBLE_RANGE;
-                // Asserting on a union column needs a Type of its own here, which comes with response rendering.
+                // Asserting on a union column needs a Type of its own here, and leg types on the ColumnInfoImpl that
+                // ActualResults builds. Both wait for a csv-spec test that can produce a union column at all.
                 case UNION -> throw new IllegalArgumentException("can't assert on union blocks");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };

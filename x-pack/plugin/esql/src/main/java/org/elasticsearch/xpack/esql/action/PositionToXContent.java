@@ -299,21 +299,32 @@ public abstract class PositionToXContent {
                 }
             };
             case UNION -> {
-                List<String> originalTypes = columnInfo.originalTypes();
-                if (originalTypes == null || originalTypes.isEmpty()) {
-                    throw new IllegalArgumentException("rendering a union needs its leg types");
-                }
+                List<DataType> legTypes = ResponseValueUtils.unionLegTypes(columnInfo);
                 UnionBlock union = (UnionBlock) block;
+                if (union.legCount() == 0) {
+                    /*
+                     * A union column that is null across a whole page arrives as a ConstantNullBlock, which has no
+                     * legs to read. Every position is null, so the outer positionToXContent writes the null and
+                     * this is never reached; it exists so the arm does not reach for a leg that is not there.
+                     */
+                    yield new PositionToXContent(block) {
+                        @Override
+                        protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                            throws IOException {
+                            return builder.nullValue();
+                        }
+                    };
+                }
+                ResponseValueUtils.checkUnionLegCount(columnInfo, union, legTypes.size());
                 /*
                  * One writer per leg, over that leg's own sub-block, so each value is written as the type its leg
                  * declares. The leg's writer sees the leg block and the same value index, since a leg holds its
                  * value at the union's own index.
                  */
-                PositionToXContent[] legWriters = new PositionToXContent[originalTypes.size()];
-                for (int leg = 0; leg < originalTypes.size(); leg++) {
-                    DataType legType = DataType.fromTypeName(originalTypes.get(leg));
+                PositionToXContent[] legWriters = new PositionToXContent[legTypes.size()];
+                for (int leg = 0; leg < legTypes.size(); leg++) {
                     legWriters[leg] = positionToXContent(
-                        new ColumnInfoImpl(columnInfo.name(), legType, null),
+                        new ColumnInfoImpl(columnInfo.name(), legTypes.get(leg), null),
                         union.legBlock(leg),
                         zoneId,
                         scratch

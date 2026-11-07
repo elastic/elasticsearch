@@ -2059,6 +2059,98 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         assertThat(e.getMessage(), equalTo("rendering a union needs its leg types"));
     }
 
+    /**
+     * A union column can be constant-null on some pages, which is what a shard whose index lacks the field
+     * emits. Every output format has to render those as nulls; the JSON path must not reach for legs that a
+     * {@link org.elasticsearch.compute.data.ConstantNullBlock} does not have.
+     */
+    public void testUnionColumnThatIsConstantNullOnAPageRendersAsNulls() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("flow", "union", List.of("long", "keyword"))),
+                List.of(new Page(blockFactory.newConstantNullBlock(2))),
+                0,
+                0,
+                null,
+                false,
+                null,
+                false,
+                false,
+                ZoneOffset.UTC,
+                0L,
+                0L,
+                null
+            )
+        ) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response.values()),
+                equalTo(List.of(Collections.singletonList(null), Collections.singletonList(null)))
+            );
+            assertThat(Strings.toString(wrapAsToXContent(response), false, false), containsString("\"values\":[[null],[null]]"));
+        }
+    }
+
+    /** Fewer declared leg types than the block has legs is a named refusal, not an index out of bounds. */
+    public void testUnionColumnWithTooFewLegTypesIsRefused() {
+        List<ElementType> legs = List.of(ElementType.LONG, ElementType.BYTES_REF, ElementType.BOOLEAN);
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(legs, 1)) {
+            appendUnionBytes(builder, 1, "x");
+            try (UnionBlock block = builder.build()) {
+                ColumnInfoImpl column = new ColumnInfoImpl("flow", "union", List.of("long", "keyword"));
+                EsqlIllegalArgumentException fromValues = expectThrows(
+                    EsqlIllegalArgumentException.class,
+                    () -> ResponseValueUtils.valueExtractorFor(column, ZoneOffset.UTC).extract(block, 0, new BytesRef())
+                );
+                assertThat(fromValues.getMessage(), equalTo("union column [flow] has 3 legs but 2 leg types were declared"));
+                EsqlIllegalArgumentException fromXContent = expectThrows(
+                    EsqlIllegalArgumentException.class,
+                    () -> PositionToXContent.positionToXContent(column, block, ZoneOffset.UTC, new BytesRef())
+                );
+                assertThat(fromXContent.getMessage(), equalTo("union column [flow] has 3 legs but 2 leg types were declared"));
+            }
+        }
+    }
+
+    /** A leg type name that is not a type is a named refusal, not a null dereference. */
+    public void testUnionColumnWithAnUnknownLegTypeIsRefused() {
+        ColumnInfoImpl column = new ColumnInfoImpl("flow", "union", List.of("long", "bogus"));
+        EsqlIllegalArgumentException fromValues = expectThrows(
+            EsqlIllegalArgumentException.class,
+            () -> ResponseValueUtils.valueExtractorFor(column, ZoneOffset.UTC)
+        );
+        assertThat(fromValues.getMessage(), equalTo("union column [flow] declares an unknown leg type [bogus]"));
+    }
+
+    /**
+     * A union column keeps the suggested cast that any column with original types gets. It still means what it
+     * means on a conflicted column: cast to this to use the column in an expression, which a union is not.
+     */
+    public void testUnionColumnKeepsItsSuggestedCast() {
+        List<ElementType> legs = List.of(ElementType.LONG, ElementType.BYTES_REF, ElementType.LONG);
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(legs, 1)) {
+            appendUnionLong(builder, 0, 1L);
+            try (
+                EsqlQueryResponse response = new EsqlQueryResponse(
+                    List.of(new ColumnInfoImpl("flow", "union", List.of("long", "keyword", "date"))),
+                    List.of(new Page(builder.build())),
+                    0,
+                    0,
+                    null,
+                    false,
+                    null,
+                    false,
+                    false,
+                    ZoneOffset.UTC,
+                    0L,
+                    0L,
+                    null
+                )
+            ) {
+                assertThat(Strings.toString(wrapAsToXContent(response), false, false), containsString("\"suggested_cast\":\"keyword\""));
+            }
+        }
+    }
+
     private void appendUnionLong(UnionBlock.Builder builder, int leg, long value) {
         try (Block source = blockFactory.newConstantLongBlockWith(value, 1)) {
             builder.appendValue(leg, source, 0);

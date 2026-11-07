@@ -142,30 +142,81 @@ public final class ResponseValueUtils {
     }
 
     /**
-     * An extractor for one response column. A union column reads its leg types from the column's original
-     * types, in the leg order the block was built with.
+     * An extractor for one response column.
      */
     public static BlockValueExtractor valueExtractorFor(ColumnInfoImpl column, ZoneId zoneId) {
-        return valueExtractorFor(column.type(), legTypesOf(column), zoneId);
-    }
-
-    private static List<DataType> legTypesOf(ColumnInfoImpl column) {
-        List<String> originalTypes = column.originalTypes();
-        if (originalTypes == null) {
-            return List.of();
+        if (column.type() == DataType.UNION) {
+            return unionValueExtractor(column, zoneId);
         }
-        return originalTypes.stream().map(DataType::fromTypeName).toList();
+        return valueExtractorFor(column.type(), zoneId);
     }
 
     /**
-     * An extractor for a type with no column behind it. A union needs its leg types, so it is refused here;
-     * use {@link #valueExtractorFor(ColumnInfoImpl, ZoneId)}.
+     * One extractor per leg, so each value renders as the type its own leg declares: a date leg formats as a
+     * date even though it is stored as a long. The leg types are paired with the block's legs by position, and
+     * nothing can check that the order agrees, so {@link #checkUnionLegCount} catches only a disagreement in
+     * how many there are. Whoever produces the column owns the order.
      */
-    public static BlockValueExtractor valueExtractorFor(DataType dataType, ZoneId zoneId) {
-        return valueExtractorFor(dataType, List.of(), zoneId);
+    private static BlockValueExtractor unionValueExtractor(ColumnInfoImpl column, ZoneId zoneId) {
+        List<DataType> legTypes = unionLegTypes(column);
+        BlockValueExtractor[] legExtractors = new BlockValueExtractor[legTypes.size()];
+        for (int leg = 0; leg < legTypes.size(); leg++) {
+            legExtractors[leg] = valueExtractorFor(legTypes.get(leg), zoneId);
+        }
+        return (block, offset, scratch) -> {
+            UnionBlock union = (UnionBlock) block;
+            int leg = union.tag(offset);
+            if (leg == UnionBlock.NO_TAG) {
+                return null;
+            }
+            checkUnionLegCount(column, union, legTypes.size());
+            return legExtractors[leg].extract(union.legBlock(leg), offset, scratch);
+        };
     }
 
-    public static BlockValueExtractor valueExtractorFor(DataType dataType, List<DataType> legTypes, ZoneId zoneId) {
+    /**
+     * The leg types a union column declares, as data types. Refuses a column that declares none, and a name
+     * that is not a type.
+     */
+    static List<DataType> unionLegTypes(ColumnInfoImpl column) {
+        List<String> names = column.originalTypes();
+        if (names == null || names.isEmpty()) {
+            throw new EsqlIllegalArgumentException("rendering a union needs its leg types");
+        }
+        List<DataType> legTypes = new ArrayList<>(names.size());
+        for (String name : names) {
+            DataType legType = DataType.fromTypeName(name);
+            if (legType == null) {
+                throw new EsqlIllegalArgumentException("union column [" + column.name() + "] declares an unknown leg type [" + name + "]");
+            }
+            legTypes.add(legType);
+        }
+        return legTypes;
+    }
+
+    /**
+     * A block whose leg count disagrees with the declared leg types cannot be rendered, and saying so beats an
+     * index out of bounds from pairing them.
+     */
+    static void checkUnionLegCount(ColumnInfoImpl column, UnionBlock union, int declaredLegCount) {
+        if (union.legCount() != declaredLegCount) {
+            throw new EsqlIllegalArgumentException(
+                "union column ["
+                    + column.name()
+                    + "] has "
+                    + union.legCount()
+                    + " legs but "
+                    + declaredLegCount
+                    + " leg types were declared"
+            );
+        }
+    }
+
+    /**
+     * An extractor for a type on its own. A union needs the leg types only its column carries, so it is refused
+     * here; use {@link #valueExtractorFor(ColumnInfoImpl, ZoneId)}.
+     */
+    public static BlockValueExtractor valueExtractorFor(DataType dataType, ZoneId zoneId) {
         return switch (dataType) {
             case UNSIGNED_LONG -> (block, offset, scratch) -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case LONG, COUNTER_LONG -> (block, offset, scratch) -> ((LongBlock) block).getLong(offset);
@@ -236,25 +287,7 @@ public final class ResponseValueUtils {
             case DENSE_VECTOR -> (block, offset, scratch) -> ((FloatBlock) block).getFloat(offset);
             case FLATTENED -> (block, offset, scratch) -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case NULL, UNSUPPORTED -> (block, offset, scratch) -> null;
-            case UNION -> {
-                if (legTypes.isEmpty()) {
-                    throw new EsqlIllegalArgumentException("rendering a union needs its leg types");
-                }
-                // One extractor per leg, so each value renders as the type its own leg declares: a date leg
-                // formats as a date even though it is stored as a long.
-                BlockValueExtractor[] legExtractors = new BlockValueExtractor[legTypes.size()];
-                for (int leg = 0; leg < legTypes.size(); leg++) {
-                    legExtractors[leg] = valueExtractorFor(legTypes.get(leg), zoneId);
-                }
-                yield (block, offset, scratch) -> {
-                    UnionBlock union = (UnionBlock) block;
-                    int leg = union.tag(offset);
-                    if (leg == UnionBlock.NO_TAG) {
-                        return null;
-                    }
-                    return legExtractors[leg].extract(union.legBlock(leg), offset, scratch);
-                };
-            }
+            case UNION -> throw new EsqlIllegalArgumentException("rendering a union needs its leg types");
             case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG ->
                 throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };

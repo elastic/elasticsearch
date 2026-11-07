@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.cluster.routing.allocation.LoggingShardMovementListener;
+import org.elasticsearch.cluster.routing.allocation.MetricsShardMovementListener;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -107,6 +108,7 @@ import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -208,9 +210,8 @@ public class ClusterModule extends AbstractModule {
             clusterInfoService,
             snapshotsInfoService,
             shardRoutingRoleStrategy,
-            telemetryProvider.getMeterRegistry(),
             clusterService.getClusterSettings(),
-            getShardMovementListener(clusterPlugins)
+            getShardMovementListener(clusterPlugins, telemetryProvider.getMeterRegistry())
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
@@ -262,8 +263,9 @@ public class ClusterModule extends AbstractModule {
         };
     }
 
-    static ShardMovementListener getShardMovementListener(List<ClusterPlugin> clusterPlugins) {
+    static ShardMovementListener getShardMovementListener(List<ClusterPlugin> clusterPlugins, MeterRegistry meterRegistry) {
         final var listeners = new ArrayList<ShardMovementListener>();
+        listeners.add(new MetricsShardMovementListener(meterRegistry));
         listeners.add(new LoggingShardMovementListener());
         clusterPlugins.forEach(plugin -> listeners.addAll(plugin.getShardMovementListeners()));
         return ShardMovementListener.composite(listeners);

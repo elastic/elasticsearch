@@ -184,4 +184,14 @@ public class LabelMatcherTests extends ESTestCase {
         assertTrue(Matcher.REG.isRegex());
         assertTrue(Matcher.NREG.isRegex());
     }
+
+    public void testPromqlRegexTreatsLuceneOnlyOperatorsAsLiterals() {
+        // Lucene ALL syntax treats < > # @ & specially; PromQL/RE2 treat them as literals (e.g. Kubernetes <none>).
+        LabelMatcher matcher = new LabelMatcher("created_by_kind", "<none>|Job", Matcher.NREG);
+        assertFalse(Operations.run(matcher.automaton(), "<none>"));
+        assertFalse(Operations.run(matcher.automaton(), "Job"));
+        assertTrue(Operations.run(matcher.automaton(), "ReplicaSet"));
+        assertTrue(Operations.run(new LabelMatcher("k", "a#b@c&d", Matcher.REG).automaton(), "a#b@c&d"));
+        assertTrue(Operations.run(new LabelMatcher("k", "a\\<b", Matcher.REG).automaton(), "a<b"));
+    }
 }

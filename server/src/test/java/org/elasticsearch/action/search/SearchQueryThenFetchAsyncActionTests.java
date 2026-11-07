@@ -42,6 +42,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -1293,6 +1294,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             transport.getTaskManager()
         ) {
             @Override
+            public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
+                return (nanos, finishNanos) -> {};
+            }
+
+            @Override
             public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
                 QuerySearchResult result = new QuerySearchResult(
                     new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
@@ -1435,6 +1441,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             OnlinePrewarmingService.NOOP,
             transport.getTaskManager()
         ) {
+            @Override
+            public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
+                return (nanos, finishNanos) -> {};
+            }
+
             @Override
             public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
                 QuerySearchResult result = new QuerySearchResult(

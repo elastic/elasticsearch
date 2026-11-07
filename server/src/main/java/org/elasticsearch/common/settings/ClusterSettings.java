@@ -102,6 +102,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.codec.DocValuesBatchPrefetcher;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
@@ -592,6 +593,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED,
         SearchService.FETCH_PHASE_CHUNKED_ENABLED,
         SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS,
+        DocValuesBatchPrefetcher.BUDGET_SETTING,
         SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES,
         SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,

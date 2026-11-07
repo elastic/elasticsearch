@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
@@ -103,6 +104,55 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             this.escapeCount = 0;
             this.escapeRankBlockSize = 0;
             this.escapeRanks = null;
+        }
+    }
+
+    /** The batch's value addresses that escaped the dictionary. */
+    private long[] escapedAddresses = new long[0];
+    private int escapedCount;
+    private long[] termOrdinals = new long[0];
+
+    /**
+     * Prefetches the ordinals, then the dictionary blocks of their terms and, for escaped values, the ordinals
+     * {@link #escapeRankOf} counts, then the escaped bytes.
+     */
+    @Override
+    public boolean prefetchValues(int stage, long[] firsts, long[] counts, int count) throws IOException {
+        if (stage == 0) {
+            ordinals.prefetchValues(0, firsts, counts, count);
+            return true;
+        }
+        if (stage == 1) {
+            escapedCount = 0;
+            int terms = 0;
+            for (int i = 0; i < count; i++) {
+                for (long address = firsts[i]; address < firsts[i] + counts[i]; address++) {
+                    final long ordinal = ordinals.valueAt(address);
+                    if (ordinal == escapeOrdinal) {
+                        escapedAddresses = ArrayUtil.grow(escapedAddresses, escapedCount + 1);
+                        escapedAddresses[escapedCount++] = address;
+                        prefetchOrdinals(address / escapeRankBlockSize * escapeRankBlockSize, address);
+                    } else if (ordinal != StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                        termOrdinals = ArrayUtil.grow(termOrdinals, terms + 1);
+                        termOrdinals[terms++] = ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+                    }
+                }
+            }
+            dictionary.prefetch(termOrdinals, terms);
+            return escapedCount > 0;
+        }
+        final long[] ranks = new long[escapedCount];
+        for (int i = 0; i < escapedCount; i++) {
+            ranks[i] = escapeRankOf(escapedAddresses[i]);
+        }
+        escapes.prefetch(ranks, escapedCount);
+        return false;
+    }
+
+    /** Prefetches the ordinals at {@code [from, to)}. */
+    private void prefetchOrdinals(long from, long to) throws IOException {
+        if (from < to) {
+            ordinals.prefetchValues(0, new long[] { from }, new long[] { to - from }, 1);
         }
     }
 

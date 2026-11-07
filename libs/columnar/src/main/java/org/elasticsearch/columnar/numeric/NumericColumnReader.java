@@ -16,7 +16,9 @@ import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
+import org.elasticsearch.columnar.substrate.ColumnPrefetcher;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
+import org.elasticsearch.lucene.store.DocRanks;
 
 import java.io.IOException;
 
@@ -29,12 +31,13 @@ import java.io.IOException;
  * the value-address table. A block is decoded whole into a reusable buffer with a single-block cache; nothing
  * column-proportional is held on the heap (offset tables are read on demand from the mapped input).
  */
-public final class NumericColumnReader {
+public final class NumericColumnReader implements ColumnPrefetcher.Column {
 
     private final NumericColumnMetadata meta;
     private final BlockBytesCodec blockBytesCodec;
     private final ColumnIteratorReader iteratorReader;
     private final IndexInput data;
+    private final IndexInput addressing;
     private final LongValues blockOffsets;
     private final LongValues valueAddresses;
     private final long valuesOffset;
@@ -58,6 +61,7 @@ public final class NumericColumnReader {
         this.blockBytesCodec = BlockBytesCodec.forId(meta.blockBytesCodecId());
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), addressing);
         this.data = data.clone();
+        this.addressing = addressing.clone();
         if (meta.numDocsWithField() == 0) {
             this.blockOffsets = null;
             this.valueAddresses = null;
@@ -93,6 +97,57 @@ public final class NumericColumnReader {
         return iteratorReader.iterator();
     }
 
+    @Override
+    public DocRanks ranks() {
+        return iteratorReader.ranks();
+    }
+
+    /** Prefetches the table of where each document's values begin, whole. */
+    @Override
+    public boolean prefetchTables() throws IOException {
+        if (valueAddresses == null || meta.valueAddressesDataLength() == 0) {
+            return false;
+        }
+        addressing.prefetch(meta.valueAddressesDataOffset(), meta.valueAddressesDataLength());
+        return true;
+    }
+
+    /** {@link #prefetchTables} prefetched the whole table. */
+    @Override
+    public boolean prefetchValueAddresses(long[] ranks, int count) {
+        return false;
+    }
+
+    /** Prefetches the blocks holding the values, in one stage. */
+    @Override
+    public boolean prefetchValues(int stage, long[] firsts, long[] counts, int count) throws IOException {
+        long runStart = -1;
+        long runEnd = -1;
+        for (int i = 0; i < count; i++) {
+            if (counts[i] == 0) {
+                continue;
+            }
+            final long firstBlock = firsts[i] >>> blockShift;
+            final long lastBlock = (firsts[i] + counts[i] - 1) >>> blockShift;
+            if (runStart >= 0 && firstBlock <= runEnd + 1) {
+                runEnd = Math.max(runEnd, lastBlock);
+                continue;
+            }
+            prefetchBlocks(runStart, runEnd);
+            runStart = firstBlock;
+            runEnd = lastBlock;
+        }
+        prefetchBlocks(runStart, runEnd);
+        return false;
+    }
+
+    private void prefetchBlocks(long first, long last) throws IOException {
+        if (first >= 0) {
+            final long start = blockOffsets.get(first);
+            data.prefetch(valuesOffset + start, blockOffsets.get(last + 1) - start);
+        }
+    }
+
     /**
      * Whether the column tables where each document's values begin. Without that table a rank maps straight
      * to a value address.
@@ -102,11 +157,13 @@ public final class NumericColumnReader {
     }
 
     /** The value address of a document's first value, given its rank. */
+    @Override
     public long firstValueAddress(int rank) {
         return valueAddresses == null ? rank : valueAddresses.get(rank);
     }
 
     /** The number of values a document has, given its rank. */
+    @Override
     public long valueCount(int rank) {
         return valueAddresses == null ? 1 : valueAddresses.get(rank + 1) - valueAddresses.get(rank);
     }

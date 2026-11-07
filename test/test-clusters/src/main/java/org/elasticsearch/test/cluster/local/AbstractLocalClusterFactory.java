@@ -78,30 +78,59 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     private static final String TESTS_CLUSTER_PLUGINS_PATH_SYSPROP = "tests.cluster.plugins.path";
     private static final String TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP = "tests.cluster.fips.jars.path";
     private static final String TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP = "tests.cluster.debug.enabled";
+    private static final String TESTS_CLUSTER_CLI_DEBUG_ENABLED_SYSPROP = "tests.cluster.cli.debug.enabled";
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final String ENTITLEMENT_POLICY_YAML = "entitlement-policy.yaml";
     private static final String PLUGIN_DESCRIPTOR_PROPERTIES = "plugin-descriptor.properties";
     public static final String FIRST_DISTRO_WITH_JDK_21 = "8.11.0";
 
     private final DistributionResolver distributionResolver;
+    private final Path baseWorkingDir;
+    private final boolean preserveData;
 
     public AbstractLocalClusterFactory(DistributionResolver distributionResolver) {
+        this(distributionResolver, null, false);
+    }
+
+    /**
+     * Creates a factory whose clusters live in a fixed location rather than a fresh temporary directory. This is intended for
+     * long-lived interactive clusters (e.g. {@code ./gradlew run}) where users need to find logs and data in a predictable place.
+     *
+     * @param distributionResolver resolver used to locate distributions
+     * @param baseWorkingDir base directory under which a working directory per node is created, or {@code null} to use a new
+     *                       temporary directory for every cluster
+     * @param preserveData whether to keep each node's data directory when its working directory is initialized
+     */
+    public AbstractLocalClusterFactory(DistributionResolver distributionResolver, Path baseWorkingDir, boolean preserveData) {
         this.distributionResolver = distributionResolver;
+        this.baseWorkingDir = baseWorkingDir;
+        this.preserveData = preserveData;
     }
 
     @Override
     public H create(S spec) {
-        Path baseWorkingDir;
+        Path workingDir;
         try {
-            baseWorkingDir = Files.createTempDirectory(spec.getName());
+            if (baseWorkingDir == null) {
+                workingDir = Files.createTempDirectory(spec.getName());
+            } else {
+                workingDir = Files.createDirectories(baseWorkingDir);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
-        return createHandle(baseWorkingDir, spec);
+        return createHandle(workingDir, spec);
     }
 
     protected abstract H createHandle(Path baseWorkingDir, S spec);
+
+    /**
+     * Whether nodes created by this factory should keep their data directory when their working directory is initialized.
+     */
+    protected boolean isPreserveData() {
+        return preserveData;
+    }
 
     public static class Node {
         private static final int TOOL_SCRIPT_RETRY_TIMES = OS.current() == WINDOWS ? 15 : 0;
@@ -118,6 +147,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private final Path configDir;
         private final Path tempDir;
         private final int debugPort;
+        private final int cliDebugPort;
+        private final boolean preserveData;
 
         private Path distributionDir;
         private Version currentVersion;
@@ -132,7 +163,18 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec, String suffix) {
+            this(baseWorkingDir, distributionResolver, spec, suffix, false);
+        }
+
+        public Node(
+            Path baseWorkingDir,
+            DistributionResolver distributionResolver,
+            LocalNodeSpec spec,
+            String suffix,
+            boolean preserveData
+        ) {
             this.baseWorkingDir = baseWorkingDir;
+            this.preserveData = preserveData;
             this.distributionResolver = distributionResolver;
             this.spec = spec;
             this.name = suffix == null ? spec.getName() : spec.getName() + "-" + suffix;
@@ -143,6 +185,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.configDir = Optional.ofNullable(spec.getConfigDir()).orElse(workingDir.resolve("config"));
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
             this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
+            this.cliDebugPort = DefaultLocalClusterHandle.NEXT_CLI_DEBUG_PORT.getAndIncrement();
         }
 
         /** stable, but sufficiently strong seed based on the node's working directory name */
@@ -327,7 +370,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private void initializeWorkingDirectory(boolean preserveWorkingDirectory) {
             try {
                 if (preserveWorkingDirectory == false) {
-                    IOUtils.deleteWithRetry(workingDir);
+                    if (preserveData) {
+                        deleteWorkingDirectoryExceptData();
+                    } else {
+                        IOUtils.deleteWithRetry(workingDir);
+                    }
                 }
 
                 if (canUseSharedDistribution()) {
@@ -351,6 +398,17 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 Files.createDirectories(tempDir);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to create working directory for node '" + name + "'", e);
+            }
+        }
+
+        private void deleteWorkingDirectoryExceptData() throws IOException {
+            if (Files.exists(workingDir) == false) {
+                return;
+            }
+            try (Stream<Path> children = Files.list(workingDir)) {
+                for (Path child : children.filter(p -> p.equals(dataDir) == false).toList()) {
+                    IOUtils.deleteWithRetry(child);
+                }
             }
         }
 
@@ -846,6 +904,12 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void startElasticsearch() {
+            Map<String, String> environment = new HashMap<>(getEnvironmentVariables());
+            // Only debug the server CLI launcher, not the other CLI tools (keystore, users, plugins) which would block on the debugger
+            if (Boolean.getBoolean(TESTS_CLUSTER_CLI_DEBUG_ENABLED_SYSPROP)) {
+                String cliJavaOpts = environment.getOrDefault("CLI_JAVA_OPTS", "");
+                environment.put("CLI_JAVA_OPTS", (ENABLE_DEBUG_JVM_ARGS + cliDebugPort + " " + cliJavaOpts).trim());
+            }
             process = ProcessUtils.exec(
                 spec.getKeystorePassword() == null ? null : spec.getKeystorePassword() + "\n",
                 workingDir,
@@ -853,7 +917,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch.bat"))
                         .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch"))
                 ),
-                getEnvironmentVariables(),
+                environment,
                 true
             );
 

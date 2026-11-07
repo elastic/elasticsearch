@@ -7,9 +7,9 @@
 
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.internal-run'
 
-import org.elasticsearch.gradle.testclusters.RunTask
+import org.elasticsearch.gradle.internal.run.RunTask
 
 dependencies {
   javaRestTestImplementation project(':test:framework')
@@ -26,25 +26,9 @@ File serviceAccountFile = providers.environmentVariable('eql_test_credentials_fi
   .map { s -> new File(s)}
   .getOrNull()
 
-Boolean preserveData = providers.systemProperty('eql.test.preserve.data')
+Boolean preserveEqlData = providers.systemProperty('eql.test.preserve.data')
   .map { s -> Boolean.parseBoolean(s) }
   .getOrElse(false)
-
-// Gradle test-cluster wiring retained only for the `runEqlCorrectnessNode` RunTask;
-// the `javaRestTest` cluster is provisioned via a JUnit @ClassRule in EsEQLCorrectnessIT.
-def runTaskCluster = testClusters.register('runTask') {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'basic'
-  setting 'xpack.security.enabled', 'true'
-  user username: 'admin', password: 'admin-password', role: 'superuser'
-  if (serviceAccountFile) {
-    keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
-  }
-  if (preserveData) {
-    preserveDataDir = true
-  }
-  jvmArgs '-Xms8g', '-Xmx8g'
-}
 
 boolean inFipsJvm = buildParams.inFipsJvm
 
@@ -63,7 +47,18 @@ tasks.named('javaRestTest').configure {
   }
 }
 
+// The `javaRestTest` cluster is provisioned via a JUnit @ClassRule in EsEQLCorrectnessIT.
 tasks.register("runEqlCorrectnessNode", RunTask) {
-  useCluster runTaskCluster
   description = 'Runs elasticsearch in the foreground with gcs plugin and keystore credentials'
+  distribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+  if (serviceAccountFile) {
+    keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
+  }
+  if (preserveEqlData) {
+    preserveData = true
+  }
+  heapSize = '8g'
 }

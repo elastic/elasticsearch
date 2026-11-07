@@ -27,7 +27,7 @@ dependencies {
   clusterModules project(':modules:reindex')
 }
 
-testClusters.configureEach {
+tasks.named('run').configure {
   module ':modules:analysis-common'
 }
 

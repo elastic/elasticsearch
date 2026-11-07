@@ -59,7 +59,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
      * Normally we would want to transition these to either system indices, or
      * to use an internal origin for the client. These are shorter-term
      * workarounds until that work can be completed.
-     * Note that system indices and data streams do not need to be included here, as they are automatically ignored by the validator.
+     * Note that system indices do not need to be included here, as they are automatically ignored by the validator.
      *
      * .elastic-connectors-* is used by enterprise search
      * .ml-* is used by ML

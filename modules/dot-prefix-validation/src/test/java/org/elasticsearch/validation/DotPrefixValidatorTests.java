@@ -9,6 +9,7 @@
 
 package org.elasticsearch.validation;
 
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -158,6 +159,19 @@ public class DotPrefixValidatorTests extends ESTestCase {
         assertFails(Set.of(".not-a-system-index"));
         // If we have a mix of system and non-system, we still expect a warning
         assertSecondIndexFails(List.of(".test-system-index", ".not-a-system-index"));
+    }
+
+    public void testCreateDataStreamValidatorUsesDataStreamName() {
+        var request = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ".my-data-stream");
+        var validator = new CreateDataStreamDotValidator(new ThreadContext(Settings.EMPTY), statelessClusterService, systemIndices);
+        assertThat(validator.actionName(), equalTo(CreateDataStreamAction.NAME));
+        assertThat(validator.getIndicesFromRequest(request), equalTo(Set.of(".my-data-stream")));
+        // validateIndices is exercised with a non-internal request in testValidation; here we check the request path rejects the name
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validateIndices(validator.getIndicesFromRequest(request))
+        );
+        assertThat(error.getMessage(), containsString("name beginning with a dot (.) is not allowed"));
     }
 
     private void assertFails(Set<String> indices) {

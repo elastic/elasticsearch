@@ -257,6 +257,24 @@ public final class IndexInputUtils {
             addrs.setAtIndex(ValueLayout.ADDRESS, i, segment);
         }
         assert validateAddresses(addrs, count);
+        if (count > 1) {
+            // Hint all ranges before scoring so non-resident pages are faulted in concurrently
+            // instead of serially (vector files use RANDOM advice, so there is no readahead).
+            // Contiguous ranges collapse into one call per run, as in KnnVectorValues#prefetch.
+            // A single range is skipped: there is nothing to overlap it with.
+            long runStart = offsets[0];
+            long runEnd = runStart + length;
+            for (int i = 1; i < count; i++) {
+                if (offsets[i] == runEnd) {
+                    runEnd += length;
+                } else {
+                    msai.prefetch(runStart, runEnd - runStart);
+                    runStart = offsets[i];
+                    runEnd = runStart + length;
+                }
+            }
+            msai.prefetch(runStart, runEnd - runStart);
+        }
         try {
             action.accept(addrs);
         } finally {

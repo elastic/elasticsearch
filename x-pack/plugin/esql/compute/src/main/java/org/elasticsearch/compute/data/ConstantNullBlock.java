@@ -16,6 +16,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Block implementation representing a constant null value.
@@ -32,7 +33,8 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
         ExponentialHistogramBlock,
         LongRangeBlock,
         DoubleRangeBlock,
-        TDigestBlock {
+        TDigestBlock,
+        UnionBlock {
 
     public static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
@@ -360,6 +362,37 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
     public LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
+    }
+
+    /*
+     * A union column that turned out to be null everywhere carries no leg structure. Reporting no legs and no tag,
+     * rather than throwing, is what the values actually are, and it keeps consumers iterating legs correct without
+     * a special case for this block.
+     */
+
+    @Override
+    public int legCount() {
+        return 0;
+    }
+
+    @Override
+    public ElementType legElementType(int leg) {
+        throw new IndexOutOfBoundsException("a null block has no legs, asked for " + leg);
+    }
+
+    @Override
+    public List<ElementType> legElementTypes() {
+        return List.of();
+    }
+
+    @Override
+    public int tag(int valueIndex) {
+        return UnionBlock.NO_TAG;
+    }
+
+    @Override
+    public Block legBlock(int leg) {
+        throw new IndexOutOfBoundsException("a null block has no legs, asked for " + leg);
     }
 
     @Override

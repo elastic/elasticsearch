@@ -263,7 +263,7 @@ class PrometheusQueryExemplarsResponseListener implements ActionListener<EsqlQue
                 return ABSENT;
             }
             ColumnInfoImpl column = columns.get(index);
-            return new Column(index, column.name(), column.type(), ResponseValueUtils.valueExtractorFor(column.type(), zoneId));
+            return new Column(index, column.name(), column.type(), ResponseValueUtils.valueExtractorFor(column, zoneId));
         }
 
         private IllegalStateException unexpectedType() {

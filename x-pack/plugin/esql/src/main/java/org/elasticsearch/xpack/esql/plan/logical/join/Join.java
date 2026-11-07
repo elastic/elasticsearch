@@ -66,6 +66,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -106,7 +107,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         DENSE_VECTOR,
         DATE_RANGE,
         DOUBLE_RANGE,
-        PARTIAL_AGG };
+        PARTIAL_AGG,
+        UNION };
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;

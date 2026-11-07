@@ -12,8 +12,11 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 public abstract sealed class TypeConflictedField extends EsField permits InvalidMappedField, CompactInvalidMappedField,
     PotentiallyUnmappedSingleTypeEsField {
@@ -62,6 +65,33 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
 
     /** Source data types observed for this field across all indices. */
     public abstract Set<DataType> types();
+
+    /**
+     * The field's types as the legs of a union column, in the one order everything agrees on.
+     * <p>
+     * The order is a function of the types themselves, by type name, so that nothing has to carry it: the block holds one
+     * sub-block per leg in this order, and whatever renders the column is required to derive the same order from the same types
+     * rather than be told it. Two sides computing the same function of the same set cannot disagree, which a positional contract
+     * between them could. The rendering side of that is not wired yet, so this is the requirement on it, not a description of it.
+     * </p>
+     * <p>
+     * The types are widened first. A {@code float} or a {@code short} is widened on load and never reaches a
+     * value, so a leg declared as one could not be rendered.
+     * </p>
+     * <p>
+     * A field unmapped in some of its indices gets a {@code keyword} leg on top of {@link #types()}, because that is what those
+     * indices load it as from {@code _source} - the same leg {@link #errorMessage()} already counts. Whether they load at all is
+     * the query's {@code unmapped_fields} mode to decide, which this cannot see, so the leg is always declared: one that turns out
+     * to hold nothing costs a null block, while a missing one would have nowhere to put a value.
+     * </p>
+     */
+    public List<DataType> unionLegTypes() {
+        Stream<DataType> types = types().stream();
+        if (isPotentiallyUnmapped()) {
+            types = Stream.concat(types, Stream.of(DataType.KEYWORD));
+        }
+        return types.map(DataType::widenSmallNumeric).distinct().sorted(Comparator.comparing(DataType::typeName)).toList();
+    }
 
     /**
      * A "two-legged PUNK": a field that is mapped to a single type in some indices and unmapped in others. Under

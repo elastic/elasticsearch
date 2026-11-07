@@ -68,9 +68,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -461,14 +459,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     }
 
     static List<ColumnInfoImpl> buildColumns(List<Attribute> output, Map<NameId, Map<String, Object>> columnMetadata) {
-        return output.stream().map(c -> {
-            List<String> originalTypes = null;
-            if (c instanceof UnsupportedAttribute ua) {
-                originalTypes = new ArrayList<>(ua.originalTypes());
-                Collections.sort(originalTypes);
-            }
-            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, columnMetadata.get(c.id()));
-        }).toList();
+        return output.stream().map(c -> ColumnInfoImpl.forAttribute(c, columnMetadata.get(c.id()))).toList();
     }
 
     static AttributeMap<Attribute> collectAliasSources(PhysicalPlan plan) {

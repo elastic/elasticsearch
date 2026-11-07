@@ -898,6 +898,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
         // These response types require metadata, time-series mappings, or unsupported fields rather than ordinary mapped fields.
         shouldBeSupported.remove(DataType.SOURCE);
         shouldBeSupported.remove(DataType.UNSUPPORTED);
+        // Produced by union-type resolution over fields that disagree; no index can map a field as one.
+        shouldBeSupported.remove(DataType.UNION);
         shouldBeSupported.removeIf(type -> type.isCounter());
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
         shouldBeSupported.remove(DataType.DENSE_VECTOR);

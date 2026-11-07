@@ -61,6 +61,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -313,7 +314,12 @@ public class ArrowResponseTests extends ESTestCase {
     public void testOutputTypesHaveTextSupport() {
         for (DataType type : DataType.values()) {
             if (DataType.isRepresentableInOutput(type)) {
-                assertNotNull("Missing text formatter for [" + type + "]", ResponseValueUtils.valueExtractorFor(type, ZoneOffset.UTC));
+                // A union's extractor is one per leg, so it is built from the column rather than from the type alone.
+                List<String> originalTypes = type == DataType.UNION ? List.of("long", "keyword") : null;
+                assertNotNull(
+                    "Missing text formatter for [" + type + "]",
+                    ResponseValueUtils.valueExtractorFor(new ColumnInfoImpl("c", type, originalTypes), ZoneOffset.UTC)
+                );
             }
         }
     }

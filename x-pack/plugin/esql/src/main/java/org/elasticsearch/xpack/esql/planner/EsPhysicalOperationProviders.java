@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
@@ -333,6 +334,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             functionConfig = functionEsField.functionConfig();
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
+        if (attr instanceof FieldAttribute unionAttr && unionAttr.field() instanceof UnionEsField union) {
+            return unionLegLoader(shardContext, union, fieldName, warnings);
+        }
         UnionTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null && attr.dataType() != DataType.KEYWORD && shardContext.readsFromSource(fieldName)) {
             // A field read from _source is read as a keyword: a column of another type reads it only through a conversion
@@ -401,6 +405,45 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             plannerSettings.blockLoaderSizeScript()
         );
         return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
+    }
+
+    /**
+     * Reads a union field from this shard with the shard's own loader, tagging the values with the leg its mapping puts
+     * them in. The shard's mapping is the whole decision: the coordinator knows the set of legs, and only the shard
+     * knows which one it holds.
+     */
+    private ValuesSourceReaderOperator.LoaderAndConverter unionLegLoader(
+        DefaultShardContext shardContext,
+        UnionEsField union,
+        String fieldName,
+        BlockLoaderWarnings warnings
+    ) {
+        MappedFieldType mft = shardContext.fieldType(fieldName);
+        if (mft == null) {
+            // Unmapped here. A field unmapped in some indices declares a keyword leg, but loading it from _source is a
+            // separate mechanism this does not reach; see UNION-TYPES-SPEC.md on the leg being declared and unloaded.
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        // The family type, matching what field_caps reported to the coordinator, so this lookup keys the same way the
+        // leg list was built.
+        DataType mapped = EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType());
+        int leg = union.legOf(mapped);
+        if (leg < 0) {
+            // The mapping moved between field_caps on the coordinator and execution here, so this shard holds a type
+            // the declared legs have no room for. Nulls rather than a failure: the leg list is a wire contract fixed
+            // when the plan was built, and widening it now would mean a different tag for every other node.
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        BlockLoader blockLoader = shardContext.blockLoader(
+            fieldName,
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            warnings,
+            plannerSettings.blockLoaderSizeOrdinals(),
+            plannerSettings.blockLoaderSizeScript()
+        );
+        return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new UnionLegConverter(PlannerUtils.unionLegElementTypes(union), leg));
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter resolveTemporalitySource(
@@ -626,7 +669,22 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             );
             String fieldName = getFieldName(attr);
             boolean nullsFiltered = nullsFilteredFields.contains(fieldName);
-            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, buildLoader));
+            if (attr instanceof FieldAttribute fa && fa.field() instanceof UnionEsField union) {
+                // A multi-segment page assembles into a block the element type cannot describe, so hand over the leg
+                // types the loader will tag against - from the same helper, so the two cannot disagree.
+                List<ElementType> legElementTypes = PlannerUtils.unionLegElementTypes(union);
+                fieldInfos.add(
+                    new ValuesSourceReaderOperator.FieldInfo(
+                        fieldName,
+                        elementType,
+                        nullsFiltered,
+                        buildLoader,
+                        (blockFactory, estimatedSize) -> blockFactory.newUnionBlockBuilder(legElementTypes, estimatedSize)
+                    )
+                );
+            } else {
+                fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, buildLoader));
+            }
         }
         return fieldInfos;
     }

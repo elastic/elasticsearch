@@ -13,6 +13,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -234,8 +235,37 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      *                      will have a value for field x whether x is dense or sparse in the index.
      * @param buildLoader builds the {@link BlockLoader} which loads the actual blocks and an
      *                    optional type converter for a given shard.
+     * @param builderSupplier builds the destination block for a page assembled from more than one segment. Usually the
+     *                        element type supplies it, which is what the four-argument constructor does; a compound
+     *                        element type whose shape is not determined by the type alone - a union, whose leg element
+     *                        types an {@link ElementType} cannot carry - has to be given one, or
+     *                        {@link ElementType#newBlockBuilder} throws. The fault would appear only on multi-segment
+     *                        pages, since the single-segment path never assembles a destination block.
      */
-    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, BuildLoader buildLoader) {}
+    public record FieldInfo(
+        String name,
+        ElementType type,
+        boolean nullsFiltered,
+        BuildLoader buildLoader,
+        BuilderSupplier builderSupplier
+    ) {
+        public FieldInfo(String name, ElementType type, boolean nullsFiltered, BuildLoader buildLoader) {
+            this(
+                name,
+                type,
+                nullsFiltered,
+                buildLoader,
+                (blockFactory, estimatedSize) -> type.newBlockBuilder(estimatedSize, blockFactory)
+            );
+        }
+    }
+
+    /**
+     * Builds the block that a multi-segment page's values are assembled into.
+     */
+    public interface BuilderSupplier {
+        Block.Builder newBlockBuilder(BlockFactory blockFactory, int estimatedSize);
+    }
 
     /**
      * Builds a {@link LoaderAndConverter} for a given shard.

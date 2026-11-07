@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -37,6 +38,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.data.UnionBlock;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
@@ -76,8 +78,12 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.UnionEsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -92,6 +98,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -233,7 +240,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
                 || t == DataType.TSID_DATA_TYPE
                 || t == DataType.DATE_RANGE
-                || t == DataType.PARTIAL_AGG,
+                || t == DataType.PARTIAL_AGG
+                // No union block to build one from yet; randomPage below has no arm that could fill it.
+                || t == DataType.UNION,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -2004,4 +2013,212 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         return new Page(results.stream().map(Block.Builder::build).toArray(Block[]::new));
     }
+
+    /**
+     * A union column renders each value as the type its own leg declares. The long leg and the date leg are both
+     * {@link ElementType#LONG}, so nothing but the declared leg type distinguishes 42 from a timestamp.
+     */
+    public void testUnionColumnRendersEachValueAsItsOwnLegType() {
+        List<ElementType> legs = List.of(ElementType.LONG, ElementType.BYTES_REF, ElementType.LONG);
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(legs, 4)) {
+            appendUnionLong(builder, 0, 42L);
+            appendUnionBytes(builder, 1, "hello");
+            builder.appendNull();
+            appendUnionLong(builder, 2, 1700000000000L);
+            try (
+                EsqlQueryResponse response = new EsqlQueryResponse(
+                    List.of(new ColumnInfoImpl("flow", "union", List.of("long", "keyword", "date"))),
+                    List.of(new Page(builder.build())),
+                    0,
+                    0,
+                    null,
+                    false,
+                    null,
+                    false,
+                    false,
+                    ZoneOffset.UTC,
+                    0L,
+                    0L,
+                    null
+                )
+            ) {
+                assertThat(
+                    EsqlTestUtils.getValuesList(response.values()),
+                    equalTo(List.of(List.of(42L), List.of("hello"), Collections.singletonList(null), List.of("2023-11-14T22:13:20.000Z")))
+                );
+                String json = Strings.toString(wrapAsToXContent(response), false, false);
+                assertThat(json, containsString("\"original_types\":[\"long\",\"keyword\",\"date\"]"));
+                assertThat(json, containsString("\"values\":[[42],[\"hello\"],[null],[\"2023-11-14T22:13:20.000Z\"]]"));
+            }
+        }
+    }
+
+    /**
+     * The seam between the plan and the response. The column's leg names come from a {@link UnionEsField} through
+     * {@link ColumnInfoImpl#forAttribute}, as a transport action builds them, and the block's legs come from the same
+     * field through {@link PlannerUtils#unionLegElementTypes}, as the data node builds them. Nothing else holds those
+     * two against each other, and a disagreement renders a value as the wrong type instead of failing.
+     * <p>
+     * Two leg types are here for a reason. {@code date} is the one leg type whose published name is not its own type
+     * name, so it is what the published vocabulary turns on. And the element types of these four legs read
+     * {@code [LONG, DOUBLE, BYTES_REF, LONG]}, which is not its own reverse - a three-leg set of a date, a keyword and
+     * a long is, so reordering the block's legs under it would change nothing and the test would pass through the
+     * disagreement it exists to catch.
+     */
+    public void testAUnionColumnRendersThroughTheLegOrderItsFieldCarries() {
+        UnionEsField field = new UnionEsField("flow", List.of(DataType.DATETIME, DataType.DOUBLE, DataType.KEYWORD, DataType.LONG));
+        ColumnInfoImpl column = ColumnInfoImpl.forAttribute(new FieldAttribute(Source.EMPTY, null, null, "flow", field), null);
+        List<ElementType> legs = PlannerUtils.unionLegElementTypes(field);
+        assertThat(legs, equalTo(List.of(ElementType.LONG, ElementType.DOUBLE, ElementType.BYTES_REF, ElementType.LONG)));
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(legs, 4)) {
+            appendUnionLong(builder, 0, 1700000000000L);
+            appendUnionDouble(builder, 1, 1.5);
+            appendUnionBytes(builder, 2, "hello");
+            appendUnionLong(builder, 3, 42L);
+            try (
+                EsqlQueryResponse response = new EsqlQueryResponse(
+                    List.of(column),
+                    List.of(new Page(builder.build())),
+                    0,
+                    0,
+                    null,
+                    false,
+                    null,
+                    false,
+                    false,
+                    ZoneOffset.UTC,
+                    0L,
+                    0L,
+                    null
+                )
+            ) {
+                assertThat(
+                    EsqlTestUtils.getValuesList(response.values()),
+                    equalTo(List.of(List.of("2023-11-14T22:13:20.000Z"), List.of(1.5), List.of("hello"), List.of(42L)))
+                );
+                String json = Strings.toString(wrapAsToXContent(response), false, false);
+                assertThat(json, containsString("\"original_types\":[\"date\",\"double\",\"keyword\",\"long\"]"));
+            }
+        }
+    }
+
+    /** Rendering a union column with no leg types declared is refused rather than guessed at. */
+    public void testUnionColumnWithoutLegTypesIsRefused() {
+        EsqlIllegalArgumentException e = expectThrows(
+            EsqlIllegalArgumentException.class,
+            () -> ResponseValueUtils.valueExtractorFor(new ColumnInfoImpl("flow", "union", null), ZoneOffset.UTC)
+        );
+        assertThat(e.getMessage(), equalTo("rendering a union needs its leg types"));
+    }
+
+    /**
+     * A union column can be constant-null on some pages, which is what a shard whose index lacks the field
+     * emits. Every output format has to render those as nulls; the JSON path must not reach for legs that a
+     * {@link org.elasticsearch.compute.data.ConstantNullBlock} does not have.
+     */
+    public void testUnionColumnThatIsConstantNullOnAPageRendersAsNulls() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("flow", "union", List.of("long", "keyword"))),
+                List.of(new Page(blockFactory.newConstantNullBlock(2))),
+                0,
+                0,
+                null,
+                false,
+                null,
+                false,
+                false,
+                ZoneOffset.UTC,
+                0L,
+                0L,
+                null
+            )
+        ) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response.values()),
+                equalTo(List.of(Collections.singletonList(null), Collections.singletonList(null)))
+            );
+            assertThat(Strings.toString(wrapAsToXContent(response), false, false), containsString("\"values\":[[null],[null]]"));
+        }
+    }
+
+    /** Fewer declared leg types than the block has legs is a named refusal, not an index out of bounds. */
+    public void testUnionColumnWithTooFewLegTypesIsRefused() {
+        List<ElementType> legs = List.of(ElementType.LONG, ElementType.BYTES_REF, ElementType.BOOLEAN);
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(legs, 1)) {
+            appendUnionBytes(builder, 1, "x");
+            try (UnionBlock block = builder.build()) {
+                ColumnInfoImpl column = new ColumnInfoImpl("flow", "union", List.of("long", "keyword"));
+                EsqlIllegalArgumentException fromValues = expectThrows(
+                    EsqlIllegalArgumentException.class,
+                    () -> ResponseValueUtils.valueExtractorFor(column, ZoneOffset.UTC).extract(block, 0, new BytesRef())
+                );
+                assertThat(fromValues.getMessage(), equalTo("union column [flow] has 3 legs but 2 leg types were declared"));
+                EsqlIllegalArgumentException fromXContent = expectThrows(
+                    EsqlIllegalArgumentException.class,
+                    () -> PositionToXContent.positionToXContent(column, block, ZoneOffset.UTC, new BytesRef())
+                );
+                assertThat(fromXContent.getMessage(), equalTo("union column [flow] has 3 legs but 2 leg types were declared"));
+            }
+        }
+    }
+
+    /** A leg type name that is not a type is a named refusal, not a null dereference. */
+    public void testUnionColumnWithAnUnknownLegTypeIsRefused() {
+        ColumnInfoImpl column = new ColumnInfoImpl("flow", "union", List.of("long", "bogus"));
+        EsqlIllegalArgumentException fromValues = expectThrows(
+            EsqlIllegalArgumentException.class,
+            () -> ResponseValueUtils.valueExtractorFor(column, ZoneOffset.UTC)
+        );
+        assertThat(fromValues.getMessage(), equalTo("union column [flow] declares an unknown leg type [bogus]"));
+    }
+
+    /**
+     * A union column keeps the suggested cast that any column with original types gets. It still means what it
+     * means on a conflicted column: cast to this to use the column in an expression, which a union is not.
+     */
+    public void testUnionColumnKeepsItsSuggestedCast() {
+        List<ElementType> legs = List.of(ElementType.LONG, ElementType.BYTES_REF, ElementType.LONG);
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(legs, 1)) {
+            appendUnionLong(builder, 0, 1L);
+            try (
+                EsqlQueryResponse response = new EsqlQueryResponse(
+                    List.of(new ColumnInfoImpl("flow", "union", List.of("long", "keyword", "date"))),
+                    List.of(new Page(builder.build())),
+                    0,
+                    0,
+                    null,
+                    false,
+                    null,
+                    false,
+                    false,
+                    ZoneOffset.UTC,
+                    0L,
+                    0L,
+                    null
+                )
+            ) {
+                assertThat(Strings.toString(wrapAsToXContent(response), false, false), containsString("\"suggested_cast\":\"keyword\""));
+            }
+        }
+    }
+
+    private void appendUnionLong(UnionBlock.Builder builder, int leg, long value) {
+        try (Block source = blockFactory.newConstantLongBlockWith(value, 1)) {
+            builder.appendValue(leg, source, 0);
+        }
+    }
+
+    private void appendUnionBytes(UnionBlock.Builder builder, int leg, String value) {
+        try (Block source = blockFactory.newConstantBytesRefBlockWith(new BytesRef(value), 1)) {
+            builder.appendValue(leg, source, 0);
+        }
+    }
+
+    private void appendUnionDouble(UnionBlock.Builder builder, int leg, double value) {
+        try (Block source = blockFactory.newConstantDoubleBlockWith(value, 1)) {
+            builder.appendValue(leg, source, 0);
+        }
+    }
+
 }

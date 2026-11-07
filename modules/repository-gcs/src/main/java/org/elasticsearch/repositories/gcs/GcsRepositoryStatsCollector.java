@@ -189,6 +189,39 @@ public class GcsRepositoryStatsCollector {
         }
     }
 
+    /**
+     * Records a batch operation where {@code itemCount} logical operations are represented by a
+     * single HTTP request (the batch envelope). GCS billing counts each item in a batch as one
+     * operation, so {@code operationCounter} is incremented by {@code itemCount} rather than 1.
+     */
+    public void collectBatch(OperationPurpose purpose, StorageOperation operation, int itemCount, IORunnable runnable) throws IOException {
+        var t = timer.absoluteTimeInMillis();
+        var stats = initAndGetThreadLocal(purpose, operation);
+        try {
+            runnable.run();
+        } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
+            if (stats.requestAttempts > 0) {
+                var operationSuccess = stats.isLastRequestSucceed ? itemCount : 0;
+                var operationError = stats.isLastRequestSucceed ? 0 : 1;
+                var collector = collectors.get(purpose).get(operation);
+                collector.operations.add(operationSuccess);
+                collector.requests.add(stats.requestAttempts);
+                var attr = telemetryAttributes.get(purpose).get(operation);
+                telemetry.operationCounter().incrementBy(operationSuccess, attr);
+                telemetry.unsuccessfulOperationCounter().incrementBy(operationError, attr);
+                telemetry.requestCounter().incrementBy(stats.requestAttempts, attr);
+                telemetry.exceptionCounter().incrementBy(stats.requestError, attr);
+                telemetry.exceptionHistogram().record(stats.requestError, attr);
+                telemetry.throttleCounter().incrementBy(stats.requestThrottle, attr);
+                telemetry.throttleHistogram().record(stats.requestThrottle, attr);
+                telemetry.requestRangeNotSatisfiedExceptionCounter().incrementBy(stats.requestRangeError, attr);
+                telemetry.httpRequestTimeInMillisHistogram().record(stats.totalDuration, attr);
+            }
+            clearThreadLocal();
+        }
+    }
+
     public void collectIORunnable(OperationPurpose purpose, StorageOperation operation, IORunnable runnable) throws IOException {
         var stats = initAndGetThreadLocal(purpose, operation);
         var t = timer.absoluteTimeInMillis();

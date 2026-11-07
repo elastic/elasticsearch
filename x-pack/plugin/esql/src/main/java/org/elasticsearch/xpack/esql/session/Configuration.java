@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
@@ -328,6 +329,16 @@ public class Configuration implements Writeable {
             return resultTruncationDefaultSizeTimeseries;
         }
         return resultTruncationDefaultSizeRegular;
+    }
+
+    /**
+     * The bound a sort that nothing else bounds takes, in a branch of a union: the row maximum, or the largest maximum
+     * the setting allows when there is none, since an unbounded sort is not supported.
+     */
+    public int unboundedSortLimit() {
+        return resultTruncationMaxSizeRegular == AnalyzerSettings.NO_MAXIMUM
+            ? AnalyzerSettings.LARGEST_MAXIMUM
+            : resultTruncationMaxSizeRegular;
     }
 
     public Locale locale() {

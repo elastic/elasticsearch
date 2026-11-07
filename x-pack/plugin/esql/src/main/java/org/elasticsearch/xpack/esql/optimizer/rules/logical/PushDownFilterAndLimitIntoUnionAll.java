@@ -360,7 +360,7 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
      *     Filter[KNN(rgb_vector, ..., implicitK=5)]
      *       EsRelation[colors]
      * </pre>
-     * becomes, with a limit of {@code max(5, resultTruncationMaxSize)}:
+     * becomes, with a limit of {@code max(5, unboundedSortLimit)}:
      * <pre>
      * Limit[10000]
      *   Project
@@ -429,7 +429,7 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
         if (k != null) {
             // Raise k to the maximum implicit limit when it is lower, so the appended limit never truncates the branch more than an
             // unbounded one would have been truncated anyway.
-            int maxImplicitLimit = context.configuration().resultTruncationMaxSize(false);
+            int maxImplicitLimit = context.configuration().unboundedSortLimit();
             return planWithLimit(subquery, Math.max(k, maxImplicitLimit));
         }
         return subquery;
@@ -486,7 +486,7 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
      * <p>Each path is cut independently. Walking the whole subtree with one shared "found a limit" flag would let an unrelated branch
      * of a nested union abort the search, making the outcome depend on the order the branches happen to be written in.
      *
-     * <p>Existence is all this needs - the appended limit is always {@code resultTruncationMaxSize}, with no per-node value to combine -
+     * <p>Existence is all this needs - the appended limit is always {@code unboundedSortLimit}, with no per-node value to combine -
      * so stopping at the first match on a path loses nothing. Once an {@code OrderBy} is reached without crossing a {@code Limit} the
      * answer is settled, and a deeper sort cannot change it. That is what separates this from {@link #appendLimitIfNeededForKnn}, which
      * takes a maximum and so cannot stop early.
@@ -556,14 +556,14 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
      * Called on the outer union's first branch, the search reaches {@code OrderBy[emp_no]} before the inner {@code UnionAll} and bounds
      * that branch. It does not descend past the inner {@code UnionAll}, so at that point the two innermost sorts are still unbounded;
      * they get their own limits when the enclosing transformDown reaches the inner {@code UnionAll} and this is called once per inner
-     * branch. Every one of the three limits is {@code resultTruncationMaxSize} - the value does not shrink with depth.
+     * branch. Every one of the three limits is {@code unboundedSortLimit} - the value does not shrink with depth.
      *
      * <p>A branch that bounds its own sort - {@code (FROM test | SORT last_name | LIMIT 5)} - is returned unchanged, because the search
      * stops at that {@code Limit} before reaching the {@code OrderBy}.
      */
     private static LogicalPlan appendLimitIfNeededForOrderBy(LogicalPlan subquery, LogicalOptimizerContext context) {
         if (hasUnboundedSort(subquery)) {
-            int maxImplicitLimit = context.configuration().resultTruncationMaxSize(false);
+            int maxImplicitLimit = context.configuration().unboundedSortLimit();
             return planWithLimit(subquery, maxImplicitLimit);
         }
 

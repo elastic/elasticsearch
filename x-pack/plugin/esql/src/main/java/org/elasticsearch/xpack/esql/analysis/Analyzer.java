@@ -3729,7 +3729,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             ).isEmpty() == false;
 
             int limit;
-            if (limits.isEmpty()) {
+            int maximum = context.configuration().resultTruncationMaxSize(isTsAggregate);
+            // without a maximum, a limit the user wrote on the root path stands as the query's own: the plan is capped at
+            // its value, which bounds a sort above it; one inside a branch of a union does not bound the whole query
+            Integer rootLimit = maximum == AnalyzerSettings.NO_MAXIMUM ? limitOnRootPath(logicalPlan) : null;
+            if (limits.isEmpty() || (maximum == AnalyzerSettings.NO_MAXIMUM && rootLimit == null)) {
                 limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a
                 // default
                 // With a limit in the exemplars setting, the result of the metrics query is replaced by at most that many exemplars,
@@ -3738,12 +3742,33 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (isTsAggregate == false && exemplarsLimited == false) {
                     HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
                 }
+            } else if (maximum == AnalyzerSettings.NO_MAXIMUM) {
+                limit = rootLimit;
             } else {
-                limit = context.configuration().resultTruncationMaxSize(isTsAggregate); // user provided a limit: cap result
-                // entries to the max
+                limit = maximum; // user provided a limit: cap result entries to the max
             }
             var source = logicalPlan.source();
             return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);
+        }
+
+        /**
+         * The value of the first limit on the plan's root path, the chain of single-child nodes from the root, or null
+         * when none is there or its value is not a literal: a limit in a branch of a union or a fork bounds that branch
+         * only.
+         */
+        @Nullable
+        private static Integer limitOnRootPath(LogicalPlan plan) {
+            LogicalPlan current = plan;
+            while (true) {
+                if (current instanceof Limit found) {
+                    return found.limit() instanceof Literal literal && literal.value() instanceof Integer value ? value : null;
+                }
+                if (current instanceof UnaryPlan unary) {
+                    current = unary.child();
+                } else {
+                    return null;
+                }
+            }
         }
     }
 

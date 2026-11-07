@@ -32,6 +32,14 @@ The default and maximum limits can be changed using these dynamic cluster settin
 * `esql.query.result_truncation_default_size`
 * `esql.query.result_truncation_max_size`
 
+`esql.query.result_truncation_max_size` may be set to `-1` to remove the maximum. A query may then request any number
+of rows. What bounds it is memory: with [spilling](/reference/elasticsearch/configuration-reference/esql-settings.md)
+enabled, a sort's values and the result pages that exceed the query's budget continue on the spill store, while the
+sort keys of the rows kept stay in memory; with spilling disabled, the circuit breaker stops the query when its memory
+runs out, as for any other query. A sort inside a branch of a union that no limit bounds is still bounded at one
+million rows. Larger result sets still mean more data crossing the network between nodes and clusters, and
+asynchronous queries cannot store results larger than `search.max_async_search_response_size`.
+
 For time-series queries that use the [`TS`](/reference/query-languages/esql/commands/ts.md) or [`PROMQL`](/reference/query-languages/esql/commands/promql.md) source commands (including requests to the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md)), the default and maximum limits are higher and can be changed using these cluster settings:
 
 * `esql.query.timeseries_result_truncation_default_size`

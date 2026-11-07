@@ -866,13 +866,24 @@ public final class EsqlTestUtils {
                 QuerySettings.APPROXIMATION,
                 new ApproximationSettings.Builder(false).merge(statement.setting(QuerySettings.APPROXIMATION)).build()
             );
+        return configuration(pragmas, query, resolved, AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY));
+    }
+
+    /**
+     * A configuration with the row maximum given, {@link AnalyzerSettings#NO_MAXIMUM} included, and the defaults otherwise.
+     */
+    public static Configuration configurationWithRowMaximum(int rowMaximum) {
+        return configuration(QueryPragmas.EMPTY, StringUtils.EMPTY, ResolvedSettings.EMPTY, rowMaximum);
+    }
+
+    private static Configuration configuration(QueryPragmas pragmas, String query, ResolvedSettings resolved, int rowMaximum) {
         return new Configuration(
             Instant.now(),
             Locale.US,
             null,
             null,
             pragmas,
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            rowMaximum,
             AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             query,
             false,

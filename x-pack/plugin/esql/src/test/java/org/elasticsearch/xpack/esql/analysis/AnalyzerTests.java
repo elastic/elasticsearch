@@ -1365,6 +1365,56 @@ public class AnalyzerTests extends AnalyzerTestCase {
         as(limit.child(), EsRelation.class);
     }
 
+    /**
+     * Without a maximum the user's limit stands, however large: the cap added above it is the user's own value.
+     */
+    public void testNoMaximumKeepsTheUserLimit() {
+        int limitValue = MAX_LIMIT + between(1, 1_000_000);
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | limit " + limitValue);
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(limitValue));
+        limit = as(limit.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(limitValue));
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Without a maximum the plan is capped at the user's own limit, which bounds a sort above it.
+     */
+    public void testNoMaximumCapsAtTheUserLimitAboveASort() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | limit 5 | sort emp_no");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(5));
+        var sort = as(limit.child(), OrderBy.class);
+        limit = as(sort.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(5));
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Without a maximum a limit inside a branch bounds that branch only: the query gets the default limit on top.
+     */
+    public void testNoMaximumIgnoresALimitInsideABranch() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM)).query("""
+            from test
+            | fork ( where emp_no > 1 | limit 3 ) ( where emp_no > 2 )
+            """);
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+    }
+
+    /**
+     * Without a maximum a query without a limit still gets the default one.
+     */
+    public void testNoMaximumKeepsTheDefaultLimit() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM)).query("from test");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        as(limit.child(), EsRelation.class);
+    }
+
     public void testImplicitMaxLimitAfterLimit() {
         for (int i = -1; i <= 1; i++) {
             var plan = basic().query("from test | limit " + (MAX_LIMIT + i));

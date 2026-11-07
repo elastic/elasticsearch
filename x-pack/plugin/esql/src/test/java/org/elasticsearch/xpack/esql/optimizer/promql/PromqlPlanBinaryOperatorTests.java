@@ -292,6 +292,17 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
     }
 
+    /**
+     * {@code time()} beside {@code scalar()} of a vector runs as its own pipeline, keyed by a step of its own, and the two
+     * join on step. It must read that step, not the command's, which nothing below the join produces.
+     */
+    public void testTimeBesideScalarOfVectorReadsItsOwnStep() {
+        for (String query : List.of("time() / scalar(sum(network.cost))", "hour() > bool scalar(sum(network.cost))")) {
+            var plan = planPromql("PROMQL index=k8s step=1m result=(" + query + ")");
+            assertThat(query, plan.collect(HashJoin.class), hasSize(1));
+        }
+    }
+
     public void testTopLevelBinaryArithmeticQuery() {
         var plan = planPromql("""
             PROMQL index=k8s step=1m in_n_out=(
@@ -628,8 +639,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     public void testVectorMatchComposedWithOpaqueOperandRejected() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        // The unmatched + composes over a vector match and therefore translates as another join: it inherits the
-        // concrete-label requirement, which the bare selector operand does not satisfy.
+        // The unmatched + pairs the aggregated match result with the raw selector in one shared aggregation.
         VerificationException e = assertThrows(
             VerificationException.class,
             () -> planPromql(
@@ -881,26 +891,29 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     /**
-     * When {@code __name__} is a dimension, every metric lives in its own series, so an unmatched binary operator between
-     * different metrics folded into one shared frame would find one side null on every row and silently return nothing.
-     * Default matching over opaque operands needs match keys derived from runtime-defined labels, so it is rejected.
+     * When {@code __name__} is a dimension, every metric lives in its own series. Default matching over opaque operands
+     * is implicit {@code ignoring(__name__)}: each side packs metadata excluding the metric name and the operator
+     * translates as an {@link HashJoin}.
      */
-    public void testDifferentMetricsInSeparateSeriesRejected() {
+    public void testDifferentMetricsInSeparateSeriesDefaultMatchJoins() {
         for (String promql : List.of(
             "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes",
-            "node_memory_MemAvailable_bytes > bool node_memory_MemTotal_bytes",
             "rate(node_cpu_seconds_total[5m]) / node_memory_MemTotal_bytes",
             "(node_memory_MemAvailable_bytes + 1) * node_memory_MemTotal_bytes",
-            "sum(node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes",
-            "sum by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)"
+            // Across-series sum of a cross-metric binary (promcheck grouping_key_empty bucket).
+            "sum(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+            "sum(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)",
+            "sum(node_memory_MemAvailable_bytes + node_memory_MemTotal_bytes)"
         )) {
-            VerificationException e = expectThrows(VerificationException.class, () -> planPrometheusLayout(promql));
-            assertThat(
-                promql,
-                e.getMessage(),
-                containsString("binary operations between different metrics require aggregating both operands by the labels to match on")
-            );
+            var plan = planPrometheusLayout(promql);
+            assertFalse(promql, plan.collect(HashJoin.class).isEmpty());
+            assertTrue(promql, plan.resolved());
         }
+        // The match result keeps its labels in metadata: reading one out of it needs typed metadata.
+        expectThrows(
+            VerificationException.class,
+            () -> planPrometheusLayout("sum by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)")
+        );
     }
 
     /** Shapes over a {@code __name__}-dimension index that evaluate correctly and must keep planning. */

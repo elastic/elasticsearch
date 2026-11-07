@@ -150,12 +150,11 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlHeterogeneousOffsetBinaryExpression() {
-        // Both operands are source-backed and get merged into a single time-series aggregate, which cannot carry
-        // two different offsets. `or` (UNION) translates to independent branches and is therefore allowed.
-        tsdb.error(
-            "PROMQL index=test step=5m (network.bytes_in - network.bytes_in offset 1d)",
-            containsString("binary expressions with different offsets are not supported at this time")
-        );
+        // Different offsets force an independent-pipeline join (requiresIndependentPipelines refuses a shared timestamp).
+        // `or` already used per-branch offsets; arithmetic/comparison now admit the same shape.
+        assumeTrue("requires independent binary join", EsqlCapabilities.Cap.PROMQL_BINARY_INDEPENDENT_JOIN.isEnabled());
+        assertNotNull(tsdb.query("PROMQL index=test step=5m (network.bytes_in - network.bytes_in offset 1d)"));
+        assertNotNull(tsdb.query("PROMQL index=test step=5m (sum(network.bytes_in) / sum(network.bytes_in offset 1h))"));
     }
 
     public void testLogicalSetBinaryOperators() {
@@ -467,11 +466,9 @@ public class PromqlVerifierTests extends ESTestCase {
         tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
     }
 
-    public void testNonScalarComparison() {
-        tsdb.error(
-            "PROMQL index=test step=5m foo > bar",
-            containsString("comparison operators with non-literal right-hand side are not supported at this time")
-        );
+    /** Two instant vectors compare like arithmetic: the operands are independent pipelines joined on their series. */
+    public void testVectorComparisonJoinsOperands() {
+        assertTrue(tsdb.query("PROMQL index=test step=5m network.bytes_in > network.connections").resolved());
     }
 
     /**

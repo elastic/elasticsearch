@@ -58,14 +58,14 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
     @Override
     public IntermediateResult translate(TranslationContext context) {
         // The result has no labels, so the child's label set is irrelevant: it exposes none.
-        IntermediateResult child = context.withRequired(TranslationSchema.EMPTY).translate(child());
+        IntermediateResult child = context.translate(child());
         if (child.value().foldable()) {
             Expression value = new ToDouble(source(), child.value());
-            return new IntermediateResult(child.plan(), TranslationSchema.EMPTY, value, child.step(), child.pendingFilter());
+            return new IntermediateResult(child.plan(), value, child.step(), child.pendingFilter());
         }
         var scalarExpr = new Scalar(source(), child.value());
         return child.kind().afterInitialAggregation
-            ? context.regroup(child, TranslationSchema.EMPTY, false, scalarExpr)
-            : context.collapse(child, TranslationSchema.EMPTY, scalarExpr);
+            ? context.emitAggregate(child, List.of(), false, scalarExpr)
+            : context.emitInitialAggregate(child, List.of(), scalarExpr);
     }
 }

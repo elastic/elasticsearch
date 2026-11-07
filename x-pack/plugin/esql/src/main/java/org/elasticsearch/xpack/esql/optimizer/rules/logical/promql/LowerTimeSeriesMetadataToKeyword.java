@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -19,16 +20,23 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesUnset;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeries;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,8 +49,11 @@ import java.util.Set;
  * Translation and {@link ResolvePromqlLabelRefs} produce one representation: the series read their metadata as keyword
  * views of the source, cast to typed metadata above the collapse ({@link ToTimeSeries}). The keyword form is that plan
  * without the casts: each view is the keyword column it was cast from, and the metadata of a series without labels is
- * null. What has no keyword form fails: reading a label out of metadata, or leaving labels out of it after the collapse
- * ({@link AbstractTimeSeriesFunction}).
+ * null. An {@code or} keeps one series per label set on its metadata as a whole, {@code __name__} included, rather than
+ * on the match key that leaves {@code __name__} out: the verifier admits on keyword metadata only the unions where the
+ * two agree. A key that compares labels in slots of their own compares them in its metadata too, rather than leaving
+ * them out of it, as keyword vector matching always has. What has no keyword form fails: reading a label out of metadata,
+ * or leaving labels out of it after the collapse ({@link AbstractTimeSeriesFunction}).
  * <p>
  * The rule goes once the minimum supported version reads typed metadata.
  */
@@ -58,11 +69,77 @@ public final class LowerTimeSeriesMetadataToKeyword extends ParameterizedRule<Lo
 
     /** {@code plan} over keyword metadata. */
     static LogicalPlan lower(LogicalPlan plan) {
-        return new Lowering().lower(plan);
+        Lowering lowering = new Lowering();
+        return lowering.lower(dropUnread(lowering.keyOnMetadata(matchOnMetadata(plan))));
+    }
+
+    /** Every {@code or} keeping its series apart by their metadata, without a match key of its own. */
+    private static LogicalPlan matchOnMetadata(LogicalPlan plan) {
+        if (plan.anyMatch(
+            node -> node instanceof UnionAll union && union.output().stream().anyMatch(LowerTimeSeriesMetadataToKeyword::isMatchKey)
+        ) == false) {
+            return plan;
+        }
+        return plan.transformUp(node -> switch (node) {
+            case TopNBy top when top.child() instanceof UnionAll union -> {
+                List<Expression> groupings = top.groupings()
+                    .stream()
+                    .map(grouping -> grouping instanceof Attribute key && isMatchKey(key) ? metadataOf(union) : grouping)
+                    .toList();
+                yield new TopNBy(top.source(), union, top.order(), top.limitPerGroup(), groupings);
+            }
+            case UnionAll union -> union.replaceSubPlansAndOutput(
+                union.children(),
+                union.output().stream().filter(column -> isMatchKey(column) == false).toList()
+            );
+            case Project project when project.projections().stream().anyMatch(LowerTimeSeriesMetadataToKeyword::isMatchKey) -> project
+                .withProjections(project.projections().stream().filter(projection -> isMatchKey(projection) == false).toList());
+            default -> node;
+        });
+    }
+
+    private static Attribute metadataOf(UnionAll union) {
+        return union.output()
+            .stream()
+            .filter(column -> isTyped(column) && isMatchKey(column) == false)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("an or with a match key holds metadata [" + union + "]"));
+    }
+
+    private static boolean isMatchKey(NamedExpression projection) {
+        return projection.name().equals(VectorBinarySet.OR_MATCH_KEY);
+    }
+
+    /** {@code plan} without the typed metadata it computes and never reads: such a column needs no keyword form. */
+    private static LogicalPlan dropUnread(LogicalPlan plan) {
+        while (true) {
+            Map<NameId, Integer> reads = new HashMap<>();
+            plan.forEachExpressionDown(Attribute.class, attribute -> reads.merge(attribute.id(), 1, Integer::sum));
+            LogicalPlan pruned = plan.transformUp(Eval.class, eval -> {
+                List<Alias> fields = eval.fields().stream().filter(field -> isRead(field, reads) || readsTyped(field) == false).toList();
+                return fields.size() == eval.fields().size() ? eval
+                    : fields.isEmpty() ? eval.child()
+                    : new Eval(eval.source(), eval.child(), fields);
+            });
+            if (pruned == plan) {
+                return plan;
+            }
+            plan = pruned;
+        }
+    }
+
+    /** Whether something other than {@code field} itself reads it: a binding may reuse the id of the column it renames. */
+    private static boolean isRead(Alias field, Map<NameId, Integer> reads) {
+        int own = field.child().collect(Attribute.class).stream().mapToInt(attribute -> attribute.id().equals(field.id()) ? 1 : 0).sum();
+        return reads.getOrDefault(field.id(), 0) > own;
+    }
+
+    private static boolean readsTyped(Expression expression) {
+        return expression.anyMatch(LowerTimeSeriesMetadataToKeyword::isTyped);
     }
 
     private static boolean readsTyped(LogicalPlan node) {
-        return node.expressions().stream().anyMatch(expression -> expression.anyMatch(LowerTimeSeriesMetadataToKeyword::isTyped));
+        return node.expressions().stream().anyMatch(LowerTimeSeriesMetadataToKeyword::readsTyped);
     }
 
     private static boolean isTyped(Expression expression) {
@@ -81,8 +158,52 @@ public final class LowerTimeSeriesMetadataToKeyword extends ParameterizedRule<Lo
         private final Map<NameId, Attribute> lowered = new HashMap<>();
         /** The keyword column each dropped cast stood for, by the cast's id. */
         private final Map<NameId, Attribute> casts = new HashMap<>();
+        /** Metadata keys that keep every label they left out, by id: each is the metadata it was derived from. */
+        private final Set<NameId> keptWhole = new HashSet<>();
         /** Projections left bare by dropping the casts over them: a projection above only reorders their columns. */
         private final Set<LogicalPlan> bare = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        /**
+         * {@code plan} with each packed key's metadata keeping the labels the key compares in slots of their own: keyword
+         * metadata cannot leave them out, and comparing them twice keeps the key it always had.
+         */
+        LogicalPlan keyOnMetadata(LogicalPlan plan) {
+            Map<NameId, Set<String>> slotted = new HashMap<>();
+            plan.forEachDown(PackDims.class, pack -> {
+                Set<String> labels = new HashSet<>();
+                for (Attribute dim : pack.dims()) {
+                    if (isTyped(dim) == false) {
+                        labels.add(PromqlLabels.labelName(dim));
+                    }
+                }
+                for (Attribute dim : pack.dims()) {
+                    if (isTyped(dim)) {
+                        slotted.computeIfAbsent(dim.id(), id -> new HashSet<>()).addAll(labels);
+                    }
+                }
+            });
+            if (slotted.isEmpty()) {
+                return plan;
+            }
+            return plan.transformUp(Eval.class, eval -> {
+                List<Alias> fields = eval.fields().stream().map(field -> {
+                    if (slotted.containsKey(field.id()) && field.child() instanceof TimeSeriesUnset unset) {
+                        List<Expression> left = unset.children()
+                            .subList(1, unset.children().size())
+                            .stream()
+                            .filter(label -> slotted.get(field.id()).contains(BytesRefs.toString(((Literal) label).value())) == false)
+                            .toList();
+                        if (left.isEmpty()) {
+                            keptWhole.add(field.id());
+                            return field.replaceChild(unset.metadata());
+                        }
+                        return field.replaceChild(new TimeSeriesUnset(unset.source(), unset.metadata(), left));
+                    }
+                    return field;
+                }).toList();
+                return fields.equals(eval.fields()) ? eval : new Eval(eval.source(), eval.child(), fields);
+            });
+        }
 
         LogicalPlan lower(LogicalPlan plan) {
             return plan.transformUp(node -> {
@@ -104,7 +225,7 @@ public final class LowerTimeSeriesMetadataToKeyword extends ParameterizedRule<Lo
         private LogicalPlan withoutCasts(Eval eval) {
             var fields = new ArrayList<Alias>();
             for (Alias field : eval.fields()) {
-                if (isCast(field.child())) {
+                if (isCast(field.child()) || keptWhole.contains(field.id())) {
                     casts.put(field.id(), (Attribute) lower(field.child()));
                 } else {
                     fields.add(field);

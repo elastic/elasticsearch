@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.store;
 
-import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -216,7 +216,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                     final IndexInputStats inputStats = directory.getStats(fileName);
 
                     // account for internal buffered reads
-                    final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
+                    final long bufferSize = BlobCacheBufferedIndexInput.bufferSize(ioContext);
                     final long remaining = input.length() % bufferSize;
                     final long expectedTotal = input.length();
                     final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -264,7 +264,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 final IndexInputStats inputStats = directory.getStats(fileName);
 
                 // account for internal buffered reads
-                final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
+                final long bufferSize = BlobCacheBufferedIndexInput.bufferSize(ioContext);
                 final long remaining = input.length() % bufferSize;
                 final long expectedTotal = input.length();
                 final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -304,7 +304,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 }
 
                 // account for internal buffered reads
-                final long bufferSize = BufferedIndexInput.bufferSize(context);
+                final long bufferSize = BlobCacheBufferedIndexInput.bufferSize(context);
                 if (input.length() <= bufferSize) {
                     // file is read in a single non-optimized read operation
                     assertCounter(inputStats.getDirectBytesRead(), input.length(), 1L, input.length(), input.length());
@@ -334,7 +334,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
 
                 // account for the CacheBufferedIndexInput internal buffer
-                final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
+                final long bufferSize = BlobCacheBufferedIndexInput.bufferSize(ioContext);
                 final long remaining = input.length() % bufferSize;
                 final long expectedTotal = input.length();
                 final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
@@ -399,7 +399,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                     input.readBytes(readBuffer, 0, size);
 
                     // BufferedIndexInput tries to read as much bytes as possible
-                    final long bytesRead = Math.min(BufferedIndexInput.bufferSize(ioContext), input.length() - randomPosition);
+                    final long bytesRead = Math.min(BlobCacheBufferedIndexInput.bufferSize(ioContext), input.length() - randomPosition);
                     lastReadPosition = randomPosition + bytesRead;
                     totalBytesRead += bytesRead;
                     minBytesRead = (bytesRead < minBytesRead) ? bytesRead : minBytesRead;

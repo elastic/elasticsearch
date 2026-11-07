@@ -24,9 +24,10 @@ import java.util.Objects;
  * {@link TypeConflictedField#unionLegTypes()} fixes.
  * <p>
  * The order is the whole of the contract between the block and whatever renders it: the block holds one sub-block per leg in
- * this order, so a value's tag names a position in this list and nothing else. A renderer has to derive the same order from the
- * same leg types rather than be handed it, which is what makes the two sides unable to drift. Nothing populates the response's
- * leg types yet, so that half is a requirement rather than something the tree does.
+ * this order, so a value's tag names a position in this list and nothing else. It is computed once, where the conflict becomes
+ * a union, and then carried rather than recomputed - this list serializes with the plan, the block serializes its own leg
+ * element types, and {@code ColumnInfoImpl} publishes these types by name in the response's {@code original_types}. So the two
+ * sides cannot drift by computing the order differently, because only one of them computes it.
  * </p>
  * <p>
  * Not aggregatable, like the other multi-type fields: there is no single doc-values type to aggregate over.

@@ -80,8 +80,9 @@ public final class UnionBlockBuilder extends AbstractDelegatingCompoundBlock.Abs
         // Only meaningful for a single-valued source, where a value index and a position are the same number. A
         // multi-valued source has no position to ask about: a null position holds no values, so no valid value index
         // refers to one, and asking isNull about a value index would answer about an unrelated position - refusing a
-        // present value whenever an earlier position was multi-valued and a later one null. The caller owns that
-        // contract, which is why it is asserted rather than silently assumed.
+        // present value whenever an earlier position was multi-valued and a later one null. So the check is skipped
+        // there and the caller owns the contract, unchecked: a multi-valued source that passes an index with no value
+        // appends a tagged default, which is the cost of there being nothing here that could tell.
         if (source.mayHaveMultivaluedFields() == false && source.isNull(sourceValueIndex)) {
             // The typed getters read the slot without checking, and a null slot holds a default rather than
             // nothing, so reading it here would turn a missing value into a present, tagged zero that the

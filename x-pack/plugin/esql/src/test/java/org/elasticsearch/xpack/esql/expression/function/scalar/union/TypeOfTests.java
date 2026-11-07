@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -29,6 +30,12 @@ import static org.hamcrest.Matchers.equalTo;
  * query but the one the function exists for. The interesting arm - a column of more than one type - needs a union
  * block, which this harness cannot build, and is covered end to end by {@code UnionTypedFieldIT}.
  */
+/*
+ * The registered name is one word while the class is two, and the docs renderer derives the name it looks up
+ * from the class - so without this the lookup misses, the docs and the Kibana definition are never generated,
+ * and this class passes without having checked either.
+ */
+@FunctionName("typeof")
 public class TypeOfTests extends AbstractScalarFunctionTestCase {
     public TypeOfTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

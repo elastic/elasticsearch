@@ -69,10 +69,11 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
     /**
      * The field's types as the legs of a union column, in the one order everything agrees on.
      * <p>
-     * The order is a function of the types themselves, by type name, so that nothing has to carry it: the block holds one
-     * sub-block per leg in this order, and whatever renders the column is required to derive the same order from the same types
-     * rather than be told it. Two sides computing the same function of the same set cannot disagree, which a positional contract
-     * between them could. The rendering side of that is not wired yet, so this is the requirement on it, not a description of it.
+     * The order is a function of the types themselves, by type name, which is what makes it canonical. It is not recomputed
+     * anywhere, though: this method has one production caller, the analyzer rule that builds the {@link UnionEsField}, and from
+     * there the list is carried - with the plan, with the block's own leg element types, and by name into the response's
+     * {@code original_types}. A value's tag indexes that one carried list, so the order a reader sees is the order the field
+     * holds rather than one computed a second time and hoped to match.
      * </p>
      * <p>
      * The types are widened first. A {@code float} or a {@code short} is widened on load and never reaches a

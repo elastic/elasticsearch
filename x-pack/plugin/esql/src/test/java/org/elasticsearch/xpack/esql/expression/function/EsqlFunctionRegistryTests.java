@@ -329,9 +329,6 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDoubleErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVectorErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersionErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.TypedErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.TypedSerializationTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.TypedTests is missing")
                 // TODO: Abs tests live in the x-pack:plugin:esql:function:math module
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsSerializationTests is missing")

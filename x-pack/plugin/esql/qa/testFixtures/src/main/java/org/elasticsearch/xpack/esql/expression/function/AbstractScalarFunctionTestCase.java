@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Typed;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.FilterUnsupportedTemporality;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
@@ -107,6 +108,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
         // Special empty/null handling functions
         JsonString.class, // JSON_STRING("key", NULL) = {"key":null};
+
+        // The second argument names a type rather than carrying a value, so nulling it is not a null input: it is a
+        // query that names no type, which TYPED refuses in resolveType instead of answering null.
+        Typed.class,
 
         // Non-evaluatable grouping functions
         Categorize.class,

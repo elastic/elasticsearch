@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionEsField;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -60,13 +61,28 @@ public class TypeOf extends UnaryScalarFunction implements AnyNullIsNull {
         briefSummary = "Returns the type of each value, as a string.",
         description = "Returns the name of the type each value has, as its index mapped it. For a column whose indices "
             + "agree on one type every row answers the same; for one they disagree about, each row answers with its own "
-            + "index's type. The names are the ones the mapping uses, so they match the column's `original_types`."
+            + "index's type. The names are the ones the mapping uses, so they match the column's `original_types`.",
+        examples = @Example(file = "union_types", tag = "typeof")
     )
     public TypeOf(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            // Every type UnionEsField#isLegType admits, which is the domain resolveType enforces. The two lists are
+            // checked against each other by the function test harness, so a leg type missing here is a failure.
+            type = {
+                "boolean",
+                "date",
+                "date_nanos",
+                "double",
+                "flattened",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
             description = "Column to report the type of."
         ) Expression field
     ) {

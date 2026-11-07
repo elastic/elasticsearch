@@ -90,6 +90,11 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
+    public boolean readsFromObjectStore() {
+        return latestUploadInfo.isUploaded() && cacheBlobReaderForUploaded.readsFromObjectStore();
+    }
+
+    @Override
     public String executorName() {
         if (latestUploadInfo.isUploaded()) {
             return cacheBlobReaderForUploaded.executorName();

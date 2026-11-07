@@ -125,6 +125,15 @@ public interface RestHandler {
     }
 
     /**
+     * Whether this handler accepts all of the given parameters.
+     * Used for parameter validation and capability checks
+     */
+    default boolean supportsQueryParameters(Set<String> parameters) {
+        final Set<String> supported = allSupportedParameters();
+        return supported == null || supported.containsAll(parameters);
+    }
+
+    /**
      * The set of capabilities this rest handler supports.
      */
     default Set<String> supportedCapabilities() {

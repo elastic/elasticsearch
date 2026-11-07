@@ -66,6 +66,7 @@ clients:double | step:datetime            | cluster:keyword
 
 // Parenthesized offset arithmetic retains its explicit positive sign; subtraction applies to the selectors.
 instant_positive_offset_expression
+required_capability: fix_promql_offset_precedence
 required_capability: promql_command_v0
 required_capability: promql_instant_query
 required_capability: promql_offset_modifier

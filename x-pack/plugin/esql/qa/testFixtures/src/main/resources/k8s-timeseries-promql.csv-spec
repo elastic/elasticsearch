@@ -65,6 +65,7 @@ sum(avg_over_time(network.cost[5m] offset -5m)):double | step:date
 
 // Exponentiation applies to the offset selector, including when the offset has an explicit positive sign.
 positive_offset_before_power
+required_capability: fix_promql_offset_precedence
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding

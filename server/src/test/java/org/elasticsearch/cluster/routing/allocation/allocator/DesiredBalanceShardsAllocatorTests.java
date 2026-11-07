@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -905,7 +907,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                             shardRouting,
                             secondNode.getId(),
                             100,
-                            "test",
+                            MoveReason.of(MoveType.CANNOT_REMAIN),
                             allocation.changes(),
                             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );

@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -210,7 +212,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 startedPrimary,
                 "node-1",
                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                "test-setup",
+                MoveReason.of(MoveType.CANNOT_REMAIN),
                 allocation.changes(),
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
@@ -489,7 +491,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 startedPrimary,
                 "node-1",
                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                "test-setup",
+                MoveReason.of(MoveType.CANNOT_REMAIN),
                 allocation.changes(),
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );

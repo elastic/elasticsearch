@@ -425,6 +425,13 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     }
 
     public RoutingAllocation mutableCloneForSimulation() {
+        return mutableCloneForSimulation(RoutingChangesObserver.NOOP);
+    }
+
+    /**
+     * @param changesObserver additionally notified of every change made to the simulated routing nodes
+     */
+    public RoutingAllocation mutableCloneForSimulation(RoutingChangesObserver changesObserver) {
         return new MutableRoutingAllocation(
             deciders,
             clusterState.mutableRoutingNodes(),
@@ -433,7 +440,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
             shardSizeInfo,
             currentNanoTime,
             true,
-            RoutingChangesObserver.NOOP,
+            changesObserver,
             preserveDecisionLabels
         );
     }

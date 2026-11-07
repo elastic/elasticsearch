@@ -38,6 +38,15 @@ public class BulkNeighborQueueTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new BulkNeighborQueue(0));
     }
 
+    public void testPeekScoreLowerBoundBeforeQueueIsFull() {
+        for (int k : new int[] { 3, 11 }) {
+            BulkNeighborQueue queue = new BulkNeighborQueue(k);
+            queue.insertWithOverflowBulk(new int[] { 1, 2 }, new float[] { 2f, 1f }, 2, 2f);
+
+            assertEquals(queue.encode(2, 1f), queue.peekScoreLowerBound());
+        }
+    }
+
     public void testBulkInsertMatchesTopKMinHeap() {
         int[] docs = new int[] { 1, 2, 3, 4, 5, 6 };
         float[] scores = new float[] { 1.0f, 0.5f, 2.0f, 1.5f, 2.0f, 0.1f };

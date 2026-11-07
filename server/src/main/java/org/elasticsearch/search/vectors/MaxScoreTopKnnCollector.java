@@ -19,29 +19,18 @@ import static org.elasticsearch.search.vectors.AbstractIVFKnnVectorQuery.NO_RESU
 
 class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector implements BulkKnnCollector {
 
-    private long minCompetitiveDocScore;
-    private float minCompetitiveSimilarity;
     protected final BulkNeighborQueue queue;
     private final int[] docScratch = new int[1];
     private final float[] scoreScratch = new float[1];
 
     MaxScoreTopKnnCollector(int k, long visitLimit, KnnSearchStrategy searchStrategy) {
         super(k, visitLimit, searchStrategy);
-        this.minCompetitiveDocScore = LEAST_COMPETITIVE;
-        this.minCompetitiveSimilarity = Float.NEGATIVE_INFINITY;
         this.queue = new BulkNeighborQueue(k);
     }
 
     @Override
-    public long getMinCompetitiveDocScore() {
-        return queue.size() >= k() ? Math.max(minCompetitiveDocScore, queue.peek()) : minCompetitiveDocScore;
-    }
-
-    @Override
-    void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
-        long queueMinCompetitiveDocScore = queue.size() >= k() ? queue.peek() : LEAST_COMPETITIVE;
-        this.minCompetitiveDocScore = Math.max(this.minCompetitiveDocScore, Math.max(queueMinCompetitiveDocScore, minCompetitiveDocScore));
-        this.minCompetitiveSimilarity = BulkNeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
+    long collectedScoreLowerBound() {
+        return queue.peekScoreLowerBound();
     }
 
     @Override
@@ -54,11 +43,6 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector implements Bu
     @Override
     public int numCollected() {
         return queue.size();
-    }
-
-    @Override
-    public float minCompetitiveSimilarity() {
-        return queue.size() < k() ? Float.NEGATIVE_INFINITY : Math.max(minCompetitiveSimilarity, queue.decodeScore(queue.peek()));
     }
 
     @Override

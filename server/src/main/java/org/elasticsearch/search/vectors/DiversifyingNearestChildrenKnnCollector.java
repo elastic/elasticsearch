@@ -36,8 +36,6 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
 
     private final BitSet parentBitSet;
     private final NodeIdCachingHeap heap;
-    private long minCompetitiveDocScore = LEAST_COMPETITIVE;
-    private float minCompetitiveScore = Float.NEGATIVE_INFINITY;
 
     /**
      * Create a new object for joining nearest child kNN documents with a parent bitset
@@ -73,8 +71,8 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
     }
 
     @Override
-    public float minCompetitiveSimilarity() {
-        return heap.size < k() ? Float.NEGATIVE_INFINITY : Math.max(minCompetitiveScore, heap.topScore());
+    long collectedScoreLowerBound() {
+        return NeighborQueue.encodeRaw(heap.topNode(), heap.topScore());
     }
 
     @Override
@@ -101,22 +99,6 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
     @Override
     public int numCollected() {
         return heap.size();
-    }
-
-    @Override
-    public long getMinCompetitiveDocScore() {
-        return heap.size() >= k()
-            ? Math.max(NeighborQueue.encodeRaw(heap.topNode(), heap.topScore()), minCompetitiveDocScore)
-            : minCompetitiveDocScore;
-    }
-
-    @Override
-    void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
-        long queueMinCompetitiveDocScore = heap.size() >= k()
-            ? NeighborQueue.encodeRaw(heap.topNode(), heap.topScore())
-            : LEAST_COMPETITIVE;
-        this.minCompetitiveDocScore = Math.max(this.minCompetitiveDocScore, Math.max(queueMinCompetitiveDocScore, minCompetitiveDocScore));
-        this.minCompetitiveScore = NeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
     }
 
     /**

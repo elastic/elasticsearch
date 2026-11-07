@@ -7,18 +7,26 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.TimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
@@ -36,9 +44,14 @@ public final class ToTimeSeries extends AbstractConvertFunction {
         ToTimeSeries::new
     );
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.of(KEYWORD, (source, field) -> {
-        throw new UnsupportedOperationException("time-series metadata evaluation is not implemented yet");
-    });
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.of(
+        KEYWORD,
+        (source, field) -> new ToTimeSeriesFromKeywordEvaluator.Factory(
+            source,
+            field,
+            context -> new BreakingBytesRefBuilder(context.breaker(), "to_timeseries")
+        )
+    );
 
     public ToTimeSeries(Source source, Expression field) {
         super(source, field);
@@ -66,6 +79,18 @@ public final class ToTimeSeries extends AbstractConvertFunction {
     @Override
     public boolean foldable() {
         return false;
+    }
+
+    /** The source form of a series' dimensions, encoded as typed metadata in the breaker-accounted {@code scratch}. */
+    @ConvertEvaluator(extraName = "FromKeyword")
+    static BytesRef fromKeyword(BytesRef in, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch) {
+        scratch.clear();
+        try {
+            TimeSeriesMetadata.readSource(in, PromqlLabels::labelName).writeTo(new TimeSeriesMetadataOutputStream(scratch));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Invalid time-series metadata", e);
+        }
+        return scratch.bytesRefView();
     }
 
     @Override

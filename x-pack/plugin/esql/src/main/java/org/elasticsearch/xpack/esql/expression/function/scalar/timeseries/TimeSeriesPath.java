@@ -75,7 +75,7 @@ public final class TimeSeriesPath extends AbstractTimeSeriesFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        throw new UnsupportedOperationException("time-series metadata evaluation is not implemented yet");
+        return TimeSeriesEvaluator.factory(TimeSeriesEvaluator.Operation.GET, children(), toEvaluator);
     }
 
     @Override

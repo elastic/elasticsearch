@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -56,6 +58,31 @@ public class TimeSeriesPathCreateTests extends ESTestCase {
             assertSame(metadata, get.metadata());
             assertEquals(Literal.keyword(Source.EMPTY, "label"), get.children().get(1));
         }
+    }
+
+    /** Native label conversion and missing-label behavior apply equally during constant folding. */
+    public void testFoldReadsAndConvertsLabels() {
+        var metadata = new Literal(Source.EMPTY, new BytesRef("{\"sequence\":\"42\"}"), DataType.TSMD_DATA_TYPE);
+        Expression sequence = TimeSeriesPath.create(Source.EMPTY, metadata, "sequence", DataType.LONG, TEST_CFG);
+        assertTrue(sequence.foldable());
+        assertEquals(42L, sequence.fold(FoldContext.small()));
+        assertNull(TimeSeriesPath.create(Source.EMPTY, metadata, "missing", DataType.KEYWORD, TEST_CFG).fold(FoldContext.small()));
+        assertNull(TimeSeriesPath.create(Source.EMPTY, metadata, "missing", DataType.LONG, TEST_CFG).fold(FoldContext.small()));
+        var empty = new Literal(Source.EMPTY, null, DataType.TSMD_DATA_TYPE);
+        assertNull(TimeSeriesPath.create(Source.EMPTY, empty, "sequence", DataType.LONG, TEST_CFG).fold(FoldContext.small()));
+    }
+
+    /** Reading and converting a multivalued dimension must retain all values. */
+    public void testFoldPreservesMultipleValues() {
+        var metadata = new Literal(Source.EMPTY, new BytesRef("{\"shard\":[\"2\",\"10\"]}"), DataType.TSMD_DATA_TYPE);
+        assertEquals(
+            List.of(new BytesRef("2"), new BytesRef("10")),
+            TimeSeriesPath.create(Source.EMPTY, metadata, "shard", DataType.KEYWORD, TEST_CFG).fold(FoldContext.small())
+        );
+        assertEquals(
+            List.of(2L, 10L),
+            TimeSeriesPath.create(Source.EMPTY, metadata, "shard", DataType.LONG, TEST_CFG).fold(FoldContext.small())
+        );
     }
 
     /** Rewriting an input or label must preserve the ordinary conversion around the metadata read. */

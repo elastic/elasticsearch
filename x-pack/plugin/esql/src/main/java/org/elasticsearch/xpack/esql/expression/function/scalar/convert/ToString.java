@@ -16,12 +16,14 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.TimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -29,17 +31,20 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataOutputStream;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -64,6 +69,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TSMD_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
@@ -115,6 +121,14 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(HISTOGRAM, ToStringFromHistogramEvaluator.Factory::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new),
         Map.entry(TDIGEST, ToStringFromTDigestEvaluator.Factory::new),
+        Map.entry(
+            TSMD_DATA_TYPE,
+            (source, fieldEval) -> new ToStringFromTimeSeriesEvaluator.Factory(
+                source,
+                fieldEval,
+                context -> new BreakingBytesRefBuilder(context.breaker(), "to_string")
+            )
+        ),
 
         // Evaluators dynamically created in #factories()
         Map.entry(DATETIME, (source, fieldEval) -> null),
@@ -364,5 +378,20 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         ToString other = (ToString) obj;
 
         return configuration.equals(other.configuration);
+    }
+
+    /** Time-series metadata in its JSON display form, rendered into the breaker-accounted {@code scratch}. */
+    @ConvertEvaluator(extraName = "FromTimeSeries")
+    static BytesRef fromTimeSeries(
+        BytesRef metadata,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch
+    ) {
+        scratch.clear();
+        try {
+            TimeSeriesMetadata.read(metadata).renderTo(new TimeSeriesMetadataOutputStream(scratch));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Invalid time-series metadata", e);
+        }
+        return scratch.bytesRefView();
     }
 }

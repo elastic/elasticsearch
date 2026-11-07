@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTem
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -34,6 +35,19 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local",
+        "include_defaults",
+        Settings.FLAT_SETTINGS_PARAM,
+        "include_managed_fields"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(
+        Sets.union(SUPPORTED_QUERY_PARAMETERS, Settings.FORMAT_PARAMS),
+        "name",
+        ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM
+    );
 
     private static final String INCLUDE_MANAGED_FIELDS = "include_managed_fields";
 
@@ -88,6 +102,16 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
         params.add(INCLUDE_MANAGED_FIELDS);
         params.add(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM);
         return params;
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
 }

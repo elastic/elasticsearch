@@ -84,8 +84,9 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // check if the query has any parameters that are not in the supported set (if declared)
-        Set<String> supported = allSupportedParameters();
-        assert supported == allSupportedParameters() : getName() + ": did not return same instance from allSupportedParameters()";
+        Set<String> supported = allSupportedParameters(request.getRestApiVersion());
+        assert supported == allSupportedParameters(request.getRestApiVersion())
+            : getName() + ": did not return same instance from allSupportedParameters()";
         if (supported != null) {
             var allSupported = Sets.union(
                 RestResponse.RESPONSE_PARAMS,
@@ -272,6 +273,31 @@ public abstract class BaseRestHandler implements RestHandler {
      *                     execution
      */
     protected abstract RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException;
+
+    /**
+     * The set of path and query parameters that could be present on this handler.
+     * This method is only required due to <a href="https://github.com/elastic/elasticsearch/issues/36785">#36785</a>,
+     * which conflates query and path parameters inside the rest handler.
+     * This method should be overridden to add path parameters to {@link #supportedQueryParameters}
+     * if the handler has path parameters.
+     * This method will be removed when {@link #supportedQueryParameters()} and {@link BaseRestHandler#responseParams()} are combined.
+     */
+    protected @Nullable Set<String> allSupportedParameters() {
+        return supportedQueryParameters();
+    }
+
+    /**
+     * The set of path and query parameters that could be present on this handler.
+     * This method is only required due to <a href="https://github.com/elastic/elasticsearch/issues/36785">#36785</a>,
+     * which conflates query and path parameters inside the rest handler.
+     * Used in RestHandlers with Compatible Rest Api
+     * This method should be overridden to add path parameters to {@link #supportedQueryParameters}
+     * if the handler has path parameters.
+     * This method will be removed when {@link #supportedQueryParameters()} and {@link BaseRestHandler#responseParams()} are combined.
+     */
+    protected @Nullable Set<String> allSupportedParameters(RestApiVersion restApiVersion) {
+        return allSupportedParameters();
+    }
 
     /**
      * Parameters used for controlling the response and thus might not be consumed during

@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -34,6 +35,22 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetIndicesAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local",
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+        "include_defaults",
+        Settings.FLAT_SETTINGS_PARAM,
+        "features"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(
+        Sets.union(SUPPORTED_QUERY_PARAMETERS, Settings.FORMAT_PARAMS),
+        "index"
+    );
 
     @Override
     public List<Route> routes() {
@@ -69,4 +86,15 @@ public class RestGetIndicesAction extends BaseRestHandler {
     protected Set<String> responseParams() {
         return Settings.FORMAT_PARAMS;
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

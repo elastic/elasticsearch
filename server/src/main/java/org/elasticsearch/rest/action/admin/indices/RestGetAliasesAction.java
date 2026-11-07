@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
@@ -56,6 +57,18 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // remove the BWC support for the deprecated ?local parameter
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestGetAliasesAction.class);
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
+    );
+    // local is only read when the request uses API version 8 compatibility
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS_V8 = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "local");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index", "name");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS_V8 = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS_V8, "index", "name");
 
     @Override
     public List<Route> routes() {
@@ -185,9 +198,9 @@ public class RestGetAliasesAction extends BaseRestHandler {
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
 
         if (request.getRestApiVersion() == RestApiVersion.V_8) {
+            // consume this param just for validation when in BWC mode for V_8
+            boolean localParam = request.paramAsBoolean("local", false);
             if (request.hasParam("local")) {
-                // consume this param just for validation when in BWC mode for V_8
-                final var localParam = request.paramAsBoolean("local", false);
                 DEPRECATION_LOGGER.critical(
                     DeprecationCategory.API,
                     "get-aliases-local",
@@ -255,4 +268,25 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
         return missingAliases;
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters(RestApiVersion restApiVersion) {
+        return restApiVersion == RestApiVersion.V_8 ? SUPPORTED_QUERY_PARAMETERS_V8 : SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters(RestApiVersion restApiVersion) {
+        return restApiVersion == RestApiVersion.V_8 ? ALL_SUPPORTED_PARAMETERS_V8 : ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

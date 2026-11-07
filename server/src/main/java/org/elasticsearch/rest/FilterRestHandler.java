@@ -9,6 +9,8 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.core.RestApiVersion;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -60,12 +62,17 @@ public abstract class FilterRestHandler implements RestHandler {
     }
 
     @Override
-    public Set<String> allSupportedParameters() {
-        return delegate.allSupportedParameters();
+    public Set<String> supportedQueryParameters(RestApiVersion restApiVersion) {
+        return delegate.supportedQueryParameters(restApiVersion);
     }
 
     @Override
     public Set<String> supportedCapabilities() {
         return delegate.supportedCapabilities();
+    }
+
+    @Override
+    public Set<String> supportedCapabilities(RestApiVersion restApiVersion) {
+        return delegate.supportedCapabilities(restApiVersion);
     }
 }

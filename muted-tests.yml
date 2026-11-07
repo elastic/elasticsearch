@@ -566,3 +566,8 @@ tests:
   - :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
   method: test {yaml=ml/sparse_vector_search/Check sparse_vector should prune by default}
   issue: https://github.com/elastic/elasticsearch/issues/165040
+- class: org.elasticsearch.action.search.TransportSearchIT
+  tasks:
+  - :server:internalClusterTest
+  method: testCircuitBreakerReduceFail
+  issue: https://github.com/elastic/elasticsearch/issues/165046

@@ -184,6 +184,66 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
         verify(downstream, times(0)).onNext(any());
     }
 
+    public void testInitialResponseWithNullContentIsIgnored() throws Exception {
+        var item = new ArrayDeque<ServerSentEvent>();
+        item.offer(new ServerSentEvent("""
+            {
+                "id":"12345",
+                "object":"chat.completion.chunk",
+                "created":123456789,
+                "model":"Spark-X2.5-1.7B-Q4_K_M.gguf",
+                "choices":[
+                    {
+                        "index":0,
+                        "delta":{
+                            "role":"assistant",
+                            "content":null
+                        },
+                        "finish_reason":null
+                    }
+                ]
+            }
+            """));
+
+        var processor = new OpenAiStreamingProcessor();
+
+        Flow.Subscriber<ChunkedToXContent> downstream = mock();
+        processor.subscribe(downstream);
+
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
+
+        processor.next(item);
+
+        verify(upstream, times(1)).request(1);
+        verify(downstream, times(0)).onNext(any());
+    }
+
+    public void testReasoningChunkWithNullContentIsSkipped() throws IOException {
+        var reasoningChunkData = """
+            {
+                "id":"1",
+                "object":"chat.completion.chunk",
+                "choices":[{"index":0,"delta":{"content":null,"reasoning_content":"1 plus 1"},"finish_reason":null}]
+            }\
+            """;
+        var contentChunkData = """
+            {
+                "id":"2",
+                "object":"chat.completion.chunk",
+                "choices":[{"index":0,"delta":{"content":"2","reasoning_content":null},"finish_reason":null}]
+            }\
+            """;
+        var item = new ArrayDeque<ServerSentEvent>();
+        item.offer(new ServerSentEvent(reasoningChunkData + "\n" + contentChunkData));
+
+        var response = onNext(new OpenAiStreamingProcessor(), item);
+        var json = toJsonString(response);
+
+        assertThat(json, equalTo("""
+            {"completion":[{"delta":"2"}]}"""));
+    }
+
     public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
         var firstChunkData = """
             {

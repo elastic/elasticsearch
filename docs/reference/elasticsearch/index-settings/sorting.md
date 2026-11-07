@@ -70,7 +70,44 @@ PUT my-index-000001
 2. In ascending order for the `username` field and in descending order for the `date` field.
 
 
+Instead of the separate `index.sort.*` settings, you can configure the whole sort with the single `index.sort` expression:
+
+```console
+PUT my-index-000001
+{
+  "settings": {
+    "index": {
+      "sort": "username, date DESC MISSING_FIRST" <1>
+    }
+  },
+  "mappings": {
+    "properties": {
+      "username": {
+        "type": "keyword",
+        "doc_values": true
+      },
+      "date": {
+        "type": "date"
+      }
+    }
+  }
+}
+```
+
+1. Sorts by `username` ascending, then by `date` descending with documents that have no `date` first.
+
+
 Index sorting supports the following settings:
+
+$$$index-sort-expression$$$
+`index.sort`
+:   A comma-separated list of sort fields that configures the whole index sort. Each entry is a field name followed by optional keywords, separated by whitespace, in any order and each at most once:
+
+    * `ASC` or `DESC`: The sort order. Defaults to `ASC`.
+    * `MV_FIRST_MIN` or `MV_FIRST_MAX`: Which value of a multi-valued field to sort by. Defaults to `MV_FIRST_MIN`, or `MV_FIRST_MAX` when the order is `DESC`.
+    * `MISSING_FIRST` or `MISSING_LAST`: Where documents without a value are sorted. Defaults to `MISSING_LAST`.
+
+    Keywords are case-insensitive, and the defaults match those of `index.sort.order`, `index.sort.mode` and `index.sort.missing`. The expression is stored as written, and the `index.sort.*` settings stay unset and report the values derived from it as defaults. `index.sort` can't be combined with any of the `index.sort.*` settings.
 
 $$$index-sort-field$$$
 `index.sort.field`

@@ -113,13 +113,7 @@ public record TableFunctionSignature(List<Argument> arguments) {
                 case NAMED_VALUES -> actual instanceof TableFunctionArgument.NamedValues;
             };
             if (matches == false) {
-                throw new ParsingException(
-                    actual.source(),
-                    "[{}] expects {} for [{}]",
-                    call.name(),
-                    expected.kind(),
-                    expected.name()
-                );
+                throw new ParsingException(actual.source(), "[{}] expects {} for [{}]", call.name(), expected.kind(), expected.name());
             }
         }
     }

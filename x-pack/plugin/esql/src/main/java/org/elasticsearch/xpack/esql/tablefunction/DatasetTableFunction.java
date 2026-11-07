@@ -175,9 +175,7 @@ public final class DatasetTableFunction implements TableFunction, BindsOnDataNod
         Map<String, Object> options = call.namedValues(2);
         if (options != null) {
             if (options.containsKey(PutDatasetAction.Request.RESOURCE.getPreferredName())) {
-                throw new IllegalArgumentException(
-                    "[" + NAME + "] takes the resource as its second argument; remove it from the options"
-                );
+                throw new IllegalArgumentException("[" + NAME + "] takes the resource as its second argument; remove it from the options");
             }
             definitionBody.putAll(options);
         }

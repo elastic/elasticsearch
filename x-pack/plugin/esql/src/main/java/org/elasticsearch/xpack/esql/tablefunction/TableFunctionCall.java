@@ -6,11 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.tablefunction;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;

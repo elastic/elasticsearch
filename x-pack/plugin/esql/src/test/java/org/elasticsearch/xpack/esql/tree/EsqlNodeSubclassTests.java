@@ -100,8 +100,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.tablefunction.DatasetTableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRequest;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionCall;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRequest;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;

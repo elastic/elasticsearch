@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -84,6 +83,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -149,8 +149,16 @@ import static org.hamcrest.Matchers.hasSize;
 public class CsvIT extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
-    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, TableFunctionRegistry.of(Map.of()), false);
-    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, TableFunctionRegistry.of(Map.of()), true);
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(
+        TEST_FUNCTION_REGISTRY,
+        TableFunctionRegistry.of(Map.of()),
+        false
+    );
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(
+        TEST_FUNCTION_REGISTRY,
+        TableFunctionRegistry.of(Map.of()),
+        true
+    );
     private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
     private static final String ML_ANOMALIES_DATASET = ".ml-anomalies-shared";

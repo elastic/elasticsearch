@@ -46,11 +46,7 @@ public class EsqlCapabilities {
      * @param all if {@code false} then only <strong>enabled</strong> capabilities are returned,
      *            otherwise <strong>all</strong> known capabilities are returned.
      */
-    public static EsqlCapabilities capabilities(
-        EsqlFunctionRegistry functions,
-        TableFunctionRegistry tableFunctions,
-        boolean all
-    ) {
+    public static EsqlCapabilities capabilities(EsqlFunctionRegistry functions, TableFunctionRegistry tableFunctions, boolean all) {
         Builder builder = new Builder(all);
         for (Cap cap : Cap.values()) {
             builder.add(cap.capabilityName(), cap.isEnabled());

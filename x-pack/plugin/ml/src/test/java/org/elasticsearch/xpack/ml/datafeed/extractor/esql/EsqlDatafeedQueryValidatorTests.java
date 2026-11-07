@@ -882,6 +882,84 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         return new TestEsqlQueryResponse(mockEsqlResponse(columns));
     }
 
+    public void testRequiredColumnsProbeShouldCloseResponseOnSuccess() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+
+        assertValidationSucceeds(harness.validator, ESQL_QUERY, null, TIME_FIELD, null);
+
+        assertThat(response.closed, is(true));
+    }
+
+    public void testRequiredColumnsProbeShouldCloseResponseWhenColumnCheckFails() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn("other_field", "keyword"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+
+        assertValidationFails(harness.validator, ESQL_QUERY, null, TIME_FIELD, null);
+
+        assertThat(response.closed, is(true));
+    }
+
+    public void testRequiredColumnsProbeShouldCloseResponseWhenListenerThrows() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+
+        harness.validator.validateQuery(null, Collections.emptyMap(), ESQL_QUERY, null, TIME_FIELD, null, ActionListener.wrap(ok -> {
+            throw new IllegalStateException("listener failure");
+        }, e -> {}));
+
+        assertThat(response.closed, is(true));
+    }
+
+    public void testSourceTimeFieldProbeShouldCloseResponseOnSuccess() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn("@timestamp", "date"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+
+        harness.validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> fail("unexpected failure " + e)),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+        assertThat(response.closed, is(true));
+    }
+
+    public void testSourceTimeFieldProbeShouldCloseResponseWhenTypeCheckFails() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn("@timestamp", "keyword"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        harness.validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> fail("expected failure"), failure::set),
+            null
+        );
+
+        assertThat(failure.get(), notNullValue());
+        assertThat(response.closed, is(true));
+    }
+
+    public void testSourceTimeFieldProbeShouldCloseResponseWhenListenerThrows() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn("@timestamp", "date"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+
+        harness.validator.validateSourceTimeField(null, Collections.emptyMap(), ESQL_QUERY, null, "@timestamp", ActionListener.wrap(ok -> {
+            throw new IllegalStateException("listener failure");
+        }, e -> {}), null);
+
+        assertThat(response.closed, is(true));
+    }
+
     public void testRemoteIndexShouldFailRemoteClusterSourceRejection() {
         ElasticsearchStatusException e = expectRejected("FROM remote:logs-* | STATS c = COUNT(*) BY BUCKET(@timestamp, 1h)");
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -1041,9 +1119,16 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     private static class TestEsqlQueryResponse extends EsqlQueryResponse {
 
         private final EsqlResponse esqlResponse;
+        boolean closed;
 
         TestEsqlQueryResponse(EsqlResponse esqlResponse) {
             this.esqlResponse = esqlResponse;
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+            super.close();
         }
 
         @Override

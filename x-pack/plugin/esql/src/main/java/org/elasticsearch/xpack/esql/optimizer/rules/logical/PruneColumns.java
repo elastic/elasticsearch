@@ -295,19 +295,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 var outputAttrs = localRelation.output().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
                 newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
             } else {
-                // otherwise, we first prune the projections of the top-level Project of each subplan
-                subPlan.outputSet().stream().filter(x -> mergeOutputNames.contains(x.name())).forEach(usedAttrs::add);
-
-                Holder<Boolean> projectVisited = new Holder<>(false);
-                newSubPlan = subPlan.transformDown(Project.class, p -> {
-                    if (projectVisited.get()) {
-                        return p;
-                    }
-                    projectVisited.set(true);
-                    // filter projections based on merge output attributes
-                    var prunedAttrs = p.projections().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
-                    return new Project(p.source(), p.child(), prunedAttrs);
-                });
+                var outputAttrs = subPlan.output().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
+                usedAttrs.addAll(outputAttrs);
+                // Narrow the branch output before pruning its subtree. Filters and other branch operators may still need columns
+                // that the merge no longer returns.
+                newSubPlan = outputAttrs.size() == subPlan.output().size() ? subPlan : new Project(subPlan.source(), subPlan, outputAttrs);
                 newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
             }
             if (false == newSubPlan.equals(subPlan)) {

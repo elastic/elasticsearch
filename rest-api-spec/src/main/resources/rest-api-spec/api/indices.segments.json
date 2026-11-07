@@ -60,6 +60,11 @@
         "type": "boolean",
         "default": false,
         "description": "If set to true, auto-calibration parameters are included per segment for dense_vector fields that support auto-calibration."
+      },
+      "vector_formats": {
+        "type": "boolean",
+        "default": false,
+        "description": "If set to true, information about the vector formats used by each segment is included."
       }
     }
   }

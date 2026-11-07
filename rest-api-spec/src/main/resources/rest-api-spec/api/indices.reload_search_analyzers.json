@@ -52,6 +52,11 @@
       "resource": {
         "type": "string",
         "description": "changed resource to reload analyzers from if applicable"
+      },
+      "preview": {
+        "type": "boolean",
+        "default": false,
+        "description": "If set to true, the reload is previewed: analyzers are not reloaded, but the results are returned."
       }
     }
   }

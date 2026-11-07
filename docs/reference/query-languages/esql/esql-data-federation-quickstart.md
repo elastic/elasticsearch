@@ -14,9 +14,6 @@ This guide walks you through connecting {{es}} to external data and querying it 
 
 The example uses the [Ookla Open Speedtest dataset](https://registry.opendata.aws/speedtest-global-performance/) ([GitHub](https://github.com/teamookla/ookla-open-data)), a publicly accessible collection of internet performance metrics aggregated by geographic tile (a small area on the map). It mirrors a common observability pattern: analyzing network performance data stored in cloud storage alongside operational data indexed in {{es}}. Because the bucket allows anonymous access, you can follow along without AWS credentials.
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 ## Before you begin
 
 Make sure you have the following:

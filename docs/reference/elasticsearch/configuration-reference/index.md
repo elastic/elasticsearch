@@ -29,6 +29,7 @@ The settings are grouped by feature or purpose, for example:
 - [Cross-cluster replication](/reference/elasticsearch/configuration-reference/cross-cluster-replication-settings.md)
 - [Data stream lifecycle](/reference/elasticsearch/configuration-reference/data-stream-lifecycle-settings.md)
 - [Enrich settings](/reference/elasticsearch/configuration-reference/enrich-settings.md)
+- [ES|QL](/reference/elasticsearch/configuration-reference/esql-settings.md)
 - [Field data cache](/reference/elasticsearch/configuration-reference/field-data-cache-settings.md)
 - [Health diagnostic](/reference/elasticsearch/configuration-reference/health-diagnostic-settings.md)
 - [Index lifecycle management](/reference/elasticsearch/configuration-reference/index-lifecycle-management-settings.md), 

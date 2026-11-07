@@ -64,7 +64,22 @@ If you only aggregate or sort on a field, and never filter, set [`index: false`]
 
 ### Know your circuit breaker limits
 
-{{esql}} enforces memory limits through [circuit breakers](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql). When a query exceeds the limit, the cluster rejects it to protect node stability. High-cardinality aggregations are the most common trigger. To learn more, refer to [Avoid high-cardinality STATS BY](#avoid-high-cardinality-stats-by).
+{{esql}} enforces memory limits through [circuit breakers](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql). When a query exceeds the limit, the cluster rejects it to protect node stability. High-cardinality aggregations are the most common trigger. To learn more, refer to [Avoid high-cardinality STATS BY](#avoid-high-cardinality-stats-by). With [spilling](#esql-spilling) enabled, the operators that hold the most state continue on disk instead of being rejected.
+
+### Memory budget and spilling [esql-spilling]
+
+```{applies_to}
+stack: preview
+serverless: unavailable
+```
+
+Each query may use up to [`esql.spill.query_budget`](/reference/elasticsearch/configuration-reference/esql-settings.md#esql-spill-query-budget) of the request circuit breaker's limit on every node it runs on. Below the budget, operators keep their state in memory. When [`esql.spill.enabled`](/reference/elasticsearch/configuration-reference/esql-settings.md#esql-spill-enabled) is `true` and an operator's next step would cross the budget, the operator writes part of its state to the spill store and continues; the query completes with the same result, taking more time and disk. When spilling is disabled, the circuit breaker fails the query instead.
+
+Operators that spill: grouped `STATS` on the coordinating node and in the node-level reduction, `LIMIT ... BY`, `DEDUP`, `SORT` with a `LIMIT`, and the collection of the query's result on the coordinating node once it exceeds [`esql.spill.result_budget`](/reference/elasticsearch/configuration-reference/esql-settings.md#esql-spill-result-budget). A grouped `STATS` whose functions all support partitioning spills through the parallel aggregation; the others spill through the single-threaded path. An operator holding less than 16 MB of state never spills.
+
+The `profile` output reports, per operator, `spilled_bytes`, `read_back_bytes`, `spill_runs` and `spill_nanos`, the last being the time the driver waited on its spill operations, so a slow query can be attributed to spilling. The {{esql}} stats API reports, per node, the spill store's bytes in use, its limit, the bytes it could not delete yet and the number of queries with spilled state.
+
+Spilled data is written in clear text under [`esql.spill.disk.path`](/reference/elasticsearch/configuration-reference/esql-settings.md#esql-spill-disk-path), capped by [`esql.spill.disk.cap`](/reference/elasticsearch/configuration-reference/esql-settings.md#esql-spill-disk-cap), and deleted when the query ends or when the node starts. A query whose spill would exceed the cap fails with an error naming the setting; other queries are not affected.
 
 ## Common anti-patterns
 

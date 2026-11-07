@@ -656,10 +656,7 @@ public class HashAggregationOperator implements Operator {
 
     void clearCurrentBatch() {
         rowsAddedInCurrentBatch = 0;
-        // Only reuse via clear() when partitioning is active. TimeSeriesBlockHash may share its
-        // BytesRefArray with emitted ordinal dictionaries (incRef); clear()/truncate would corrupt
-        // those keys. Close+recreate drops the hash's ref and leaves emitted keys intact (#164417).
-        if (supportPartitioning && blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
+        if (blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
             partitionedBlockHash.clear();
         } else {
             blockHash.close();
@@ -833,6 +830,22 @@ public class HashAggregationOperator implements Operator {
             "hashagg",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder, params)
+        )
+            .required("hash_nanos", ProfileSchema.integer())
+            .optional("hash_time", ProfileSchema.string())
+            .required("aggregation_nanos", ProfileSchema.integer())
+            .optional("aggregation_time", ProfileSchema.string())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .optional("emit_count", ProfileSchema.integer())
+            .required("emit_nanos", ProfileSchema.integer())
+            .optional("emit_time", ProfileSchema.string())
+            .optional("partitioning", ParallelHashAggregationOperator.PartitioningStatus.partitioningSchema())
+            .build();
 
         private static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME = TransportVersion.fromName(
             "esql_hash_operator_status_output_time"
@@ -1004,8 +1017,7 @@ public class HashAggregationOperator implements Operator {
             return extraFields;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("hash_nanos", hashNanos);
             if (builder.humanReadable()) {
@@ -1029,7 +1041,11 @@ public class HashAggregationOperator implements Operator {
                 ef.toXContent(builder, params);
             }
             return builder.endObject();
+        }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

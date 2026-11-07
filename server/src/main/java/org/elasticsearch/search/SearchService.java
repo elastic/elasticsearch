@@ -291,6 +291,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
+    /**
+     * With {@link #FETCH_PHASE_PREFETCH_ENABLED}, the maximum number of hits whose stored fields the fetch phase prefetches ahead of the
+     * hit it loads. Larger values wait for fewer rounds of reads on slow storage but hold more prefetched data at once.
+     */
+    public static final Setting<Integer> FETCH_PHASE_PREFETCH_MAX_DOCS = Setting.intSetting(
+        "search.fetch_phase.prefetch.max_docs",
+        256,
+        1,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     public static final Setting<Boolean> FETCH_PHASE_CHUNKED_ENABLED = Setting.boolSetting(
         "search.fetch_phase_chunked_enabled",
         true,
@@ -596,6 +608,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(FETCH_PHASE_CHUNKED_ENABLED, this::setEnableFetchPhaseChunked);
         fetchPhase.setPrefetch(FETCH_PHASE_PREFETCH_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(FETCH_PHASE_PREFETCH_ENABLED, fetchPhase::setPrefetch);
+        fetchPhase.setPrefetchMaxDocs(FETCH_PHASE_PREFETCH_MAX_DOCS.get(settings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(FETCH_PHASE_PREFETCH_MAX_DOCS, fetchPhase::setPrefetchMaxDocs);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS, this::setFetchPhaseMaxInFlightChunks);
         clusterService.getClusterSettings()

@@ -1588,11 +1588,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * test that getting more than the allowed number of docvalue_fields throws an exception
-     */
-    /**
      * The fetch phase returns the same hits with {@link SearchService#FETCH_PHASE_PREFETCH_ENABLED} on and off, over a shard with several
-     * segments, and the setting can be updated dynamically.
+     * segments and with a prefetch window smaller than the number of hits, and both settings can be updated dynamically.
      */
     public void testFetchPhasePrefetchDoesNotChangeHits() {
         createIndex("index", Settings.EMPTY, "n", "type=long");
@@ -1606,13 +1603,23 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
         boolean fetchSource = randomBoolean();
         List<String> hitsWithoutPrefetch = fetchPhasePrefetchTestHits(fetchSource);
-        updateClusterSettings(Settings.builder().put(SearchService.FETCH_PHASE_PREFETCH_ENABLED.getKey(), true).build());
+        updateClusterSettings(
+            Settings.builder()
+                .put(SearchService.FETCH_PHASE_PREFETCH_ENABLED.getKey(), true)
+                .put(SearchService.FETCH_PHASE_PREFETCH_MAX_DOCS.getKey(), randomIntBetween(1, numDocs))
+                .build()
+        );
         try {
             List<String> hitsWithPrefetch = fetchPhasePrefetchTestHits(fetchSource);
             assertThat(hitsWithPrefetch.size(), equalTo(numDocs));
             assertThat(hitsWithPrefetch, equalTo(hitsWithoutPrefetch));
         } finally {
-            updateClusterSettings(Settings.builder().putNull(SearchService.FETCH_PHASE_PREFETCH_ENABLED.getKey()).build());
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(SearchService.FETCH_PHASE_PREFETCH_ENABLED.getKey())
+                    .putNull(SearchService.FETCH_PHASE_PREFETCH_MAX_DOCS.getKey())
+                    .build()
+            );
         }
     }
 
@@ -1629,6 +1636,9 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         return hits;
     }
 
+    /**
+     * test that getting more than the allowed number of docvalue_fields throws an exception
+     */
     public void testMaxDocvalueFieldsSearch() throws IOException {
         final Settings settings = Settings.builder().put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 1).build();
         createIndex("index", settings);

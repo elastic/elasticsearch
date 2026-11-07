@@ -15,12 +15,16 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -41,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -67,7 +72,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -80,6 +87,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1497,6 +1505,137 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * With more hits than {@link SearchService#FETCH_PHASE_PREFETCH_MAX_DOCS}, the stored fields of at most that many hits are
+     * prefetched ahead of the hit being loaded, every hit is prefetched exactly once before it is loaded, and the next hits are
+     * prefetched in waves of about half the window rather than one hit at a time.
+     */
+    public void testPrefetchesStoredFieldsInABoundedWindow() throws IOException {
+        doTestPrefetchWindow(false);
+    }
+
+    /**
+     * Same as {@link #testPrefetchesStoredFieldsInABoundedWindow} for {@link StreamingFetchPhaseDocsIterator#iterateAsync}.
+     */
+    public void testIterateAsyncPrefetchesStoredFieldsInABoundedWindow() throws IOException {
+        doTestPrefetchWindow(true);
+    }
+
+    private void doTestPrefetchWindow(boolean streaming) throws IOException {
+        try (PrefetchRecordingDirectory directory = new PrefetchRecordingDirectory(new ByteBuffersDirectory())) {
+            IndexWriterConfig config = new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()).setMergePolicy(NoMergePolicy.INSTANCE);
+            int docCount = randomIntBetween(100, 300);
+            try (IndexWriter writer = new IndexWriter(directory, config)) {
+                for (int i = 0; i < docCount; i++) {
+                    Document doc = new Document();
+                    doc.add(new BinaryDocValuesField(IdFieldMapper.NAME, Uid.encodeId("id-" + i)));
+                    doc.add(new StoredField("field", "value-" + i));
+                    writer.addDocument(doc);
+                    if (i % 40 == 39) {
+                        writer.commit();
+                    }
+                }
+                writer.commit();
+            }
+            List<String> events = new CopyOnWriteArrayList<>();
+            try (DirectoryReader reader = recordingStoredFieldsPrefetch(DirectoryReader.open(directory), events)) {
+                int[] docIds = IntStream.range(0, docCount).filter(doc -> randomBoolean()).toArray();
+                assumeTrue("needs hits", docIds.length > 0);
+                int maxDocs = randomIntBetween(1, 16);
+
+                LoadingIterator withPrefetch = new LoadingIterator(directory, true, true, maxDocs, events);
+                List<String> loadedWithPrefetch = withPrefetch.run(reader, docIds, streaming);
+                List<String> withPrefetchEvents = List.copyOf(events);
+                events.clear();
+                LoadingIterator withoutPrefetch = new LoadingIterator(directory, false, true, maxDocs, events);
+                assertThat(withoutPrefetch.run(reader, docIds, streaming), equalTo(loadedWithPrefetch));
+                assertThat(events.stream().filter(e -> e.startsWith("prefetch")).toList(), equalTo(List.of()));
+
+                // replay: every hit is prefetched exactly once, before it is loaded, and at most maxDocs hits are prefetched ahead
+                Set<String> prefetched = new HashSet<>();
+                Set<String> loaded = new HashSet<>();
+                int waves = 0;
+                boolean previousWasPrefetch = false;
+                for (String event : withPrefetchEvents) {
+                    String doc = event.substring(event.indexOf(':') + 1);
+                    if (event.startsWith("prefetch")) {
+                        assertTrue("prefetched twice: " + doc, prefetched.add(doc));
+                        assertFalse("prefetched after loading: " + doc, loaded.contains(doc));
+                        assertThat("prefetched too far ahead", prefetched.size() - loaded.size(), lessThanOrEqualTo(maxDocs));
+                        if (previousWasPrefetch == false) {
+                            waves++;
+                        }
+                        previousWasPrefetch = true;
+                    } else {
+                        assertTrue("loaded before prefetching: " + doc, prefetched.contains(doc));
+                        loaded.add(doc);
+                        previousWasPrefetch = false;
+                    }
+                }
+                assertThat(prefetched.size(), equalTo(docIds.length));
+                assertThat(loaded.size(), equalTo(docIds.length));
+                // the first window, then one wave per half window loaded
+                int wavesBound = 1 + (int) Math.ceil(Math.max(0, docIds.length - maxDocs) / Math.ceil(maxDocs / 2.0));
+                assertThat(waves, lessThanOrEqualTo(wavesBound));
+            }
+        }
+    }
+
+    /**
+     * Wraps the reader so that {@link StoredFields#prefetch} calls are recorded as {@code prefetch:<global doc id>}.
+     */
+    private static DirectoryReader recordingStoredFieldsPrefetch(DirectoryReader in, List<String> events) throws IOException {
+        Map<LeafReader, Integer> docBases = new IdentityHashMap<>();
+        DirectoryReader wrapped = new FilterDirectoryReader(in, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader reader) {
+                return new FilterLeafReader(reader) {
+                    @Override
+                    public StoredFields storedFields() throws IOException {
+                        StoredFields storedFields = in.storedFields();
+                        LeafReader leaf = this;
+                        return new StoredFields() {
+                            @Override
+                            public void prefetch(int docID) throws IOException {
+                                events.add("prefetch:" + (docBases.get(leaf) + docID));
+                                storedFields.prefetch(docID);
+                            }
+
+                            @Override
+                            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                                storedFields.document(docID, visitor);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return in.getCoreCacheHelper();
+                    }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return in.getReaderCacheHelper();
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return in.getReaderCacheHelper();
+            }
+        };
+        for (LeafReaderContext leaf : wrapped.leaves()) {
+            docBases.put(leaf.reader(), leaf.docBase);
+        }
+        return wrapped;
+    }
+
     private static String segmentName(LeafReaderContext ctx) {
         return Lucene.segmentReader(ctx.reader()).getSegmentName();
     }
@@ -1509,6 +1648,9 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         private final PrefetchRecordingDirectory directory;
         private final boolean prefetch;
         private final boolean loadsStoredFields;
+        private final int maxDocs;
+        @Nullable
+        private final List<String> events;
         private final IdLoader idLoader = IdLoader.fromDocValues();
         private final List<String> loaded = new ArrayList<>();
         private List<PrefetchRecordingDirectory.Event> eventsBeforeFirstLoad;
@@ -1517,10 +1659,27 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         private StoredFields storedFields;
 
         LoadingIterator(PrefetchRecordingDirectory directory, boolean prefetch, boolean loadsStoredFields) {
+            this(directory, prefetch, loadsStoredFields, Integer.MAX_VALUE, null);
+        }
+
+        LoadingIterator(
+            PrefetchRecordingDirectory directory,
+            boolean prefetch,
+            boolean loadsStoredFields,
+            int maxDocs,
+            @Nullable List<String> events
+        ) {
             super(DirectoryMetrics.Capture.NOOP);
             this.directory = directory;
             this.prefetch = prefetch;
             this.loadsStoredFields = loadsStoredFields;
+            this.maxDocs = maxDocs;
+            this.events = events;
+        }
+
+        @Override
+        protected int prefetchMaxDocs() {
+            return maxDocs;
         }
 
         @Override
@@ -1553,6 +1712,9 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             String id = leafIdLoader.getId(doc - docBase);
             String value = storedFields == null ? null : storedFields.document(doc - docBase).get("field");
             loaded.add(doc + ":" + id + ":" + value);
+            if (events != null) {
+                events.add("load:" + doc);
+            }
             return new SearchHit(doc, id);
         }
 

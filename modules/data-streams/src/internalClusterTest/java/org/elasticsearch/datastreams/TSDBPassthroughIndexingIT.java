@@ -152,6 +152,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = indexSettings(randomIntBetween(2, 10), 0).put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -237,6 +238,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = indexSettings(8, 0).put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }

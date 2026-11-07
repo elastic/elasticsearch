@@ -447,7 +447,12 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         );
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
         assertTrue(metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, IndexSettings.BATCH_INDEXING.getKey()), groups));
-        assertFalse(metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, null), groups));
+        assertThat(
+            metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, null), groups),
+            equalTo(BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled())
+        );
+        Settings optOut = Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), false).build();
+        assertFalse(metricsAction.canUseBatchIndexing(true, timeSeriesProject(optOut, target), groups));
     }
 
     public void testAttributeFanoutReturns413() {

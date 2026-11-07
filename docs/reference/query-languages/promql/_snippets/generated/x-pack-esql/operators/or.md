@@ -27,5 +27,5 @@ vector1 or vector2
 :::{note}
 **Differences from {{prom}}**
 
-`on(...)` or `ignoring(...)`, such as `a or on(job) b`, and `or` inside another expression, such as `(sum(a) or sum(b)) * 2` or `count(a or b)`, aren't supported yet. Refer to [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-logical-set-binary-operators).
+`on(...)` or `ignoring(...)`, such as `a or on(job) b`, and `or` inside another expression, such as `(sum(a) or sum(b)) * 2` or `count(a or b)`, aren't supported yet. {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` `or` between an aggregated and an unaggregated operand, such as `sum by (job) (a) or b`, or between different metrics stored as separate series with a `__name__` dimension, such as `a or b`, isn't supported yet. Refer to [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-logical-set-binary-operators).
 :::

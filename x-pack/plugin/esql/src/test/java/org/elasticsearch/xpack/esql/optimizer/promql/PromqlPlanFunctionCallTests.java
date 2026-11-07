@@ -38,9 +38,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -436,7 +438,11 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(sumAgg.groupings(), hasSize(2));
         assertThat(sumAgg.aggregates().getFirst().collect(Sum.class), not(empty()));
 
-        var tsAgg = packedTimeSeriesAggregate(sumAgg.child(), 1);
+        // The label packs after the first pass, an empty value as absent.
+        var pack = as(sumAgg.child(), PackDims.class);
+        assertThat(Expressions.names(pack.dims()), contains("cluster"));
+        assertTrue(pack.emptyAsAbsent());
+        var tsAgg = as(pack.child(), TimeSeriesAggregate.class);
         assertThat(Expressions.names(packedDims(tsAgg.aggregates())), contains("cluster"));
         assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
     }
@@ -554,12 +560,110 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         List<Expression> expands = new ArrayList<>();
         plan.forEachExpressionDown(org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand.class, expands::add);
         assertThat(expands, not(empty()));
-        // Outer regroup by the derived label (not only the per-series TSA).
+        // Outer regroup by the derived label (not only the per-series TSA), packed so a multivalued label stays one key.
         List<Aggregate> outer = plan.collect(Aggregate.class).stream().filter(a -> (a instanceof TimeSeriesAggregate) == false).toList();
         assertThat(outer, not(empty()));
         assertTrue(
-            outer.stream().anyMatch(a -> a.groupings().stream().anyMatch(g -> g instanceof Attribute attr && "dst".equals(attr.name())))
+            outer.stream()
+                .anyMatch(a -> a.child() instanceof PackDims pack && pack.dims().stream().anyMatch(dim -> "dst".equals(dim.name())))
         );
+    }
+
+    /** No label has an empty name: {@code label_replace} reads one as the empty string, as Prometheus does. */
+    public void testLabelReplaceFromEmptySourceLabel() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1h result=(sum by (pod) (label_replace(network.bytes_in, \"pod\", \"$1\", \"\", \"(.*)\")))"
+        );
+        assertTrue(plan.resolved());
+    }
+
+    /**
+     * Overwriting a stored label checks that series stay apart, where the metadata can state their label sets; keyword
+     * metadata under an across-series aggregate cannot, and runs without the check as it always has.
+     */
+    public void testLabelReplaceOverStoredLabelUnderAggregate() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1h result=(count by (cluster) (label_replace(network.bytes_in, \"pod\", \"$1\", \"cluster\", \"(.*)\")))"
+        );
+        assertTrue(plan.resolved());
+    }
+
+    /**
+     * {@code label_replace} over an opaque {@code group_left} must keep the child's rest unset (includes already left out
+     * of rest) and add the destination - replacing rest with {@code {dst}} alone used to drop Prometheus labels from the
+     * result (label-name mismatch vs control).
+     */
+    public void testLabelReplaceOverGroupLeftPreservesRestUnset() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=5m result=(label_replace("
+                + "network.eth0.tx * on (pod) group_left (region) network.eth0.rx, "
+                + "\"dst\", \"$1\", \"pod\", \"(.+)\"))"
+        );
+        assertTrue("destination promoted: " + plan.output(), plan.output().stream().anyMatch(a -> "dst".equals(a.name())));
+        assertTrue("group_left include retained: " + plan.output(), plan.output().stream().anyMatch(a -> "region".equals(a.name())));
+        // Public {_timeseries} (not the traced metadataLabelName) so KEEP / Prometheus emit rest labels beside dst/region.
+        assertTrue(
+            "command output must include public _timeseries: " + plan.output(),
+            plan.output().stream().anyMatch(a -> "_timeseries".equals(a.name()))
+        );
+        assertTrue(
+            "command output must not leak the traced rest name: " + plan.output(),
+            plan.output().stream().noneMatch(a -> a.name().startsWith("_timeseries$"))
+        );
+    }
+
+    /**
+     * Opaque {@code label_replace} / {@code label_join} promote the destination beside rest so bare / without / matching
+     * / Prometheus layouts can keep it (#157672).
+     */
+    public void testLabelReplaceOpaquePromotesDestinationBesideRest() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
+        LogicalPlan bare = planPromql(
+            "PROMQL index=k8s step=1h result=(label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\"))"
+        );
+        assertTrue(bare.output().stream().anyMatch(a -> "tier".equals(a.name())));
+        assertTrue(bare.output().stream().anyMatch(a -> "_timeseries".equals(a.name())));
+
+        LogicalPlan by = planPromql(
+            "PROMQL index=k8s step=1h result=(sum by (tier) (label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\")))"
+        );
+        assertTrue(by.output().stream().anyMatch(a -> "tier".equals(a.name())));
+
+        LogicalPlan join = planPromql(
+            "PROMQL index=k8s step=1h result=(label_join(network.bytes_in, \"combo\", \"-\", \"pod\", \"region\"))"
+        );
+        assertTrue(join.output().stream().anyMatch(a -> "combo".equals(a.name())));
+    }
+
+    /**
+     * {@code label_replace(m) + m} cannot fold the pending metric into an Eval over an already-collapsed relabel: that
+     * would embed {@code LastOverTime} outside STATS. Asymmetric arithmetic joins two finished per-series pipelines.
+     */
+    public void testLabelReplacePlusSameMetricPlansWithoutLooseAggregate() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
+        for (String expr : List.of(
+            "label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\") + network.bytes_in",
+            "network.bytes_in + label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\")"
+        )) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h result=(" + expr + ")");
+            // forEachExpression (not Down): Down walks into Aggregate children and would false-flag their AFs.
+            plan.forEachDown(p -> {
+                if (p instanceof Aggregate) {
+                    return;
+                }
+                p.forEachExpression(AggregateFunction.class, af -> {
+                    fail("aggregate function [" + af.sourceText() + "] outside Aggregate in [" + expr + "]");
+                });
+            });
+            assertThat("expected a join of independent series pipelines for [" + expr + "]", plan.collect(HashJoin.class), not(empty()));
+        }
     }
 
     private static List<Expression> nonFiniteExpressions(LogicalPlan plan) {
@@ -570,14 +674,5 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             }
         });
         return nonFiniteExpressions;
-    }
-
-    /** No label has an empty name: {@code label_replace} reads one as the empty string, as Prometheus does. */
-    public void testLabelReplaceFromEmptySourceLabel() {
-        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
-        LogicalPlan plan = planPromql(
-            "PROMQL index=k8s step=1h result=(sum by (pod) (label_replace(network.bytes_in, \"pod\", \"$1\", \"\", \"(.*)\")))"
-        );
-        assertTrue(plan.resolved());
     }
 }

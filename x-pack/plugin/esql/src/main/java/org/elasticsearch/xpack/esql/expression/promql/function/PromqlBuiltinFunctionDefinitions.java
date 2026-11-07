@@ -52,14 +52,14 @@ public class PromqlBuiltinFunctionDefinitions {
             + "{applies_to}`stack: ga =9.6` A call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, "
             + "isn't supported yet.\n\n"
             + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation, "
-            + "such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that overwrites a "
-            + "grouping label, such as `label_replace(sum by (job) (x), \"job\", \"$1\", \"job\", \"(.*)\")`, aren't "
-            + "supported yet. Write a new label instead.\n\n";
+            + "such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, isn't supported yet.\n\n";
 
     private static final String SORT_DIVERGENCE =
-        "A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. {{prom}} applies the "
-            + "ordering there too. On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their "
-            + "labels, where {{es}} returns them in input order.";
+        "{applies_to}`stack: ga =9.6` A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet.\n\n"
+            + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` Below a step that changes the values or the series, such "
+            + "as `abs(sort(x))` or `sum(sort(x))`, {{es}} returns the series in input order, where {{prom}} keeps the order the "
+            + "sort gave them. On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by "
+            + "their labels, where {{es}} returns them in input order.";
 
     public static final PromqlFunctionDefinition TOPK = PromqlFunctionDefinition.def()
         .acrossSeriesBinaryReduceSortDesc(PromqlFunctionDefinition.K)

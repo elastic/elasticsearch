@@ -26,7 +26,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Packs the {@code dims} blocks into a single {@code BytesRef} block.
+ * Packs the {@code dims} blocks into a single {@code BytesRef} block. With {@code emptyAsAbsent} a zero-length value packs as
+ * if it were missing, as PromQL, which has no empty label, reads it.
  */
 public class PackDims extends UnaryPlan {
     public static final String PACKED_FIELD_NAME = "_$packed_dims";
@@ -34,12 +35,18 @@ public class PackDims extends UnaryPlan {
 
     private final List<Attribute> dims;
     private final Attribute packed;
+    private final boolean emptyAsAbsent;
     private List<Attribute> lazyOutput;
 
     public PackDims(Source source, LogicalPlan child, List<Attribute> dims, Attribute packed) {
+        this(source, child, dims, packed, false);
+    }
+
+    public PackDims(Source source, LogicalPlan child, List<Attribute> dims, Attribute packed, boolean emptyAsAbsent) {
         super(source, child);
         this.dims = dims;
         this.packed = packed;
+        this.emptyAsAbsent = emptyAsAbsent;
     }
 
     public List<Attribute> dims() {
@@ -50,9 +57,18 @@ public class PackDims extends UnaryPlan {
         return packed;
     }
 
+    public boolean emptyAsAbsent() {
+        return emptyAsAbsent;
+    }
+
     public static FieldAttribute newPackedAttribute(Source source) {
-        EsField field = new EsField(PACKED_FIELD_NAME, DataType.SOURCE, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION);
-        return new FieldAttribute(source, null, null, PACKED_FIELD_NAME, field, Nullability.TRUE, new NameId(), true);
+        return newPackedAttribute(source, PACKED_FIELD_NAME);
+    }
+
+    /** A packed column under its own {@code name}, for a pack above another one whose column it must not shadow. */
+    public static FieldAttribute newPackedAttribute(Source source, String name) {
+        EsField field = new EsField(name, DataType.SOURCE, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION);
+        return new FieldAttribute(source, null, null, name, field, Nullability.TRUE, new NameId(), true);
     }
 
     public static Alias newPackedGrouping(Source source, Attribute packed) {
@@ -79,12 +95,18 @@ public class PackDims extends UnaryPlan {
 
     @Override
     public PackDims replaceChild(LogicalPlan newChild) {
-        return new PackDims(source(), newChild, dims, packed);
+        return new PackDims(source(), newChild, dims, packed, emptyAsAbsent);
     }
 
     @Override
     protected NodeInfo<PackDims> info() {
-        return NodeInfo.create(this, PackDims::new, child(), dims, packed);
+        return NodeInfo.create(this, PackDims::new, child(), dims, packed, emptyAsAbsent);
+    }
+
+    @Override
+    public List<Object> nodeProperties() {
+        // A pack reading empty values as absent says so; every other pack renders as it always has.
+        return emptyAsAbsent ? super.nodeProperties() : List.of(child(), dims, packed);
     }
 
     @Override
@@ -104,7 +126,7 @@ public class PackDims extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(dims, packed, child());
+        return Objects.hash(dims, packed, emptyAsAbsent, child());
     }
 
     @Override
@@ -116,6 +138,9 @@ public class PackDims extends UnaryPlan {
             return false;
         }
         PackDims other = (PackDims) obj;
-        return Objects.equals(dims, other.dims) && Objects.equals(packed, other.packed) && Objects.equals(child(), other.child());
+        return Objects.equals(dims, other.dims)
+            && Objects.equals(packed, other.packed)
+            && emptyAsAbsent == other.emptyAsAbsent
+            && Objects.equals(child(), other.child());
     }
 }

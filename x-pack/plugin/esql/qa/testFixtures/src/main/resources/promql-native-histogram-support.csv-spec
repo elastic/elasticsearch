@@ -26,8 +26,9 @@ result:double | step:datetime            | _timeseries:keyword
 
 histogram_count_exp_histo_all_instances
 required_capability: promql_histogram_sum_count_avg
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_count(responseTime{instance=~"instance-.*"}))
-| SORT _timeseries;
+| SORT TO_STRING(_timeseries);
 
 result:double | step:datetime            | _timeseries:keyword
 87.0          | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-0""}"
@@ -37,6 +38,7 @@ result:double | step:datetime            | _timeseries:keyword
 
 histogram_count_exp_histo_multi_step
 required_capability: promql_histogram_sum_count_avg
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:04:00.000Z" result=(histogram_count(responseTime{instance="instance-1"}))
 | SORT step;
 
@@ -67,8 +69,9 @@ result:double        | step:datetime            | _timeseries:keyword
 
 histogram_sum_exp_histo_all_instances
 required_capability: promql_histogram_sum_count_avg
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_sum(responseTime{instance=~"instance-.*"}))
-| SORT _timeseries;
+| SORT TO_STRING(_timeseries);
 
 result:double        | step:datetime            | _timeseries:keyword
 17.58986500000001    | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-0""}"
@@ -82,6 +85,7 @@ result:double        | step:datetime            | _timeseries:keyword
 
 histogram_avg_exp_histo_single_instance
 required_capability: promql_histogram_sum_count_avg
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_avg(responseTime{instance="instance-1"}));
 
 result:double         | step:datetime            | _timeseries:keyword
@@ -90,8 +94,9 @@ result:double         | step:datetime            | _timeseries:keyword
 
 histogram_avg_exp_histo_all_instances
 required_capability: promql_histogram_sum_count_avg
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_avg(responseTime{instance=~"instance-.*"}))
-| SORT _timeseries;
+| SORT TO_STRING(_timeseries);
 
 result:double         | step:datetime            | _timeseries:keyword
 0.2021823563218392    | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-0""}"
@@ -107,6 +112,7 @@ result:double         | step:datetime            | _timeseries:keyword
 
 histogram_count_increase_exp_histo_single_bucket
 required_capability: promql_increase_on_histogram
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_count(increase(responseTime{instance="instance-1"}[2h])));
 
 result:double | step:datetime            | _timeseries:keyword
@@ -115,8 +121,9 @@ result:double | step:datetime            | _timeseries:keyword
 
 histogram_count_increase_exp_histo_all_instances
 required_capability: promql_increase_on_histogram
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_count(increase(responseTime{instance=~"instance-.*"}[2h])))
-| SORT _timeseries;
+| SORT TO_STRING(_timeseries);
 
 result:double | step:datetime            | _timeseries:keyword
 8841.0        | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
@@ -126,6 +133,7 @@ result:double | step:datetime            | _timeseries:keyword
 
 histogram_count_increase_exp_histo_multi_step
 required_capability: promql_increase_on_histogram
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=30m start="2025-09-25T00:30:00.000Z" end="2025-09-25T01:30:00.000Z" result=(histogram_count(increase(responseTime{instance="instance-1"}[30m])))
 | SORT step;
 
@@ -141,6 +149,7 @@ result:double | step:datetime            | _timeseries:keyword
 
 histogram_sum_increase_exp_histo_single_bucket
 required_capability: promql_increase_on_histogram
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_sum(increase(responseTime{instance="instance-1"}[2h])))
 | EVAL result = ROUND(result, 6)
 | KEEP result, step, _timeseries;
@@ -151,8 +160,9 @@ result:double | step:datetime            | _timeseries:keyword
 
 histogram_sum_increase_exp_histo_all_instances
 required_capability: promql_increase_on_histogram
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_sum(increase(responseTime{instance=~"instance-.*"}[2h])))
-| SORT _timeseries;
+| SORT TO_STRING(_timeseries);
 
 result:double              | step:datetime            | _timeseries:keyword
 1472.74..1472.75           | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
@@ -166,6 +176,7 @@ result:double              | step:datetime            | _timeseries:keyword
 
 histogram_avg_increase_exp_histo_single_bucket
 required_capability: promql_increase_on_histogram
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_avg(increase(responseTime{instance="instance-1"}[2h])))
 | EVAL result = ROUND(result, 6)
 | KEEP result, step, _timeseries;
@@ -176,8 +187,9 @@ result:double | step:datetime            | _timeseries:keyword
 
 histogram_avg_increase_exp_histo_all_instances
 required_capability: promql_increase_on_histogram
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_avg(increase(responseTime{instance=~"instance-.*"}[2h])))
-| SORT _timeseries;
+| SORT TO_STRING(_timeseries);
 
 result:double                | step:datetime            | _timeseries:keyword
 0.16..0.17                   | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
@@ -212,8 +224,9 @@ result:double | step:datetime            | instance:keyword
 
 histogram_quantile_min_exp_histo_no_bucket
 required_capability: promql_histogram_quantile_exponential
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(0.0, increase(responseTime{instance=~"instance-.*"}[2h])))
-| SORT _timeseries;
+| SORT TO_STRING(_timeseries);
 
 result:double | step:datetime            | _timeseries:keyword
 2.4E-4        | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
@@ -225,8 +238,9 @@ result:double | step:datetime            | _timeseries:keyword
 
 histogram_quantile_max_exp_histo_no_bucket
 required_capability: promql_histogram_quantile_exponential
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(1.0, increase(responseTime{instance=~"instance-.*"}[2h])))
-| SORT _timeseries;
+| SORT TO_STRING(_timeseries);
 
 result:double | step:datetime            | _timeseries:keyword
 6.786232      | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
@@ -238,8 +252,9 @@ result:double | step:datetime            | _timeseries:keyword
 
 histogram_quantile_median_exp_histo_no_bucket
 required_capability: promql_histogram_quantile_exponential
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(0.5, increase(responseTime{instance=~"instance-.*"}[2h])))
-| SORT _timeseries;
+| SORT TO_STRING(_timeseries);
 
 result:double            | step:datetime            | _timeseries:keyword
 0.0211401..0.0211407     | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
@@ -251,6 +266,7 @@ result:double            | step:datetime            | _timeseries:keyword
 
 histogram_quantile_min_exp_histo_multi_step
 required_capability: promql_histogram_quantile_exponential
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=30m start="2025-09-25T00:30:00.000Z" end="2025-09-25T01:30:00.000Z" result=(histogram_quantile(0.0, increase(responseTime{instance="instance-1"}[30m])))
 | SORT step;
 
@@ -314,6 +330,7 @@ result:double | step:datetime            | _timeseries:keyword
 // division by zero) and the null-valued series is then dropped from the result, like any other missing sample.
 histogram_fraction_exp_histo_empty_histogram
 required_capability: promql_histogram_fraction
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2m start="2025-09-24T00:00:00.000Z" end="2025-09-24T00:00:00.000Z" result=(histogram_fraction(-Inf, Inf, responseTime{instance="dummy-empty"}));
 
 result:double | step:datetime | _timeseries:keyword
@@ -321,8 +338,9 @@ result:double | step:datetime | _timeseries:keyword
 
 histogram_fraction_exp_histo_all_instances
 required_capability: promql_histogram_fraction
+required_capability: enable_timeseries_data_type
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_fraction(0, 0.001, responseTime{instance=~"instance-.*"}))
-| SORT _timeseries;
+| SORT TO_STRING(_timeseries);
 
 result:double       | step:datetime            | _timeseries:keyword
 0.22988505747126436 | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-0""}"

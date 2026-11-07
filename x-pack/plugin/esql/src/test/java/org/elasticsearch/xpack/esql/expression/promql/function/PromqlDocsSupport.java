@@ -61,6 +61,9 @@ public final class PromqlDocsSupport {
 
     private static final String OR_NOT_SUPPORTED_YET = "`on(...)` or `ignoring(...)`, such as `a or on(job) b`, and `or` "
         + "inside another expression, such as `(sum(a) or sum(b)) * 2` or `count(a or b)`, aren't supported yet. "
+        + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` `or` between an aggregated and an unaggregated operand, "
+        + "such as `sum by (job) (a) or b`, or between different metrics stored as separate series with a `__name__` "
+        + "dimension, such as `a or b`, isn't supported yet. "
         + "Refer to "
         + LOGICAL_SET_OPERATORS_LINK
         + ".";
@@ -80,10 +83,8 @@ public final class PromqlDocsSupport {
         + "instant vectors, such as `x > y`, a scalar as the first operand, such as `100 < x`, a second operand that isn't a "
         + "number literal, such as `x > time()`, and a comparison inside another expression, such as `(x > 100) + 1` or "
         + "`count(x > 100)`, aren't supported yet.\n\n"
-        + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A function as the first operand of a filter, such as "
-        + "`time() <= x`, `scalar()` of a vector as the second operand, such as `x > scalar(y)`, two different metrics stored as "
-        + "separate series with a `__name__` dimension, such as `a > b`, and a comparison inside another expression, such as "
-        + "`(x > 100) + 1` or `count(x > 100)`, aren't supported yet. "
+        + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` Comparing two different metrics stored as separate series "
+        + "with a `__name__` dimension, such as `a > b`, isn't supported yet. "
         + "Refer to [{{prom}} compatibility]("
         + DOCS_ROOT
         + "/prometheus-compatibility.md#prometheus-compatibility-comparison-binary-operators).";

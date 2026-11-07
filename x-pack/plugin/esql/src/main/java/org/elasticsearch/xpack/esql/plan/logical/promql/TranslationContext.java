@@ -34,8 +34,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.DistinctBy;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -337,6 +339,23 @@ public record TranslationContext(
         Kind kind = ir.kind().constant ? ir.kind() : Kind.AFTER_INITIAL_AGGREGATE;
         // Same pin as bindResult: unresolved toAttribute freezes in Projects.
         return new IntermediateResult(plan, pinnedAttribute(valueAlias), ir.step(), null, kind);
+    }
+
+    /**
+     * {@code plan} failing the query where two of its series share a label set at a step, as Prometheus fails a result
+     * vector holding one label set twice. {@code output} declares the series' labels.
+     */
+    public LogicalPlan uniqueSeries(Source source, LogicalPlan plan, Attribute step, List<Attribute> output) {
+        List<Attribute> labelSet = new ArrayList<>();
+        labelSet.add(step);
+        labelSet.addAll(UnresolvedPromqlLabelRef.tsIdentity(source, output));
+        // Binary, not keyword: a sort the optimizer pushes below the result's projection carries it along. Named apart from
+        // a join key packed below.
+        Attribute packed = PackDims.newPackedAttribute(
+            source,
+            TemporaryNameGenerator.locallyUniqueTemporaryName(PackDims.PACKED_FIELD_NAME)
+        );
+        return new DistinctBy(source, new PackDims(source, plan, labelSet, packed, true), packed, true);
     }
 
     /** Same id as alias while unresolved - Projects must not freeze a toAttribute snapshot. */

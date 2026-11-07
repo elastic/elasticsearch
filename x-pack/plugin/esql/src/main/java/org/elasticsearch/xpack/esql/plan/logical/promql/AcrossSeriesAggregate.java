@@ -184,9 +184,10 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         Expression function = buildEsqlFunction(ir.value(), promqlCtx);
 
         // A raw operand collapses once, with the operator's function fused into the per-series aggregate; a table regroups.
+        // The regroup packs its keys, as the collapse does, so a multivalued label stays one key instead of one per value.
         List<Attribute> keys = UnresolvedPromqlLabelRef.tsIdentity(source(), output());
         IntermediateResult result = ir.kind().afterInitialAggregation
-            ? ctx.emitAggregate(ir, keys, grouping == WITHOUT, function)
+            ? ctx.emitAggregate(ir, keys, true, function)
             : ctx.emitInitialAggregate(ir, keys, function);
         // A count is at least 1 for an element. A group none of whose series has a value - every series of an operator
         // left without a partner, say - is no element in Prometheus, not a count of 0.

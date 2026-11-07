@@ -63,6 +63,24 @@ sum(avg_over_time(network.cost[5m] offset -5m)):double | step:date
 51.59375                                               | 2024-05-10T00:20:00.000Z
 ;
 
+// Different offsets on the two sides join independent pipelines (one shared fold frame cannot carry two timestamps).
+// At 00:25: numerator is the no-offset window ending 00:25; denominator equals the no-offset window ending 00:20.
+binary_heterogeneous_offset
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: promql_offset_modifier
+required_capability: promql_binary_independent_join
+PROMQL index=k8s step=5m start="2024-05-10T00:25:00.000Z" end="2024-05-10T00:25:00.000Z" result=(
+  sum(avg_over_time(network.cost[5m])) / sum(avg_over_time(network.cost[5m] offset 5m))
+)
+| EVAL result = ROUND(result, 12)
+| KEEP result, step;
+
+result:double    | step:date
+0.992983159583   | 2024-05-10T00:25:00.000Z
+;
+
 auto_step_buckets
 required_capability: promql_command_v0
 required_capability: promql_buckets_parameter
@@ -1118,6 +1136,7 @@ unmapped_metric_instant_vector
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(unmapped.metric) | SORT result;
 
 result:double | step:datetime | _timeseries:keyword
@@ -1127,6 +1146,7 @@ unmapped_label
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(network.cost{unmapped.label="value"}) | SORT result;
 
 result:double | step:datetime | _timeseries:keyword
@@ -1192,6 +1212,7 @@ unmapped_metric_within_series
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(rate(unmapped.metric[1h])) | SORT result;
 
 result:double | step:datetime | _timeseries:keyword
@@ -2440,6 +2461,7 @@ topk_bare
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(topk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
@@ -2453,6 +2475,7 @@ topk_k_exceeds_series_count
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(topk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
@@ -2470,6 +2493,7 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(topk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result DESC;
 
@@ -2483,6 +2507,7 @@ topk_k_zero
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(topk(0, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
@@ -2496,6 +2521,7 @@ topk_k_very_large
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(topk(100000, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
@@ -2512,6 +2538,7 @@ topk_by_grouping
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(topk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2543,6 +2570,7 @@ bottomk_bare
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(bottomk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
@@ -2556,6 +2584,7 @@ bottomk_k_exceeds_series_count
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(bottomk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
@@ -2573,6 +2602,7 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(bottomk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result ASC;
 
@@ -2586,6 +2616,7 @@ bottomk_k_zero
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(bottomk(0, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
@@ -2597,6 +2628,7 @@ bottomk_by_grouping
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
+required_capability: enable_timeseries_data_type
 PROMQL index=k8s step=1h result=(bottomk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword

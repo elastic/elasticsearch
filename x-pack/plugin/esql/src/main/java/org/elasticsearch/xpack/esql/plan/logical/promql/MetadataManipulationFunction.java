@@ -80,8 +80,8 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
 
     /**
      * The derived destination label as a stable attribute. Its {@code NameId} is minted once and preserved across the
-     * node's lifecycle, so the analyzer, the aggregate/command output contract, and the translated column all refer to
-     * the one identity - the derived label thus behaves exactly like a stored label end to end.
+     * node's lifecycle, so the analyzer and the aggregate/command output contract refer to the one identity. The
+     * translated column reads it by name, like a stored label.
      */
     public Attribute destination() {
         return destination;
@@ -180,7 +180,7 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
      * <p>
      * The child is first collapsed to one row per series (forcing the initial aggregate when it has not happened yet), so
      * the source labels are materialized as columns to derive from. The destination value is then computed with an
-     * {@link Eval} under the destination's stable id and declared as a label of the result, so the enclosing
+     * {@link Eval} under the destination's name and declared as a label of the result, so the enclosing
      * {@code by(...)} aggregation groups on it exactly as it would on a stored label. The derived label shadows a stored
      * label of the same name: any such stored column is projected away so a lookup by name binds to the derived one.
      * Over opaque time-series metadata, typed Bind materializes missing source labels with {@code ts_get}; WITHOUT and Prometheus keep
@@ -210,12 +210,16 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
             ? labelReplaceValue(context, source)
             : labelJoinValue(context, source);
 
+        // Consumers read the derived label by name, and the command declares the destination's id on its own output column,
+        // so the column computed here takes a fresh id: under a union the two are different columns.
         // A derived label named like a built-in output column resolves to that column, and must not shadow it inside the
-        // pipeline by name or id. The verifier rejects every position where such a label would surface, so it is only ever
+        // pipeline by name. The verifier rejects every position where such a label would surface, so it is only ever
         // dropped by an enclosing grouping.
-        Alias derived = namesBuiltInColumn(context)
-            ? new Alias(source, TemporaryNameGenerator.locallyUniqueTemporaryName(destination.name()), destinationValue)
-            : new Alias(source, destination.name(), destinationValue, destination.id());
+        Alias derived = new Alias(
+            source,
+            namesBuiltInColumn(context) ? TemporaryNameGenerator.locallyUniqueTemporaryName(destination.name()) : destination.name(),
+            destinationValue
+        );
         // The derived label shadows a stored one of the same name; ResolvePromqlLabelRefs drops the stored column.
         var fields = new ArrayList<Alias>(List.of(derived));
         UnresolvedPromqlLabelRef metadata = PromqlLabels.metadataLabel(output());
@@ -224,6 +228,10 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
             fields.add(new Alias(source, metadata.name(), metadata));
         }
         LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), fields);
+        if (overwritesLabel(context)) {
+            // Overwriting a label can leave two series with one label set, which Prometheus fails.
+            plan = context.uniqueSeries(source, plan, aggregated.step(), output());
+        }
         return new IntermediateResult(
             plan,
             aggregated.value(),
@@ -283,9 +291,28 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
     }
 
     /**
-     * The value of a source label as a non-null string: {@code COALESCE(label, "")}. The verifier admits string labels only,
-     * and a label the input lacks binds to null.
+     * Whether the destination may name a label the input series carry, so that overwriting it can leave two series with
+     * one label set. A label column says so by name, such as one a {@code by(...)} aggregation groups by. Opaque metadata
+     * may hold the label when the source maps a field for it; only typed metadata can read the series without it.
      */
+    private boolean overwritesLabel(TranslationContext context) {
+        if (namesBuiltInColumn(context)) {
+            return false;
+        }
+        String name = PromqlLabels.labelName(destination().name());
+        UnresolvedPromqlLabelRef metadata = null;
+        for (Attribute attribute : child().output()) {
+            if (PromqlLabels.isMetadataLabel(attribute) && attribute instanceof UnresolvedPromqlLabelRef view) {
+                metadata = view;
+            } else if (PromqlLabels.labelName(attribute).equals(name)) {
+                return true;
+            }
+        }
+        return metadata != null
+            && metadata.unset().contains(name) == false
+            && context.cmd().child().output().stream().anyMatch(field -> PromqlLabels.labelName(field).equals(name));
+    }
+
     /** Whether the destination is named like one of the command's built-in output columns (the step or the value column). */
     private boolean namesBuiltInColumn(TranslationContext context) {
         String name = PromqlLabels.labelName(destination().name());

@@ -27,5 +27,7 @@ sort(http_requests_total)
 :::{note}
 **Differences from {{prom}}**
 
-A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. {{prom}} applies the ordering there too. On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their labels, where {{es}} returns them in input order.
+{applies_to}`stack: ga =9.6` A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet.
+
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` Below a step that changes the values or the series, such as `abs(sort(x))` or `sum(sort(x))`, {{es}} returns the series in input order, where {{prom}} keeps the order the sort gave them. On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their labels, where {{es}} returns them in input order.
 :::

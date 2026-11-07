@@ -326,6 +326,78 @@ public class DimsPackerTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * With {@code emptyAsAbsent} a zero-length value packs as if it were missing, so a position holding only empty values packs
+     * like a null one, over the block, vector and multi-column paths alike.
+     */
+    public void testEmptyAsAbsent() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        int positionCount = between(1, 100);
+        boolean singleValued = randomBoolean();
+        List<List<?>> values = new ArrayList<>();
+        List<List<?>> withoutEmpty = new ArrayList<>();
+        for (int i = 0; i < positionCount; i++) {
+            List<BytesRef> row = new ArrayList<>();
+            int count = singleValued ? 1 : between(0, 5);
+            for (int v = 0; v < count; v++) {
+                row.add(randomBoolean() ? new BytesRef("") : new BytesRef(randomAlphaOfLengthBetween(1, 10)));
+            }
+            values.add(row);
+            withoutEmpty.add(row.stream().filter(value -> value.length > 0).toList());
+        }
+        var block = (BytesRefBlock) buildBlock(blockFactory, ElementType.BYTES_REF, values);
+        var expectedBlock = (BytesRefBlock) buildBlock(blockFactory, ElementType.BYTES_REF, withoutEmpty);
+        var encoded = DimsPacker.packBytesValues(driverContext, block, true);
+        var expected = DimsPacker.packBytesValues(driverContext, expectedBlock);
+        var multi = DimsPacker.packMultiColumns(driverContext, new Block[] { block, block }, true);
+        var multiExpected = DimsPacker.packMultiColumns(driverContext, new Block[] { expectedBlock, expectedBlock });
+        var decoded = DimsPacker.unpackBytesValues(driverContext, encoded);
+        try {
+            assertThat(decoded, equalTo(expectedBlock));
+            for (int p = 0; p < positionCount; p++) {
+                assertTrue(encodedRowEquals(encoded, expected, p));
+                assertTrue(encodedRowEquals(multi, multiExpected, p));
+            }
+        } finally {
+            Releasables.close(block, expectedBlock, encoded, expected, multi, multiExpected, decoded);
+        }
+    }
+
+    /** An empty dictionary entry of an ordinal block packs as absent, once for every position reading it. */
+    public void testEmptyAsAbsentOrdinal() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        List<BytesRef> entries = List.of(new BytesRef(""), new BytesRef("a"), new BytesRef("b"));
+        final BytesRefVector dict;
+        try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(entries.size())) {
+            entries.forEach(builder::appendBytesRef);
+            dict = builder.build();
+        }
+        int positionCount = between(1, 100);
+        List<List<?>> withoutEmpty = new ArrayList<>();
+        try (var ordinals = blockFactory.newIntBlockBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                int ordinal = randomIntBetween(0, entries.size() - 1);
+                ordinals.appendInt(ordinal);
+                withoutEmpty.add(ordinal == 0 ? List.of() : List.of(entries.get(ordinal)));
+            }
+            var block = new OrdinalBytesRefBlock(ordinals.build(), dict);
+            var expectedBlock = (BytesRefBlock) buildBlock(blockFactory, ElementType.BYTES_REF, withoutEmpty);
+            var encoded = DimsPacker.packBytesValues(driverContext, block, true);
+            var expected = DimsPacker.packBytesValues(driverContext, expectedBlock);
+            var decoded = DimsPacker.unpackBytesValues(driverContext, encoded);
+            try {
+                assertThat(decoded, equalTo(expectedBlock));
+                for (int p = 0; p < positionCount; p++) {
+                    assertTrue(encodedRowEquals(encoded, expected, p));
+                }
+            } finally {
+                Releasables.close(block, expectedBlock, encoded, expected, decoded);
+            }
+        }
+    }
+
     private static List<?> randomValues(ElementType type) {
         int count = between(0, 5);
         return switch (type) {

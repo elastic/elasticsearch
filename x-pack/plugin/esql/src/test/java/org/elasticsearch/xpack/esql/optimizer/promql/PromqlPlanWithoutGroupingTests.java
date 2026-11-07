@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesUnset;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -82,15 +84,9 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         var aggregates = plan.collect(Aggregate.class);
         assertThat(aggregates, not(empty()));
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("pod"));
+        Set<String> excluded = viewExclusions(plan);
+        assertNotNull(excluded);
+        assertThat(excluded, hasItem("pod"));
     }
 
     /**
@@ -143,15 +139,9 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=k8s step=1h result=(sum without (pod, event) (network.bytes_in))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItems("pod", "event"));
+        Set<String> excluded = viewExclusions(plan);
+        assertNotNull(excluded);
+        assertThat(excluded, hasItems("pod", "event"));
     }
 
     /**
@@ -173,6 +163,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     }
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
+        assumeTrue("typed metadata leaves the labels out with TS_UNSET", typedTimeSeriesMetadata());
         String query = "PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))";
         var logical = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false));
         var physical = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, TransportVersion.current())).optimize(
@@ -258,6 +249,27 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(functionConfig.skipFieldNames(), hasItem("pod"));
     }
 
+    /** The data node evaluates the view from typed metadata; the TS_UNSET it runs survives the plan's transport. */
+    public void testTypedWithoutGroupingSurvivesDataNodePlanSerialization() {
+        assumeTrue("typed metadata leaves the labels out with TS_UNSET", typedTimeSeriesMetadata());
+        String query = "PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))";
+        var logical = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false));
+        var physical = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, TransportVersion.current())).optimize(
+            new Mapper().map(new Versioned<>(logical, TransportVersion.current()))
+        );
+        PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physical, EsqlTestUtils.TEST_CFG).v2();
+        LogicalPlan fragment = as(as(dataNodePlan, ExchangeSinkExec.class).child(), FragmentExec.class).fragment();
+        assertThat(fragment.toString(), viewExclusions(fragment), hasItem("pod"));
+        PhysicalPlan deserializedDataNodePlan = SerializationTestUtils.serializeDeserialize(
+            dataNodePlan,
+            StreamOutput::writeNamedWriteable,
+            in -> in.readNamedWriteable(PhysicalPlan.class),
+            EsqlTestUtils.TEST_CFG
+        );
+        LogicalPlan deserializedFragment = as(as(deserializedDataNodePlan, ExchangeSinkExec.class).child(), FragmentExec.class).fragment();
+        assertThat(deserializedFragment.toString(), viewExclusions(deserializedFragment), hasItem("pod"));
+    }
+
     public void testNestedWithoutOverByProducesConcreteOutput() {
         // `without(pod)` over `by(cluster,region,pod)` drops pod from the concrete BY keys: the result is grouped by
         // {cluster, region}, not the opaque `_timeseries` identity (which would leak every other label).
@@ -289,12 +301,23 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         );
     }
 
-    public void testNestedWithoutOverWithoutIsRejectedByVerifier() {
+    public void testNestedWithoutOverWithoutRequiresTypedMetadata() {
+        assumeFalse("typed metadata evaluates the coarser view", typedTimeSeriesMetadata());
         VerificationException e = assertThrows(
             VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(sum without (region) (sum without (pod) (network.cost)))")
+            () -> tsAnalyzer().query("PROMQL index=k8s step=1h result=(sum without (region) (sum without (pod) (network.cost)))")
         );
-        assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
+        assertThat(e.getMessage(), containsString("leaving labels out of _timeseries requires typed time-series metadata"));
+    }
+
+    /** The outer WITHOUT regroups the inner result by a coarser view, left out of the inner view's typed metadata. */
+    public void testNestedWithoutOverWithoutUnsetsTheCoarserView() {
+        assumeTrue("only typed metadata evaluates the coarser view", typedTimeSeriesMetadata());
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h result=(sum without (region) (sum without (pod) (network.cost)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+        var unsets = new ArrayList<TimeSeriesUnset>();
+        plan.forEachExpressionDown(TimeSeriesUnset.class, unsets::add);
+        assertThat(unsets.stream().filter(unset -> unset.metadata() instanceof TimeSeriesMetadataAttribute == false).toList(), hasSize(1));
     }
 
     public void testNestedWithoutOverPartialByProducesConcreteOutput() {
@@ -313,14 +336,12 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem("step"));
     }
 
-    public void testWithoutOverByOverWithoutIsRejectedByVerifier() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1h result=(sum without (region) (sum by (cluster, region) (sum without (pod) (network.cost))))"
-            )
+    /** A WITHOUT over a BY regroups named labels: an inner WITHOUT below the BY changes nothing about it. */
+    public void testWithoutOverByOverWithoutProducesConcreteOutput() {
+        var plan = planPromql(
+            "PROMQL index=k8s step=1h result=(sum without (region) (sum by (cluster, region) (sum without (pod) (network.cost))))"
         );
-        assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
     }
 
     public void testByOverWithoutOverByProducesExactOutput() {
@@ -370,15 +391,9 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.system.cpu.time))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("cpu"));
+        Set<String> excluded = viewExclusions(plan);
+        assertNotNull(excluded);
+        assertThat(excluded, hasItem("cpu"));
     }
 
     /**
@@ -393,15 +408,9 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=otel-metrics step=1h result=(sum without (host.name) (metrics.system.cpu.time))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("host.name"));
+        Set<String> excluded = viewExclusions(plan);
+        assertNotNull(excluded);
+        assertThat(excluded, hasItem("host.name"));
     }
 
     public void testWithoutTrailingCommaPlans() {

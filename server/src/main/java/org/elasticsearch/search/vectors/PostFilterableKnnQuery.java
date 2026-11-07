@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
@@ -125,11 +126,28 @@ public interface PostFilterableKnnQuery {
      * @param excludedDocs     all docs returned across previous rounds, flat and sorted (skip from results)
      * @param seedDocsPerLeaf  per-leaf seed doc IDs (global doc IDs, sorted ascending within each leaf),
      *                         indexed by leaf ordinal, used as starting points for the knn search
+     * @param retryLeaves      leaves to search, indexed by leaf ordinal; {@code null} searches every leaf. The
+     *                         orchestrator only re-enters leaves that may still hold a missing result, so a
+     *                         retry must not spend work on the others. Build the filter with
+     *                         {@link #retryFilter} and both this and {@code excludedDocs} are honoured.
      * @param remainingK       how many candidates this round should collect: the shortfall in <em>surviving</em>
      *                         docs, already inflated for filter attrition by the orchestrator. Use it as the
      *                         retry's {@code k} as-is; do not scale it again.
      */
-    Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK);
+    Query createRetryQuery(IndexReader reader, int[] excludedDocs, boolean[] retryLeaves, int[][] seedDocsPerLeaf, int remainingK);
+
+    /**
+     * The filter a retry round runs under: every doc of the retried leaves except those already seen, and
+     * nothing at all in the other leaves. {@code null} when there is nothing to restrict, so the retry can
+     * run filter-less like round 0.
+     */
+    static Query retryFilter(IndexReader reader, int[] excludedDocs, boolean[] retryLeaves) {
+        boolean hasExcluded = excludedDocs != null && excludedDocs.length > 0;
+        if (hasExcluded == false && retryLeaves == null) {
+            return null;
+        }
+        return new ExcludeDocsQuery(hasExcluded ? excludedDocs : new int[0], retryLeaves, reader);
+    }
 
     /**
      * @return true if {@code seedDocsPerLeaf} contains at least one seed doc in any leaf, i.e. there is
@@ -153,9 +171,11 @@ public interface PostFilterableKnnQuery {
      *
      * <p>The contract is deliberately narrow: collect {@link #computeScaledK}{@code (k(), filterSelectivity)}
      * instead of {@link #k()}, so that {@code k()} of them are still standing once the filter has run, and
-     * change nothing else. What an implementation does with a {@code k} - a beam width, a rescore oversample,
-     * per-segment collector budgets - is its own business and scales off the inflated {@code k} on its own.
-     * This layer must not reach into any of it.
+     * otherwise preserve the query's collection behavior. The exception is an optimization that can terminate
+     * a leaf without a valid score bound: post-filter delegates must disable it, because their per-leaf floors
+     * are used to prove the final pool complete. What an implementation does with a {@code k} - a beam width,
+     * a rescore oversample, per-segment collector budgets - is its own business and scales off the inflated
+     * {@code k} on its own. This layer must not reach into any of it.
      */
     Query createPostFilterDelegate(float filterSelectivity);
 
@@ -214,16 +234,22 @@ public interface PostFilterableKnnQuery {
     }
 
     /**
-     * Per-leaf candidate docs collected during the delegate's {@code mergeLeafResults}, indexed
-     * by leaf ordinal. Each non-null entry contains the full candidate pool for that leaf with
-     * global doc IDs and scores. The orchestrator walks each leaf to partition candidates into
-     * filter-matching and filtered-out sets without per-doc {@code subIndex} lookups.
-     * <p>
-     * Never returns {@code null}: implementations that have not run yet return an empty per-leaf
-     * array (every entry {@code null}), so the orchestrator can iterate without a null check.
+     * Per-leaf candidate docs collected during a post-filter delegate round, together with whether their
+     * score-and-doc-ID bounds are valid for what the round did not return. A partial or early-terminated round
+     * must set {@link PostFilterCandidates#hasValidCompetitiveBounds()} to {@code false}; the orchestrator then falls back to the
+     * original pre-filtered query rather than use an invalid completeness proof.
+     *
+     * @param perLeafCandidates candidates indexed by leaf ordinal, with global doc IDs and scores
+     * @param hasValidCompetitiveBounds whether each leaf's worst candidate bounds its unreturned results
      */
-    default ScoreDoc[][] getPostFilterCandidates() {
-        return new ScoreDoc[0][];
+    record PostFilterCandidates(ScoreDoc[][] perLeafCandidates, boolean hasValidCompetitiveBounds) {}
+
+    /**
+     * Returns candidates from the most recent delegate round. Never returns {@code null}: implementations
+     * that have not run yet return an empty, uncertified result.
+     */
+    default PostFilterCandidates getPostFilterCandidates() {
+        return new PostFilterCandidates(new ScoreDoc[0][], false);
     }
 
     /**
@@ -235,13 +261,23 @@ public interface PostFilterableKnnQuery {
      * Each leaf's {@link ScoreDoc} array is cloned so the orchestrator can sort it in place
      * without mutating the delegate's {@link TopDocs}.
      */
-    static ScoreDoc[][] buildPerLeafCandidates(TopDocs[] perLeafResults, List<LeafReaderContext> leaves) {
+    static PostFilterCandidates buildPerLeafCandidates(TopDocs[] perLeafResults, List<LeafReaderContext> leaves) {
         ScoreDoc[][] perLeafCandidates = new ScoreDoc[leaves.size()][];
         for (TopDocs td : perLeafResults) {
             if (td.scoreDocs.length == 0) continue;
             int leafOrd = ReaderUtil.subIndex(td.scoreDocs[0].doc, leaves);
             perLeafCandidates[leafOrd] = td.scoreDocs.clone();
         }
-        return perLeafCandidates;
+        return new PostFilterCandidates(perLeafCandidates, hasValidCompetitiveBounds(perLeafResults));
+    }
+
+    /** A candidate bound is only valid when every leaf search completed without early termination. */
+    static boolean hasValidCompetitiveBounds(TopDocs[] perLeafResults) {
+        for (TopDocs topDocs : perLeafResults) {
+            if (topDocs.totalHits.relation() != TotalHits.Relation.EQUAL_TO) {
+                return false;
+            }
+        }
+        return true;
     }
 }

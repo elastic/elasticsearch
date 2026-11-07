@@ -48,6 +48,31 @@ public class PostFilterKnnQueryApplyFilterTests extends ESTestCase {
     private static final int NUM_DOCS = 100;
     private static final long RANGE_UPPER = 54;
 
+    public void testExhaustedLeavesBreaksScoreTiesByDocId() {
+        ScoreDoc threshold = new ScoreDoc(10, 1f);
+        ScoreDoc[] leafBounds = new ScoreDoc[] {
+            new ScoreDoc(9, 1f),
+            new ScoreDoc(10, 1f),
+            new ScoreDoc(11, 1f),
+            new ScoreDoc(20, 2f),
+            new ScoreDoc(1, 0.5f),
+            null };
+
+        assertArrayEquals(
+            new boolean[] { true, false, false, true, false, false },
+            PostFilterKnnQuery.exhaustedLeaves(leafBounds, new ScoreDoc[] { threshold }, 1)
+        );
+    }
+
+    public void testEveryNonEmptyLeafIsExhaustedWhenPoolIsShort() {
+        ScoreDoc[] leafBounds = new ScoreDoc[] { new ScoreDoc(1, 1f), null, new ScoreDoc(3, 0.5f) };
+
+        assertArrayEquals(
+            new boolean[] { true, false, true },
+            PostFilterKnnQuery.exhaustedLeaves(leafBounds, new ScoreDoc[] { new ScoreDoc(0, 1f) }, 2)
+        );
+    }
+
     /**
      * Two-phase path: an {@code IndexOrDocValuesQuery} range picks the doc-values scorer for the small
      * candidate leadCost. Candidates past {@code upper} (55, 70, and the last doc 99) must be rejected
@@ -83,6 +108,23 @@ public class PostFilterKnnQueryApplyFilterTests extends ESTestCase {
     public void testMatchNothingFilter() throws IOException {
         Query none = new TermQuery(new Term(TAG_FIELD, "absent"));
         assertPartition(none, new int[] { 0, 50, 99 }, new int[] {}, new int[] { 0, 50, 99 });
+    }
+
+    public void testWorstCandidateUsesDocIdToBreakScoreTies() throws IOException {
+        try (Directory dir = newDirectory()) {
+            writeSingleSegment(dir);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                Weight filterWeight = KnnQueryUtils.createFilterWeight(searcher, new TermQuery(new Term(TAG_FIELD, "even")), VECTOR_FIELD)
+                    .weight();
+                ScoreDoc[][] perLeaf = new ScoreDoc[][] { { new ScoreDoc(8, 1f), new ScoreDoc(2, 1f), new ScoreDoc(6, 1f) } };
+
+                PostFilterKnnQuery.FilteredCandidates result = PostFilterKnnQuery.applyFilter(perLeaf, filterWeight, reader.leaves());
+
+                assertEquals(8, result.worstCandidatePerLeaf()[0].doc);
+                assertEquals(1f, result.worstCandidatePerLeaf()[0].score, 0f);
+            }
+        }
     }
 
     private void assertPartition(Query filter, int[] candidateDocs, int[] expectedMatching, int[] expectedFilteredOut) throws IOException {

@@ -116,9 +116,9 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, boolean[] retryLeaves, int[][] seedDocsPerLeaf, int remainingK) {
         assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
-        Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        Query filter = PostFilterableKnnQuery.retryFilter(reader, excludedDocs, retryLeaves);
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
@@ -127,7 +127,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             numCandsParam,
             parentsFilter,
             searchStrategy,
-            earlyTermination,
+            false,
             seedDocsPerLeaf,
             true
         );
@@ -137,6 +137,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = PostFilterableKnnQuery.computeScaledK(kParam, filterSelectivity);
         int scaledNumCands = PostFilterableKnnQuery.cappedNumCands(numCandsParam, scaledK);
+        // Patience termination produces an incomplete candidate queue whose bound cannot prove post-filter completeness.
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
@@ -145,16 +146,16 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             scaledNumCands,
             parentsFilter,
             searchStrategy,
-            earlyTermination,
+            false,
             null,
             true
         );
     }
 
     @Override
-    public ScoreDoc[][] getPostFilterCandidates() {
+    public PostFilterCandidates getPostFilterCandidates() {
         return rawPerLeafResults == null
-            ? leaves == null ? new ScoreDoc[0][] : new ScoreDoc[leaves.size()][]
+            ? new PostFilterCandidates(leaves == null ? new ScoreDoc[0][] : new ScoreDoc[leaves.size()][], false)
             : PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves);
     }
 

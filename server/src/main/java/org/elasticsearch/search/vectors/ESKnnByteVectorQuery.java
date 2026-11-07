@@ -99,14 +99,14 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     }
 
     /**
-     * {@code excludedDocs} becomes an {@link ExcludeDocsQuery} filter (which Lucene's
+     * {@code excludedDocs} and {@code retryLeaves} become an {@link ExcludeDocsQuery} filter (which Lucene's
      * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocsPerLeaf}
      * (filter-passing docs only) feed the {@code SeededRetryCollectorManager} as graph entry points.
      */
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, boolean[] retryLeaves, int[][] seedDocsPerLeaf, int remainingK) {
         assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
-        Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        Query filter = PostFilterableKnnQuery.retryFilter(reader, excludedDocs, retryLeaves);
         return new ESKnnByteVectorQuery(
             field,
             getTargetCopy(),
@@ -114,7 +114,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
             numCandsParam,
             filter,
             searchStrategy,
-            earlyTermination,
+            false,
             seedDocsPerLeaf,
             true
         );
@@ -124,23 +124,14 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = PostFilterableKnnQuery.computeScaledK(kParam, filterSelectivity);
         int scaledNumCands = PostFilterableKnnQuery.cappedNumCands(numCandsParam, scaledK);
-        return new ESKnnByteVectorQuery(
-            field,
-            getTargetCopy(),
-            scaledK,
-            scaledNumCands,
-            null,
-            searchStrategy,
-            earlyTermination,
-            null,
-            true
-        );
+        // Patience termination produces an incomplete candidate queue whose bound cannot prove post-filter completeness.
+        return new ESKnnByteVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, false, null, true);
     }
 
     @Override
-    public ScoreDoc[][] getPostFilterCandidates() {
+    public PostFilterCandidates getPostFilterCandidates() {
         return rawPerLeafResults == null
-            ? leaves == null ? new ScoreDoc[0][] : new ScoreDoc[leaves.size()][]
+            ? new PostFilterCandidates(leaves == null ? new ScoreDoc[0][] : new ScoreDoc[leaves.size()][], false)
             : PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves);
     }
 

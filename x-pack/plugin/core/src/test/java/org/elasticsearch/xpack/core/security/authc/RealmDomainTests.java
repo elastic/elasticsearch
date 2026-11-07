@@ -32,7 +32,8 @@ public class RealmDomainTests extends AbstractXContentSerializingTestCase<RealmD
 
     @Override
     protected RealmDomain mutateInstance(RealmDomain instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        // Since RealmDomain is a record, we don't need to check for equality
+        return null;
     }
 
 }

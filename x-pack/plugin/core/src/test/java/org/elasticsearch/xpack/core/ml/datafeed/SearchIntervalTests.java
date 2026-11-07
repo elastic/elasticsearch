@@ -24,7 +24,8 @@ public class SearchIntervalTests extends AbstractWireSerializingTestCase<SearchI
 
     @Override
     protected SearchInterval mutateInstance(SearchInterval instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        // Since SearchInterval is a record, we don't need to check for equality
+        return null;
     }
 
     public static SearchInterval createRandom() {

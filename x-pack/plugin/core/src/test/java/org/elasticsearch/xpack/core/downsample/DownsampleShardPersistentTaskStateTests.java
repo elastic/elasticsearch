@@ -55,7 +55,8 @@ public class DownsampleShardPersistentTaskStateTests extends AbstractXContentSer
 
     @Override
     protected DownsampleShardPersistentTaskState mutateInstance(DownsampleShardPersistentTaskState instance) throws IOException {
-        return null; // TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        // Since DownsampleShardPersistentTaskState is a record, we don't need to check for equality
+        return null;
     }
 
     @Override

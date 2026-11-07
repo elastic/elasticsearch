@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -164,6 +165,8 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.tablefunction.DataSourcesTableFunction;
+import org.elasticsearch.xpack.esql.tablefunction.DatasetsTableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -634,7 +637,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Built here rather than held statically, as the function registry is: a table function declares its own
         // dependencies by being constructed with them, which is what keeps the facility from carrying any one
         // function's.
-        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(extraTableFunctions());
+        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(extraTableFunctions(services.client()));
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
 
@@ -974,18 +977,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     /**
-     * The table functions this node registers. Empty here, because this change adds the facility and no function.
-     * <p>
-     * A seam rather than a constant so that the facility can be exercised end to end by a function defined in a
-     * test, which is the only way to show that nothing in it was shaped by one real function's needs. The
-     * precedent for a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState},
-     * both overridden by test subclasses.
+     * The table functions this node registers.
      * <p>
      * A function needing collaborators is constructed with them here; that is why the registry takes
-     * already-constructed functions rather than names.
+     * already-constructed functions rather than names, and why this takes the client — the two discovery
+     * functions answer by dispatching the same action their REST endpoint dispatches, in the caller's own thread
+     * context, so that the security layer decides exactly what it decides for that endpoint.
+     * <p>
+     * Still a seam rather than a constant, so a test can drive the facility with a function of its own. The
+     * precedent for a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState},
+     * both overridden by test subclasses.
      */
-    protected List<TableFunction> extraTableFunctions() {
-        return List.of();
+    protected List<TableFunction> extraTableFunctions(Client client) {
+        return List.of(new DataSourcesTableFunction(client), new DatasetsTableFunction(client));
     }
 
     @Override

@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -60,6 +61,20 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     private static final int LOW_WATERMARK_PERCENT = 75;
     private static final int HIGH_WATERMARK_PERCENT = 95;
     private static final long LOW_WATERMARK_BYTES = bytesForPercent(LOW_WATERMARK_PERCENT);
+
+    public void testWatermarkSettingsAcceptValuesBetween50And150Percent() {
+        for (var setting : List.of(
+            SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING,
+            SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING
+        )) {
+            assertThat(setting.get(Settings.builder().put(setting.getKey(), "50%").build()).getAsPercent(), equalTo(50.0));
+            assertThat(setting.get(Settings.builder().put(setting.getKey(), "150%").build()).getAsPercent(), equalTo(150.0));
+            assertThat(setting.get(Settings.builder().put(setting.getKey(), "1.25").build()).getAsPercent(), equalTo(125.0));
+            for (String invalid : List.of("49.9%", "150.1%", "0.49", "1.51")) {
+                expectThrows(IllegalArgumentException.class, () -> setting.get(Settings.builder().put(setting.getKey(), invalid).build()));
+            }
+        }
+    }
 
     public void testYesDecisionWhenDisabled() {
         final var decider = deciderBuilder().enabled(false).build();

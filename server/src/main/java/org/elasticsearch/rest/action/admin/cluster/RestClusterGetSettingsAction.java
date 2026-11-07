@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -32,6 +33,14 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterGetSettingsAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        "include_defaults",
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local",
+        Settings.FLAT_SETTINGS_PARAM
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Settings.FORMAT_PARAMS));
 
     private final Settings settings;
     private final ClusterSettings clusterSettings;
@@ -51,6 +60,16 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "cluster_get_settings_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

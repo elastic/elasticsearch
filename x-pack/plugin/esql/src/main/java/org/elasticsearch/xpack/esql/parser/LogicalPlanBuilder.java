@@ -115,7 +115,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionCall;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;

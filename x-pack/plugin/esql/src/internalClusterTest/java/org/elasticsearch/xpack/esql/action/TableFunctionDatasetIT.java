@@ -93,15 +93,9 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
     public void testDataSourcePatternIsRefused() throws Exception {
         Path file = writeRows("inline_pattern", "a.ndjson", "{\"id\":1}\n");
         String resource = StoragePath.fileUri(file);
-        Exception unquoted = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM DATASET(file_*, \"" + resource + "\")"))
-        );
+        Exception unquoted = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM DATASET(file_*, \"" + resource + "\")")));
         assertThat(unquoted.getMessage(), containsString("extraneous input '*'"));
-        Exception quoted = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM DATASET(\"file_*\", \"" + resource + "\")"))
-        );
+        Exception quoted = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM DATASET(\"file_*\", \"" + resource + "\")")));
         assertThat(quoted.getMessage(), containsString("reads one data source"));
     }
 
@@ -140,9 +134,7 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
         Exception viaQuery = expectThrows(
             Exception.class,
             () -> run(
-                syncEsqlQueryRequest(
-                    "FROM DATASET(" + dataSource + ", \"" + resource + "\", {\"settings\": {\"no_such_setting\": \"x\"}})"
-                )
+                syncEsqlQueryRequest("FROM DATASET(" + dataSource + ", \"" + resource + "\", {\"settings\": {\"no_such_setting\": \"x\"}})")
             )
         );
 
@@ -163,11 +155,7 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
     public void testDataSourceInThePayloadIsRefused() throws Exception {
         Path file = writeRows("inline_dup_source", "a.ndjson", "{\"id\":1}\n");
         String dataSource = registerLocalFileDataSource();
-        String query = "FROM DATASET("
-            + dataSource
-            + ", \""
-            + StoragePath.fileUri(file)
-            + "\", {\"data_source\": \"other\"})";
+        String query = "FROM DATASET(" + dataSource + ", \"" + StoragePath.fileUri(file) + "\", {\"data_source\": \"other\"})";
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query)));
         assertThat(e.getMessage(), containsString("data_source"));
     }
@@ -178,11 +166,7 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
         String dataSource = registerLocalFileDataSource();
         createIndex("local_idx");
         client().prepareIndex("local_idx").setSource("id", 1).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        String query = "FROM local_idx, DATASET("
-            + dataSource
-            + ", \""
-            + StoragePath.fileUri(file)
-            + "\") | STATS count = COUNT(*)";
+        String query = "FROM local_idx, DATASET(" + dataSource + ", \"" + StoragePath.fileUri(file) + "\") | STATS count = COUNT(*)";
         try (var response = run(syncEsqlQueryRequest(query))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2L))));
         }
@@ -192,11 +176,7 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
     public void testInlineDefinitionRegistersNothing() throws Exception {
         Path file = writeRows("inline_no_register", "a.ndjson", "{\"id\":1}\n");
         String dataSource = registerLocalFileDataSource();
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM DATASET(" + dataSource + ", \"" + StoragePath.fileUri(file) + "\")")
-            )
-        ) {
+        try (var response = run(syncEsqlQueryRequest("FROM DATASET(" + dataSource + ", \"" + StoragePath.fileUri(file) + "\")"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
         }
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM " + dataSource)));
@@ -267,7 +247,6 @@ public class TableFunctionDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(names, hasItem("_file.name"));
         }
     }
-
 
     /**
      * An inline definition must not be able to supply the {@code _datasource} config sub-map, which is where

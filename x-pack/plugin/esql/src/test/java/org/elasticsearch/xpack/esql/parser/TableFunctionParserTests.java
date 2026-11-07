@@ -24,8 +24,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -117,8 +117,14 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
      * long is a biased representation, so passing it through would hand on a different number.
      */
     public void testPayloadValueTypesOutsideJson() {
-        expectError("FROM DATASET(my_source, \"res\", {\"x\": 1 day})", "[DATASET] definition cannot set [x] to a value of type [date_period]");
-        expectError("FROM DATASET(my_source, \"res\", {\"x\": 3 hours})", "[DATASET] definition cannot set [x] to a value of type [time_duration]");
+        expectError(
+            "FROM DATASET(my_source, \"res\", {\"x\": 1 day})",
+            "[DATASET] definition cannot set [x] to a value of type [date_period]"
+        );
+        expectError(
+            "FROM DATASET(my_source, \"res\", {\"x\": 3 hours})",
+            "[DATASET] definition cannot set [x] to a value of type [time_duration]"
+        );
         expectError(
             "FROM DATASET(my_source, \"res\", {\"x\": 18446744073709551615})",
             "[DATASET] definition cannot set [x] to a value of type [unsigned_long]"
@@ -134,7 +140,10 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
             onlyCall("FROM DATASET(my_source, \"res\", {\"s\": \"x\", \"i\": 1, \"d\": 2.5, \"b\": true})").namedValues(2),
             equalTo(Map.of("s", "x", "i", 1, "d", 2.5, "b", true))
         );
-        assertThat(onlyCall("FROM DATASET(my_source, \"res\", {\"l\": 9223372036854775807})").namedValues(2), equalTo(Map.of("l", Long.MAX_VALUE)));
+        assertThat(
+            onlyCall("FROM DATASET(my_source, \"res\", {\"l\": 9223372036854775807})").namedValues(2),
+            equalTo(Map.of("l", Long.MAX_VALUE))
+        );
     }
 
     /** A payload diagnostic points at the key, since a value may carry no position of its own. */
@@ -154,8 +163,14 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     public void testQuotedAndBackquotedDataSourceName() {
-        assertThat(argumentValues(onlyCall("FROM DATASET(\"my source\", \"res\", {\"resource\": \"x\"})")), equalTo(List.of("my source", "res")));
-        assertThat(argumentValues(onlyCall("FROM DATASET(`my source`, \"res\", {\"resource\": \"x\"})")), equalTo(List.of("my source", "res")));
+        assertThat(
+            argumentValues(onlyCall("FROM DATASET(\"my source\", \"res\", {\"resource\": \"x\"})")),
+            equalTo(List.of("my source", "res"))
+        );
+        assertThat(
+            argumentValues(onlyCall("FROM DATASET(`my source`, \"res\", {\"resource\": \"x\"})")),
+            equalTo(List.of("my source", "res"))
+        );
     }
 
     /** An empty payload is a payload: a function may require one and still accept it empty. */
@@ -206,20 +221,23 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     public void testFollowedByPipe() {
-        assertThat(argumentValues(onlyCall("FROM DATASET(my_source, \"res\", {\"resource\": \"x\"}) | LIMIT 1")), equalTo(List.of("my_source", "res")));
+        assertThat(
+            argumentValues(onlyCall("FROM DATASET(my_source, \"res\", {\"resource\": \"x\"}) | LIMIT 1")),
+            equalTo(List.of("my_source", "res"))
+        );
     }
 
     public void testTwoCallsInOneSourceList() {
-        List<TableFunctionCall> found = calls("FROM DATASET(a, \"res\", {\"resource\": \"x\"}), DATASET(b, \"res\", {\"resource\": \"y\"})");
+        List<TableFunctionCall> found = calls(
+            "FROM DATASET(a, \"res\", {\"resource\": \"x\"}), DATASET(b, \"res\", {\"resource\": \"y\"})"
+        );
         assertThat(found, hasSize(2));
         assertThat(found.stream().map(call -> call.name(0)).toList(), equalTo(List.of("a", "b")));
     }
 
-
     public void testDataSourceNameRequired() {
         expectError("FROM DATASET({\"resource\": \"x\"})", "extraneous input '{' expecting {QUOTED_STRING");
     }
-
 
     /** The options are the last argument, so a call may stop before them. */
     public void testOptionsMayBeOmitted() {
@@ -228,8 +246,6 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
         assertThat(call.name(1), equalTo("s3://bucket/a.parquet"));
         assertThat(call.namedValues(2), nullValue());
     }
-
-
 
     public void testPayloadKeysMustBeQuoted() {
         expectError("FROM DATASET(my_source, \"res\", {resource: \"x\"})", "mismatched input 'resource'");

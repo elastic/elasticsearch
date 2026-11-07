@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import java.util.TreeMap;
 
 /**

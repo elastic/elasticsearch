@@ -20,6 +20,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.logging.LogManager;
@@ -261,6 +262,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
+        private boolean singleConcreteIndex;
 
         private TestBuilder(
             String esqlQuery,
@@ -418,6 +420,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public TestBuilder views(Map<String, String> views) {
             this.views = views;
+            return this;
+        }
+
+        public TestBuilder singleConcreteIndex() {
+            this.singleConcreteIndex = true;
             return this;
         }
 
@@ -624,7 +631,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 datasetMetadata,
                 externalSourceResolution,
                 requestFilter,
-                views
+                views,
+                singleConcreteIndex
             );
         }
 
@@ -772,7 +780,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
         QueryBuilder requestFilter,
-        Map<String, String> views
+        Map<String, String> views,
+        boolean singleConcreteIndex
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -840,7 +849,10 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .viewSettings(viewSettings);
             boolean trackUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
-                (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
+                (pattern, resolution) -> testAnalyzer.addIndex(
+                    pattern.indexPattern(),
+                    singleConcreteIndex ? singleIndex(resolution) : resolution
+                )
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
@@ -1403,7 +1415,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             .stream()
             .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
                 IndexMode m = indexModeOf(ds);
-                return new IndexProperties(m, 0);
+                return new IndexProperties(m, 0, 0);
             }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
@@ -1411,6 +1423,24 @@ public abstract class GoldenTestCase extends ESTestCase {
             .toList();
         var mergedMappings = mergeMappings(mappings, trackUnmappedFieldIndices);
         return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
+    }
+
+    private static IndexResolution singleIndex(IndexResolution resolution) {
+        EsIndex index = resolution.get();
+        Map<String, IndexProperties> indexProperties = new HashMap<>();
+        index.indexProperties()
+            .forEach(
+                (key, v) -> indexProperties.put(key, new IndexProperties(v.indexMode(), v.numberOfShards(), IndexVersion.current().id()))
+            );
+        return IndexResolution.valid(
+            new EsIndex(
+                index.name(),
+                index.mapping(),
+                indexProperties,
+                index.originalIndices(),
+                Map.of("", List.copyOf(indexProperties.keySet()))
+            )
+        );
     }
 
     /**

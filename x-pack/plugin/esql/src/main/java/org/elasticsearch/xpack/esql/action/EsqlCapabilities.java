@@ -4719,6 +4719,11 @@ public class EsqlCapabilities {
          */
         FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
 
+        /**
+         * Run time-series aggregation single pass on data nodes when possible
+         */
+        TIME_SERIES_SINGLE_PASS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

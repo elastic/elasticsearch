@@ -182,7 +182,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
             TimeBasedCheckpointProvider provider = newCheckpointProvider(transformConfig, TimeValue.ZERO, () -> false);
 
-            SetOnce<Boolean> hasChangedHolder = new SetOnce<>();
+            SetOnce<CheckpointProvider.SourceChange> hasChangedHolder = new SetOnce<>();
             SetOnce<Exception> exceptionHolder = new SetOnce<>();
             CountDownLatch latch = new CountDownLatch(1);
             provider.sourceHasChanged(
@@ -198,7 +198,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             // Upper bound uses initial_delay (0) -> now (123456789), not the steady-state now - 60000.
             assertThat(rangeQuery.from(), is(equalTo(120000000L)));
             assertThat(rangeQuery.to(), is(equalTo(123456789L)));
-            assertThat(hasChangedHolder.get(), is(true));
+            assertThat(hasChangedHolder.get().changed(), is(true));
             assertThat(exceptionHolder.get(), is(nullValue()));
         } finally {
             searchResponse.decRef();
@@ -228,7 +228,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             );
             TimeBasedCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
-            SetOnce<Boolean> hasChangedHolder = new SetOnce<>();
+            SetOnce<CheckpointProvider.SourceChange> hasChangedHolder = new SetOnce<>();
             SetOnce<Exception> exceptionHolder = new SetOnce<>();
             CountDownLatch latch = new CountDownLatch(1);
             provider.sourceHasChanged(
@@ -245,7 +245,8 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             assertThat(rangeQuery.from(), is(equalTo(expectedRangeQueryBounds.v1())));
             assertThat(rangeQuery.to(), is(equalTo(expectedRangeQueryBounds.v2())));
 
-            assertThat(hasChangedHolder.get(), is(equalTo(expectedHasChangedValue)));
+            assertThat(hasChangedHolder.get().changed(), is(equalTo(expectedHasChangedValue)));
+            assertThat(hasChangedHolder.get().crossProject(), is(false));
             assertThat(exceptionHolder.get(), is(nullValue()));
         } finally {
             searchResponse.decRef();
@@ -411,6 +412,44 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
         assertThat(checkpointHolder.get(), is(equalTo(expectedNextCheckpoint)));
         assertThat(exceptionHolder.get(), is(nullValue()));
+    }
+
+    public void testSourceHasChangedReportsCrossProject() throws InterruptedException {
+        assertSourceHasChangedCrossProject(new SearchResponse.Clusters(2, 2, 0), true);
+    }
+
+    public void testSourceHasChangedReportsOriginOnly() throws InterruptedException {
+        assertSourceHasChangedCrossProject(SearchResponse.Clusters.EMPTY, false);
+    }
+
+    private void assertSourceHasChangedCrossProject(SearchResponse.Clusters clusters, boolean expectedCrossProject)
+        throws InterruptedException {
+        final SearchResponse searchResponse = SearchResponseUtils.response(
+            SearchHits.empty(new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0)
+        ).clusters(clusters).build();
+        try {
+            doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
+            TimeBasedCheckpointProvider provider = newCheckpointProvider(
+                newTransformConfigWithDateHistogram(
+                    getTestName(),
+                    TransformConfigVersion.CURRENT,
+                    TIMESTAMP_FIELD,
+                    TimeValue.timeValueMinutes(10),
+                    TimeValue.ZERO
+                )
+            );
+
+            SetOnce<CheckpointProvider.SourceChange> sourceChangeHolder = new SetOnce<>();
+            CountDownLatch latch = new CountDownLatch(1);
+            provider.sourceHasChanged(
+                TransformCheckpoint.EMPTY,
+                new LatchedActionListener<>(ActionListener.wrap(sourceChangeHolder::set, e -> fail(e.getMessage())), latch)
+            );
+            assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+            assertThat(sourceChangeHolder.get(), is(equalTo(new CheckpointProvider.SourceChange(true, expectedCrossProject))));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testSourceHasChangedIncludesRuntimeMappings() throws InterruptedException {

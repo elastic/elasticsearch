@@ -14,8 +14,11 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -25,6 +28,7 @@ import java.util.function.Supplier;
 public class TransformNode {
     private final Supplier<Optional<ClusterState>> clusterState;
     private final Map<String, TransformTask> transformTasks = ConcurrentCollections.newConcurrentMap();
+    private final List<Consumer<TransformTask>> deregistrationListeners = new CopyOnWriteArrayList<>();
 
     public TransformNode(Supplier<Optional<ClusterState>> clusterState) {
         this.clusterState = clusterState;
@@ -39,9 +43,23 @@ public class TransformNode {
         transformTasks.put(task.getTransformId(), task);
     }
 
-    /** Removes the given transform's task. No-op if the transform is not registered. */
+    /**
+     * Removes the given transform's task and notifies the deregistration listeners with it.
+     * No-op if the transform is not registered, so a task is reported once even if it is deregistered twice.
+     */
     public void deregisterTransform(String transformId) {
-        transformTasks.remove(transformId);
+        TransformTask removed = transformTasks.remove(transformId);
+        if (removed != null) {
+            deregistrationListeners.forEach(listener -> listener.accept(removed));
+        }
+    }
+
+    /**
+     * Subscribes to tasks leaving {@link #getTransformTasks()}. The listener runs on the deregistering thread, after the
+     * task is removed and before its persistent task is completed, so it must be cheap and must not throw.
+     */
+    public void addDeregistrationListener(Consumer<TransformTask> listener) {
+        deregistrationListeners.add(listener);
     }
 
     /**

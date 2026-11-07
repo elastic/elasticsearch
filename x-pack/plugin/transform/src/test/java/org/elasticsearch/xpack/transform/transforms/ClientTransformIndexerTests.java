@@ -879,6 +879,45 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testChangeDetectionRecordsSearchMetrics() {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+        var indexer = createIndexerWithCrossProject(true);
+
+        // an idle continuous transform only runs the change-detection search, which must still feed the gauges
+        indexer.onSourceChangeChecked(true);
+
+        verify(indexer.context).recordSearchMetrics(false, true);
+    }
+
+    public void testChangeDetectionRecordsNothingWhenCrossProjectIsDisabled() {
+        var indexer = createIndexerWithCrossProject(false);
+
+        indexer.onSourceChangeChecked(true);
+
+        verify(indexer.context, never()).recordSearchMetrics(anyBoolean(), anyBoolean());
+    }
+
+    private MockClientTransformIndexer createIndexerWithCrossProject(boolean crossProjectEnabled) {
+        var crossProjectModeDecider = mock(CrossProjectModeDecider.class);
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(crossProjectEnabled);
+        return createIndexer(
+            new TransformServices(
+                mock(IndexBasedTransformConfigManager.class),
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformNode.class),
+                crossProjectModeDecider,
+                projectId -> false,
+                mock(ProjectResolver.class),
+                mock(TransformCloudCredentialManager.class),
+                Clock.systemUTC()
+            ),
+            mock(Client.class),
+            new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setCredentialId(null).build()
+        );
+    }
+
     public void testPitIndexFilterOmittedWhenRuntimeMappingsPresent() throws InterruptedException {
         // Arrange: create a config with runtime_mappings and PIT enabled
         Map<String, Object> runtimeMappings = Map.of(

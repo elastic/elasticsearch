@@ -217,7 +217,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
         DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
-        SetOnce<Boolean> hasChangedHolder = new SetOnce<>();
+        SetOnce<CheckpointProvider.SourceChange> hasChangedHolder = new SetOnce<>();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
         provider.sourceHasChanged(
@@ -225,7 +225,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             new LatchedActionListener<>(ActionListener.wrap(hasChangedHolder::set, exceptionHolder::set), latch)
         );
         assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
-        assertThat(hasChangedHolder.get(), is(equalTo(false)));
+        assertThat(hasChangedHolder.get(), is(equalTo(new CheckpointProvider.SourceChange(false, false))));
         assertThat(exceptionHolder.get(), is(nullValue()));
     }
 

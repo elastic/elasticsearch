@@ -63,12 +63,20 @@ public interface CheckpointProvider {
     }
 
     /**
+     * Result of {@link #sourceHasChanged}.
+     *
+     * @param changed      whether the source has changed since the last checkpoint
+     * @param crossProject whether the change-detection search touched at least one linked project
+     */
+    record SourceChange(boolean changed, boolean crossProject) {}
+
+    /**
      * Determines whether the transform needs updating
      *
      * @param lastCheckpoint the last checkpoint
      * @param listener listener to send the result to
      */
-    void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener);
+    void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<SourceChange> listener);
 
     /**
      * Get checkpoint statistics for a running transform

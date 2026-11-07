@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -86,6 +88,24 @@ public class TransformNodeTests extends ESTestCase {
     public void testNodeIdMissing() {
         var nodeId = new TransformNode(Optional::empty).nodeId();
         assertThat(nodeId, equalTo(String.valueOf((String) null)));
+    }
+
+    /**
+     * When a registered task is deregistered, even twice, or an unknown transform is deregistered
+     * Then the listeners are notified once, with the removed task
+     */
+    public void testDeregistrationListenerNotifiedOncePerRemovedTask() {
+        var transformNode = new TransformNode(Optional::empty);
+        List<TransformTask> deregistered = new ArrayList<>();
+        transformNode.addDeregistrationListener(deregistered::add);
+
+        var task = mockTask("transform-1");
+        transformNode.registerTransform(task);
+        transformNode.deregisterTransform("transform-1");
+        transformNode.deregisterTransform("transform-1");
+        transformNode.deregisterTransform("never-registered");
+
+        assertThat(deregistered, contains(task));
     }
 
     /**

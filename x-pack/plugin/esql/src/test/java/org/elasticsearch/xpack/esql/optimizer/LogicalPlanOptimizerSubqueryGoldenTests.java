@@ -525,6 +525,62 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testForkAfterSingleFromSubqueryWithFork() {
+        runGoldenTest("""
+            FROM (
+                FROM employees
+                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            )
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, STAGES);
+    }
+
+    public void testForkAfterSingleForkView() {
+        runGoldenTest("""
+            FROM fork_view
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)"));
+    }
+
+    public void testSortLimitAfterSingleFromSubqueryWithFork() {
+        runGoldenTest("""
+            FROM (FROM employees | FORK (WHERE gender == "M") (WHERE gender == "F"))
+            | SORT salary DESC
+            | LIMIT 3
+            | KEEP emp_no, salary, _fork
+            """, STAGES);
+    }
+
+    public void testSortLimitAfterSingleForkView() {
+        runGoldenTest("""
+            FROM fork_view
+            | SORT salary DESC
+            | LIMIT 3
+            | KEEP emp_no, salary, _fork
+            """, STAGES, Map.of("fork_view", """
+            FROM employees
+            | FORK (WHERE gender == "M") (WHERE gender == "F")
+            """));
+    }
+
+    public void testKeepAfterSingleFromSubqueryWithFork() {
+        runGoldenTest("""
+            FROM (FROM employees | FORK (WHERE gender == "M") (WHERE gender == "F"))
+            | KEEP emp_no, salary, _fork
+            """, STAGES);
+    }
+
+    public void testSortLimitAfterLetFork() {
+        assumeTrue("requires LET", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        runGoldenTest("""
+            LET a = (FROM employees | FORK (WHERE gender == "M") (WHERE gender == "F"));
+            FROM a
+            | SORT salary DESC
+            | LIMIT 3
+            | KEEP emp_no, salary, _fork
+            """, STAGES);
+    }
+
     public void testForkAfterSubquery() {
         runGoldenTest("""
             FROM employees, (FROM employees_incompatible

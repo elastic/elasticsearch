@@ -1,0 +1,2 @@
+FROM (FROM employees | FORK (WHERE gender == "M") (WHERE gender == "F"))
+| KEEP emp_no, salary, _fork

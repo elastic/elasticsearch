@@ -762,7 +762,25 @@ public final class EsqlTestUtils {
         FoldContext foldCtx,
         TransportVersion minimumVersion
     ) {
-        return new LogicalOptimizerContext(configuration, foldCtx, minimumVersion, EsqlFlags.DEFAULTS);
+        return logicalOptimizerContext(configuration, foldCtx, minimumVersion, false);
+    }
+
+    public static LogicalOptimizerContext logicalOptimizerContext(
+        Configuration configuration,
+        FoldContext foldCtx,
+        TransportVersion minimumVersion,
+        boolean requestFilterAppliesToViewOutputs
+    ) {
+        return new LogicalOptimizerContext(configuration, foldCtx, minimumVersion, EsqlFlags.DEFAULTS, requestFilterAppliesToViewOutputs);
+    }
+
+    public static LogicalOptimizerContext logicalOptimizerContext(
+        Configuration configuration,
+        FoldContext foldCtx,
+        TransportVersion minimumVersion,
+        EsqlFlags flags
+    ) {
+        return new LogicalOptimizerContext(configuration, foldCtx, minimumVersion, flags, false);
     }
 
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {

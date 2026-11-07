@@ -19,12 +19,23 @@ public class LogicalOptimizerContext {
     private final FoldContext foldCtx;
     private final TransportVersion minimumVersion;
     private final EsqlFlags flags;
+    /**
+     * When {@code true}, a one-child VIEW {@code BranchPlan} must be kept so {@code Mapper} can mark view-branch fragments.
+     */
+    private final boolean requestFilterAppliesToViewOutputs;
 
-    public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, TransportVersion minimumVersion, EsqlFlags flags) {
+    public LogicalOptimizerContext(
+        Configuration configuration,
+        FoldContext foldCtx,
+        TransportVersion minimumVersion,
+        EsqlFlags flags,
+        boolean requestFilterAppliesToViewOutputs
+    ) {
         this.configuration = configuration;
         this.foldCtx = foldCtx;
         this.minimumVersion = minimumVersion;
         this.flags = flags;
+        this.requestFilterAppliesToViewOutputs = requestFilterAppliesToViewOutputs;
     }
 
     public Configuration configuration() {
@@ -43,6 +54,10 @@ public class LogicalOptimizerContext {
         return flags;
     }
 
+    public boolean requestFilterAppliesToViewOutputs() {
+        return requestFilterAppliesToViewOutputs;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == this) return true;
@@ -51,12 +66,13 @@ public class LogicalOptimizerContext {
         return this.configuration.equals(that.configuration)
             && this.foldCtx.equals(that.foldCtx)
             && Objects.equals(this.minimumVersion, that.minimumVersion)
-            && Objects.equals(this.flags, that.flags);
+            && Objects.equals(this.flags, that.flags)
+            && this.requestFilterAppliesToViewOutputs == that.requestFilterAppliesToViewOutputs;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(configuration, foldCtx, minimumVersion, flags);
+        return Objects.hash(configuration, foldCtx, minimumVersion, flags, requestFilterAppliesToViewOutputs);
     }
 
     @Override
@@ -69,6 +85,8 @@ public class LogicalOptimizerContext {
             + minimumVersion
             + ", flags="
             + flags
+            + ", requestFilterAppliesToViewOutputs="
+            + requestFilterAppliesToViewOutputs
             + ']';
     }
 

@@ -40,7 +40,7 @@ public class LogicalOptimizerContextTests extends ESTestCase {
                     + EsqlTestUtils.TEST_CFG
                     + ", foldCtx=FoldContext[3/102], minimumVersion=9075000, flags="
                     + EsqlFlags.DEFAULTS
-                    + "]"
+                    + ", requestFilterAppliesToViewOutputs=false]"
             )
         );
     }
@@ -54,12 +54,19 @@ public class LogicalOptimizerContextTests extends ESTestCase {
             ConfigurationTestUtils.randomConfiguration(),
             randomFoldContext(),
             randomMinimumVersion(),
-            randomFlags()
+            randomFlags(),
+            randomBoolean()
         );
     }
 
     private LogicalOptimizerContext copy(LogicalOptimizerContext c) {
-        return new LogicalOptimizerContext(c.configuration(), c.foldCtx(), c.minimumVersion(), c.flags());
+        return new LogicalOptimizerContext(
+            c.configuration(),
+            c.foldCtx(),
+            c.minimumVersion(),
+            c.flags(),
+            c.requestFilterAppliesToViewOutputs()
+        );
     }
 
     private LogicalOptimizerContext mutate(LogicalOptimizerContext c) {
@@ -67,14 +74,16 @@ public class LogicalOptimizerContextTests extends ESTestCase {
         FoldContext foldCtx = c.foldCtx();
         TransportVersion minVersion = c.minimumVersion();
         EsqlFlags flags = c.flags();
-        switch (randomIntBetween(0, 3)) {
+        boolean requestFilterAppliesToViewOutputs = c.requestFilterAppliesToViewOutputs();
+        switch (randomIntBetween(0, 4)) {
             case 0 -> configuration = randomValueOtherThan(configuration, ConfigurationTestUtils::randomConfiguration);
             case 1 -> foldCtx = randomValueOtherThan(foldCtx, this::randomFoldContext);
             case 2 -> minVersion = randomValueOtherThan(minVersion, EsqlTestUtils::randomMinimumVersion);
             case 3 -> flags = randomValueOtherThan(flags, this::randomFlags);
+            case 4 -> requestFilterAppliesToViewOutputs = requestFilterAppliesToViewOutputs == false;
             default -> throw new AssertionError("unexpected mutation branch");
         }
-        return new LogicalOptimizerContext(configuration, foldCtx, minVersion, flags);
+        return new LogicalOptimizerContext(configuration, foldCtx, minVersion, flags, requestFilterAppliesToViewOutputs);
     }
 
     private FoldContext randomFoldContext() {

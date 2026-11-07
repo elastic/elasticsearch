@@ -26,7 +26,7 @@ public final class LocalLogicalOptimizerContext extends LogicalOptimizerContext 
     }
 
     public LocalLogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, SearchStats searchStats, EsqlFlags flags) {
-        super(configuration, foldCtx, null, flags);
+        super(configuration, foldCtx, null, flags, false);
         this.searchStats = searchStats;
     }
 

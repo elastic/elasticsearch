@@ -1,0 +1,4 @@
+FROM (FROM employees | FORK (WHERE gender == "M") (WHERE gender == "F"))
+| SORT salary DESC
+| LIMIT 3
+| KEEP emp_no, salary, _fork

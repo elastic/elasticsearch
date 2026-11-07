@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Arrays;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -152,31 +151,19 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
         assertThat(
             verify("FROM test | FORK (STATS COUNT()) | EVAL x=1"),
-            equalTo(
-                new ApproximationVerifier.QueryProperties(null, null, List.of(new ApproximationVerifier.QueryProperties(false, true, null)))
-            )
+            equalTo(new ApproximationVerifier.QueryProperties(false, true, null))
         );
         assertThat(
             verify("FROM test | FORK (STATS COUNT() BY emp_no) | EVAL x=1"),
-            equalTo(
-                new ApproximationVerifier.QueryProperties(null, null, List.of(new ApproximationVerifier.QueryProperties(true, true, null)))
-            )
+            equalTo(new ApproximationVerifier.QueryProperties(true, true, null))
         );
         assertThat(
             verify("FROM test | FORK (WHERE emp_no < 100 | STATS COUNT()) | EVAL x=1"),
-            equalTo(
-                new ApproximationVerifier.QueryProperties(
-                    null,
-                    null,
-                    List.of(new ApproximationVerifier.QueryProperties(false, false, null))
-                )
-            )
+            equalTo(new ApproximationVerifier.QueryProperties(false, false, null))
         );
         assertThat(
             verify("FROM test | FORK (MV_EXPAND emp_no | STATS COUNT()) | EVAL x=1"),
-            equalTo(
-                new ApproximationVerifier.QueryProperties(null, null, List.of(new ApproximationVerifier.QueryProperties(false, true, null)))
-            )
+            equalTo(new ApproximationVerifier.QueryProperties(false, true, null))
         );
         assertThat(
             verify("FROM test | FORK (WHERE emp_no<1 | STATS COUNT()) (EVAL x=1) (STATS SUM(emp_no) BY emp_no) (STATS COUNT())"),

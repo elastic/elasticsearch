@@ -560,17 +560,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
             return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
-                protected Double parseSourceValue(Object value) {
-                    double doubleValue;
-                    if (value.equals("")) {
-                        if (nullValue == null) {
-                            return null;
-                        }
-                        doubleValue = nullValue;
-                    } else {
-                        doubleValue = NumberFieldMapper.NumberType.objectToDouble(value);
-                    }
+                protected boolean isNullEquivalent(Object value) {
+                    return coerce && "".equals(value);
+                }
 
+                @Override
+                protected Double parseSourceValue(Object value) {
+                    double doubleValue = NumberFieldMapper.NumberType.objectToDouble(value);
                     return adjustSourceValue(doubleValue, getScalingFactor());
                 }
             };

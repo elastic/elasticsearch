@@ -194,6 +194,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY = new NodeFeature(
         "mapper.fix_sorted_numeric_with_offsets_empty_array"
     );
+    public static final NodeFeature NUMERIC_FETCH_EMPTY_STRING_AS_NULL = new NodeFeature("mapper.numeric.fetch_empty_string_as_null");
     public static final NodeFeature MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX = new NodeFeature(
         "mapper.multi_valued_binary_index_sort_sparse_fix"
     );
@@ -328,6 +329,7 @@ public class MapperFeatures implements FeatureSpecification {
             MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX,
             RANGE_DOCVALUE_FIELDS_FIX,
             TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG,
+            NUMERIC_FETCH_EMPTY_STRING_AS_NULL,
             OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK
         );
     }

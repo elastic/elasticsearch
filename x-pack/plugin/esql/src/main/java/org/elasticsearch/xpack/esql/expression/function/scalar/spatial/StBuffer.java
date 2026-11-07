@@ -239,6 +239,18 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         out.writeNamedWriteable(distance);
         if (out.getTransportVersion().supports(ESQL_ST_BUFFER_OPTIONS)) {
             out.writeOptionalNamedWriteable(options);
+        } else if (options != null) {
+            // Dropping the options would silently buffer with defaults on the peer.
+            // IllegalArgumentException returns a 400 to the user, which is what we want here.
+            throw new IllegalArgumentException(
+                "["
+                    + sourceText()
+                    + "] with options is not supported in peer node's version ["
+                    + out.getTransportVersion()
+                    + "]. Upgrade to version ["
+                    + ESQL_ST_BUFFER_OPTIONS
+                    + "] or newer."
+            );
         }
     }
 

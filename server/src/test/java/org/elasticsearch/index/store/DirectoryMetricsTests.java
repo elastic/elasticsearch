@@ -248,12 +248,12 @@ public class DirectoryMetricsTests extends ESTestCase {
         }
     }
 
-    private static class MetricWithEntry extends Counter {
+    public static class MetricWithEntry extends Counter {
         private final String name;
         private final String entryKey;
         private final String entryValue;
 
-        MetricWithEntry(String name, String entryKey, String entryValue) {
+        public MetricWithEntry(String name, String entryKey, String entryValue) {
             super(0);
             this.name = name;
             this.entryKey = entryKey;

@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.DirectoryMetricsTests;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -81,6 +82,7 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL;
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.CACHE_MISS_WAIT_HISTOGRAM_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.STORE_BYTES_READ_HISTOGRAM_NAME;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -98,6 +100,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private TestThreadPool threadPool;
     private TransportService mockTransportService;
     private RecordingMeterRegistry meterRegistry;
+    /** The attributes the actions created by {@code createAction} record their search response metrics with. */
+    private Map<String, Object> searchRequestAttributes = Map.of();
 
     @After
     public void cleanTransportService() {
@@ -239,7 +243,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             searchResponseMetrics,
-            Map.of(),
+            searchRequestAttributes,
             false
         ) {
             @Override
@@ -926,6 +930,75 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
             assertThat(measurements, empty());
         }
+    }
+
+    public void testRecordStoreMetricsReportsCacheMissWaitInMilliseconds() {
+        // 3.5 ms: a fractional millisecond must survive, a long histogram would have recorded 3
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait("3500000"));
+        assertThat(measurements, hasSize(1));
+        assertTrue(measurements.get(0).isDouble());
+        assertThat(measurements.get(0).getDouble(), equalTo(3.5));
+    }
+
+    public void testRecordStoreMetricsSkipsCacheMissWaitWhenAbsent() {
+        // the blob store cache omits the entry when the request did not wait, and an entry of another metric is not a wait
+        assertThat(
+            recordCacheMissWait(
+                directoryMetricsOf(new DirectoryMetricsTests.Counter()),
+                directoryMetricsOf(new DirectoryMetricsTests.MetricWithEntry("other", "some_other_entry", "3500000"))
+            ),
+            empty()
+        );
+    }
+
+    public void testRecordStoreMetricsRecordsCacheMissWaitOfZeroNanos() {
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait("0"));
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).getDouble(), equalTo(0.0));
+    }
+
+    public void testRecordStoreMetricsRecordsCacheMissWaitWithSearchRequestAttributes() {
+        // the attributes the other search response metrics carry, so the wait can be broken down the same way
+        searchRequestAttributes = Map.of("query_type", "match_all", "target", "datastream");
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait("1000000"));
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).attributes(), equalTo(searchRequestAttributes));
+    }
+
+    /**
+     * Runs {@code recordStoreMetrics} once for each of {@code calls}, and returns everything recorded to the cache miss wait
+     * histogram. A single action is used for all calls, because each {@code createAction} replaces the test's thread pool.
+     */
+    private List<Measurement> recordCacheMissWait(DirectoryMetrics... calls) {
+        try (ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                new SearchRequest(),
+                results,
+                ActionListener.noop(),
+                true,
+                new AtomicLong()
+            );
+            for (DirectoryMetrics directoryMetrics : calls) {
+                action.recordStoreMetrics(directoryMetrics);
+            }
+            return meterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, CACHE_MISS_WAIT_HISTOGRAM_NAME);
+        }
+    }
+
+    /**
+     * Metrics that report a cache miss wait the way the blob store cache of the stateless plugin does, which is not on the classpath
+     * of this module.
+     */
+    private static DirectoryMetrics cacheMissWait(String waitNanos) {
+        return directoryMetricsOf(
+            new DirectoryMetricsTests.MetricWithEntry("blob_store_cache", DirectoryMetrics.CACHE_MISS_WAIT_NANOS_ENTRY_KEY, waitNanos)
+        );
+    }
+
+    private static DirectoryMetrics directoryMetricsOf(DirectoryMetricsTests.Counter metric) {
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(metric.getWriteableName(), metric);
+        return builder.build();
     }
 
     private static DirectoryMetrics storeMetrics(long bytesRead) {

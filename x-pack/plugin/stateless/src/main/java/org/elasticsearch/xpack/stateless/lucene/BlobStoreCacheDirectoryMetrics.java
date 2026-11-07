@@ -22,7 +22,7 @@ public class BlobStoreCacheDirectoryMetrics implements DirectoryMetrics.Pluggabl
 
     public static final String NAME = "blob_store_cache";
 
-    public static final String CACHE_MISS_WAIT_NANOS_HEADER = "cache_miss_wait_nanos";
+    public static final String CACHE_MISS_WAIT_NANOS_HEADER = DirectoryMetrics.CACHE_MISS_WAIT_NANOS_ENTRY_KEY;
 
     private long waitTime;
     private long waits;

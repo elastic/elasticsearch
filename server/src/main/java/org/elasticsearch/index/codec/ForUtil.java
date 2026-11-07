@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.common.util.ByteUtils;
 
 import java.io.IOException;
 
@@ -25,7 +26,17 @@ public final class ForUtil {
     public static final int BLOCK_SIZE = 1 << BLOCK_SIZE_SHIFT;
     private static final int BLOCK_SIZE_MASK = BLOCK_SIZE - 1;
 
-    private static final ThreadLocal<long[]> scratch = ThreadLocal.withInitial(() -> new long[BLOCK_SIZE / 2]);
+    /**
+     * Per-thread scratch: the packed longs of one block (used by encode and decode), and their
+     * little-endian byte image (encode only).
+     * Both live in one holder so an encode costs a single ThreadLocal lookup.
+     */
+    private static final class Scratch {
+        final long[] longs = new long[BLOCK_SIZE / 2];
+        final byte[] bytes = new byte[BLOCK_SIZE / 2 * Long.BYTES];
+    }
+
+    private static final ThreadLocal<Scratch> scratch = ThreadLocal.withInitial(Scratch::new);
 
     private ForUtil() {}
 
@@ -151,7 +162,8 @@ public final class ForUtil {
         final int numLongsPerShift = bitsPerValue * 2;
         int idx = offset;
         int shift = nextPrimitive - bitsPerValue;
-        final long[] tmp = scratch.get();
+        final Scratch scratch = ForUtil.scratch.get();
+        final long[] tmp = scratch.longs;
         for (int i = 0; i < numLongsPerShift; ++i) {
             tmp[i] = longs[idx++] << shift;
         }
@@ -199,9 +211,15 @@ public final class ForUtil {
             }
         }
 
+        // One bulk write instead of a writeLong per packed long: on the index flush path each
+        // writeLong goes through several IndexOutput wrappers before reaching the buffer, which
+        // showed up as a few percent of indexing CPU. The byte layout is unchanged (little-endian,
+        // matching DataInput#readLongs on the decode side).
+        final byte[] bytes = scratch.bytes;
         for (int i = 0; i < numLongsPerShift; ++i) {
-            out.writeLong(tmp[i]);
+            ByteUtils.writeLongLE(tmp[i], bytes, i << 3);
         }
+        out.writeBytes(bytes, 0, numLongsPerShift << 3);
     }
 
     /** Number of bytes required to encode an array of {@code BLOCK_SIZE} longs with {@code bitsPerValue} bits per value. */
@@ -324,7 +342,7 @@ public final class ForUtil {
     }
 
     private static void decode(int bitsPerValue, DataInput in, long[] longs, int offset) throws IOException {
-        final long[] tmp = scratch.get();
+        final long[] tmp = scratch.get().longs;
         switch (bitsPerValue) {
             case 1:
                 decode1(in, tmp, longs, offset);
@@ -446,7 +464,7 @@ public final class ForUtil {
     }
 
     private static void decodeTo32(int bitsPerValue, DataInput in, long[] longs, int offset) throws IOException {
-        final long[] tmp = scratch.get();
+        final long[] tmp = scratch.get().longs;
         switch (bitsPerValue) {
             case 1:
                 decode1(in, tmp, longs, offset);

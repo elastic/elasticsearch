@@ -58,19 +58,29 @@ public final class DocValuesForUtil {
         if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
             ForUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
+            // Collapse pairs of 32-bit values into one long per pair, then write every block's
+            // longs with a single writeBytes rather than a writeLong each; see the matching note in
+            // ForUtil#encode. Little-endian, as DataInput#readLongs expects on decode.
+            ensureBuffer();
+            int pos = 0;
             for (int k = 0; k < blockSize >> ForUtil.BLOCK_SIZE_SHIFT; k++) {
-                collapse32(in, k * ForUtil.BLOCK_SIZE);
+                final int offset = k * ForUtil.BLOCK_SIZE;
+                collapse32(in, offset);
                 for (int i = 0; i < ForUtil.BLOCK_SIZE / 2; i++) {
-                    out.writeLong(in[k * ForUtil.BLOCK_SIZE + i]);
+                    ByteUtils.writeLongLE(in[offset + i], this.encoded, pos);
+                    pos += Long.BYTES;
                 }
             }
+            out.writeBytes(this.encoded, pos);
         } else if (bitsPerValue == BITS_IN_FIVE_BYTES || bitsPerValue == BITS_IN_SIX_BYTES || bitsPerValue == BITS_IN_SEVEN_BYTES) {
             encodeFiveSixOrSevenBytesPerValue(in, bitsPerValue, out);
         } else {
             assert bitsPerValue > 56 : "bitsPerValue must be greater than 56 but was [" + bitsPerValue + "]";
-            for (long l : in) {
-                out.writeLong(l);
+            ensureBuffer();
+            for (int i = 0; i < in.length; ++i) {
+                ByteUtils.writeLongLE(in[i], this.encoded, i * Long.BYTES);
             }
+            out.writeBytes(this.encoded, in.length * Long.BYTES);
         }
     }
 

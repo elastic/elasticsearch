@@ -595,12 +595,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final SnapshotId targetSnapshot = target.getSnapshotId();
         final String localNodeId = clusterService.localNode().getId();
         if (currentlyCloning.add(repoShardId)) {
-            repository.cloneShardSnapshot(
-                sourceSnapshot,
-                targetSnapshot,
-                repoShardId,
-                shardStatusBefore.generation(),
-                ActionListener.wrap(
+            ActionListener.run(
+                ActionListener.<ShardSnapshotResult>wrap(
                     shardSnapshotResult -> createAndSubmitRequestToUpdateSnapshotState(
                         target,
                         null,
@@ -637,6 +633,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             () -> currentlyCloning.remove(repoShardId)
                         )
                     )
+                ),
+                listener -> repository.cloneShardSnapshot(
+                    sourceSnapshot,
+                    targetSnapshot,
+                    repoShardId,
+                    shardStatusBefore.generation(),
+                    listener
                 )
             );
         }

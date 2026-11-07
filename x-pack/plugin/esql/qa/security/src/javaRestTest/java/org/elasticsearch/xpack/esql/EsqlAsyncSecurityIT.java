@@ -143,6 +143,13 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
             } catch (ResponseException e) {
                 var statusCode = e.getResponse().getStatusLine().getStatusCode();
                 var message = EntityUtils.toString(e.getResponse().getEntity());
+                // Whether a resource-not-found 404 is about THIS async id, which is what makes it retryable below.
+                // AsyncExecutionId.decode keeps the string the GET was asked for verbatim as its encoded form, and
+                // every resource-not-found on the read path is built from that or from the request id
+                // (AsyncResultsService, AsyncTaskIndexService), so each one names this id. A query whose OWN failure
+                // is a 404 resource-not-found names the resource the query asked for instead; without this the
+                // retry eats it and the caller sees "couldn't find task status" rather than the error it asserts on.
+                boolean notFoundForThisAsyncId = message.contains("resource_not_found_exception") && message.contains(id);
 
                 if (statusCode == 404 && message.contains("no such index [.async-search]")) {
                     // Work around https://github.com/elastic/elasticsearch/issues/110304 - the .async-search
@@ -153,7 +160,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
                     } catch (InterruptedException ex) {
                         throw new RuntimeException(ex);
                     }
-                } else if (statusCode == 404 && false == isAsyncIdNotFound_Expected && message.contains("resource_not_found_exception")) {
+                } else if (statusCode == 404 && false == isAsyncIdNotFound_Expected && notFoundForThisAsyncId) {
                     // Work around for https://github.com/elastic/elasticsearch/issues/112110
                     // The async id is not indexed quickly enough in .async-search index for us to retrieve it.
                     logger.warn("async id not found", e);

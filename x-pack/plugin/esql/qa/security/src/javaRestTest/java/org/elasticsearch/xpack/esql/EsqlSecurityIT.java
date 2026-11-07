@@ -3897,9 +3897,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * {@code read} on the data source admits the query: it then fails on the bucket the definition names, not on
-     * authorization. Asserted as "not a refusal" rather than as a success, the way the registered-dataset read test
-     * does it, because no real object backs the resource here.
+     * {@code read} on the data source admits the query, which then fails somewhere past authorization. Asserted as
+     * "not a refusal" rather than as a success, the way the registered-dataset read test does it, because no real
+     * object backs the resource here.
+     * <p>
+     * Every assertion is a negative on purpose, and that is a real limit rather than a looseness worth tightening.
+     * The data source is registered as live S3 with {@code auth: anonymous}, so what the read fails with depends on
+     * the environment: with egress to AWS the list returns 403 and the message is the provider's
+     * {@code Access denied listing objects...} (observed locally), and without egress {@code mapResolveFailure}
+     * turns the connect failure into an {@code ExternalUnavailableException} and the message is a different one.
+     * Pinning either would couple this gate to AWS reachability from CI. What the negatives do establish is that
+     * the refusal is not the data source gate's and the call did not degrade into an index pattern; pinning the
+     * failure to the storage layer needs a storage fixture in this project, which it does not have.
      */
     public void testFromDatasetTableFunctionAllowedWithDatasourceRead() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());

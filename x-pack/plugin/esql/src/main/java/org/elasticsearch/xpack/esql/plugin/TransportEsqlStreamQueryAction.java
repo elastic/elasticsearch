@@ -16,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,6 +29,8 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -234,17 +237,19 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     ) {
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
-        // The query's scope on the coordinator lives until this action completes; the response parts of a later package
-        // extend it to the end of the stream.
+        // The query's scope on the coordinator lives until this action completes and, once the stream has started, until
+        // the REST layer is done with the stream's body: the stream takes a hold of its own on the lease, released by
+        // the listener when the channel closes, so the last pages go back against a live account.
         final QueryScope.Lease responseLease = computeService.queryScopes().acquire(ComputeService.rootOf(sessionId));
-        final ActionListener<ActionResponse.Empty> listener = responseLease == null
+        final RefCountingRunnable leaseRefs = responseLease == null ? null : new RefCountingRunnable(responseLease::close);
+        final ActionListener<ActionResponse.Empty> listener = leaseRefs == null
             ? delegate
-            : ActionListener.runAfter(delegate, responseLease::close);
+            : ActionListener.runAfter(delegate, leaseRefs::close);
         try {
-            innerExecute(task, request, executionInfo, publisher, resultRef, flags, sessionId, listener);
+            innerExecute(task, request, executionInfo, publisher, resultRef, flags, sessionId, leaseRefs, listener);
         } catch (RuntimeException e) {
             // a throw before any listener was reached: nothing else releases the lease
-            Releasables.close(responseLease);
+            Releasables.close(leaseRefs);
             throw e;
         }
     }
@@ -257,6 +262,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicReference<Result> resultRef,
         EsqlFlags flags,
         String sessionId,
+        @Nullable RefCountingRunnable leaseRefs,
         ActionListener<ActionResponse.Empty> listener
     ) {
         AtomicBoolean streamStarted = new AtomicBoolean(false);
@@ -317,7 +323,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             streamStarted,
                             columns,
                             nullColumns,
-                            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+                            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()),
+                            leaseRefs
                         );
                         if (startFailure != null) {
                             resultListener.onFailure(startFailure);
@@ -411,7 +418,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         streamStarted,
                         columns,
                         request.dropNullColumns() ? new boolean[columns.size()] : null,
-                        QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings())
+                        QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
+                        leaseRefs
                     );
                     if (startFailure != null) {
                         listener.onFailure(startFailure);
@@ -478,9 +486,13 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicBoolean streamStarted,
         List<ColumnInfoImpl> columns,
         boolean[] nullColumns,
-        ZoneId zoneId
+        ZoneId zoneId,
+        @Nullable RefCountingRunnable leaseRefs
     ) {
-        request.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
+        // the stream's hold on the scope's lease, the REST listener's to release; taken before the action may complete
+        Releasable streamHold = leaseRefs == null ? null : leaseRefs.acquire();
+        request.resultStreamListener()
+            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, streamHold));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;

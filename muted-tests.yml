@@ -575,3 +575,8 @@ tests:
   tasks:
   - :server:test
   issue: https://github.com/elastic/elasticsearch/issues/165048
+- class: org.elasticsearch.xpack.esql.action.CrossClusterLookupJoinFailuresIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testLookupDisconnect
+  issue: https://github.com/elastic/elasticsearch/issues/165050

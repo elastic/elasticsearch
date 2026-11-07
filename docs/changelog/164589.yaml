@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 164588
+pr: 164589
+summary: "[Dedup] Reject union-type columns"
+type: enhancement

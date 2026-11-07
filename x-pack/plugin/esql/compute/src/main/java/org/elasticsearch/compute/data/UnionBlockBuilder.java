@@ -32,6 +32,11 @@ public final class UnionBlockBuilder extends AbstractDelegatingCompoundBlock.Abs
         if (legElementTypes.isEmpty()) {
             throw new IllegalArgumentException("a union block needs at least one leg");
         }
+        for (ElementType legElementType : legElementTypes) {
+            if (canHoldLeg(legElementType) == false) {
+                throw new IllegalArgumentException("a union leg cannot hold " + legElementType);
+            }
+        }
         this.legElementTypes = List.copyOf(legElementTypes);
         IntBlock.Builder tags = null;
         List<Block.Builder> legs = new ArrayList<>(this.legElementTypes.size());
@@ -98,10 +103,25 @@ public final class UnionBlockBuilder extends AbstractDelegatingCompoundBlock.Abs
             case FLOAT -> ((FloatBlock.Builder) builder).appendFloat(((FloatBlock) source).getFloat(valueIndex));
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((DoubleBlock) source).getDouble(valueIndex));
             case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(((BytesRefBlock) source).getBytesRef(valueIndex, scratch));
-            case NULL -> builder.appendNull();
-            case COMPOSITE, DOC, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE, UNION ->
+            case NULL, COMPOSITE, DOC, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE, UNION ->
                 throw new UnsupportedOperationException("a union leg cannot hold " + elementType);
         }
+    }
+
+    /**
+     * Whether a leg can hold values of this element type. The declared leg types are checked against this at construction, so
+     * {@link #appendValue} never has to refuse one, and the logical side asks this before it offers a field as a union.
+     * <p>
+     * {@link ElementType#NULL} is not among them even though a leg's own block may be a {@link ConstantNullBlock}: that is a leg
+     * which happens to hold no values, whereas a leg declared {@code NULL} could never hold one.
+     * </p>
+     */
+    public static boolean canHoldLeg(ElementType elementType) {
+        return switch (elementType) {
+            case BOOLEAN, INT, LONG, FLOAT, DOUBLE, BYTES_REF -> true;
+            case NULL, COMPOSITE, DOC, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE, UNION ->
+                false;
+        };
     }
 
     @Override

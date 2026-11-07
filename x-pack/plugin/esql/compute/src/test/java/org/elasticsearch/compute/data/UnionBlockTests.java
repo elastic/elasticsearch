@@ -269,6 +269,25 @@ public class UnionBlockTests extends ComputeTestCase {
         assertThat(e.getMessage(), equalTo("a union block needs at least one leg"));
     }
 
+    /**
+     * A leg's own block may be a {@link ConstantNullBlock} when the leg holds no values, but a leg DECLARED null could never hold
+     * one: the builder refuses it where the mistake is cheap to see rather than at the first append.
+     */
+    public void testBuilderRejectsALegElementTypeNoLegCanHold() {
+        BlockFactory blockFactory = blockFactory();
+        for (ElementType elementType : ElementType.values()) {
+            if (UnionBlockBuilder.canHoldLeg(elementType)) {
+                continue;
+            }
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> blockFactory.newUnionBlockBuilder(List.of(ElementType.LONG, elementType), 1)
+            );
+            assertThat(e.getMessage(), equalTo("a union leg cannot hold " + elementType));
+        }
+        assertThat("the refused legs allocated nothing", blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testAppendValueRejectsALegOutOfRange() {
         BlockFactory blockFactory = blockFactory();
         try (

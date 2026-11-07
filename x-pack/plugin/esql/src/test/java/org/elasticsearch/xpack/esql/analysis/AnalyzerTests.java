@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -140,6 +141,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.After;
@@ -5661,6 +5663,69 @@ public class AnalyzerTests extends AnalyzerTestCase {
             .sorted(Comparator.comparing(DataType::typeName))
             .toList();
         assertThat(legTypes, equalTo(List.of(INTEGER, KEYWORD)));
+    }
+
+    /** A conflicted field with the pragma off: erased to an unsupported attribute, which is the behaviour without the union type. */
+    public void testATypeConflictIsUnsupportedWithoutThePragma() {
+        UnsupportedAttribute id = as(analyzedIdAttribute(analyzer(), "keyword", "long"), UnsupportedAttribute.class);
+        assertThat(id.name(), equalTo("id"));
+    }
+
+    /**
+     * With the pragma on the same conflict becomes a union-typed field whose legs are its types in the canonical order, which is
+     * what the block and the response both derive their leg order from.
+     */
+    public void testATypeConflictBecomesAUnionUnderThePragma() {
+        FieldAttribute id = as(analyzedIdAttribute(unionTypedAnalyzer(), "keyword", "long"), FieldAttribute.class);
+        assertThat(id.name(), equalTo("id"));
+        assertThat(id.dataType(), equalTo(DataType.UNION));
+        UnionEsField union = as(id.field(), UnionEsField.class);
+        assertThat(union.legTypes(), equalTo(List.of(KEYWORD, LONG)));
+    }
+
+    /** Two types that widen to one are no conflict a union can carry, so the field is still erased. */
+    public void testAConflictOfOneWidenedTypeIsNotAUnion() {
+        as(analyzedIdAttribute(unionTypedAnalyzer(), "float", "half_float"), UnsupportedAttribute.class);
+    }
+
+    /** A type no leg can hold leaves the whole field erased rather than making a union the engine cannot read. */
+    public void testAConflictWithALegNoBlockCanHoldIsNotAUnion() {
+        as(analyzedIdAttribute(unionTypedAnalyzer(), "keyword", "geo_point"), UnsupportedAttribute.class);
+    }
+
+    /** The one output attribute of {@code FROM union_index* | KEEP id} where the two indices map {@code id} as the given types. */
+    private static Attribute analyzedIdAttribute(TestAnalyzer analyzer, String typeInFirst, String typeInSecond) {
+        LogicalPlan plan = analyzer.addIndex(conflictedIdIndex(typeInFirst, typeInSecond)).query("FROM union_index* | KEEP id");
+        List<Attribute> output = plan.output();
+        assertThat(output, hasSize(1));
+        return output.getFirst();
+    }
+
+    private TestAnalyzer unionTypedAnalyzer() {
+        return analyzer().configuration(
+            configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.UNION_TYPED_FIELDS.getKey(), true).build()))
+        );
+    }
+
+    /** An {@code id} field that the two indices of {@code union_index*} map as the two given types. */
+    private static IndexResolution conflictedIdIndex(String typeInFirst, String typeInSecond) {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(typeInFirst, Set.of("union_index_1"));
+        typesToIndices.put(typeInSecond, Set.of("union_index_2"));
+        return IndexResolution.valid(
+            new EsIndex(
+                "union_index*",
+                Map.of("id", new InvalidMappedField("id", typesToIndices)),
+                Map.of(
+                    "union_index_1",
+                    new IndexProperties(IndexMode.STANDARD, 0),
+                    "union_index_2",
+                    new IndexProperties(IndexMode.STANDARD, 0)
+                ),
+                Map.of(),
+                Map.of()
+            )
+        );
     }
 
     public void testProjectionForUnionTypeResolution() {

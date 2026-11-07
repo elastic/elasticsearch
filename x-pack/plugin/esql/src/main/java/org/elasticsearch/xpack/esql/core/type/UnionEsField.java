@@ -68,6 +68,47 @@ public class UnionEsField extends EsField {
         return "UnionEsField";
     }
 
+    /**
+     * Whether a conflicted field's types, in the canonical leg order, make a union this engine can carry.
+     * <p>
+     * Two legs at least, because a conflict whose types all widen to one type is not a conflict any more, and every leg a type the
+     * block can hold.
+     * </p>
+     */
+    public static boolean canUnion(List<DataType> legTypes) {
+        if (legTypes.size() < 2) {
+            return false;
+        }
+        for (DataType legType : legTypes) {
+            if (isLegType(legType) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Whether a value of this type can sit in a leg. A leg is one conventional block, so the type has to be a single-valued scalar
+     * whose element type is fixed by the type alone, and the physical counterpart of this list is
+     * {@code UnionBlockBuilder#canHoldLeg}, which {@code UnionEsFieldTests} pins this against.
+     */
+    public static boolean isLegType(DataType type) {
+        return switch (type) {
+            case BOOLEAN, INTEGER, LONG, UNSIGNED_LONG, DOUBLE, KEYWORD, TEXT, DATETIME, DATE_NANOS, IP, VERSION, FLATTENED -> true;
+            // Widened away by TypeConflictedField#unionLegTypes before a leg ever carries one.
+            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT -> false;
+            // The element type depends on the field-extract preference rather than on the type, so the leg's physical type would not
+            // be fixed by the leg order the response and the block both derive from these types.
+            case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> false;
+            // No leg can hold these: either a block the union builder has no append for, or a value that is not one scalar.
+            case COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM,
+                DATE_RANGE, DOUBLE_RANGE, DENSE_VECTOR, PARTIAL_AGG -> false;
+            // Not a type a mapping conflict offers as one of a field's value types.
+            case UNSUPPORTED, UNION, NULL, OBJECT, SOURCE, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, GEOHASH, GEOTILE,
+                GEOHEX -> false;
+        };
+    }
+
     /** The types a value of this field can have, in the canonical leg order. */
     public List<DataType> legTypes() {
         return legTypes;

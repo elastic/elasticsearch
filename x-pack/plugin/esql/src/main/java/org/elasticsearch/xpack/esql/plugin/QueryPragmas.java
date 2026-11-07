@@ -256,6 +256,13 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
+    /**
+     * When {@code true}, a field whose indices disagree on its type becomes a union-typed field rather than an unsupported one,
+     * so the query can read it. Off while the union type is being built: with it off nothing produces a union, and every path
+     * that handles one is unreachable.
+     */
+    public static final Setting<Boolean> UNION_TYPED_FIELDS = Setting.boolSetting("union_typed_fields", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -284,6 +291,7 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
+        UNION_TYPED_FIELDS,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
         SINGLE_NODE_OPTIMIZATIONS
@@ -396,6 +404,11 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean singleNodeOptimizations() {
         return SINGLE_NODE_OPTIMIZATIONS.get(settings);
+    }
+
+    /** See {@link #UNION_TYPED_FIELDS}. */
+    public boolean unionTypedFields() {
+        return UNION_TYPED_FIELDS.get(settings);
     }
 
     /**

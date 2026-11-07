@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnmappedEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -228,6 +229,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunc
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -4577,6 +4579,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Finally, if {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword},
      * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
      * This should not spill into the query output, so we drop such attributes at the end.
+     * <p>
+     * Under {@link QueryPragmas#UNION_TYPED_FIELDS} a conflict the engine can carry becomes a {@link UnionEsField} instead, which
+     * is readable rather than an error.
+     * </p>
      */
     private static class UnionTypesCleanup extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -4594,19 +4600,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
             // This removes attributes such as converted types if they are aliased, but retains them otherwise, while also guaranteeing that
             // unsupported / unresolved fields can be explicitly retained
+            boolean unionTypedFields = context.configuration().pragmas().unionTypedFields();
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
+                p -> p.transformExpressionsOnly(FieldAttribute.class, fa -> cleanTypeConflicts(fa, unionTypedFields))
             );
         }
 
-        private static Attribute cleanTypeConflicts(FieldAttribute fa) {
+        private static Attribute cleanTypeConflicts(FieldAttribute fa, boolean unionTypedFields) {
             EsField field = fa.field();
             FieldAttribute shipped;
             if (field instanceof PotentiallyUnmappedSingleTypeEsField punk) {
                 // Falls back to its single mapped type; that mapped field may still carry a nested conflict to neutralize.
                 shipped = fallbackToMappedType(fa, punk);
-            } else if (field instanceof TypeConflictedField) {
+            } else if (field instanceof TypeConflictedField tcf) {
+                List<DataType> legTypes = tcf.unionLegTypes();
+                if (unionTypedFields && UnionEsField.canUnion(legTypes)) {
+                    // Readable as a union of its types instead of erased. Its properties are dropped along with the conflict: a
+                    // union is a leaf, and a sub-field of one is not addressable.
+                    return fa.withField(new UnionEsField(tcf.getName(), legTypes));
+                }
                 // A top-level conflict is representable as an UnsupportedAttribute; its properties never ship.
                 return fa.flagTypeConflicts();
             } else {

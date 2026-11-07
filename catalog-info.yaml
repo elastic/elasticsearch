@@ -232,7 +232,7 @@ apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
   name: buildkite-pipeline-elasticsearch-lucene-snapshot-update-branch
-  description: Merge main into the lucene_snapshot branch, and run tests
+  description: Trigger lucene-merge-conflicts (merge main, compile, push or PR) and run tests
   links:
     - title: Pipeline
       url: https://buildkite.com/elastic/elasticsearch-lucene-snapshot-update-branch
@@ -244,7 +244,7 @@ spec:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline
     metadata:
-      description: ":elasticsearch: Merges main into lucene_snapshot branch and runs tests"
+      description: ":elasticsearch: Triggers lucene-merge-conflicts and runs snapshot tests"
       name: elasticsearch / lucene-snapshot / update-branch
     spec:
       repository: elastic/elasticsearch

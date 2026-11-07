@@ -620,7 +620,69 @@ So the per-leg delegation in §2.1 is the substantial unbuilt piece, and every b
 
 ---
 
-## 9. Open
+## 9. Compatibility
+
+The union type adds a wire type, a response shape and a set of refusals, and each of those is a
+promise. Three of the four hazards below are about **planning**, not serialization, because the tree's
+own position is that serialization is a backstop: `DataType.writeTo` throws for a type the remote node
+does not understand, and the comment above that throw calls it "a bug, we failed to account for an old
+node during planning".
+
+### 9.1 A mixed cluster
+
+A union may only be built when every node can read the type. The creation point therefore asks the
+type for its own supported version against the cluster minimum, rather than testing a hardcoded
+version, so the check cannot drift from the version `DataType.UNION` declares. Where the cluster is
+too old the conflict is erased exactly as it is with the pragma off, so **an older cluster loses the
+capability and changes no answer** — which is §2.3's I1 applied to versions instead of to legs.
+
+Without that check the user gets a 500 that the code itself labels a bug, from the serialization
+guard, part-way through shipping the plan. That is the condition this section exists to prevent, and
+the gate beside it for `CompactMultiTypeEsField` is the precedent it follows.
+
+### 9.2 The leg order is a wire contract, and deriving it twice is the fragile part
+
+A value's tag is an index into the leg list. Today both the block and the response derive that list by
+computing `TypeConflictedField.unionLegTypes()` — widen, de-duplicate, sort by type name, plus the
+unmapped keyword leg. Two sides computing the same function of the same input cannot disagree, which
+is why it was built that way, **and that argument holds only while the function is the same on both
+sides.** Change it between versions — a new widening, a renamed type name, a different rule for the
+unmapped leg — and an old node and a new node compute different orders, so a tag names a different leg
+on each. That is a silent wrong answer, not an error, and no version check catches it because both
+nodes understand the type perfectly well.
+
+**The fix is for the block to carry its leg type names**, which turns a derived agreement into data.
+This is the strongest reason for that increment, ahead of the rendering problem it also solves: it
+removes a whole class of cross-version fault rather than fixing one symptom of it.
+
+### 9.3 Upgrade must not change answers
+
+I1 governs adding a leg. There is a second axis: **which types are admitted as legs at all.** Widening
+that set turns a conflict that was `UNSUPPORTED` into a union, and `KEEP duration` then goes from a
+column of nulls to a column of values — an answer change caused by a version rather than by the data.
+
+So I1 needs its version twin: **capability may grow with a version, but a query that worked must keep
+its answer.** The nulls-to-values transition breaks that, which makes enabling the union a deliberate
+one-time decision rather than an incremental one. The pragma defaulting off is what holds it for now,
+and after it is on, the admitted-leg-type set may only grow in ways that leave working queries alone.
+
+### 9.4 The response shape
+
+`type: "union"` and the per-column leg list become a client contract on first release and cannot be
+withdrawn. The sharper point is that `original_types` is **reused**: it exists today to describe a
+column that failed, and it will now also describe one that works. A client treating its presence as
+"this column is unusable" will misread a union, so the discriminator has to be `type`, not the presence
+of `original_types`.
+
+### 9.5 Refusals are the forward-safe direction
+
+A refusal can become a definition later, because an error is not an answer: no working query changes
+when one is relaxed. That is why §6 is strict and why `SORT`, extrema and grouping are refused rather
+than approximated. The one relaxation that is not free is strict to lenient, which §6 shows would
+require per-leg pushdown first — the refusal is currently what makes pushing a comparison under the
+field's real name sound.
+
+## 10. Open
 
 - **`!=`.** Three-valued (`null` where `==` is null) or un-bracketed, so that a keyword never
   "differs from" a long? Three-valued is the consistent reading and is assumed above.

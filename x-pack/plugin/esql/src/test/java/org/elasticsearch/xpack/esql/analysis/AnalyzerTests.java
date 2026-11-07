@@ -5715,11 +5715,47 @@ public class AnalyzerTests extends AnalyzerTestCase {
             "FROM union_index* | FORK (WHERE id IS NOT NULL) (LIMIT 1) | KEEP id",
             containsString("Column [id] holds more than one type, which cannot be used across subqueries")
         );
+        // Grouping on the pair of leg and value is well defined and deferred on scope, so this has to refuse during
+        // analysis; without it the query reaches BlockHash, which fails with an element type the user never wrote.
+        analyzer.error(
+            "FROM union_index* | STATS COUNT(*) BY id",
+            allOf(
+                containsString("cannot group by [id]: it holds more than one type"),
+                containsString("Group by its type [TYPEOF(id)]"),
+                containsString("[TYPED(id, \"<type>\")]"),
+                containsString("[id::<type>]")
+            )
+        );
     }
 
+    /**
+     * The pragma alone no longer makes a union: the cluster must also be new enough to read the type, since
+     * {@code DataType.writeTo} treats shipping an unknown type to a remote node as a planning bug. This suite runs
+     * once per transport version, so the version is pinned up to the floor the type declares - otherwise the
+     * {@code historical} run gets no union at all, which is what
+     * {@link #testATypeConflictStaysUnsupportedOnAClusterTooOldForTheType} asserts on purpose.
+     */
     private TestAnalyzer unionTypedAnalyzer() {
-        return analyzer().configuration(
-            configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.UNION_TYPED_FIELDS.getKey(), true).build()))
+        return analyzer().minimumTransportVersion(minimumVersionAtLeast(DataType.DataTypesTransportVersions.INDEX_SOURCE))
+            .configuration(configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.UNION_TYPED_FIELDS.getKey(), true).build())));
+    }
+
+    /**
+     * An older node in the cluster cannot read the union type, so the conflict is erased exactly as it is with the
+     * pragma off. The capability is lost and no answer changes, which is the invariant applied to versions rather than
+     * to legs.
+     */
+    public void testATypeConflictStaysUnsupportedOnAClusterTooOldForTheType() {
+        // Any version that cannot read the type, rather than one pinned version: the point is the whole range below the
+        // floor, and VersionMode's own historical draw is random and may well sit above it.
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(
+            TransportVersionUtils.randomVersionNotSupporting(DataType.DataTypesTransportVersions.INDEX_SOURCE)
+        )
+            .configuration(configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.UNION_TYPED_FIELDS.getKey(), true).build())))
+            .addIndex(conflictedIdIndex("keyword", "long"));
+        analyzer.error(
+            "FROM union_index* | SORT id",
+            allOf(containsString("Cannot use field [id] due to ambiguities"), containsString("[keyword] in [union_index_1]"))
         );
     }
 

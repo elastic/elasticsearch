@@ -47,7 +47,36 @@ conflict, so the attribute survives analysis. **C2, the data-node loader, and C3
 list, are not started** — and without C2 nothing in the engine produces a union block, so with the
 pragma on, reading such a field fails on the data node.
 
-**E. Operations.** Not started. **F. Grouping.** Not started. **G. Datasets.** Not started.
+**E. Operations.** Not started. **F. Grouping.** Out of the POC, see §0a. **G. Datasets.** Not started.
+
+**Done since, against §3's increment list:**
+
+- **Increment 2, multi-value in the shared compound block.** `AbstractDelegatingCompoundBlock` now
+  reshapes a multi-valued block for `filter` and `slice`, measuring each position's run by the value
+  indexes rather than by `getValueCount` — a null holds no values but still occupies one sub-block
+  position, so measuring by value counts would drop it and misalign every tag after it.
+  `UnionBlockTests` covers a position spanning two legs, a kept null, a repeated position and both
+  slice shapes. `keepMask` is still refused: it would have to turn a masked-off multi-valued position
+  into a single null, which changes the sub-position count and so cannot be done by reshaping and
+  delegating, and its only caller is the filtered aggregation path a union does not reach. The whole
+  `compute.data` suite is green, so tdigest and exponential histogram are unaffected.
+- **Grouping refused at analysis.** `Aggregate.checkUnsupportedGroupingType` had no `UNION` entry, so
+  `STATS … BY` a union passed analysis and failed in `BlockHash` with an element type the user never
+  wrote. It now fails during analysis with a message naming `TYPEOF`, `TYPED` and the cast.
+- **The mixed-cluster gate.** `UnionTypesCleanup` built a union on the pragma alone, with no cluster
+  minimum-version check, so a mixed cluster would have hit the `DataType.writeTo` guard — whose own
+  comment calls that a planning bug rather than a user error. It now also requires the type's declared
+  supported version against `context.minimumVersion()`, asking the type rather than hardcoding a
+  version, and degrades to the pragma-off behaviour so an older cluster loses the capability and
+  changes no answer.
+
+**Deliberately not done: increment 1, deriving `isLegType`.** It delivers no user-visible capability,
+and it widens leg admissibility to spatial, grid, histogram and counter types, which changes behaviour
+and requires rewriting the tests that pin the current boundary. It is also the one increment whose
+honest form is not the one proposed: the derivation as sketched would have `core/type/UnionEsField`
+call `PlannerUtils` and the compute module, and that package imports neither today. The right shape is
+a property the type's own author declares on the `DataType` builder, beside `isWholeNumber` and
+`docValues`, with `canHoldLeg` as its physical counterpart and a test proving the two agree.
 
 ---
 
@@ -293,9 +322,14 @@ fixture (6), and a two-shard reader test asserting tags and values.
 written and read with the block. Renderers take them from the block, falling back to `originalTypes`
 only for an all-null page; the transport actions fill `originalTypes` from `UnionEsField.legTypes()`
 for a field attribute and from the first non-null block otherwise. This is what lets `RENAME` and
-`MV_EXPAND` render, since both produce a `ReferenceAttribute` with no field behind it. It also retires
-the two-sided "both ends derive the canonical order" contract for one side carrying it, which is
-strictly less to go wrong. `CsvTestUtils.Type` gains a union member. *Red on revert:* the response test
+`MV_EXPAND` render, since both produce a `ReferenceAttribute` with no field behind it.
+
+**And it is the fix for a cross-version fault, which is the stronger reason.** While both ends derive
+the leg order by computing the same function, they agree only as long as the function is the same on
+both — change the widening set, a type name or the unmapped-leg rule between versions and an old node
+and a new node compute different orders, so a tag names a different leg on each. No version check
+catches it, because both nodes understand the type. Carrying the names turns a derived agreement into
+data. See `UNION-TYPES-SPEC.md` §9.2. `CsvTestUtils.Type` gains a union member. *Red on revert:* the response test
 with a renamed union column.
 
 **6. The first csv-spec fixture.** `union_types.csv-spec` already loads `sample_data`,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -4600,7 +4601,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
             // This removes attributes such as converted types if they are aliased, but retains them otherwise, while also guaranteeing that
             // unsupported / unresolved fields can be explicitly retained
-            boolean unionTypedFields = context.configuration().pragmas().unionTypedFields();
+            // A union may only be built when every node in the cluster can read the type. DataType.writeTo throws for a type
+            // the remote node does not understand, and its own comment calls that a bug in planning rather than a user error,
+            // so the decision belongs here. Asking the type for its own supported version keeps this from drifting away from
+            // the version it declares. Where the cluster is too old the conflict is erased exactly as it is without the
+            // pragma, so an older cluster loses the capability and changes no answer.
+            boolean unionTypedFields = context.configuration().pragmas().unionTypedFields()
+                && DataType.UNION.supportedVersion().supportedOn(context.minimumVersion(), Build.current().isSnapshot());
             return cleanPlan.transformUp(
                 LogicalPlan.class,
                 p -> p.transformExpressionsOnly(FieldAttribute.class, fa -> cleanTypeConflicts(fa, unionTypedFields))

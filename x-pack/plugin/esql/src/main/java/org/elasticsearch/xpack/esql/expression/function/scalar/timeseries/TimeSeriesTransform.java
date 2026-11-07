@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /** Removes the requested labels; removing an absent label leaves the metadata unchanged. */
-public final class TimeSeriesTransform extends TimeSeriesFunction {
+public final class TimeSeriesTransform extends AbstractTimeSeriesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "TimeSeriesTransform",

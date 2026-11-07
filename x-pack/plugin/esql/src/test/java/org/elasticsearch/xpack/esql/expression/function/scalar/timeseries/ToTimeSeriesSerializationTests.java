@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.AbstractVarargsSerializationTests;
+import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationTests;
 
-import java.util.List;
-
-public class TimeSeriesHashSerializationTests extends AbstractVarargsSerializationTests<TimeSeriesHash> {
+public class ToTimeSeriesSerializationTests extends AbstractUnaryScalarSerializationTests<ToTimeSeries> {
     @Override
-    protected TimeSeriesHash create(Source source, Expression first, List<Expression> rest) {
-        return new TimeSeriesHash(source, first, rest);
+    protected ToTimeSeries create(Source source, Expression child) {
+        return new ToTimeSeries(source, child);
     }
 }

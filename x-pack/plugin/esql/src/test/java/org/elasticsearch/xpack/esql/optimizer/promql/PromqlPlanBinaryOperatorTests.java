@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -17,7 +18,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -29,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesTransform;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -51,12 +55,14 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.closeTo;
@@ -423,16 +429,6 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
     }
 
-    public void testBinaryScalarAndNestedAggregationFailsCleanly() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1m result=(scalar(network.bytes_in) * 100 / count(count by (pod) (network.total_bytes_in)))"
-            )
-        );
-        assertThat(e.getMessage(), containsString("binary expressions with nested aggregations are not supported at this time"));
-    }
-
     public void testNestedBinaryAggregationsWithScalar() {
         // Pattern: (agg op agg) op scalar
         var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) / max(network.total_bytes_in) * 100)");
@@ -501,7 +497,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertNoIndexBackedPromqlPlan(plan);
     }
 
-    public void testVectorMatchOnProducesInnerJoin() {
+    public void testVectorMatchOnProducesHashJoin() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // `on (cluster)` matches 1:1 on cluster + step; no group_left/right so the join enforces uniqueness.
         var plan = planPromql(
@@ -566,7 +562,48 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(keyedLabels(join.left()), containsInAnyOrder("cluster"));
     }
 
-    public void testVectorMatchComparisonBoolProducesInnerJoin() {
+    /**
+     * group_left over an opaque "many" side keeps each of its series without the metric name, like Prometheus. The
+     * match label stays in that side's metadata rather than becoming a column of its own.
+     */
+    /**
+     * A group_left label comes from the "one" side: the join carries it over, and the opaque "many" side's metadata leaves
+     * out the value it stores itself.
+     */
+    /** group_right mirrors group_left: the right operand is the opaque "many" side and keeps its series. */
+    /** A filtering comparison keeps the metric name of the opaque "many" side's series, like Prometheus. */
+    /** A {@code bool} comparison drops the metric name, like arithmetic. */
+    /** Arithmetic with a scalar drops the metric name: the source reads its series without it. */
+    public void testScalarArithmeticDropsMetricName() {
+        var plan = planPromql("PROMQL index=k8s step=5m result=(network.eth0.tx * 2)");
+        assertEquals(Set.of(LabelMatcher.NAME), viewExclusions(plan));
+    }
+
+    /** Keyword {@code _timeseries} cannot serve a second view of one source, so a shape needing one requires typed metadata. */
+    private void assertRequiresTypedMetadata(String query) {
+        var e = expectThrows(VerificationException.class, () -> planPromql(query));
+        assertThat(e.getMessage(), containsString("leaving labels out of _timeseries requires typed time-series metadata"));
+    }
+
+    /**
+     * Above {@code topk} the metric name cannot be pushed down to the source when the source's metadata is read: typed
+     * metadata reads it whole and leaves the name out with {@code ts_transform}. Keyword metadata keys the per-series
+     * {@code topk} by the view without the name instead, since nothing else reads the whole one.
+     */
+    public void testScalarArithmeticOverTopk() {
+        var plan = planPromql("PROMQL index=k8s step=5m result=(topk(1, network.eth0.tx) * 2)");
+        boolean unsets = plan.anyMatch(
+            node -> node.expressions().stream().anyMatch(e -> e.anyMatch(TimeSeriesTransform.class::isInstance))
+        );
+        assertEquals(typedTimeSeriesMetadata(), unsets);
+        assertEquals(typedTimeSeriesMetadata() ? Set.of() : Set.of(LabelMatcher.NAME), viewExclusions(plan));
+    }
+
+    /**
+     * A {@code group_left} label over an aggregated opaque "many" side: typed metadata leaves the label out of the result's
+     * metadata, keyword metadata keeps it there, as before.
+     */
+    public void testVectorMatchComparisonBoolProducesHashJoin() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // `> bool on (cluster)` compares two vectors and yields 1.0/0.0 for each matched pair (no rows dropped).
         var plan = planPromql(
@@ -577,7 +614,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(keyedLabels(joins.getFirst().left()), containsInAnyOrder("cluster"));
     }
 
-    public void testVectorMatchComparisonFilterProducesInnerJoinAndFilter() {
+    public void testVectorMatchComparisonFilterProducesHashJoinAndFilter() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // `> on (cluster)` (no bool) keeps the LHS series where the comparison holds; the comparison becomes a Filter.
         var plan = planPromql(
@@ -616,19 +653,11 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
     }
 
-    public void testVectorMatchRejectsOpaqueWithoutOperand() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=5m result=(sum without (pod) (network.eth0.tx) "
-                    + "/ on (cluster) sum by (cluster) (network.eth0.rx))"
-            )
-        );
-        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
-    }
-
-    public void testVectorMatchRejectsOpaqueSelectorOperand() {
+    /**
+     * Shape 3 (asymmetric): concrete {@code by} x opaque selector with {@code on (cluster)}. Match keys are declared by
+     * {@code on}; Resolve materializes {@code cluster} from the selector's rest.
+     */
+    public void testVectorMatchOnAllowsOpaqueSelectorOperand() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         VerificationException e = assertThrows(
             VerificationException.class,
@@ -637,19 +666,82 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
     }
 
-    public void testVectorMatchComposedWithOpaqueOperandRejected() {
+    /**
+     * Shape 2 (opaque x opaque) with {@code on (cluster)}: both sides expose only rest; keys are unresolved label refs.
+     */
+    /** Shape 7b: topk over without - typed metadata only. */
+    public void testTopkOverWithoutPlans() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        // The unmatched + pairs the aggregated match result with the raw selector in one shared aggregation.
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
-                    + "/ on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)"
-            )
-        );
-        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
+        assumeTrue("topk over without needs typed metadata", typedTimeSeriesMetadata());
+        var plan = planPromql("PROMQL index=k8s step=5m result=(topk(3, sum without (pod) (network.eth0.tx)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "_timeseries"));
     }
 
+    /**
+     * Shape 4: {@code ignoring} over opaque/opaque. Match keys pack rest minus the ignored labels and {@code __name__}; the
+     * result keeps that refined rest, which arithmetic leaves {@code __name__} out of too, so both read one view.
+     */
+    /**
+     * {@code ignoring(pod) group_left(region)} over raw operands: the LHS source serves two metadata views that neither
+     * contain each other, the match key leaving {@code pod} out and the result leaving {@code region} out. Typed metadata
+     * reads what both leave out at the source and derives each; the keyword column cannot, so it stays rejected there.
+     */
+    /** Whether some metadata view of {@code plan} leaves {@code label} out: read so at a source, or derived with ts_transform. */
+    private static boolean leavesOut(LogicalPlan plan, String label) {
+        boolean readWithout = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .anyMatch(a -> a instanceof TimeSeriesMetadataAttribute m && m.excludedFields().contains(label));
+        boolean unset = plan.anyMatch(
+            node -> node.expressions()
+                .stream()
+                .anyMatch(
+                    e -> e.anyMatch(
+                        x -> x instanceof TimeSeriesTransform u
+                            && u.children().stream().anyMatch(c -> c instanceof Literal l && label.equals(BytesRefs.toString(l.value())))
+                    )
+                )
+        );
+        return readWithout || unset;
+    }
+
+    /**
+     * Two opaque {@code group_right} results composed under default matching join on metadata (same path as cross-metric
+     * selectors), so they no longer need every label named up front.
+     */
+    /**
+     * Labelless aggregate {@code + ignoring(...)} opaque selector: both sides pack a metadata signature slot so join-key
+     * arity matches. The labelless side binds that slot to the empty Prometheus signature, which an opaque series equals
+     * only when it has no label left - plans as a join, does not unique-HashJoin on {@code step} alone ("found a
+     * duplicate row") or IndexOOB on asymmetric keys.
+     */
+
+    public void testIgnoringAsymmetricLabellessVsOpaquePlansJoin() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("requires typed _timeseries for opaque ignoring join keys", typedTimeSeriesMetadata());
+        for (String expr : List.of(
+            "sum(network.eth0.tx) + ignoring (pod) network.eth0.tx",
+            "network.eth0.tx + ignoring (pod) sum(network.eth0.tx)",
+            "sum(network.eth0.tx{cluster=\"prod\"}) + ignoring (pod) network.eth0.tx",
+            "(sum(network.eth0.tx) + ignoring (pod) network.eth0.tx) * on (cluster) group_left network.eth0.rx"
+        )) {
+            var plan = planPromql("PROMQL index=k8s step=5m result=(" + expr + ")");
+            assertThat("expected join for [" + expr + "]", plan.collect(HashJoin.class).isEmpty(), equalTo(false));
+            assertTrue("must resolve for [" + expr + "]: " + plan, plan.resolved());
+            for (HashJoin join : plan.collect(HashJoin.class)) {
+                assertThat(
+                    "join fields must share arity (step+packed metadata) for [" + expr + "]",
+                    join.leftFields().size(),
+                    equalTo(join.rightFields().size())
+                );
+            }
+        }
+    }
+
+    /**
+     * Nested many-to-one: {@code a * on(pod) group_left(node) b * on(pod) group_left(namespace) b} (left-assoc).
+     * Stand-ins: {@code region} for node, {@code cluster} for namespace; both joins must survive.
+     */
     public void testGroupLabelMissingFromBuildDoesNotLeakFromProbe() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         var plan = planPromql(
@@ -878,7 +970,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     /**
      * A binary operator between two closed aggregates names every label of its result, so a {@code without} over it is a
-     * regroup over known columns: the result exposes those labels minus the dropped ones, never a packed identity the plan
+     * emitAggregate over known columns: the result exposes those labels minus the dropped ones, never a packed identity the plan
      * does not produce.
      */
     public void testWithoutOverAClosedBinaryOperatorKeepsTheRemainingLabels() {
@@ -916,20 +1008,106 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
     }
 
-    /** Shapes over a {@code __name__}-dimension index that evaluate correctly and must keep planning. */
-    public void testSameMetricOrAggregatedOperandsAllowedInSeparateSeries() {
+    /**
+     * Cross-metric binary under sum, then divided by another sum - the promcheck {@code grouping_key_empty} shape
+     * ({@code sum(a-b)/sum(a)}, {@code sum(a+b)/sum(c)}).
+     */
+    public void testSumOfCrossMetricBinaryDividedBySum() {
+        // Baseline: two labelless aggregates over different metrics already join.
+        assertTrue(planPrometheusLayout("sum(node_memory_MemAvailable_bytes) / count(node_memory_MemAvailable_bytes)").resolved());
+        assertTrue(planPrometheusLayout("sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)").resolved());
         for (String promql : List.of(
-            "node_memory_MemTotal_bytes / node_memory_MemTotal_bytes",
-            "node_memory_MemTotal_bytes{job=\"node\"} - node_memory_MemTotal_bytes{instance=\"a:9100\"}",
-            "rate(node_cpu_seconds_total[5m]) / node_cpu_seconds_total",
-            "node_memory_MemTotal_bytes * 8",
-            "node_memory_MemTotal_bytes > 5",
-            "sum by (instance) (node_memory_MemAvailable_bytes) / sum by (instance) (node_memory_MemTotal_bytes)",
-            "sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)",
-            "node_memory_MemAvailable_bytes or node_memory_MemTotal_bytes"
+            "sum(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) / count(node_memory_MemAvailable_bytes)",
+            "sum(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)",
+            "sum(node_memory_MemAvailable_bytes + node_memory_MemTotal_bytes) / sum(node_memory_MemTotal_bytes)"
         )) {
-            assertNotNull(promql, planPrometheusLayout(promql));
+            var plan = planPrometheusLayout(promql);
+            assertTrue(promql, plan.resolved());
         }
+    }
+
+    /**
+     * {@code TS_COLLAPSE} must group the command's public {@code _timeseries} column. Using the inner plan's unresolved
+     * rest (refined to drop {@code __name__}) would PathTrace-rename it to {@code _timeseries$__name__} and leave the
+     * projected {@code _timeseries} channel uncovered at runtime.
+     */
+    public void testDifferentMetricsDefaultMatchTsCollapseUsesPublicTimeseries() {
+        var plan = planPrometheusLayout("node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes", true);
+        TimeSeriesCollapse collapse = plan.collect(TimeSeriesCollapse.class).getFirst();
+        assertThat(collapse.dimensions().stream().map(Attribute::name).toList(), equalTo(List.of(MetadataAttribute.TIMESERIES)));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
+    }
+
+    /**
+     * On a {@code __name__}-dimension index, {@code sum(a/b) by / count by} cannot fold (opaque cross-metric child joins
+     * into an Aggregate while the other side is a fused TSA). Joining avoids the mismatched-grouping verification error.
+     */
+    public void testMismatchedAggregateGroupingsJoin() {
+        var plan = planPrometheusLayout(
+            "sum by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)"
+                + " / count by (instance) (node_memory_MemAvailable_bytes)"
+        );
+        assertThat(plan.collect(HashJoin.class).isEmpty(), equalTo(false));
+    }
+
+    /**
+     * Different {@code offset}s refuse a shared fold frame and join independent pipelines (#158184).
+     * Parentheses are required so {@code offset} does not consume the following binary (limitations row 7).
+     */
+    public void testHeterogeneousOffsetBinaryJoins() {
+        assumeTrue("requires independent binary join", EsqlCapabilities.Cap.PROMQL_BINARY_INDEPENDENT_JOIN.isEnabled());
+        assumeTrue("requires offset modifier", EsqlCapabilities.Cap.PROMQL_OFFSET_MODIFIER.isEnabled());
+        for (String promql : List.of(
+            "node_memory_MemAvailable_bytes - (node_memory_MemAvailable_bytes offset 1h)",
+            "sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemAvailable_bytes offset 5m)"
+        )) {
+            var plan = planPrometheusLayout(promql);
+            assertTrue(promql, plan.resolved());
+            assertThat(promql, plan.collect(HashJoin.class).isEmpty(), equalTo(false));
+        }
+        // Same metric + same offset shares one evaluation timestamp and still folds.
+        var sameOffset = planPrometheusLayout("(node_memory_MemAvailable_bytes offset 5m) - (node_memory_MemAvailable_bytes offset 5m)");
+        assertThat(sameOffset.collect(HashJoin.class), hasSize(0));
+    }
+
+    /**
+     * {@code by (value)} collides with the sample value column - rejected like {@code by (step)} (promcheck plan_dump).
+     */
+    public void testByValueLabelRejectedAsCollision() {
+        EsField name = dimension("__name__");
+        EsField job = dimension("job");
+        EsField instance = dimension("instance");
+        EsField valueLabel = dimension("value");
+        EsField flag = metric("flag", DataType.DOUBLE);
+        Map<String, EsField> labels = Map.of(
+            name.getName(),
+            name,
+            job.getName(),
+            job,
+            instance.getName(),
+            instance,
+            valueLabel.getName(),
+            valueLabel
+        );
+        Map<String, EsField> metrics = Map.of(flag.getName(), flag);
+        Map<String, EsField> mapping = new HashMap<>(labels);
+        mapping.putAll(metrics);
+        mapping.put("@timestamp", DateEsField.dateEsField("@timestamp", Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("labels", new EsField("labels", DataType.OBJECT, labels, false, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("metrics", new EsField("metrics", DataType.OBJECT, metrics, false, EsField.TimeSeriesFieldType.NONE));
+        var index = new EsIndex(
+            "metrics-node.prometheus-default",
+            mapping,
+            Map.of("metrics-node.prometheus-default", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
+        var e = expectThrows(
+            VerificationException.class,
+            () -> tsAnalyzer().addIndex(index)
+                .query("PROMQL index=metrics-node.prometheus-default step=1m value=(sum(flag) by (job, instance, value))")
+        );
+        assertThat(e.getMessage(), containsString("label [value] collides with the built-in [value] output column"));
     }
 
     /**
@@ -937,6 +1115,11 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
      * objects, so each sub-field is also exposed under its bare name, and {@code labels.__name__} is a dimension.
      */
     private LogicalPlan planPrometheusLayout(String promql) {
+        return planPrometheusLayout(promql, false);
+    }
+
+    private LogicalPlan planPrometheusLayout(String promql, boolean tsCollapse) {
+        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
         EsField name = dimension("__name__");
         EsField instance = dimension("instance");
         EsField job = dimension("job");
@@ -957,7 +1140,13 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             Map.of(),
             Map.of()
         );
-        var analyzed = tsAnalyzer().addIndex(index).query("PROMQL index=metrics-node.prometheus-default step=1m result=(" + promql + ")");
+        String query = tsCollapse
+            ? "PROMQL index=metrics-node.prometheus-default start=\"2024-05-10T00:00:00Z\" end=\"2024-05-10T00:02:00Z\" "
+                + "step=1m result=("
+                + promql
+                + ") | TS_COLLAPSE"
+            : "PROMQL index=metrics-node.prometheus-default step=1m result=(" + promql + ")";
+        var analyzed = tsAnalyzer().addIndex(index).query(query);
         return logicalOptimizerWithLatestVersion.optimize(analyzed);
     }
 
@@ -975,6 +1164,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     /** Plans against a remote-write shaped index: `__name__` is a dimension, every metric its own field. */
     private LogicalPlan planMetricNameIndex(String promql) {
+        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
         var index = new EsIndex(
             "remote_write",
             Map.of(

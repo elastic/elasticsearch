@@ -79,8 +79,10 @@ public final class NumberColumnTransform {
 
     /**
      * @param rejectDroppedValues whether to throw rather than let a source slot produce no output value. The
-     *     row path records such a slot in the offsets sidecar as a null ordinal, which {@link ColumnarOffsetsBuilder}
-     *     does not emit. Callers that record a sidecar pass {@code true} to fall the chunk back to the row path instead.
+     *     row path records such a slot in the offsets sidecar as a null ordinal only when it is an array element (ex. {@code ["", "5"]}),
+     *     which {@link ColumnarOffsetsBuilder} does not emit. In strict columnar modes a scalar ({@code "f": ""}) records nothing, so
+     *     its fallback is no longer required, but still correct. Callers that record a sidecar pass {@code true} to fall the chunk back
+     *     to the row path instead.
      */
     public static EscfColumnData toSortableLongColumn(
         EscfColumn source,
@@ -173,9 +175,11 @@ public final class NumberColumnTransform {
                     if (nullReplacement != null) {
                         builder.setLong(doc, nullReplacement);
                     } else if (rejectDroppedValues) {
+                        // ponytail: a scalar "" records no offsets slot, yet falls back here too; pass rejectDroppedValues=false for the
+                        // scalar STRING case if scalar empty strings on number fields turn out to be common.
                         throw new UnsupportedOperationException(
-                            "toSortableLongColumn: an empty string with no null_value records a null offsets slot, which the columnar "
-                                + "offsets sidecar does not emit"
+                            "toSortableLongColumn: an empty string with no null_value records a null offsets slot as an array element, "
+                                + "which the columnar offsets sidecar does not emit"
                         );
                     }
                     continue;

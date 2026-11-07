@@ -1,0 +1,5 @@
+area: Logs
+issues: []
+pr: 165028
+summary: Drop bare nulls from offsets in strict columnar
+type: bug

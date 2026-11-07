@@ -586,3 +586,8 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
   issue: https://github.com/elastic/elasticsearch/issues/164894
+- class: org.elasticsearch.telemetry.apm.internal.APMAgentSettingsTests
+  tasks:
+  - :modules:apm:test
+  method: testUpdateMaxSpansPropagatesToTracer
+  issue: https://github.com/elastic/elasticsearch/issues/164198

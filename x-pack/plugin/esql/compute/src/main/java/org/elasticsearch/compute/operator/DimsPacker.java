@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
@@ -78,6 +79,26 @@ public final class DimsPacker {
                 builder.appendBytesRef(work.bytesRefView());
             }
             return builder.build();
+        }
+    }
+
+    static BytesRefBlock unpackOrdinalBytesValues(DriverContext driverContext, OrdinalBytesRefVector ordinalBytes) {
+        try (BytesRefBlock unpackedBlock = unpackBytesValues(driverContext, ordinalBytes.getDictionaryVector())) {
+            BytesRefVector unpackedVector = unpackedBlock.asVector();
+            IntVector ords = ordinalBytes.getOrdinalsVector();
+            if (unpackedVector != null) {
+                ords.incRef();
+                unpackedVector.incRef();
+                return new OrdinalBytesRefVector(ords, unpackedVector).asBlock();
+            }
+            int positionCount = ords.getPositionCount();
+            var scratch = new BytesRef();
+            try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    builder.copyFrom(unpackedBlock, ords.getInt(p), scratch);
+                }
+                return builder.build();
+            }
         }
     }
 
@@ -272,7 +293,42 @@ public final class DimsPacker {
         }
     }
 
+    static Block[] unpackOrdinalBytes(DriverContext driverContext, OrdinalBytesRefVector packed, ElementType[] outputTypes) {
+        Block[] blocks = unpackMultiColumns(driverContext, packed.getDictionaryVector(), outputTypes);
+        IntVector ordinals = packed.getOrdinalsVector();
+        boolean success = false;
+        int[] positions = null;
+        try {
+            for (int b = 0; b < blocks.length; b++) {
+                Block block = blocks[b];
+                BytesRefVector byteVector = block instanceof BytesRefBlock bytesBlock ? bytesBlock.asVector() : null;
+                if (byteVector != null) {
+                    ordinals.incRef();
+                    blocks[b] = new OrdinalBytesRefVector(ordinals, byteVector).asBlock();
+                } else {
+                    if (positions == null) {
+                        positions = new int[ordinals.getPositionCount()];
+                        ordinals.copyTo(0, positions, 0, positions.length);
+                    }
+                    Block expanded = block.filter(true, positions);
+                    block.close();
+                    blocks[b] = expanded;
+                }
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(blocks);
+            }
+        }
+        return blocks;
+    }
+
     public static Block[] unpackMultiColumns(DriverContext driverContext, BytesRefVector packed, ElementType[] outputTypes) {
+        OrdinalBytesRefVector ordinals = packed.asOrdinals();
+        if (ordinals != null) {
+            return unpackOrdinalBytes(driverContext, ordinals, outputTypes);
+        }
         int positionCount = packed.getPositionCount();
         Block.Builder[] builders = new Block.Builder[outputTypes.length];
         try {
@@ -329,7 +385,10 @@ public final class DimsPacker {
     static Block unpackSingleColumn(DriverContext driverContext, BytesRefVector input, ElementType elementType) {
         return switch (elementType) {
             case NULL -> driverContext.blockFactory().newConstantNullBlock(input.getPositionCount());
-            case BYTES_REF -> unpackBytesValues(driverContext, input);
+            case BYTES_REF -> {
+                OrdinalBytesRefVector ordinals = input.asOrdinals();
+                yield ordinals != null ? unpackOrdinalBytesValues(driverContext, ordinals) : unpackBytesValues(driverContext, input);
+            }
             case LONG -> unpackLongValues(driverContext, input);
             case INT -> unpackIntValues(driverContext, input);
             case BOOLEAN -> unpackBooleanValues(driverContext, input);

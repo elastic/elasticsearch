@@ -28,6 +28,10 @@ public final class WorkloadIdentityRegistry {
     // for tests that construct multiple plugin instances.
     private static volatile WorkloadIdentityIssuerClient issuerClient;
 
+    // NOOP default rather than null: emitters fire unconditionally; clusters without an audit
+    // consumer discard the events.
+    private static volatile DataSourceAuditListener auditListener = DataSourceAuditListener.NOOP;
+
     private WorkloadIdentityRegistry() {}
 
     /**
@@ -56,6 +60,20 @@ public final class WorkloadIdentityRegistry {
         issuerClient = client;
     }
 
+    /** @return the node-wide {@link DataSourceAuditListener}; {@link DataSourceAuditListener#NOOP} until one registers. */
+    public static DataSourceAuditListener getAuditListener() {
+        return auditListener;
+    }
+
+    /**
+     * Publish the node-wide audit listener, invoked by the security plugin's
+     * {@code createComponents}. Events emitted before registration are discarded by the NOOP
+     * default; no user-driven traffic occurs that early.
+     */
+    public static void setAuditListener(DataSourceAuditListener listener) {
+        auditListener = listener == null ? DataSourceAuditListener.NOOP : listener;
+    }
+
     /**
      * Clear the slot so a subsequent {@link #setIssuerClient} call publishes a new client. The
      * workload-identity plugin's constructor calls this so that constructing a second plugin
@@ -64,5 +82,6 @@ public final class WorkloadIdentityRegistry {
      */
     public static void reset() {
         issuerClient = null;
+        auditListener = DataSourceAuditListener.NOOP;
     }
 }

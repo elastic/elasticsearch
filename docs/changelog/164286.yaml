@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 164286
+summary: Add update drift and datafeed watchdog invariant log events
+type: enhancement

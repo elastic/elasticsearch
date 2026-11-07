@@ -1447,7 +1447,8 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor,
             dataFrameAnalyticsAuditor,
             threadPool,
-            clusterService
+            clusterService,
+            indexNameExpressionResolver
         );
 
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(

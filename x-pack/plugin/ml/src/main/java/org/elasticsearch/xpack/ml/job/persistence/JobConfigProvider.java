@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.utils.UpdateDriftCheck;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -104,6 +105,7 @@ public class JobConfigProvider {
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final UpdateDriftCheck updateDriftCheck = UpdateDriftCheck.forJobs();
 
     public JobConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
@@ -256,7 +258,9 @@ public class JobConfigProvider {
                 Job updatedJob;
                 try {
                     // Applying the update may result in a validation error
-                    updatedJob = update.mergeWithJob(jobBuilder.build(), maxModelMemoryLimit);
+                    Job originalJob = jobBuilder.build();
+                    updatedJob = update.mergeWithJob(originalJob, maxModelMemoryLimit);
+                    updateDriftCheck.check(logger, jobId, originalJob, updatedJob, update);
                 } catch (Exception e) {
                     delegate.onFailure(e);
                     return;
@@ -318,6 +322,7 @@ public class JobConfigProvider {
                 try {
                     // Applying the update may result in a validation error
                     updatedJob = update.mergeWithJob(originalJob, maxModelMemoryLimit);
+                    updateDriftCheck.check(logger, jobId, originalJob, updatedJob, update);
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return;

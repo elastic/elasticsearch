@@ -38,9 +38,15 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         if (parent != null) {
+            /*
+             * Name the parent from its factory when there is one. The parent aggregator
+             * may still be under construction here (an AdaptingAggregator builds its
+             * sub-aggregators while its delegate is still null), so its name() is not safe to call.
+             */
+            String parentName = this.parent != null ? this.parent.name() : parent.name();
             throw new IllegalArgumentException(
                 "Aggregation ["
-                    + parent.name()
+                    + parentName
                     + "] cannot have a global "
                     + "sub-aggregation ["
                     + name

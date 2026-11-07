@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.test;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
@@ -169,7 +170,11 @@ public class TestDriverRunner {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         try {
             driverRunner.runToCompletion(drivers, future);
-            future.actionGet(timeout);
+            try {
+                future.actionGet(timeout);
+            } catch (ElasticsearchTimeoutException e) {
+                throw new AssertionError(timeoutReport(drivers, timeout), e);
+            }
         } finally {
             terminate(threadPool);
         }
@@ -187,6 +192,34 @@ public class TestDriverRunner {
                 }
             }
         }
+    }
+
+    /**
+     * What the drivers that did not complete in time were doing, for the failure's message: each driver still running,
+     * with its operators' statuses and its sleeps and their reasons, and the stacks of the pools' threads, so that a
+     * hang seen once leaves evidence behind.
+     */
+    private static String timeoutReport(List<Driver> drivers, TimeValue timeout) {
+        StringBuilder report = new StringBuilder("drivers did not complete within [").append(timeout).append("]");
+        for (Driver driver : drivers) {
+            try {
+                DriverStatus status = driver.status();
+                if (status.status() != DriverStatus.Status.DONE) {
+                    report.append("\n  driver: ").append(Strings.toString(status, false, false));
+                }
+            } catch (RuntimeException e) {
+                report.append("\n  driver: status unavailable: ").append(e);
+            }
+        }
+        Thread.getAllStackTraces().forEach((thread, stack) -> {
+            if (thread.getName().contains("[esql")) {
+                report.append("\n  thread [").append(thread.getName()).append("] ").append(thread.getState());
+                for (StackTraceElement frame : stack) {
+                    report.append("\n    at ").append(frame);
+                }
+            }
+        });
+        return report.toString();
     }
 
     /**

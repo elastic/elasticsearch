@@ -184,6 +184,41 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int successfulShards,
         int skippedShards,
         long tookInMillis,
+        List<ShardSearchFailure> shardFailures,
+        Clusters clusters
+    ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+            clusters
+        );
+    }
+
+    @Deprecated // use List<ShardSearchFailure> instead
+    public SearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters
     ) {
@@ -208,6 +243,35 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         );
     }
 
+    public SearchResponse(
+        SearchResponseSections searchResponseSections,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        List<ShardSearchFailure> shardFailures,
+        Clusters clusters,
+        BytesReference pointInTimeId,
+        SearchSourceBuilder source,
+        String[] indices
+    ) {
+        this(
+            searchResponseSections,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+            clusters,
+            pointInTimeId,
+            source,
+            indices
+        );
+    }
+
+    @Deprecated // use List<ShardSearchFailure> instead
     public SearchResponse(
         SearchResponseSections searchResponseSections,
         String scrollId,
@@ -248,6 +312,47 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
     }
 
+    public SearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        List<ShardSearchFailure> shardFailures,
+        Clusters clusters,
+        BytesReference pointInTimeId,
+        @Nullable List<SearchHits> topHitsToRelease,
+        @Nullable List<SearchHit> completionOptionHitsToRelease
+    ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+            clusters,
+            pointInTimeId,
+            topHitsToRelease,
+            completionOptionHitsToRelease
+        );
+    }
+
+    @Deprecated // use List<ShardSearchFailure> instead
     public SearchResponse(
         SearchHits hits,
         InternalAggregations aggregations,
@@ -1421,7 +1526,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 0,
                 0,
                 tookInMillis,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 clusters,
                 null,
                 null,

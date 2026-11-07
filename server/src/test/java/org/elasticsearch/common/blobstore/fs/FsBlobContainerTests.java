@@ -55,6 +55,7 @@ import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -413,6 +414,24 @@ public class FsBlobContainerTests extends ESTestCase {
         for (String blob : container.listBlobs(randomPurpose()).keySet()) {
             assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
         }
+    }
+
+    public void testTempBlobsAreNotListed() throws IOException {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+        final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        container.writeBlob(randomNonDataPurpose(), blobName, new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))), false);
+        final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
+        Files.write(path.resolve(tempBlobName), randomByteArrayOfLength(randomIntBetween(1, 512)));
+
+        assertThat(container.listBlobs(randomPurpose()).keySet(), equalTo(Set.of(blobName)));
+        assertThat(container.listBlobsByPrefix(randomPurpose(), "pending"), anEmptyMap());
+        assertThat(container.listBlobsByPrefix(randomPurpose(), blobName.substring(0, 1)).keySet(), equalTo(Set.of(blobName)));
+        assertTrue("temporary blob is not listed but still exists", Files.exists(path.resolve(tempBlobName)));
     }
 
     public void testConcurrentAtomicWriteOverwriteProtection() throws Exception {

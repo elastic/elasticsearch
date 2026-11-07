@@ -56,9 +56,13 @@ import static org.hamcrest.Matchers.equalTo;
  * expected even without batch indexing: synthetic source rebuilds {@code _source} from doc values, and a field kept in ignored source
  * ({@code synthetic_source_keep: all}) has its keyword sub-field indexed from the parsed value, not from the client's spelling.
  *
- * <p>The tests deliberately do not set {@code indices.batch_indexing}; they run with the default. They are expected to pass when batch
- * indexing is off. When it is on, the ESCF row keeps only a canonical value and a coarse type tag for each number, so the original
- * spelling, and whether it was a float32, is lost before the stored source and keyword terms are built.
+ * <p>Every combination runs on both indexing paths: {@code batch=false} indexes into a plain index, which parses documents
+ * sequentially, and {@code batch=true} sets {@code index.batch_indexing} so the documents go through the ESCF batch path (skipped
+ * when the {@code batch_indexing} feature flag is off). On the batch path a dense DOUBLE column keeps a scalar floating-point
+ * number's spelling next to its value whenever the spelling is not the canonical {@code Double.toString} rendering, so the keyword
+ * terms match the sequential path. Two known limitations of the batch path are skipped rather than failed: the stored source is
+ * rebuilt from the value, so the spelling and the float32 width are lost there and an integer larger than a long comes back as a
+ * string.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class NumberTokenFidelityIT extends ESIntegTestCase {
@@ -148,10 +152,12 @@ public class NumberTokenFidelityIT extends ESIntegTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<Object[]> parameters = new ArrayList<>();
-        for (SourceMode sourceMode : SourceMode.values()) {
-            for (Check check : sourceMode.checks) {
-                for (String scenarioName : SCENARIOS.keySet()) {
-                    parameters.add(new Object[] { scenarioName, sourceMode, check });
+        for (boolean batch : new boolean[] { false, true }) {
+            for (SourceMode sourceMode : SourceMode.values()) {
+                for (Check check : sourceMode.checks) {
+                    for (String scenarioName : SCENARIOS.keySet()) {
+                        parameters.add(new Object[] { scenarioName, sourceMode, check, batch });
+                    }
                 }
             }
         }
@@ -162,21 +168,34 @@ public class NumberTokenFidelityIT extends ESIntegTestCase {
     private final Scenario scenario;
     private final SourceMode sourceMode;
     private final Check check;
+    private final boolean batch;
 
     public NumberTokenFidelityIT(
         @Name("scenario") String scenarioName,
         @Name("sourceMode") SourceMode sourceMode,
-        @Name("check") Check check
+        @Name("check") Check check,
+        @Name("batch") boolean batch
     ) {
         this.scenarioName = scenarioName;
         this.scenario = SCENARIOS.get(scenarioName);
         this.sourceMode = sourceMode;
         this.check = check;
+        this.batch = batch;
     }
 
     @Before
     public void indexTheScenario() {
         Settings.Builder settings = indexSettings(1, 0);
+        if (batch) {
+            assumeTrue("batch indexing needs its feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+            // Known limitations of the batch path, skipped so that the rest of the matrix has to pass on it.
+            assumeFalse("batch indexing rebuilds stored _source from the value, so the spelling is not kept there", check == Check.SOURCE);
+            assumeFalse(
+                "array elements do not carry their spelling yet",
+                check == Check.KEYWORD_TERMS && scenario.expectedTerms().size() > 1
+            );
+            settings.put("index.batch_indexing", true);
+        }
         if (sourceMode != SourceMode.STORED) {
             settings.put("index.mapping.source.mode", "synthetic");
         }

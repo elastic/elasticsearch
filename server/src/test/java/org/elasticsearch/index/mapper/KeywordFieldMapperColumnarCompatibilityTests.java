@@ -205,6 +205,30 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    /**
+     * A scalar JSON float keeps the client's spelling even when it is not canonical (#163555). Array elements still
+     * index the canonical rendering under batch indexing until part 2 carries their spellings.
+     */
+    public void testDoubleValuesKeepSpelling() throws IOException {
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertColumnarMatchesXContent(
+                mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+                columnarSettings(),
+                encoder,
+                batch(
+                    "double spellings, " + encoder,
+                    1L,
+                    doc("d1", 1L, "{\"f\":-1.90}"),
+                    doc("d2", 2L, "{\"f\":1e3}"),
+                    doc("d3", 3L, "{\"f\":2.5}"),
+                    doc("d4", 4L, "{}"),
+                    doc("d5", 5L, "{\"f\":123.41999816894531}"),
+                    doc("d6", 6L, "{\"f\":12.40}")
+                )
+            );
+        }
+    }
+
     public void testBooleanValues() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),

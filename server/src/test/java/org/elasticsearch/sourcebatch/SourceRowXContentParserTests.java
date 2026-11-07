@@ -431,6 +431,46 @@ public class SourceRowXContentParserTests extends ESTestCase {
         }
     }
 
+    /**
+     * A scalar double keeps the client's spelling for text consumers while numeric consumers see the value (#163555).
+     * A double in a union column, here next to a string in another document, still renders canonically.
+     */
+    public void testScalarDoubleKeepsSpelling() throws IOException {
+        List<BytesReference> sources = List.of(
+            new BytesArray("{\"d\": -1.90, \"u\": 12.40}"),
+            new BytesArray("{\"d\": 3.14, \"u\": \"x\"}")
+        );
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+            SourceRowXContentParser.SchemaNode tree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+            try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(0))) {
+                assertToken(parser, Token.START_OBJECT);
+                assertFieldName(parser, "d");
+                assertToken(parser, Token.VALUE_NUMBER);
+                assertEquals(XContentParser.NumberType.DOUBLE, parser.numberType());
+                assertEquals("-1.90", parser.text());
+                assertEquals("-1.90", parser.optimizedText().string());
+                assertEquals(-1.9, parser.doubleValue(), 0.0);
+                assertEquals(-1, parser.intValue());
+                assertFieldName(parser, "u");
+                assertToken(parser, Token.VALUE_NUMBER);
+                assertEquals("12.4", parser.text()); // a union row does not carry its spelling yet (#163555 part 2)
+                assertEquals(12.4, parser.doubleValue(), 0.0);
+                assertToken(parser, Token.END_OBJECT);
+                assertNull(parser.nextToken());
+            }
+            try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(1))) {
+                assertToken(parser, Token.START_OBJECT);
+                assertFieldName(parser, "d");
+                assertToken(parser, Token.VALUE_NUMBER);
+                assertEquals("3.14", parser.text());
+                assertFieldName(parser, "u");
+                assertToken(parser, Token.VALUE_STRING);
+                assertEquals("x", parser.text());
+                assertToken(parser, Token.END_OBJECT);
+            }
+        }
+    }
+
     private static void assertToken(SourceRowXContentParser parser, Token expected) throws IOException {
         assertEquals(expected, parser.nextToken());
     }

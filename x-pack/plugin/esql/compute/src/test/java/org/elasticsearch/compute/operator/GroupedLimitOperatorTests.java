@@ -219,6 +219,48 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * Pages whose documents come from several sources, each with references of its own over the request-wide shard
+     * ids, as a query over several indices hands an operator: every shard named is pinned through the references of
+     * the source that named it, the pages read back resolve each shard through the merged references, and all go back.
+     */
+    public void testSpilledDocumentsFromSeveralSourcesKeepTheirShardsPinned() {
+        MemorySpillStore store = store(MemorySpillStore.Completion.INLINE);
+        DriverContext ctx = spillingDriverContext(ByteSizeValue.ofBytes(1), 0, store, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        BlockFactory blockFactory = ctx.blockFactory();
+        CountingShards first = new CountingShards(3);
+        CountingShards second = new CountingShards(3);
+        List<Page> output = new ArrayList<>();
+        try (
+            GroupedLimitOperator op = new GroupedLimitOperator.Factory(1, List.of(1), List.of(ElementType.DOC, ElementType.LONG)).get(ctx)
+        ) {
+            // shards 0 and 1 through the first source's references, shard 2 through the second's
+            op.addInput(docPage(blockFactory, first, new int[] { 0, 1 }, new long[] { 1, 2 }));
+            assertThat(op.getOutput(), nullValue());
+            op.addInput(docPage(blockFactory, second, new int[] { 2 }, new long[] { 3 }));
+            assertThat(op.getOutput(), nullValue());
+            assertThat("pinned through the source that named it", first.references(0), equalTo(2));
+            assertThat(first.references(1), equalTo(2));
+            assertThat(first.references(2), equalTo(1));
+            assertThat(second.references(2), equalTo(2));
+            op.finish();
+            for (int i = 0; i < 1000 && op.isFinished() == false; i++) {
+                Page page = op.getOutput();
+                if (page != null) {
+                    output.add(page);
+                }
+            }
+            assertTrue(op.isFinished());
+            assertThat(output.stream().mapToInt(Page::getPositionCount).sum(), equalTo(3));
+            assertThat("the rows read back hold the shard of their own source", second.references(2), equalTo(3));
+            assertThat(first.references(2), equalTo(1));
+        }
+        output.forEach(Page::releaseBlocks);
+        assertThat(first.references(0), equalTo(1));
+        assertThat(first.references(1), equalTo(1));
+        assertThat(second.references(2), equalTo(1));
+    }
+
+    /**
      * Keys seen before the freeze keep streaming, in order, with their counts; keys first seen after it come back from
      * the replay at the end, with the first {@code limit} rows of each in arrival order; nothing is emitted twice.
      */

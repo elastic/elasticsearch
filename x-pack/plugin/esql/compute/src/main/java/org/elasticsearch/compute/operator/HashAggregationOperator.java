@@ -599,6 +599,21 @@ public class HashAggregationOperator implements Operator {
             && (spill == null || spill.appendsBlocked().listener().isDone());
     }
 
+    /** Which of the conditions of {@link #needsInput} do not hold, for the message of a page handed over regardless. */
+    private String inputState() {
+        return "output pending ["
+            + (output != null)
+            + "], input pending ["
+            + (pendingInputPage != null)
+            + "], finishing ["
+            + finished
+            + "], page held ["
+            + (held != null)
+            + "], appends blocked ["
+            + (spill != null && spill.appendsBlocked().listener().isDone() == false)
+            + "]";
+    }
+
     @Override
     public void addInput(Page page) {
         // will be promoted to the parallel operator
@@ -613,7 +628,12 @@ public class HashAggregationOperator implements Operator {
             page.close();
             return;
         }
-        checkState(needsInput(), "Operator is already finishing");
+        // the appends bound is advisory: the driver consults it through needsInput before it hands a page over, and a
+        // page handed over is routed or held whatever the count stands at, so the operator never refuses one over it
+        checkState(
+            output == null && pendingInputPage == null && finished == false && held == null,
+            "Operator cannot take input: " + inputState()
+        );
         requireNonNull(page, "page is null");
         if (spill != null) {
             addInputSpilling(page);

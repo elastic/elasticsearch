@@ -16,6 +16,8 @@ import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBNumericBlockCodec;
 import org.elasticsearch.index.codec.tsdb.TSDBOrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.es95.ES95DefaultSortedCodec;
+import org.elasticsearch.index.codec.tsdb.es95.ES95DefaultSortedSetCodec;
 
 import java.io.IOException;
 
@@ -50,7 +52,8 @@ final class ES819TSDBDocValuesConsumer extends AbstractTSDBDocValuesConsumer {
             docOffsetsEncoder,
             sortedFieldObserverFactory,
             new TSDBNumericBlockCodec(),
-            new TSDBOrdinalBlockCodec()
+            new ES95DefaultSortedCodec(new TSDBOrdinalBlockCodec()),
+            new ES95DefaultSortedSetCodec(new TSDBOrdinalBlockCodec())
         );
     }
 }

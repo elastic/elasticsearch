@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.elasticsearch.index.codec.tsdb.es95.ES95DefaultSortedCodec;
+import org.elasticsearch.index.codec.tsdb.es95.ES95DefaultSortedSetCodec;
+
 /**
  * Factory for block-level encoders and decoders of the ordinal stream in SORTED and SORTED_SET
  * doc values.
@@ -18,10 +21,9 @@ package org.elasticsearch.index.codec.tsdb;
  * DISI, metadata) is handled by {@link TSDBDocValuesBlockWriter} and
  * {@link TSDBDocValuesBlockReader}; this interface only provides the per-block encoding strategy.
  *
- * <p>An instance is held by {@link AbstractTSDBDocValuesProducer} and
- * {@link AbstractTSDBDocValuesConsumer} for the lifetime of a segment and consulted once per
- * field. Implementations should return fresh instances to avoid shared mutable state across
- * merge threads.
+ * <p>An instance is held by {@link ES95DefaultSortedCodec} and {@link ES95DefaultSortedSetCodec}
+ * for the lifetime of a segment and consulted once per field. Implementations should return fresh
+ * instances to avoid shared mutable state across merge threads.
  */
 public interface OrdinalBlockCodec {
 

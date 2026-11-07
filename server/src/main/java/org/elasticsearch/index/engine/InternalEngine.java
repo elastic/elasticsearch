@@ -1470,6 +1470,15 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * The batch is processed in sub-batches, runs of operations whose uid locks could be acquired together. Document
+     * failures become failed results (and no-ops once a sequence number was assigned). An exception thrown while a
+     * sub-batch is still being planned, before any sequence number was reserved for it, stops the batch and becomes the
+     * result of this and every later operation while the engine stays open; an exception thrown once the sequence
+     * numbers were reserved fails the engine. See {@link #processSubBatch}.
+     */
     @Override
     public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
         final IndexOperationBatch indexBatch = engineBatch.batch();
@@ -1502,8 +1511,14 @@ public class InternalEngine extends Engine {
                     assert assertNoDuplicateUidsInSubBatch(indexBatch, idx, subBatchCount);
                     processSubBatch(idx, subBatchCount, engineBatch, allResults);
                 } catch (RuntimeException | IOException e) {
-                    failOnTragicEvent(idx, subBatchCount, indexBatch, e);
-                    throw e;
+                    if (engineSurvived(e) == false) {
+                        throw e;
+                    }
+                    // processSubBatch fails the engine for anything that escapes after its sequence numbers were reserved,
+                    // so the engine is only open here if the sub-batch failed while being planned and nothing was consumed
+                    // for it: stop the batch, the exception is the result of this and every later operation
+                    abortBatch(idx, indexBatch, allResults, e);
+                    break;
                 } finally {
                     for (Releasable lock : locks) {
                         lock.close();
@@ -1530,21 +1545,57 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private void failOnTragicEvent(int startIdx, int count, IndexOperationBatch batch, Exception e) {
-        for (int i = 0; i < count; i++) {
-            final Index op = batch.toIndexOp(startIdx + i);
-            try {
-                if (e instanceof AlreadyClosedException == false && treatDocumentFailureAsTragicError(op)) {
-                    failEngine("index id[" + op.id() + "] origin[" + op.origin() + "] seq#[" + op.seqNo() + "]", e);
-                } else {
-                    maybeFailEngine("index id[" + op.id() + "] origin[" + op.origin() + "] seq#[" + op.seqNo() + "]", e);
-                }
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
+    private void failOnTragicEvent(IndexOperationBatch subBatch, Exception e) {
+        try {
+            if (e instanceof AlreadyClosedException == false && treatDocumentFailureAsTragicError(subBatch.origin())) {
+                failEngine(describe(subBatch), e);
+            } else {
+                maybeFailEngine(describe(subBatch), e);
             }
-            if (isClosed.get()) {
-                return;
-            }
+        } catch (Exception inner) {
+            e.addSuppressed(inner);
+        }
+    }
+
+    private boolean engineSurvived(Exception e) {
+        return e instanceof AlreadyClosedException == false
+            && failedEngine.get() == null
+            && isClosing() == false
+            && isClosed.get() == false;
+    }
+
+    private static String describe(IndexOperationBatch subBatch) {
+        final int last = subBatch.docCount() - 1;
+        return "index batch origin["
+            + subBatch.origin()
+            + "] ids["
+            + subBatch.id(0)
+            + ".."
+            + subBatch.id(last)
+            + "] seq#["
+            + subBatch.seqNo(0)
+            + ".."
+            + subBatch.seqNo(last)
+            + "]";
+    }
+
+    private void abortBatch(int firstIdx, IndexOperationBatch batch, IndexResult[] allResults, Exception e) {
+        logger.warn(
+            () -> format(
+                "stopping index batch origin[%s] at operation [%d] of [%d]; the remaining operations are failed",
+                batch.origin(),
+                firstIdx,
+                batch.docCount()
+            ),
+            e
+        );
+        final long took = relativeTimeInNanosSupplier.getAsLong() - batch.startTime();
+        for (int i = firstIdx; i < batch.docCount(); i++) {
+            assert allResults[i] == null : "operation [" + i + "] already has a result";
+            final IndexResult result = IndexResult.batchAborted(e, batch.primaryTerm(), batch.id(i));
+            result.setTook(took);
+            result.freeze();
+            allResults[i] = result;
         }
     }
 
@@ -1623,7 +1674,7 @@ public class InternalEngine extends Engine {
         } catch (Exception ex) {
             if (ex instanceof AlreadyClosedException == false
                 && indexWriter.getTragicException() == null
-                && treatDocumentFailureAsTragicError(subBatch.toIndexOp(0)) == false) {
+                && treatDocumentFailureAsTragicError(subBatch.origin()) == false) {
                 for (int i = 0; i < subBatchSize; i++) {
                     if (allResults[subBatchIdx + i] == null) {
                         allResults[subBatchIdx + i] = new IndexResult(
@@ -1689,52 +1740,59 @@ public class InternalEngine extends Engine {
             relativeTimeInNanosSupplier.getAsLong()
         );
         final boolean fromTranslog = subBatch.origin().isFromTranslog();
+        final Operation.Origin origin = subBatch.origin();
+        final long primaryTerm = subBatch.primaryTerm();
         final IndexingStrategy[] plans = new IndexingStrategy[subBatchSize];
         // Tracks assigned sequence numbers; set in the seqNo-assignment loop below.
         final long[] assignedSeqNos = new long[subBatchSize];
 
         // Indexing Plan
         int reservedDocs = 0;
-        // startTime is batch-uniform; advance the write-nanos marker once.
-        if (subBatch.startTime() - lastWriteNanos > 0) {
-            lastWriteNanos = subBatch.startTime();
-        }
-
-        final Operation.Origin origin = subBatch.origin();
-        final long primaryTerm = subBatch.primaryTerm();
-
-        // Validate incoming seqNos (asserts only; origin/primaryTerm are batch-uniform by construction)
-        for (int i = 0; i < subBatchSize; i++) {
-            assert assertIncomingSequenceNumber(origin, subBatch.seqNo(i));
-        }
-
         int opsWithPreflightErrors = 0;
-        if (origin == Operation.Origin.PRIMARY) {
-            // Primary: resolve all version IDs in a single Lucene reader acquisition, then plan.
-            final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatch, subBatchSize);
+        long firstPrimarySeqNo = -1;
+        try {
+            // startTime is batch-uniform; advance the write-nanos marker once.
+            if (subBatch.startTime() - lastWriteNanos > 0) {
+                lastWriteNanos = subBatch.startTime();
+            }
+
+            // Validate incoming seqNos (asserts only; origin/primaryTerm are batch-uniform by construction)
             for (int i = 0; i < subBatchSize; i++) {
-                plans[i] = batchPlans[i];
-                reservedDocs += plans[i].reservedDocs;
-                if (plans[i].earlyResultOnPreflightError.isPresent()) {
-                    opsWithPreflightErrors++;
+                assert assertIncomingSequenceNumber(origin, subBatch.seqNo(i));
+            }
+
+            if (origin == Operation.Origin.PRIMARY) {
+                // Primary: resolve all version IDs in a single Lucene reader acquisition, then plan.
+                final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatch, subBatchSize);
+                for (int i = 0; i < subBatchSize; i++) {
+                    plans[i] = batchPlans[i];
+                    reservedDocs += plans[i].reservedDocs;
+                    if (plans[i].earlyResultOnPreflightError.isPresent()) {
+                        opsWithPreflightErrors++;
+                    }
+                }
+            } else {
+                for (int i = 0; i < subBatchSize; i++) {
+                    plans[i] = planIndexingAsNonPrimary(subBatch.toIndexOp(i));
+                    reservedDocs += plans[i].reservedDocs;
                 }
             }
-        } else {
-            for (int i = 0; i < subBatchSize; i++) {
-                plans[i] = planIndexingAsNonPrimary(subBatch.toIndexOp(i));
-                reservedDocs += plans[i].reservedDocs;
-            }
-        }
 
-        try {
             // Reserve all sequence numbers for primary ops atomically up front (before any Lucene
-            // writes). Skipped when every op is a preflight error.
-            long firstPrimarySeqNo = -1;
-            long seqNoToBeMarkedSeen = SequenceNumbers.NO_OPS_PERFORMED;
+            // writes). Skipped when every op is a preflight error. This is the point of no return for the sub-batch.
             final int seqNoCount = subBatchSize - opsWithPreflightErrors;
             if (origin == Operation.Origin.PRIMARY && seqNoCount > 0) {
                 firstPrimarySeqNo = doGenerateSeqNos(seqNoCount);
             }
+        } catch (RuntimeException | IOException e) {
+            // the same two classes as the catch in index(Index): they are what the engine classifies, an Error propagates untouched
+            failOnTragicEvent(subBatch, e);
+            throw e;
+        }
+
+        // Apply; the sequence numbers are reserved from here on
+        try {
+            long seqNoToBeMarkedSeen = SequenceNumbers.NO_OPS_PERFORMED;
             int batchSeqNoIdx = 0;
             for (int i = 0; i < subBatchSize; i++) {
                 final IndexingStrategy plan = plans[i];
@@ -1877,6 +1935,12 @@ public class InternalEngine extends Engine {
                 result.setTook((relativeTimeInNanosSupplier.getAsLong() - subBatch.startTime()) / subBatchSize);
                 result.freeze();
             }
+        } catch (RuntimeException | IOException e) {
+            failOnTragicEvent(subBatch, e);
+            if (engineSurvived(e)) {
+                failEngine(describe(subBatch) + " did not complete after its sequence numbers were reserved", e);
+            }
+            throw e;
         } finally {
             releaseInFlightDocs(reservedDocs);
         }
@@ -2212,10 +2276,12 @@ public class InternalEngine extends Engine {
      * However, we prefer to fail a request individually (instead of a shard) if we hit a document failure on the primary.
      */
     private static boolean treatDocumentFailureAsTragicError(Index index) {
+        return treatDocumentFailureAsTragicError(index.origin());
+    }
+
+    private static boolean treatDocumentFailureAsTragicError(Operation.Origin origin) {
         // TODO: can we enable this check for all origins except primary on the leader?
-        return index.origin() == Operation.Origin.REPLICA
-            || index.origin() == Operation.Origin.PEER_RECOVERY
-            || index.origin() == Operation.Origin.LOCAL_RESET;
+        return origin == Operation.Origin.REPLICA || origin == Operation.Origin.PEER_RECOVERY || origin == Operation.Origin.LOCAL_RESET;
     }
 
     /**

@@ -137,6 +137,12 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("read", "write", "manage")
                     .allowRestrictedIndices(true)
                     .build(),
+                // Feature flags system indices defined in KibanaPlugin. Kibana creates and manages them.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".feature-flags*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("create_index", "read", "write").build(),
                 // To facilitate ML UI functionality being controlled using Kibana security

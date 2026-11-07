@@ -100,7 +100,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.tablefunction.DatasetTableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionCall;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRequest;
 import org.mockito.exceptions.base.MockitoException;
 
@@ -547,10 +547,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 DatasetTableFunction.NAME,
                 List.of(new TableFunctionArgument.Name(Source.EMPTY, randomAlphaOfLength(8)))
             );
-        } else if (argClass == TableFunctionCall.class) {
+        } else if (argClass == TableFunctionInvocation.class) {
             // Record carrying a folded payload, so final and unmockable. Varied per call, because
             // testReplaceChildren and testTransform need randomValueOtherThan to find a second distinct instance.
-            return new TableFunctionCall(
+            return new TableFunctionInvocation(
                 Source.EMPTY,
                 DatasetTableFunction.NAME,
                 List.of(

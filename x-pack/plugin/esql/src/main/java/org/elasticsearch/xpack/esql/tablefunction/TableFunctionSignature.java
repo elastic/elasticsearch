@@ -96,7 +96,7 @@ public record TableFunctionSignature(List<Argument> arguments) {
      * {@link TableFunction#validate}, so a function's own checks can read the arguments it declared without
      * re-establishing that they are there or what they are.
      */
-    public void check(TableFunctionCall call) {
+    public void check(TableFunctionInvocation call) {
         long required = arguments.stream().filter(Argument::required).count();
         int found = call.arguments().size();
         if (found < required || found > arguments.size()) {

@@ -116,7 +116,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionCall;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.joni.exception.SyntaxException;
 
@@ -439,9 +439,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         // Resolved and shape-checked before any of the source list becomes a plan, so a call that cannot stand
         // fails as a parse error at the call rather than somewhere downstream.
-        List<TableFunctionCall> tableFunctionCalls = new ArrayList<>(tableFunctionsCtx.size());
+        List<TableFunctionInvocation> tableFunctionInvocations = new ArrayList<>(tableFunctionsCtx.size());
         for (EsqlBaseParser.TableFunctionContext tableFunctionCtx : tableFunctionsCtx) {
-            tableFunctionCalls.add(tableFunctionCall(tableFunctionCtx));
+            tableFunctionInvocations.add(tableFunctionInvocation(tableFunctionCtx));
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
@@ -459,8 +459,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
         // Each call becomes its own leaf, carrying the METADATA names so a table function reads them exactly as a
         // pattern does. Pre-analysis rewrites each into the relation that reads.
-        List<LogicalPlan> tableFunctions = new ArrayList<>(tableFunctionCalls.size());
-        for (TableFunctionCall call : tableFunctionCalls) {
+        List<LogicalPlan> tableFunctions = new ArrayList<>(tableFunctionInvocations.size());
+        for (TableFunctionInvocation call : tableFunctionInvocations) {
             tableFunctions.add(new UnresolvedTableFunctionRelation(call.source(), call, metadataFields));
         }
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
@@ -504,14 +504,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     /**
-     * Reads one {@code NAME(...)} from a source list into a {@link TableFunctionCall}, validated by the
+     * Reads one {@code NAME(...)} from a source list into a {@link TableFunctionInvocation}, validated by the
      * function it names.
      * <p>
      * The name is resolved against {@link TableFunctionRegistry} here rather than during analysis, so an
      * unknown one reads as a parse error listing the functions that exist instead of surviving to index
      * resolution and reading as a missing index.
      */
-    private TableFunctionCall tableFunctionCall(EsqlBaseParser.TableFunctionContext ctx) {
+    private TableFunctionInvocation tableFunctionInvocation(EsqlBaseParser.TableFunctionContext ctx) {
         Source source = source(ctx);
         String name = ctx.name.getText();
         // One flat list with the map appended last, as ExpressionBuilder.visitFunctionExpression builds a scalar
@@ -532,7 +532,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // UnresolvedFunction for the analyzer to bind. TableFunctionResolver resolves this one, and raises the
         // unknown-name, shape and per-function errors against the Source carried below — so the user sees the same
         // message at the same position, just not from the parser.
-        return new TableFunctionCall(source, name, arguments);
+        return new TableFunctionInvocation(source, name, arguments);
     }
 
     /** The name one positional argument denotes: a bare or backquoted identifier, or a quoted string. */

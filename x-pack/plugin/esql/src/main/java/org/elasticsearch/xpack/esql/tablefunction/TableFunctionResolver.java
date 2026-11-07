@@ -110,7 +110,7 @@ public class TableFunctionResolver {
         // node's identity depend on it.
         Set<String> dataSourceNames = new LinkedHashSet<>();
         for (UnresolvedTableFunctionRelation leaf : leaves) {
-            TableFunctionCall call = leaf.call();
+            TableFunctionInvocation call = leaf.call();
             // Resolving the name, then the shape, then whatever else the function requires — all of it before any
             // authorization, so a malformed call is answered by its own diagnostic rather than by a round-trip.
             TableFunction function = registry.resolve(call.source(), call.name());
@@ -178,7 +178,7 @@ public class TableFunctionResolver {
 
     /**
      * Binds each leaf and swaps it into the plan. Keyed by identity rather than equality: two calls written
-     * identically at different offsets are already unequal, because a {@link TableFunctionCall} carries its
+     * identically at different offsets are already unequal, because a {@link TableFunctionInvocation} carries its
      * {@code Source} — so equality would work today, and would start collapsing leaves the moment a call's identity
      * stopped including its position.
      */
@@ -186,7 +186,7 @@ public class TableFunctionResolver {
         TableFunctionContext context = new TableFunctionContext(projectMetadata);
         Map<UnresolvedTableFunctionRelation, LogicalPlan> bound = new IdentityHashMap<>(leaves.size());
         for (UnresolvedTableFunctionRelation leaf : leaves) {
-            TableFunctionCall call = leaf.call();
+            TableFunctionInvocation call = leaf.call();
             TableFunction function = registry.resolve(call.source(), call.name());
             bound.put(leaf, function.toRelation(call, leaf.metadataFields(), context));
         }

@@ -48,13 +48,13 @@ public record TableFunctionRequest(String functionName, List<TableFunctionArgume
     }
 
     /** The wire form of {@code call}: everything a node needs, and nothing that only the query text explains. */
-    public static TableFunctionRequest of(TableFunctionCall call) {
+    public static TableFunctionRequest of(TableFunctionInvocation call) {
         return new TableFunctionRequest(call.name(), call.arguments());
     }
 
     /** The call this request stands for, with every argument's position in the query text gone. */
-    public TableFunctionCall asCall() {
-        return new TableFunctionCall(Source.EMPTY, functionName, arguments);
+    public TableFunctionInvocation asCall() {
+        return new TableFunctionInvocation(Source.EMPTY, functionName, arguments);
     }
 
     public static TableFunctionRequest readFrom(StreamInput in) throws IOException {

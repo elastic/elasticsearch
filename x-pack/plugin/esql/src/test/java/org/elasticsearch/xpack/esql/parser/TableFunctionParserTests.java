@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionCall;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -44,8 +44,8 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     /** Every table-function call in the plan, in plan order. */
-    private List<TableFunctionCall> calls(String query) {
-        List<TableFunctionCall> found = new ArrayList<>();
+    private List<TableFunctionInvocation> calls(String query) {
+        List<TableFunctionInvocation> found = new ArrayList<>();
         query(query).forEachDown(node -> {
             if (node instanceof UnresolvedTableFunctionRelation leaf) {
                 found.add(leaf.call());
@@ -65,11 +65,11 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
         return found.get(0);
     }
 
-    private TableFunctionCall onlyCall(String query) {
+    private TableFunctionInvocation onlyCall(String query) {
         return onlyLeaf(query).call();
     }
 
-    private static List<String> argumentValues(TableFunctionCall call) {
+    private static List<String> argumentValues(TableFunctionInvocation call) {
         return call.arguments()
             .stream()
             .filter(a -> a instanceof TableFunctionArgument.Name)
@@ -78,7 +78,7 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     public void testCallWithPayload() {
-        TableFunctionCall call = onlyCall("FROM DATASET(my_source, \"res\", {\"resource\": \"s3://bucket/data/*.parquet\"})");
+        TableFunctionInvocation call = onlyCall("FROM DATASET(my_source, \"res\", {\"resource\": \"s3://bucket/data/*.parquet\"})");
         assertThat(call.name(), equalTo("DATASET"));
         assertThat(argumentValues(call), equalTo(List.of("my_source", "res")));
         assertThat(call.name(1), equalTo("res"));
@@ -228,7 +228,7 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     public void testTwoCallsInOneSourceList() {
-        List<TableFunctionCall> found = calls(
+        List<TableFunctionInvocation> found = calls(
             "FROM DATASET(a, \"res\", {\"resource\": \"x\"}), DATASET(b, \"res\", {\"resource\": \"y\"})"
         );
         assertThat(found, hasSize(2));
@@ -241,7 +241,7 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
 
     /** The options are the last argument, so a call may stop before them. */
     public void testOptionsMayBeOmitted() {
-        TableFunctionCall call = onlyCall("FROM DATASET(my_source, \"s3://bucket/a.parquet\")");
+        TableFunctionInvocation call = onlyCall("FROM DATASET(my_source, \"s3://bucket/a.parquet\")");
         assertThat(call.name(0), equalTo("my_source"));
         assertThat(call.name(1), equalTo("s3://bucket/a.parquet"));
         assertThat(call.namedValues(2), nullValue());

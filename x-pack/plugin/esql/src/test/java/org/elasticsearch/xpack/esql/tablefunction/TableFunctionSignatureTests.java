@@ -33,8 +33,8 @@ public class TableFunctionSignatureTests extends ESTestCase {
         optional(namedValues("options"))
     );
 
-    private static TableFunctionCall call(TableFunctionArgument... arguments) {
-        return new TableFunctionCall(Source.EMPTY, "thing", List.of(arguments));
+    private static TableFunctionInvocation call(TableFunctionArgument... arguments) {
+        return new TableFunctionInvocation(Source.EMPTY, "thing", List.of(arguments));
     }
 
     private static TableFunctionArgument aName() {

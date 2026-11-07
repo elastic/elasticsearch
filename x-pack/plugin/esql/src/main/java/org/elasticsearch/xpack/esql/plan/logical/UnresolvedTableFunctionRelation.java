@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.tablefunction.TableFunctionCall;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 
 import java.util.List;
 import java.util.Locale;
@@ -30,7 +30,7 @@ import java.util.Objects;
  */
 public final class UnresolvedTableFunctionRelation extends LeafPlan implements Unresolvable {
 
-    private final TableFunctionCall call;
+    private final TableFunctionInvocation call;
     private final List<NamedExpression> metadataFields;
 
     /**
@@ -39,7 +39,7 @@ public final class UnresolvedTableFunctionRelation extends LeafPlan implements U
      * @param metadataFields the source command's {@code METADATA} names, verbatim, so a table function carries
      *                       metadata exactly as a pattern does
      */
-    public UnresolvedTableFunctionRelation(Source source, TableFunctionCall call, List<NamedExpression> metadataFields) {
+    public UnresolvedTableFunctionRelation(Source source, TableFunctionInvocation call, List<NamedExpression> metadataFields) {
         super(source);
         this.call = Objects.requireNonNull(call, "call");
         this.metadataFields = Objects.requireNonNull(metadataFields, "metadataFields");
@@ -60,7 +60,7 @@ public final class UnresolvedTableFunctionRelation extends LeafPlan implements U
         return NodeInfo.create(this, UnresolvedTableFunctionRelation::new, call, metadataFields);
     }
 
-    public TableFunctionCall call() {
+    public TableFunctionInvocation call() {
         return call;
     }
 

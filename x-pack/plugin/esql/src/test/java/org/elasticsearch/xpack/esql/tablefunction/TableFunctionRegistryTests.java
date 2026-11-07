@@ -28,17 +28,17 @@ public class TableFunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        public void validate(TableFunctionCall call) {
+        public void validate(TableFunctionInvocation call) {
             throw new AssertionError("the registry must not validate a call");
         }
 
         @Override
-        public List<String> dataSourceNames(TableFunctionCall call) {
+        public List<String> dataSourceNames(TableFunctionInvocation call) {
             throw new AssertionError("the registry must not read a call's data sources");
         }
 
         @Override
-        public LogicalPlan toRelation(TableFunctionCall call, List<NamedExpression> metadataFields, TableFunctionContext context) {
+        public LogicalPlan toRelation(TableFunctionInvocation call, List<NamedExpression> metadataFields, TableFunctionContext context) {
             throw new AssertionError("the registry must not bind a call");
         }
     }

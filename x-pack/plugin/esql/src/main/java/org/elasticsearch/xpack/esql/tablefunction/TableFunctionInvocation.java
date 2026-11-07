@@ -16,6 +16,10 @@ import java.util.Objects;
  * One table-function call as written in a source list, with its name already resolved against
  * {@link TableFunctionRegistry}.
  * <p>
+ * Named an invocation rather than a call because {@code *FunctionCall} already means a plan node in this
+ * tree — {@code PromqlFunctionCall} and {@code HistogramFunctionCall} both extend {@code UnaryPlan} — and
+ * this is not one and never will be.
+ * <p>
  * One flat argument list, as a scalar function has: {@code ExpressionBuilder.visitFunctionExpression} appends a
  * trailing map to the same list it collected the other arguments into, so a map is a scalar function's last
  * argument rather than a slot beside them. Following that is why there is no payload here.
@@ -29,9 +33,9 @@ import java.util.Objects;
  *             case-insensitively, so this is not a key
  * @param arguments the arguments, in the order written; empty when none were
  */
-public record TableFunctionCall(Source source, String name, List<TableFunctionArgument> arguments) {
+public record TableFunctionInvocation(Source source, String name, List<TableFunctionArgument> arguments) {
 
-    public TableFunctionCall {
+    public TableFunctionInvocation {
         Objects.requireNonNull(source, "source");
         Objects.requireNonNull(name, "name");
         arguments = List.copyOf(arguments);

@@ -130,7 +130,7 @@ public interface TableFunction {
      * <p>
      * Empty by default: a function whose shape is its whole contract needs nothing here.
      */
-    default void validate(TableFunctionCall call) {}
+    default void validate(TableFunctionInvocation call) {}
 
     /**
      * The data sources this call reads, which the coordinator authorizes the caller for before any of it is bound,
@@ -147,7 +147,7 @@ public interface TableFunction {
      * itself in {@link #toRelation}; this facility models the one unit it has, and does not pretend to model the
      * rest.
      */
-    default List<String> dataSourceNames(TableFunctionCall call) {
+    default List<String> dataSourceNames(TableFunctionInvocation call) {
         return List.of();
     }
 
@@ -159,6 +159,6 @@ public interface TableFunction {
      * validator refuses as a 400 — so one definition draws the same error whichever route it arrives by. That costs
      * the position within the query text, which the registration API has no notion of.
      */
-    LogicalPlan toRelation(TableFunctionCall call, List<NamedExpression> metadataFields, TableFunctionContext context);
+    LogicalPlan toRelation(TableFunctionInvocation call, List<NamedExpression> metadataFields, TableFunctionContext context);
 
 }

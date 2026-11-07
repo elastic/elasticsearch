@@ -95,7 +95,7 @@ public final class DatasetTableFunction implements TableFunction, BindsOnDataNod
     }
 
     @Override
-    public void validate(TableFunctionCall call) {
+    public void validate(TableFunctionInvocation call) {
         // One data source, never a pattern: the credentials a read runs under come from exactly one data source, and
         // there is no sense in which a wildcard could pick it. Refused here rather than at binding so the user is
         // told while the position in the query text is still known. The signature has already established that this
@@ -113,12 +113,12 @@ public final class DatasetTableFunction implements TableFunction, BindsOnDataNod
     }
 
     @Override
-    public List<String> dataSourceNames(TableFunctionCall call) {
+    public List<String> dataSourceNames(TableFunctionInvocation call) {
         return List.of(call.name(0));
     }
 
     @Override
-    public LogicalPlan toRelation(TableFunctionCall call, List<NamedExpression> metadataFields, TableFunctionContext context) {
+    public LogicalPlan toRelation(TableFunctionInvocation call, List<NamedExpression> metadataFields, TableFunctionContext context) {
         Bound bound = bind(call, context);
         return new UnresolvedExternalRelation(
             call.source(),
@@ -138,7 +138,7 @@ public final class DatasetTableFunction implements TableFunction, BindsOnDataNod
     public Read bindOnDataNode(TableFunctionRequest request, TableFunctionContext context) {
         // The signature check ran on the coordinator against the query text. By here the call has crossed the wire,
         // so its shape is re-established rather than assumed, through the same signature that checked it there.
-        TableFunctionCall call = request.asCall();
+        TableFunctionInvocation call = request.asCall();
         SIGNATURE.check(call);
         return bind(call, context).read();
     }
@@ -151,7 +151,7 @@ public final class DatasetTableFunction implements TableFunction, BindsOnDataNod
      * {@link #bindOnDataNode} so that one configuration is derived by one piece of code. The data source comes from
      * {@code context}'s project — this coordinator's, or that node's — and never from anything the plan carried.
      */
-    private Bound bind(TableFunctionCall call, TableFunctionContext context) {
+    private Bound bind(TableFunctionInvocation call, TableFunctionContext context) {
         String dataSourceName = call.name(0);
         DataSource parent = context.dataSource(dataSourceName);
         if (parent == null) {

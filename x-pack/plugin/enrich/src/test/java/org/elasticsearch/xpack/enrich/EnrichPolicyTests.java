@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -22,10 +23,13 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -101,6 +105,56 @@ public class EnrichPolicyTests extends AbstractXContentSerializingTestCase<Enric
         assertThat(newInstance.getIndices(), equalTo(expectedInstance.getIndices()));
         assertThat(newInstance.getMatchField(), equalTo(expectedInstance.getMatchField()));
         assertThat(newInstance.getEnrichFields(), equalTo(expectedInstance.getEnrichFields()));
+    }
+
+    public void testValidateAcceptsReasonablePolicy() {
+        EnrichPolicy policy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of("source-index"),
+            "match_field",
+            List.of("field1", "field2")
+        );
+        // Should not throw.
+        policy.validate(1024, ByteSizeValue.ofMb(1));
+    }
+
+    public void testValidateRejectsOversizedMatchField() {
+        EnrichPolicy policy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of("source-index"),
+            randomAlphaOfLength(101),
+            List.of("field1")
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> policy.validate(100, ByteSizeValue.ofMb(1)));
+        assertThat(e.getMessage(), containsString("match_field"));
+        assertThat(e.getMessage(), containsString("enrich.max_field_name_length"));
+    }
+
+    public void testValidateRejectsOversizedEnrichField() {
+        EnrichPolicy policy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of("source-index"),
+            "match_field",
+            List.of("ok", randomAlphaOfLength(101))
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> policy.validate(100, ByteSizeValue.ofMb(1)));
+        assertThat(e.getMessage(), containsString("enrich_fields"));
+        assertThat(e.getMessage(), containsString("enrich.max_field_name_length"));
+    }
+
+    public void testValidateRejectsOversizedPolicy() {
+        // Many short field names individually pass the length check but together exceed the total size limit.
+        List<String> enrichFields = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            enrichFields.add(randomAlphaOfLength(50));
+        }
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source-index"), "match_field", enrichFields);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> policy.validate(1024, ByteSizeValue.ofKb(1)));
+        assertThat(e.getMessage(), containsString("exceeds the maximum allowed size"));
+        assertThat(e.getMessage(), containsString("enrich.max_policy_size"));
     }
 
     public void testIsPolicyForIndex() {

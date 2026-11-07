@@ -32,8 +32,21 @@ assertion that fails when it does.
 `UnionBlockBuilder`, `BlockFactory.newUnionBlockBuilder`, and `PlannerUtils.toElementType` mapping
 `UNION` to it. §1 is what the code decided differently from the first draft.
 
-**C. Stop erasing.** Not started. **D. Rendering.** Not started. **E. Operations.** Not started.
+**D. Rendering. Done, `e10184512a12`.** A union column renders each value as the type its own leg
+declares. The renderer chain takes the column rather than the column's type, because only the column
+carries the leg types; `PositionToXContent` already took the column, so the two renderers now agree.
+JSON, the values iterator, the text table and csv and tsv all go through it, the text formats via
+`response.values()`. The type is representable in output as of this increment, which is what
+`DataTypeConversionTests` was waiting for. Still owed here: the Arrow sparse-union write-out, which
+keeps the pending-formatter marker for now as aggregate_metric_double does, and a `CsvTestUtils.Type`
+member so csv-spec tests can assert on a union column.
+
+**C. Stop erasing.** Not started, and now the next increment. **E. Operations.** Not started.
 **F. Grouping.** Not started. **G. Datasets.** Not started.
+
+D was taken before C, against the order in §3. C alone would produce union attributes that nothing
+could render, so the tree would have been red between the two; D is self-contained, since the renderer
+can be built and tested against hand-built union blocks while nothing in the engine produces one.
 
 ---
 
@@ -126,14 +139,10 @@ is the one the block and `originalTypes` share, and it has to be deterministic.
 
 ### D. Rendering, and representability
 
-Take `UNION` out of `NON_REPRESENTABLE_OUTPUT_TYPES` and supply what that obliges:
-`ResponseValueUtils.valueExtractorFor` and `PositionToXContent`, both of which throw for `UNION` now.
-Both take only a `DataType`, so the column's leg types have to be threaded in, and that signature
-change is the main shape of this increment. `ArrowResponse` maps a union to Arrow's sparse union,
-where the tag sub-block is the types buffer, so it is a write-out rather than a translation; its
-formatter may stay pending for a first cut, since `AGGREGATE_METRIC_DOUBLE` and others already do that
-and only the text extractor is obligatory. `CsvTestUtils.Type` needs a union member so csv-spec tests
-can assert on one.
+Done; see §0. What it leaves: the Arrow sparse-union write-out, where the tag sub-block is the types
+buffer so the mapping is a write-out rather than a translation, and a `CsvTestUtils.Type` member for
+csv-spec assertions. The leg types are paired with the block's legs positionally and nothing checks
+that they agree, which is a contract increment C has to establish and keep.
 
 ### E. Operations
 

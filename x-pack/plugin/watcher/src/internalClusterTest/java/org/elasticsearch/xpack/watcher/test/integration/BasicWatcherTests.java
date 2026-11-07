@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -67,6 +68,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.monthly;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.weekly;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -88,7 +90,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
             .get();
 
         timeWarp().trigger("_name");
-        assertWatchWithMinimumPerformedActionsCount("_name", 1);
+        assertWatcherExecutionWithPayloadHits("_name", 1);
 
         GetWatchResponse getWatchResponse = new GetWatchRequestBuilder(client()).setId("_name").get();
         assertThat(getWatchResponse.isFound(), is(true));
@@ -114,9 +116,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         timeWarp().clock().fastForwardSeconds(5);
         timeWarp().trigger("_name");
-        refresh();
 
-        assertWatchWithMinimumPerformedActionsCount("_name", 1);
+        assertWatcherExecutionWithPayloadHits("_name", 1);
     }
 
     public void testDeleteWatch() throws Exception {
@@ -187,7 +188,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         timeWarp().clock().fastForwardSeconds(5);
         timeWarp().trigger("_name");
-        assertWatchWithMinimumPerformedActionsCount("_name", 0, false);
+        assertWatchWithMinimumPerformedActionsCount("_name", 0);
 
         new PutWatchRequestBuilder(client()).setId("_name")
             .setSource(source.condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0L)))
@@ -195,8 +196,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         timeWarp().clock().fastForwardSeconds(5);
         timeWarp().trigger("_name");
-        refresh();
-        assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
+        assertWatchWithMinimumPerformedActionsCount("_name", 1);
 
         new PutWatchRequestBuilder(client()).setId("_name")
             .setSource(
@@ -267,7 +267,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
             .get();
 
         timeWarp().trigger("_name1");
-        assertWatchWithMinimumPerformedActionsCount("_name1", 1);
+        assertWatcherExecutionWithPayloadHits("_name1", 1);
         timeWarp().trigger("_name2");
         assertWatchWithNoActionNeeded("_name2", 1);
 
@@ -399,7 +399,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         refresh();
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);
-        assertWatchWithMinimumPerformedActionsCount(watchName, 1);
+        assertWatcherExecutionWithPayloadHits(watchName, 1);
     }
 
     public void testQueryWatches() {
@@ -546,5 +546,20 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(0));
+    }
+
+    private void assertWatcherExecutionWithPayloadHits(String watchName, long minimumExecutions) {
+        SearchResponse searchResponse = searchHistoryForExecutedWatch(watchName, minimumExecutions);
+        try {
+            assertThat(
+                (Integer) XContentMapValues.extractValue(
+                    "result.input.payload.hits.total",
+                    searchResponse.getHits().getAt(0).getSourceAsMap()
+                ),
+                greaterThanOrEqualTo(1)
+            );
+        } finally {
+            searchResponse.decRef();
+        }
     }
 }

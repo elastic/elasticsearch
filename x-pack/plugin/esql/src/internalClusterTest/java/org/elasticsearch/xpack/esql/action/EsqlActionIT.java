@@ -1187,8 +1187,12 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test::XXX::data", "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}");
         // Selectors must be outside of date math expressions or else they trip up the selector parsing
         testCases.put("<test-{now/d}::failures>", "Invalid index name [<test-{now/d}], must not contain the following characters [");
-        // Only one selector separator is allowed per expression
-        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, '(', UNQUOTED_SOURCE}");
+        // Only one selector separator is allowed per expression. The expected-token set is matched without its
+        // closing brace because this change adds a token at this position: EsqlParser's error listener strips
+        // DEV_-prefixed tokens only when the parser is not a dev version, and this suite runs on a snapshot
+        // build, so the set here now ends with DEV_TABLE_FUNCTION_NAME. Matching the prefix keeps the assertion
+        // about the separator, which is what the case is for, rather than about the token set.
+        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, '(', UNQUOTED_SOURCE");
         // Suffix case is not supported because there is no component named with the empty string
         testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
 

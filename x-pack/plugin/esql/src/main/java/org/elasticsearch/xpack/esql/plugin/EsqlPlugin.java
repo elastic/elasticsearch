@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -164,6 +165,8 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -539,10 +542,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             listingService
         );
 
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
-
         services.ipLocationService()
             .addDatabaseAvailabilityListener(
                 (projectId, databaseFile) -> logger.trace(
@@ -632,6 +631,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        // Built here rather than held statically, as the function registry is: a table function declares its own
+        // dependencies by being constructed with them, which is what keeps the facility from carrying any one
+        // function's.
+        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(extraTableFunctions(services.client()));
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
+
         ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
@@ -666,7 +673,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.indicesService().getAnalysis(),
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
-                maxListedObjects::get
+                maxListedObjects::get,
+                tableFunctionRegistry
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -964,6 +972,24 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     protected void loadMetricsCollectors(ExtensionLoader loader) {
         metricsCollectors.addAll(loader.loadExtensions(QueryMetricsListener.class));
+    }
+
+    /**
+     * The table functions this node registers. Empty here, because this change adds the facility and no function.
+     * <p>
+     * A seam rather than a constant so that a function can be registered without the facility naming one. Nothing
+     * overrides it here and no query in this change runs a table function: the facility is covered by unit tests
+     * that drive a function defined in the test through the real resolver and registry. The
+     * precedent for a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState},
+     * both overridden by test subclasses.
+     * <p>
+     * A function needing collaborators is constructed with them here; that is why the registry takes
+     * already-constructed functions rather than names, and why the client is a parameter here rather than
+     * something a function reaches for: a function that has to ask the cluster something is given the one
+     * handle it needs, and the facility itself never acquires one.
+     */
+    protected List<TableFunction> extraTableFunctions(Client client) {
+        return List.of();
     }
 
     @Override

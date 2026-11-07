@@ -85,6 +85,8 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.mockito.stubbing.Answer;
@@ -238,6 +240,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     enrichResolver,
                     viewService.getViewResolver(),
                     noDatasetsResolver(),
+                    noTableFunctionsResolver(),
                     createEsqlExecutionInfo(randomBoolean()),
                     groupIndicesByCluster,
                     runPhase,
@@ -279,6 +282,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     enrichResolver,
                     viewService.getViewResolver(),
                     noDatasetsResolver(),
+                    noTableFunctionsResolver(),
                     successExecutionInfo,
                     groupIndicesByCluster,
                     runPhase,
@@ -791,6 +795,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             mockEnrichResolver(),
             viewService.getViewResolver(),
             noDatasetsResolver(),
+            noTableFunctionsResolver(),
             executionInfo,
             groupIndicesByCluster,
             runPhase,
@@ -808,6 +813,15 @@ public class PlanExecutorMetricsTests extends ESTestCase {
      */
     private static DatasetResolver noDatasetsResolver() {
         return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP, true, new FederationLicense(() -> null));
+    }
+
+    /**
+     * These tests name no table function, so the resolver completes on its one plan walk without asking the
+     * registry for anything. The registry is empty rather than null because the resolver holds it directly;
+     * unlike the resolver above, it has no collaborators to leave unset.
+     */
+    private static TableFunctionResolver noTableFunctionsResolver() {
+        return new TableFunctionResolver(new TableFunctionRegistry(List.of()), EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

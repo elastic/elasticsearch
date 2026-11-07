@@ -54,6 +54,8 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
@@ -90,6 +92,7 @@ public class PlanExecutor {
     private final IntSupplier maxGlobExpansion;
     @Nullable
     private final IntSupplier maxListedObjects;
+    private final TableFunctionRegistry tableFunctionRegistry;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -120,7 +123,8 @@ public class PlanExecutor {
             analysisRegistry,
             null,
             null,
-            null
+            null,
+            new TableFunctionRegistry(List.of())
         );
     }
 
@@ -139,7 +143,8 @@ public class PlanExecutor {
         AnalysisRegistry analysisRegistry,
         @Nullable IntSupplier maxDiscoveredFiles,
         @Nullable IntSupplier maxGlobExpansion,
-        @Nullable IntSupplier maxListedObjects
+        @Nullable IntSupplier maxListedObjects,
+        TableFunctionRegistry tableFunctionRegistry
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -158,6 +163,7 @@ public class PlanExecutor {
         this.maxDiscoveredFiles = maxDiscoveredFiles;
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
+        this.tableFunctionRegistry = tableFunctionRegistry;
     }
 
     /**
@@ -245,6 +251,7 @@ public class PlanExecutor {
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
         DatasetResolver datasetResolver,
+        TableFunctionResolver tableFunctionResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
@@ -289,6 +296,7 @@ public class PlanExecutor {
             enrichPolicyResolver,
             viewResolver,
             datasetResolver,
+            tableFunctionResolver,
             externalSourceResolver,
             parser,
             preAnalyzer,
@@ -504,6 +512,15 @@ public class PlanExecutor {
 
     public Metrics metrics() {
         return this.metrics;
+    }
+
+    /**
+     * The one registry this node plans against, built by the plugin. Held here so the transport action can reach
+     * it rather than building a second one: two registries built from the same inputs are equivalent until the day
+     * they are not, and nothing would catch the drift.
+     */
+    public TableFunctionRegistry tableFunctionRegistry() {
+        return tableFunctionRegistry;
     }
 
     public DataSourceModule dataSourceModule() {

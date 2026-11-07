@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 
 import java.util.HashSet;
 import java.util.Locale;
@@ -45,7 +46,7 @@ public class EsqlCapabilities {
      * @param all if {@code false} then only <strong>enabled</strong> capabilities are returned,
      *            otherwise <strong>all</strong> known capabilities are returned.
      */
-    public static EsqlCapabilities capabilities(EsqlFunctionRegistry functions, boolean all) {
+    public static EsqlCapabilities capabilities(EsqlFunctionRegistry functions, TableFunctionRegistry tableFunctions, boolean all) {
         Builder builder = new Builder(all);
         for (Cap cap : Cap.values()) {
             builder.add(cap.capabilityName(), cap.isEnabled());
@@ -62,6 +63,7 @@ public class EsqlCapabilities {
             functions = functions.snapshotRegistry();
         }
         functions.addCapabilities(builder);
+        tableFunctions.addCapabilities(builder);
         return builder.build();
     }
 
@@ -4723,6 +4725,15 @@ public class EsqlCapabilities {
          * Run time-series aggregation single pass on data nodes when possible
          */
         TIME_SERIES_SINGLE_PASS,
+
+        /**
+         * Table functions in a {@code FROM} source list — {@code FROM foo, bar*, SOMEFUNC(a_name, {...})}. This
+         * is the facility; which functions exist is a separate capability each, emitted per registered function
+         * as {@code table_fn_<name>}. Snapshot-only, and gated twice over: the {@code tableFunction}
+         * parser rule in {@code EsqlBaseParser.g4} carries {@code isDevVersion()}, which is what decides
+         * whether the syntax parses at all, and this capability mirrors it so a test only runs where it does.
+         */
+        FROM_TABLE_FUNCTION(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

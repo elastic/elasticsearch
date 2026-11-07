@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 161599
+summary: "Skip the shard count of inline stats on local cluster, similar to what remote\
+  \ clusters do"
+type: bug

@@ -11,6 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -22,6 +25,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
+
+import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
@@ -105,6 +110,37 @@ public class IgnoredMetadataFieldIT extends ESSingleNodeTestCase {
                 searchResponse2.decRef();
             }
         }
+    }
+
+    public void testIgnoredMetadataFieldGet() {
+        GetResponse correct = client().prepareGet(TEST_INDEX, CORRECT_FIELD_TYPE_DOC_ID).get();
+        assertTrue(correct.isExists());
+        assertNull(correct.getField(IgnoredFieldMapper.NAME));
+
+        GetResponse wrong = client().prepareGet(TEST_INDEX, WRONG_FIELD_TYPE_DOC_ID).get();
+        assertTrue(wrong.isExists());
+        assertEquals(List.of(NUMERIC_FIELD_NAME), wrong.getField(IgnoredFieldMapper.NAME).getValues());
+
+        GetResponse wrongWithStoredFields = client().prepareGet(TEST_INDEX, WRONG_FIELD_TYPE_DOC_ID)
+            .setStoredFields(NUMERIC_FIELD_NAME)
+            .get();
+        assertEquals(List.of(NUMERIC_FIELD_NAME), wrongWithStoredFields.getField(IgnoredFieldMapper.NAME).getValues());
+
+        indexTestDoc(DATE_FIELD_NAME, "wrong-date", "today");
+        GetResponse wrongDate = client().prepareGet(TEST_INDEX, "wrong-date").get();
+        assertTrue(wrongDate.isExists());
+        assertEquals(List.of(DATE_FIELD_NAME), wrongDate.getField(IgnoredFieldMapper.NAME).getValues());
+
+        MultiGetResponse multiGet = client().prepareMultiGet()
+            .add(TEST_INDEX, CORRECT_FIELD_TYPE_DOC_ID)
+            .add(TEST_INDEX, WRONG_FIELD_TYPE_DOC_ID)
+            .add(TEST_INDEX, "wrong-date")
+            .get();
+        MultiGetItemResponse[] items = multiGet.getResponses();
+        assertEquals(3, items.length);
+        assertNull(items[0].getResponse().getField(IgnoredFieldMapper.NAME));
+        assertEquals(List.of(NUMERIC_FIELD_NAME), items[1].getResponse().getField(IgnoredFieldMapper.NAME).getValues());
+        assertEquals(List.of(DATE_FIELD_NAME), items[2].getResponse().getField(IgnoredFieldMapper.NAME).getValues());
     }
 
     public void testIgnoredMetadataFieldAggregation() {

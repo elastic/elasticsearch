@@ -13,10 +13,13 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -27,11 +30,13 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -43,6 +48,7 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardGetServiceTests extends IndexShardTestCase {
@@ -639,6 +645,137 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertFalse(LiveVersionMapTestUtils.isUnsafeForGets(map));
 
         closeShards(primary);
+    }
+
+    /**
+     * A GET returns the {@code _ignored} metadata field by default when the document has ignored fields and is read from a
+     * segment, also when other stored fields are requested. A realtime get served from the translog returns it only when
+     * {@code stored_fields} names it. Get-for-update does not load it.
+     */
+    public void testGetReturnsIgnoredMetadataFieldByDefault() throws IOException {
+        runGetReturnsIgnoredMetadataFieldByDefault(IndexVersion.current());
+    }
+
+    /**
+     * Same as {@link #testGetReturnsIgnoredMetadataFieldByDefault()} on an index with a created version older than
+     * {@link IndexVersions#DOC_VALUES_FOR_IGNORED_META_FIELD}, which keeps {@code _ignored} as a stored field.
+     */
+    public void testGetReturnsStoredIgnoredMetadataFieldByDefault() throws IOException {
+        runGetReturnsIgnoredMetadataFieldByDefault(
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
+            )
+        );
+    }
+
+    private void runGetReturnsIgnoredMetadataFieldByDefault(IndexVersion indexVersion) throws IOException {
+        Settings settings = indexSettings(indexVersion, 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            {
+              "properties": {
+                "foo": { "type": "keyword", "store": true },
+                "kw": { "type": "keyword", "ignore_above": 3 },
+                "num": { "type": "long", "ignore_malformed": true }
+              }
+            }""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        try {
+            recoverShardFromStore(primary);
+            final String ignoredDoc = """
+                { "foo": "bar", "kw": "too long", "num": "not a number" }""";
+
+            // the first realtime get refreshes and makes the engine track translog locations for later gets
+            indexDoc(primary, "test", "0", """
+                { "foo": "bar", "kw": "ok", "num": 1 }""");
+            GetResult notIgnored = get(primary, "0", null);
+            assertTrue(notIgnored.isExists());
+            assertFalse(notIgnored.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
+
+            indexDoc(primary, "test", "1", ignoredDoc);
+            assertTrue(primary.getEngine().refreshNeeded());
+            GetResult fromTranslog = get(primary, "1", null);
+            try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                assertEquals(1, searcher.getIndexReader().maxDoc()); // read from the translog
+            }
+            // a default translog read needs only _source and _routing and does not index the operation into a segment
+            assertFalse(fromTranslog.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
+            if (indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+                // asking for _ignored indexes the operation into an in-memory segment and reads its doc values
+                assertIgnoredFields(get(primary, "1", new String[] { IgnoredFieldMapper.NAME }));
+            }
+
+            GetResult fromTranslogOnly = primary.getService()
+                .getFromTranslog(
+                    "1",
+                    null,
+                    null,
+                    true,
+                    Versions.MATCH_ANY,
+                    VersionType.INTERNAL,
+                    FetchSourceContext.FETCH_SOURCE,
+                    false,
+                    SplitShardCountSummary.UNSET,
+                    false
+                );
+            assertNotNull(fromTranslogOnly);
+            assertFalse(fromTranslogOnly.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
+
+            GetResult forUpdate = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+            assertFalse(forUpdate.getMetadataFields().containsKey(IgnoredFieldMapper.NAME));
+
+            primary.getEngine().refresh("test");
+            GetResult fromSegment = get(primary, "1", null);
+            assertIgnoredFields(fromSegment);
+            assertFalse(fromSegment.getDocumentFields().containsKey("foo"));
+
+            GetResult withStoredField = get(primary, "1", new String[] { "foo" });
+            assertIgnoredFields(withStoredField);
+            assertEquals("bar", withStoredField.getDocumentFields().get("foo").getValue());
+
+            GetResult withIgnoredStoredField = get(primary, "1", new String[] { IgnoredFieldMapper.NAME });
+            assertIgnoredFields(withIgnoredStoredField);
+
+            GetResult withoutSource = primary.getService()
+                .get(
+                    "1",
+                    null,
+                    null,
+                    true,
+                    Versions.MATCH_ANY,
+                    VersionType.INTERNAL,
+                    FetchSourceContext.DO_NOT_FETCH_SOURCE,
+                    false,
+                    SplitShardCountSummary.UNSET,
+                    false
+                );
+            assertNull(withoutSource.sourceRef());
+            assertIgnoredFields(withoutSource);
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    private static void assertIgnoredFields(GetResult getResult) {
+        DocumentField ignored = getResult.getMetadataFields().get(IgnoredFieldMapper.NAME);
+        assertNotNull(ignored);
+        assertThat(ignored.getValues(), containsInAnyOrder("kw", "num"));
+    }
+
+    private static GetResult get(IndexShard shard, String id, String[] storedFields) throws IOException {
+        return shard.getService()
+            .get(
+                id,
+                null,
+                storedFields,
+                true,
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET,
+                false
+            );
     }
 
     public void testShouldExcludeInferenceFieldsFromSource() {

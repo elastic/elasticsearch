@@ -157,3 +157,106 @@
         - ip
         - keyword
         - value
+
+---
+"_ignored field through get api by default":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /{index}/_doc/{id}
+          capabilities: [ ignored_meta_field_by_default ]
+      reason: "get returns _ignored by default"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                ignore_above: 5
+              ip:
+                type: ip
+                ignore_malformed: true
+              value:
+                type: long
+                ignore_malformed: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          keyword: foo
+          ip: 192.168.0.1
+          value: 23
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          keyword: foobar
+          ip: garbage
+          value: missing
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          keyword:
+            - foo
+            - foobar
+          ip:
+            - 10.10.1.1
+            - 199.199.300.999
+          value:
+            - 1
+            - ops
+
+  - do:
+      get:
+        index: test
+        id:    1
+
+  - match: { _id: "1" }
+  - match: { found: true }
+  - is_false: _ignored
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    2
+
+  - match: { _id: "2" }
+  - match: { found: true }
+  - match: { _ignored: [ ip, keyword, value ] }
+  - match: { _source.ip: garbage }
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    3
+
+  - match: { _id: "3" }
+  - match: { found: true }
+  - match: { _ignored: [ ip, keyword, value ] }
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    2
+        stored_fields:
+          - keyword
+
+  - match: { _id: "2" }
+  - match: { found: true }
+  - match: { _ignored: [ ip, keyword, value ] }
+  - is_false: fields

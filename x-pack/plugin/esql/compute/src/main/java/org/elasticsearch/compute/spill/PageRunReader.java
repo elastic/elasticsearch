@@ -33,6 +33,7 @@ public final class PageRunReader implements Releasable {
     private final TransportVersion version;
     @Nullable
     private final IndexedByShardId<? extends RefCounted> shardRefs;
+    private long bytesRead;
 
     public PageRunReader(FramedRunReader reader, int partition, BlockFactory blockFactory, CircuitBreaker breaker) {
         this(reader, partition, blockFactory, breaker, null);
@@ -74,6 +75,7 @@ public final class PageRunReader implements Releasable {
             }
             Page page;
             try (record) {
+                bytesRead += record.payload().length();
                 page = decode(record.payload());
             } catch (Exception e) {
                 l.onFailure(e);
@@ -81,6 +83,13 @@ public final class PageRunReader implements Releasable {
             }
             l.onResponse(page);
         }));
+    }
+
+    /**
+     * Payload bytes of the records read so far: the status figure, counted as the writers count what they wrote.
+     */
+    public long bytesRead() {
+        return bytesRead;
     }
 
     private Page decode(ReleasableBytesReference payload) throws Exception {

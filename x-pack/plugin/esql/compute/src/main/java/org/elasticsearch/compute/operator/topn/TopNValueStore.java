@@ -68,7 +68,11 @@ final class TopNValueStore implements Releasable {
     static final long SEGMENT_BYTES = 64L * 1024 * 1024;
     /** Records a lane's active segment takes before it rolls: each costs an index entry charged while the segment is open. */
     static final long SEGMENT_RECORDS = 1L << 20;
-    /** Value bytes a lane may have queued for the codec before its appender is told to wait. */
+    /**
+     * Value bytes the store's lanes together may have queued for the codec before an appender is told to wait. Shared
+     * by the lanes rather than given to each: a node runs a Top-N per driver and the parallel operator a lane per
+     * worker, and the queued bytes of every lane sit on the root view until the codec takes them.
+     */
     static final long MAX_APPEND_BYTES_IN_FLIGHT = 4L * 1024 * 1024;
     private static final FramedRunWriter.Options RUN_OPTIONS = new FramedRunWriter.Options(
         FramedRunLayout.KIND_VALUE,
@@ -81,6 +85,11 @@ final class TopNValueStore implements Releasable {
     private final QueryScope scope;
     private final String namePrefix;
     private final long segmentBytes;
+    /** Guards the store's queued bytes and the wait on them, which the codec's completions update. */
+    private final Object queueLock = new Object();
+    private long queuedBytes;
+    @Nullable
+    private SubscribableListener<Void> appendWait;
     /** Every segment ever started, by id; guarded by {@code this}, since lanes on worker threads add to it. */
     private final List<Segment> segments = new ArrayList<>();
     private int lanes;
@@ -225,11 +234,9 @@ final class TopNValueStore implements Releasable {
         private List<TopNRow> compactingRows;
         @Nullable
         private Segment compactingInto;
-        /** Guards the in-flight count and the wait, which the codec's completions update. */
+        /** Guards the lane's in-flight count, which the codec's completions update. */
         private final Object lock = new Object();
         private long bytesInFlight;
-        @Nullable
-        private SubscribableListener<Void> appendWait;
         @Nullable
         private volatile Exception failure;
         private boolean sealedForGood;
@@ -256,10 +263,18 @@ final class TopNValueStore implements Releasable {
             Segment next = newSegment();
             segment = next;
             own.add(next);
+            long started = System.nanoTime();
             creating = DriverSpillOperation.issue(
                 driverContext,
                 "top-n value segment",
-                l -> FramedRunWriter.create(scope.spillScope(), next.name, scope.rootView(), scope.codecExecutor(), RUN_OPTIONS, l)
+                l -> FramedRunWriter.create(
+                    scope.spillScope(),
+                    next.name,
+                    scope.rootView(),
+                    scope.codecExecutor(),
+                    RUN_OPTIONS,
+                    ActionListener.runBefore(l, () -> spillNanos.addAndGet(System.nanoTime() - started))
+                )
             );
         }
 
@@ -333,6 +348,9 @@ final class TopNValueStore implements Releasable {
                 }
                 bytesInFlight += length;
             }
+            synchronized (queueLock) {
+                queuedBytes += length;
+            }
             source.close();
             row.values = null;
             row.valueSegment = segment.id;
@@ -382,6 +400,9 @@ final class TopNValueStore implements Releasable {
             synchronized (lock) {
                 bytesInFlight -= length;
                 last = bytesInFlight == 0;
+            }
+            synchronized (queueLock) {
+                queuedBytes -= length;
                 wake = appendWait;
                 appendWait = null;
             }
@@ -394,12 +415,12 @@ final class TopNValueStore implements Releasable {
         }
 
         /**
-         * Blocked while {@link #MAX_APPEND_BYTES_IN_FLIGHT} value bytes are queued; what the appender's {@code needsInput}
-         * consults.
+         * Blocked while {@link #MAX_APPEND_BYTES_IN_FLIGHT} value bytes are queued by the store's lanes together; what
+         * the appender's {@code needsInput} consults.
          */
         IsBlockedResult appendsBlocked() {
-            synchronized (lock) {
-                if (bytesInFlight < MAX_APPEND_BYTES_IN_FLIGHT) {
+            synchronized (queueLock) {
+                if (queuedBytes < MAX_APPEND_BYTES_IN_FLIGHT) {
                     return NOT_BLOCKED;
                 }
                 if (appendWait == null) {
@@ -440,11 +461,13 @@ final class TopNValueStore implements Releasable {
             segment = null;
             segmentBytes = 0;
             segmentRecords = 0;
+            long sealStarted = System.nanoTime();
             sealing = DriverSpillOperation.issue(driverContext, "top-n value segment seal", l -> {
-                ActionListener<FramedRun> publish = l.map(run -> {
-                    finished.sealed(run);
-                    return run;
-                });
+                ActionListener<FramedRun> publish = ActionListener.runBefore(l, () -> spillNanos.addAndGet(System.nanoTime() - sealStarted))
+                    .map(run -> {
+                        finished.sealed(run);
+                        return run;
+                    });
                 if (previous == null || previous.isDone()) {
                     finishing.finish(publish);
                 } else {

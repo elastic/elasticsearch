@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
+import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
@@ -170,6 +171,7 @@ import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.spill.SpillScopes;
 import org.elasticsearch.xpack.esql.spill.SpillSettings;
+import org.elasticsearch.xpack.esql.spill.SpillStats;
 import org.elasticsearch.xpack.esql.spill.SpillStores;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
@@ -710,6 +712,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             exchangeService,
             queryScopes,
+            new SpillStats(spillStore, queryScopes),
             new ComputeExecutor(services.threadPool().executor(ESQL_WORKER_THREAD_POOL_NAME), services.threadPool().getThreadContext()),
             blockFactoryProvider,
             dataSourceModule,
@@ -928,6 +931,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(HashAggregationOperator.FreezeStatus.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
         entries.add(GroupedLimitOperator.Status.ENTRY);
+        entries.add(OutputOperator.Status.ENTRY);
         entries.add(GroupedTopNOperatorStatus.ENTRY);
         entries.add(LuceneOperator.Status.ENTRY);
         entries.add(TopNOperatorStatus.ENTRY);

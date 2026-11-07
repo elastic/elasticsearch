@@ -15,14 +15,20 @@ import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsAction;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsRequest;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsResponse;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.spill.SpillSettings;
+import org.elasticsearch.xpack.esql.spill.SpillStats;
 import org.elasticsearch.xpack.esql.spill.disk.DiskSpillPlugin;
 import org.elasticsearch.xpack.esql.spill.disk.DiskSpillSettings;
 
@@ -381,7 +387,8 @@ public class EsqlSpillIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put("index.number_of_shards", between(1, 3)).put("index.number_of_replicas", 0))
                 .setMapping("key", "type=long", "value", "type=keyword")
         );
-        int rows = between(2_000, 5_000);
+        // enough rows that whole chunks of the run are with the store when the final driver takes its profile
+        int rows = between(4_000, 6_000);
         Map<Long, String> valueOf = new HashMap<>();
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (long key = 0; key < rows; key++) {
@@ -400,6 +407,7 @@ public class EsqlSpillIT extends AbstractEsqlIntegTestCase {
         request.query("FROM " + index + " | SORT key | LIMIT " + rows + " | KEEP key, value");
         request.pragmas(new QueryPragmas(pragmas));
         request.acceptedPragmaRisks(true);
+        request.profile(true);
         try (EsqlQueryResponse response = run(request, TimeValue.timeValueMinutes(3))) {
             assertTrue("the result went to a run", response.isSpilled());
             assertThat(response.getRowCount(), equalTo((long) rows));
@@ -410,8 +418,42 @@ public class EsqlSpillIT extends AbstractEsqlIntegTestCase {
                 assertThat("row " + i + " carries its value", values.get(i).get(1), equalTo(valueOf.get((long) i)));
             }
             assertThat("the run is read again from the start", getValuesList(response), hasSize(rows));
+            // the collector's figures ride on the output operator's status in the final driver's profile
+            List<OutputOperator.Status> outputs = new ArrayList<>();
+            for (DriverProfile driver : response.profile().drivers()) {
+                for (OperatorStatus operator : driver.operators()) {
+                    if (operator.status() instanceof OutputOperator.Status status) {
+                        outputs.add(status);
+                    }
+                }
+            }
+            assertThat("one output operator, in the final driver", outputs, hasSize(1));
+            OutputOperator.Status output = outputs.get(0);
+            assertThat("every row went to the run", output.rowsSpilled(), equalTo((long) rows));
+            assertThat("the rows received are the result's", output.rowsReceived(), equalTo((long) rows));
+            assertThat("one run", output.spill().spillRuns(), equalTo(1));
+            assertThat("bytes went to the store", output.spill().spilledBytes(), greaterThan(0L));
         }
         assertSpillDirectoriesEmpty();
+        assertSpillStatsSettled();
+    }
+
+    /**
+     * The node stats of every node report the store with nothing in use and no scope open once the queries are done;
+     * scopes close after responses go out, so the check waits.
+     */
+    private void assertSpillStatsSettled() throws Exception {
+        assertBusy(() -> {
+            EsqlStatsResponse stats = client().execute(EsqlStatsAction.INSTANCE, new EsqlStatsRequest()).actionGet();
+            assertThat(stats.failures(), empty());
+            for (EsqlStatsResponse.NodeStatsResponse node : stats.getNodes()) {
+                Counters counters = node.getStats();
+                assertThat("a limit on " + node.getNode().getName(), counters.get(SpillStats.BYTES_LIMIT), greaterThan(0L));
+                assertThat("nothing in use on " + node.getNode().getName(), counters.get(SpillStats.BYTES_IN_USE), equalTo(0L));
+                assertThat("no debt on " + node.getNode().getName(), counters.get(SpillStats.CLEANUP_DEBT_BYTES), equalTo(0L));
+                assertThat("no scope open on " + node.getNode().getName(), counters.get(SpillStats.SCOPES), equalTo(0L));
+            }
+        });
     }
 
     /**

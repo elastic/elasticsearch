@@ -25,11 +25,22 @@ import java.util.Map;
  * one transport version. Presence is by value: an operator that spilled nothing writes no field, so existing profile
  * assertions keep passing; on the wire the record is written last in a status, after the operator's own version gates,
  * and read back as {@link #NONE} from a node that predates it.
+ * <p>
+ * The counters are defined once, here, and every producer counts the same way: the aggregation's slices and their
+ * restores, the freeze's partition runs and their replays at every depth, the Top-N's value segments with their
+ * compactions and gathers, the result collector's run. Bytes are the records' payload bytes, before the run's framing
+ * and the store's chunking: a run's header, index and footer are not counted, and a rewrite counts again, so a
+ * compaction's output and a replay's partition run add to the bytes written as any run does. A run is one run of any
+ * kind, a segment or a partition run included, counted at its seal, except the result collector's, counted from its
+ * creation since it is sealed after the driver's profile is taken. The time is the latency of the operator's spill
+ * operations, from the issue of each to its landing: the driver's wait where the driver waited, which is every
+ * creation, seal, restore, gather and replay read, and the aggregation's slice writes besides, which overlap with
+ * its work; appends in flight are not timed.
  *
- * @param spilledBytes bytes written to the store by this operator
- * @param readBackBytes bytes read back from the store by this operator
- * @param spillRuns runs this operator wrote
- * @param spillNanos time spent waiting on the store, writing and reading
+ * @param spilledBytes payload bytes written to the store by this operator, rewrites included
+ * @param readBackBytes payload bytes read back from the store by this operator
+ * @param spillRuns runs this operator wrote, segments and partition runs included
+ * @param spillNanos the latency of this operator's spill operations, the driver's wait where it waited
  */
 public record SpillStatus(long spilledBytes, long readBackBytes, int spillRuns, long spillNanos) implements Writeable, ToXContentFragment {
 

@@ -22,6 +22,10 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -82,8 +86,11 @@ public final class FramedRunWriter {
         }
     }
 
+    private static final Logger logger = LogManager.getLogger(FramedRunWriter.class);
+
     private final String name;
     private final SpillWriter writer;
+    private final long createdNanos = System.nanoTime();
     private final CircuitBreaker breaker;
     private final Executor codecExecutor;
     private final Options options;
@@ -181,6 +188,13 @@ public final class FramedRunWriter {
      */
     public int records() {
         return records;
+    }
+
+    /**
+     * Payload bytes handed to the store so far, in whole chunks: the status figure of a run still being written.
+     */
+    public long bytesWritten() {
+        return out.bytesWritten();
     }
 
     @Nullable
@@ -403,6 +417,17 @@ public final class FramedRunWriter {
                 public void onResponse(SpillObject object) {
                     finished = true;
                     release();
+                    // the one line a spill event leaves: never row data, the run's name carries the query's id
+                    logger.debug(
+                        () -> Strings.format(
+                            "spill run [%s] sealed: [%d] records, [%d] bytes, [%d] partitions, [%s] since its writer was created",
+                            name,
+                            footer.records(),
+                            footer.logicalBytes(),
+                            partitionCount,
+                            TimeValue.timeValueNanos(System.nanoTime() - createdNanos)
+                        )
+                    );
                     listener.onResponse(new FramedRun(name, object, header, footer));
                 }
 

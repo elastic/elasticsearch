@@ -35,6 +35,15 @@ public interface SpillStore {
     long bytesLimit();
 
     /**
+     * Bytes of spilled data the store could not delete yet and still counts against its limit: cleanup debt it retries
+     * on its own; the node stat reports it so an operator sees a store that cannot reclaim its space. A store without
+     * such a debt reports zero.
+     */
+    default long cleanupDebtBytes() {
+        return 0;
+    }
+
+    /**
      * Releases everything, cancelling what remains; completes when no worker of the store touches anything any more.
      * Idempotent.
      */

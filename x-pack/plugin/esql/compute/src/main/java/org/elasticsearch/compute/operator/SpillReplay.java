@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromMap;
 import org.elasticsearch.compute.spill.DriverSpillOperation;
 import org.elasticsearch.compute.spill.FramedRun;
 import org.elasticsearch.compute.spill.FramedRunLayout;
@@ -37,7 +38,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-import java.util.BitSet;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.compute.operator.Operator.NOT_BLOCKED;
 
@@ -138,14 +140,27 @@ final class SpillReplay implements Releasable {
     private DriverSpillOperation<Page> nextPage;
     @Nullable
     private DriverSpillOperation<Void> deleting;
-    /** The shard references of the documents in the spilled rows, pinned until this closes. */
-    @Nullable
-    private IndexedByShardId<? extends RefCounted> docRefs;
-    private final BitSet pinnedShards = new BitSet();
+    /**
+     * The shard references of the documents the spilled pages name, pinned once per shard and merged by shard id
+     * across the sources the pages came from: a query over several indices, or one with a lookup, hands an operator
+     * vectors built over references of their own, all over the request-wide shard ids, as the Top-N's single table
+     * and the first-document aggregator's map rely on. The vectors read back take their references from here.
+     */
+    private final Map<Integer, RefCounted> docRefs = new HashMap<>();
+    /**
+     * Written by {@link #pinDocuments} on the driver's thread while pages come, read by the decodes of the replay's
+     * reads afterwards, on the store's completion thread or inline: the phases do not overlap, and the hand-off of the
+     * read's completion orders them. The map is never cleared, so a page landing after the close resolves too.
+     */
+    private final IndexedByShardId<RefCounted> docRefsView = new IndexedByShardIdFromMap<>(docRefs);
+    /** Whether the operator's own references on the shards are held; the map stays, since the pages read back resolve through it. */
+    private boolean documentsPinned;
     private long rowsSpilled;
     private int partitionsReplayed;
     private long spilledBytes;
     private long readBackBytes;
+    /** What the current partition reader had counted at the last page, so each page adds its own bytes. */
+    private long readerBytesSeen;
     private int spillRuns;
     private long spillNanos;
     private long waitStartedNanos;
@@ -272,17 +287,18 @@ final class SpillReplay implements Releasable {
         for (int b = 0; b < page.getBlockCount(); b++) {
             if (page.getBlock(b) instanceof DocBlock documents) {
                 DocVector vector = documents.asVector();
-                if (docRefs == null) {
-                    docRefs = vector.refCounteds();
-                } else if (docRefs != vector.refCounteds()) {
-                    throw new IllegalStateException("documents from more than one source in one operator");
-                }
+                IndexedByShardId<? extends RefCounted> refs = vector.refCounteds();
                 IntVector shards = vector.shards();
                 for (int p = 0; p < shards.getPositionCount(); p++) {
                     int shard = shards.getInt(p);
-                    if (pinnedShards.get(shard) == false) {
-                        docRefs.get(shard).mustIncRef();
-                        pinnedShards.set(shard);
+                    RefCounted pinned = docRefs.get(shard);
+                    if (pinned == null) {
+                        RefCounted ref = refs.get(shard);
+                        ref.mustIncRef();
+                        docRefs.put(shard, ref);
+                        documentsPinned = true;
+                    } else {
+                        assert pinned == refs.get(shard) : "shard [" + shard + "] named by two sources with references of their own";
                     }
                 }
             }
@@ -290,11 +306,12 @@ final class SpillReplay implements Releasable {
     }
 
     private void unpinDocuments() {
-        if (docRefs != null) {
-            for (int shard = pinnedShards.nextSetBit(0); shard >= 0; shard = pinnedShards.nextSetBit(shard + 1)) {
-                docRefs.get(shard).decRef();
-            }
-            pinnedShards.clear();
+        if (documentsPinned == false) {
+            return;
+        }
+        documentsPinned = false;
+        for (RefCounted ref : docRefs.values()) {
+            ref.decRef();
         }
     }
 
@@ -481,7 +498,10 @@ final class SpillReplay implements Releasable {
                     replay.finish();
                     replayFinished = true;
                 } else {
-                    readBackBytes += in.ramBytesUsedByBlocks();
+                    // the record's payload bytes, as the writer counted them, not the decoded blocks' RAM
+                    long read = partitionReader.bytesRead();
+                    readBackBytes += read - readerBytesSeen;
+                    readerBytesSeen = read;
                     replay.addInput(in);
                 }
             }
@@ -527,7 +547,14 @@ final class SpillReplay implements Releasable {
             if (runReader.records(replayPartition) > 0) {
                 // decoded on the I/O thread: the query's factory charges the root view, which any thread may use,
                 // where the driver's factory sits on a local breaker that only the driver thread may touch
-                partitionReader = new PageRunReader(runReader, replayPartition, scope.blockFactory(), scope.rootView(), docRefs);
+                partitionReader = new PageRunReader(
+                    runReader,
+                    replayPartition,
+                    scope.blockFactory(),
+                    scope.rootView(),
+                    docRefs.isEmpty() ? null : docRefsView
+                );
+                readerBytesSeen = 0;
                 replay = host.newReplay(depth + 1, seed + 1);
                 replayFinished = false;
                 partitionsReplayed++;

@@ -74,6 +74,13 @@ public final class ResultCollector implements OutputOperator.BlockingPageConsume
     private boolean finished;
     private boolean closed;
     private long rowsSpilled;
+    /** The writer at its seal, for the bytes figure until the run's footer says; then the footer's figure. */
+    @Nullable
+    private PageRunWriter sealingWriter;
+    private long sealedBytes;
+    /** The driver's wait on the run's creation and on the appends over the bound, and when the current wait began. */
+    private long blockedNanos;
+    private long blockedSince;
 
     /**
      * @param scope the query's scope, whose store and root view the run uses; null keeps every page in memory
@@ -201,7 +208,7 @@ public final class ResultCollector implements OutputOperator.BlockingPageConsume
     public synchronized IsBlockedResult isBlocked() {
         landWriter();
         if (creating != null && creating.isDone() == false) {
-            return creating.blocked("result run creation");
+            return timed(creating.blocked("result run creation"));
         }
         synchronized (lock) {
             if (appendsInFlight < MAX_APPENDS_IN_FLIGHT) {
@@ -210,8 +217,30 @@ public final class ResultCollector implements OutputOperator.BlockingPageConsume
             if (appendWait == null) {
                 appendWait = new SubscribableListener<>();
             }
-            return new IsBlockedResult(appendWait, "result run appends in flight");
+            return timed(new IsBlockedResult(appendWait, "result run appends in flight"));
         }
+    }
+
+    /**
+     * Counts the driver's wait: from the first blocked answer to the landing it waits for, once, however often the
+     * driver asks in between. The driver may ask while it still moves pages upstream of the sink, so the figure
+     * bounds its idle time from above: the sink's blocked time.
+     */
+    private IsBlockedResult timed(IsBlockedResult blocked) {
+        assert Thread.holdsLock(this);
+        if (blockedSince == 0) {
+            long started = System.nanoTime();
+            blockedSince = started;
+            blocked.listener().addListener(ActionListener.running(() -> {
+                synchronized (this) {
+                    if (blockedSince == started) {
+                        blockedNanos += System.nanoTime() - started;
+                        blockedSince = 0;
+                    }
+                }
+            }));
+        }
+        return blocked;
     }
 
     /**
@@ -221,8 +250,27 @@ public final class ResultCollector implements OutputOperator.BlockingPageConsume
         return creating != null;
     }
 
+    @Override
     public synchronized long rowsSpilled() {
         return rowsSpilled;
+    }
+
+    /**
+     * The collector's counters as every spilling operator reports them: the run's payload bytes so far, in whole
+     * chunks until the seal and the footer's figure after; nothing read back, since the response's reads are the
+     * client's, not the driver's; the run counted once its creation landed, as it is sealed after the driver's
+     * profile is taken; and the driver's wait on the run.
+     */
+    @Override
+    public synchronized SpillStatus spillStatus() {
+        if (creating == null) {
+            return SpillStatus.NONE;
+        }
+        boolean created = creating.isDone() && creating.failure() == null;
+        long bytes = writer != null ? writer.writer().bytesWritten()
+            : sealingWriter != null ? sealingWriter.writer().bytesWritten()
+            : sealedBytes;
+        return new SpillStatus(bytes, 0, created ? 1 : 0, blockedNanos);
     }
 
     /**
@@ -282,12 +330,15 @@ public final class ResultCollector implements OutputOperator.BlockingPageConsume
             toSeal = writer;
             writer = null;
             sealing = true;
+            sealingWriter = toSeal;
         }
         toSeal.finish(ActionListener.wrap(run -> {
             Exception e = failure;
             Releasable lease;
             synchronized (this) {
                 lease = takeLease();
+                sealedBytes = run.footer().logicalBytes();
+                sealingWriter = null;
             }
             if (e != null) {
                 // the lease after the run: the scope may close once the run is gone

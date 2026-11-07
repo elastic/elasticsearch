@@ -218,6 +218,7 @@ public final class DiskSpillStore implements SpillStore {
     /**
      * Bytes of files that could not be deleted and are still counted against the cap.
      */
+    @Override
     public long cleanupDebtBytes() {
         synchronized (debts) {
             long sum = 0;

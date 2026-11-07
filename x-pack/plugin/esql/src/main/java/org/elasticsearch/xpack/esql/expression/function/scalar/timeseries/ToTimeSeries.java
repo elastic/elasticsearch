@@ -37,12 +37,11 @@ import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
- * Casts the keyword {@code _timeseries} - the source of a series' dimensions, as nodes without typed metadata read it - to
- * typed metadata, so a plan exposes one {@code _timeseries} type whichever nodes read it. Dimensions under objects are
- * flattened to their dotted field names and named the way the typed reader names them. Values are their source text, so
- * they can differ from a typed read where the mapping coerces the source value.
+ * Casts the keyword {@code _timeseries} - the source of a series' dimensions - to typed metadata. Dimensions under objects
+ * are flattened to their dotted field names and named as PromQL labels. Values are their source text.
  * <p>
- * Internal: PromQL resolution places it on the coordinator, above every aggregate, where the typed type is supported.
+ * Internal: shards read the keyword view of a series' dimensions, and PromQL keys the series by the typed metadata it
+ * casts from it, once per series.
  */
 public final class ToTimeSeries extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

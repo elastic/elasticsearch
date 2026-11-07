@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -79,14 +80,7 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
             if (Alias.unwrap(grouping) instanceof TimeSeriesWithout fn) {
                 // Replace the semantic WITHOUT node with the concrete _timeseries field attribute,
                 // collecting the excluded dimension names from the function's children.
-                var excludedFields = new LinkedHashSet<String>(fn.children().size());
-                for (var field : fn.children()) {
-                    if (field instanceof FieldAttribute fa) {
-                        excludedFields.add(fa.fieldName().string());
-                    } else if (field instanceof Attribute attr) {
-                        excludedFields.add(attr.name());
-                    }
-                }
+                var excludedFields = excludedFields(fn);
 
                 // The grouping is a named expression (Alias) wrapping the WITHOUT function; resolve its
                 // attribute so the lowered _timeseries attribute can preserve the original identity (name id).
@@ -123,6 +117,23 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                     replacements.put(lowered.id(), lowered);
                     newGroupings.add(lowered);
                 }
+            } else if (grouping instanceof Alias alias && alias.child().anyMatch(TimeSeriesWithout.class::isInstance)) {
+                // A grouping computed from the metadata (a cast of it, say) reads the lowered attribute under its own id.
+                newGroupings.add(alias.replaceChild(alias.child().transformUp(TimeSeriesWithout.class, fn -> {
+                    var lowered = new TimeSeriesMetadataAttribute(
+                        fn.source(),
+                        null,
+                        null,
+                        MetadataAttribute.TIMESERIES,
+                        timeSeriesField(),
+                        Nullability.TRUE,
+                        new NameId(),
+                        true,
+                        excludedFields(fn)
+                    );
+                    aliasedLowered.add(lowered);
+                    return lowered;
+                })));
             } else {
                 newGroupings.add(grouping);
             }
@@ -146,5 +157,17 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
         allLowered.addAll(aliasedLowered);
         LogicalPlan newChild = addLoweredAttributesToTimeSeriesSource(aggregate.child(), allLowered);
         return aggregate.with(newChild, newGroupings, newAggregates);
+    }
+
+    private static LinkedHashSet<String> excludedFields(TimeSeriesWithout fn) {
+        var excludedFields = new LinkedHashSet<String>(fn.children().size());
+        for (var field : fn.children()) {
+            if (field instanceof FieldAttribute fa) {
+                excludedFields.add(fa.fieldName().string());
+            } else if (field instanceof Attribute attr) {
+                excludedFields.add(attr.name());
+            }
+        }
+        return excludedFields;
     }
 }

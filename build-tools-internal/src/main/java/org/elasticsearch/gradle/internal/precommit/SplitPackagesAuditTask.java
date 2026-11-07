@@ -26,10 +26,12 @@ import org.gradle.api.problems.Problems;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -64,7 +66,7 @@ import static org.elasticsearch.gradle.util.GradleUtils.projectPath;
  * Checks for split packages with dependencies. These are not allowed in a future modularized world.
  */
 @CacheableTask
-public class SplitPackagesAuditTask extends DefaultTask {
+public abstract class SplitPackagesAuditTask extends DefaultTask {
 
     private static final Logger LOGGER = Logging.getLogger(SplitPackagesAuditTask.class);
 
@@ -73,7 +75,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
     private final SetProperty<File> srcDirs;
     private final SetProperty<String> ignoreClasses;
     private final RegularFileProperty markerFile;
-    private Map<File, String> projectBuildDirs;
 
     @Inject
     public SplitPackagesAuditTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
@@ -84,11 +85,18 @@ public class SplitPackagesAuditTask extends DefaultTask {
         this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
+    @ServiceReference(ProjectBuildDirsService.NAME)
+    @Optional
+    public abstract Property<ProjectBuildDirsService> getProjectBuildDirsService();
+
     @TaskAction
     public void auditSplitPackages() {
         workerExecutor.noIsolation().submit(SplitPackagesAuditAction.class, params -> {
             params.getProjectPath().set(projectPath(getPath()));
-            params.getProjectBuildDirs().set(projectBuildDirs);
+            ProjectBuildDirsService projectBuildDirsService = getProjectBuildDirsService().getOrNull();
+            if (projectBuildDirsService != null) {
+                params.getProjectBuildDirs().set(projectBuildDirsService.getProjectBuildDirs());
+            }
             params.getClasspath().from(classpath);
             params.getSrcDirs().set(srcDirs);
             params.getIgnoreClasses().set(ignoreClasses);
@@ -129,10 +137,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
     @OutputFile
     public RegularFileProperty getMarkerFile() {
         return markerFile;
-    }
-
-    public void setProjectBuildDirs(Map<File, String> projectBuildDirs) {
-        this.projectBuildDirs = projectBuildDirs;
     }
 
     public abstract static class SplitPackagesAuditAction implements WorkAction<Parameters> {
@@ -342,16 +346,28 @@ public class SplitPackagesAuditTask extends DefaultTask {
 
         private String formatDependency(File dependencyFile) {
             if (dependencyFile.isDirectory()) {
-                while (dependencyFile.getName().equals("build") == false) {
-                    dependencyFile = dependencyFile.getParentFile();
+                File buildDir = resolveBuildDir(dependencyFile);
+                if (buildDir == null) {
+                    return dependencyFile.getAbsolutePath();
                 }
-                String projectName = getParameters().getProjectBuildDirs().get().get(dependencyFile);
-                if (projectName == null) {
-                    throw new IllegalStateException("Build directory unknown to gradle: " + dependencyFile);
+                String projectName = getParameters().getProjectBuildDirs().getOrElse(Map.of()).get(buildDir);
+                if (projectName != null) {
+                    return "project " + projectName;
                 }
-                return "project " + projectName;
+                return buildDir.getAbsolutePath();
             }
             return dependencyFile.getName(); // just the jar filename
+        }
+
+        private static File resolveBuildDir(File dependencyFile) {
+            File current = dependencyFile;
+            while (current != null && current.getName().equals("build") == false) {
+                current = current.getParentFile();
+            }
+            if (current == null) {
+                return null;
+            }
+            return current.toPath().normalize().toFile();
         }
     }
 

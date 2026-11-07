@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
@@ -505,6 +506,25 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         expectThrows(
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"1.1.1.1\"}", "{\"f\":null}")
+        );
+    }
+
+    /** A nullability=false field whose array holds no non-null value goes in _ignored under on_failure=ignore, as on the row path. */
+    public void testRequiredFieldWithoutValueIsIgnored() throws IOException {
+        final String ips = "[\""
+            + NetworkAddress.format(randomIp(randomBoolean()))
+            + "\",\""
+            + NetworkAddress.format(randomIp(randomBoolean()))
+            + "\"]";
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "ip").field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch(
+                "required field without a value",
+                1L,
+                doc("d1", 1L, "{\"f\":" + ips + "}"),
+                doc("d2", 2L, "{\"f\":" + randomFrom("[]", "[[]]", "[null]", "[null,null]") + "}")
+            )
         );
     }
 

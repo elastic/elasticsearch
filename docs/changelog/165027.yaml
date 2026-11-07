@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 165027
+summary: "Fix batch indexing not adding a field to `_ignored` under nullability: false"
+type: bug

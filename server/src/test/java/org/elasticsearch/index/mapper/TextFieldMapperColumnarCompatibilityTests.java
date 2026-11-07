@@ -439,4 +439,23 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(ms, FIELD, "{\"f\":[\"a\",\"b\"]}"));
     }
 
+    /**
+     * A nullability=false field whose array holds no non-null value goes in _ignored under on_failure=ignore, as on the row path. One
+     * batch packs as an ARRAY column and the other as a UNION column, the two kinds that hold arrays, so neither may skip the check.
+     */
+    public void testRequiredFieldWithoutValueIsIgnored() throws IOException {
+        final String values = "[\"" + randomAlphanumericOfLength(5) + "\",\"" + randomAlphanumericOfLength(5) + "\"]";
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "text").field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch("ARRAY column", 1L, doc("d1", 1L, "{\"f\":" + values + "}"), doc("d2", 2L, "{\"f\":[]}")),
+            batch(
+                "UNION column",
+                1L,
+                doc("d1", 1L, "{\"f\":" + values + "}"),
+                doc("d2", 2L, "{\"f\":" + randomFrom("[[]]", "[null]", "[null,null]") + "}")
+            )
+        );
+    }
+
 }

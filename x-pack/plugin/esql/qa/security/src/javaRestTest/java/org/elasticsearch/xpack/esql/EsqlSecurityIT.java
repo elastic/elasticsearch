@@ -185,6 +185,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_dataset_query_fls", "x-pack-test-password", "ds_dataset_query_fls", false)
         .user("ds_dataset_query_partial", "x-pack-test-password", "ds_dataset_query_partial", false)
         .user("ds_dataset_query_ok_plus_dls", "x-pack-test-password", "ds_dataset_query_ok_plus_dls", false)
+        .user("ds_query_read_datasource", "x-pack-test-password", "ds_query_read_datasource", false)
+        .user("ds_query_read_metadata_datasource", "x-pack-test-password", "ds_query_read_metadata_datasource", false)
         .build();
 
     @Override
@@ -3854,6 +3856,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
      * {@code DATASET(<data source>, {...})} reads a data source with no dataset in front of it, so nothing in the
      * index namespace authorizes it. A caller with no {@code global.data_source} grant on the named data source is
      * refused, naming the cluster action the privilege is evaluated through — the same refusal PUT dataset gives.
+     * <p>
+     * The role here holds an index {@code read} grant it never uses, as the three tests below do: {@code _query} is
+     * authorized by action name against the role's index privileges, so a role with none runs no query at all and
+     * every one of these would be refused before reaching the data source gate, each for the same wrong reason.
      */
     public void testFromDatasetTableFunctionDeniedWithoutDatasourcePrivilege() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
@@ -3881,7 +3887,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         ResponseException ex = expectThrows(
             ResponseException.class,
             () -> runESQLCommand(
-                "ds_read_metadata_datasource",
+                "ds_query_read_metadata_datasource",
                 "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
             )
         );
@@ -3901,7 +3907,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         ResponseException ex = expectThrows(
             ResponseException.class,
             () -> runESQLCommand(
-                "ds_read_datasource",
+                "ds_query_read_datasource",
                 "FROM DATASET(" + SECURITY_IT_SHARED_DATASOURCE + ", {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
             )
         );
@@ -3919,7 +3925,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         ResponseException ex = expectThrows(
             ResponseException.class,
             () -> runESQLCommand(
-                "ds_read_datasource",
+                "ds_query_read_datasource",
                 "FROM DATASET(security_it_absent_ds, {\"resource\": \"s3://bucket/path/*.parquet\"}) | STATS COUNT(*)"
             )
         );

@@ -27,6 +27,7 @@ public class Constants {
         "cluster:admin/esql/data_source/get",
         "cluster:admin/esql/data_source/put",
         "cluster:admin/esql/data_source/test_connection",
+        "cluster:admin/esql/dataset/authorize_datasource",
         "cluster:admin/fleet/secrets/delete",
         "cluster:admin/fleet/secrets/get",
         "cluster:admin/fleet/secrets/post",

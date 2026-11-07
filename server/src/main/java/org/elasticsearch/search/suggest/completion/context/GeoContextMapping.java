@@ -11,6 +11,7 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -182,6 +183,9 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             GeoPoint spare = new GeoPoint();
             for (IndexableField field : fields) {
                 if (field instanceof StringField) {
+                    spare.resetFromString(field.stringValue());
+                    geohashes.add(spare.geohash());
+                } else if (field instanceof StoredField) {
                     spare.resetFromString(field.stringValue());
                     geohashes.add(spare.geohash());
                 } else if (field instanceof LatLonDocValuesField || field instanceof GeoPointFieldMapper.LatLonPointWithDocValues) {

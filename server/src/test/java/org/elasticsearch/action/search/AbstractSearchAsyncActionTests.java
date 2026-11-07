@@ -423,7 +423,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             )
         );
         PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(
-            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY)
+            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), List.of())
         );
 
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();

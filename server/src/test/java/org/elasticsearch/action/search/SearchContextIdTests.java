@@ -89,7 +89,7 @@ public class SearchContextIdTests extends ESTestCase {
             queryResults.asList(),
             aliasFilters,
             version,
-            shardSearchFailures.values().toArray(ShardSearchFailure[]::new)
+            List.copyOf(shardSearchFailures.values())
         );
         final SearchContextId context = SearchContextId.decode(namedWriteableRegistry, id);
         assertThat(context.shards().keySet(), hasSize(3));
@@ -144,12 +144,7 @@ public class SearchContextIdTests extends ESTestCase {
 
     public void testDecodingWithUnknownTransportIdThrows() {
         TransportVersion unknownTransportVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
-        BytesReference id = SearchContextId.encode(
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            unknownTransportVersion,
-            ShardSearchFailure.EMPTY_ARRAY
-        );
+        BytesReference id = SearchContextId.encode(Collections.emptyMap(), Collections.emptyMap(), unknownTransportVersion, List.of());
 
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
 

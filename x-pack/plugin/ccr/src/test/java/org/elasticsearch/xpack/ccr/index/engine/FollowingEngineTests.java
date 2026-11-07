@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -293,6 +294,7 @@ public class FollowingEngineTests extends ESTestCase {
             .mapperService(mapperService)
             .engineResetLock(new EngineResetLock())
             .mergeMetrics(MergeMetrics.NOOP)
+            .indexingMemoryLimits(new SettingsIndexingMemoryLimits(Settings.EMPTY))
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }

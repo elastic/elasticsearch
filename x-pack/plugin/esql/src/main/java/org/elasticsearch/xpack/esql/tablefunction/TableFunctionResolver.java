@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.esql.tablefunction;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
@@ -18,6 +20,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Turns every {@link UnresolvedTableFunctionRelation} the parser left in a plan into the leaf that reads.
@@ -34,9 +37,19 @@ import java.util.Map;
 public class TableFunctionResolver {
 
     private final TableFunctionRegistry registry;
+    private final Executor executor;
 
-    public TableFunctionResolver(TableFunctionRegistry registry) {
+    /**
+     * @param executor the pool planning continues on. A function may complete its listener from anywhere - a
+     *                 transport response lands on a transport worker, a field-caps handler on
+     *                 {@code search_coordination} - and the caller resumes planning on {@code search} and asserts
+     *                 it. Making that the facility's business rather than each function's is the difference
+     *                 between a contract and a thing every function has to remember; the sibling
+     *                 {@code DatasetResolver} takes the same executor for the same reason.
+     */
+    public TableFunctionResolver(TableFunctionRegistry registry, Executor executor) {
         this.registry = registry;
+        this.executor = executor;
     }
 
     /**
@@ -77,9 +90,12 @@ public class TableFunctionResolver {
         // below run concurrently.
         Map<UnresolvedTableFunctionRelation, LeafPlan> bound = Collections.synchronizedMap(new IdentityHashMap<>(leaves.size()));
         TableFunctionContext context = new TableFunctionContext(projectMetadata);
+        // Forked here and not on the early return above: a query naming no function never leaves the caller's
+        // thread, so it pays nothing for this.
+        ActionListener<LogicalPlan> onPlanningPool = new ThreadedActionListener<>(executor, PlanningCpuTracker.inheritMeteredCpu(listener));
         try (
             var refs = new RefCountingListener(
-                listener.delegateFailureAndWrap((delegate, ignored) -> delegate.onResponse(substitute(parsed, bound)))
+                onPlanningPool.delegateFailureAndWrap((delegate, ignored) -> delegate.onResponse(substitute(parsed, bound)))
             )
         ) {
             for (int i = 0; i < leaves.size(); i++) {

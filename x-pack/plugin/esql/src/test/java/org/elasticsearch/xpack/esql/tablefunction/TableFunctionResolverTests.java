@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.tablefunction;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -221,7 +223,10 @@ public class TableFunctionResolverTests extends ESTestCase {
     public void testFunctionsBindConcurrently() throws Exception {
         Deferred left = new Deferred("left");
         Deferred right = new Deferred("right");
-        TableFunctionResolver resolver = new TableFunctionResolver(new TableFunctionRegistry(List.of(left, right)));
+        TableFunctionResolver resolver = new TableFunctionResolver(
+            new TableFunctionRegistry(List.of(left, right)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         LogicalPlan plan = new UnionAll(Source.EMPTY, List.of(named("left"), named("right")), List.of());
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
 
@@ -242,7 +247,10 @@ public class TableFunctionResolverTests extends ESTestCase {
     /** A function that fails its listener fails the query, rather than the resolver answering with a partial plan. */
     public void testBindFailureFailsTheQuery() {
         Deferred failing = new Deferred("left");
-        TableFunctionResolver resolver = new TableFunctionResolver(new TableFunctionRegistry(List.of(failing)));
+        TableFunctionResolver resolver = new TableFunctionResolver(
+            new TableFunctionRegistry(List.of(failing)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
 
         resolver.resolveTableFunctions(named("left"), null, future);
@@ -250,6 +258,58 @@ public class TableFunctionResolverTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("listing refused"));
+    }
+
+    /**
+     * The plan comes back on the executor the resolver was given, whatever thread the function answered on.
+     * <p>
+     * This is not decoration: the caller resumes planning on a particular pool and asserts it, while a function
+     * that does I/O completes wherever its response landed - a transport worker, or the pool a field-caps handler
+     * runs on. Without the fork, every function doing I/O has to remember to do this itself, and forgetting it
+     * trips an assertion on a snapshot build and silently runs planning on the wrong pool in production.
+     */
+    public void testPlanIsHandedBackOnTheGivenExecutor() throws Exception {
+        AtomicInteger forks = new AtomicInteger();
+        Executor recording = command -> {
+            forks.incrementAndGet();
+            command.run();
+        };
+        Deferred function = new Deferred("left");
+        TableFunctionResolver resolver = new TableFunctionResolver(new TableFunctionRegistry(List.of(function)), recording);
+        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
+
+        resolver.resolveTableFunctions(named("left"), null, future);
+        // Answered from another thread, as a function doing I/O would be.
+        Thread elsewhere = new Thread(function::release);
+        elsewhere.start();
+        elsewhere.join();
+
+        assertThat(future.actionGet(10, TimeUnit.SECONDS), instanceOf(LocalRelation.class));
+        assertThat(forks.get(), equalTo(1));
+    }
+
+    /** And a query naming no function never leaves the caller's thread, so it pays nothing for that fork. */
+    public void testNoFunctionMeansNoFork() {
+        AtomicInteger forks = new AtomicInteger();
+        Executor recording = command -> {
+            forks.incrementAndGet();
+            command.run();
+        };
+        TableFunctionResolver resolver = new TableFunctionResolver(new TableFunctionRegistry(List.of()), recording);
+        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
+
+        LogicalPlan plan = new UnresolvedRelation(
+            Source.EMPTY,
+            new IndexPattern(Source.EMPTY, "logs"),
+            false,
+            List.of(),
+            IndexMode.STANDARD,
+            null
+        );
+        resolver.resolveTableFunctions(plan, null, future);
+
+        assertThat(future.actionGet(), equalTo(plan));
+        assertThat(forks.get(), equalTo(0));
     }
 
     /** Answers its listener only when told to, so a test can hold two binds open at once. */
@@ -397,7 +457,10 @@ public class TableFunctionResolverTests extends ESTestCase {
      * dispatch with a bare call makes this throw out of {@code resolveTableFunctions} rather than out of the future.
      */
     public void testFunctionThrowingInsteadOfCompletingFailsTheQuery() {
-        TableFunctionResolver resolver = new TableFunctionResolver(new TableFunctionRegistry(List.of(new Throwing())));
+        TableFunctionResolver resolver = new TableFunctionResolver(
+            new TableFunctionRegistry(List.of(new Throwing())),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         Source source = Source.EMPTY;
         UnresolvedTableFunctionRelation leaf = new UnresolvedTableFunctionRelation(
             source,
@@ -472,7 +535,10 @@ public class TableFunctionResolverTests extends ESTestCase {
     }
 
     private static LogicalPlan resolve(TableFunction function, LogicalPlan plan) {
-        TableFunctionResolver resolver = new TableFunctionResolver(new TableFunctionRegistry(List.of(function)));
+        TableFunctionResolver resolver = new TableFunctionResolver(
+            new TableFunctionRegistry(List.of(function)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
         resolver.resolveTableFunctions(plan, null, future);
         return future.actionGet();

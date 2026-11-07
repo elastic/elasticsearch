@@ -821,7 +821,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
      * unlike the resolver above, it has no collaborators to leave unset.
      */
     private static TableFunctionResolver noTableFunctionsResolver() {
-        return new TableFunctionResolver(new TableFunctionRegistry(List.of()));
+        return new TableFunctionResolver(new TableFunctionRegistry(List.of()), EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

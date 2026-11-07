@@ -975,13 +975,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     /**
-     * The table functions this node registers. Empty here, because this change adds the facility and no function.
+     * The table functions this node registers. None by default.
      * <p>
-     * A seam rather than a constant so that a function can be registered without the facility naming one. Nothing
-     * overrides it here and no query in this change runs a table function: the facility is covered by unit tests
-     * that drive a function defined in the test through the real resolver and registry. The
-     * precedent for a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState},
-     * both overridden by test subclasses.
+     * A seam rather than a constant so that a function can be registered without the facility naming one, and so
+     * that a test can register one of its own: {@code TableFunctionFacilityIT} overrides this to drive the facility
+     * through real queries with a function that exists only in that test. The precedent for a protected hook on
+     * this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState}, both overridden by test
+     * subclasses.
      * <p>
      * A function needing collaborators is constructed with them here; that is why the registry takes
      * already-constructed functions rather than names, and why the client is a parameter here rather than

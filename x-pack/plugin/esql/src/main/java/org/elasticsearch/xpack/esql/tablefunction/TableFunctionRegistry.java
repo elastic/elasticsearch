@@ -22,7 +22,7 @@ import java.util.TreeMap;
  * carries no privilege of its own. Built from a list of already-constructed functions, so a function that needs
  * collaborators is handed them where it is created and nothing shared has to know about them.
  * <p>
- * <b>Empty in this change, deliberately.</b> The facility arrives with no functions in it, which is what makes
+ * <b>It may legitimately be empty.</b> A node registering no function is a working state, which is what makes
  * the separation checkable rather than asserted: everything below is exercised by a function defined in the
  * tests, so nothing here can be shaped by one real function's needs.
  */
@@ -50,7 +50,7 @@ public final class TableFunctionRegistry {
     /**
      * Adds one capability per registered function, named {@code table_fn_<name>}, so a client can ask whether this
      * cluster has a particular function and not only whether it has the facility at all. Emits nothing while no
-     * function is registered, which is the state this change ships in. The facility's own
+     * function is registered. The facility's own
      * capability stays separate ({@link EsqlCapabilities.Cap#FROM_TABLE_FUNCTION}), because the two become
      * different questions the moment there is a second function.
      * <p>

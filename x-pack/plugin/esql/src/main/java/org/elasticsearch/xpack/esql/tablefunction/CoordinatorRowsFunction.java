@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.tablefunction;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Block;
@@ -13,16 +14,21 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 
+import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -82,37 +88,73 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
     }
 
     /**
-     * Refuses a value the declared type cannot hold, for the types where the block builder would not refuse it
-     * itself.
+     * The value a block builder should receive for a column, which is not always the value the function handed in.
      * <p>
-     * {@code BlockUtils.appendValue} casts for the numeric and boolean families, so a wrong Java type there fails
-     * on its own. The string-backed family does not: its arm is {@code appendBytesRef(toBytesRef(val))}, and
-     * {@code BytesRefs.toBytesRef} ends in {@code new BytesRef(value.toString())} — so anything at all is
-     * accepted and quietly stringified. For {@code KEYWORD} and {@code TEXT} that is what is wanted. For every
-     * other type that maps to {@code BYTES_REF} it is wrong in a way nothing downstream can see: declare
-     * {@code IP}, hand back {@code "1.2.3.4"}, and the block carries seven UTF-8 bytes where the engine expects
-     * the sixteen {@code InetAddressPoint} encodes, under an attribute that says {@code ip}.
+     * Checking the Java type is not enough for the types whose bytes are an <i>encoding</i> rather than the text.
+     * {@code BlockUtils.appendValue}'s {@code BYTES_REF} arm appends whatever bytes it is given, so a
+     * {@code BytesRef} holding {@code "1.2.3.4"} under an {@code ip} column would carry seven UTF-8 bytes where
+     * the engine reads the sixteen {@link InetAddressPoint} encodes — right element type, wrong bytes, and
+     * nothing downstream able to tell.
+     * <p>
+     * So the seam owns the encoding instead of trusting each function with it: a function hands back the natural
+     * Java value and this turns it into the bytes the type is read as. A raw {@code BytesRef} is refused for those
+     * types, because it is exactly the shape that cannot be checked. {@code KEYWORD}, {@code TEXT} and
+     * {@code SOURCE} take a {@code String} or a {@code BytesRef}, since for them the bytes <i>are</i> the text.
+     * <p>
+     * A {@code List} is a multivalued cell, which the builders support, so each element goes through the same rule.
      */
-    private static void refuseIfNotTheDeclaredType(Attribute column, Object value) {
+    private static Object encodedFor(Attribute column, Object value) {
         if (value == null) {
-            return;
+            return null;
+        }
+        if (value instanceof List<?> multivalue) {
+            List<Object> encoded = new ArrayList<>(multivalue.size());
+            for (Object element : multivalue) {
+                encoded.add(encodedFor(column, element));
+            }
+            return encoded;
         }
         DataType declared = column.dataType();
-        if (PlannerUtils.toElementType(declared) != ElementType.BYTES_REF || value instanceof BytesRef) {
-            return;
+        if (PlannerUtils.toElementType(declared) != ElementType.BYTES_REF) {
+            // The numeric and boolean builders cast, so a wrong type fails there with the column named by page.
+            return value;
         }
-        if ((declared == DataType.KEYWORD || declared == DataType.TEXT) && value instanceof String) {
-            return;
-        }
+        return switch (declared) {
+            case KEYWORD, TEXT, SOURCE -> value instanceof String || value instanceof BytesRef
+                ? value
+                : refuse(column, value, "a String or a BytesRef");
+            case IP -> switch (value) {
+                case InetAddress address -> new BytesRef(InetAddressPoint.encode(address));
+                // The one encoded family with a cheap invariant, so an already-encoded value is still accepted.
+                case BytesRef bytes when bytes.length == InetAddressPoint.BYTES -> bytes;
+                default -> refuse(column, value, "an InetAddress");
+            };
+            case VERSION -> switch (value) {
+                case Version version -> version.toBytesRef();
+                case String text -> new Version(text).toBytesRef();
+                default -> refuse(column, value, "a Version or a String");
+            };
+            case GEO_POINT, GEO_SHAPE -> value instanceof Geometry geometry
+                ? SpatialCoordinateTypes.GEO.asWkb(geometry)
+                : refuse(column, value, "a Geometry");
+            case CARTESIAN_POINT, CARTESIAN_SHAPE -> value instanceof Geometry geometry
+                ? SpatialCoordinateTypes.CARTESIAN.asWkb(geometry)
+                : refuse(column, value, "a Geometry");
+            // No natural Java form to encode from, so the function owns the bytes and says so by handing them over.
+            default -> value instanceof BytesRef ? value : refuse(column, value, "a BytesRef");
+        };
+    }
+
+    private static Object refuse(Attribute column, Object value, String wanted) {
         throw new IllegalStateException(
             "table function produced ["
                 + value.getClass().getSimpleName()
                 + "] for column ["
                 + column.name()
                 + "] declared ["
-                + declared.typeName()
+                + column.dataType().typeName()
                 + "], which needs "
-                + (declared == DataType.KEYWORD || declared == DataType.TEXT ? "a String or a BytesRef" : "an encoded BytesRef")
+                + wanted
         );
     }
 
@@ -126,7 +168,7 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
      * which is why there is no special case for it here.
      * <p>
      * Typing the builder from the declaration is not by itself enough to catch a value of the wrong Java type —
-     * see {@link #refuseIfNotTheDeclaredType}, which covers the family where the builder would accept anything.
+     * see {@link #encodedFor}, which owns the encoding for the family whose bytes are not their text.
      */
     private static Page page(List<Attribute> columns, List<List<Object>> rows) {
         BlockUtils.BuilderWrapper[] wrappers = new BlockUtils.BuilderWrapper[columns.size()];
@@ -144,8 +186,7 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
                     );
                 }
                 for (int i = 0; i < wrappers.length; i++) {
-                    Object value = row.get(i);
-                    refuseIfNotTheDeclaredType(columns.get(i), value);
+                    Object value = encodedFor(columns.get(i), row.get(i));
                     try {
                         wrappers[i].accept(value);
                     } catch (ClassCastException e) {

@@ -38,6 +38,11 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
+/**
+ * Selects the values of a field that its source mapped as one given type, null elsewhere. Performs no
+ * conversion and never inspects a value: the type comes from the mapping, which {@code ResolveUnionTypes}
+ * pins per leg.
+ */
 public class Typed extends EsqlScalarFunction implements ConvertFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Typed", Typed::new);
@@ -49,9 +54,9 @@ public class Typed extends EsqlScalarFunction implements ConvertFunction {
     private final Expression typeLiteral;
 
     @FunctionInfo(
-        // No "text" here although the field parameter accepts it, because a text leg is selectable but text is not a
-        // type a function returns in this engine: dataType() narrows it to keyword, as DataType#noText does for every
-        // other function's output. The two lists differing is the point rather than an omission.
+        // No "text" here although the field parameter accepts it: a text leg is selectable, and selecting it returns
+        // keyword, because dataType() narrows it. See that method for why. The two lists differing is the point
+        // rather than an omission.
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "unsigned_long", "version" },
         briefSummary = "Selects the values of a field that already have the given type.",
         description = "Returns the values of `field` whose source mapped them as `type`, and null for every "
@@ -108,10 +113,13 @@ public class Typed extends EsqlScalarFunction implements ConvertFunction {
     }
 
     /**
-     * The type asked for, narrowed out of {@code text}: a text leg can be selected, but no function in this engine
-     * hands back a {@code text} column - string output is {@code keyword}, and the two are the same block, so only the
-     * label differs. {@link DataType#UNSUPPORTED} when the second argument names no type, which {@code resolveType}
-     * then refuses.
+     * The type asked for, narrowed out of {@code text}. The two hold the same bytes in the same block, so the choice is
+     * only what to label the column, and {@code keyword} is the more useful label: a {@code text} column is not exact,
+     * so it cannot be sorted or grouped without a subfield, while the values selected here can be. {@code TO_TEXT} does
+     * return {@code text}, since producing text is what it is for; selecting a leg is not.
+     * <p>
+     * {@link DataType#UNSUPPORTED} when the second argument names no type, which {@code resolveType} then refuses.
+     * </p>
      */
     @Override
     public DataType dataType() {
@@ -142,18 +150,23 @@ public class Typed extends EsqlScalarFunction implements ConvertFunction {
         }
         // Nothing constrains the field, deliberately and against the look of the @Param list beside it. A conflicted
         // field reaches here typed UNSUPPORTED - that is what the conflict becomes - and refusing it refuses the very
-        // query this function exists for; the csv-spec example is what caught that. ResolveUnionTypes rewrites the
-        // attribute afterwards, per mapped type, which is also why supportedTypes() is every type.
-        // The declared type before anything about the value: asking "is that a type name" of a boolean answers that it
-        // is not one, which tells the user nothing about what the argument should have been.
-        TypeResolution isString = isString(typeLiteral, sourceText(), SECOND);
-        if (isString.unresolved()) {
-            return isString;
-        }
+        // query this function exists for. ResolveUnionTypes rewrites the attribute afterwards, per mapped type, which
+        // is also why supportedTypes() is every type.
+        //
+        // Constant-ness first, and the order is load-bearing rather than stylistic. The type is not a child of this
+        // node, so ResolveRefs never visits it and a column reference there stays an UnresolvedAttribute for good;
+        // asking such an expression for its dataType throws UnresolvedException, which is a server error. Every
+        // unresolved expression is unfoldable, so this check is what stops the one below it ever seeing one.
         if (typeLiteral.foldable() == false) {
             return new TypeResolution(
                 "second argument of [" + sourceText() + "] must be a constant, received [" + typeLiteral.sourceText() + "]"
             );
+        }
+        // Then the declared type: asking "is that a type name" of a boolean answers that it is not one, which tells
+        // the user nothing about what the argument should have been.
+        TypeResolution isString = isString(typeLiteral, sourceText(), SECOND);
+        if (isString.unresolved()) {
+            return isString;
         }
         if (targetType() == null) {
             return new TypeResolution("second argument of [" + sourceText() + "] must be a known type name");

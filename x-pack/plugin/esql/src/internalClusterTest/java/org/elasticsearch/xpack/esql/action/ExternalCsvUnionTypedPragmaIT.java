@@ -47,6 +47,11 @@ import static org.hamcrest.Matchers.equalTo;
  * queries - which it was not when this test was first written, because {@code run(EsqlQueryRequest)} does not apply
  * {@code getPragmas()} the way {@code run(String)} does.
  * </p>
+ * <p>
+ * There is no per-value companion to the per-column assertion, and there cannot usefully be one: {@code TYPEOF} and
+ * {@code TYPED} both decide what to report from the <em>attribute's</em> type, so neither can see a block that
+ * disagreed with its plan. A test using them would restate the column assertion in a longer form.
+ * </p>
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class ExternalCsvUnionTypedPragmaIT extends AbstractExternalDataSourceIT {
@@ -99,23 +104,6 @@ public class ExternalCsvUnionTypedPragmaIT extends AbstractExternalDataSourceIT 
                 "the pragma-less answer, value for value",
                 getValuesList(response).stream().map(row -> row.get(0)).toList(),
                 contains("100", "200", "oops", "abc", "def")
-            );
-        }
-    }
-
-    /**
-     * The same question asked per value rather than per column, which is what would survive a renderer that published a
-     * union as its widest leg. {@code TYPEOF} reads a value's own tag, so a union of long and keyword answers
-     * differently down the column; one answer for every row is the column being a single type rather than a union being
-     * flattened on the way out.
-     */
-    public void testEveryValueOfAReconciledColumnHasTheSameType() throws Exception {
-        String dataset = datasetWithADisagreeingColumn("union_pragma_typeof");
-        try (var response = read("FROM " + dataset + " | SORT id ASC | EVAL t = TYPEOF(col) | KEEP t")) {
-            assertThat(
-                "a reconciled column is one type for every value, whatever file it came from",
-                getValuesList(response).stream().map(row -> row.get(0)).toList(),
-                contains("keyword", "keyword", "keyword", "keyword", "keyword")
             );
         }
     }

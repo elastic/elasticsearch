@@ -5671,8 +5671,9 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * With the pragma on the same conflict becomes a union-typed field whose legs are its types in the canonical order, which is
-     * the order the block lays its sub-blocks out in and the order a renderer has to derive for itself.
+     * With the pragma on the same conflict becomes a union-typed field whose legs are its types in the canonical order. This is
+     * where that order is decided, once: the block lays its sub-blocks out in it and the response publishes it by name, both from
+     * this carried list rather than by computing it again.
      */
     public void testATypeConflictBecomesAUnionUnderThePragma() {
         FieldAttribute id = as(analyzedIdAttribute(unionTypedAnalyzer(), "keyword", "long"), FieldAttribute.class);
@@ -5680,6 +5681,33 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(id.dataType(), equalTo(DataType.UNION));
         UnionEsField union = as(id.field(), UnionEsField.class);
         assertThat(union.legTypes(), equalTo(List.of(KEYWORD, LONG)));
+    }
+
+    /**
+     * A column reference where the type name belongs is a user error and has to read as one. The type is not a child of
+     * the node, so {@code ResolveRefs} never visits it and it stays an {@code UnresolvedAttribute} for good; anything
+     * that asks such an expression for its type throws {@code UnresolvedException}, which is a 500 rather than a
+     * complaint about the query. So the constant check has to come before the type check, and this is what holds that
+     * order: reverse the two in {@code Typed.resolveType} and these queries die with a server error instead.
+     */
+    public void testTypedRefusesANonConstantTypeAsAUserError() {
+        basic().error(
+            "FROM test | EVAL t = TYPED(emp_no, first_name)",
+            containsString("second argument of [TYPED(emp_no, first_name)] must be a constant, received [first_name]")
+        );
+        // An unknown name takes the same path: unresolved is unresolved, and neither reaches dataType().
+        basic().error(
+            "FROM test | EVAL t = TYPED(emp_no, nosuchcolumn)",
+            containsString("second argument of [TYPED(emp_no, nosuchcolumn)] must be a constant, received [nosuchcolumn]")
+        );
+    }
+
+    /** A well-typed constant that is not a string still has to name the expected type, not just fail to be one. */
+    public void testTypedNamesStringAsTheTypeArgumentsType() {
+        basic().error(
+            "FROM test | EVAL t = TYPED(emp_no, false)",
+            containsString("second argument of [TYPED(emp_no, false)] must be [string], found value [false] type [boolean]")
+        );
     }
 
     /** Two types that widen to one are no conflict a union can carry, so the field is still erased. */
@@ -5734,6 +5762,28 @@ public class AnalyzerTests extends AnalyzerTestCase {
      * {@code historical} run gets no union at all, which is what
      * {@link #testATypeConflictStaysUnsupportedOnAClusterTooOldForTheType} asserts on purpose.
      */
+    /**
+     * The query the grouping refusal tells the user to write instead has to work, and nothing else asserted that it
+     * does - the refusal's own test only checks the wording of the suggestion. So this is the other half of that
+     * message: {@code TYPEOF} over a union resolves, and resolves to a keyword, which is why grouping on it needs no
+     * union grouping at all.
+     */
+    public void testTypeOfOverAUnionResolvesToAKeyword() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        LogicalPlan plan = analyzer.query("FROM union_index* | EVAL t = TYPEOF(id) | KEEP id, t");
+        Project project = as(as(plan, Limit.class).child(), Project.class);
+        assertThat(Expressions.names(project.projections()), equalTo(List.of("id", "t")));
+        assertThat(project.projections().get(0).dataType(), equalTo(DataType.UNION));
+        assertThat(project.projections().get(1).dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    /** And the grouping the refusal points at, end to end through analysis rather than only in the message. */
+    public void testCountByTypeOfOverAUnionResolves() {
+        TestAnalyzer analyzer = unionTypedAnalyzer().addIndex(conflictedIdIndex("keyword", "long"));
+        LogicalPlan plan = analyzer.query("FROM union_index* | STATS c = COUNT(*) BY t = TYPEOF(id)");
+        assertTrue("the grouping the error message recommends must itself resolve", plan.resolved());
+    }
+
     private TestAnalyzer unionTypedAnalyzer() {
         return analyzer().minimumTransportVersion(minimumVersionAtLeast(DataType.DataTypesTransportVersions.INDEX_SOURCE))
             .configuration(configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.UNION_TYPED_FIELDS.getKey(), true).build())));

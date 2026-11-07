@@ -543,8 +543,10 @@ risk ran the other way from how I first framed it.
 **Why nothing breaks.** `UnionTypesCleanup` rewrites `FieldAttribute`s whose `EsField` is a
 `TypeConflictedField`. A dataset column is a `ReferenceAttribute` built by
 `DeclaredSchemaResolver.declaredAttributes`, carrying a plain `DataType` and no `EsField` at all, and
-the only two production sites that construct a conflicted field are `IndexResolver` and
-`InvalidMappedField.potentiallyUnmapped` — neither on a dataset path. So the rule never matches a
+every production site that constructs a conflicted field is inside `IndexResolver` —
+`InvalidMappedField.potentiallyUnmapped`, `CompactInvalidMappedField`'s two factories and
+`new PotentiallyUnmappedSingleTypeEsField` — and none of them is on a dataset path. (An earlier draft of
+this named only two of them, which understated the enumeration without changing where it lands.) So the rule never matches a
 dataset column and there is nothing for the loader to be asked for.
 
 **Why nothing is gained either.** Datasets already answer cross-file type disagreement, by a different
@@ -589,3 +591,69 @@ and the union evidence stays in `UnionTypedFieldIT`.
 
 **Review finding N2 is withdrawn.** `FunctionDefinition.Builder#capabilities` does exist; the finding
 grepped for `Builder capabilities(` and the signature is `Builder<T> capabilities(String...)`.
+
+## 7. The two refusals I called defects, re-read against the code
+
+**The `LOOKUP JOIN` refusal is already correctly scoped, and my saying otherwise was wrong.** I told
+the user `UNION` in `Join.UNSUPPORTED_TYPES` blocks every column. It does not: that array is consulted
+only inside `Join.postAnalysisVerification`'s loop over `config.leftFields()` / `config.rightFields()`,
+which are the join keys. A union *payload* column is never looked at there, and the backstop throw in
+`QueryList` is on the key-reader path, which analysis has already refused — so the two agree.
+
+Whether a union payload column actually survives a join is a separate question and is **unproven**.
+The left side's non-key columns pass through `Block.filter(boolean, int[])` in `RightChunkedLeftJoin`,
+and `AbstractDelegatingCompoundBlock` implements `filter` generically over its sub-blocks, which the
+union block inherits — so it should work. That is a prediction until a test runs, and the test is
+`FROM a,b | LOOKUP JOIN lookup ON key | KEEP union_column`.
+
+**The subquery refusal is not only a sequencing defect of mine — `MergePlan` is a second producer of
+union types, and today it is a hard failure.** Two facts:
+
+`MergePlan.output` is a field, not lazy: `outputUnion(subplans)` runs once at construction and is
+first-branch-wins per name, so when two branches type a column differently the merge's output simply
+takes the first branch's attribute. The disagreement is caught afterwards by
+`UnionAll.checkUnionAll`, which fails with `Column [x] has conflicting data types in subqueries: [a]
+and [b]`.
+
+That message describes exactly what this type is for, one level up: two *sources* disagreeing about one
+column, where the sources are branches rather than indices. So the design-compliant answer is not to
+make my refusal more precise — it is for `outputUnion` to declare a union whose legs are the branch
+types, and for the merge to tag each branch's values with its leg on the way through. No new block
+machinery is needed; the union block already carries tags, and the leg order rule is the same canonical
+one. What is new is a second *producer* of legs, and a merge that tags by branch instead of a loader
+that tags by a shard's own mapping.
+
+That also dissolves the sequencing problem rather than working around it: a branch whose own column is
+a mapping-level union would arrive at `outputUnion` already typed `UNION`, and a merge that can build a
+union from disagreeing branches can carry that through instead of flattening it to `UNSUPPORTED`.
+
+Sized honestly, this is the largest remaining increment and it touches analysis, verification and the
+merge operator. It is also the one that turns a refusal into the feature.
+
+## 8. `TYPEOF` over a union never resolved, and I reported that it did
+
+`TypeOf.resolveType` admitted `UNION` and the leg types. It did not admit `UNSUPPORTED`, and that is the
+type a conflicted field actually has while the Resolution batch runs: the conflict is still an
+`InvalidMappedField`, whose own type is `UNSUPPORTED`, and the union is not built until
+`UnionTypesCleanup` at the end of analysis. So `EVAL t = TYPEOF(duration)` left the `EVAL` unresolved,
+and the user saw `Unknown column [duration]` and `Unknown column [t]` for a field that plainly exists —
+the enclosing `KEEP` could not bind against an unresolved child, which is what masked the real cause.
+
+`TYPED` was never affected because it constrains nothing, and its comment says why in the same words.
+Two functions over the same column, one of which had the rule written down.
+
+**The fix is to admit the pre-union form**, because the replacement that follows is the designed
+mechanism rather than a workaround: `UnionTypesCleanup` ends with a `transformExpressionsOnly` over
+`FieldAttribute`, so the child of this node becomes the `UnionEsField` attribute after resolution and
+`toEvaluator` reads its legs. Nothing unreadable gets through by being let past: a conflict no union can
+carry is erased to an `UnsupportedAttribute` by that same rule, and the verifier refuses it there.
+
+**On the reporting.** I told the user `UnionTypedFieldIT` was three tests green and that
+`STATS COUNT(*) BY TYPEOF(duration)` worked end to end on a two-node cluster. `TypeOf.resolveType` is
+byte-identical between that claim and the commit that found this, so the claim was false when made.
+What the suite did show was `BUILD SUCCESSFUL` for a run whose per-class results I did not open — the
+rule that a green gate is evidence only about what it checks, applied to me rather than to the code.
+The two tests that now hold it are unit-level and named for the message that recommends the query:
+`AnalyzerTests.testTypeOfOverAUnionResolvesToAKeyword` and `testCountByTypeOfOverAUnionResolves`.
+The grouping refusal's own test only ever checked the wording of its suggestion, never that the
+suggested query ran.

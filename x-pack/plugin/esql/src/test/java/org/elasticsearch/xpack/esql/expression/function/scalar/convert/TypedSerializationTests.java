@@ -23,15 +23,20 @@ import java.util.List;
  */
 public class TypedSerializationTests extends AbstractExpressionSerializationTests<Typed> {
 
-    /** Type names whose spelling is its own type's {@code esType}, so a name survives a round trip through the type. */
-    private static final List<String> SELF_SPELLED = List.of(
+    /**
+     * Type names that survive the round trip <em>through {@link Typed#dataType()}</em>, which is how
+     * {@link #mutateInstance} reads back the type an instance was built with. That rules out {@code text}: it is
+     * spelled as its own type but {@code dataType()} narrows it to {@code keyword}, so a mutation away from "keyword"
+     * could land on "text" and produce a node equal to the original - a one-in-144 draw over twenty runs, which is a
+     * flake rather than a failure. {@code TypedTests} covers a text target in full.
+     */
+    private static final List<String> ROUND_TRIPPING = List.of(
         "boolean",
         "double",
         "integer",
         "ip",
         "keyword",
         "long",
-        "text",
         "unsigned_long",
         "version"
     );
@@ -43,7 +48,7 @@ public class TypedSerializationTests extends AbstractExpressionSerializationTest
 
     @Override
     protected Typed createTestInstance() {
-        return new Typed(randomSource(), randomChild(), typeName(randomFrom(SELF_SPELLED)));
+        return new Typed(randomSource(), randomChild(), typeName(randomFrom(ROUND_TRIPPING)));
     }
 
     @Override
@@ -53,7 +58,7 @@ public class TypedSerializationTests extends AbstractExpressionSerializationTest
         if (randomBoolean()) {
             field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
         } else {
-            type = randomValueOtherThan(type, () -> randomFrom(SELF_SPELLED));
+            type = randomValueOtherThan(type, () -> randomFrom(ROUND_TRIPPING));
         }
         return new Typed(instance.source(), field, typeName(type));
     }

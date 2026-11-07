@@ -119,9 +119,16 @@ public class TypeOf extends UnaryScalarFunction implements AnyNullIsNull {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
+        // UNSUPPORTED has to be accepted, and it is the whole reason this function works on the column it exists for.
+        // A conflict is still an InvalidMappedField while the Resolution batch runs, so its attribute is typed
+        // UNSUPPORTED here; the union is built later, by UnionTypesCleanup, which swaps the field inside every
+        // expression - so this node's child becomes the union after resolution, and toEvaluator reads its legs. Refuse
+        // UNSUPPORTED and the enclosing EVAL never resolves, which the user sees as "Unknown column" for a field that
+        // plainly exists. A conflict no union can carry is erased to an UnsupportedAttribute by that same rule and the
+        // verifier refuses it there, so nothing unreadable gets through by being let past here.
         return isType(
             field(),
-            dt -> dt == DataType.UNION || UnionEsField.isLegType(dt),
+            dt -> dt == DataType.UNION || dt == DataType.UNSUPPORTED || UnionEsField.isLegType(dt),
             sourceText(),
             DEFAULT,
             "any type a column of more than one type can hold"

@@ -24,18 +24,26 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.FilterLeafCollector;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
@@ -69,6 +77,9 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -82,9 +93,12 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorCollector;
+import org.elasticsearch.search.aggregations.AggregatorCollectorManager;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -109,6 +123,8 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.TwoPhaseCollector;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -121,6 +137,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -129,6 +146,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -290,6 +308,396 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             assertEquals(1L, result.getBuckets().get(4).getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(result));
         }, new AggTestConfig(aggregationBuilder, fieldType));
+    }
+
+    /**
+     * Ensures sparse enumeration, dense fallback, zero-count results, and partial timeouts preserve shard bucket order and
+     * {@code sum_other_doc_count}.
+     */
+    public void testSparseGlobalOrdinalEnumerationPreservesShardResultsAndFallback() throws IOException {
+        randomizeAggregatorImpl = false;
+        MappedFieldType fieldType = new KeywordFieldType(SPARSE_ORDINAL_FIELD, true, true, Collections.emptyMap());
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                addSparseOrdinalTestDocuments(indexWriter);
+                indexWriter.forceMerge(1);
+            }
+            try (DirectoryReader reader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                Query sparseQuery = new TermQuery(new Term(SPARSE_MATCH_FIELD, "yes"));
+                StringTerms sparse = runShardTerms(
+                    reader,
+                    fieldType,
+                    sparseQuery,
+                    new TermsAggregationBuilder("terms").field(SPARSE_ORDINAL_FIELD),
+                    0
+                );
+                assertShardTerms(sparse, 75, 0, SPARSE_ORDINAL_MATCH_STRIDE, 1L);
+
+                StringTerms dense = runShardTerms(
+                    reader,
+                    fieldType,
+                    Queries.ALL_DOCS_INSTANCE,
+                    new TermsAggregationBuilder("terms").field(SPARSE_ORDINAL_FIELD),
+                    0
+                );
+                assertShardTerms(dense, SPARSE_ORDINAL_DOCUMENTS - 25, 0, 1, 1L);
+
+                StringTerms zeroCount = runShardTerms(
+                    reader,
+                    fieldType,
+                    Queries.NO_DOCS_INSTANCE,
+                    new TermsAggregationBuilder("terms").field(SPARSE_ORDINAL_FIELD).minDocCount(0),
+                    0
+                );
+                assertShardTerms(zeroCount, 0, 0, 1, 0L);
+
+                StringTerms partial = runShardTerms(
+                    reader,
+                    fieldType,
+                    sparseQuery,
+                    new TermsAggregationBuilder("terms").field(SPARSE_ORDINAL_FIELD),
+                    30
+                );
+                assertShardTerms(partial, 5, SPARSE_ORDINAL_DOCUMENTS - 30 * SPARSE_ORDINAL_MATCH_STRIDE, SPARSE_ORDINAL_MATCH_STRIDE, 1L);
+            }
+        }
+    }
+
+    /**
+     * Ensures collecting the same matching term more than once records one ordinal and preserves its total document count.
+     */
+    public void testSparseGlobalOrdinalEnumerationCountsRepeatedOrdinalsOnce() throws IOException {
+        randomizeAggregatorImpl = false;
+        MappedFieldType fieldType = new KeywordFieldType(SPARSE_ORDINAL_FIELD, true, true, Collections.emptyMap());
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                addSparseOrdinalTestDocuments(indexWriter, true);
+                indexWriter.forceMerge(1);
+            }
+            try (DirectoryReader reader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                StringTerms result = runShardTerms(
+                    reader,
+                    fieldType,
+                    new TermQuery(new Term(SPARSE_MATCH_FIELD, "yes")),
+                    new TermsAggregationBuilder("terms").field(SPARSE_ORDINAL_FIELD),
+                    0
+                );
+                assertEquals(25, result.getBuckets().size());
+                assertEquals(74L, result.getSumOfOtherDocCounts());
+                assertEquals(sparseOrdinalTerm(0), result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                for (int bucket = 1; bucket < result.getBuckets().size(); bucket++) {
+                    StringTerms.Bucket actual = result.getBuckets().get(bucket);
+                    assertEquals(sparseOrdinalTerm((bucket + 1) * SPARSE_ORDINAL_MATCH_STRIDE), actual.getKeyAsString());
+                    assertEquals(1L, actual.getDocCount());
+                }
+            }
+        }
+    }
+
+    /**
+     * Ensures a request-breaker rejection of the optional tracking buffer falls back to the full scan without changing the shard result.
+     */
+    public void testSparseOrdinalTrackingFallsBackWhenItsBufferTripsTheBreaker() throws IOException {
+        randomizeAggregatorImpl = false;
+        MappedFieldType fieldType = new KeywordFieldType(SPARSE_ORDINAL_FIELD, true, true, Collections.emptyMap());
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                addSparseOrdinalTestDocuments(indexWriter);
+                indexWriter.forceMerge(1);
+            }
+            try (DirectoryReader reader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                FailNextRequestAllocationCircuitBreakerService breakerService = new FailNextRequestAllocationCircuitBreakerService();
+                StringTerms result = runShardTerms(
+                    reader,
+                    fieldType,
+                    new TermQuery(new Term(SPARSE_MATCH_FIELD, "yes")),
+                    new TermsAggregationBuilder("terms").field(SPARSE_ORDINAL_FIELD),
+                    0,
+                    breakerService,
+                    breakerService::failNextRequestAllocation
+                );
+                assertTrue(breakerService.didRejectAllocation());
+                assertShardTerms(result, 75, 0, SPARSE_ORDINAL_MATCH_STRIDE, 1L);
+            }
+        }
+    }
+
+    /**
+     * Ensures deleted terms are omitted at {@code min_doc_count=0} while positive-minimum-count results retain collected live terms.
+     */
+    public void testSparseGlobalOrdinalCountsExcludeDeletedTerms() throws IOException {
+        randomizeAggregatorImpl = false;
+        MappedFieldType fieldType = new KeywordFieldType(SPARSE_ORDINAL_FIELD, true, true, Collections.emptyMap());
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                addSparseOrdinalTestDocuments(indexWriter);
+                indexWriter.forceMerge(1);
+                for (int doc = 0; doc < 5; doc++) {
+                    indexWriter.deleteDocuments(new Term(SPARSE_ORDINAL_FIELD, sparseOrdinalTerm(doc)));
+                }
+            }
+            try (DirectoryReader reader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                TermsAggregationBuilder builder = new TermsAggregationBuilder("terms").field(SPARSE_ORDINAL_FIELD)
+                    .minDocCount(0)
+                    .excludeDeletedDocs(true);
+                StringTerms result = runShardTerms(reader, fieldType, Queries.NO_DOCS_INSTANCE, builder, 0);
+                assertShardTerms(result, 0, 5, 1, 0L);
+
+                StringTerms positiveMinDocCount = runShardTerms(
+                    reader,
+                    fieldType,
+                    new TermQuery(new Term(SPARSE_MATCH_FIELD, "yes")),
+                    new TermsAggregationBuilder("terms").field(SPARSE_ORDINAL_FIELD),
+                    0
+                );
+                assertShardTerms(positiveMinDocCount, 74, SPARSE_ORDINAL_MATCH_STRIDE, SPARSE_ORDINAL_MATCH_STRIDE, 1L);
+            }
+        }
+    }
+
+    private static final String SPARSE_ORDINAL_FIELD = "sparse_keyword";
+    private static final String SPARSE_MATCH_FIELD = "sparse_match";
+    private static final int SPARSE_ORDINAL_DOCUMENTS = 6_400;
+    private static final int SPARSE_ORDINAL_MATCH_STRIDE = 64;
+
+    private void addSparseOrdinalTestDocuments(RandomIndexWriter indexWriter) throws IOException {
+        addSparseOrdinalTestDocuments(indexWriter, false);
+    }
+
+    private void addSparseOrdinalTestDocuments(RandomIndexWriter indexWriter, boolean duplicateSparseOrdinal) throws IOException {
+        for (int doc = SPARSE_ORDINAL_DOCUMENTS - 1; doc >= 0; doc--) {
+            Document document = new Document();
+            int ordinal = duplicateSparseOrdinal && doc == SPARSE_ORDINAL_MATCH_STRIDE ? 0 : doc;
+            document.add(new Field(SPARSE_ORDINAL_FIELD, new BytesRef(sparseOrdinalTerm(ordinal)), KeywordFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new StringField(SPARSE_MATCH_FIELD, doc % SPARSE_ORDINAL_MATCH_STRIDE == 0 ? "yes" : "no", Field.Store.NO));
+            indexWriter.addDocument(document);
+        }
+    }
+
+    private StringTerms runShardTerms(
+        DirectoryReader reader,
+        MappedFieldType fieldType,
+        Query query,
+        TermsAggregationBuilder builder,
+        int timeoutAfterMatches
+    ) throws IOException {
+        return runShardTerms(reader, fieldType, query, builder, timeoutAfterMatches, null, null);
+    }
+
+    private StringTerms runShardTerms(
+        DirectoryReader reader,
+        MappedFieldType fieldType,
+        Query query,
+        TermsAggregationBuilder builder,
+        int timeoutAfterMatches,
+        CircuitBreakerService breakerService,
+        Runnable afterFirstMatch
+    ) throws IOException {
+        AggregationContext aggregationContext = breakerService == null
+            ? createAggregationContext(reader, query, fieldType)
+            : createAggregationContext(
+                reader,
+                createIndexSettings(),
+                query,
+                breakerService,
+                0,
+                org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS,
+                false,
+                false,
+                fieldType
+            );
+        try (AggregationContext context = aggregationContext) {
+            Aggregator aggregator = createAggregator(builder, context);
+            aggregator.preCollection();
+            AggregatorCollector collector = new AggregatorCollector(new Aggregator[] { aggregator }, aggregator);
+            InternalAggregations[] result = new InternalAggregations[1];
+            ContextIndexSearcher searcher = (ContextIndexSearcher) context.searcher();
+            AggregatorCollectorManager aggregationManager = new AggregatorCollectorManager(
+                () -> collector,
+                aggregations -> result[0] = aggregations,
+                () -> {
+                    throw new AssertionError("unexpected parallel aggregation reduction");
+                }
+            );
+            CollectorManager<TimeoutAggregatorCollector, Void> manager = new CollectorManager<>() {
+                @Override
+                public TimeoutAggregatorCollector newCollector() throws IOException {
+                    return new TimeoutAggregatorCollector(
+                        aggregationManager.newCollector(),
+                        searcher,
+                        timeoutAfterMatches,
+                        afterFirstMatch
+                    );
+                }
+
+                @Override
+                public Void reduce(Collection<TimeoutAggregatorCollector> collectors) throws IOException {
+                    List<AggregatorCollector> innerCollectors = new ArrayList<>(collectors.size());
+                    for (TimeoutAggregatorCollector timeoutCollector : collectors) {
+                        innerCollectors.add(timeoutCollector.delegate);
+                    }
+                    return aggregationManager.reduce(innerCollectors);
+                }
+            };
+            searcher.setQueryCache(null);
+            searcher.search(query, manager);
+            assertEquals(timeoutAfterMatches > 0, searcher.timeExceeded());
+            assertNotNull(result[0]);
+            return (StringTerms) result[0].get(builder.getName());
+        }
+    }
+
+    private static void assertShardTerms(StringTerms result, long otherDocCount, int firstOrdinal, int ordinalStep, long docCount) {
+        assertEquals(25, result.getBuckets().size());
+        assertEquals(otherDocCount, result.getSumOfOtherDocCounts());
+        for (int bucket = 0; bucket < result.getBuckets().size(); bucket++) {
+            StringTerms.Bucket actual = result.getBuckets().get(bucket);
+            assertEquals(sparseOrdinalTerm(firstOrdinal + bucket * ordinalStep), actual.getKeyAsString());
+            assertEquals(docCount, actual.getDocCount());
+        }
+    }
+
+    private static String sparseOrdinalTerm(int ordinal) {
+        return String.format(java.util.Locale.ROOT, "term-%06d", ordinal);
+    }
+
+    private static final class FailNextRequestAllocationCircuitBreakerService extends CircuitBreakerService {
+        private final NoneCircuitBreakerService delegate = new NoneCircuitBreakerService();
+        private final AtomicBoolean failNextAllocation = new AtomicBoolean();
+        private final AtomicBoolean rejectedAllocation = new AtomicBoolean();
+        private final CircuitBreaker requestBreaker = new CircuitBreaker() {
+            private final CircuitBreaker noop = delegate.getBreaker(CircuitBreaker.REQUEST);
+
+            @Override
+            public void circuitBreak(String fieldName, long bytesNeeded) {
+                noop.circuitBreak(fieldName, bytesNeeded);
+            }
+
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (bytes > 0 && failNextAllocation.compareAndSet(true, false)) {
+                    rejectedAllocation.set(true);
+                    throw new CircuitBreakingException("injected optional ordinal tracking allocation", bytes, 0, Durability.TRANSIENT);
+                }
+                noop.addEstimateBytesAndMaybeBreak(bytes, label);
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+                noop.addWithoutBreaking(bytes);
+            }
+
+            @Override
+            public long getUsed() {
+                return noop.getUsed();
+            }
+
+            @Override
+            public long getLimit() {
+                return noop.getLimit();
+            }
+
+            @Override
+            public double getOverhead() {
+                return noop.getOverhead();
+            }
+
+            @Override
+            public long getTrippedCount() {
+                return noop.getTrippedCount();
+            }
+
+            @Override
+            public String getName() {
+                return CircuitBreaker.REQUEST;
+            }
+
+            @Override
+            public Durability getDurability() {
+                return Durability.TRANSIENT;
+            }
+
+            @Override
+            public void setLimitAndOverhead(long limit, double overhead) {
+                noop.setLimitAndOverhead(limit, overhead);
+            }
+        };
+
+        void failNextRequestAllocation() {
+            failNextAllocation.set(true);
+        }
+
+        boolean didRejectAllocation() {
+            return rejectedAllocation.get();
+        }
+
+        @Override
+        public CircuitBreaker getBreaker(String name) {
+            return CircuitBreaker.REQUEST.equals(name) ? requestBreaker : delegate.getBreaker(name);
+        }
+
+        @Override
+        public AllCircuitBreakerStats stats() {
+            return delegate.stats();
+        }
+
+        @Override
+        public CircuitBreakerStats stats(String name) {
+            return delegate.stats(name);
+        }
+    }
+
+    private static final class TimeoutAggregatorCollector implements TwoPhaseCollector {
+        private final AggregatorCollector delegate;
+        private final ContextIndexSearcher searcher;
+        private final int timeoutAfterMatches;
+        private final Runnable afterFirstMatch;
+        private int collectedMatches;
+
+        private TimeoutAggregatorCollector(
+            AggregatorCollector delegate,
+            ContextIndexSearcher searcher,
+            int timeoutAfterMatches,
+            Runnable afterFirstMatch
+        ) {
+            this.delegate = delegate;
+            this.searcher = searcher;
+            this.timeoutAfterMatches = timeoutAfterMatches;
+            this.afterFirstMatch = afterFirstMatch;
+        }
+
+        @Override
+        public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+            return new FilterLeafCollector(delegate.getLeafCollector(context)) {
+                @Override
+                public void collect(int doc) throws IOException {
+                    super.collect(doc);
+                    collectedMatches++;
+                    if (collectedMatches == 1 && afterFirstMatch != null) {
+                        afterFirstMatch.run();
+                    }
+                    if (timeoutAfterMatches > 0 && collectedMatches == timeoutAfterMatches) {
+                        searcher.throwTimeExceededException();
+                    }
+                }
+            };
+        }
+
+        @Override
+        public void setWeight(Weight weight) {
+            delegate.setWeight(weight);
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return delegate.scoreMode();
+        }
+
+        @Override
+        public void doPostCollection() throws IOException {
+            delegate.doPostCollection();
+        }
     }
 
     public void testMatchNoDocsQuery() throws Exception {

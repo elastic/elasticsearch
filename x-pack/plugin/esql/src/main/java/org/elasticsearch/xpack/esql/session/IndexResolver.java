@@ -174,6 +174,36 @@ public class IndexResolver {
     }
 
     /**
+     * Resolves a pattern to every field it has, for a reader whose subject is the mapping itself rather than a query over it.
+     * <p>
+     * Lenient about matching nothing, where {@link #resolveLookupIndices} is not: a pattern that names no index has no fields, and
+     * that is an answer, while a {@code LOOKUP JOIN} against nothing is a query that cannot run.
+     * <p>
+     * None of the switches {@link #resolveMainIndicesVersioned} takes from a plan apply, because there is no plan: no query filter, no
+     * dimension filter, no analyzer groups, no field semantics, and no unmapped-field tracking. {@code TransportVersion#current()} is
+     * passed as the version known in advance precisely because none is, leaving the field caps response's own minimum to decide.
+     *
+     * @param indexPattern a comma-separated index pattern, as a user wrote it
+     */
+    public void resolveAllFields(String indexPattern, ActionListener<IndexResolution> listener) {
+        doResolveIndices(
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, null, false, false),
+            indexPattern,
+            true, /* a pattern that matches nothing has no fields */
+            TransportVersion.current(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            null,
+            DO_NOT_GROUP,
+            listener.map(Versioned::inner)
+        );
+    }
+
+    /**
      * Perform a field caps request to resolve a pattern to one mapping (potentially compound, meaning it spans multiple indices).
      * <p>
      * The field caps response contains the minimum transport version of all clusters that apply to the pattern,

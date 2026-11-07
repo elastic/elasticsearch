@@ -165,6 +165,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.tablefunction.FieldsTableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -975,10 +976,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     /**
-     * The table functions this node registers. Empty here, because this change adds the facility and no function.
+     * The table functions this node registers.
      * <p>
-     * A seam rather than a constant so that the facility can be exercised end to end by a function defined in a
-     * test, which is the only way to show that nothing in it was shaped by one real function's needs. The
+     * Still a seam rather than a constant, so that the facility can be exercised end to end by a function defined
+     * in a test, which is the only way to show that nothing in it was shaped by one real function's needs. The
      * precedent for a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState},
      * both overridden by test subclasses.
      * <p>
@@ -988,7 +989,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * handle it needs, and the facility itself never acquires one.
      */
     protected List<TableFunction> extraTableFunctions(Client client) {
-        return List.of();
+        return List.of(new FieldsTableFunction(client));
     }
 
     @Override

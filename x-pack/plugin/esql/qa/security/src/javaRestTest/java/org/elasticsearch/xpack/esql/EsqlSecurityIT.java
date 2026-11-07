@@ -3857,9 +3857,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
      * index namespace authorizes it. A caller with no {@code global.data_source} grant on the named data source is
      * refused, naming the cluster action the privilege is evaluated through — the same refusal PUT dataset gives.
      * <p>
-     * The role here holds an index {@code read} grant it never uses, as the three tests below do: {@code _query} is
-     * authorized by action name against the role's index privileges, so a role with none runs no query at all and
-     * every one of these would be refused before reaching the data source gate, each for the same wrong reason.
+     * The role here holds an index {@code read} grant whose pattern nothing matches, as the three tests below do. It
+     * is there only so the role holds some index privilege: {@code _query} is authorized by action name alone against
+     * the role's index privileges, so a role with none runs no query at all and every one of these would be refused
+     * before reaching the data source gate, each for the same wrong reason.
      */
     public void testFromDatasetTableFunctionDeniedWithoutDatasourcePrivilege() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
@@ -3915,6 +3916,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), not(equalTo(HttpStatus.SC_UNAUTHORIZED)));
         assertThat(ex.getMessage(), not(containsString("authorize_datasource")));
         assertThat(ex.getMessage(), not(containsString("unauthorized")));
+        // As testFromDatasetAllowedWithDatasetReadOnly does: the call must not have degraded into an index pattern.
+        assertThat(ex.getMessage(), not(containsString("Unknown index")));
     }
 
     /** A data source the caller may read but that is not registered is reported as missing, not as a refusal. */

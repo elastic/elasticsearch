@@ -550,11 +550,11 @@ ds_dataset_query_no_datasource:
     - names: [ 'security_it_ds_*' ]
       privileges: [ 'read' ]
 
-# The two roles below carry an index read grant they never use, because `indices:data/read/esql` is authorized by
-# action name against the role's index privileges alone (RBACEngine#shouldAuthorizeIndexActionNameOnly), so a role with
-# no index privileges at all can run no ES|QL query whatever it names. Only the global.data_source grant differs
-# between them, which is what the DATASET() table-function tests are about: with indices: [] both would be refused on
-# the query action and neither would reach the data source gate.
+# The two roles below carry an index read grant whose pattern nothing ever matches. It is there only so the role holds
+# some index privilege: `indices:data/read/esql` is authorized by action name alone against the role's index
+# privileges (RBACEngine#shouldAuthorizeIndexActionNameOnly), so a role with none runs no ES|QL query whatever it
+# names. Only the global.data_source grant differs between them, which is what the DATASET() table-function tests are
+# about: with indices: [] both would be refused on the query action and neither would reach the data source gate.
 ds_query_read_datasource:
   cluster: []
   indices:

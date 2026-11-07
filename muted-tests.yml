@@ -248,6 +248,10 @@ tests:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
   method: test {yaml=synonyms/110_synonyms_invalid/Reload index with an invalid synonym rule with lenient set to false}
   issue: https://github.com/elastic/elasticsearch/issues/164897
+- class: org.elasticsearch.search.CCSDuelIT
+  tasks:
+  - :qa:multi-cluster-search:v9.4.10#multi-cluster
+  issue: https://github.com/elastic/elasticsearch/issues/165032
 
 # Examples:
 #

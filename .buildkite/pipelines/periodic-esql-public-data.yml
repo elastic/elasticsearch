@@ -1,0 +1,176 @@
+# The ES|QL public-data combinatorial suite (x-pack/plugin/esql/qa/public-data): queries real,
+# publicly-published data on real object stores against oracle-frozen expectations. Scheduled
+# NIGHTLY (wire the schedule in the Buildkite pipeline settings / catalog-info); deliberately NOT
+# on check/PR CI. ~12h is the orientative budget; the whole active suite currently runs in ~2h on
+# a workstation, so one n4-standard-16 per shard has ample headroom.
+#
+# Shape (per the suite README):
+#   0. verifyPublicDataPins — metadata-only HEAD/LIST drift check; PIN_DRIFT legs are excluded
+#      from correctness and turn the run into an attributed maintenance failure, never a fake
+#      regression. soft_fail so the test shards still run and the verdict does the labelling.
+#   1. one publicDataTest shard per corpus (ClickBench's heavy gzip legs get their own shards via
+#      the variant filter), each uploading its JUnit XML and per-leg wall-clock as artifacts.
+#   2. a merge step: downloads all artifacts, evaluates the catalog-derived threshold
+#      (publicDataVerdict), posts the annotation, and fails the build on anything but PASS.
+#
+# Notification on a red run: TBD (candidates: Buildkite→Slack notify block, or e-mail to the
+# pipeline owner). Placeholder below, deliberately inert until an owner/channel is agreed.
+#
+# NOTE for first CI run: Buildkite agents carry AWS instance roles; every suite data source pins
+# auth=anonymous (validator-enforced) precisely so those roles cannot change behaviour. The
+# Phase-0 smoke test on a real agent (plan risk #1) is this pipeline's first execution.
+
+agents: &agents
+  provider: gcp
+  image: family/elasticsearch-ubuntu-2404
+  machineType: n4-standard-16
+  diskType: hyperdisk-balanced
+  buildDirectory: /dev/shm/bk
+
+retry: &retry
+  automatic:
+    - exit_status: "-1"
+      limit: 3
+      signal_reason: none
+    - signal_reason: agent_stop
+      limit: 3
+
+steps:
+  - label: "pins / verify (metadata only)"
+    key: pins
+    command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:verifyPublicDataPins
+    soft_fail: true # drift must not stop the shards; the verdict labels the run MAINTENANCE
+    timeout_in_minutes: 30
+    artifact_paths:
+      - "x-pack/plugin/esql/qa/public-data/build/public-data-results/pin-report.*"
+    agents: *agents
+    retry: *retry
+
+  - group: "public-data shards"
+    depends_on: pins
+    steps:
+      - label: "clickbench / parquet legs"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=clickbench -Dtests.public_data.variant='*-s3-parquet-*'
+        timeout_in_minutes: 120
+        soft_fail: true # the merge step owns the pass/fail; per-shard reds stay visible as annotations
+        artifact_paths: &test_artifacts
+          - "x-pack/plugin/esql/qa/public-data/build/test-results/publicDataTest/*.xml"
+        agents: *agents
+        retry: *retry
+      - label: "clickbench / csv.gz leg"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=clickbench -Dtests.public_data.variant='*-s3-csv-*'
+        timeout_in_minutes: 180
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "clickbench / tsv.gz leg"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=clickbench -Dtests.public_data.variant='*-s3-tsv-*'
+        timeout_in_minutes: 180
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "clickbench / ndjson.gz leg"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=clickbench -Dtests.public_data.variant='*-s3-ndjson-*'
+        timeout_in_minutes: 180
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "cse-cic-ids2018"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=cse-cic-ids2018
+        timeout_in_minutes: 240
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "openaq"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=openaq
+        timeout_in_minutes: 60
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "ookla-fixed-2024"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=ookla-fixed-2024
+        timeout_in_minutes: 60
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "ghcnd-usw3"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=ghcnd-usw3
+        timeout_in_minutes: 120
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "ghcnd-parquet-8st"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=ghcnd-parquet-8st
+        timeout_in_minutes: 60
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "ghcnd-by-year-1750"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=ghcnd-by-year-1750
+        timeout_in_minutes: 60
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "ghcnd-by-year-2024"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=ghcnd-by-year-2024
+        timeout_in_minutes: 180
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "overture-divisions"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=overture-divisions
+        timeout_in_minutes: 60
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "btc-tx-skew"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=btc-tx-skew
+        timeout_in_minutes: 90
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "abo-listings"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=abo-listings
+        timeout_in_minutes: 60
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "clickbench-dirty (expected failures)"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=clickbench-dirty
+        timeout_in_minutes: 60
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+
+  - label: "merge / verdict"
+    depends_on: "public-data shards"
+    command: |
+      # artifact download preserves paths, recreating the local build-dir layout the task expects
+      buildkite-agent artifact download "x-pack/plugin/esql/qa/public-data/build/test-results/publicDataTest/*.xml" . || true
+      buildkite-agent artifact download "x-pack/plugin/esql/qa/public-data/build/public-data-results/pin-report.json" . || true
+      .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataVerdict || VERDICT_FAILED=1
+      buildkite-agent annotate --style "$([ -n "$${VERDICT_FAILED:-}" ] && echo error || echo success)" \
+        < x-pack/plugin/esql/qa/public-data/build/public-data-results/verdict-annotation.md || true
+      # TBD notification hook on red runs (Slack channel / owner e-mail): wire here once agreed.
+      exit "$${VERDICT_FAILED:-0}"
+    timeout_in_minutes: 30
+    artifact_paths:
+      - "x-pack/plugin/esql/qa/public-data/build/public-data-results/verdict.*"
+      - "x-pack/plugin/esql/qa/public-data/build/public-data-results/coverage.*"
+      - "x-pack/plugin/esql/qa/public-data/build/public-data-results/defects.md"
+    agents: *agents
+    retry: *retry

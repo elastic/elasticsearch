@@ -79,4 +79,35 @@ public class TableFunctionSignatureTests extends ESTestCase {
         ParsingException e = expectThrows(ParsingException.class, () -> none.check(call(aName())));
         assertThat(e.getMessage(), containsString("[thing] takes no arguments, found [1]"));
     }
+
+    /**
+     * The three declaration guards, each a shape no call could satisfy. Untested when they were added, and a
+     * mutation deleting all three left every test in the change green - so they were decoration until now.
+     */
+    public void testARequiredArgumentCannotFollowAnOptionalOne() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> TableFunctionSignature.of(
+                TableFunctionSignature.optional(TableFunctionSignature.name("first")),
+                TableFunctionSignature.name("second")
+            )
+        );
+        assertThat(e.getMessage(), containsString("required argument [second] follows an optional one"));
+    }
+
+    public void testAMapArgumentMustBeLast() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> TableFunctionSignature.of(TableFunctionSignature.namedValues("options"), TableFunctionSignature.name("after"))
+        );
+        assertThat(e.getMessage(), containsString("argument [options] takes a {...} and is not last"));
+    }
+
+    public void testAMapArgumentCannotBeTheOnlyOne() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> TableFunctionSignature.of(TableFunctionSignature.namedValues("options"))
+        );
+        assertThat(e.getMessage(), containsString("argument [options] takes a {...} and is the only one"));
+    }
 }

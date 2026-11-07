@@ -5652,9 +5652,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         expectError("from test)", "line -1:-1: Invalid query [from test)]");
-        // A name immediately followed by '(' now opens a table function call, so the error moves off the '('
-        // and onto what follows the call. Still rejected, and still for having parentheses in an index name.
-        expectError("from te()st", "line 1:10: extraneous input 'st' expecting <EOF>");
+        // A name immediately followed by '(' now opens a table function call, so the error moves off the '(' and
+        // onto what follows the call. Still rejected, and still for having parentheses in an index name - but the
+        // message differs by build, because the lexer emits the table-function token on both while only a dev
+        // parser has a rule that can consume it. Branched for the same reason testQuotedName and testLookup are.
+        if (Build.current().isSnapshot()) {
+            expectError("from te()st", "line 1:10: extraneous input 'st' expecting <EOF>");
+        } else {
+            expectError("from te()st", "line 1:6: no viable alternative at input 'te'");
+        }
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {

@@ -49,4 +49,5 @@ public final class HistogramFraction extends HistogramFunctionCall {
     public HistogramFraction replaceChild(LogicalPlan newChild) {
         return new HistogramFraction(source(), newChild, definition(), parameters());
     }
+
 }

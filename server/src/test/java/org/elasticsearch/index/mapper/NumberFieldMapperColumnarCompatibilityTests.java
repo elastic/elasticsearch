@@ -1210,6 +1210,70 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":1}", "{\"f\":null}"));
     }
 
+    /**
+     * A nullability=false field whose empty array holds no value, or that is missing, is recorded in _ignored under on_failure=ignore,
+     * as on the row path.
+     * The other document's array makes the column an ARRAY the mapper takes; arrays holding a null pack as a UNION it refuses outright.
+     * Both elements share one width class (int for long, float for double), so the encoder never packs them as a UNION either.
+     */
+    public void testRequiredFieldWithoutValueIsIgnored() throws IOException {
+        final String type = randomFrom("long", "double");
+        final String values = type.equals("long")
+            ? "[" + randomInt() + "," + randomInt() + "]"
+            : "[" + (randomIntBetween(-1000, 1000) + 0.5) + "," + (randomIntBetween(-1000, 1000) + 0.5) + "]";
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", type).field("nullability", false).endObject()),
+            Settings.builder().put(multiValueColumnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch("required field without a value", 1L, doc("d1", 1L, "{\"f\":" + values + "}"), doc("d2", 2L, "{\"f\":[]}")),
+            // A single value per document packs as a LONG or DOUBLE column, which only a missing document can leave without a value.
+            batch(
+                "missing",
+                1L,
+                doc("d1", 1L, "{\"f\":" + (type.equals("long") ? randomInt() : randomIntBetween(-1000, 1000) + 0.5) + "}"),
+                doc("d2", 2L, "{}")
+            )
+        );
+    }
+
+    /**
+     * A number field reads an empty string as null when coercing, the default, so it is no value for a nullability=false field: under
+     * on_failure=ignore the batch path keeps the batch and records the field in _ignored as the row path does.
+     */
+    public void testRequiredFieldWithEmptyStringIsIgnored() throws IOException {
+        final String type = randomFrom("long", "integer", "double");
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", type).field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch(
+                "required field with an empty string",
+                1L,
+                doc("d1", 1L, "{\"f\":\"" + randomIntBetween(-1000, 1000) + "\"}"),
+                doc("d2", 2L, "{\"f\":\"\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    /** Under on_failure=fail the batch path refuses an empty string for a nullability=false field, so that the row path rejects it. */
+    public void testRequiredFieldWithEmptyStringFallsBack() throws IOException {
+        final String type = randomFrom("long", "integer", "double");
+        final var mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", type).field("nullability", false).endObject())
+        );
+        final String value = "{\"f\":\"" + randomIntBetween(-1000, 1000) + "\"}";
+        final UnsupportedOperationException batch = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, value, "{\"f\":\"\"}")
+        );
+        assertThat(batch.getMessage(), containsString("nullability=false field [f] has no value in document [1]"));
+        final DocumentParsingException row = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source("{\"f\":\"\"}"))
+        );
+        assertThat(row.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
+    }
+
     public void testLongParentWithKeywordSubField() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "long");

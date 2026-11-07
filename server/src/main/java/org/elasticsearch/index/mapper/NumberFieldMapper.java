@@ -2829,6 +2829,12 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean readsEmptyStringAsNull() {
+        // value(XContentParser) reads an empty string as null when coercing, and rejects it as malformed otherwise.
+        return coerce();
+    }
+
+    @Override
     public NumberFieldType fieldType() {
         return fieldType;
     }

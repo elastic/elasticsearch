@@ -39,6 +39,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.sourcebatch.ArrayReader;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -367,10 +369,33 @@ public abstract class FieldMapper extends Mapper {
                 "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value per document"
             );
         }
-        if (isNullable() == false && source.hasNullOrAbsentDoc()) {
-            throw new UnsupportedOperationException(
-                "mapColumnBatch: nullability=false field [" + fullPath() + "] has a null or absent value"
-            );
+        if (isNullable() == false) {
+            final boolean ignore = onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE;
+            if (ignore == false && source.hasNullOrAbsentDoc()) {
+                throw new UnsupportedOperationException(
+                    "mapColumnBatch: nullability=false field [" + fullPath() + "] has a null or absent value"
+                );
+            }
+            // A document holds no value when the field is missing or null, an array with no value in it, or an empty string read as a
+            // null. The row path's enforceRequiredFields either records the field in _ignored for it or rejects it, so do the same: record
+            // it, or throw so the batch falls back. Only a sparse column has missing documents, only ARRAY and UNION columns hold arrays
+            // or nulls, and only those and STRING columns hold strings, so any other column needs no scan.
+            if (source.isDense() == false
+                || source.kind() == EscfColumnKind.ARRAY
+                || source.kind() == EscfColumnKind.UNION
+                || (source.kind() == EscfColumnKind.STRING && readsEmptyStringAsNull())) {
+                for (int doc = 0; doc < source.docCount(); doc++) {
+                    if (holdsRequiredValue(source, doc) == false) {
+                        if (ignore) {
+                            ctx.addIgnoredFieldColumnar(doc, fullPath());
+                        } else {
+                            throw new UnsupportedOperationException(
+                                "mapColumnBatch: nullability=false field [" + fullPath() + "] has no value in document [" + doc + "]"
+                            );
+                        }
+                    }
+                }
+            }
         }
         // Outside strict-columnar modes (which reject the setting), a non-default synthetic_source_keep makes the row path keep array
         // source as-is, either as positional offsets or in _ignored_source, neither of which the batch path writes.
@@ -390,6 +415,46 @@ public abstract class FieldMapper extends Mapper {
         for (FieldMapper subMapper : builderParams.multiFields) {
             subMapper.mapColumnBatch(ctx, source);
         }
+    }
+
+    /**
+     * Whether document {@code doc} holds a value that satisfies {@code nullability=false}, by the row path's rule: it
+     * parses an array element by element, at any depth, and only a non-null value counts, bar an empty string per
+     * {@link #readsEmptyStringAsNull}.
+     */
+    private boolean holdsRequiredValue(EscfColumn source, int doc) {
+        final byte type = source.getTypeByte(doc);
+        if (type == SourceValueType.UNION_ARRAY || type == SourceValueType.FIXED_ARRAY) {
+            return holdsRequiredValue(source.getArrayValue(doc));
+        }
+        return type != SourceValueType.ABSENT
+            && type != SourceValueType.NULL
+            && (type != SourceValueType.STRING || readsEmptyStringAsNull() == false || source.getStringValue(doc).bytes().length() > 0);
+    }
+
+    private boolean holdsRequiredValue(ArrayReader array) {
+        while (array.next()) {
+            final byte type = array.type();
+            final boolean value = type == SourceValueType.UNION_ARRAY || type == SourceValueType.FIXED_ARRAY
+                ? holdsRequiredValue(array.nestedArray())
+                : type != SourceValueType.NULL
+                    && (type != SourceValueType.STRING || readsEmptyStringAsNull() == false || array.textValue().bytes().length() > 0);
+            if (value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether this mapper reads an empty string as null, so that it does not satisfy {@code nullability=false}: keyword does under
+     * {@code index.mapping.empty_keyword_string_as_null}, number and scaled_float fields do with {@code coerce}, and unsigned_long always
+     * does. A mapper that reads it as null without overriding this counts it as a value. Together with the rule
+     * that any other non-null value does, this is the single definition of a value that both the row path ({@link #parse}) and the batch
+     * path ({@link #mapColumnBatch}) apply.
+     */
+    protected boolean readsEmptyStringAsNull() {
+        return false;
     }
 
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
@@ -445,7 +510,12 @@ public abstract class FieldMapper extends Mapper {
                 redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
             }
             if (redirectedToFailureColumn == false) {
-                if (isNullable() == false && context.parser().currentToken().isValue() && valueSatisfiesRequired(context)) {
+                final XContentParser.Token token = context.parser().currentToken();
+                if (isNullable() == false
+                    && token.isValue()
+                    && (readsEmptyStringAsNull() == false
+                        || token != XContentParser.Token.VALUE_STRING
+                        || context.parser().textLength() > 0)) {
                     // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
                     context.markRequiredSatisfied(fullPath());
                 }
@@ -540,14 +610,6 @@ public abstract class FieldMapper extends Mapper {
      * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
      * current failing token
      */
-    /**
-     * Whether the value the parser is on satisfies a {@code [doc_values.nullability: false]} requirement. A value the
-     * field reads as a null does not: the document then holds no value for a field that promised one.
-     */
-    protected boolean valueSatisfiesRequired(DocumentParserContext context) throws IOException {
-        return true;
-    }
-
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**

@@ -117,6 +117,10 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         createIndex("index-2");
         long baselineVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().version();
         assertThat(baselineVersion, greaterThan(0L));
+        // Make sure all nodes have applied the latest CS update (shard STARTED)
+        for (String node : internalCluster().getNodeNames()) {
+            awaitClusterState(node, state -> state.metadata().version() >= baselineVersion);
+        }
         assertThat(
             clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("index-1").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)

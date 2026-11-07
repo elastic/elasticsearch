@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.Objects;
 
@@ -36,13 +38,16 @@ public class DelayedDataDetectorFactory {
      * @param datafeedConfig The {@link DatafeedConfig} for which to create the {@link DelayedDataDetector}
      * @param client The {@link Client} capable of taking action against the ES Cluster.
      * @param xContentRegistry The current NamedXContentRegistry with which to parse the query
+     * @param dataExtractorFactory The datafeed's {@link DataExtractorFactory}, re-used to re-run the query of an ES|QL datafeed;
+     *                             ignored (and may be null) for other datafeed types
      * @return A new {@link DelayedDataDetector}
      */
     public static DelayedDataDetector buildDetector(
         Job job,
         DatafeedConfig datafeedConfig,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        @Nullable DataExtractorFactory dataExtractorFactory
     ) {
         if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
             long window = validateAndCalculateWindowLength(
@@ -50,6 +55,25 @@ public class DelayedDataDetectorFactory {
                 datafeedConfig.getDelayedDataCheckConfig().getCheckWindow()
             );
             long bucketSpan = job.getAnalysisConfig().getBucketSpan() == null ? 0 : job.getAnalysisConfig().getBucketSpan().millis();
+            if (datafeedConfig.getEsqlQuery() != null) {
+                // An ES|QL datafeed has no indices or DSL query, so the DSL detector would fail on it.
+                String summaryCountField = job.getAnalysisConfig().getSummaryCountFieldName();
+                if (summaryCountField == null) {
+                    throw new IllegalArgumentException(
+                        Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD)
+                    );
+                }
+                return new EsqlDelayedDataDetector(
+                    bucketSpan,
+                    window,
+                    job.getId(),
+                    job.getDataDescription().getTimeField(),
+                    datafeedConfig.getGroupingInterval().millis(),
+                    summaryCountField,
+                    dataExtractorFactory,
+                    client
+                );
+            }
             return new DatafeedDelayedDataDetector(
                 bucketSpan,
                 window,

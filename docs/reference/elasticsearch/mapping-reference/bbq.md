@@ -455,8 +455,89 @@ PUT my-quality-calibrated-index
 stack: ga 9.6
 ```
 
-You can inspect the active configuration for each segment using the [index segments API]({{es-apis}}operation/operation-indices-segments).
-Set the `include_auto_calibration` query parameter to `true` to include the calibration details:
+You can inspect the active configuration for the index using the [index statistics API]({{es-apis}}operation/operation-indices-stats).
+Set the `include_auto_calibration` query parameter to `true`. The details are returned only when `level` is set to `indices` (default) or `shards`.
+
+```console
+GET my-auto-calibrated-index/_stats?include_auto_calibration=true
+```
+
+The following abbreviated response groups the segments of the `my_vector` field by parameter set:
+
+```console-result
+{
+  ...
+  "indices": {
+    "my-auto-calibrated-index": {
+      ...
+      "primaries": {
+        "dense_vector": {
+          "value_count": 104500,
+          "off_heap": {
+            ...
+            "fielddata": {
+              "my_vector": { <1>
+                ...
+                "auto_calibration": [ <2>
+                  {
+                    "calibrated": true, <3>
+                    "type": "osq", <4>
+                    "number_of_vectors": 55500, <5>
+                    "size_in_bytes": 233100000, <6>
+                    "number_of_segments": 2, <7>
+                    "parameters": { <8>
+                      "bits": 1,
+                      "query_bits": 4,
+                      "precondition": false,
+                      "oversample": 3.0
+                    }
+                  },
+                  {
+                    "calibrated": true,
+                    "type": "osq",
+                    "number_of_vectors": 34500,
+                    "size_in_bytes": 145000000,
+                    "number_of_segments": 1,
+                    "parameters": {
+                      "bits": 1,
+                      "query_bits": 4,
+                      "precondition": true,
+                      "oversample": 2.0
+                    }
+                  },
+                  {
+                    "calibrated": false, <9>
+                    "type": "osq",
+                    "number_of_vectors": 14500,
+                    "size_in_bytes": 60040000,
+                    "number_of_segments": 2
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+1. One entry exists for each DiskBBQ `dense_vector` field in the index, keyed by field name.
+2. Each `auto_calibration` entry represents one unique set of auto-calibration parameters.
+3. `calibrated` reports whether the segments were calibrated when they were merged.
+4. `type` identifies the kind of calibration parameters returned. The only supported value is `osq` (optimized scalar quantization).
+5. `number_of_segments` is the number of segments auto-calibrated with this parameter set.
+6. `number_of_vectors` is the total number of vectors in the segments.
+7. `size_in_bytes` is the on-disk size of this field's vector data in the segments.
+8. `parameters` reports the results of auto-calibration: for `osq` it shows the encoding (`bits` and `query_bits`), whether preconditioning is applied, and the oversampling factor.
+   Refer to [Interaction with other parameters](#interaction-with-other-parameters) for how these values interact with query-time and mapping `oversample` values.
+9. Segments of this field that were not calibrated.
+   No `parameters` are returned.
+   The segments are searched using the mapping settings.
+   A query-time [`rescore_vector.oversample`](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-top-level-parameters) on the kNN query or retriever overrides the oversampling factor, as described in [Interaction with other parameters](#interaction-with-other-parameters).
+
+To see the details of each segment individually, use the [index segments API]({{es-apis}}operation/operation-indices-segments) with the `include_auto_calibration` parameter set to `true`.
 
 ```console
 GET my-auto-calibrated-index/_segments?include_auto_calibration=true
@@ -479,10 +560,10 @@ The following abbreviated response shows two segments of the same shard:
                 "auto_calibration": {
                   "my_vector": { <1>
                     "calibrated": true, <2>
-                    "type": "osq",
-                    "number_of_vectors": 250000,
-                    "size_in_bytes": 145000000,
-                    "parameters": { <3>
+                    "type": "osq", <3>
+                    "number_of_vectors": 250000, <4>
+                    "size_in_bytes": 145000000, <5>
+                    "parameters": { <6>
                       "bits": 2,
                       "query_bits": 4,
                       "precondition": true,
@@ -494,8 +575,8 @@ The following abbreviated response shows two segments of the same shard:
               "_b": {
                 ...
                 "auto_calibration": {
-                  "my_vector": { <4>
-                    "calibrated": false,
+                  "my_vector": {
+                    "calibrated": false, <7>
                     "type": "osq",
                     "number_of_vectors": 4200,
                     "size_in_bytes": 2400000
@@ -510,11 +591,15 @@ The following abbreviated response shows two segments of the same shard:
   }
 }
 ```
-1. One entry exists for each `dense_vector` field in the segment, keyed by field name.
+
+1. One entry exists for each DiskBBQ `dense_vector` field in the segment, keyed by field name.
 2. `calibrated` reports if the segment was calibrated when it was merged.
-3. `parameters` reports the results of auto-calibration: encoding (`bits` and `query_bits`), whether preconditioning is applied, and the oversampling factor stored for this segment.
+3. `type` identifies the kind of calibration parameters returned. It is currently always `osq` (optimized scalar quantization).
+4. `number_of_vectors` is the total number of vectors in the segment.
+5. `size_in_bytes` is the on-disk size of this field's vector data in the segment.
+6. `parameters` reports the results of auto-calibration: for `osq` it shows the encoding (`bits` and `query_bits`), whether preconditioning is applied, and the oversampling factor.
    Refer to [Interaction with other parameters](#interaction-with-other-parameters) for how these values interact with query-time and mapping `oversample` values.
-4. An uncalibrated `dense_vector` field in a segment.
+7. An uncalibrated `dense_vector` field in a segment.
    No `parameters` are returned.
    The segment is searched using the mapping settings.
    A query-time [`rescore_vector.oversample`](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-top-level-parameters) on the kNN query or retriever overrides the oversampling factor, as described in [Interaction with other parameters](#interaction-with-other-parameters).

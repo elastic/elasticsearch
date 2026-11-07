@@ -12,15 +12,14 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -398,11 +397,11 @@ public final class CombinedFieldsQueryBuilder extends LeafQueryBuilder<CombinedF
 
         @Override
         protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
-            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
+            assert terms.length >= 1;
+            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder(terms[0].term().utf8ToString());
             for (TermAndBoost termAndBoost : terms) {
                 assert termAndBoost.boost() == BoostAttribute.DEFAULT_BOOST;
-                BytesRef bytes = termAndBoost.term();
-                query.addTerm(bytes);
+                query.addField(termAndBoost.term().utf8ToString());
             }
             for (FieldAndBoost fieldAndBoost : fields) {
                 MappedFieldType fieldType = fieldAndBoost.fieldType;

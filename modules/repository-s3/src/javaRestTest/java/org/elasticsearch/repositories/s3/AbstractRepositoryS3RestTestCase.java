@@ -24,6 +24,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -56,6 +57,12 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
                     .put(randomFrom(Settings.EMPTY, Settings.builder().put("disable_chunked_encoding", randomBoolean()).build()))
                     .put(randomFrom(Settings.EMPTY, Settings.builder().put("always_sign_requests", randomBoolean()).build()))
                     .put(randomFrom(Settings.EMPTY, Settings.builder().put("add_purpose_custom_query_parameter", randomBoolean()).build()))
+                    .put(
+                        randomFrom(
+                            Settings.EMPTY,
+                            Settings.builder().put("unsafely_omit_optional_request_body_checksums", randomBoolean()).build()
+                        )
+                    )
                     .put(extraRepositorySettings)
                     .build()
             );
@@ -81,6 +88,11 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
                     [s3.client.placeholder.legacy_content_md5] setting was deprecated in Elasticsearch and will be removed \
                     in a future release. See the breaking changes documentation for the next major version.""");
             }
+            if (settings.keySet().contains("unsafely_omit_optional_request_body_checksums")) {
+                expectedWarnings.add("""
+                    [s3.client.placeholder.unsafely_omit_optional_request_body_checksums] setting was deprecated in Elasticsearch and \
+                    will be removed in a future release. See the breaking changes documentation for the next major version.""");
+            }
             if (expectedWarnings.isEmpty() == false) {
                 request.setOptions(expectWarnings(expectedWarnings.toArray(String[]::new)));
             }
@@ -102,6 +114,14 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
 
     protected static String getIdentifierPrefix(String testSuiteName) {
         return testSuiteName + "-" + Integer.toString(Murmur3HashFunction.hash(testSuiteName + System.getProperty("tests.seed")), 16) + "-";
+    }
+
+    /// Whether a request header declares a checksum, a checksum trailer or the algorithm for one.
+    static boolean isChecksumRequestHeader(String headerName) {
+        final var lowerCaseName = headerName.toLowerCase(Locale.ROOT);
+        return lowerCaseName.startsWith("x-amz-checksum-")
+            || lowerCaseName.equals("x-amz-trailer")
+            || lowerCaseName.equals("x-amz-sdk-checksum-algorithm");
     }
 
     private TestRepository newTestRepository() {

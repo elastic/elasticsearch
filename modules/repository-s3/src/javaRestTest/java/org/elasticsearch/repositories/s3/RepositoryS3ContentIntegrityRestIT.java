@@ -36,11 +36,13 @@ import org.junit.rules.TestRule;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
@@ -70,12 +72,39 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             for (final boolean chunkedEncoding : new boolean[] { false, true }) {
                 for (final boolean alwaysSignRequests : new boolean[] { false, true }) {
                     for (final boolean legacyContentMd5 : new boolean[] { false, true }) {
-                        testConfigs.add(new TestConfig(https, chunkedEncoding, alwaysSignRequests, legacyContentMd5));
+                        for (final boolean unsafelyOmitOptionalRequestBodyChecksums : new boolean[] { false, true }) {
+                            testConfigs.add(
+                                new TestConfig(
+                                    https,
+                                    chunkedEncoding,
+                                    alwaysSignRequests,
+                                    legacyContentMd5,
+                                    unsafelyOmitOptionalRequestBodyChecksums
+                                )
+                            );
+                        }
                     }
                 }
             }
         }
         TEST_CONFIGS = List.copyOf(testConfigs);
+    }
+
+    /// The request headers that declare a checksum, in a stable order so a failure message is readable.
+    private static List<String> checksumRequestHeaderNames(Set<String> requestHeaderNames) {
+        return requestHeaderNames.stream().filter(AbstractRepositoryS3RestTestCase::isChecksumRequestHeader).sorted().toList();
+    }
+
+    private static void assertNoChecksumRequestHeaders(Set<String> requestHeaderNames) {
+        assertThat("unexpected checksum headers", checksumRequestHeaderNames(requestHeaderNames), empty());
+    }
+
+    private static void assertSomeChecksumRequestHeader(Set<String> requestHeaderNames) {
+        assertThat(
+            "expected a checksum header or trailer declaration in " + requestHeaderNames,
+            checksumRequestHeaderNames(requestHeaderNames),
+            not(empty())
+        );
     }
 
     private static final class ContentIntegrityS3HttpFixture extends S3HttpFixture {
@@ -115,6 +144,15 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                         contentSha256Header,
                         anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), equalTo(testConfig.getExpectedUploadContentSha256Header()))
                     );
+                    if (testConfig.unsafelyOmitOptionalRequestBodyChecksums) {
+                        assertNoChecksumRequestHeaders(exchange.getRequestHeaders().keySet());
+                    } else {
+                        assertSomeChecksumRequestHeader(exchange.getRequestHeaders().keySet());
+                    }
+                }
+                if (request.isMultiObjectDeleteRequest()) {
+                    // The SDK treats the checksum on DeleteObjects as required, so omitting the optional ones must not remove it
+                    assertSomeChecksumRequestHeader(exchange.getRequestHeaders().keySet());
                 }
                 if (testConfig.alwaysSignRequests) {
                     assertThat(
@@ -123,8 +161,8 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                             anyOf(
                                 // We either have a SHA256 hash of the body, covered by the request signature, ...
                                 matchesPattern(S3HttpHandler.SHA256_PATTERN),
-                                // ... or there's a properly-signed footer
-                                equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER")
+                                // ... or signed chunks, with a footer only if the client is sending a checksum
+                                equalTo(testConfig.getExpectedSignedStreamingContentSha256Header())
                             ),
 
                             // Redundant check given the above condition but this is the thing that the S3 docs tell users to forbid:
@@ -208,22 +246,31 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         private final boolean chunkedEncoding;
         private final boolean alwaysSignRequests;
         private final boolean legacyContentMd5;
+        private final boolean unsafelyOmitOptionalRequestBodyChecksums;
 
-        TestConfig(boolean https, boolean chunkedEncoding, boolean alwaysSignRequests, boolean legacyContentMd5) {
+        TestConfig(
+            boolean https,
+            boolean chunkedEncoding,
+            boolean alwaysSignRequests,
+            boolean legacyContentMd5,
+            boolean unsafelyOmitOptionalRequestBodyChecksums
+        ) {
             this.https = https;
             this.chunkedEncoding = chunkedEncoding;
             this.alwaysSignRequests = alwaysSignRequests;
             this.legacyContentMd5 = legacyContentMd5;
+            this.unsafelyOmitOptionalRequestBodyChecksums = unsafelyOmitOptionalRequestBodyChecksums;
         }
 
         @Override
         public String toString() {
             return Strings.format(
-                "{scheme=%s,chunkedEncoding=%s,alwaysSignRequests=%s,legacyContentMd5=%s}",
+                "{scheme=%s,chunkedEncoding=%s,alwaysSignRequests=%s,legacyContentMd5=%s,unsafelyOmitOptionalRequestBodyChecksums=%s}",
                 https ? "https" : "http",
                 chunkedEncoding,
                 alwaysSignRequests,
-                legacyContentMd5
+                legacyContentMd5,
+                unsafelyOmitOptionalRequestBodyChecksums
             );
         }
 
@@ -232,6 +279,11 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             addBooleanSettingDefaultFalse(builder, "disable_chunked_encoding", chunkedEncoding == false);
             addBooleanSettingDefaultFalse(builder, "always_sign_requests", alwaysSignRequests);
             addBooleanSettingDefaultFalse(builder, "legacy_content_md5", legacyContentMd5);
+            addBooleanSettingDefaultFalse(
+                builder,
+                "unsafely_omit_optional_request_body_checksums",
+                unsafelyOmitOptionalRequestBodyChecksums
+            );
             return builder.build();
         }
 
@@ -243,10 +295,20 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             }
         }
 
+        /// The value for signed chunks. It names the footer only when the client is sending a checksum in one.
+        String getExpectedSignedStreamingContentSha256Header() {
+            return unsafelyOmitOptionalRequestBodyChecksums
+                ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD"
+                : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER";
+        }
+
+        /// The marker the SDK puts in the body hash header of an upload. It only names a trailer when the client is sending a checksum
+        /// in one, which is for chunked bodies unless the optional checksums are omitted.
         String getExpectedUploadContentSha256Header() {
+            final boolean sendsChecksumTrailer = chunkedEncoding && unsafelyOmitOptionalRequestBodyChecksums == false;
             return (https && alwaysSignRequests == false)
-                ? (chunkedEncoding ? "STREAMING-UNSIGNED-PAYLOAD-TRAILER" : "UNSIGNED-PAYLOAD")
-                : (chunkedEncoding ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
+                ? (sendsChecksumTrailer ? "STREAMING-UNSIGNED-PAYLOAD-TRAILER" : "UNSIGNED-PAYLOAD")
+                : (sendsChecksumTrailer ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
         }
 
         void applyClientSettings(LocalClusterSpecBuilder<?> builder) {
@@ -269,7 +331,9 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 + "_always_sign_requests_"
                 + alwaysSignRequests
                 + "_legacy_content_md5_"
-                + legacyContentMd5;
+                + legacyContentMd5
+                + "_unsafely_omit_optional_request_body_checksums_"
+                + unsafelyOmitOptionalRequestBodyChecksums;
         }
 
         String getRepositoryBasePath() {
@@ -281,7 +345,9 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 + "_always_sign_requests_"
                 + alwaysSignRequests
                 + "_legacy_content_md5_"
-                + legacyContentMd5;
+                + legacyContentMd5
+                + "_unsafely_omit_optional_request_body_checksums_"
+                + unsafelyOmitOptionalRequestBodyChecksums;
         }
 
         String getAccessKey() {
@@ -293,7 +359,9 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 + "-"
                 + alwaysSignRequests
                 + "-"
-                + legacyContentMd5;
+                + legacyContentMd5
+                + "-"
+                + unsafelyOmitOptionalRequestBodyChecksums;
         }
 
         static TestConfig fromAuthorizationHeader(String authorizationHeader) {

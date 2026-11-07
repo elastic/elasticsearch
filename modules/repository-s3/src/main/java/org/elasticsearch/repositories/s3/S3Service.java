@@ -17,6 +17,7 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.http.SdkHttpClient;
@@ -219,6 +220,15 @@ class S3Service extends AbstractLifecycleComponent {
         if (clientSettings.legacyContentMd5) {
             s3clientBuilder.addPlugin(LegacyMd5Plugin.create());
         }
+
+        // Always set "requestChecksumCalculation", never leaving it for the SDK to resolve. A value set on the builder beats the
+        // AWS_REQUEST_CHECKSUM_CALCULATION env var, the system property and the profile file, so this setting alone decides. The
+        // default is 'false', which sets the SDK's own default of WHEN_SUPPORTED.
+        s3clientBuilder.requestChecksumCalculation(
+            clientSettings.unsafelyOmitOptionalRequestBodyChecksums
+                ? RequestChecksumCalculation.WHEN_REQUIRED
+                : RequestChecksumCalculation.WHEN_SUPPORTED
+        );
 
         return s3clientBuilder;
     }

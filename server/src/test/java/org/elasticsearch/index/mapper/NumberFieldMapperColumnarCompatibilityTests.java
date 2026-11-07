@@ -1210,6 +1210,23 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":1}", "{\"f\":null}"));
     }
 
+    /**
+     * A nullability=false field whose empty array holds no value is recorded in _ignored under on_failure=ignore, as on the row path.
+     * The other document's array makes the column an ARRAY the mapper takes; arrays holding a null pack as a UNION it refuses outright.
+     * Both elements share one width class (int for long, float for double), so the encoder never packs them as a UNION either.
+     */
+    public void testRequiredFieldWithoutValueIsIgnored() throws IOException {
+        final String type = randomFrom("long", "double");
+        final String values = type.equals("long")
+            ? "[" + randomInt() + "," + randomInt() + "]"
+            : "[" + (randomIntBetween(-1000, 1000) + 0.5) + "," + (randomIntBetween(-1000, 1000) + 0.5) + "]";
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", type).field("nullability", false).endObject()),
+            Settings.builder().put(multiValueColumnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch("required field without a value", 1L, doc("d1", 1L, "{\"f\":" + values + "}"), doc("d2", 2L, "{\"f\":[]}"))
+        );
+    }
+
     public void testLongParentWithKeywordSubField() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "long");

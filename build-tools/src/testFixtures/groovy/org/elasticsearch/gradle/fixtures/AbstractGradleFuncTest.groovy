@@ -403,6 +403,11 @@ checkstyle = "com.puppycrawl.tools:checkstyle:13.11"
     /**
      * Parses the Gradle Problems API report and returns the diagnostics as a list of maps.
      * Each diagnostic has: problemId (list of {name, displayName}), severity, contextualLabel, solutions, locations.
+     *
+     * <p>Since Gradle 9.9 the HTML report embeds the diagnostics as a JSON array inside a
+     * {@code <script type="application/json" id="diagnostics">} element. Earlier versions wrapped the
+     * JSON object between {@code // begin-report-data} / {@code // end-report-data} comment markers, so
+     * we fall back to that layout for compatibility with older Gradle versions.
      */
     List<Map> problemsReportDiagnostics() {
         def reportFile = new File(projectDir, "build/reports/problems/problems-report.html")
@@ -410,11 +415,16 @@ checkstyle = "com.puppycrawl.tools:checkstyle:13.11"
             return []
         }
         def content = reportFile.text
-        def matcher = content =~ /\/\/ begin-report-data\n(.*)\n\/\/ end-report-data/
-        if (!matcher.find()) {
+        def scriptMatcher = content =~ /(?s)<script type="application\/json" id="diagnostics">\s*(.*?)\s*<\/script>/
+        if (scriptMatcher.find()) {
+            def json = new groovy.json.JsonSlurper().parseText(scriptMatcher.group(1))
+            return (json instanceof List) ? json : (json.diagnostics ?: [])
+        }
+        def legacyMatcher = content =~ /\/\/ begin-report-data\n(.*)\n\/\/ end-report-data/
+        if (!legacyMatcher.find()) {
             return []
         }
-        def json = new groovy.json.JsonSlurper().parseText(matcher.group(1))
+        def json = new groovy.json.JsonSlurper().parseText(legacyMatcher.group(1))
         return json.diagnostics ?: []
     }
 

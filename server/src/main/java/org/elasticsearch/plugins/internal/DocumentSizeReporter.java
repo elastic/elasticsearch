@@ -10,6 +10,7 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 
 /**
@@ -32,4 +33,10 @@ public interface DocumentSizeReporter {
      * instance to avoid reporting the same ingest twice).
      */
     default void onIndexingCompleted(ParsedDocument parsedDocument, Engine.Operation.Origin origin) {}
+
+    /**
+     * Batch counterpart of {@link #onParsingCompleted(ParsedDocument)}: called once per columnar batch chunk, after the metadata mappers
+     * ran and before the chunk's columns are frozen.
+     */
+    default void onBatchParsingCompleted(BatchMappingContext context) {}
 }

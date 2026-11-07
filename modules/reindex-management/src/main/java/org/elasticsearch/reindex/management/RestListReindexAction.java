@@ -31,6 +31,8 @@ import static org.elasticsearch.rest.Scope.PUBLIC;
 @ServerlessScope(PUBLIC)
 public class RestListReindexAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("detailed");
+
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
     RestListReindexAction(final Predicate<NodeFeature> clusterSupportsFeature) {
@@ -60,4 +62,10 @@ public class RestListReindexAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return Set.of(CAPABILITY_REINDEX_MANAGEMENT_API);
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
 }

@@ -21,14 +21,17 @@ operating system:
 
 -----------------------------
 ./gradlew :distribution:archives:linux-tar:assemble
-./gradlew :distribution:archives:darwin(-aarch64)-tar:assemble
+./gradlew :distribution:archives:linux-aarch64-tar:assemble
+./gradlew :distribution:archives:darwin-tar:assemble
+./gradlew :distribution:archives:darwin-aarch64-tar:assemble
 ./gradlew :distribution:archives:windows-zip:assemble
 -----------------------------
 
 You can build a Docker image with:
 
 -----------------------------
-./gradlew build(Aarch64)DockerImage
+./gradlew buildDockerImage
+./gradlew buildAarch64DockerImage
 -----------------------------
 
 Note: you almost certainly don't want to run `./gradlew assemble` as this
@@ -298,16 +301,6 @@ systemProp.tests.jvms=8
 It's difficult to pick the "right" number here. Hypercores don't count for CPU
 intensive tests and you should leave some slack for JVM-internal threads like
 the garbage collector. And you have to have enough RAM to handle each JVM.
-
-=== Test compatibility.
-
-It is possible to provide a version that allows to adapt the tests behaviour
-to older features or bugs that have been changed or fixed in the meantime.
-
------------------------------------------
-./gradlew test -Dtests.compatibility=1.0.0
------------------------------------------
-
 
 === Miscellaneous.
 

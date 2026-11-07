@@ -12,12 +12,15 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
@@ -43,6 +46,8 @@ import java.util.function.Predicate;
  */
 public final class BatchMappingContext implements Releasable {
 
+    private static final Logger logger = LogManager.getLogger(BatchMappingContext.class);
+
     private final IndexOperationBatch batch;
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
@@ -50,8 +55,15 @@ public final class BatchMappingContext implements Releasable {
     private final List<LuceneColumn> columns = new ArrayList<>();
     private final List<Releasable> resources = new ArrayList<>();
     private final FieldNamesFieldMapper fieldNamesFieldMapper;
+    /** The fields' contributions to the {@code columnar_stored} blob, in registration order; see {@link #addSourceColumn}. */
+    private final List<SourceColumn> sourceColumns = new ArrayList<>();
+    /** The first reason the blob cannot be written from {@link #sourceColumns}, or {@code null} while it still can. */
+    @Nullable
+    private String directSourceUnavailableReason;
 
     private boolean frozen;
+    /** How many multi-field levels deep the mapper now running is; see {@link #writesSourceColumn()}. */
+    private int multiFieldDepth;
     /** Accumulates {@code (doc, name)} pairs for {@code _field_names}. */
     private DeduplicatingStringColumnAccumulator fieldNames;
     /** Accumulates {@code (doc, name)} pairs for {@code _ignored}. */
@@ -84,6 +96,75 @@ public final class BatchMappingContext implements Releasable {
 
     public IndexSettings indexSettings() {
         return indexSettings;
+    }
+
+    /**
+     * Whether {@code _source} is the {@code columnar_stored} blob, which {@code SourceFieldMapper#postColumnarParse} builds from the
+     * mappers' output. Only then is a {@link SourceColumn} worth building; see {@link #addSourceColumn}.
+     */
+    public boolean isSourceColumnarStored() {
+        return mappingLookup.isSourceColumnarStored();
+    }
+
+    /**
+     * Whether the mapper now running in {@code doMapColumnBatch} should register a {@link SourceColumn}: {@code _source} is the
+     * {@code columnar_stored} blob, and the mapper is not running as a multi-field. A multi-field's values are its parent's and never
+     * appear in {@code _source} under its own name, so its column would duplicate the parent's; {@link FieldMapper#mapColumnBatch}
+     * brackets the sub-mapper calls with {@link #enterMultiFields()} and {@link #exitMultiFields()} so that the sub-mapper itself need
+     * not know.
+     */
+    public boolean writesSourceColumn() {
+        return multiFieldDepth == 0 && isSourceColumnarStored();
+    }
+
+    void enterMultiFields() {
+        multiFieldDepth++;
+    }
+
+    void exitMultiFields() {
+        assert multiFieldDepth > 0;
+        multiFieldDepth--;
+    }
+
+    /**
+     * Registers {@code column} as a field's contribution to the {@code columnar_stored} blob. A mapper calls this from
+     * {@code doMapColumnBatch} over the data it has just produced, and only when {@link #writesSourceColumn()}; a mapper that cannot
+     * does not call it and is instead reported through {@link #markDirectSourceUnavailable} by {@link FieldMapper#mapColumnBatch},
+     * which is what sends the whole batch down the loader path.
+     */
+    public void addSourceColumn(SourceColumn column) {
+        assert frozen == false;
+        assert writesSourceColumn() : "source columns are only read for columnar_stored source, and never from a multi-field";
+        sourceColumns.add(column);
+    }
+
+    /**
+     * Records that the {@code columnar_stored} blob of this batch cannot be written from {@link #sourceColumns()} and has to go through
+     * the synthetic source loader instead. Only the first reason is kept; the rest would name the same batch.
+     */
+    public void markDirectSourceUnavailable(String reason) {
+        assert frozen == false;
+        if (directSourceUnavailableReason == null) {
+            directSourceUnavailableReason = reason;
+            logger.debug("columnar_stored source of batch takes the loader path: {}", reason);
+        }
+    }
+
+    /**
+     * Why the blob cannot be written from {@link #sourceColumns()}, or {@code null} when it can: direct writing is enabled and every
+     * mapper that ran registered a column.
+     */
+    @Nullable
+    public String directSourceUnavailableReason() {
+        return directSourceUnavailableReason;
+    }
+
+    /**
+     * The registered {@link SourceColumn}s in registration order, meaningful only while {@link #directSourceUnavailableReason()} is
+     * {@code null}. The caller sorts them by {@link SourceColumn#fullPath()}, as the loader orders fields.
+     */
+    public List<SourceColumn> sourceColumns() {
+        return sourceColumns;
     }
 
     /**
@@ -168,6 +249,16 @@ public final class BatchMappingContext implements Releasable {
      */
     public MappedColumns.RowCursor rowCursor(Predicate<? super LuceneColumn> include) {
         return mappedColumns().rowCursor(include);
+    }
+
+    /** Whether any column attached so far has a Lucene field name matching {@code nameFilter}. */
+    public boolean hasColumnNamed(Predicate<String> nameFilter) {
+        for (LuceneColumn column : columns) {
+            if (nameFilter.test(column.toLuceneColumn().name())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -88,6 +88,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.SourceColumn;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -1429,19 +1430,50 @@ public class WildcardFieldMapper extends FieldMapper {
             if (terms.isEmpty() == false) {
                 addOwnedBinaryColumn(ctx, terms, docCount, fieldType().name(), NGRAM_FIELD_TYPE);
             }
+            EscfColumnData binaryDvData = null;
             if (binaryDvs.isEmpty() == false) {
-                addOwnedBinaryColumn(ctx, binaryDvs, docCount, fieldType().name(), CustomDocValuesField.TYPE);
+                binaryDvData = binaryDvs.finish(docCount);
+                ctx.addColumn(LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE), binaryDvData);
             }
+            EscfColumnData dvCountData = null;
             if (dvCounts.isEmpty() == false) {
-                final EscfColumnData dvCountData = dvCounts.finish(docCount);
+                dvCountData = dvCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(dvCountData, fieldType().name()), dvCountData);
             }
+            EscfColumnData fallbackData = null;
             if (emitFallback && fallback != null && fallback.isEmpty() == false) {
-                addOwnedBinaryColumn(ctx, fallback, docCount, originalName(), CustomDocValuesField.TYPE);
+                fallbackData = fallback.finish(docCount);
+                ctx.addColumn(LuceneBinaryColumn.of(fallbackData, originalName(), CustomDocValuesField.TYPE), fallbackData);
                 final EscfColumnData fallbackCountData = fallbackCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(fallbackCountData, originalName()), fallbackCountData);
             }
+            if (ctx.writesSourceColumn()) {
+                // This field's part of the columnar_stored blob, read from the columns just attached in the order syntheticSourceSupport
+                // lists their loader layers: the ArrayOrderInlineNull blob next to its counts, then the ignore_above fallback, which
+                // holds at most one value per document on the batch path. A column that no document needed is left out.
+                assert supportsDirectColumnarSource();
+                final List<SourceColumn.Layer> layers = new ArrayList<>(2);
+                if (dvCountData != null) {
+                    layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fullPath()).sourceLayer(binaryDvData, dvCountData));
+                }
+                if (fallbackData != null) {
+                    layers.add(
+                        new BinaryDocValuesSyntheticFieldLoaderLayer(originalName(), indexVersionCreated).singleValueSourceLayer(
+                            fallbackData
+                        )
+                    );
+                }
+                ctx.addSourceColumn(new SourceColumn(fullPath(), leafName(), layers.toArray(SourceColumn.Layer[]::new)));
+            }
         }
+    }
+
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        // The batch path only takes the array-order layout, whose loader layer the direct writer reproduces, and the ignore_above
+        // fallback joins when it lives in binary doc values; the stored-field fallback of older indices has no direct counterpart.
+        return fieldType().usesArrayOrderBinaryDocValues()
+            && (ignoreAbove.valuesPotentiallyIgnored() == false || storeIgnoredFieldsInBinaryDocValues);
     }
 
     @Override

@@ -61,6 +61,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.SourceColumn;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
@@ -423,14 +425,41 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                     markers.setLong(doc, 1L);
                 }
             }
+            EscfColumnData markersData = null;
             if (markers != null) {
-                EscfColumnData markersData = markers.finish(ctx.docCount());
+                markersData = markers.finish(ctx.docCount());
                 ctx.addColumn(
                     LuceneLongColumn.of(markersData, fieldType().name(), MARKER_FIELD_TYPE, LongColumn.NumericKind.LONG),
                     markersData
                 );
             }
+            if (ctx.writesSourceColumn()) {
+                // This field's part of the columnar_stored blob, read from the marker column the way the loader layer reads the marker
+                // doc values: the constant once per marker. Without markers (they are only written for synthetic source) the field has
+                // nothing to contribute, which is also what the loader finds.
+                assert supportsDirectColumnarSource();
+                final String value = fieldType().value();
+                ctx.addSourceColumn(
+                    markersData == null
+                        ? new SourceColumn(fullPath(), leafName())
+                        : new SourceColumn(
+                            fullPath(),
+                            leafName(),
+                            SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer.sourceLayer(
+                                markersData,
+                                false,
+                                (b, ignored) -> b.value(value)
+                            )
+                        )
+                );
+            }
         }
+    }
+
+    @Override
+    protected boolean supportsDirectColumnarSource() {
+        // Every configuration that reaches doMapColumnBatch has a value, so its loader is the single sorted-numeric marker layer.
+        return true;
     }
 
     /** The synthetic-source marker column: one LONG per accepted value, mirroring the row path's marker field. */

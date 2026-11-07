@@ -96,6 +96,15 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return fieldFullPath;
     }
 
+    /**
+     * Whether this loader renders nothing but the {@code _keyed} array-order blob: no sorted-unique decoding, no {@code _offsets}
+     * sidecar and no mapped sub-field loaders. That is the one shape {@link FlattenedArrayOrderSourceLayer} reproduces on the batch
+     * path, so {@link FlattenedFieldMapper} asks before it claims direct {@code columnar_stored} source support.
+     */
+    boolean rendersArrayOrderSlotsOnly() {
+        return usesArrayOrderBinaryDocValues && mappedSubFieldLoaders.isEmpty();
+    }
+
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
         if (keyedIgnoredValuesFieldFullPath == null || storeIgnoredFieldsInBinaryDocValues) {

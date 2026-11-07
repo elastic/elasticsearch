@@ -184,4 +184,25 @@ public class GeoPointFieldMapperColumnarCompatibilityTests extends AbstractColum
             mapper.supportsColumnarParse(ms.getIndexSettings())
         );
     }
+
+    /**
+     * The object form the batch path accepts has a direct {@code columnar_stored} writer, which makes geo_point the first column group
+     * that does not send the blob down the loader path. Note that the coordinates are all decimals: an integer literal next to a decimal
+     * one makes the lat or lon column a UNION, which the batch path refuses before any source writer runs.
+     */
+    public void testColumnarStoredSourceIsWrittenDirectly() throws IOException {
+        assertColumnarStoredSourceWrittenDirectly(
+            mapping(b -> b.startObject(FIELD).field("type", "geo_point").field("ignore_malformed", true).endObject()),
+            columnarSettings(),
+            batch(
+                "every shape",
+                1L,
+                doc("d1", 1L, "{\"loc\":{\"lat\":51.5,\"lon\":-0.1}}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"loc\":null}"),
+                doc("d4", 4L, "{\"loc\":{\"lat\":-90.0,\"lon\":180.0}}"),
+                doc("d5", 5L, "{\"loc\":{\"lat\":0.0,\"lon\":0.0}}")
+            )
+        );
+    }
 }

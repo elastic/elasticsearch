@@ -404,7 +404,7 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

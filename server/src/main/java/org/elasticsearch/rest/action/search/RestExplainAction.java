@@ -94,7 +94,7 @@ public class RestExplainAction extends BaseRestHandler {
         if (slice == null || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
             return;
         }
-        if (SliceIndexing.SLICE_ALL.equals(slice) || Strings.splitStringByCommaToArray(slice).length != 1) {
+        if (Strings.splitStringByCommaToArray(slice).length != 1) {
             throw new IllegalArgumentException(SINGLE_SLICE_ONLY_ERROR);
         }
     }

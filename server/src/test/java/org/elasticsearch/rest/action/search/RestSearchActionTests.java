@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertArrayEquals;
 import static org.mockito.Mockito.mock;
 
@@ -175,17 +176,18 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals("tenant-a,tenant-b", searchRequest.searchSlice());
     }
 
-    public void testParseSearchRequestWithPathSliceAll() throws Exception {
+    public void testParseSearchRequestRejectsPathSliceAll() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/my-index/_all/_search")
-            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL))
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "_all"))
             .build();
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size));
-        assertNull(searchRequest.routing());
-        assertTrue(searchRequest.isRoutingFromSlice());
-        assertEquals(SliceIndexing.SLICE_ALL, searchRequest.searchSlice());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size))
+        );
+        assertThat(e.getMessage(), containsString("invalid [_slice] value [_all]"));
     }
 
     public void testParseSearchRequestRejectsRoutingAndSliceTogether() {

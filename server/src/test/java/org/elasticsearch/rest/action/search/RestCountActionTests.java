@@ -17,6 +17,8 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RestCountActionTests extends RestActionTestCase {
 
     public void testApplyRoutingOrSliceWithPathMultiSlice() {
@@ -32,17 +34,18 @@ public class RestCountActionTests extends RestActionTestCase {
         assertEquals("tenant-a,tenant-b", countRequest.searchSlice());
     }
 
-    public void testApplyRoutingOrSliceWithPathSliceAll() {
+    public void testApplyRoutingOrSliceRejectsPathSliceAll() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/_all/_count")
-            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL))
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "_all"))
             .build();
         SearchRequest countRequest = new SearchRequest();
-        RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest);
-        assertNull(countRequest.routing());
-        assertTrue(countRequest.isRoutingFromSlice());
-        assertEquals(SliceIndexing.SLICE_ALL, countRequest.searchSlice());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest)
+        );
+        assertThat(e.getMessage(), containsString("invalid [_slice] value [_all]"));
     }
 
     public void testApplyRoutingOrSliceRejectsRoutingAndSliceTogether() {

@@ -380,7 +380,8 @@ public class Reindexer {
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
             .keepAlive(reindexSettings.pitKeepAlive())
             .allowPartialSearchResults(false);
-        if (searchRequest.isRoutingFromSlice()) {
+        // A source read in slice mode without a [_slice] reads every slice, which a PIT without a slice does as well
+        if (searchRequest.searchSlice() != null) {
             pitRequest.searchSlice(searchRequest.searchSlice());
         }
         if (searchRequest.getProjectRouting() != null) {

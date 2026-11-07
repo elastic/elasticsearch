@@ -1,0 +1,6 @@
+area: CRUD
+issues:
+ - 162227
+pr: 163221
+summary: Allow scripted updates on documents with `_type`, `op` or `_now` source fields
+type: bug

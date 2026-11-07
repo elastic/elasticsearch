@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
@@ -80,6 +81,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
@@ -832,5 +834,44 @@ public class PruningMergePolicyTests extends ESTestCase {
                 return Collections.emptySet();
             }
         };
+    }
+
+    public void testMergeFinishedIsForwarded() throws IOException {
+        AtomicInteger finished = new AtomicInteger();
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setMergePolicy(
+                new PruningMergePolicy(
+                    "extra_source",
+                    "extra_source",
+                    false,
+                    false,
+                    () -> Queries.ALL_DOCS_INSTANCE,
+                    countingMergeFinished(newLogMergePolicy(), finished),
+                    false
+                )
+            );
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < 2; i++) {
+                    Document doc = new Document();
+                    doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, i));
+                    writer.addDocument(doc);
+                    writer.flush();
+                }
+                writer.forceMerge(1);
+                assertEquals(1, finished.get());
+            }
+        }
+    }
+
+    /** Counts {@code mergeFinished} calls on the merges the wrapped policy produces. */
+    private static MergePolicy countingMergeFinished(MergePolicy in, AtomicInteger finished) {
+        return new OneMergeWrappingMergePolicy(in, toWrap -> new MergePolicy.OneMerge(toWrap.segments) {
+            @Override
+            public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
+                toWrap.mergeFinished(success, segmentDropped);
+                finished.incrementAndGet();
+            }
+        });
     }
 }

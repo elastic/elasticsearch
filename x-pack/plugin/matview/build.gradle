@@ -1,0 +1,24 @@
+plugins {
+  id 'elasticsearch.internal-es-plugin'
+  id 'elasticsearch.internal-cluster-test'
+}
+
+esplugin {
+  name = 'x-pack-matview'
+  description = 'Incremental materialized views POC: folds partial aggregate rows at segment merge time using the ES|QL compute engine.'
+  classname = 'org.elasticsearch.xpack.matview.MatviewPlugin'
+  extendedPlugins = ['x-pack-core', 'x-pack-esql']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(':x-pack:plugin:esql:compute')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':x-pack:plugin:esql:compute')
+  testImplementation project(xpackModule('esql:compute:test'))
+  internalClusterTestImplementation project(path: xpackModule('esql'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('esql')), 'internalClusterTest'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('esql'))))
+  internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
+}

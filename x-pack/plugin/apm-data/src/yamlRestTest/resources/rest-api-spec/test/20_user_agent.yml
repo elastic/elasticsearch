@@ -1,0 +1,30 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+---
+"Test traces-apm* with user-agent.original set":
+  - do:
+      bulk:
+        index: traces-apm-useragent
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "user_agent": {"original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"}}'
+  - do:
+      indices.rollover:
+        alias: traces-apm-useragent
+  - do:
+      bulk:
+        index: traces-apm-useragent
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "user_agent": {"original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"}}'
+  - is_false: errors
+  - set: {items.0.create._index: index}
+  - do:
+      indices.get_mapping:
+        index: $index
+  - match: {.$index.mappings.properties.user_agent.properties.version.type: keyword}

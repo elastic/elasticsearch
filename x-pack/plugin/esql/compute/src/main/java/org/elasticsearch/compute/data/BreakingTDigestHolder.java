@@ -11,8 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesStreamOutput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.TDigestReadView;
@@ -37,7 +36,7 @@ public class BreakingTDigestHolder implements Releasable, Accountable {
         BreakingBytesStreamOutput buffer = null;
         boolean success = false;
         try {
-            buffer = new BreakingBytesStreamOutput(breaker);
+            buffer = new BreakingBytesStreamOutput(breaker, CIRCUIT_BREAKER_LABEL);
             TDigestHolder holder = new TDigestHolder();
             breaker.addEstimateBytesAndMaybeBreak(BASE_SIZE, CIRCUIT_BREAKER_LABEL);
             success = true;
@@ -96,82 +95,5 @@ public class BreakingTDigestHolder implements Releasable, Accountable {
     public void close() {
         breaker.addWithoutBreaking(-BASE_SIZE);
         Releasables.close(encodedDigestBuffer);
-    }
-
-    private static class BreakingBytesStreamOutput extends StreamOutput implements Releasable, Accountable {
-
-        private final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BreakingBytesStreamOutput.class);
-
-        private final BreakingBytesRefBuilder delegate;
-        private final CircuitBreaker breaker;
-
-        BreakingBytesStreamOutput(CircuitBreaker breaker) {
-            this.breaker = breaker;
-            BreakingBytesRefBuilder delegate = new BreakingBytesRefBuilder(breaker, CIRCUIT_BREAKER_LABEL);
-            boolean success = false;
-            try {
-                breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, CIRCUIT_BREAKER_LABEL);
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(delegate);
-                }
-            }
-            this.delegate = delegate;
-        }
-
-        void clear() {
-            delegate.clear();
-        }
-
-        BytesRef bytesRefView() {
-            return delegate.bytesRefView();
-        }
-
-        @Override
-        public long position() {
-            return delegate.length();
-        }
-
-        @Override
-        public void writeByte(byte b) {
-            delegate.append(b);
-        }
-
-        @Override
-        public void writeBytes(byte[] b, int offset, int length) {
-            delegate.append(b, offset, length);
-        }
-
-        @Override
-        public void writeOptionalString(String str) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void writeString(String str) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void flush() {
-            // no-op
-        }
-
-        @Override
-        public void close() {
-            breaker.addWithoutBreaking(-SHALLOW_SIZE);
-            delegate.close();
-        }
-
-        @Override
-        public void writeGenericString(String value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return SHALLOW_SIZE + delegate.ramBytesUsed();
-        }
     }
 }

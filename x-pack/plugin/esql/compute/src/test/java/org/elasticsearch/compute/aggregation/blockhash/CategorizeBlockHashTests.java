@@ -9,6 +9,8 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -44,6 +46,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -449,10 +452,31 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     }
 
     public void testCategorize_withDriver() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
+        runWithDriver(bigArrays);
+    }
+
+    public void testCategorize_withDriver_withCrankyBreaker() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
+            .withCircuitBreaking();
+        CircuitBreakingException exception = null;
+        try {
+            runWithDriver(bigArrays);
+            // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
+        } catch (CircuitBreakingException e) {
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            exception = e;
+        }
+        long usedBytes = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed();
+        if (usedBytes != 0L) {
+            fail(exception, "Expected no used bytes, found: " + usedBytes);
+        }
+    }
+
+    private void runWithDriver(BigArrays bigArrays) {
         BlockHash.CategorizeDef categorizeDef = getCategorizeDef();
         BlockHash.GroupSpec groupSpec = new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorizeDef);
 
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
 
         LocalSourceOperator.BlockSupplier input1 = () -> {
@@ -478,7 +502,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 countsBuilder.appendLong(900);
                 countsBuilder.appendLong(30);
                 countsBuilder.appendLong(4);
-                return new Block[] { textsBuilder.build().asBlock(), countsBuilder.build().asBlock() };
+                return buildBlocks(textsBuilder, countsBuilder);
             }
         };
         LocalSourceOperator.BlockSupplier input2 = () -> {
@@ -498,159 +522,184 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 countsBuilder.appendLong(8);
                 countsBuilder.appendLong(40);
                 countsBuilder.appendLong(5);
-                return new Block[] { textsBuilder.build().asBlock(), countsBuilder.build().asBlock() };
+                return buildBlocks(textsBuilder, countsBuilder);
             }
         };
 
         List<Page> intermediateOutput = new ArrayList<>();
-
-        Driver driver = TestDriverFactory.create(
-            driverContext,
-            new LocalSourceOperator(input1),
-            List.of(
-                new HashAggregationOperator.Builder().groups(List.of(groupSpec))
-                    .mode(AggregatorMode.INITIAL)
-                    .aggregators(
-                        List.of(
-                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
-                                AggregatorMode.INITIAL,
-                                List.of(1)
-                            ),
-                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
-                        )
-                    )
-                    .maxPageSize(16 * 1024)
-                    .aggregationBatchSize(16 * 1024)
-                    .analysisRegistry(analysisRegistry)
-                    .build()
-                    .get(driverContext)
-            ),
-            new PageConsumerOperator(intermediateOutput::add)
-        );
-        new TestDriverRunner().run(driver);
-
-        driver = TestDriverFactory.create(
-            driverContext,
-            new LocalSourceOperator(input2),
-            List.of(
-                new HashAggregationOperator.Builder().groups(List.of(groupSpec))
-                    .mode(AggregatorMode.INITIAL)
-                    .aggregators(
-                        List.of(
-                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
-                                AggregatorMode.INITIAL,
-                                List.of(1)
-                            ),
-                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
-                        )
-                    )
-                    .maxPageSize(16 * 1024)
-                    .aggregationBatchSize(16 * 1024)
-                    .analysisRegistry(analysisRegistry)
-                    .build()
-                    .get(driverContext)
-            ),
-            new PageConsumerOperator(intermediateOutput::add)
-        );
-        new TestDriverRunner().run(driver);
-
         List<Page> finalOutput = new ArrayList<>();
-
-        driver = TestDriverFactory.create(
-            driverContext,
-            new CannedSourceOperator(intermediateOutput.iterator()),
-            List.of(
-                new HashAggregationOperator.Builder().groups(List.of(groupSpec))
-                    .mode(AggregatorMode.FINAL)
-                    .aggregators(
-                        List.of(
-                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
-                                AggregatorMode.FINAL,
-                                List.of(1, 2, 3)
-                            ),
-                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(4, 5))
+        // Once the final driver is created, it owns the intermediate pages
+        boolean finalDriverCreated = false;
+        try {
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new LocalSourceOperator(input1),
+                List.of(
+                    new HashAggregationOperator.Builder().groups(List.of(groupSpec))
+                        .mode(AggregatorMode.INITIAL)
+                        .aggregators(
+                            List.of(
+                                new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                    AggregatorMode.INITIAL,
+                                    List.of(1)
+                                ),
+                                new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
+                            )
                         )
-                    )
-                    .partialEmit(randomIntBetween(1, 1000), randomDoubleBetween(0.1, 1.0, true))
-                    .maxPageSize(16 * 1024)
-                    .aggregationBatchSize(16 * 1024)
-                    .analysisRegistry(analysisRegistry)
-                    .build()
-                    .get(driverContext)
-            ),
-            new PageConsumerOperator(finalOutput::add)
-        );
-        new TestDriverRunner().run(driver);
-
-        assertThat(finalOutput, hasSize(1));
-        assertThat(finalOutput.get(0).getBlockCount(), equalTo(3));
-        BytesRefBlock outputTexts = finalOutput.get(0).getBlock(0);
-        LongBlock outputSums = finalOutput.get(0).getBlock(1);
-        LongBlock outputMaxs = finalOutput.get(0).getBlock(2);
-        assertThat(outputSums.getPositionCount(), equalTo(outputTexts.getPositionCount()));
-        assertThat(outputMaxs.getPositionCount(), equalTo(outputTexts.getPositionCount()));
-        Map<String, Long> sums = new HashMap<>();
-        Map<String, Long> maxs = new HashMap<>();
-        for (int i = 0; i < outputTexts.getPositionCount(); i++) {
-            sums.put(outputTexts.getBytesRef(i, new BytesRef()).utf8ToString(), outputSums.getLong(i));
-            maxs.put(outputTexts.getBytesRef(i, new BytesRef()).utf8ToString(), outputMaxs.getLong(i));
-        }
-        List<String> keys = switch (categorizeDef.outputFormat()) {
-            case REGEX -> List.of(
-                ".*?aaazz.*?",
-                ".*?bbbzz.*?",
-                ".*?ccczz.*?",
-                ".*?dddzz.*?",
-                ".*?eeezz.*?",
-                ".*?words.+?words.+?words.+?goodbye.*?",
-                ".*?words.+?words.+?words.+?hello.*?"
+                        .maxPageSize(16 * 1024)
+                        .aggregationBatchSize(16 * 1024)
+                        .analysisRegistry(analysisRegistry)
+                        .build()
+                        .get(driverContext)
+                ),
+                new PageConsumerOperator(intermediateOutput::add)
             );
-            case TOKENS -> List.of("aaazz", "bbbzz", "ccczz", "dddzz", "eeezz", "words words words goodbye", "words words words hello");
-        };
+            new TestDriverRunner().run(driver);
 
-        assertThat(
-            sums,
-            equalTo(
-                Map.of(
-                    keys.get(0),
-                    1L,
-                    keys.get(1),
-                    2L,
-                    keys.get(2),
-                    33L,
-                    keys.get(3),
-                    44L,
-                    keys.get(4),
-                    5L,
-                    keys.get(5),
-                    8888L,
-                    keys.get(6),
-                    999L
+            driver = TestDriverFactory.create(
+                driverContext,
+                new LocalSourceOperator(input2),
+                List.of(
+                    new HashAggregationOperator.Builder().groups(List.of(groupSpec))
+                        .mode(AggregatorMode.INITIAL)
+                        .aggregators(
+                            List.of(
+                                new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                    AggregatorMode.INITIAL,
+                                    List.of(1)
+                                ),
+                                new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
+                            )
+                        )
+                        .maxPageSize(16 * 1024)
+                        .aggregationBatchSize(16 * 1024)
+                        .analysisRegistry(analysisRegistry)
+                        .build()
+                        .get(driverContext)
+                ),
+                new PageConsumerOperator(intermediateOutput::add)
+            );
+            new TestDriverRunner().run(driver);
+
+            driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(intermediateOutput.iterator()),
+                List.of(
+                    new HashAggregationOperator.Builder().groups(List.of(groupSpec))
+                        .mode(AggregatorMode.FINAL)
+                        .aggregators(
+                            List.of(
+                                new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                    AggregatorMode.FINAL,
+                                    List.of(1, 2, 3)
+                                ),
+                                new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(4, 5))
+                            )
+                        )
+                        .partialEmit(randomIntBetween(1, 1000), randomDoubleBetween(0.1, 1.0, true))
+                        .maxPageSize(16 * 1024)
+                        .aggregationBatchSize(16 * 1024)
+                        .analysisRegistry(analysisRegistry)
+                        .build()
+                        .get(driverContext)
+                ),
+                new PageConsumerOperator(finalOutput::add)
+            );
+            finalDriverCreated = true;
+            new TestDriverRunner().run(driver);
+
+            assertThat(finalOutput, hasSize(1));
+            assertThat(finalOutput.get(0).getBlockCount(), equalTo(3));
+            BytesRefBlock outputTexts = finalOutput.get(0).getBlock(0);
+            LongBlock outputSums = finalOutput.get(0).getBlock(1);
+            LongBlock outputMaxs = finalOutput.get(0).getBlock(2);
+            assertThat(outputSums.getPositionCount(), equalTo(outputTexts.getPositionCount()));
+            assertThat(outputMaxs.getPositionCount(), equalTo(outputTexts.getPositionCount()));
+            Map<String, Long> sums = new HashMap<>();
+            Map<String, Long> maxs = new HashMap<>();
+            for (int i = 0; i < outputTexts.getPositionCount(); i++) {
+                sums.put(outputTexts.getBytesRef(i, new BytesRef()).utf8ToString(), outputSums.getLong(i));
+                maxs.put(outputTexts.getBytesRef(i, new BytesRef()).utf8ToString(), outputMaxs.getLong(i));
+            }
+            List<String> keys = switch (categorizeDef.outputFormat()) {
+                case REGEX -> List.of(
+                    ".*?aaazz.*?",
+                    ".*?bbbzz.*?",
+                    ".*?ccczz.*?",
+                    ".*?dddzz.*?",
+                    ".*?eeezz.*?",
+                    ".*?words.+?words.+?words.+?goodbye.*?",
+                    ".*?words.+?words.+?words.+?hello.*?"
+                );
+                case TOKENS -> List.of("aaazz", "bbbzz", "ccczz", "dddzz", "eeezz", "words words words goodbye", "words words words hello");
+            };
+
+            assertThat(
+                sums,
+                equalTo(
+                    Map.of(
+                        keys.get(0),
+                        1L,
+                        keys.get(1),
+                        2L,
+                        keys.get(2),
+                        33L,
+                        keys.get(3),
+                        44L,
+                        keys.get(4),
+                        5L,
+                        keys.get(5),
+                        8888L,
+                        keys.get(6),
+                        999L
+                    )
                 )
-            )
-        );
-        assertThat(
-            maxs,
-            equalTo(
-                Map.of(
-                    keys.get(0),
-                    1L,
-                    keys.get(1),
-                    2L,
-                    keys.get(2),
-                    30L,
-                    keys.get(3),
-                    40L,
-                    keys.get(4),
-                    5L,
-                    keys.get(5),
-                    8000L,
-                    keys.get(6),
-                    900L
+            );
+            assertThat(
+                maxs,
+                equalTo(
+                    Map.of(
+                        keys.get(0),
+                        1L,
+                        keys.get(1),
+                        2L,
+                        keys.get(2),
+                        30L,
+                        keys.get(3),
+                        40L,
+                        keys.get(4),
+                        5L,
+                        keys.get(5),
+                        8000L,
+                        keys.get(6),
+                        900L
+                    )
                 )
-            )
-        );
-        Releasables.close(() -> Iterators.map(finalOutput.iterator(), (Page p) -> p::releaseBlocks));
+            );
+        } finally {
+            if (finalDriverCreated == false) {
+                releasePages(intermediateOutput);
+            }
+            releasePages(finalOutput);
+        }
+    }
+
+    private static Block[] buildBlocks(BytesRefVector.Builder textsBuilder, LongVector.Builder countsBuilder) {
+        Block texts = textsBuilder.build().asBlock();
+        boolean success = false;
+        try {
+            Block[] blocks = new Block[] { texts, countsBuilder.build().asBlock() };
+            success = true;
+            return blocks;
+        } finally {
+            if (success == false) {
+                texts.close();
+            }
+        }
+    }
+
+    private static void releasePages(List<Page> pages) {
+        Releasables.close(() -> Iterators.map(pages.iterator(), (Page p) -> p::releaseBlocks));
     }
 
     private void assertHashState(CategorizeBlockHash hash, boolean withNull, String... expectedKeys) {

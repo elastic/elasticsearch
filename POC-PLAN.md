@@ -43,9 +43,11 @@ member so csv-spec tests can assert on a union column.
 
 **C. Stop erasing. Partly done.** C1, the coordinator half, is done in `e9579adcc512`: under the
 `union_typed_fields` pragma `UnionTypesCleanup` builds a `UnionEsField` instead of flagging the
-conflict, so the attribute survives analysis. **C2, the data-node loader, and C3, the response's leg
-list, are not started** — and without C2 nothing in the engine produces a union block, so with the
-pragma on, reading such a field fails on the data node.
+conflict, so the attribute survives analysis. C2, the data-node loader, is done in `dab39ce2f1dd`
+with its two-shard test in this increment: each shard reads the field with its own loader and the
+values carry the leg that shard's mapping puts them in. **C3, the response's leg list, is not
+started** — the leg order is still derived independently at each end rather than carried, which §9.2
+of the spec records as a cross-version fault rather than only a rendering gap.
 
 **E. Operations.** Not started. **F. Grouping.** Out of the POC, see §0a. **G. Datasets.** Not started.
 
@@ -385,7 +387,7 @@ it. Without this the loader would have passed on single-segment pages and thrown
 which is the worst available failure shape. `FieldInfoBuilderSupplierTests` pins all three cases,
 including that a union handed the default supplier throws with the element type's own message.
 
-**4b. The loader. Done, bar its end-to-end test.** `blockLoaderAndConverter` gains a arm before the
+**4b. The loader. Done.** `blockLoaderAndConverter` gains a arm before the
 multi-type one, since a `UnionEsField` is a sibling of `UnionTypeEsField` and matches none of its
 guards: it reads the shard's own mapped family type, finds the leg, loads natively at `NONE`, and wraps
 with `UnionLegConverter`, which converts nothing and only records which leg the values landed in. Two
@@ -405,11 +407,25 @@ generated convert evaluators close it, so a `ConverterEvaluator` owns and must r
 handed. `UnionLegConverterTests` asserts that, and the assertion was shown to discriminate - dropping
 the `try`-with-resources fails it.
 
-**What it still owes: an end-to-end test over two shards of different mappings.** The converter is
-covered in isolation, including the multi-valued and all-null shapes and the release; what is not is
-the planner arm choosing the right leg per shard, which needs the two-shard harness that
-`ValueSourceReaderTypeConversionTests` builds. Until then nothing proves a page spanning two mappings
-carries both legs.
+**4b-e2e. The two shards of different mappings. Done.** `UnionFieldExtractionTests` writes two real
+indices, one mapping `duration` as `long` and one as `keyword`, builds a `DefaultShardContext` over
+each, and asks the real `EsPhysicalOperationProviders.extractFields` for the column's `FieldInfo` -
+so the leg choice under test is production code rather than the test's own copy of it. One page
+holding every document of both shards then goes through a real `ValuesSourceReaderOperator`, and the
+assertion is that the result is one `UnionBlock` whose legs are `[BYTES_REF, LONG]`, with every
+long-mapped document tagged to the long leg, every keyword-mapped one to the keyword leg, and every
+value arriving unconverted.
+
+**It discriminates, and the stack says which path it covers.** Forcing `unionLegLoader` to always
+pick leg 0 fails it with `leg 0 holds BYTES_REF but the value came from a LONG block`, thrown from
+`UnionBlockBuilder.appendValue` under `ValuesFromManyReader.loadForwardSequence` - the many-shard
+reader, which is the path a single-shard test would never enter. The two constant-null arms are
+pinned the same way, by identity against `LOAD_CONSTANT_NULLS`: a shard mapping the field as
+`boolean`, which no declared leg has room for, and a shard that does not map it at all. The forced
+leg kills that first one too.
+
+**What it does not cover:** the block factory is the non-breaking one, so a block leaked on this path
+would not show up here. The converter's own release is pinned separately.
 
 **4c. What the loader does not yet reach.** In `EsPhysicalOperationProviders.blockLoaderAndConverter`,
 for a `FieldAttribute` over a `UnionEsField`: read the shard's mapped type exactly as the

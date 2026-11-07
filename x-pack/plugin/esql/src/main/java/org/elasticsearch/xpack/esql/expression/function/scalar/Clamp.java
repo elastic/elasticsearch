@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
@@ -66,6 +67,28 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+        signatures = {
+            @Signature(params = { "boolean", "boolean", "boolean" }, returnType = "boolean"),
+            @Signature(params = { "date", "date", "date" }, returnType = "date"),
+            @Signature(params = { "double", "double", "double" }, returnType = "double"),
+            @Signature(params = { "double", "integer", "integer" }, returnType = "double"),
+            @Signature(params = { "double", "long", "long" }, returnType = "double"),
+            @Signature(params = { "double", "unsigned_long", "unsigned_long" }, returnType = "double"),
+            @Signature(params = { "integer", "double", "double" }, returnType = "double"),
+            @Signature(params = { "integer", "integer", "integer" }, returnType = "integer"),
+            @Signature(params = { "integer", "long", "long" }, returnType = "long"),
+            @Signature(params = { "integer", "unsigned_long", "unsigned_long" }, returnType = "unsigned_long"),
+            @Signature(params = { "ip", "ip", "ip" }, returnType = "ip"),
+            @Signature(params = { "keyword", "keyword", "keyword" }, returnType = "keyword"),
+            @Signature(params = { "long", "double", "double" }, returnType = "double"),
+            @Signature(params = { "long", "integer", "integer" }, returnType = "long"),
+            @Signature(params = { "long", "long", "long" }, returnType = "long"),
+            @Signature(params = { "long", "unsigned_long", "unsigned_long" }, returnType = "unsigned_long"),
+            @Signature(params = { "unsigned_long", "double", "double" }, returnType = "double"),
+            @Signature(params = { "unsigned_long", "integer", "integer" }, returnType = "unsigned_long"),
+            @Signature(params = { "unsigned_long", "long", "long" }, returnType = "long"),
+            @Signature(params = { "unsigned_long", "unsigned_long", "unsigned_long" }, returnType = "unsigned_long"),
+            @Signature(params = { "version", "version", "version" }, returnType = "version") },
         briefSummary = "Clamps values to a specified minimum and maximum range.",
         description = "Limits (or clamps) the values of all samples to have a lower limit of min and an upper limit of max.",
         examples = { @Example(file = "k8s-timeseries-clamp", tag = "clamp") },

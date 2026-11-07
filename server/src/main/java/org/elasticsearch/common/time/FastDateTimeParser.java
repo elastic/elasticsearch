@@ -270,6 +270,9 @@ class FastDateTimeParser implements DateTimeParser {
          * @return                The {@link ParseResult} of the parse.
          */
         ParseResult tryParse(CharSequence str, @Nullable ZoneId defaultTimezone) {
+            if (str.isEmpty()) {
+                return ParseResult.error(0);
+            }
             if (str.charAt(0) == '-') {
                 // the year is negative. This is most unusual.
                 // Instead of always adding offsets and dynamically calculating position in the main parser code below,

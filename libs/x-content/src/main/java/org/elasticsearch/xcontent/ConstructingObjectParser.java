@@ -462,6 +462,12 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
          */
         private final Object[] constructorArgs;
         /**
+         * Whether the constructor argument at the same position in {@link #constructorArgs} was parsed from the document. A provided argument
+         * may legitimately hold {@code null} (for example an object field declared with
+         * {@link AbstractObjectParser#declareObjectOrNull}), so the value alone can't tell "provided as null" apart from "missing".
+         */
+        private final boolean[] constructorArgsProvided;
+        /**
          * The parser this class is working against. We store it here so we can fetch it conveniently when queueing fields to lookup the
          * location of each field so that we can give a useful error message when replaying the queue.
          */
@@ -500,6 +506,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             this.parser = parser;
             this.context = context;
             this.constructorArgs = new Object[constructorArgInfos.getOrDefault(parser.getRestApiVersion(), Collections.emptyList()).size()];
+            this.constructorArgsProvided = new boolean[constructorArgs.length];
         }
 
         /**
@@ -508,6 +515,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         private void constructorArg(Map<RestApiVersion, Integer> positions, Object value) {
             int position = positions.get(parser.getRestApiVersion()) - 1;
             constructorArgs[position] = value;
+            constructorArgsProvided[position] = true;
             constructorArgsCollected++;
             if (constructorArgsCollected == constructorArgInfos.get(parser.getRestApiVersion()).size()) {
                 buildTarget();
@@ -542,7 +550,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              */
             StringBuilder message = null;
             for (int i = 0; i < constructorArgs.length; i++) {
-                if (constructorArgs[i] != null) continue;
+                if (constructorArgsProvided[i]) continue;
                 ConstructorArgInfo arg = constructorArgInfos.get(parser.getRestApiVersion()).get(i);
                 if (false == arg.required) continue;
                 if (message == null) {

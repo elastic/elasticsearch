@@ -38,7 +38,7 @@
     },
     ":test:external-modules:test-esql-heap-attack:javaRestTest": {
       "by": "class",
-      "count": 2
+      "count": 4
     },
     ":x-pack:plugin:esql-datasource-csv:qa:csvSpecTests": {
       "by": "class",

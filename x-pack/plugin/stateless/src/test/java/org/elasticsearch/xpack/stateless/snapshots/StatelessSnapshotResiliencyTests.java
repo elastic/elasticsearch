@@ -452,6 +452,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             return new MockPluginsService(settings, environment, List.of(TestStatelessPlugin.class));
         }
 
+        @Override
+        public boolean canUsurpCurrentMaster() {
+            return false;
+        }
+
         class StatelessNode extends TestClusterNodes.TestClusterNode {
 
             private TestStatelessPlugin testStatelessPlugin;

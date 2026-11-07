@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -105,7 +106,14 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Bucket.class)
         .quinaryConfigWithOptions(Bucket::new)
-        .capabilities("histogram_types")
+        .capabilities(
+            "histogram_types",
+            // unsigned_long from/to bounds are decoded instead of being read in their sortable-encoded form
+            "unsigned_long_bounds",
+            // date_nanos accepted as from/to, and the 4-arg span + range form (BUCKET(date, 1 month, from, to)).
+            // Both landed in 9.5.0 without a capability; this one gates their tests.
+            "date_nanos_bounds_span_range"
+        )
         .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
     public static final TransportVersion ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION = TransportVersion.fromName(
@@ -379,22 +387,63 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         returnType = { "double", "date", "date_nanos", "double_range" },
         signatures = {
             @Signature(params = { "date", "date_period|time_duration" }, returnType = "date"),
-            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING" }, returnType = "date"),
-            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date"),
-            @Signature(params = { "date_nanos", "date_period|time_duration" }, returnType = "date_nanos"),
-            @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING" }, returnType = "date_nanos"),
-            @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date_nanos"),
-            // unsigned_long is in NUMERIC but not supported by BUCKET; list the accepted numerics explicitly.
-            @Signature(params = { "integer|long|double", "double|integer|long" }, returnType = "double"),
-            @Signature(params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double" }, returnType = "double"),
             @Signature(
-                params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double", "object" },
+                params = { "date", "date_period|time_duration", "date|date_nanos|STRING", "date|date_nanos|STRING" },
+                returnType = "date"
+            ),
+            @Signature(
+                params = { "date", "date_period|time_duration", "date|date_nanos|STRING", "date|date_nanos|STRING", "object" },
+                returnType = "date"
+            ),
+            @Signature(params = { "date", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING" }, returnType = "date"),
+            @Signature(
+                params = { "date", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING", "object" },
+                returnType = "date"
+            ),
+            @Signature(params = { "date_nanos", "date_period|time_duration" }, returnType = "date_nanos"),
+            @Signature(
+                params = { "date_nanos", "date_period|time_duration", "date|date_nanos|STRING", "date|date_nanos|STRING" },
+                returnType = "date_nanos"
+            ),
+            @Signature(
+                params = { "date_nanos", "date_period|time_duration", "date|date_nanos|STRING", "date|date_nanos|STRING", "object" },
+                returnType = "date_nanos"
+            ),
+            @Signature(
+                params = { "date_nanos", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING" },
+                returnType = "date_nanos"
+            ),
+            @Signature(
+                params = { "date_nanos", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING", "object" },
+                returnType = "date_nanos"
+            ),
+            // unsigned_long works as a numeric field and as a from/to bound. It is not a valid buckets/count/span argument.
+            @Signature(params = { "integer|long|double|unsigned_long", "double|integer|long" }, returnType = "double"),
+            @Signature(
+                params = {
+                    "integer|long|double|unsigned_long",
+                    "integer|long",
+                    "integer|long|double|unsigned_long",
+                    "integer|long|double|unsigned_long" },
+                returnType = "double"
+            ),
+            @Signature(
+                params = {
+                    "integer|long|double|unsigned_long",
+                    "integer|long",
+                    "integer|long|double|unsigned_long",
+                    "integer|long|double|unsigned_long",
+                    "object" },
                 returnType = "double"
             ),
             // Histograms are bucketed like numbers, but return the non-empty double_range buckets.
             @Signature(params = { "exponential_histogram|tdigest", "double|integer|long" }, returnType = "double_range"),
             @Signature(
-                params = { "exponential_histogram|tdigest", "integer", "integer|long|double", "integer|long|double" },
+                params = {
+                    "exponential_histogram|tdigest",
+                    "integer|long",
+                    "integer|long|double|unsigned_long",
+                    "integer|long|double|unsigned_long" },
                 returnType = "double_range"
             ) },
         briefSummary = "Creates groups of values (buckets) from a datetime or numeric input.",
@@ -517,7 +566,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         Source source,
         @Param(
             name = "field",
-            type = { "integer", "long", "double", "date", "date_nanos", "exponential_histogram", "tdigest" },
+            type = { "integer", "long", "double", "unsigned_long", "date", "date_nanos", "exponential_histogram", "tdigest" },
             description = "Numeric, date or histogram expression from which to derive buckets."
         ) Expression field,
         @Param(
@@ -528,14 +577,14 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         ) Expression buckets,
         @Param(
             name = "from",
-            type = { "integer", "long", "double", "date", "keyword", "text" },
+            type = { "integer", "long", "double", "unsigned_long", "date", "date_nanos", "keyword", "text" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Can be a number, a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
-            type = { "integer", "long", "double", "date", "keyword", "text" },
+            type = { "integer", "long", "double", "unsigned_long", "date", "date_nanos", "keyword", "text" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."
@@ -875,15 +924,52 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         if (from != null) {
             assert to != null : "Both from and to must be set";
             long b = ((Number) buckets.fold(foldContext)).longValue();
-            double f = ((Number) from.fold(foldContext)).doubleValue();
-            double t = ((Number) to.fold(foldContext)).doubleValue();
-            double precise = (t - f) / b;
+            double precise = numericRange(foldContext) / b;
             double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
             double halfPower = nextPowerOfTen / 2;
             return precise < halfPower ? halfPower : nextPowerOfTen;
         } else {
             return ((Number) buckets.fold(foldContext)).doubleValue();
         }
+    }
+
+    /**
+     * The width of the {@code from}..{@code to} range as a double. When both bounds are whole numbers the difference
+     * is computed exactly in BigInteger space first and rounded once: converting each side to a double separately
+     * loses precision above 2^53 and can round away the entire range (doubles quantize in steps of 16 near 1e17 and
+     * up to 2048 near 2^64, so e.g. {@code Long.MAX_VALUE} and {@code Long.MAX_VALUE + 100} become the same double).
+     * BigInteger rather than {@code long} arithmetic because the range of two longs can exceed {@code Long.MAX_VALUE},
+     * and because {@code unsigned_long} bounds fold to their sortable-encoded representation and must be decoded.
+     */
+    private double numericRange(FoldContext foldContext) {
+        if (from.dataType().isWholeNumber() && to.dataType().isWholeNumber()) {
+            return wholeNumberBound(foldContext, to).subtract(wholeNumberBound(foldContext, from)).doubleValue();
+        }
+        return foldNumericBound(foldContext, to) - foldNumericBound(foldContext, from);
+    }
+
+    private static BigInteger wholeNumberBound(FoldContext foldContext, Expression e) {
+        long value = ((Number) e.fold(foldContext)).longValue();
+        return e.dataType() == DataType.UNSIGNED_LONG ? NumericUtils.unsignedLongAsBigInteger(value) : BigInteger.valueOf(value);
+    }
+
+    /**
+     * The numeric {@code from} bound as a double, decoding sortable-encoded unsigned_long values.
+     */
+    public double numericRangeFrom(FoldContext foldContext) {
+        return foldNumericBound(foldContext, from);
+    }
+
+    /**
+     * The numeric {@code to} bound as a double, decoding sortable-encoded unsigned_long values.
+     */
+    public double numericRangeTo(FoldContext foldContext) {
+        return foldNumericBound(foldContext, to);
+    }
+
+    private static double foldNumericBound(FoldContext foldContext, Expression e) {
+        Number value = (Number) e.fold(foldContext);
+        return e.dataType() == DataType.UNSIGNED_LONG ? NumericUtils.unsignedLongToDouble(value.longValue()) : value.doubleValue();
     }
 
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):
@@ -930,24 +1016,22 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             );
         }
         var bucketsType = buckets.dataType();
-        if (fieldType == DataType.NULL || bucketsType == DataType.NULL) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
 
         if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
             TypeResolution resolution = isType(
                 buckets,
-                dt -> dt.isWholeNumber() || DataType.isTemporalAmount(dt),
+                dt -> isSupportedBucketsWholeNumber(dt) || DataType.isTemporalAmount(dt),
                 sourceText(),
                 SECOND,
-                "integral",
+                "integer",
+                "long",
                 "date_period",
                 "time_duration"
             );
             // 4-arg ctor: range + time unit or number of buckets
             // e.g. BUCKET(@timestamp, 1 day, "2023-01-01", "2024-01-01")
             // or BUCKET(@timestamp, 5, "2023-01-01", "2024-01-01")
-            if (bucketsType.isWholeNumber() || from != null) {
+            if (isSupportedBucketsWholeNumber(bucketsType) || from != null) {
                 return resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
                     .and(() -> isStringOrDate(to, sourceText(), FOURTH));
@@ -958,7 +1042,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
         // Histogram fields take the same bucket size arguments as numbers.
         if (fieldType.isNumeric() || isSupportedHistogramType(fieldType)) {
-            return isNumeric(buckets, sourceText(), SECOND).and(() -> {
+            return isType(buckets, Bucket::isSupportedBucketsNumeric, sourceText(), SECOND, "integer", "long", "double").and(() -> {
                 if (bucketsType.isRationalNumber()) {
                     return checkArgsCount(2);
                 } else { // second arg is a whole number: either a span, but as a whole, or count, and we must expect a range
@@ -971,7 +1055,47 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 }
             });
         }
+        if (fieldType == DataType.NULL) {
+            // NULL field is allowed, but the other arguments must still be valid for a single BUCKET overload:
+            // a time span takes date bounds, and a whole number takes either two numeric or two date bounds.
+            return isType(
+                buckets,
+                dt -> isSupportedBucketsNumeric(dt) || DataType.isTemporalAmount(dt),
+                sourceText(),
+                SECOND,
+                "integer",
+                "long",
+                "double",
+                "date_period",
+                "time_duration"
+            ).and(() -> {
+                if (from == null && to == null) {
+                    return TypeResolution.TYPE_RESOLVED;
+                }
+                if (bucketsType.isRationalNumber()) {
+                    return checkArgsCount(2);
+                }
+                return checkArgsCount(4).and(() -> {
+                    if (DataType.isTemporalAmount(bucketsType) == false && (from.dataType().isNumeric() || to.dataType().isNumeric())) {
+                        return isNumeric(from, sourceText(), THIRD).and(() -> isNumeric(to, sourceText(), FOURTH));
+                    }
+                    return isStringOrDate(from, sourceText(), THIRD).and(() -> isStringOrDate(to, sourceText(), FOURTH));
+                });
+            });
+        }
         return isType(field, e -> false, sourceText(), FIRST, "datetime", "numeric");
+    }
+
+    /**
+     * {@code unsigned_long} type-checks as a whole number but folding it as a signed {@code long}
+     * yields a nonsense bucket width, so the histogram collapses to null. Reject it as count/span.
+     */
+    private static boolean isSupportedBucketsWholeNumber(DataType dt) {
+        return dt.isWholeNumber() && dt != DataType.UNSIGNED_LONG;
+    }
+
+    private static boolean isSupportedBucketsNumeric(DataType dt) {
+        return dt.isNumeric() && dt != DataType.UNSIGNED_LONG;
     }
 
     private static boolean isSupportedHistogramType(DataType fieldType) {

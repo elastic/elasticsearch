@@ -640,20 +640,30 @@ Without that check the user gets a 500 that the code itself labels a bug, from t
 guard, part-way through shipping the plan. That is the condition this section exists to prevent, and
 the gate beside it for `CompactMultiTypeEsField` is the precedent it follows.
 
-### 9.2 The leg order is a wire contract, and deriving it twice is the fragile part
+### 9.2 The leg order is a wire contract, and it is carried rather than derived twice
 
-A value's tag is an index into the leg list. Today both the block and the response derive that list by
-computing `TypeConflictedField.unionLegTypes()` — widen, de-duplicate, sort by type name, plus the
-unmapped keyword leg. Two sides computing the same function of the same input cannot disagree, which
-is why it was built that way, **and that argument holds only while the function is the same on both
-sides.** Change it between versions — a new widening, a renamed type name, a different rule for the
-unmapped leg — and an old node and a new node compute different orders, so a tag names a different leg
-on each. That is a silent wrong answer, not an error, and no version check catches it because both
-nodes understand the type perfectly well.
+A value's tag is an index into the leg list, so that list is a contract between whoever writes a tag
+and whoever reads one. **It is computed once, on the coordinator, and carried.**
+`TypeConflictedField.unionLegTypes()` — widen, de-duplicate, sort by type name — has exactly one
+production caller, the analyzer's `UnionTypesCleanup`, and the list it returns is held on the
+`UnionEsField` and serialized inside the plan. Both consumers then index that same carried list: the
+data node through `PlannerUtils.unionLegElementTypes` to lay out the block's legs, and the response
+through `ColumnInfoImpl.forAttribute` to declare them by name. So changing the ordering rule between
+versions cannot make two nodes disagree about a single query, because only one node ever runs it.
 
-**The fix is for the block to carry its leg type names**, which turns a derived agreement into data.
-This is the strongest reason for that increment, ahead of the rendering problem it also solves: it
-removes a whole class of cross-version fault rather than fixing one symptom of it.
+*An earlier draft of this section asserted the opposite — that both ends computed the function — and
+prescribed carrying the names in the block as the fix. That was wrong about the tree.*
+
+What the two ends do still derive separately is the mapping from a leg's **type** to its physical
+**element type** (the data node) and to its **renderer** (the coordinator). Those agree because both
+walk the carried list in order and the block itself serializes its element types; `checkUnionLegCount`
+catches a length disagreement, and a per-leg element-type disagreement would need `toElementType` to
+change meaning for an existing type between versions, which would break every column rather than only
+a union. The remaining exposure is therefore ordinary, not union-specific.
+
+**One thing is genuinely published here and cannot be withdrawn:** the leg names go out in
+`original_types`, in the mapping vocabulary field_caps uses (`date`, not `datetime`), in leg order. A
+client may read that list positionally, which §9.4 is about.
 
 ### 9.3 Upgrade must not change answers
 

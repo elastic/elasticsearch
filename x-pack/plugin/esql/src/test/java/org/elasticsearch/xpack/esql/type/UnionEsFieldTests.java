@@ -160,6 +160,26 @@ public class UnionEsFieldTests extends AbstractEsFieldTypeTests<UnionEsField> {
         }
     }
 
+    /**
+     * The name a leg is published under has to survive the round trip back to its type, because the response declares
+     * the legs by name and the renderer turns each name back into the type it pairs an extractor to. The two names a
+     * type has are not interchangeable in general - {@code DATETIME} is {@code date} to a mapping and {@code datetime}
+     * to the language - so this asks the question of every leg type rather than of the one that differs today.
+     */
+    public void testEveryLegTypeIsPublishableAndResolvesBack() {
+        for (DataType type : DataType.values()) {
+            if (UnionEsField.isLegType(type) == false) {
+                continue;
+            }
+            assertNotNull(type + " has no mapping name to publish as a leg", type.esType());
+            assertEquals(
+                "publishing " + type + " as [" + type.esType() + "] does not resolve back",
+                type,
+                DataType.fromTypeName(type.esType())
+            );
+        }
+    }
+
     public void testSerializationKeepsTheLegOrder() throws IOException {
         UnionEsField union = new UnionEsField("flow", List.of(DataType.DATETIME, DataType.KEYWORD, DataType.LONG));
         UnionEsField roundTripped = copyInstance(union);

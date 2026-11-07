@@ -46,8 +46,15 @@ member so csv-spec tests can assert on a union column.
 conflict, so the attribute survives analysis. C2, the data-node loader, is done in `dab39ce2f1dd`
 with its two-shard test in this increment: each shard reads the field with its own loader and the
 values carry the leg that shard's mapping puts them in. **C3, the response's leg list, is not
-started** — the leg order is still derived independently at each end rather than carried, which §9.2
-of the spec records as a cross-version fault rather than only a rendering gap.
+done** too, in this increment: `ColumnInfoImpl.forAttribute` is the one place a column's
+`original_types` is decided, and for a union it publishes the field's leg names in leg order.
+
+**And the cross-version fault §9.2 of the spec claimed does not exist.** Checking it rather than
+restating it: `TypeConflictedField.unionLegTypes()` has exactly one production caller, the analyzer,
+and `UnionEsField.legTypes()` exactly one, `PlannerUtils.unionLegElementTypes`. The order is computed
+once on the coordinator and serialized inside the plan, so both ends index one carried list and no
+version can make them disagree about a single query. §9.2 is rewritten to say that, with the wrong
+claim marked as such rather than quietly dropped.
 
 **E. Operations.** Not started. **F. Grouping.** Out of the POC, see §0a. **G. Datasets.** Not started.
 
@@ -426,6 +433,29 @@ leg kills that first one too.
 
 **What it does not cover:** the block factory is the non-breaking one, so a block leaked on this path
 would not show up here. The converter's own release is pinned separately.
+
+**5. The response's leg list. Done.** `ColumnInfoImpl.forAttribute(attribute, meta)` now owns what a
+column declares as `original_types`, replacing the same decision written out at both transport
+actions. Two kinds of column fill that field for different reasons and the method is where the
+difference is stated: an unsupported column lists what disagreed, sorted because nothing reads it by
+position; a union column lists its legs, so the order is the contract and is reported rather than
+imposed.
+
+**The published vocabulary is `esType`, not the type's own name** — `date`, as field_caps spells it,
+rather than `datetime`. The reason is that `original_types` already speaks that vocabulary for an
+unsupported column, and a client should not have to know two. Both resolve through
+`DataType.fromTypeName`, since `NAME_TO_TYPE` is keyed on the type name with `date` added by hand, so
+this was a choice between two working options rather than the only one. `UnionEsFieldTests` asks the
+round-trip question of **every** leg type rather than of the one that differs today, so a thirteenth
+leg type whose names do not round-trip fails there.
+
+**The seam test earns its keep, and its first version did not.** `EsqlQueryResponseTests` now builds
+the column from a `UnionEsField` through `forAttribute` and the block's legs from the same field
+through `PlannerUtils.unionLegElementTypes`, then renders. Reversing the block's leg element types is
+the mutation that ought to fail it — and against the first leg set, a date, a keyword and a long, it
+**passed**, because those element types read `[LONG, BYTES_REF, LONG]`, which is its own reverse. The
+leg set is now a date, a double, a keyword and a long, whose element types are not, and both that
+mutation and the vocabulary mutation fail it.
 
 **4c. What the loader does not yet reach.** In `EsPhysicalOperationProviders.blockLoaderAndConverter`,
 for a `FieldAttribute` over a `UnionEsField`: read the shard's mapped type exactly as the

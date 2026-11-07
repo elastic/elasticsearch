@@ -80,7 +80,10 @@ import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.UnionEsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -2050,6 +2053,55 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    /**
+     * The seam between the plan and the response. The column's leg names come from a {@link UnionEsField} through
+     * {@link ColumnInfoImpl#forAttribute}, as a transport action builds them, and the block's legs come from the same
+     * field through {@link PlannerUtils#unionLegElementTypes}, as the data node builds them. Nothing else holds those
+     * two against each other, and a disagreement renders a value as the wrong type instead of failing.
+     * <p>
+     * Two leg types are here for a reason. {@code date} is the one leg type whose published name is not its own type
+     * name, so it is what the published vocabulary turns on. And the element types of these four legs read
+     * {@code [LONG, DOUBLE, BYTES_REF, LONG]}, which is not its own reverse - a three-leg set of a date, a keyword and
+     * a long is, so reordering the block's legs under it would change nothing and the test would pass through the
+     * disagreement it exists to catch.
+     */
+    public void testAUnionColumnRendersThroughTheLegOrderItsFieldCarries() {
+        UnionEsField field = new UnionEsField("flow", List.of(DataType.DATETIME, DataType.DOUBLE, DataType.KEYWORD, DataType.LONG));
+        ColumnInfoImpl column = ColumnInfoImpl.forAttribute(new FieldAttribute(Source.EMPTY, null, null, "flow", field), null);
+        List<ElementType> legs = PlannerUtils.unionLegElementTypes(field);
+        assertThat(legs, equalTo(List.of(ElementType.LONG, ElementType.DOUBLE, ElementType.BYTES_REF, ElementType.LONG)));
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(legs, 4)) {
+            appendUnionLong(builder, 0, 1700000000000L);
+            appendUnionDouble(builder, 1, 1.5);
+            appendUnionBytes(builder, 2, "hello");
+            appendUnionLong(builder, 3, 42L);
+            try (
+                EsqlQueryResponse response = new EsqlQueryResponse(
+                    List.of(column),
+                    List.of(new Page(builder.build())),
+                    0,
+                    0,
+                    null,
+                    false,
+                    null,
+                    false,
+                    false,
+                    ZoneOffset.UTC,
+                    0L,
+                    0L,
+                    null
+                )
+            ) {
+                assertThat(
+                    EsqlTestUtils.getValuesList(response.values()),
+                    equalTo(List.of(List.of("2023-11-14T22:13:20.000Z"), List.of(1.5), List.of("hello"), List.of(42L)))
+                );
+                String json = Strings.toString(wrapAsToXContent(response), false, false);
+                assertThat(json, containsString("\"original_types\":[\"date\",\"double\",\"keyword\",\"long\"]"));
+            }
+        }
+    }
+
     /** Rendering a union column with no leg types declared is refused rather than guessed at. */
     public void testUnionColumnWithoutLegTypesIsRefused() {
         EsqlIllegalArgumentException e = expectThrows(
@@ -2159,6 +2211,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     private void appendUnionBytes(UnionBlock.Builder builder, int leg, String value) {
         try (Block source = blockFactory.newConstantBytesRefBlockWith(new BytesRef(value), 1)) {
+            builder.appendValue(leg, source, 0);
+        }
+    }
+
+    private void appendUnionDouble(UnionBlock.Builder builder, int leg, double value) {
+        try (Block source = blockFactory.newConstantDoubleBlockWith(value, 1)) {
             builder.appendValue(leg, source, 0);
         }
     }

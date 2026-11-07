@@ -1,0 +1,5 @@
+area: Highlighting
+issues: []
+pr: 164062
+summary: Preserve highlighting token filtering for shared automata
+type: bug

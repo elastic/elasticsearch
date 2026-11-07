@@ -302,10 +302,23 @@ produces a multi-valued union block, and the first `FilterOperator` or `LimitOpe
 Pure compute, and it lifts `TDigestArrayBlock` and `ExponentialHistogramArrayBlock`, which throw the
 identical message. *Red on revert:* `UnionBlockTests`' refusal tests, inverted.
 
-**3. `RandomBlock` union support.** *Must precede 2's tests*, or the block changes ship covered only by
-hand-written cases. Then remove UNION from the exclusion lists this branch added to `BlockBuilderTests`,
-`BlockMultiValuedTests` and `TopNOperatorTests`. *Red on revert:* every randomized suite that then
-generates a union.
+**3. Randomized coverage of the reshaping. Done.** Not via `RandomBlock`: its `randomBlock` takes an
+`ElementType` and nothing else, and a union needs its leg element types, so it throws for `UNION` by
+construction and says so. `UnionBlockTests` therefore generates its own union blocks alongside the
+leg-and-value pairs they must read back as, and property-tests `filter` with unordered and repeated
+positions and `slice` with random bounds against that oracle. Legs are chosen per value rather than
+per position, so a position may span legs - the shape only a computed value produces and the one most
+likely to break reshaping.
+
+*The tests were shown to discriminate rather than merely pass*: replacing the run measurement with
+`getValueCount`, the plausible wrong implementation the javadoc warns about, fails both the randomized
+filter test and the hand-written null case on every iteration.
+
+**Not achievable as the plan had it**, and the reason is worth keeping: UNION cannot simply be removed
+from the exclusion list in `BlockMultiValuedTests`, because that suite needs `lookup` - which is why
+`EXPONENTIAL_HISTOGRAM` sits beside it under a TODO saying exactly that - and a union refuses `lookup`.
+`TopNOperatorTests` needs increment 7 first. Both exclusions stay, and the suite's own neighbours
+explain why.
 
 **4. The loader, with the builder-supplier fix.** In `EsPhysicalOperationProviders.blockLoaderAndConverter`,
 for a `FieldAttribute` over a `UnionEsField`: read the shard's mapped type exactly as the

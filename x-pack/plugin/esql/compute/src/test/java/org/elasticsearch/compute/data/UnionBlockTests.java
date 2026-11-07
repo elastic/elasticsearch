@@ -14,6 +14,7 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.EnumSerializationTestUtils.assertEnumSerialization;
@@ -530,6 +531,129 @@ public class UnionBlockTests extends ComputeTestCase {
             try (BooleanVector maskVector = mask.build()) {
                 UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> block.keepMask(maskVector));
                 assertThat(e.getMessage(), equalTo("Not yet implemented for multi-valued blocks"));
+            }
+        }
+    }
+
+    /**
+     * One value of a union, as the pair that identifies it. Reshaping must preserve this pair for every value, which is
+     * what the hand-written cases above check at four positions and what the randomized cases below check over many.
+     */
+    private record LegValue(int leg, Object value) {}
+
+    /** A random union block and the leg-and-value pairs it should read back as, with a null position as a null entry. */
+    private record RandomUnion(UnionBlock block, List<List<LegValue>> expected) {}
+
+    private RandomUnion randomUnion(BlockFactory blockFactory, int positionCount) {
+        List<List<LegValue>> expected = new ArrayList<>(positionCount);
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(LEGS, positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                if (randomBoolean() && randomBoolean()) {
+                    expected.add(null);
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = between(1, 3);
+                List<LegValue> atPosition = new ArrayList<>(valueCount);
+                expected.add(atPosition);
+                if (valueCount > 1) {
+                    builder.beginPositionEntry();
+                }
+                for (int v = 0; v < valueCount; v++) {
+                    // A leg per value rather than per position, so a position may span legs - which is the shape only a
+                    // computed value produces and the one most likely to break reshaping.
+                    int leg = between(0, LEGS.size() - 1);
+                    atPosition.add(new LegValue(leg, appendRandomValue(builder, leg)));
+                }
+                if (valueCount > 1) {
+                    builder.endPositionEntry();
+                }
+            }
+            return new RandomUnion(builder.build(), expected);
+        }
+    }
+
+    private Object appendRandomValue(UnionBlock.Builder builder, int leg) {
+        switch (leg) {
+            case LONG_LEG -> {
+                long value = randomLong();
+                appendLong(builder, value);
+                return value;
+            }
+            case BYTES_LEG -> {
+                String value = randomAlphaOfLengthBetween(1, 12);
+                appendBytes(builder, value);
+                return value;
+            }
+            case BOOL_LEG -> {
+                boolean value = randomBoolean();
+                appendBoolean(builder, value);
+                return value;
+            }
+            default -> throw new IllegalArgumentException("no such leg [" + leg + "]");
+        }
+    }
+
+    /** Read every value back by its own leg and compare with what was appended. */
+    private static void assertMatches(UnionBlock block, List<List<LegValue>> expected) {
+        assertThat(block.getPositionCount(), equalTo(expected.size()));
+        for (int p = 0; p < expected.size(); p++) {
+            List<LegValue> atPosition = expected.get(p);
+            if (atPosition == null) {
+                assertTrue("position " + p + " should be null", block.isNull(p));
+                assertThat("a null names no leg", block.tag(block.getFirstValueIndex(p)), equalTo(UnionBlock.NO_TAG));
+                continue;
+            }
+            assertFalse("position " + p + " should not be null", block.isNull(p));
+            assertThat("value count at " + p, block.getValueCount(p), equalTo(atPosition.size()));
+            int first = block.getFirstValueIndex(p);
+            for (int v = 0; v < atPosition.size(); v++) {
+                LegValue expectedValue = atPosition.get(v);
+                int valueIndex = first + v;
+                assertThat("leg at " + p + "/" + v, block.tag(valueIndex), equalTo(expectedValue.leg()));
+                assertThat("value at " + p + "/" + v, readValue(block, expectedValue.leg(), valueIndex), equalTo(expectedValue.value()));
+            }
+        }
+    }
+
+    private static Object readValue(UnionBlock block, int leg, int valueIndex) {
+        Block legBlock = block.legBlock(leg);
+        return switch (leg) {
+            case LONG_LEG -> ((LongBlock) legBlock).getLong(valueIndex);
+            case BYTES_LEG -> ((BytesRefBlock) legBlock).getBytesRef(valueIndex, new BytesRef()).utf8ToString();
+            case BOOL_LEG -> ((BooleanBlock) legBlock).getBoolean(valueIndex);
+            default -> throw new IllegalArgumentException("no such leg [" + leg + "]");
+        };
+    }
+
+    public void testRandomFilterKeepsEveryLegAndValue() {
+        BlockFactory blockFactory = blockFactory();
+        RandomUnion random = randomUnion(blockFactory, between(1, 40));
+        try (UnionBlock block = random.block()) {
+            int length = between(1, block.getPositionCount());
+            int[] positions = new int[length];
+            List<List<LegValue>> expected = new ArrayList<>(length);
+            for (int i = 0; i < length; i++) {
+                // Unordered and possibly repeated, since both are allowed and both reshape differently.
+                positions[i] = between(0, block.getPositionCount() - 1);
+                expected.add(random.expected().get(positions[i]));
+            }
+            try (UnionBlock filtered = (UnionBlock) block.filter(true, positions, 0, length)) {
+                assertThat(filtered.legElementTypes(), equalTo(LEGS));
+                assertMatches(filtered, expected);
+            }
+        }
+    }
+
+    public void testRandomSliceKeepsEveryLegAndValue() {
+        BlockFactory blockFactory = blockFactory();
+        RandomUnion random = randomUnion(blockFactory, between(1, 40));
+        try (UnionBlock block = random.block()) {
+            int begin = between(0, block.getPositionCount() - 1);
+            int end = between(begin, block.getPositionCount());
+            try (UnionBlock sliced = (UnionBlock) block.slice(begin, end)) {
+                assertThat(sliced.legElementTypes(), equalTo(LEGS));
+                assertMatches(sliced, random.expected().subList(begin, end));
             }
         }
     }

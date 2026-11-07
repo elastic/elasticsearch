@@ -195,7 +195,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final boolean mappingUpToDate;
         public final boolean createdOnLatestVersion;
         public final RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus;
-        public final boolean securityMigrationRunning;
+        /// True only while a `security-migration` persistent task created by a pre-upgrade master still exists in cluster state.
+        /// Runs started by [SecurityMigrations.Manager] are not persistent tasks and never set this.
+        /// Remove together with [SecurityMigrationExecutor] once BWC with such masters is no longer needed.
+        public final boolean legacyMigrationTaskRunning;
         public final Integer migrationsVersion;
         // Min mapping version supported by the descriptors in the cluster
         public final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion;
@@ -217,7 +220,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean mappingUpToDate,
             boolean createdOnLatestVersion,
             RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus,
-            boolean securityMigrationRunning,
+            boolean legacyMigrationTaskRunning,
             Integer migrationsVersion,
             SystemIndexDescriptor.MappingsVersion minClusterMappingVersion,
             Integer indexMappingVersion,
@@ -237,7 +240,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.migrationsVersion = migrationsVersion;
             this.createdOnLatestVersion = createdOnLatestVersion;
             this.roleMappingsCleanupMigrationStatus = roleMappingsCleanupMigrationStatus;
-            this.securityMigrationRunning = securityMigrationRunning;
+            this.legacyMigrationTaskRunning = legacyMigrationTaskRunning;
             this.minClusterMappingVersion = minClusterMappingVersion;
             this.indexMappingVersion = indexMappingVersion;
             this.concreteIndexName = concreteIndexName;
@@ -265,7 +268,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && mappingUpToDate == other.mappingUpToDate
                 && createdOnLatestVersion == other.createdOnLatestVersion
                 && roleMappingsCleanupMigrationStatus == other.roleMappingsCleanupMigrationStatus
-                && securityMigrationRunning == other.securityMigrationRunning
+                && legacyMigrationTaskRunning == other.legacyMigrationTaskRunning
                 && Objects.equals(indexMappingVersion, other.indexMappingVersion)
                 && Objects.equals(migrationsVersion, other.migrationsVersion)
                 && Objects.equals(minClusterMappingVersion, other.minClusterMappingVersion)
@@ -287,7 +290,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 mappingUpToDate,
                 createdOnLatestVersion,
                 roleMappingsCleanupMigrationStatus,
-                securityMigrationRunning,
+                legacyMigrationTaskRunning,
                 migrationsVersion,
                 minClusterMappingVersion,
                 indexMappingVersion,
@@ -390,8 +393,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + createdOnLatestVersion
                 + ", roleMappingsCleanupMigrationStatus="
                 + roleMappingsCleanupMigrationStatus
-                + ", securityMigrationRunning="
-                + securityMigrationRunning
+                + ", legacyMigrationTaskRunning="
+                + legacyMigrationTaskRunning
                 + ", migrationsVersion="
                 + migrationsVersion
                 + ", minClusterMappingVersion="
@@ -901,8 +904,11 @@ public class SecurityIndexManager implements ClusterStateListener {
             // Instead we just handle it as a special case here.
             // But, this class manages multiple different indices, not all of which have migrations defined. So we only trigger this is
             // the index has had at least 1 migration before (if the index is entirely new then it will be picked up by other state changes)
+            // While a legacy migration task exists we do not re-notify; its removal changes the state, which notifies listeners.
+            // Runs started by SecurityMigrations.Manager never set the flag, so while migrations are pending listeners are notified on
+            // every cluster state update and the Manager de-duplicates runs that are already in progress.
             return newState.indexExists()
-                && newState.securityMigrationRunning == false
+                && newState.legacyMigrationTaskRunning == false
                 && newState.migrationsVersion != null
                 && newState.migrationsVersion > 0
                 && newState.migrationsVersion < SecurityMigrations.highestMigrationVersion();
@@ -926,7 +932,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             migrationsVersion
         );
         var persistentTaskCustomMetadata = PersistentTasksCustomMetadata.get(project.metadata());
-        final boolean securityMigrationRunning = persistentTaskCustomMetadata != null
+        final boolean legacyMigrationTaskRunning = persistentTaskCustomMetadata != null
             && persistentTaskCustomMetadata.getTask(SecurityMigrationTaskParams.TASK_NAME) != null;
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(project);
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(project);
@@ -960,7 +966,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             mappingIsUpToDate,
             createdOnLatestVersion,
             roleMappingsCleanupMigrationStatus,
-            securityMigrationRunning,
+            legacyMigrationTaskRunning,
             migrationsVersion,
             minClusterMappingVersion,
             indexMappingVersion,

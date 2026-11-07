@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -28,7 +27,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 /**
  * Integration tests for WHERE IN (subquery) and WHERE NOT IN (subquery).
  */
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class InSubqueryIT extends AbstractEsqlIntegTestCase {
 
     @Before
@@ -66,6 +65,84 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(request)) {
             assertColumnNames(resp.columns(), List.of("id", "color"));
             assertValues(resp.values(), List.of(List.of(4, "blue"), List.of(6, "blue")));
+        }
+    }
+
+    /**
+     * The request-level {@code filter} is applied to the IN subquery, not only to the main query.
+     * <ul>
+     *   <li>filter on the subquery → {@code MAX} is {@code 2} → outer {@code {1, 2} ∩ {2}} → {@code 2}</li>
+     *   <li>filter on the outer query only → {@code MAX} is {@code 6} → {@code {1, 2} ∩ {6}} → empty</li>
+     * </ul>
+     */
+    public void testInSubqueryRequestFilterAppliesToSubquery() {
+        var request = syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id IN (FROM test | STATS m = MAX(id) | KEEP m)
+            | SORT id
+            | KEEP id, color
+            """).filter(new RangeQueryBuilder("id").lt(3)).pragmas(getPragmas());
+        try (var resp = run(request)) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(2, "blue")));
+        }
+    }
+
+    /**
+     * Same distinguishing {@code STATS MAX} pattern as {@link #testInSubqueryRequestFilterAppliesToSubquery}, for {@code NOT IN}.
+     * With {@code filter: id < 3}:
+     * <ul>
+     *   <li>filter on the subquery → {@code MAX} is {@code 2} → outer {@code {1, 2} \ {2}} → {@code 1}</li>
+     *   <li>filter on the outer query only → {@code MAX} is {@code 6} → {@code {1, 2} \ {6}} → {@code 1, 2}</li>
+     * </ul>
+     */
+    public void testNotInSubqueryRequestFilterAppliesToSubquery() {
+        var request = syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id NOT IN (FROM test | STATS m = MAX(id) | KEEP m)
+            | SORT id
+            | KEEP id, color
+            """).filter(new RangeQueryBuilder("id").lt(3)).pragmas(getPragmas());
+        try (var resp = run(request)) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(1, "red")));
+        }
+    }
+
+    /**
+     * {@code @timestamp} request filter is applied to the IN subquery. Similar to  {@link #testInSubqueryRequestFilterAppliesToSubquery}:
+     * <ul>
+     *   <li>filter on the subquery → {@code MAX} is {@code 2} → {@code {1, 2} ∩ {2}} → {@code 2}</li>
+     *   <li>filter on the outer query only → {@code MAX} is {@code 6} → empty</li>
+     * </ul>
+     */
+    public void testInSubqueryTimestampRequestFilterAppliesToSubquery() {
+        var request = syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id IN (FROM test | STATS m = MAX(id) | KEEP m)
+            | SORT id
+            | KEEP id, color
+            """).filter(new RangeQueryBuilder("@timestamp").gte("2024-01-01T00:00:00Z").lt("2024-01-03T00:00:00Z")).pragmas(getPragmas());
+        try (var resp = run(request)) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(2, "blue")));
+        }
+    }
+
+    /**
+     * Same distinguishing {@code STATS MAX} + {@code @timestamp} filter as {@link #testInSubqueryTimestampRequestFilterAppliesToSubquery},
+     * for {@code NOT IN}.
+     */
+    public void testNotInSubqueryTimestampRequestFilterAppliesToSubquery() {
+        var request = syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id NOT IN (FROM test | STATS m = MAX(id) | KEEP m)
+            | SORT id
+            | KEEP id, color
+            """).filter(new RangeQueryBuilder("@timestamp").gte("2024-01-01T00:00:00Z").lt("2024-01-03T00:00:00Z")).pragmas(getPragmas());
+        try (var resp = run(request)) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(1, "red")));
         }
     }
 
@@ -1262,15 +1339,15 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 5)))
-                .setMapping("id", "type=integer", "color", "type=keyword")
+                .setMapping("id", "type=integer", "color", "type=keyword", "@timestamp", "type=date")
         );
         client().prepareBulk()
-            .add(new IndexRequest("test").id("1").source("id", 1, "color", "red"))
-            .add(new IndexRequest("test").id("2").source("id", 2, "color", "blue"))
-            .add(new IndexRequest("test").id("3").source("id", 3, "color", "red"))
-            .add(new IndexRequest("test").id("4").source("id", 4, "color", "blue"))
-            .add(new IndexRequest("test").id("5").source("id", 5, "color", "red"))
-            .add(new IndexRequest("test").id("6").source("id", 6, "color", "blue"))
+            .add(new IndexRequest("test").id("1").source("id", 1, "color", "red", "@timestamp", "2024-01-01T00:00:00Z"))
+            .add(new IndexRequest("test").id("2").source("id", 2, "color", "blue", "@timestamp", "2024-01-02T00:00:00Z"))
+            .add(new IndexRequest("test").id("3").source("id", 3, "color", "red", "@timestamp", "2024-01-03T00:00:00Z"))
+            .add(new IndexRequest("test").id("4").source("id", 4, "color", "blue", "@timestamp", "2024-01-04T00:00:00Z"))
+            .add(new IndexRequest("test").id("5").source("id", 5, "color", "red", "@timestamp", "2024-01-05T00:00:00Z"))
+            .add(new IndexRequest("test").id("6").source("id", 6, "color", "blue", "@timestamp", "2024-01-06T00:00:00Z"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow("test");

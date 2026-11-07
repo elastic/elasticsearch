@@ -86,20 +86,68 @@ public class UnionTypedFieldIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A union column that is not the join key rides through a {@code LOOKUP JOIN} unchanged. The refusal that exists is
+     * on the key only - {@code Join.UNSUPPORTED_TYPES} is consulted against {@code config.rightFields()}, so a payload
+     * column is never looked at - and the block side of it is inherited rather than written: a union is a compound
+     * block and {@code AbstractDelegatingCompoundBlock.filter} maps over its sub-blocks, which is the call the join's
+     * left-hand side makes on every page. This is what makes that a measured fact rather than a reading of the code.
+     */
+    public void testAUnionColumnThatIsNotTheJoinKeyRidesThroughALookupJoin() {
+        setupConflictingIndices();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("union-lookup")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+                .setMapping("""
+                    { "properties": { "tag": { "type": "keyword" }, "note": { "type": "keyword" } } }""")
+        );
+        // Only one of the two tags is in the lookup index on purpose: every left row matching would let the join keep
+        // whole pages, and the path worth testing is the one that rebuilds them - the left-hand blocks are filtered
+        // and null-filled per position, which is where a compound block with a tag vector would come apart.
+        client().prepareIndex("union-lookup").setSource("tag", "a", "note", "from a").get();
+        refresh("union-lookup");
+
+        try (var response = run("FROM union-a,union-b | LOOKUP JOIN union-lookup ON tag | KEEP duration, note")) {
+            assertFalse("the query should not be partial: " + response.getExecutionInfo(), response.isPartial());
+            assertColumnTypes(response.columns(), List.of("union", "keyword"));
+            assertThat(
+                "the legs survive the join, so the column is still declared as the field holds it",
+                response.columns().getFirst().originalTypes(),
+                equalTo(List.of("keyword", "long"))
+            );
+            // The three long-legged rows join; the two keyword-legged ones miss and keep a null note. Every value
+            // survives on its own leg either way. No SORT: a union has no order.
+            assertThat(
+                Set.copyOf(getValuesList(response).stream().map(row -> List.of(row.get(0), String.valueOf(row.get(1)))).toList()),
+                equalTo(
+                    Set.of(
+                        List.of(200L, "from a"),
+                        List.of(201L, "from a"),
+                        List.of(202L, "from a"),
+                        List.of("two hundred", "null"),
+                        List.of("a while", "null")
+                    )
+                )
+            );
+        }
+    }
+
     /** Two indices pinned to two different data nodes, disagreeing about one field, one document each. */
     private void setupConflictingIndices() {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String nodeA = randomDataNode().getName();
         String nodeB = randomValueOtherThan(nodeA, () -> randomDataNode().getName());
         createPinnedIndex("union-a", nodeA, """
-            { "properties": { "duration": { "type": "long" } } }""");
+            { "properties": { "duration": { "type": "long" }, "tag": { "type": "keyword" } } }""");
         createPinnedIndex("union-b", nodeB, """
-            { "properties": { "duration": { "type": "keyword" } } }""");
+            { "properties": { "duration": { "type": "keyword" }, "tag": { "type": "keyword" } } }""");
         for (int d = 0; d < 3; d++) {
-            client().prepareIndex("union-a").setSource("duration", 200 + d).get();
+            client().prepareIndex("union-a").setSource("duration", 200 + d, "tag", "a").get();
         }
         for (String value : List.of("two hundred", "a while")) {
-            client().prepareIndex("union-b").setSource("duration", value).get();
+            client().prepareIndex("union-b").setSource("duration", value, "tag", "b").get();
         }
         refresh("union-a", "union-b");
     }

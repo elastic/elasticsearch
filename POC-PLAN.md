@@ -600,11 +600,15 @@ only inside `Join.postAnalysisVerification`'s loop over `config.leftFields()` / 
 which are the join keys. A union *payload* column is never looked at there, and the backstop throw in
 `QueryList` is on the key-reader path, which analysis has already refused — so the two agree.
 
-Whether a union payload column actually survives a join is a separate question and is **unproven**.
-The left side's non-key columns pass through `Block.filter(boolean, int[])` in `RightChunkedLeftJoin`,
-and `AbstractDelegatingCompoundBlock` implements `filter` generically over its sub-blocks, which the
-union block inherits — so it should work. That is a prediction until a test runs, and the test is
-`FROM a,b | LOOKUP JOIN lookup ON key | KEEP union_column`.
+Whether a union payload column actually survives a join is a separate question, and it now has an
+answer: it does. `UnionTypedFieldIT.testAUnionColumnThatIsNotTheJoinKeyRidesThroughALookupJoin` runs
+`FROM union-a,union-b | LOOKUP JOIN union-lookup ON tag | KEEP duration, note` across the two pinned
+indices and gets every value back on its own leg, with `original_types` still `[keyword, long]`. The
+lookup index deliberately holds only one of the two tags, so three rows join and two miss: a join where
+everything matches can keep whole pages, and the path worth exercising is the one that rebuilds them,
+which is `Block.filter` plus null-fill in `RightChunkedLeftJoin` over a compound block and its tags.
+`AbstractDelegatingCompoundBlock.filter` maps over the sub-blocks, so the union inherits this rather
+than implementing it — which is why it wanted a test and not a reading.
 
 **The subquery refusal is not only a sequencing defect of mine — `MergePlan` is a second producer of
 union types, and today it is a hard failure.** Two facts:

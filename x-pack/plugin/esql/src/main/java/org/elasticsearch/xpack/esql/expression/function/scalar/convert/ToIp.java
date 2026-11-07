@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction.supportedTypesNames;
 
 /**
- * Converts strings to IPs.
+ * Converts strings and numbers to IPs.
  * <p>
  * IPv4 addresses have traditionally parsed quads with leading zeros in three
  * mutually exclusive ways:
@@ -56,6 +56,13 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.Ab
  *     {@code leading_zeros} named parameter. Set to {@code octal}, {@code decimal},
  *     or {@code reject}. If not sent this defaults to {@code reject} which has
  *     been Elasticsearch's traditional way of handling leading zeros for years.
+ * </p>
+ * <p>
+ *     Numbers are read as an IPv4 address with the first octet in the most significant
+ *     byte, so {@code 3232235777} becomes {@code 192.168.1.1}. Negative {@code integer}
+ *     and {@code long} values are read as a signed 32-bit integer, so {@code -1} becomes
+ *     {@code 255.255.255.255}. Numbers outside {@code [-2147483648, 4294967295]} become
+ *     {@code null} with a warning. {@code leading_zeros} doesn't apply to numbers.
  * </p>
  * <p>
  *     This doesn't extend from {@link AbstractConvertFunction} so that it can
@@ -73,13 +80,21 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
     private final Expression field;
     private final Expression options;
 
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToIp.class).binary(ToIp::new).name("to_ip");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToIp.class)
+        .binary(ToIp::new)
+        .capabilities("from_numeric")
+        .name("to_ip");
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "ip",
-        briefSummary = "Converts a string to an IP value.",
-        description = "Converts an input string to an IP value.",
+        briefSummary = "Converts a string or a number to an IP value.",
+        description = """
+            Converts an input string or number to an IP value.
+            A number is read as an IPv4 address with the first octet in the most significant byte,
+            so `3232235777` becomes `192.168.1.1`. Negative `integer` and `long` values are read
+            as a signed 32-bit integer, so `-1` becomes `255.255.255.255`. A number outside the range
+            `-2147483648` to `4294967295` returns `null` with a warning.""",
         examples = {
             @Example(file = "ip", tag = "to_ip", explanation = """
                 Note that in this example, the last conversion of the string isn’t possible.
@@ -96,13 +111,17 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
                 """),
             @Example(file = "ip", tag = "to_ip_leading_zeros_decimal", explanation = """
                 Parse v4 addresses with leading zeros as decimal. Java's `InetAddress.getByName`.
+                """),
+            @Example(file = "ip", tag = "to_ip_from_numeric", explanation = """
+                Convert IPv4 addresses stored as numbers. The `integer` holds the same address as the `long`,
+                stored as a signed 32-bit value.
                 """) }
     )
     public ToIp(
         Source source,
         @Param(
             name = "field",
-            type = { "ip", "keyword", "text" },
+            type = { "ip", "keyword", "text", "integer", "long", "unsigned_long" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field,
         @MapParam(
@@ -112,7 +131,7 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
                     name = "leading_zeros",
                     type = "keyword",
                     valueHint = { "reject", "octal", "decimal" },
-                    description = "What to do with leading 0s in IPv4 addresses."
+                    description = "What to do with leading 0s in IPv4 addresses. Applies only to string input. Ignored for numeric input."
                 ) },
             description = "(Optional) Additional options.",
             optional = true

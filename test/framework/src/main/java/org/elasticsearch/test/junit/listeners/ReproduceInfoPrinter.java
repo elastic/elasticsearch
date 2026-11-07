@@ -24,6 +24,7 @@ import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 
 import java.util.Locale;
+import java.util.Properties;
 import java.util.TimeZone;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
@@ -115,7 +116,15 @@ public class ReproduceInfoPrinter extends RunListener {
         System.err.println(s);
     }
 
+    @SuppressForbidden(reason = "reads the bwc snapshot pins the build passed to this test JVM, for the repro line")
+    private static Properties systemProperties() {
+        return System.getProperties();
+    }
+
     protected static class GradleMessageBuilder extends ReproduceErrorMessageBuilder {
+
+        private static final String BWC_MODE = "tests.bwc.mode";
+        private static final String BWC_DRA_HASH_PREFIX = "tests.bwc.dra.hash.";
 
         public GradleMessageBuilder(StringBuilder b) {
             super(b);
@@ -162,6 +171,24 @@ public class ReproduceInfoPrinter extends RunListener {
             return this;
         }
 
+        /**
+         * The DRA snapshots a bwc test ran against ({@code -Dtests.bwc.dra.hash.<branch>}, with the {@code tests.bwc.mode}
+         * that reads them). The build passes the snapshots it resolved on to bwc test JVMs; without them a reproduce line
+         * would resolve each branch's snapshot again, or build its current tip from source, instead of the one that failed.
+         */
+        ReproduceErrorMessageBuilder appendBwcSnapshotPins(Properties properties) {
+            String mode = properties.getProperty(BWC_MODE);
+            if (mode != null) {
+                appendOpt(BWC_MODE, mode);
+            }
+            properties.stringPropertyNames()
+                .stream()
+                .filter(name -> name.startsWith(BWC_DRA_HASH_PREFIX))
+                .sorted()
+                .forEach(name -> appendOpt(name, properties.getProperty(name)));
+            return this;
+        }
+
         private ReproduceErrorMessageBuilder appendESProperties() {
             appendProperties("tests.es.logger.level");
             if (inVerifyPhase()) {
@@ -182,6 +209,7 @@ public class ReproduceInfoPrinter extends RunListener {
                 "tests.bwc.refspec.main",
                 "tests.vectorsize"
             );
+            appendBwcSnapshotPins(systemProperties());
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }

@@ -2,6 +2,19 @@ import { stringify } from "yaml";
 import { execSync } from "child_process";
 
 import { generatePipelines } from "./pipeline.ts";
+import { getSnapshotBwcVersions, setIncludedSnapshotBwcVersions } from "./bwc-versions.ts";
+import { DraClient } from "../bwc-snapshots/dra.ts";
+import { loadIncludedSnapshotBwcVersions, storeFromEnv } from "../bwc-snapshots/known-good.ts";
+
+// Leave bwc snapshot versions without a known-good DRA build out of the bwc jobs. The jobs run in dra mode, where
+// Gradle reads the known-good builds itself.
+setIncludedSnapshotBwcVersions(
+  await loadIncludedSnapshotBwcVersions(
+    getSnapshotBwcVersions(),
+    storeFromEnv(),
+    new DraClient(process.env["BWC_DRA_BASE_URL"]),
+  ),
+);
 
 const pipelines = generatePipelines();
 

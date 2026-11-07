@@ -62,7 +62,7 @@ exports[`generatePipelines > should generate correct pipelines with a different 
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
-              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
+              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=dra v{{matrix.BWC_VERSION}}#bwcTest",
               "env": {
                 "BWC_VERSION": "{{matrix.BWC_VERSION}}",
               },
@@ -238,7 +238,7 @@ exports[`generatePipelines > should generate correct pipelines with a non-docs c
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
-              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
+              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=dra v{{matrix.BWC_VERSION}}#bwcTest",
               "env": {
                 "BWC_VERSION": "{{matrix.BWC_VERSION}}",
               },
@@ -376,7 +376,7 @@ exports[`generatePipelines > should generate correct pipelines with a non-docs c
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
-              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
+              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=dra v{{matrix.BWC_VERSION}}#bwcTest",
               "env": {
                 "BWC_VERSION": "{{matrix.BWC_VERSION}}",
               },
@@ -514,7 +514,7 @@ exports[`generatePipelines > should generate correct pipelines with a non-docs c
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
-              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
+              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=dra v{{matrix.BWC_VERSION}}#bwcTest",
               "env": {
                 "BWC_VERSION": "{{matrix.BWC_VERSION}}",
               },

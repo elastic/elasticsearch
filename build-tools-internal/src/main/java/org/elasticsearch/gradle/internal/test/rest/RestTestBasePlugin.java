@@ -20,6 +20,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
+import org.elasticsearch.gradle.internal.test.BwcSnapshotPins;
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
@@ -262,6 +263,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         (isReleased ? BWC_RELEASED_DISTRIBUTION_SYSPROP_PREFIX : BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX) + versionString,
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
+                    if (isReleased == false) {
+                        // so that a failure's reproduce line runs against the snapshot this build resolved
+                        BwcSnapshotPins.pin(task, versionString, bwcVersions.unreleasedInfo(version).branch());
+                    }
 
                     if (version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
                         // If we are upgrade testing older versions we also need to upgrade to 7.last

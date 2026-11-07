@@ -571,3 +571,7 @@ tests:
   - :server:internalClusterTest
   method: testCircuitBreakerReduceFail
   issue: https://github.com/elastic/elasticsearch/issues/165046
+- class: org.elasticsearch.index.IndexServiceTests
+  tasks:
+  - :server:test
+  issue: https://github.com/elastic/elasticsearch/issues/165048

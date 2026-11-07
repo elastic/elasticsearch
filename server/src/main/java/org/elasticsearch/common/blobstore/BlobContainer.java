@@ -244,6 +244,7 @@ public interface BlobContainer {
      *                            for very large blobs)
      * @param executor            Executor for concurrent part copies, {@code null} means parts are copied serially
      *                            Currently only used by S3, Azure, GCS, and Fs ignore this
+     * @param cancellationCheck   Invoked before each step of a multipart copy
      * @throws NoSuchFileException If the source blob does not exist
      * @throws IOException        If the operation generates an IO error
      */
@@ -253,7 +254,8 @@ public interface BlobContainer {
         String sourceBlobName,
         String blobName,
         long blobSize,
-        @Nullable Executor executor
+        @Nullable Executor executor,
+        Runnable cancellationCheck
     ) throws IOException {
         throw new UnsupportedOperationException("this blob container does not support copy");
     }

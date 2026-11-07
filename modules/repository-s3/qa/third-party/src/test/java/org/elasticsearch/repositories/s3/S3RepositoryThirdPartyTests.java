@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
@@ -97,6 +98,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     @Override
     protected Settings nodeSettings() {
         final var settings = Settings.builder().put(super.nodeSettings());
+        settings.put("s3.client.default.max_copy_size_before_multipart", ByteSizeValue.ofMb(5));
         if (randomBoolean()) {
             final var defaultMillis = S3Service.REPOSITORY_S3_CAS_TTL_SETTING.get(Settings.EMPTY).millis();
             settings.put(
@@ -276,7 +278,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 sourceBlobName,
                 destinationBlobName,
                 blobBytes.length(),
-                null
+                null,
+                () -> {}
             );
 
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
@@ -306,7 +309,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                     sourceBlobName,
                     destinationBlobName,
                     blobBytes.length(),
-                    executorService
+                    executorService,
+                    () -> {}
                 );
             } finally {
                 if (executorService != null) {
@@ -400,7 +404,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
                     // single-object server-side copy (source is small, so it stays below the multipart-copy threshold)
                     final var copyName = randomIdentifier();
-                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null);
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null, () -> {});
                     assertStorageClass(blobStore, blobContainer, copyName, expectedStorageClass, "server-side copy", purpose);
                 }
             } finally {

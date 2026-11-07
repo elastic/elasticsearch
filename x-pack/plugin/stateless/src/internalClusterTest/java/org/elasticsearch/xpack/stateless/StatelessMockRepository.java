@@ -231,15 +231,17 @@ public class StatelessMockRepository extends FsRepository {
                 String sourceBlobName,
                 String blobName,
                 long blobSize,
-                @Nullable Executor executor
+                @Nullable Executor executor,
+                Runnable cancellationCheck
             ) throws IOException {
                 getStrategy().blobContainerCopyBlob(
-                    () -> super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor),
+                    () -> super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor, cancellationCheck),
                     purpose,
                     sourceBlobContainer,
                     sourceBlobName,
                     blobName,
-                    blobSize
+                    blobSize,
+                    cancellationCheck
                 );
             }
 

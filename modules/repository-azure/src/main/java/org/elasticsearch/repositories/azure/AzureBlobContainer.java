@@ -144,7 +144,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         String sourceBlobName,
         String blobName,
         long blobSize,
-        @Nullable Executor executor
+        @Nullable Executor executor,
+        Runnable cancellationCheck
     ) throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
@@ -156,7 +157,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             purpose,
             azureSourceBlobContainer.buildKey(sourceBlobName),
             azureSourceBlobContainer.blobStore,
-            buildKey(blobName)
+            buildKey(blobName),
+            cancellationCheck
         );
     }
 

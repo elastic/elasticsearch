@@ -38,7 +38,7 @@ public final class SpillScopes {
             if (current.enabled() == false || store == null) {
                 return null;
             }
-            return QueryScope.create(
+            QueryScope scope = QueryScope.create(
                 queryId,
                 nodeFactory,
                 current.budgetBytes(nodeFactory.breaker()),
@@ -47,6 +47,8 @@ public final class SpillScopes {
                 codecExecutor,
                 onClosing
             );
+            scope.setResultBudgetBytes(current.resultBudgetBytes(nodeFactory.breaker()));
+            return scope;
         };
     }
 }

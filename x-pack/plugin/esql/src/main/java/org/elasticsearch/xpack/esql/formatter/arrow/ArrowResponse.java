@@ -28,6 +28,8 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.spill.ResultPages;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -42,6 +44,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
@@ -69,6 +72,25 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
      * Builds an Arrow response, omitting columns marked in {@code dropColumns} while retaining their original page block indexes.
      */
     public ArrowResponse(List<Column> columns, List<Page> pages, boolean[] dropColumns) {
+        this(columns, dropColumns, multivalued(columns, pages));
+        currentSegment = new SchemaResponse(this);
+        List<ResponseSegment> rest = new ArrayList<>(pages.size());
+
+        for (Page page : pages) {
+            rest.add(new PageResponse(this, page));
+        }
+
+        rest.add(new EndResponse(this));
+        segments = rest.iterator();
+    }
+
+    /**
+     * The columns' shapes alone; the segments are the caller's: the resident response's over its pages, or the parts of
+     * {@link #spilled} over a cursor.
+     *
+     * @param multivalued per column, whether a value may hold several values, which the schema states up front
+     */
+    private ArrowResponse(List<Column> columns, boolean[] dropColumns, boolean[] multivalued) {
         if (columns.size() != dropColumns.length) {
             throw new IllegalArgumentException(
                 "Expected one drop-columns entry per column, but got ["
@@ -88,27 +110,153 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                         "ES|QL type [" + column.esqlType.outputType() + "] is not supported by the Arrow format"
                     );
                 }
-                boolean multivalued = false;
-                for (Page page : pages) {
-                    if (page.getBlock(blockIndex).mayHaveMultivaluedFields()) {
-                        multivalued = true;
-                        break;
-                    }
-                }
-                indexedColumns.add(new IndexedColumn(column, converter, blockIndex, multivalued));
+                indexedColumns.add(new IndexedColumn(column, converter, blockIndex, multivalued[blockIndex]));
             }
         }
         this.columns = List.copyOf(indexedColumns);
+    }
 
-        currentSegment = new SchemaResponse(this);
-        List<ResponseSegment> rest = new ArrayList<>(pages.size());
+    private static boolean[] multivalued(List<Column> columns, List<Page> pages) {
+        boolean[] multivalued = new boolean[columns.size()];
+        for (int blockIndex = 0; blockIndex < columns.size(); blockIndex++) {
+            for (Page page : pages) {
+                if (page.getBlock(blockIndex).mayHaveMultivaluedFields()) {
+                    multivalued[blockIndex] = true;
+                    break;
+                }
+            }
+        }
+        return multivalued;
+    }
 
-        for (Page page : pages) {
-            rest.add(new PageResponse(this, page));
+    /**
+     * The body of a response whose pages are in a run: the schema first, then one part per page read through the
+     * continuation, then the end. A page is released once its part is complete; the close hook handed to
+     * {@code onClose} releases the cursor and the page in flight when the response closes.
+     *
+     * @param multivalued per column, whether a value may hold several values, captured as the pages were collected
+     */
+    public static ChunkedRestResponseBodyPart spilled(
+        List<Column> columns,
+        boolean[] dropColumns,
+        boolean[] multivalued,
+        ResultPages.Cursor cursor,
+        Consumer<Releasable> onClose
+    ) {
+        ArrowResponse shapes = new ArrowResponse(columns, dropColumns, multivalued);
+        Continuation continuation = new Continuation(shapes, cursor);
+        onClose.accept(continuation::close);
+        return continuation.part(new SchemaResponse(shapes), null, false);
+    }
+
+    /**
+     * The parts over a cursor, and what they share: the cursor and the page in flight, released at the close.
+     */
+    private static final class Continuation {
+        private final ArrowResponse shapes;
+        private final ResultPages.Cursor cursor;
+        @Nullable
+        private Page held;
+        private boolean closed;
+
+        Continuation(ArrowResponse shapes, ResultPages.Cursor cursor) {
+            this.shapes = shapes;
+            this.cursor = cursor;
         }
 
-        rest.add(new EndResponse(this));
-        segments = rest.iterator();
+        ChunkedRestResponseBodyPart part(ResponseSegment segment, @Nullable Page page, boolean last) {
+            return new ChunkedRestResponseBodyPart() {
+                @Nullable
+                private Page mine = page;
+
+                @Override
+                public boolean isPartComplete() {
+                    return segment.isDone();
+                }
+
+                @Override
+                public boolean isLastPart() {
+                    return last;
+                }
+
+                @Override
+                public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                    next(listener);
+                }
+
+                @Override
+                public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+                    try {
+                        return segment.encodeChunk(sizeHint, recycler);
+                    } finally {
+                        if (segment.isDone() && mine != null) {
+                            pageDone(mine);
+                            mine = null;
+                        }
+                    }
+                }
+
+                @Override
+                public String getResponseContentTypeString() {
+                    return ArrowFormat.CONTENT_TYPE;
+                }
+            };
+        }
+
+        private void next(ActionListener<ChunkedRestResponseBodyPart> listener) {
+            synchronized (this) {
+                if (closed) {
+                    listener.onFailure(new IllegalStateException("the response is closed"));
+                    return;
+                }
+            }
+            if (cursor.hasNext() == false) {
+                listener.onResponse(part(new EndResponse(shapes), null, true));
+                return;
+            }
+            cursor.next(listener.delegateFailureAndWrap((l, page) -> {
+                if (page == null) {
+                    l.onResponse(part(new EndResponse(shapes), null, true));
+                    return;
+                }
+                // a page without rows is a record batch of none, as in memory: a chunk still, which a part must have
+                boolean keep;
+                synchronized (this) {
+                    keep = closed == false;
+                    if (keep) {
+                        held = page;
+                    }
+                }
+                if (keep == false) {
+                    page.releaseBlocks();
+                    l.onFailure(new IllegalStateException("the response is closed"));
+                    return;
+                }
+                l.onResponse(part(new PageResponse(shapes, page), page, false));
+            }));
+        }
+
+        private void pageDone(Page page) {
+            synchronized (this) {
+                if (held == page) {
+                    held = null;
+                }
+            }
+            page.releaseBlocks();
+        }
+
+        void close() {
+            Page page;
+            synchronized (this) {
+                if (closed) {
+                    return;
+                }
+                closed = true;
+                page = held;
+                held = null;
+            }
+            Releasables.close(cursor, page == null ? null : page::releaseBlocks);
+        }
     }
 
     @Override

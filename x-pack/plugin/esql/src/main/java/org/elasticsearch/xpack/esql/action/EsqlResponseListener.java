@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -125,31 +126,65 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     @Override
     protected void processResponse(EsqlQueryResponse esqlQueryResponse) throws IOException {
         logPartialFailures(channel.request().rawPath(), channel.request().params(), esqlQueryResponse.getExecutionInfo());
-        channel.sendResponse(buildResponse(esqlQueryResponse));
+        if (esqlQueryResponse.isSpilled() && mediaType == TextFormat.PLAIN_TEXT) {
+            // the table format sizes its columns over every row first: a pass over the run, then the response
+            esqlQueryResponse.mustIncRef();
+            // a throw out of the pass goes to the failure branch too, so the reference taken here is always dropped
+            ActionListener<int[]> sized = ActionListener.runAfter(
+                ActionListener.wrap(widths -> channel.sendResponse(buildResponse(esqlQueryResponse, widths)), this::onFailure),
+                esqlQueryResponse::decRef
+            );
+            ActionListener.run(sized, l -> SpilledResponseBody.widths(esqlQueryResponse, l));
+            return;
+        }
+        channel.sendResponse(buildResponse(esqlQueryResponse, null));
     }
 
-    private RestResponse buildResponse(EsqlQueryResponse esqlResponse) throws IOException {
+    /**
+     * @param widths the table format's column widths, sized beforehand for a response whose pages are in a run
+     */
+    private RestResponse buildResponse(EsqlQueryResponse esqlResponse, @Nullable int[] widths) throws IOException {
         boolean success = false;
         final Releasable releasable = releasableFromResponse(esqlResponse);
         try {
             RestResponse restResponse;
+            boolean spilled = esqlResponse.isSpilled();
             if (mediaType instanceof TextFormat format) {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
-                    ChunkedRestResponseBodyPart.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse)),
+                    spilled
+                        ? SpilledResponseBody.text(format, restRequest, esqlResponse, widths)
+                        : ChunkedRestResponseBodyPart.fromTextChunks(
+                            format.contentType(restRequest),
+                            format.format(restRequest, esqlResponse)
+                        ),
                     releasable
                 );
             } else if (mediaType == ArrowFormat.INSTANCE) {
                 boolean dropNullColumns = restRequest.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false);
                 var columns = esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.type(), c.name())).toList();
-                ArrowResponse arrowResponse = dropNullColumns
-                    ? new ArrowResponse(columns, esqlResponse.pages(), esqlResponse.nullColumns())
-                    : new ArrowResponse(columns, esqlResponse.pages());
-                restResponse = RestResponse.chunked(RestStatus.OK, arrowResponse, Releasables.wrap(arrowResponse, releasable));
+                if (spilled) {
+                    boolean[] dropColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[columns.size()];
+                    ChunkedRestResponseBodyPart body = ArrowResponse.spilled(
+                        columns,
+                        dropColumns,
+                        esqlResponse.result().multivaluedColumns(),
+                        esqlResponse.result().open(),
+                        esqlResponse::addCloseHook
+                    );
+                    restResponse = RestResponse.chunked(RestStatus.OK, body, releasable);
+                } else {
+                    ArrowResponse arrowResponse = dropNullColumns
+                        ? new ArrowResponse(columns, esqlResponse.pages(), esqlResponse.nullColumns())
+                        : new ArrowResponse(columns, esqlResponse.pages());
+                    restResponse = RestResponse.chunked(RestStatus.OK, arrowResponse, Releasables.wrap(arrowResponse, releasable));
+                }
             } else {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
-                    ChunkedRestResponseBodyPart.fromXContent(esqlResponse, channel.request(), channel),
+                    spilled
+                        ? SpilledResponseBody.xContent(esqlResponse, restRequest, channel)
+                        : ChunkedRestResponseBodyPart.fromXContent(esqlResponse, channel.request(), channel),
                     releasable
                 );
             }

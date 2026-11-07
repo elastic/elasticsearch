@@ -39,9 +39,12 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The first real-disk spill: {@code LIMIT BY} over a key set larger than the query's budget, with the disk module
@@ -360,6 +363,96 @@ public class EsqlSpillIT extends AbstractEsqlIntegTestCase {
             }
             assertThat("values went to segments", rowsSpilled, greaterThan(0L));
             assertThat("what went to segments came back", readBack, greaterThan(0L));
+        }
+        assertSpillDirectoriesEmpty();
+    }
+
+    /**
+     * The result run: a result wider than the result budget leaves the coordinator's memory for a run of the query's
+     * scope, which the response reads back page by page, in order, and deletes when it closes.
+     */
+    public void testResultSpillsAndReadsBackAndCleansUp() throws Exception {
+        assumeTrue("the spill flag is on in snapshot builds", SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled());
+        String index = "spill_result";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(Settings.builder().put("index.number_of_shards", between(1, 3)).put("index.number_of_replicas", 0))
+                .setMapping("key", "type=long", "value", "type=keyword")
+        );
+        int rows = between(2_000, 5_000);
+        Map<Long, String> valueOf = new HashMap<>();
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (long key = 0; key < rows; key++) {
+            String value = randomAlphaOfLengthBetween(100, 300);
+            valueOf.put(key, value);
+            bulk.add(client().prepareIndex(index).setSource("key", key, "value", value));
+        }
+        assertFalse(bulk.get().hasFailures());
+
+        // a result budget every result crosses; the query's own budget is left alone, so no operator spills
+        Settings pragmas = Settings.builder()
+            .put(QueryPragmas.SPILL_RESULT_BUDGET.getKey(), "1kb")
+            .put(QueryPragmas.PAGE_SIZE.getKey(), between(50, 500))
+            .build();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM " + index + " | SORT key | LIMIT " + rows + " | KEEP key, value");
+        request.pragmas(new QueryPragmas(pragmas));
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse response = run(request, TimeValue.timeValueMinutes(3))) {
+            assertTrue("the result went to a run", response.isSpilled());
+            assertThat(response.getRowCount(), equalTo((long) rows));
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values, hasSize(rows));
+            for (int i = 0; i < rows; i++) {
+                assertThat("row " + i + " is the next key", values.get(i).get(0), equalTo((long) i));
+                assertThat("row " + i + " carries its value", values.get(i).get(1), equalTo(valueOf.get((long) i)));
+            }
+            assertThat("the run is read again from the start", getValuesList(response), hasSize(rows));
+        }
+        assertSpillDirectoriesEmpty();
+    }
+
+    /**
+     * EXPLAIN runs the query for its plans, as an intermediate result that stays in memory whatever the result budget
+     * and is dropped once the plans are taken; the table of plans is the client's answer, which a budget this small
+     * sends to a run like any other, read back and cleaned up like any other.
+     */
+    public void testExplainUnderAResultBudgetCleansUp() throws Exception {
+        assumeTrue("the spill flag is on in snapshot builds", SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled());
+        String index = "spill_explain";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(Settings.builder().put("index.number_of_shards", between(1, 3)).put("index.number_of_replicas", 0))
+                .setMapping("key", "type=long", "value", "type=keyword")
+        );
+        int rows = between(500, 2_000);
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (long key = 0; key < rows; key++) {
+            bulk.add(client().prepareIndex(index).setSource("key", key, "value", randomAlphaOfLengthBetween(100, 300)));
+        }
+        assertFalse(bulk.get().hasFailures());
+
+        Settings pragmas = Settings.builder()
+            .put(QueryPragmas.SPILL_RESULT_BUDGET.getKey(), "1kb")
+            .put(QueryPragmas.PAGE_SIZE.getKey(), between(50, 500))
+            .build();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("EXPLAIN (FROM " + index + " | SORT key | LIMIT " + rows + " | KEEP key, value)");
+        request.pragmas(new QueryPragmas(pragmas));
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse response = run(request, TimeValue.timeValueMinutes(3))) {
+            assertTrue("a table of plans is well over a kilobyte", response.isSpilled());
+            assertThat("a plan per role at least", response.getRowCount(), greaterThan(1L));
+            List<List<Object>> plans = getValuesList(response);
+            assertThat(plans, hasSize((int) response.getRowCount()));
+            for (List<Object> plan : plans) {
+                assertThat("the plan's role", (String) plan.get(2), not(emptyString()));
+                assertThat("the plan itself", plan.get(4), instanceOf(String.class));
+            }
         }
         assertSpillDirectoriesEmpty();
     }

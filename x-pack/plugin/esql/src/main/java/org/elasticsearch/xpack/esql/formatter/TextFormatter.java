@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.formatter;
 
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -27,9 +29,10 @@ public class TextFormatter {
      */
     private static final int MIN_COLUMN_WIDTH = 15;
 
-    private final EsqlQueryResponse response;
+    private final List<? extends ColumnInfo> columns;
+    private final Iterator<Iterator<Object>> values;
     private final int[] width;
-    private final Function<Object, String> FORMATTER = Objects::toString;
+    private static final Function<Object, String> FORMATTER = Objects::toString;
     private final boolean includeHeader;
     private final boolean[] dropColumns;
 
@@ -37,22 +40,58 @@ public class TextFormatter {
      * Create a new {@linkplain TextFormatter} for formatting responses
      */
     public TextFormatter(EsqlQueryResponse response, boolean includeHeader, boolean dropNullColumns) {
-        this.response = response;
-        var columns = response.columns();
+        this(
+            response.columns(),
+            response.values(),
+            widths(response.columns(), response.values()),
+            includeHeader,
+            dropNullColumns ? response.nullColumns() : new boolean[response.columns().size()]
+        );
+    }
+
+    /**
+     * A formatter over rows sized beforehand: a response whose pages are in a run sizes its columns over a cursor
+     * first, and then formats one page's rows at a time.
+     *
+     * @param values the rows to format; a page's, or the whole response's
+     * @param width the columns' widths, from {@link #widths}
+     */
+    public TextFormatter(
+        List<? extends ColumnInfo> columns,
+        Iterator<Iterator<Object>> values,
+        int[] width,
+        boolean includeHeader,
+        boolean[] dropColumns
+    ) {
+        this.columns = columns;
+        this.values = values;
+        this.width = width;
         this.includeHeader = includeHeader;
-        this.dropColumns = dropNullColumns ? response.nullColumns() : new boolean[columns.size()];
+        this.dropColumns = dropColumns;
+    }
+
+    /**
+     * The widths of the columns: their names' or the minimum, widened by {@link #widen} to the largest value.
+     */
+    public static int[] widths(List<? extends ColumnInfo> columns, Iterator<Iterator<Object>> values) {
         // Figure out the column widths:
         // 1. Start with the widths of the column names
-        width = new int[columns.size()];
+        int[] width = new int[columns.size()];
         for (int i = 0; i < width.length; i++) {
             // TODO read the width from the data type?
             width[i] = Math.max(MIN_COLUMN_WIDTH, columns.get(i).name().length());
         }
-
         // 2. Expand columns to fit the largest value
-        var iterator = response.values();
-        while (iterator.hasNext()) {
-            var row = iterator.next();
+        widen(width, values);
+        return width;
+    }
+
+    /**
+     * Expands the columns to fit the largest of {@code values}: once over a resident response, or page by page.
+     */
+    public static void widen(int[] width, Iterator<Iterator<Object>> values) {
+        while (values.hasNext()) {
+            var row = values.next();
             for (int i = 0; i < width.length; i++) {
                 assert row.hasNext();
                 width[i] = Math.max(width[i], FORMATTER.apply(row.next()).length());
@@ -65,12 +104,14 @@ public class TextFormatter {
      * Format the provided {@linkplain EsqlQueryResponse}
      */
     public Iterator<CheckedConsumer<Writer, IOException>> format() {
-        return Iterators.concat(
-            // The header lines
-            includeHeader && response.columns().isEmpty() == false ? Iterators.single(this::formatHeader) : Collections.emptyIterator(),
-            // Now format the results.
-            formatResults()
-        );
+        return Iterators.concat(header(), formatResults());
+    }
+
+    /**
+     * The header lines, if asked for.
+     */
+    public Iterator<CheckedConsumer<Writer, IOException>> header() {
+        return includeHeader && columns.isEmpty() == false ? Iterators.single(this::formatHeader) : Collections.emptyIterator();
     }
 
     private void formatHeader(Writer writer) throws IOException {
@@ -82,7 +123,7 @@ public class TextFormatter {
                 writer.append('|');
             }
 
-            String name = response.columns().get(i).name();
+            String name = columns.get(i).name();
             // left padding
             int leftPadding = (width[i] - name.length()) / 2;
             writePadding(leftPadding, writer);
@@ -104,8 +145,11 @@ public class TextFormatter {
         writer.append('\n');
     }
 
-    private Iterator<CheckedConsumer<Writer, IOException>> formatResults() {
-        return Iterators.map(response.values(), row -> writer -> {
+    /**
+     * One chunk per row of the values this formatter was given.
+     */
+    public Iterator<CheckedConsumer<Writer, IOException>> formatResults() {
+        return Iterators.map(values, row -> writer -> {
             for (int i = 0; i < width.length; i++) {
                 assert row.hasNext();
                 if (dropColumns[i]) {

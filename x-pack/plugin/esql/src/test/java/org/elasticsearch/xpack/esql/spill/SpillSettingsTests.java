@@ -27,12 +27,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class SpillSettingsTests extends ESTestCase {
 
     private static ClusterSettings clusterSettings() {
-        return new ClusterSettings(Settings.EMPTY, Set.of(SpillSettings.ENABLED, SpillSettings.QUERY_BUDGET, SpillSettings.STORE));
+        return new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(SpillSettings.ENABLED, SpillSettings.QUERY_BUDGET, SpillSettings.RESULT_BUDGET, SpillSettings.STORE)
+        );
     }
 
     public void testTheFlagGatesTheSettings() {
         assumeTrue("the flag is on in snapshot builds", SpillSettings.ESQL_SPILL_FEATURE_FLAG.isEnabled());
-        assertThat(SpillSettings.settings(), containsInAnyOrder(SpillSettings.ENABLED, SpillSettings.QUERY_BUDGET, SpillSettings.STORE));
+        assertThat(
+            SpillSettings.settings(),
+            containsInAnyOrder(SpillSettings.ENABLED, SpillSettings.QUERY_BUDGET, SpillSettings.RESULT_BUDGET, SpillSettings.STORE)
+        );
     }
 
     public void testTheHolderFollowsTheClusterSettingsAndASnapshotDoesNot() {
@@ -54,7 +60,7 @@ public class SpillSettingsTests extends ESTestCase {
     }
 
     public void testTheBudgetIsAShareOfTheBreakerLimitOrOfTheHeap() {
-        SpillSettings settings = new SpillSettings(true, RatioValue.parseRatioValue("50%"));
+        SpillSettings settings = new SpillSettings(true, RatioValue.parseRatioValue("50%"), RatioValue.parseRatioValue("25%"));
         CircuitBreaker limited = new NoopCircuitBreaker("request") {
             @Override
             public long getLimit() {

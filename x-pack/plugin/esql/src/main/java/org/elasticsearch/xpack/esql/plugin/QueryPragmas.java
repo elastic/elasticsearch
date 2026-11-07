@@ -89,6 +89,14 @@ public final class QueryPragmas implements Writeable {
      * leaves the constant in charge. A test knob, so that a small working set exercises the spill paths.
      */
     public static final Setting<ByteSizeValue> SPILL_MIN_BYTES = Setting.byteSizeSetting("spill_min_bytes", ByteSizeValue.MINUS_ONE);
+    /**
+     * The bytes of result pages the coordinator keeps in memory before the rest of the result goes to a run, replacing
+     * {@code esql.spill.result_budget}; {@code -1} leaves the setting in charge. A test knob, like the two above.
+     */
+    public static final Setting<ByteSizeValue> SPILL_RESULT_BUDGET = Setting.byteSizeSetting(
+        "spill_result_budget",
+        ByteSizeValue.MINUS_ONE
+    );
 
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
@@ -344,6 +352,13 @@ public final class QueryPragmas implements Writeable {
      */
     public ByteSizeValue spillMinBytes() {
         return SPILL_MIN_BYTES.get(settings);
+    }
+
+    /**
+     * The result budget this query asks for, or {@code -1} bytes when it leaves the setting in charge.
+     */
+    public ByteSizeValue spillResultBudget() {
+        return SPILL_RESULT_BUDGET.get(settings);
     }
 
     public int concurrentExchangeClients() {

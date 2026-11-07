@@ -62,7 +62,7 @@ public final class ResponseValueUtils {
      * Returns an iterator of iterators over the values in the given pages. There is one iterator
      * for each block.
      */
-    public static Iterator<Iterator<Object>> pagesToValues(List<DataType> dataTypes, List<Page> pages, ZoneId zoneId) {
+    public static Iterator<Iterator<Object>> pagesToValues(List<DataType> dataTypes, Iterable<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
         var valueExtractors = valueExtractorsFor(dataTypes, zoneId);
         return Iterators.flatMap(
@@ -76,7 +76,7 @@ public final class ResponseValueUtils {
     }
 
     /** Returns an iterable of iterables over the values in the given pages. There is one iterables for each row. */
-    static Iterable<Iterable<Object>> valuesForRowsInPages(List<DataType> dataTypes, List<Page> pages, ZoneId zoneId) {
+    static Iterable<Iterable<Object>> valuesForRowsInPages(List<DataType> dataTypes, Iterable<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
         var valueExtractors = valueExtractorsFor(dataTypes, zoneId);
         return () -> Iterators.flatMap(pages.iterator(), page -> valuesForRowsInPage(valueExtractors, page, scratch));
@@ -97,7 +97,7 @@ public final class ResponseValueUtils {
     }
 
     /**  Returns an iterator of values for the given column. */
-    static Iterator<Object> valuesForColumn(int columnIndex, DataType dataType, List<Page> pages, ZoneId zoneId) {
+    static Iterator<Object> valuesForColumn(int columnIndex, DataType dataType, Iterable<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
         var valueExtractor = valueExtractorFor(dataType, zoneId);
         return Iterators.flatMap(

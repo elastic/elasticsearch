@@ -29,7 +29,10 @@ import static org.hamcrest.Matchers.sameInstance;
 public class SpillScopesTests extends ComputeTestCase {
 
     private static ClusterSettings clusterSettings() {
-        return new ClusterSettings(Settings.EMPTY, Set.of(SpillSettings.ENABLED, SpillSettings.QUERY_BUDGET, SpillSettings.STORE));
+        return new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(SpillSettings.ENABLED, SpillSettings.QUERY_BUDGET, SpillSettings.RESULT_BUDGET, SpillSettings.STORE)
+        );
     }
 
     private MemorySpillStore store() {

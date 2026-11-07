@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -58,12 +59,12 @@ final class ResponseXContentUtils {
     /** Returns the column values for the given pages (described by the column infos). */
     static Iterator<? extends ToXContent> columnValues(
         List<ColumnInfoImpl> columns,
-        List<Page> pages,
+        Iterable<Page> pages,
         boolean columnar,
         boolean[] nullColumns,
         ZoneId zoneId
     ) {
-        if (pages.isEmpty()) {
+        if (pages instanceof Collection<?> collection && collection.isEmpty()) {
             return Collections.emptyIterator();
         } else if (columnar) {
             return columnarValues(columns, pages, nullColumns, zoneId);
@@ -75,7 +76,7 @@ final class ResponseXContentUtils {
     /** Returns a columnar based representation of the values in the given pages (described by the column infos). */
     static Iterator<? extends ToXContent> columnarValues(
         List<ColumnInfoImpl> columns,
-        List<Page> pages,
+        Iterable<Page> pages,
         boolean[] nullColumns,
         ZoneId zoneId
     ) {
@@ -105,7 +106,12 @@ final class ResponseXContentUtils {
     }
 
     /** Returns a row based representation of the values in the given pages (described by the column infos). */
-    static Iterator<? extends ToXContent> rowValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns, ZoneId zoneId) {
+    static Iterator<? extends ToXContent> rowValues(
+        List<ColumnInfoImpl> columns,
+        Iterable<Page> pages,
+        boolean[] nullColumns,
+        ZoneId zoneId
+    ) {
         final BytesRef scratch = new BytesRef();
         return Iterators.flatMap(pages.iterator(), page -> {
             final int columnCount = columns.size();

@@ -31,8 +31,10 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @param enabled the kill switch
  * @param queryBudget the share of the request breaker's limit a query may use on a node before its operators spill
+ * @param resultBudget the share of the query's budget the coordinator keeps result pages in memory with; past it the
+ *                     result goes to a run and the response reads it back page by page
  */
-public record SpillSettings(boolean enabled, RatioValue queryBudget) {
+public record SpillSettings(boolean enabled, RatioValue queryBudget, RatioValue resultBudget) {
 
     public static final FeatureFlag ESQL_SPILL_FEATURE_FLAG = new FeatureFlag("esql_spill");
 
@@ -51,6 +53,13 @@ public record SpillSettings(boolean enabled, RatioValue queryBudget) {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<RatioValue> RESULT_BUDGET = new Setting<>(
+        "esql.spill.result_budget",
+        "25%",
+        RatioValue::parseRatioValue,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     /**
      * The backend, by its provider's name. Set to a name no loaded provider answers to, the node fails at start; left at
      * the default with no provider present, spilling is off.
@@ -63,13 +72,17 @@ public record SpillSettings(boolean enabled, RatioValue queryBudget) {
      */
     public static final long MIN_SPILL_BYTES = ByteSizeValue.ofMb(16).getBytes();
 
-    public static final SpillSettings DEFAULTS = new SpillSettings(ENABLED.getDefault(null), QUERY_BUDGET.getDefault(null));
+    public static final SpillSettings DEFAULTS = new SpillSettings(
+        ENABLED.getDefault(null),
+        QUERY_BUDGET.getDefault(null),
+        RESULT_BUDGET.getDefault(null)
+    );
 
     /**
      * The settings the plugin registers: these three when the flag is on, none otherwise.
      */
     public static List<Setting<?>> settings() {
-        return ESQL_SPILL_FEATURE_FLAG.isEnabled() ? List.of(ENABLED, QUERY_BUDGET, STORE) : List.of();
+        return ESQL_SPILL_FEATURE_FLAG.isEnabled() ? List.of(ENABLED, QUERY_BUDGET, RESULT_BUDGET, STORE) : List.of();
     }
 
     /**
@@ -83,6 +96,13 @@ public record SpillSettings(boolean enabled, RatioValue queryBudget) {
     }
 
     /**
+     * The result budget in bytes for a query starting now: its share of the query's budget.
+     */
+    public long resultBudgetBytes(CircuitBreaker requestBreaker) {
+        return (long) (budgetBytes(requestBreaker) * resultBudget.getAsRatio());
+    }
+
+    /**
      * The current settings, updated by the cluster settings and read as one snapshot.
      */
     public static final class Holder {
@@ -93,12 +113,13 @@ public record SpillSettings(boolean enabled, RatioValue queryBudget) {
         }
 
         public Holder(ClusterSettings clusterSettings) {
-            current.set(new SpillSettings(clusterSettings.get(ENABLED), clusterSettings.get(QUERY_BUDGET)));
-            // one consumer for both, so an update that changes both never yields a snapshot with one of each
+            current.set(
+                new SpillSettings(clusterSettings.get(ENABLED), clusterSettings.get(QUERY_BUDGET), clusterSettings.get(RESULT_BUDGET))
+            );
+            // one consumer for all three, so an update that changes several never yields a snapshot mixing old and new
             clusterSettings.addSettingsUpdateConsumer(
-                ENABLED,
-                QUERY_BUDGET,
-                (enabled, budget) -> current.set(new SpillSettings(enabled, budget))
+                settings -> current.set(new SpillSettings(ENABLED.get(settings), QUERY_BUDGET.get(settings), RESULT_BUDGET.get(settings))),
+                List.of(ENABLED, QUERY_BUDGET, RESULT_BUDGET)
             );
         }
 

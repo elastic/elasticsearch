@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.operator.ProfileSchema;
+import org.elasticsearch.compute.spill.ResultPages;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -34,10 +35,13 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
@@ -91,7 +95,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     public record ProfileValue(Profile profile, @Nullable EsqlQueryProfile queryProfile) {}
 
     private final List<ColumnInfoImpl> columns;
-    private final List<Page> pages;
+    /** The result's pages, in memory or in a run, walked through cursors and released when the response closes. */
+    private final ResultPages result;
     private final long documentsFound;
     private final long valuesLoaded;
     private final long rowsEmitted;
@@ -119,6 +124,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
      */
     @Nullable
     private volatile Releasable onClose;
+    private final List<Releasable> closeHooks = new CopyOnWriteArrayList<>();
 
     /**
      * Tri-state: null when query approximation was not requested (field omitted from the response),
@@ -148,8 +154,58 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         EsqlExecutionInfo executionInfo,
         @Nullable Boolean approximationApplied
     ) {
+        this(
+            columns,
+            ResultPages.resident(pages),
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            readCpuNanos,
+            cpuNanos,
+            driverNanos,
+            profile,
+            columnar,
+            asyncExecutionId,
+            isRunning,
+            isAsync,
+            zoneId,
+            startTimeMillis,
+            expirationTimeMillis,
+            executionInfo,
+            approximationApplied
+        );
+    }
+
+    /**
+     * @param result the pages as the collector handed them over: in memory, or in a run the response reads back page by
+     *               page and deletes when it closes
+     */
+    public EsqlQueryResponse(
+        List<ColumnInfoImpl> columns,
+        ResultPages result,
+        long documentsFound,
+        long valuesLoaded,
+        long rowsEmitted,
+        long bytesRead,
+        long readNanos,
+        long readCpuNanos,
+        long cpuNanos,
+        long driverNanos,
+        @Nullable Profile profile,
+        boolean columnar,
+        @Nullable String asyncExecutionId,
+        boolean isRunning,
+        boolean isAsync,
+        ZoneId zoneId,
+        long startTimeMillis,
+        long expirationTimeMillis,
+        EsqlExecutionInfo executionInfo,
+        @Nullable Boolean approximationApplied
+    ) {
         this.columns = columns;
-        this.pages = pages;
+        this.result = result;
         this.valuesLoaded = valuesLoaded;
         this.documentsFound = documentsFound;
         this.approximationApplied = approximationApplied;
@@ -325,11 +381,18 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (result.spilled()) {
+            // the transport form is the pages in one buffer, which a result that did not fit the budget cannot be; the
+            // async store, the one writer of a finished response, reports this as the response's failure
+            throw new UnsupportedOperationException(
+                "a result of [" + result.rows() + "] rows spilled to disk cannot be serialized whole; read it through the query's response"
+            );
+        }
         out.writeOptionalString(asyncExecutionId);
         out.writeBoolean(isRunning);
         out.writeBoolean(isAsync);
         out.writeCollection(columns);
-        out.writeCollection(pages);
+        out.writeCollection(result.resident());
         if (supportsValuesLoaded(out.getTransportVersion())) {
             out.writeVLong(documentsFound);
             out.writeVLong(valuesLoaded);
@@ -372,23 +435,113 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return columns;
     }
 
+    /**
+     * The pages in memory. A result in a run has none to give and throws; such a result is walked through
+     * {@link #result()}'s cursors, which the REST bodies do, or through the blocking {@link #pagesInOrder()}.
+     */
     public List<Page> pages() {
-        return pages;
+        return result.resident();
+    }
+
+    /**
+     * The result's pages, in memory or in a run.
+     */
+    public ResultPages result() {
+        return result;
+    }
+
+    /**
+     * Whether the result's pages are in a run rather than in memory, in which case the response is read page by page.
+     */
+    public boolean isSpilled() {
+        return result.spilled();
+    }
+
+    /**
+     * The pages in order, each walk a cursor of its own: the pages in memory as they are, or a run's decoded page by
+     * page with a blocking read for each, for callers off the transport threads, the tests and the Java client's view.
+     * A page read from a run is released when the walk moves past it or is exhausted.
+     */
+    public Iterable<Page> pagesInOrder() {
+        if (result.spilled() == false) {
+            return result.resident();
+        }
+        if (result.pageCount() == 0) {
+            return List.of();
+        }
+        return () -> {
+            BlockingPageIterator walk = new BlockingPageIterator(result.open());
+            // a walk abandoned before its end keeps its page until the response closes
+            addCloseHook(walk::close);
+            return walk;
+        };
     }
 
     public Iterator<Iterator<Object>> values() {
         List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        return ResponseValueUtils.pagesToValues(dataTypes, pages, zoneId);
+        return ResponseValueUtils.pagesToValues(dataTypes, pagesInOrder(), zoneId);
     }
 
     public Iterable<Iterable<Object>> rows() {
         List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pages, zoneId);
+        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pagesInOrder(), zoneId);
     }
 
     public Iterator<Object> column(int columnIndex) {
         if (columnIndex < 0 || columnIndex >= columns.size()) throw new IllegalArgumentException();
-        return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages, zoneId);
+        return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pagesInOrder(), zoneId);
+    }
+
+    /**
+     * Walks a run's pages with a blocking read for each. A page is released one step late, as the walk moves past the
+     * page after it: the rows handed out for a page are lazy, and the flat-mapping iterators over them advance the walk
+     * as soon as a page's last row is handed out, before that row is read. The last pages go, with the cursor, when the
+     * walk is closed, which the response does when it closes.
+     */
+    private static final class BlockingPageIterator implements Iterator<Page>, Releasable {
+        private final ResultPages.Cursor cursor;
+        @Nullable
+        private Page previous;
+        @Nullable
+        private Page current;
+        private boolean closed;
+
+        BlockingPageIterator(ResultPages.Cursor cursor) {
+            this.cursor = cursor;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return closed == false && cursor.hasNext();
+        }
+
+        @Override
+        public Page next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            Page next = cursor.nextBlocking();
+            if (next == null) {
+                throw new NoSuchElementException();
+            }
+            if (previous != null) {
+                previous.releaseBlocks();
+            }
+            previous = current;
+            current = next;
+            return next;
+        }
+
+        @Override
+        public void close() {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            Releasables.close(previous == null ? null : previous::releaseBlocks, current == null ? null : current::releaseBlocks, cursor);
+            previous = null;
+            current = null;
+        }
     }
 
     /**
@@ -475,11 +628,28 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
         boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+        return Iterators.concat(
+            xContentPrologue(params, nullColumns),
+            ChunkedToXContentHelper.array(
+                "values",
+                ResponseXContentUtils.columnValues(this.columns, pagesInOrder(), columnar, nullColumns, zoneId)
+            ),
+            xContentEpilogue(params)
+        );
+    }
 
+    /**
+     * The chunks before the values: the object's start, the counters and the columns. A body that renders a result in
+     * a run emits these, then the values page by page, then {@link #xContentEpilogue}.
+     *
+     * @param nullColumns the columns to drop, null to keep them all
+     */
+    @SuppressWarnings("unchecked")
+    public Iterator<? extends ToXContent> xContentPrologue(ToXContent.Params params, @Nullable boolean[] nullColumns) {
+        boolean dropNullColumns = nullColumns != null;
         var content = new ArrayList<Iterator<? extends ToXContent>>(25);
         content.add(ChunkedToXContentHelper.startObject());
         if (isAsync) {
@@ -537,12 +707,15 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         } else {
             content.add(ResponseXContentUtils.allColumns(columns, "columns"));
         }
-        content.add(
-            ChunkedToXContentHelper.array(
-                "values",
-                ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns, zoneId)
-            )
-        );
+        return Iterators.concat(content.toArray(Iterator[]::new));
+    }
+
+    /**
+     * The chunks after the values: the clusters, the profile and the object's end.
+     */
+    @SuppressWarnings("unchecked")
+    public Iterator<? extends ToXContent> xContentEpilogue(ToXContent.Params params) {
+        var content = new ArrayList<Iterator<? extends ToXContent>>(3);
         if (executionInfo != null && executionInfo.hasMetadataToReport()) {
             content.add(ChunkedToXContentHelper.field("_clusters", executionInfo, params));
         }
@@ -550,25 +723,20 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(profileXContent(profile, executionInfo).toXContentChunked(params));
         }
         content.add(ChunkedToXContentHelper.endObject());
-
         return Iterators.concat(content.toArray(Iterator[]::new));
     }
 
+    /**
+     * Per column, whether every value is null: captured as the pages were collected, so no renderer walks them for it.
+     */
     public boolean[] nullColumns() {
-        boolean[] nullColumns = new boolean[columns.size()];
-        for (int c = 0; c < nullColumns.length; c++) {
-            nullColumns[c] = allColumnsAreNull(c);
-        }
-        return nullColumns;
+        return result.pageCount() == 0 ? allNull() : result.nullColumns();
     }
 
-    private boolean allColumnsAreNull(int c) {
-        for (Page page : pages) {
-            if (page.getBlock(c).areAllValuesNull() == false) {
-                return false;
-            }
-        }
-        return true;
+    private boolean[] allNull() {
+        boolean[] nullColumns = new boolean[columns.size()];
+        Arrays.fill(nullColumns, true);
+        return nullColumns;
     }
 
     @Override
@@ -652,9 +820,13 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     void closeInternal() {
         try {
-            Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks));
+            Releasables.close(closeHooks);
         } finally {
-            Releasables.close(onClose);
+            try {
+                result.close();
+            } finally {
+                Releasables.close(onClose);
+            }
         }
     }
 
@@ -664,6 +836,14 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     public void releaseOnClose(Releasable releasable) {
         assert onClose == null : "release hook set twice";
         onClose = releasable;
+    }
+
+    /**
+     * Released before the result when the response closes: a body's cursor and the page it holds, for a response
+     * whose pages are in a run, whatever the state of the transmission.
+     */
+    public void addCloseHook(Releasable releasable) {
+        closeHooks.add(releasable);
     }
 
     // singleton lazy set view over this response
@@ -682,7 +862,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     public long getRowCount() {
-        return pages.stream().mapToLong(Page::getPositionCount).sum();
+        return result.rows();
     }
 
     public static ChunkedToXContent profileXContent(Profile profile, @Nullable EsqlExecutionInfo executionInfo) {

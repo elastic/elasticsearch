@@ -435,6 +435,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             sessionId,
             (CancellableTask) task,
             flags,
+            role,
             plan,
             configuration,
             foldCtx,
@@ -644,7 +645,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     /** Releases the pages here because the caller's {@link ActionListener#wrap} swallows the throw before any release path sees it. */
     static void failIfCancelled(Task task, Result result) {
         if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
-            Releasables.closeExpectNoException(result.pages());
+            result.releasePages();
             throw new TaskCancelledException(cancellableTask.getReasonCancelled());
         }
     }
@@ -691,7 +692,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             return new EsqlQueryResponse(
                 columns,
-                result.pages(),
+                result.toResultPages(),
                 result.completionInfo().documentsFound(),
                 result.completionInfo().valuesLoaded(),
                 result.completionInfo().rowsEmitted(),
@@ -714,7 +715,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
         return new EsqlQueryResponse(
             columns,
-            result.pages(),
+            result.toResultPages(),
             result.completionInfo().documentsFound(),
             result.completionInfo().valuesLoaded(),
             result.completionInfo().rowsEmitted(),

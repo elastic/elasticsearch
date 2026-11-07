@@ -44,6 +44,20 @@ public enum TextFormat implements MediaType {
         }
 
         @Override
+        public Iterator<CheckedConsumer<Writer, IOException>> header(RestRequest request, EsqlQueryResponse esqlResponse) {
+            throw new UnsupportedOperationException("the table format sizes its columns over every row first; see TextFormatter");
+        }
+
+        @Override
+        public Iterator<CheckedConsumer<Writer, IOException>> rows(
+            RestRequest request,
+            EsqlQueryResponse esqlResponse,
+            Iterator<Iterator<Object>> values
+        ) {
+            throw new UnsupportedOperationException("the table format sizes its columns over every row first; see TextFormatter");
+        }
+
+        @Override
         public String queryParameter() {
             return FORMAT_TEXT;
         }
@@ -172,7 +186,7 @@ public enum TextFormat implements MediaType {
         }
 
         @Override
-        boolean hasHeader(RestRequest request) {
+        public boolean hasHeader(RestRequest request) {
             String header = request.param(URL_PARAM_HEADER);
             if (header == null) {
                 List<String> values = request.getAllHeaderValues("Accept");
@@ -268,11 +282,10 @@ public enum TextFormat implements MediaType {
 
     MARKDOWN() {
         @Override
-        public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
-            boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-            boolean[] dropColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
+        public Iterator<CheckedConsumer<Writer, IOException>> header(RestRequest request, EsqlQueryResponse esqlResponse) {
+            boolean[] dropColumns = dropColumns(request, esqlResponse);
             List<? extends ColumnInfo> columns = esqlResponse.columns();
-            return Iterators.concat(hasHeader(request) && columns != null ? Iterators.single(writer -> {
+            return hasHeader(request) && columns != null ? Iterators.single(writer -> {
                 for (int i = 0; i < columns.size(); i++) {
                     if (dropColumns[i]) {
                         continue;
@@ -288,7 +301,17 @@ public enum TextFormat implements MediaType {
                     }
                 }
                 writer.append("|\n");
-            }) : Collections.emptyIterator(), Iterators.map(esqlResponse.values(), row -> writer -> {
+            }) : Collections.emptyIterator();
+        }
+
+        @Override
+        public Iterator<CheckedConsumer<Writer, IOException>> rows(
+            RestRequest request,
+            EsqlQueryResponse esqlResponse,
+            Iterator<Iterator<Object>> values
+        ) {
+            boolean[] dropColumns = dropColumns(request, esqlResponse);
+            return Iterators.map(values, row -> writer -> {
                 for (int i = 0; row.hasNext(); i++) {
                     if (dropColumns[i]) {
                         row.next();
@@ -299,11 +322,11 @@ public enum TextFormat implements MediaType {
                     writer.append(' ');
                 }
                 writer.append("|\n");
-            }));
+            });
         }
 
         @Override
-        boolean hasHeader(RestRequest request) {
+        public boolean hasHeader(RestRequest request) {
             String header = request.param(URL_PARAM_HEADER);
             if (header == null) {
                 List<String> values = request.getAllHeaderValues("Accept");
@@ -401,23 +424,50 @@ public enum TextFormat implements MediaType {
     public static final String URL_PARAM_DELIMITER = "delimiter";
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
+    /**
+     * The whole response as text chunks: the header, then every row. A response whose pages are in a run is rendered
+     * page by page instead, through {@link #header} and {@link #rows}, since the rows here come from a blocking walk.
+     */
     public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
+        return Iterators.concat(header(request, esqlResponse), rows(request, esqlResponse, esqlResponse.values()));
+    }
+
+    /**
+     * The header chunk, if the request asks for one.
+     */
+    public Iterator<CheckedConsumer<Writer, IOException>> header(RestRequest request, EsqlQueryResponse esqlResponse) {
         final var delimiter = delimiter(request);
-        boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-        boolean[] dropColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
-        return Iterators.concat(
-            // if the header is requested return the info
-            hasHeader(request) && esqlResponse.columns() != null
-                ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter, dropColumns))
-                : Collections.emptyIterator(),
-            Iterators.map(
-                esqlResponse.values(),
-                row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter, dropColumns)
-            )
+        boolean[] dropColumns = dropColumns(request, esqlResponse);
+        return hasHeader(request) && esqlResponse.columns() != null
+            ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter, dropColumns))
+            : Collections.emptyIterator();
+    }
+
+    /**
+     * One chunk per row of {@code values}: the whole response's, or one page's at a time.
+     */
+    public Iterator<CheckedConsumer<Writer, IOException>> rows(
+        RestRequest request,
+        EsqlQueryResponse esqlResponse,
+        Iterator<Iterator<Object>> values
+    ) {
+        final var delimiter = delimiter(request);
+        boolean[] dropColumns = dropColumns(request, esqlResponse);
+        return Iterators.map(
+            values,
+            row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter, dropColumns)
         );
     }
 
-    boolean hasHeader(RestRequest request) {
+    /**
+     * The columns the request drops: those null throughout, which the response knows without a walk, when asked.
+     */
+    public static boolean[] dropColumns(RestRequest request, EsqlQueryResponse esqlResponse) {
+        boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+        return dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
+    }
+
+    public boolean hasHeader(RestRequest request) {
         return true;
     }
 

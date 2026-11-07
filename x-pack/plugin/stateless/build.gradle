@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -106,4 +108,26 @@ tasks.register('statelessS3ThirdPartyTests', Test) {
     systemProperty 'test.s3.bucket', System.getenv('stateless_aws_s3_bucket')
     systemProperty 'test.s3.region', System.getenv('stateless_aws_s3_region')
     systemProperty 'test.s3.base_path', System.getenv('stateless_aws_s3_base_path')
+}
+
+/**
+ * Same as internalClusterTest but with a merge blob written in the object store next to every uploaded BCC, to make sure that merge blobs
+ * have no impact while nothing writes them yet.
+ *
+ * TODO: remove it once merge blobs are written in production
+ */
+tasks.register('internalClusterTestWithMergeBlobs', Test) {
+  def internalClusterTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  testClassesDirs = internalClusterTestSourceSet.output.classesDirs
+  classpath = internalClusterTestSourceSet.runtimeClasspath
+  jvmArgs '-XX:+UseG1GC'
+  // same settings as internalClusterTest
+  jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+  systemProperty 'es.searchable.snapshot.shared_cache.write_buffer.size', '256kb'
+  systemProperty 'reactor.netty.send.maxPrefetchSize', '8'
+  systemProperty 'es.test.stateless.merge_blobs.injection.enabled', 'true'
+}
+
+tasks.named('check') {
+  dependsOn 'internalClusterTestWithMergeBlobs'
 }

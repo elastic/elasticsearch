@@ -20,6 +20,14 @@ import java.util.function.Function;
 public class OutputOperator extends SinkOperator {
 
     /**
+     * A page consumer with a blocked state of its own, which the operator forwards: a consumer that writes pages out
+     * tells the driver, and through the exchange the data nodes, to wait rather than hand it more.
+     */
+    public interface BlockingPageConsumer extends Consumer<Page> {
+        IsBlockedResult isBlocked();
+    }
+
+    /**
      * Interface for DriverContext implementations that provide a collectedPages list.
      * This allows OutputOperatorFactory to retrieve collectedPages without creating a circular dependency.
      */
@@ -81,7 +89,12 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return finished == false && isBlocked().listener().isDone();
+    }
+
+    @Override
+    public IsBlockedResult isBlocked() {
+        return pageConsumer instanceof BlockingPageConsumer blocking ? blocking.isBlocked() : NOT_BLOCKED;
     }
 
     @Override

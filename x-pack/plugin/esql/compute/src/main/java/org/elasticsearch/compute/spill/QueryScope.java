@@ -50,6 +50,8 @@ public final class QueryScope {
     private final SpillStore store;
     private final Executor codecExecutor;
     private volatile long minSpillBytes;
+    /** The bytes of result pages the coordinator keeps in memory before the rest goes to a run; a share of the budget. */
+    private volatile long resultBudgetBytes;
     private final Consumer<QueryScope> onClosing;
     private final AtomicInteger leases = new AtomicInteger();
     private final AtomicBoolean closeStarted = new AtomicBoolean();
@@ -79,6 +81,7 @@ public final class QueryScope {
         this.store = store;
         this.codecExecutor = codecExecutor;
         this.minSpillBytes = minSpillBytes;
+        this.resultBudgetBytes = budgetBytes / 4;
         this.onClosing = onClosing;
     }
 
@@ -175,6 +178,18 @@ public final class QueryScope {
      */
     public void setMinSpillBytes(long minSpillBytes) {
         this.minSpillBytes = minSpillBytes;
+    }
+
+    /**
+     * The bytes of result pages the coordinator keeps in memory before the rest goes to a run: a quarter of the budget
+     * unless the setting or the test pragma says otherwise.
+     */
+    public long resultBudgetBytes() {
+        return resultBudgetBytes;
+    }
+
+    public void setResultBudgetBytes(long resultBudgetBytes) {
+        this.resultBudgetBytes = resultBudgetBytes;
     }
 
     /**

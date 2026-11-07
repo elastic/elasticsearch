@@ -41,6 +41,10 @@
         "description": "a short version of the Accept header, e.g. json, yaml"
       },
       "local": {
+        "deprecated": {
+          "version": "9.0.0",
+          "description": "This parameter has no effect, is now deprecated, and will be removed in a future version."
+        },
         "type": "boolean",
         "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
@@ -117,6 +121,10 @@
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed). Only allowed when providing an index expression."
       },
       "ignore_throttled": {
+        "deprecated": {
+          "version": "7.16.0",
+          "description": "This parameter is deprecated because frozen indices have been deprecated."
+        },
         "type": "boolean",
         "default": false,
         "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled. Only allowed when providing an index expression."

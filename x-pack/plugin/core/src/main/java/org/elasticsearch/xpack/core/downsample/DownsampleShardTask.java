@@ -16,38 +16,13 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class DownsampleShardTask extends AllocatedPersistentTask {
     public static final String TASK_NAME = "rollup-shard";
     private final String downsampleIndex;
-    private volatile long totalShardDocCount;
-    private volatile long docsProcessed;
-    private final long indexStartTimeMillis;
-    private final long indexEndTimeMillis;
     private final DownsampleConfig config;
     private final ShardId shardId;
-    private final long rollupStartTime;
-    private final AtomicLong numReceived = new AtomicLong(0);
-    private final AtomicLong numSent = new AtomicLong(0);
-    private final AtomicLong numIndexed = new AtomicLong(0);
-    private final AtomicLong numFailed = new AtomicLong(0);
-    private final AtomicLong numSkippedAlreadyIndexed = new AtomicLong(0);
-    private final AtomicLong lastSourceTimestamp = new AtomicLong(0);
-    private final AtomicLong lastTargetTimestamp = new AtomicLong(0);
-    private final AtomicLong lastIndexingTimestamp = new AtomicLong(0);
-    private final AtomicReference<DownsampleShardIndexerStatus> downsampleShardIndexerStatus = new AtomicReference<>(
-        DownsampleShardIndexerStatus.INITIALIZED
-    );
-    private final DownsampleBulkStats downsampleBulkStats;
-    // Need to set initial values, because these atomic references can be read before bulk indexing started or when downsampling empty index
-    private final AtomicReference<DownsampleBeforeBulkInfo> lastBeforeBulkInfo = new AtomicReference<>(
-        new DownsampleBeforeBulkInfo(0, 0, 0, 0)
-    );
-    private final AtomicReference<DownsampleAfterBulkInfo> lastAfterBulkInfo = new AtomicReference<>(
-        new DownsampleAfterBulkInfo(0, 0, 0, 0, false, 0)
-    );
+    private final DownsampleShardProgress progress;
 
     public DownsampleShardTask(
         long id,
@@ -63,12 +38,9 @@ public class DownsampleShardTask extends AllocatedPersistentTask {
     ) {
         super(id, type, action, RollupField.NAME + "_" + downsampleIndex + "[" + shardId.id() + "]", parentTask, headers);
         this.downsampleIndex = downsampleIndex;
-        this.indexStartTimeMillis = indexStartTimeMillis;
-        this.indexEndTimeMillis = indexEndTimeMillis;
         this.config = config;
         this.shardId = shardId;
-        this.rollupStartTime = System.currentTimeMillis();
-        this.downsampleBulkStats = new DownsampleBulkStats();
+        this.progress = new DownsampleShardProgress(shardId, indexStartTimeMillis, indexEndTimeMillis);
     }
 
     @Override
@@ -91,6 +63,13 @@ public class DownsampleShardTask extends AllocatedPersistentTask {
         init(persistentTasksService, taskManager, persistentTaskId, allocationId);
     }
 
+    /**
+     * The counters of this run. The accessors below delegate to it.
+     */
+    public DownsampleShardProgress progress() {
+        return progress;
+    }
+
     public String getDownsampleIndex() {
         return downsampleIndex;
     }
@@ -104,48 +83,28 @@ public class DownsampleShardTask extends AllocatedPersistentTask {
     }
 
     public long getTotalShardDocCount() {
-        return totalShardDocCount;
+        return progress.getTotalShardDocCount();
     }
 
     @Override
     public Status getStatus() {
-        return new DownsampleShardStatus(
-            shardId,
-            rollupStartTime,
-            numReceived.get(),
-            numSent.get(),
-            numIndexed.get(),
-            numFailed.get(),
-            numSkippedAlreadyIndexed.get(),
-            totalShardDocCount,
-            lastSourceTimestamp.get(),
-            lastTargetTimestamp.get(),
-            lastIndexingTimestamp.get(),
-            indexStartTimeMillis,
-            indexEndTimeMillis,
-            docsProcessed,
-            100.0F * docsProcessed / totalShardDocCount,
-            downsampleBulkStats.getRollupBulkInfo(),
-            lastBeforeBulkInfo.get(),
-            lastAfterBulkInfo.get(),
-            downsampleShardIndexerStatus.get()
-        );
+        return progress.toStatus();
     }
 
     public long getNumReceived() {
-        return numReceived.get();
+        return progress.getNumReceived();
     }
 
     public long getNumSent() {
-        return numSent.get();
+        return progress.getNumSent();
     }
 
     public long getNumIndexed() {
-        return numIndexed.get();
+        return progress.getNumIndexed();
     }
 
     public long getNumFailed() {
-        return numFailed.get();
+        return progress.getNumFailed();
     }
 
     /**
@@ -153,110 +112,110 @@ public class DownsampleShardTask extends AllocatedPersistentTask {
      * already been indexed by a previous, interrupted run of this task.
      */
     public long getNumSkippedAlreadyIndexed() {
-        return numSkippedAlreadyIndexed.get();
+        return progress.getNumSkippedAlreadyIndexed();
     }
 
     public long getLastSourceTimestamp() {
-        return lastSourceTimestamp.get();
+        return progress.getLastSourceTimestamp();
     }
 
     public long getLastTargetTimestamp() {
-        return lastTargetTimestamp.get();
+        return progress.getLastTargetTimestamp();
     }
 
     public DownsampleBeforeBulkInfo getLastBeforeBulkInfo() {
-        return lastBeforeBulkInfo.get();
+        return progress.getLastBeforeBulkInfo();
     }
 
     public DownsampleAfterBulkInfo getLastAfterBulkInfo() {
-        return lastAfterBulkInfo.get();
+        return progress.getLastAfterBulkInfo();
     }
 
     public long getDocsProcessed() {
-        return docsProcessed;
+        return progress.getDocsProcessed();
     }
 
     public long getRollupStartTime() {
-        return rollupStartTime;
+        return progress.getRollupStartTime();
     }
 
     public DownsampleShardIndexerStatus getDownsampleShardIndexerStatus() {
-        return downsampleShardIndexerStatus.get();
+        return progress.getDownsampleShardIndexerStatus();
     }
 
     public long getLastIndexingTimestamp() {
-        return lastIndexingTimestamp.get();
+        return progress.getLastIndexingTimestamp();
     }
 
     public long getIndexStartTimeMillis() {
-        return indexStartTimeMillis;
+        return progress.getIndexStartTimeMillis();
     }
 
     public long getIndexEndTimeMillis() {
-        return indexEndTimeMillis;
+        return progress.getIndexEndTimeMillis();
     }
 
     public float getDocsProcessedPercentage() {
-        return getTotalShardDocCount() <= 0 ? 0.0F : 100.0F * docsProcessed / totalShardDocCount;
+        return progress.getDocsProcessedPercentage();
     }
 
     public void addNumReceived(long count) {
-        numReceived.addAndGet(count);
+        progress.addNumReceived(count);
     }
 
     public void addNumSent(long count) {
-        numSent.addAndGet(count);
+        progress.addNumSent(count);
     }
 
     public void addNumIndexed(long count) {
-        numIndexed.addAndGet(count);
+        progress.addNumIndexed(count);
     }
 
     public void addNumFailed(long count) {
-        numFailed.addAndGet(count);
+        progress.addNumFailed(count);
     }
 
     public void addNumSkippedAlreadyIndexed(long count) {
-        numSkippedAlreadyIndexed.addAndGet(count);
+        progress.addNumSkippedAlreadyIndexed(count);
     }
 
     public void setLastSourceTimestamp(long timestamp) {
-        lastSourceTimestamp.set(timestamp);
+        progress.setLastSourceTimestamp(timestamp);
     }
 
     public void setLastTargetTimestamp(long timestamp) {
-        lastTargetTimestamp.set(timestamp);
+        progress.setLastTargetTimestamp(timestamp);
     }
 
     public void setLastIndexingTimestamp(long timestamp) {
-        lastIndexingTimestamp.set(timestamp);
+        progress.setLastIndexingTimestamp(timestamp);
     }
 
     public void setBeforeBulkInfo(final DownsampleBeforeBulkInfo beforeBulkInfo) {
-        lastBeforeBulkInfo.set(beforeBulkInfo);
+        progress.setBeforeBulkInfo(beforeBulkInfo);
     }
 
     public void setAfterBulkInfo(final DownsampleAfterBulkInfo afterBulkInfo) {
-        lastAfterBulkInfo.set(afterBulkInfo);
+        progress.setAfterBulkInfo(afterBulkInfo);
     }
 
     public void setDownsampleShardIndexerStatus(final DownsampleShardIndexerStatus status) {
-        this.downsampleShardIndexerStatus.set(status);
+        progress.setDownsampleShardIndexerStatus(status);
     }
 
     public void setTotalShardDocCount(int totalShardDocCount) {
-        this.totalShardDocCount = totalShardDocCount;
+        progress.setTotalShardDocCount(totalShardDocCount);
     }
 
     public void setDocsProcessed(long docsProcessed) {
-        this.docsProcessed = docsProcessed;
+        progress.setDocsProcessed(docsProcessed);
     }
 
     public void updateBulkInfo(long bulkIngestTookMillis, long bulkTookMillis) {
-        this.downsampleBulkStats.update(bulkIngestTookMillis, bulkTookMillis);
+        progress.updateBulkInfo(bulkIngestTookMillis, bulkTookMillis);
     }
 
     public DownsampleBulkInfo getDownsampleBulkInfo() {
-        return this.downsampleBulkStats.getRollupBulkInfo();
+        return progress.getDownsampleBulkInfo();
     }
 }

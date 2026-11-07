@@ -7,22 +7,28 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -31,15 +37,24 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
+import org.elasticsearch.xpack.downsample.explain.ExplainDownsampleAction;
+import org.elasticsearch.xpack.downsample.explain.RestExplainDownsampleAction;
+import org.elasticsearch.xpack.downsample.explain.TransportExplainDownsampleAction;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleOrchestrator;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateIndex;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore;
+import org.elasticsearch.xpack.downsample.orchestration.ShardTaskPoller;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPlugin {
+public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPlugin, SystemIndexPlugin {
 
     public static final String DOWNSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
+
+    private final SetOnce<DownsampleOrchestrator> orchestrator = new SetOnce<>();
     private static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
 
     @Override
@@ -59,6 +74,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
     public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler(DownsampleAction.INSTANCE, TransportDownsampleAction.class),
+            new ActionHandler(ExplainDownsampleAction.INSTANCE, TransportExplainDownsampleAction.class),
             new ActionHandler(
                 DownsampleShardPersistentTaskExecutor.DelegatingAction.INSTANCE,
                 DownsampleShardPersistentTaskExecutor.DelegatingAction.TA.class
@@ -72,7 +88,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestDownsampleAction());
+        return List.of(new RestDownsampleAction(), new RestExplainDownsampleAction());
     }
 
     @Override
@@ -122,6 +138,58 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        return List.of(DownsampleMetrics.class);
+        DownsampleStateStore store = new DownsampleStateStore(services.client(), services.clusterService(), services.projectResolver());
+        DownsampleOrchestrator orchestrator = new DownsampleOrchestrator(
+            store,
+            services.clusterService(),
+            services.threadPool(),
+            services.projectResolver(),
+            services.clusterService().getSettings()
+        );
+        this.orchestrator.set(orchestrator);
+        if (DownsampleStateIndex.FEATURE_FLAG.isEnabled()) {
+            services.clusterService().addListener(orchestrator);
+        }
+        ShardTaskPoller poller = new ShardTaskPoller(
+            services.client(),
+            store,
+            services.clusterService(),
+            services.threadPool(),
+            services.projectResolver(),
+            DownsampleStateIndex.FEATURE_FLAG.isEnabled() && DiscoveryNode.canContainData(services.clusterService().getSettings())
+        );
+        return List.of(DownsampleMetrics.class, store, orchestrator, poller);
+    }
+
+    /**
+     * The orchestrator, {@code null} until the components are created. For the {@link DownsamplingOperationsMonitor} extension.
+     */
+    @Nullable
+    DownsampleOrchestrator orchestrator() {
+        return orchestrator.get();
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(
+            DownsampleOrchestrator.RECONCILE_INTERVAL_SETTING,
+            DownsampleOrchestrator.RETRY_DELAY_SETTING,
+            ShardTaskPoller.POLL_INTERVAL_SETTING
+        );
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return DownsampleStateIndex.FEATURE_FLAG.isEnabled() ? List.of(DownsampleStateIndex.descriptor()) : List.of();
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "downsample";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Stores the state of downsample operations";
     }
 }

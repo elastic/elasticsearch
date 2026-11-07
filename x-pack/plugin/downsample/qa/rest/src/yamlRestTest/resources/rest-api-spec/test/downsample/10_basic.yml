@@ -552,7 +552,8 @@ setup:
                       does-not-exist: "yes"
 
   - do:
-      catch: /downsample task \[downsample-failed-downsample-test-0-1h\] failed/
+      # the persistent task path names its shard task, the system index path the downsample operation
+      catch: /downsample task \[downsample-failed-downsample-test-0-1h\] failed|downsampling \[test\] into \[failed-downsample-test\] failed/
       indices.downsample:
         index: test
         target_index: failed-downsample-test

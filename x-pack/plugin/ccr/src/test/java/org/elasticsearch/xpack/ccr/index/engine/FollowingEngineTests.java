@@ -37,7 +37,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.engine.TranslogHandler;
@@ -51,6 +50,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -292,7 +292,7 @@ public class FollowingEngineTests extends ESTestCase {
             .promotableToPrimary(true)
             .mapperService(mapperService)
             .engineResetLock(new EngineResetLock())
-            .mergeMetrics(MergeMetrics.NOOP)
+            .shardMetrics(ShardMetrics.NOOP)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }

@@ -44,7 +44,6 @@ import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -56,6 +55,7 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.MutableOperationGate;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -197,7 +197,7 @@ public final class IndexModule {
     private final MapperMetrics mapperMetrics;
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
-    private final MergeMetrics mergeMetrics;
+    private final ShardMetrics shardMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     /**
@@ -208,7 +208,7 @@ public final class IndexModule {
      * @param analysisRegistry   the analysis registry
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
-     * @param mergeMetrics
+     * @param shardMetrics       the node-wide shard metrics bundle
      */
     public IndexModule(
         final IndexSettings indexSettings,
@@ -223,7 +223,7 @@ public final class IndexModule {
         final List<SearchOperationListener> searchOperationListeners,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics,
+        final ShardMetrics shardMetrics,
         final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         this.indexSettings = indexSettings;
@@ -240,7 +240,7 @@ public final class IndexModule {
         this.mapperMetrics = mapperMetrics;
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
-        this.mergeMetrics = mergeMetrics;
+        this.shardMetrics = shardMetrics;
         this.metricHolder = metricHolder;
     }
 
@@ -586,7 +586,7 @@ public final class IndexModule {
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
-                mergeMetrics,
+                shardMetrics,
                 metricHolder
             );
             success = true;

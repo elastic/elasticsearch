@@ -912,7 +912,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedSource.schemaMap(),
                 plan.datasetName(),
                 bindResult.unresolvedMetadata(),
-                resolvedSource.declaredReadSpec()
+                resolvedSource.declaredReadSpec(),
+                plan.inlineDefinition()
             );
             return relation;
         }
@@ -4728,9 +4729,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // no METADATA grammar to be selective, so KEEP is how the user picks what surfaces. On
             // the FROM <dataset> path the user names metadata explicitly in a METADATA clause, so it
             // must surface unconditionally — KEEP there is ordinary projection, not a metadata gate.
-            // The two are distinguishable on the relation: a FROM <dataset> leaf carries a
-            // datasetName; the EXTERNAL shim's leaf does not.
-            boolean hasExternalCommandRelation = plan.anyMatch(p -> p instanceof ExternalRelation er && er.datasetName() == null);
+            // The two are distinguishable on the relation by whether a dataset definition stands behind it: a
+            // FROM <dataset> leaf carries a datasetName and a leaf whose definition the query supplied carries that
+            // definition, while the EXTERNAL shim's leaf has neither.
+            boolean hasExternalCommandRelation = plan.anyMatch(
+                p -> p instanceof ExternalRelation er && er.datasetName() == null && er.inlineDefinition() == null
+            );
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
             for (Attribute attr : output) {

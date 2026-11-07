@@ -22,9 +22,11 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -351,7 +353,147 @@ public class DatasetConfigResolverTests extends ESTestCase {
         assertThat(rebound.config().get("format"), equalTo("parquet"));
     }
 
+    // --- a definition the plan carried ---
+
+    /**
+     * The carrier's whole point: the node must read under the data source IT has registered, so the storage
+     * credentials in the rebound config are the registry's and nothing the plan carried survives.
+     */
+    public void testRebindInlineReadsUnderTheRegisteredDataSource() {
+        ProjectMetadata project = project(dataSource(Map.of("access_key", "AKIA", "secret_key", "s3cr3t")), dataset(Map.of()));
+        ExternalSourceExec exec = inlineExec(HOSTILE_CONFIG, inlineDefinition()).withSplits(splits("s3://bucket/data/a.parquet"));
+
+        ExternalSourceExec rebound = inlineResolver(project).rebind(exec);
+
+        assertThat(rebound.sourcePath(), equalTo(RESOURCE));
+        assertRegisteredInlineConfig(rebound, project);
+        Map<String, Object> storage = ExternalSourceResolver.storageConfig(rebound.config());
+        assertThat(storage.get("access_key"), equalTo("AKIA"));
+        assertThat(storage.get("secret_key"), equalTo("s3cr3t"));
+        assertThat(storage, not(hasKey("role_arn")));
+        assertThat(storage.get("endpoint"), not(equalTo("https://attacker.example")));
+    }
+
+    /**
+     * Reached before the no-dataset-name guard, and on a release build: a source carrying its definition is bound,
+     * so it must not be refused for the reason an unbound one is.
+     */
+    public void testRebindInlineIsNotRefusedForHavingNoDatasetName() {
+        ProjectMetadata project = project(dataSource(Map.of("auth", "anonymous")), dataset(Map.of()));
+
+        ExternalSourceExec rebound = inlineResolver(project).rebind(inlineExec(Map.of(), inlineDefinition()));
+
+        assertNull(rebound.datasetName());
+        assertThat(rebound.sourcePath(), equalTo(RESOURCE));
+    }
+
+    public void testRebindInlineIsIdempotent() {
+        ProjectMetadata project = project(dataSource(Map.of("auth", "anonymous")), dataset(Map.of()));
+        DatasetConfigResolver resolver = inlineResolver(project);
+
+        ExternalSourceExec once = resolver.rebind(inlineExec(HOSTILE_CONFIG, inlineDefinition()));
+
+        assertThat(resolver.rebind(once), equalTo(once));
+    }
+
+    /** An unknown data source is a 400, not the validator's own exception type: the handler can only wait on a 400. */
+    public void testRebindInlineRefusesAnUnregisteredDataSource() {
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).build();
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> inlineResolver(project).rebind(inlineExec(HOSTILE_CONFIG, inlineDefinition()))
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("external data source [" + PARENT + "] cannot be read on this node"));
+    }
+
+    /** The definition is user input, so the node runs the shadow check on it rather than trusting the coordinator's. */
+    public void testRebindInlineRefusesASettingShadowingADataSourceSecret() {
+        ProjectMetadata project = project(dataSource(Map.of("secret_key", "s3cr3t")), dataset(Map.of()));
+        InlineDatasetDefinition hostile = new InlineDatasetDefinition(
+            PARENT,
+            Map.of("resource", RESOURCE, "settings", Map.of("secret_key", "attacker"))
+        );
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> inlineResolver(project).rebind(inlineExec(Map.of(), hostile))
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("shadows a secret data-source setting"));
+    }
+
+    /** Splits are plan-carried, so one outside the definition's own resource is refused as it is for a named dataset. */
+    public void testRebindInlineRefusesASplitOutsideTheResource() {
+        ProjectMetadata project = project(dataSource(Map.of("auth", "anonymous")), dataset(Map.of()));
+        ExternalSourceExec exec = inlineExec(Map.of(), inlineDefinition()).withSplits(splits("s3://bucket/secrets/a.parquet"));
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> inlineResolver(project).rebind(exec));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("does not cover split"));
+    }
+
+    /** The data source edited between planning and execution: schema and splits were computed under the old one. */
+    public void testRebindInlineRefusesADataSourceEditedWhilePlanning() {
+        ProjectMetadata planned = project(dataSource(Map.of("endpoint", "https://one")), dataset(Map.of()));
+        ProjectMetadata edited = project(dataSource(Map.of("endpoint", "https://two")), dataset(Map.of()));
+        Map<String, Object> planConfig = DatasetRewriter.datasetConfig(DataSourceMetadata.get(planned).get(PARENT), inlineDataset());
+
+        assertRegisteredInlineConfig(inlineResolver(planned).rebind(inlineExec(planConfig, inlineDefinition())), planned);
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> inlineResolver(edited).rebind(inlineExec(planConfig, inlineDefinition()))
+        );
+        assertThat(e.getMessage(), containsString("definition changed while the query was planned"));
+    }
+
     // --- helpers ---
+
+    private static void assertRegisteredInlineConfig(ExternalSourceExec rebound, ProjectMetadata project) {
+        DataSource parent = DataSourceMetadata.get(project).get(PARENT);
+        assertThat(rebound.config(), equalTo(DatasetRewriter.datasetConfig(parent, inlineDataset())));
+    }
+
+    /** The definition the plan carries. */
+    private static InlineDatasetDefinition inlineDefinition() {
+        return new InlineDatasetDefinition(PARENT, Map.of("resource", RESOURCE));
+    }
+
+    /** What {@link #inlineDefinition()} validates to, which is what the rebuilt config is computed from. */
+    private static Dataset inlineDataset() {
+        return new Dataset(PARENT, new DataSourceReference(PARENT), RESOURCE, null, Map.of());
+    }
+
+    private static DatasetConfigResolver inlineResolver(ProjectMetadata project) {
+        return new DatasetConfigResolver(project, false, new DatasetDefinitionValidator(Map.of("s3", new PassThroughValidator())));
+    }
+
+    private static ExternalSourceExec inlineExec(Map<String, Object> config, InlineDatasetDefinition inline) {
+        return exec(config, null).withInlineDefinition(inline);
+    }
+
+    /** Accepts whatever settings a definition carries, so the test exercises the rebind rather than one format's rules. */
+    private static class PassThroughValidator implements DataSourceValidator {
+        @Override
+        public String type() {
+            return "s3";
+        }
+
+        @Override
+        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+            return Map.of();
+        }
+
+        @Override
+        public Map<String, Object> validateDataset(
+            Map<String, DataSourceSetting> datasourceSettings,
+            String resource,
+            Map<String, Object> datasetSettings
+        ) {
+            return new HashMap<>(datasetSettings);
+        }
+    }
 
     private static void assertRegisteredConfig(ExternalSourceExec rebound, ProjectMetadata project) {
         Dataset dataset = DatasetMetadata.get(project).get(DATASET);

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
+import org.elasticsearch.xpack.esql.action.EsqlAuthorizeDatasourceAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
@@ -107,6 +109,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryMetrics;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetListingService;
+import org.elasticsearch.xpack.esql.datasources.DatasetTableFunction;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FederationLicense;
@@ -115,6 +118,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
@@ -164,6 +168,8 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionRegistry;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -539,10 +545,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             listingService
         );
 
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
-
         services.ipLocationService()
             .addDatabaseAvailabilityListener(
                 (projectId, databaseFile) -> logger.trace(
@@ -632,6 +634,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        // Built here rather than held statically, as the function registry is: a table function declares its own
+        // dependencies by being constructed with them, which is what keeps the facility from carrying any one
+        // function's.
+        DatasetDefinitionValidator datasetDefinitionValidator = new DatasetDefinitionValidator(crudValidators);
+        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(
+            extraTableFunctions(services.client(), datasetDefinitionValidator)
+        );
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
+
         ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
@@ -666,7 +679,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.indicesService().getAnalysis(),
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
-                maxListedObjects::get
+                maxListedObjects::get,
+                tableFunctionRegistry,
+                datasetDefinitionValidator
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -798,6 +813,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
             new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
+            new ActionHandler(EsqlAuthorizeDatasourceAction.TYPE, EsqlAuthorizeDatasourceAction.class),
             new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
@@ -964,6 +980,24 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     protected void loadMetricsCollectors(ExtensionLoader loader) {
         metricsCollectors.addAll(loader.loadExtensions(QueryMetricsListener.class));
+    }
+
+    /**
+     * The table functions this node registers. Empty here, because this change adds the facility and no function.
+     * <p>
+     * A seam rather than a constant so that the facility can be exercised end to end by a function defined in a
+     * test, which is the only way to show that nothing in it was shaped by one real function's needs. The
+     * precedent for a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState},
+     * both overridden by test subclasses.
+     * <p>
+     * A function needing collaborators is constructed with them here; that is why the registry takes
+     * already-constructed functions rather than names, and why the client and the dataset validator are parameters
+     * here rather than something a function reaches for: a function that has to ask the cluster something, or to
+     * hold a definition to what a registration is held to, is given the handles it needs, and the facility itself
+     * never acquires one.
+     */
+    protected List<TableFunction> extraTableFunctions(Client client, DatasetDefinitionValidator datasetDefinitionValidator) {
+        return List.of(new DatasetTableFunction(client, datasetDefinitionValidator));
     }
 
     @Override

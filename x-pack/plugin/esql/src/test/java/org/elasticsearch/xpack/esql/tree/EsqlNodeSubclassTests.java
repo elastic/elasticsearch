@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.InlineDatasetDefinition;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -98,6 +99,8 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionArgument;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionInvocation;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -533,6 +536,23 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of()), null, null);
         } else if (argClass == ExternalSchema.class) {
             return new ExternalSchema(List.of());
+        } else if (argClass == TableFunctionArgument.class) {
+            // Sealed, so unmockable; and there is nothing to mock — the two shapes are small records.
+            return randomBoolean()
+                ? new TableFunctionArgument.Name(Source.EMPTY, randomAlphaOfLength(8))
+                : new TableFunctionArgument.NamedValues(Source.EMPTY, Map.of(randomAlphaOfLength(4), randomAlphaOfLength(6)));
+        } else if (argClass == TableFunctionInvocation.class) {
+            // Record carrying a folded payload, so final and unmockable. Varied per call, because
+            // testReplaceChildren and testTransform need randomValueOtherThan to find a second distinct instance.
+            return new TableFunctionInvocation(
+                Source.EMPTY,
+                "a_function",
+                List.of(
+                    new TableFunctionArgument.Name(Source.EMPTY, randomAlphaOfLength(8)),
+                    new TableFunctionArgument.Name(Source.EMPTY, randomAlphaOfLength(12)),
+                    new TableFunctionArgument.NamedValues(Source.EMPTY, Map.of("settings", Map.of()))
+                )
+            );
         } else if (argClass == DeclaredReadSpec.class) {
             // Typed carrier record; populate every component (renames, dateFormats, declaredTypeColumns) so
             // transform/mutation tests exercise a fully-loaded value rather than an all-but-renames empty one.
@@ -540,6 +560,20 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 Map.of(randomAlphaOfLength(4), randomAlphaOfLength(5)),
                 Map.of(randomAlphaOfLength(4), "yyyy-MM-dd"),
                 Set.of(randomAlphaOfLength(4), randomAlphaOfLength(5))
+            );
+        } else if (argClass == InlineDatasetDefinition.class) {
+            // A record, so unmockable; a definition with settings and a mapping block, so a transform that dropped a
+            // nested level would show.
+            return new InlineDatasetDefinition(
+                randomAlphaOfLength(6),
+                Map.of(
+                    "resource",
+                    "s3://" + randomAlphaOfLength(6) + "/*.csv",
+                    "settings",
+                    Map.of("format", "csv"),
+                    "mappings",
+                    Map.of("properties", Map.of(randomAlphaOfLength(4), Map.of("type", "keyword")))
+                )
             );
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked

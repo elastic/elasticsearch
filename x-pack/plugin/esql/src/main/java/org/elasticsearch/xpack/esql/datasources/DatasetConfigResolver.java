@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
@@ -61,6 +63,7 @@ public final class DatasetConfigResolver {
 
     private final ProjectMetadata project;
     private final boolean snapshotBuild;
+    private final DatasetDefinitionValidator definitionValidator;
 
     /**
      * @param project       this node's view of the project the request runs in; the same instance the local planner
@@ -70,12 +73,22 @@ public final class DatasetConfigResolver {
      *                      when the suite runs against a release build
      */
     public DatasetConfigResolver(ProjectMetadata project, boolean snapshotBuild) {
-        this.project = Objects.requireNonNull(project, "project");
-        this.snapshotBuild = snapshotBuild;
+        this(project, snapshotBuild, new DatasetDefinitionValidator(Map.of()));
     }
 
-    public static DatasetConfigResolver forProduction(ProjectMetadata project) {
-        return new DatasetConfigResolver(project, Build.current().isSnapshot());
+    /**
+     * @param definitionValidator the one validator a registration goes through, so a definition the plan carried is
+     *                            held to what a registered one is held to — including the checks that stop a dataset
+     *                            setting shadowing one of the data source's secrets
+     */
+    public DatasetConfigResolver(ProjectMetadata project, boolean snapshotBuild, DatasetDefinitionValidator definitionValidator) {
+        this.project = Objects.requireNonNull(project, "project");
+        this.snapshotBuild = snapshotBuild;
+        this.definitionValidator = Objects.requireNonNull(definitionValidator, "definitionValidator");
+    }
+
+    public static DatasetConfigResolver forProduction(ProjectMetadata project, DatasetDefinitionValidator definitionValidator) {
+        return new DatasetConfigResolver(project, Build.current().isSnapshot(), definitionValidator);
     }
 
     /** Whether a source with no registered dataset behind it is allowed through (snapshot builds only). */
@@ -93,6 +106,10 @@ public final class DatasetConfigResolver {
      * See the external-worker readiness handling in {@code DataNodeComputeHandler}.
      */
     public ExternalSourceExec rebind(ExternalSourceExec exec) {
+        InlineDatasetDefinition inline = exec.inlineDefinition();
+        if (inline != null) {
+            return rebindInline(exec, inline);
+        }
         String name = exec.datasetName();
         if (name == null) {
             if (snapshotBuild) {
@@ -126,6 +143,60 @@ public final class DatasetConfigResolver {
             checkSplit(name, split, resources);
         }
         return exec.withSourcePathAndConfig(dataset.resource(), resolved);
+    }
+
+    /**
+     * The same rebind for a source whose definition the plan carried: the definition is re-validated here against
+     * this node's own data source, and the resource and config the read uses come out of that, never out of the
+     * plan. What the plan supplied is the definition — user input, carrying no privilege — while the credentials
+     * stay in this node's registry, so a crafted plan can describe a read and still not choose an identity to make
+     * it with.
+     * <p>
+     * Every refusal is a {@code 400} {@link ElasticsearchStatusException}, including the ones the validator raises as
+     * a {@link ResourceNotFoundException} or an {@link IllegalStateException}: a data source registered in a state
+     * this node has not applied yet looks exactly like one that does not exist, and
+     * {@code DataNodeComputeHandler.isDatasetRefusalWhileBehind} can only wait for the state to arrive on a refusal
+     * of that shape.
+     */
+    private ExternalSourceExec rebindInline(ExternalSourceExec exec, InlineDatasetDefinition inline) {
+        final DatasetDefinitionValidator.BoundDataset bound;
+        try {
+            bound = definitionValidator.validateInline(project, inline);
+        } catch (ElasticsearchStatusException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new ElasticsearchStatusException(
+                "external data source [{}] cannot be read on this node: {}",
+                RestStatus.BAD_REQUEST,
+                e,
+                inline.dataSource(),
+                e.getMessage()
+            );
+        }
+        Map<String, Object> resolved = DatasetRewriter.datasetConfig(bound.dataSource(), bound.dataset());
+        Object planVersion = exec.config().get(DefinitionVersion.CONFIG_KEY);
+        if (planVersion != null && planVersion.equals(resolved.get(DefinitionVersion.CONFIG_KEY)) == false) {
+            throw new ElasticsearchStatusException(
+                "external data source [{}] definition changed while the query was planned",
+                RestStatus.BAD_REQUEST,
+                inline.dataSource()
+            );
+        }
+        final List<ResourcePath> resources;
+        try {
+            resources = resourcePaths(bound.dataset().resource());
+        } catch (IllegalArgumentException e) {
+            throw new ElasticsearchStatusException(
+                "external data source [{}] cannot read resource [{}]",
+                RestStatus.BAD_REQUEST,
+                inline.dataSource(),
+                bound.dataset().resource()
+            );
+        }
+        for (ExternalSplit split : exec.splits()) {
+            checkSplit(inline.dataSource(), split, resources);
+        }
+        return exec.withSourcePathAndConfig(bound.dataset().resource(), resolved);
     }
 
     /**

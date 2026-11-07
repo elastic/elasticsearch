@@ -32,13 +32,16 @@ public interface NumericFieldWriter {
      *                              tracking, or {@code null} when offsets are not needed
      * @param sortedFieldObserver receives {@code (docId, value)} pairs during the doc pass,
      *                            or {@code null} when no observer is attached
+     * @param valuesObserver      receives every document and value during the single encode
+     *                            pass, or {@code null}; see {@link NumericValuesObserver}
      * @return the field's doc value count statistics
      */
     DocValueFieldCountStats writeFieldEntry(
         FieldInfo field,
         TsdbDocValuesProducer valuesSource,
         AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
-        SortedFieldObserver sortedFieldObserver
+        SortedFieldObserver sortedFieldObserver,
+        NumericValuesObserver valuesObserver
     ) throws IOException;
 
     /**

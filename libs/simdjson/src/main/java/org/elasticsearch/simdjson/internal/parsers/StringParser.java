@@ -39,10 +39,11 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToIn
  * <ul>
  *   <li>Vector loop bounded by {@code buffer.length - BYTES_PROCESSED} with a scalar
  *       {@link #doParseStringScalar} tail for remaining bytes.</li>
- *   <li>Upstream speculatively {@code intoArray}s every vector chunk before checking for
- *       {@code "} or {@code \}; quote and escape paths copy only the literal prefix via
- *       {@code System.arraycopy}, and {@code intoArray} runs only on the no-special-characters
- *       fast path.</li>
+ *   <li>Like upstream, every vector chunk is speculatively {@code intoArray}ed before checking
+ *       for {@code "} or {@code \}. An earlier Elasticsearch revision copied only the literal
+ *       prefix via {@code System.arraycopy} on the quote and escape paths; on escape-dense input
+ *       (URLs with {@code \/} every few bytes) the per-escape {@code arraycopy} stub call cost
+ *       more than the single unconditional vector store it avoided.</li>
  *   <li>Uses {@link SimdJsonVectorSupport} for vector width selection instead of upstream
  *       {@code VectorUtils}.</li>
  *   <li>Omits upstream {@code parseChar} and length-prefixed {@code parseString} overloads not
@@ -83,6 +84,17 @@ public final class StringParser {
      */
     public int parseString(byte[] buffer, int idx, byte[] stringBuffer) {
         return doParseString(buffer, idx, stringBuffer, 0);
+    }
+
+    /**
+     * Like {@link #parseString(byte[], int, byte[])} but writes the unescaped bytes starting at
+     * {@code dstOffset} and returns the index one past the last byte written (not the length).
+     * {@code stringBuffer} must have room for {@code dstOffset} plus the raw byte length of the
+     * string plus {@link #DESTINATION_PADDING}. Lets callers unescape several strings into one
+     * shared buffer without an allocation per string.
+     */
+    public int parseStringInto(byte[] buffer, int idx, byte[] stringBuffer, int dstOffset) {
+        return doParseString(buffer, idx, stringBuffer, dstOffset);
     }
 
     /**
@@ -129,28 +141,28 @@ public final class StringParser {
         int loopBound = buffer.length - BYTES_PROCESSED;
         while (src <= loopBound) {
             ByteVector srcVec = ByteVector.fromArray(BYTE_SPECIES, buffer, src);
+            // Store the whole chunk before looking at it. Clean chunks need exactly this copy, and
+            // for a chunk with a quote or backslash the literal prefix is now in place too, so no
+            // path below needs a variable-length System.arraycopy. Bytes stored past the string's
+            // end land in the DESTINATION_PADDING slack or get overwritten by the next chunk.
+            srcVec.intoArray(stringBuffer, dst);
             long specialBits = srcVec.eq(BACKSLASH).or(srcVec.eq(QUOTE)).toLong();
 
             if (specialBits == 0) {
-                // Full vector chunk has no quote or escape — bulk-copy literal UTF-8 bytes.
-                srcVec.intoArray(stringBuffer, dst);
                 src += BYTES_PROCESSED;
                 dst += BYTES_PROCESSED;
                 continue;
             }
 
             int dist = Long.numberOfTrailingZeros(specialBits);
-            if (buffer[src + dist] == QUOTE) {
-                System.arraycopy(buffer, src, stringBuffer, dst, dist);
-                return dst + dist;
+            src += dist;
+            dst += dist;
+            if (buffer[src] == QUOTE) {
+                return dst;
             }
 
-            int backslashDist = dist;
-            System.arraycopy(buffer, src, stringBuffer, dst, backslashDist);
-            byte escapeChar = buffer[src + backslashDist + 1];
+            byte escapeChar = buffer[src + 1];
             if (escapeChar == 'u') {
-                src += backslashDist;
-                dst += backslashDist;
                 int codePoint = parseUnicodeCodePoint(buffer, src);
                 src += 6;
                 if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_HIGH_SURROGATE) {
@@ -161,9 +173,9 @@ public final class StringParser {
                 }
                 dst += storeCodePointInStringBuffer(codePoint, dst, stringBuffer);
             } else {
-                stringBuffer[dst + backslashDist] = escape(escapeChar);
-                src += backslashDist + 2;
-                dst += backslashDist + 1;
+                stringBuffer[dst] = escape(escapeChar);
+                src += 2;
+                dst += 1;
             }
         }
         return doParseStringScalar(buffer, src, stringBuffer, dst);

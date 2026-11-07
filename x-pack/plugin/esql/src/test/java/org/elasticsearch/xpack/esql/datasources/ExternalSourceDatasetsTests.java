@@ -119,19 +119,31 @@ public class ExternalSourceDatasetsTests extends ESTestCase {
         return new ExchangeSinkExec(SRC, output(), false, child);
     }
 
+    /** The name arm, or no reference at all — which is what a source with no dataset behind it carries. */
+    private static DatasetReference reference(String datasetName) {
+        return datasetName == null ? null : new DatasetReference.Named(datasetName);
+    }
+
     private static List<Attribute> output() {
         return List.of(new FieldAttribute(SRC, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)));
     }
 
     private static ExternalSourceExec exec(String datasetName) {
-        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10).withDatasetName(
-            datasetName
-        );
+        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10)
+            .withDatasetReference(reference(datasetName));
     }
 
     private static ExternalRelation relation(String datasetName) {
         List<Attribute> output = output();
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
-        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, FileList.UNRESOLVED, Map.of(), datasetName);
+        return new ExternalRelation(
+            SRC,
+            "s3://bucket/data/*.parquet",
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            reference(datasetName)
+        );
     }
 }

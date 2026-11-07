@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -472,7 +473,13 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
 
     /** The {@link UnresolvedExternalRelation} the DatasetRewriter produces for a single dataset. */
     private static UnresolvedExternalRelation datasetExternal(String datasetName) {
-        return new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, DATASET_PATH), Map.of(), List.of(), datasetName);
+        return new UnresolvedExternalRelation(
+            EMPTY,
+            Literal.keyword(EMPTY, DATASET_PATH),
+            Map.of(),
+            List.of(),
+            new DatasetReference.Named(datasetName)
+        );
     }
 
     /** A {@link TestAnalyzer} whose external source resolution resolves {@link #DATASET_PATH}. */

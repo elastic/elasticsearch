@@ -256,7 +256,7 @@ public class ExternalSourceAuthorizerTests extends ESTestCase {
         for (String name : datasetNames) {
             children.add(
                 new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10)
-                    .withDatasetName(name)
+                    .withDatasetReference(name == null ? null : new DatasetReference.Named(name))
             );
         }
         PhysicalPlan child = children.size() == 1 ? children.get(0) : new MergeExec(SRC, children, output(), MergeExec.Kind.UNION);

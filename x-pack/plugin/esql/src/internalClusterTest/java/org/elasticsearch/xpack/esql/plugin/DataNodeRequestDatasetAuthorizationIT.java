@@ -37,6 +37,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -115,6 +117,14 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     private static final String DLS_READER = "ds_dls_reader";
     /** {@code read} on {@link #OTHER_INDEX} only: a credential allowed to send the compute action, with no dataset. */
     private static final String INDEX_ONLY_READER = "ds_index_only_reader";
+    /** Index {@code read} on {@link #DATA_SOURCE} and {@code read} on it under {@code global.data_source}. */
+    private static final String INLINE_READER = "ds_inline_reader";
+    /** Index {@code read} on {@link #DATA_SOURCE}, nothing under {@code global.data_source}. */
+    private static final String INLINE_NO_DATASOURCE = "ds_inline_no_datasource";
+    /** {@code read} on {@link #DATA_SOURCE} under {@code global.data_source}, index {@code read} on another name. */
+    private static final String INLINE_NO_NAME = "ds_inline_no_name";
+    /** Both privileges over {@link #DATA_SOURCE}, but the index grant carries a DLS query. */
+    private static final String INLINE_DLS_READER = "ds_inline_dls_reader";
 
     private static final String DATA_SOURCE = "authz_ds";
     private static final String DATASET_A = "authz_a";
@@ -130,7 +140,7 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     @Override
     protected String configUsers() {
         StringBuilder users = new StringBuilder(super.configUsers());
-        for (String user : List.of(READER, PATTERN_READER, DLS_READER, INDEX_ONLY_READER)) {
+        for (String user : users()) {
             users.append(user).append(':').append(SecuritySettingsSource.TEST_PASSWORD_HASHED).append('\n');
         }
         return users.toString();
@@ -139,10 +149,23 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     @Override
     protected String configUsersRoles() {
         StringBuilder usersRoles = new StringBuilder(super.configUsersRoles());
-        for (String user : List.of(READER, PATTERN_READER, DLS_READER, INDEX_ONLY_READER)) {
+        for (String user : users()) {
             usersRoles.append(user).append(':').append(user).append('\n');
         }
         return usersRoles.toString();
+    }
+
+    private static List<String> users() {
+        return List.of(
+            READER,
+            PATTERN_READER,
+            DLS_READER,
+            INDEX_ONLY_READER,
+            INLINE_READER,
+            INLINE_NO_DATASOURCE,
+            INLINE_NO_NAME,
+            INLINE_DLS_READER
+        );
     }
 
     @Override
@@ -165,6 +188,35 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
               indices:
                 - names: [ 'authz_other_idx' ]
                   privileges: [ 'read' ]
+            ds_inline_reader:
+              indices:
+                - names: [ 'authz_ds', 'authz_idx' ]
+                  privileges: [ 'read' ]
+              global:
+                data_source:
+                  - names: [ 'authz_ds' ]
+                    privileges: [ 'read' ]
+            ds_inline_no_datasource:
+              indices:
+                - names: [ 'authz_ds', 'authz_idx' ]
+                  privileges: [ 'read' ]
+            ds_inline_no_name:
+              indices:
+                - names: [ 'authz_other_idx' ]
+                  privileges: [ 'read' ]
+              global:
+                data_source:
+                  - names: [ 'authz_ds' ]
+                    privileges: [ 'read' ]
+            ds_inline_dls_reader:
+              indices:
+                - names: [ 'authz_ds', 'authz_idx' ]
+                  privileges: [ 'read' ]
+                  query: '{"match_all": {}}'
+              global:
+                data_source:
+                  - names: [ 'authz_ds' ]
+                    privileges: [ 'read' ]
             """;
     }
 
@@ -267,6 +319,42 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     public void testShardRequestCarryingAnExternalRelationIsAuthorizedByTheDataset() throws Exception {
         assertRefused(sendShard(READER, fragment(DATASET_B)), DATASET_B);
         assertThat(sendShard(READER, fragment(DATASET_A)).expectRows(), contains("a1", "a2"));
+    }
+
+    /**
+     * A request carrying a definition rather than a name is authorized on the data source it reads through, by both
+     * privileges that govern one. These three send the crafted request straight to the data node, so the
+     * coordinator's own gate cannot be what refuses them.
+     */
+    public void testCraftedInlineDefinitionReadsForACallerHoldingBothPrivileges() throws Exception {
+        assertThat(sendExternal(INLINE_READER, inlineExec(fileA)).expectRows(), contains("a1", "a2"));
+    }
+
+    public void testCraftedInlineDefinitionIsRefusedWithoutTheDataSourcePrivilege() throws Exception {
+        Outcome outcome = sendExternal(INLINE_NO_DATASOURCE, inlineExec(fileA));
+        assertThat(
+            outcome.failure.getMessage(),
+            containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME + "] is unauthorized")
+        );
+    }
+
+    /**
+     * The sibling of {@link #testDlsOnTheDatasetIsRefused}: an external read applies neither a document filter nor a
+     * field filter, so a grant that carries one is refused rather than served in full. A dataset the query defines
+     * is no exception, and the interceptor that refuses the registered case keys off names that are registered
+     * datasets, so it cannot see this one.
+     */
+    public void testCraftedInlineDefinitionIsRefusedUnderADlsGrant() throws Exception {
+        Outcome outcome = sendExternal(INLINE_DLS_READER, inlineExec(fileA));
+        assertThat(outcome.failure.getMessage(), containsString("document or field level security restrictions are not supported"));
+    }
+
+    public void testCraftedInlineDefinitionIsRefusedWithoutTheNamePrivilege() throws Exception {
+        Outcome outcome = sendExternal(INLINE_NO_NAME, inlineExec(fileA));
+        assertThat(
+            outcome.failure.getMessage(),
+            containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME + "] is unauthorized")
+        );
     }
 
     public void testCrossClusterAccessAuthenticationIsRefused() throws Exception {
@@ -479,7 +567,15 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
             config()
         );
         return new FragmentExec(
-            new ExternalRelation(Source.EMPTY, "s3://attacker/whatever/*.csv", metadata, output, FileList.UNRESOLVED, Map.of(), dataset)
+            new ExternalRelation(
+                Source.EMPTY,
+                "s3://attacker/whatever/*.csv",
+                metadata,
+                output,
+                FileList.UNRESOLVED,
+                Map.of(),
+                new DatasetReference.Named(dataset)
+            )
         );
     }
 
@@ -517,7 +613,29 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
         List<ExternalSplit> splits = List.of(
             new FileSplit("csv", StoragePath.ofLocalPath(file), 0, Files.size(file), "csv", Map.of(), Map.of())
         );
-        return exec.withDatasetName(dataset).withSplits(splits);
+        return exec.withDatasetReference(new DatasetReference.Named(dataset)).withSplits(splits);
+    }
+
+    /** The same hostile exec, carrying its definition instead of a registered dataset's name. */
+    private static ExternalSourceExec inlineExec(Path file) throws Exception {
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://attacker/whatever/*.csv",
+            "csv",
+            output(),
+            config(),
+            Map.of(),
+            null,
+            10
+        );
+        List<ExternalSplit> splits = List.of(
+            new FileSplit("csv", StoragePath.ofLocalPath(file), 0, Files.size(file), "csv", Map.of(), Map.of())
+        );
+        DatasetReference.Inline inline = new DatasetReference.Inline(
+            DATA_SOURCE,
+            Map.of("resource", StoragePath.fileUri(file), "settings", Map.of("format", "csv"))
+        );
+        return exec.withDatasetReference(inline).withSplits(splits);
     }
 
     /**

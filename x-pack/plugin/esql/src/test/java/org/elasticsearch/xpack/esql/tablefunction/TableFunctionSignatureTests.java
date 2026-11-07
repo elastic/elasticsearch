@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.name;
+import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.nameOrNamedValues;
 import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.namedValues;
 import static org.elasticsearch.xpack.esql.tablefunction.TableFunctionSignature.optional;
 import static org.hamcrest.Matchers.containsString;
@@ -71,6 +72,17 @@ public class TableFunctionSignatureTests extends ESTestCase {
     public void testANameWhereAMapIsGiven() {
         ParsingException e = expectThrows(ParsingException.class, () -> DATASET_LIKE.check(call(aMap(), aName())));
         assertThat(e.getMessage(), containsString("[thing] expects a name for [data source]"));
+    }
+
+    /** An argument where one shape is shorthand for the other: both spellings pass, and nothing else does. */
+    public void testEitherShapeIsAcceptedWhereBothAreDeclared() {
+        TableFunctionSignature either = TableFunctionSignature.of(name("data source"), nameOrNamedValues("definition"));
+
+        either.check(call(aName(), aName()));
+        either.check(call(aName(), aMap()));
+
+        ParsingException e = expectThrows(ParsingException.class, () -> either.check(call(aName())));
+        assertThat(e.getMessage(), containsString("[thing] takes [data source, definition], found [1]"));
     }
 
     public void testNoArgumentsAtAll() {

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -1338,7 +1339,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
                         Literal.keyword(r.source(), EXT_EMPS_RESOURCE),
                         Map.of(),
                         List.of(),
-                        "ext_emps"
+                        new DatasetReference.Named("ext_emps")
                     )
                 ),
                 List.of()

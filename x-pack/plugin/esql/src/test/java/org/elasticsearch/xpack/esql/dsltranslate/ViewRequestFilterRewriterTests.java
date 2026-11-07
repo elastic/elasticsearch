@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -78,7 +79,15 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         List<Attribute> output = List.of(attrs);
         String path = "file:///view/" + viewName;
         SourceMetadata metadata = new SimpleSourceMetadata(output, "test", path);
-        return new ExternalRelation(Source.EMPTY, path, metadata, output, FileList.UNRESOLVED, Map.of(), viewName);
+        return new ExternalRelation(
+            Source.EMPTY,
+            path,
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            new DatasetReference.Named(viewName)
+        );
     }
 
     /** A bare EsRelation standing in for a plain index relation (null key in BranchPlan). */

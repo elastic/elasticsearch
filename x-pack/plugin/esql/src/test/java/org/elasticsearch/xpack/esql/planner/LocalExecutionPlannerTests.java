@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -1835,7 +1836,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Map.of(),
             null,
             10
-        ).withDatasetName("logs");
+        ).withDatasetReference(new DatasetReference.Named("logs"));
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

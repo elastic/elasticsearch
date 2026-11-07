@@ -2774,6 +2774,18 @@ public class EsqlCapabilities {
         FIX_PROMQL_WITHOUT_OUTPUT,
 
         /**
+         * PromQL groups by a non-dimension label under {@code by(...)} also when an inner {@code without(...)} carries it, as it
+         * does directly over the source.
+         */
+        FIX_PROMQL_CARRIED_FIELD_LABELS,
+
+        /**
+         * PromQL filter comparisons against a scalar keep the vector's value whichever side the scalar is on, and a scalar
+         * computed from the source, such as {@code scalar(sum(x))}, may be the right-hand side.
+         */
+        FIX_PROMQL_SCALAR_COMPARISON,
+
+        /**
          * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
          * also match time series where the label is absent ({@code NULL}), per PromQL spec.
          */
@@ -2781,9 +2793,19 @@ public class EsqlCapabilities {
 
         /**
          * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
-         * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
+         * timestamp. When the two sides of an arithmetic/comparison binary carry different offsets, the operator joins
+         * independent pipelines (see {@link #PROMQL_BINARY_INDEPENDENT_JOIN}) rather than folding into one frame.
          */
         PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL arithmetic/comparison binaries join independent operand pipelines when {@code getType} refuses a shared
+         * fold frame: different {@code offset}s, nested across-series next to another operand, aggregated x raw, and
+         * {@code scalar()} x labeled (step-broadcast). Opaque {@code topk}/{@code bottomk}/{@code limitk}/
+         * {@code limit_ratio} join under typed {@code _timeseries}; the keyword path keeps its pre-typed rejection.
+         * Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results

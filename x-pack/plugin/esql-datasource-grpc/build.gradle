@@ -154,6 +154,10 @@ dependencies {
 
   // The gRPC datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-grpc'))
+
+  // ES's own CSV reader over local files, to compare a satellite with the native read of the same file (SatellitePushdownIT)
+  clusterPlugins project(xpackModule('esql-datasource-csv'))
+  clusterPlugins project(xpackModule('esql-datasource-http'))
 }
 
 tasks.named('javaRestTest') {

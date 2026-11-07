@@ -963,4 +963,39 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
             return StoragePath.of("s3://bucket/test");
         }
     }
+
+    public void testCancelListenerRunsOnAHardCutOnly() {
+        AsyncExternalSourceBuffer cut = new AsyncExternalSourceBuffer(1024);
+        AtomicInteger cutRuns = new AtomicInteger();
+        cut.addCancelListener(cutRuns::incrementAndGet);
+        assertEquals(0, cutRuns.get());
+        cut.finish(true);
+        assertEquals(1, cutRuns.get());
+        cut.finish(true);
+        assertEquals("a listener runs once", 1, cutRuns.get());
+
+        AsyncExternalSourceBuffer stopped = new AsyncExternalSourceBuffer(1024);
+        AtomicInteger stopRuns = new AtomicInteger();
+        stopped.addCancelListener(stopRuns::incrementAndGet);
+        stopped.finish(false); // a stop that keeps the buffered pages is not a cancel
+        assertEquals(0, stopRuns.get());
+    }
+
+    public void testCancelListenerRegisteredAfterTheCutRunsAtOnce() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.finish(true);
+        AtomicInteger runs = new AtomicInteger();
+        buffer.addCancelListener(runs::incrementAndGet);
+        assertEquals(1, runs.get());
+    }
+
+    public void testFailingCancelListenerDoesNotStopTheOthersOrTheFinish() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        AtomicInteger runs = new AtomicInteger();
+        buffer.addCancelListener(() -> { throw new IllegalStateException("boom"); });
+        buffer.addCancelListener(runs::incrementAndGet);
+        assertTrue(buffer.finish(true));
+        assertEquals(1, runs.get());
+        assertTrue(buffer.noMoreInputs());
+    }
 }

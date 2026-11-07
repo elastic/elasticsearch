@@ -12,7 +12,6 @@ import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -26,6 +25,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Minimal {@link StorageProvider} for {@code flight://} and {@code grpc://} locations.
@@ -41,6 +41,31 @@ public final class FlightStorageProvider implements StorageProvider {
     private record FlightIdentity() implements StorageIdentity {}
 
     private static final FlightIdentity FLIGHT_IDENTITY = new FlightIdentity();
+
+    private static final Set<String> SCHEMES = Set.of("flight", "grpc", "flight+tls", "grpc+tls");
+
+    private final String caCertificate;
+    private final String serverName;
+    private final String token;
+    private final FlightGuard hosts;
+
+    public FlightStorageProvider() {
+        this(null, null, null, FlightGuard.DEFAULT);
+    }
+
+    /** The TLS settings and the token of the data source, which apply to {@code +tls} paths, and the hosts it may connect to. */
+    FlightStorageProvider(String caCertificate, String serverName, String token, FlightGuard hosts) {
+        this.hosts = hosts;
+        this.caCertificate = caCertificate;
+        this.serverName = serverName;
+        this.token = token;
+    }
+
+    private FlightClients.Transport transportOf(StoragePath path) {
+        return FlightClients.isTls(path.scheme().toLowerCase(Locale.ROOT))
+            ? new FlightClients.Transport(true, caCertificate, serverName, token)
+            : FlightClients.Transport.PLAIN;
+    }
 
     @Override
     public StorageObject newObject(StoragePath path) {
@@ -78,7 +103,7 @@ public final class FlightStorageProvider implements StorageProvider {
 
     @Override
     public List<String> supportedSchemes() {
-        return List.of("flight", "grpc");
+        return List.of("flight", "grpc", "flight+tls", "grpc+tls");
     }
 
     @Override
@@ -97,8 +122,10 @@ public final class FlightStorageProvider implements StorageProvider {
 
     private static void validateScheme(StoragePath path) {
         String scheme = path.scheme().toLowerCase(Locale.ROOT);
-        if ("flight".equals(scheme) == false && "grpc".equals(scheme) == false) {
-            throw new IllegalArgumentException("FlightStorageProvider only supports flight:// and grpc:// schemes, got: " + scheme);
+        if (SCHEMES.contains(scheme) == false) {
+            throw new IllegalArgumentException(
+                "FlightStorageProvider only supports flight://, grpc:// and their +tls forms, got: " + scheme
+            );
         }
     }
 
@@ -119,19 +146,26 @@ public final class FlightStorageProvider implements StorageProvider {
         return Location.forGrpcInsecure(host, port);
     }
 
-    private static boolean flightExists(StoragePath path) throws IOException {
+    private boolean flightExists(StoragePath path) throws IOException {
         String target = flightTarget(path);
         if (target.isEmpty()) {
             return false;
         }
-        Location location = flightLocation(path);
-        try (BufferAllocator allocator = new RootAllocator(); FlightClient client = FlightClient.builder(allocator, location).build()) {
+        int port = path.port() > 0 ? path.port() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
+        try (
+            BufferAllocator allocator = FlightClients.planningAllocator(hosts);
+            FlightClient client = FlightClients.build(allocator, path.host(), port, transportOf(path), hosts)
+        ) {
             FlightInfo info = client.getInfo(FlightDescriptor.path(target));
             return info != null && info.getEndpoints().isEmpty() == false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while checking Flight object [" + target + "]", e);
         } catch (Exception e) {
+            IllegalArgumentException rejected = FlightClients.authenticationFailure(e);
+            if (rejected != null) {
+                throw rejected;
+            }
             if (e instanceof IOException ioe) {
                 throw ioe;
             }
@@ -139,7 +173,7 @@ public final class FlightStorageProvider implements StorageProvider {
         }
     }
 
-    private static final class FlightStorageObject implements StorageObject {
+    private final class FlightStorageObject implements StorageObject {
 
         private final StoragePath path;
         private final long knownLength;

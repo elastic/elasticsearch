@@ -639,6 +639,9 @@ public final class DatasetRewriter {
         return new UnresolvedExternalRelation(source, path, datasetConfig(parent, dataset), metadataFields, name, dataset.mapping());
     }
 
+    /** Config key holding the type of the data source of a registered dataset. */
+    public static final String DATASOURCE_TYPE_KEY = "_datasource_type";
+
     /**
      * The query-time config a dataset is read under: its own settings, its data source's settings under
      * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY}, the dataset context, and the
@@ -653,6 +656,10 @@ public final class DatasetRewriter {
         // addressed by a version of them. An edit to either takes the derived entries out of reach
         // without anything having to notice the edit and invalidate them.
         merged.put(DefinitionVersion.CONFIG_KEY, DefinitionVersion.of(dataset, parent));
+        // What kind of data source this dataset really belongs to. A plan names its own source type, so a crafted one could ask
+        // another factory to read the dataset (and receive its credentials): the planner compares the two. The key is a framework
+        // key, and the worker rebuilds this config from the registry, so the plan cannot supply it.
+        merged.put(DATASOURCE_TYPE_KEY, parent.type());
         return merged;
     }
 

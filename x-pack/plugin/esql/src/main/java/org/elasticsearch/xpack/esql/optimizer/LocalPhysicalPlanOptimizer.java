@@ -18,9 +18,11 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimens
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InjectRowPositionForRecordRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertExternalFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregateToSatellite;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFragmentToSatellite;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
@@ -78,6 +80,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             "Push to ES",
             Limiter.DEFAULT,
             new ReplaceSourceAttributes(),
+            new PushFragmentToSatellite(), // first, so the other external push rules see the reduced chain
+            new PushAggregateToSatellite(), // then the aggregation over what it has put in the fragment
             new PushTopNToSource(),
             new PushLimitToSource(),
             new PushLimitToExternalSource(),

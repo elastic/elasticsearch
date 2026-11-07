@@ -67,7 +67,8 @@ public class EmployeeFlightServer implements Closeable {
 
     private final BufferAllocator allocator;
     private final FlightServer server;
-    private final Location location;
+    /** The location endpoints advertise: the port the server is bound to, which differs from the requested one when that is 0. */
+    private volatile Location location;
     private final int numEndpoints;
     private int[] allEmpNos;
     private String[] allFirstNames;
@@ -91,6 +92,7 @@ public class EmployeeFlightServer implements Closeable {
         loadEmployees();
         this.server = FlightServer.builder(allocator, location, new EmployeeProducer()).build();
         this.server.start();
+        this.location = Location.forGrpcInsecure("localhost", server.getPort());
     }
 
     public int port() {

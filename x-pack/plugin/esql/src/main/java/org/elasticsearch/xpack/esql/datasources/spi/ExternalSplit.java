@@ -38,4 +38,12 @@ public interface ExternalSplit extends NamedWriteable {
     default SplitStats splitStats() {
         return null;
     }
+
+    /**
+     * Whether this split reads only data the dataset's {@code resource} names. File splits are checked by path; a split of a
+     * remote engine overrides this to compare the engine's address. The default refuses.
+     */
+    default boolean isWithin(StoragePath resource) {
+        return false;
+    }
 }

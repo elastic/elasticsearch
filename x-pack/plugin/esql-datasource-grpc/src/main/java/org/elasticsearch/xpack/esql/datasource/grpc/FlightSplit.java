@@ -11,8 +11,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -50,7 +52,8 @@ public class FlightSplit implements ExternalSplit {
         }
         this.ticketBytes = ticketBytes;
         this.location = location;
-        this.estimatedRows = estimatedRows;
+        // Flight reports -1 when the server does not know the total; that cannot be written as a VLong, so unknown is 0
+        this.estimatedRows = Math.max(0, estimatedRows);
     }
 
     public FlightSplit(StreamInput in) throws IOException {
@@ -87,6 +90,27 @@ public class FlightSplit implements ExternalSplit {
 
     public String location() {
         return location;
+    }
+
+    /**
+     * A split without a location is served from the dataset's own address. One with a location must name the resource's host
+     * and port exactly (a literal comparison: {@code localhost} and {@code 127.0.0.1} differ), so a plan cannot send a worker to
+     * another server.
+     */
+    @Override
+    public boolean isWithin(StoragePath resource) {
+        if (location == null) {
+            return true;
+        }
+        URI uri;
+        try {
+            uri = URI.create(location);
+        } catch (IllegalArgumentException e) {
+            return false; // the location comes from the plan: a malformed one is a split outside the resource, not a server error
+        }
+        int port = uri.getPort() > 0 ? uri.getPort() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
+        int resourcePort = resource.port() > 0 ? resource.port() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
+        return uri.getHost() != null && uri.getHost().equalsIgnoreCase(resource.host()) && port == resourcePort;
     }
 
     public long estimatedRows() {

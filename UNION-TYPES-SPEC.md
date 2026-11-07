@@ -33,14 +33,31 @@ decides the second.
 
 > A union column is, in every value, a value of exactly one of a fixed set of **leg** types, and it
 > has **no semantics of its own**. An operation on a union is that operation on each leg as the
-> single-typed column it already is, and results combine across legs only by a rule the engine
-> already has for those types. Where no such rule exists the result is **unknown** (null, warned).
-> The operation is **refused** only when it is undefined on *every* leg — which is exactly when the
-> single-typed column would refuse it.
+> single-typed column it already is. The operation is **refused** unless it resolves on *every* leg.
 
-Everything in §4 is derived from that sentence. Nothing in this specification adds a rule about how
-two types relate; where such a rule is needed it is the engine's existing one, consulted as an
-expression and never as a table.
+**The oracle is the operation's own type resolution, evaluated per leg against the other operand** —
+never a table of type pairs, and never a common type computed across the leg set. For comparison it is
+`EsqlBinaryComparison.areTypesCompatible(leg, operandType)`, which `checkCompatibility` and
+`Verifier.validateBinaryComparison` both call. For `COUNT` it is `Count.resolveType`. For `IS NULL` it
+is the always-resolved `UnaryScalarFunction`. For `SORT` it is `DataType.isSortable`. Adding an
+operation therefore adds no union rule, and adding a type adds no operation rule.
+
+This matters because the two framings disagree on real inputs, and because the obvious table is the
+wrong one:
+
+- `EsqlDataTypeConverter.commonType` is **not** the comparison oracle. It is the promotion oracle, used
+  by `In.toEvaluator` and `Cast`. It says `UNSIGNED_LONG` and `LONG` are compatible where the operator
+  refuses them, and it returns null for `DATETIME`×`DATE_NANOS` where the operator accepts them.
+- Per-leg-against-the-operand admits leg sets that no common type covers. `ts == "2024-01-01"` on
+  `datetime｜keyword` resolves on both legs — the datetime leg via the implicit string-literal cast in
+  `isStringImplicitlyCastableTo`, the keyword leg as a string comparison — while
+  `commonType(DATETIME, KEYWORD)` is null.
+
+Under `areTypesCompatible` the comparability classes over the leg types are
+`{integer, long, double}`, `{unsigned_long}` **alone** — islanded deliberately, since unsigned longs
+travel as longs and a conversion to double cannot distinguish the upper range — `{keyword, text}`,
+`{datetime, date_nanos}` (the operator carries dedicated millis/nanos evaluators), and `boolean`, `ip`,
+`version`, `flattened` each alone.
 
 ### 2.2 The untyped constant
 
@@ -71,15 +88,18 @@ Three tiers follow, and every operation in §4 sits in exactly one:
 
 | Tier | Consults the legs? | Operations |
 |---|---|---|
-| always allowed | no | render, `TYPEOF`, `COUNT`, `IS NULL`/`IS NOT NULL`, leg selection, cast, grouping |
-| conditional | **yes** — the declared leg set, at analysis | comparison |
-| always refused | no | `SORT`, `MIN`, `MAX`, `SUM`, `AVG` |
+| always allowed | no | render, `TYPEOF`, `COUNT`, `IS NULL`/`IS NOT NULL`, leg selection, cast |
+| conditional | **yes** — every leg against the operand, at analysis | comparison |
+| always refused | no | `SORT`, `MIN`, `MAX`, `SUM`, `AVG`, grouping |
 
 The conditional tier is decided by the legs a column *may* hold, never by the values it happens to
 hold, so the same query on the same mapping always has the same fate.
 
-Grouping is unconditional because `(leg, value)` identity needs no rule relating two types — which is
-why §4.10 can ship ungated where ClickHouse gates it behind `allow_suspicious_types_in_group_by`.
+Grouping on a bare union is **deferred**, not impossible — see §4.10. It was briefly in the allowed
+tier, on the reasoning that `(leg, value)` identity needs no rule relating two types. That reasoning
+still holds; what moved it is scope. It is the one place this design would go beyond every other
+engine, under multi-value it is the most expensive remaining increment, and deferring is the
+reversible direction, since I1 forbids later *changing* grouping semantics but not later adding them.
 
 ### 2.4 Four layers, each delegating
 
@@ -139,22 +159,28 @@ a client can tell `200` the long from `"200"` the keyword.
 ```esql
 FROM logs-* | WHERE duration == 200
 ```
-→ **`200`** (one row), with a warning.
+→ **refused.**
 
-Per leg: `long == 200` matches `200`. `double == 200` is defined and matches nothing. `keyword == 200`
-is **undefined** — ES|QL has no number↔string conversion, `commonType` returns null for the pair, and
-`EsqlBinaryComparison.toEvaluator` throws on it today. So the keyword leg's rows are null and a warning
-names the leg.
+```
+cannot use [==] on [duration]: its [keyword] values cannot be compared with [integer].
+Cast it: [duration::long == 200], or select one type: [TYPED(duration, "long") == 200]
+```
+
+Per leg: `areTypesCompatible(LONG, INTEGER)` is true, `(DOUBLE, INTEGER)` is true, and
+`(KEYWORD, INTEGER)` is **false** — ES|QL has no number↔string conversion. One leg refuses, so the
+operation refuses (§6). The same query on a `long｜double` corpus returns `200`.
 
 ```esql
 FROM logs-* | WHERE duration == "200"
 ```
-→ **`"200"`** (one row), with a warning.
+→ **refused**, the mirror image: the keyword leg resolves, the numeric legs do not.
 
-The mirror image. The keyword leg matches; the numeric legs are undefined. Note that the literal
-`"200"` is *not* implicitly read as a number — a foldable string literal adopts the other operand's
-type only for `datetime`, `date_nanos`, `ip`, `version` and `boolean`, per
-`EsqlDataTypeConverter.isStringImplicitlyCastableTo`. That is existing behaviour and I2 keeps it.
+The literal `"200"` is *not* implicitly read as a number. A foldable string literal adopts the other
+operand's type only for `datetime`, `date_nanos`, `ip`, `version` and `boolean`, per
+`EsqlDataTypeConverter.isStringImplicitlyCastableTo` — which is also why the same query shape
+**resolves** on `datetime｜keyword`: there the string literal becomes a datetime on the datetime leg and
+stays a string on the keyword leg, so every leg resolves and the comparison runs. That asymmetry is
+existing per-type behaviour, not a union rule, and I2 keeps it.
 
 ### 4.3 Equality against an untyped constant — the point of the construct
 
@@ -209,10 +235,19 @@ substitutes.
 ```esql
 FROM logs-* | WHERE duration > 200
 ```
-→ **`250`**, **`300`**, with a warning.
+→ **refused**, for the reason in §4.2: the keyword leg does not resolve against an integer.
 
-Defined on `long` and on `double`; undefined on `keyword`, exactly as it is undefined on a keyword
-column today. The numeric legs answer, the keyword leg is null, the warning names it.
+```esql
+FROM logs-ab-* | WHERE duration > 200     // legs: double, long
+```
+→ **`250`**, **`300`**.
+
+Every leg resolves, so the comparison runs — and it runs as the *same Lucene query a typed field would
+produce*. `PushFiltersToSource` translates it to a range on the field's real name, and each shard's own
+`MappedFieldType` parses the bound, so a long-mapped shard gets exactly the query it would have got had
+the field never conflicted. No conversion is inserted and no precision is lost, which an earlier sketch
+of this (`duration::double > 200`) would have done on both counts: a cast attribute carries a synthetic
+name that is not pushable, and `long`→`double` loses precision above 2^53.
 
 ```esql
 FROM logs-* | WHERE duration > 200::any
@@ -319,31 +354,43 @@ without saying what type it is.
 ```esql
 FROM logs-* | STATS COUNT(*) BY duration
 ```
+→ **refused.**
 
-| `duration` | `COUNT(*)` |
+```
+cannot group by [duration]: it holds [double], [keyword] and [long] values.
+Group by type: [BY TYPEOF(duration)], select one type: [BY TYPED(duration, "long")],
+or cast it: [BY duration::long]
+```
+
+```esql
+FROM logs-* | STATS rows = COUNT(*) BY type = TYPEOF(duration)
+```
+
+| `type` | `rows` |
 |---|---|
-| `100.0` | 1 |
-| `"150"` | 1 |
-| `"200"` | 1 |
-| `"unknown"` | 1 |
-| `200` | 1 |
-| `250` | 1 |
-| `300` | 1 |
+| `double` | 1 |
+| `keyword` | 3 |
+| `long` | 3 |
 
-Grouping identity is **`(leg, value)`**. The long `200` and the keyword `"200"` are **different
-groups**.
+The second query is the one that matters in practice, and it needs nothing from this design beyond
+`TYPEOF`: the grouping key is a `keyword`, hashed by the ordinary block hash. "What is actually in this
+field" is answered inside the always-allowed tier.
 
-This is derived, not chosen. Per leg, the long column groups its `200` and the keyword column groups
-its `"200"`; merging them presupposes converting one, which is a cast and therefore the user's call.
-A `double` column holds no long `200` to collapse, so "group them as doubles" is not the neutral
-reading — it is an opinion about the data.
+**The semantics, recorded because they are settled and only the scope is not.** Were grouping on a bare
+union allowed, identity would be `(leg, value)` — the long `200` and the keyword `"200"` in different
+buckets. That is derived rather than chosen: per leg, the long column groups its `200` and the keyword
+column groups its `"200"`, and merging them presupposes converting one, which is a cast and so the
+user's call. ClickHouse agrees where it can be forced, and its own documented example keeps `1::UInt32`
+and `1::Int64` in separate groups — two integers holding the same number. The asymmetry it would own is
+that `(leg, value)` identity diverges from `==`; that is not a new kind of inconsistency, since
+`X-MultivalueDedupe` already hashes doubles through `Double.doubleToLongBits`, separating `-0.0` from
+`0.0`, while `Equals.processDoubles` is `lhs == rhs` and unifies them.
 
-**The asymmetry this owns:** `WHERE duration == 200::any` matches both rows, and `STATS BY duration`
-puts them in different buckets. Equality is a *relation*, which the user asked for by writing `::any`;
-identity is *representation*, which nobody asked about. The two already differ in ES|QL today:
-`X-MultivalueDedupe` hashes doubles through `Double.doubleToLongBits`, which separates `-0.0` from
-`0.0`, while `Equals.processDoubles` is `lhs == rhs`, which unifies them. A user who wants one bucket
-writes `STATS ... BY duration::long`.
+Why it is deferred rather than shipped: it is the one place this design would go beyond every engine
+measured; under multi-value it needs a dedicated hash, because a packed hash over the tag and leg
+channels cross-products them — a position holding `[long 200, keyword "x"]` yields tag `[0,1]`, long
+`[200,null]` and keyword `[null,"x"]`, so eight combinations where two are wanted; and I1 forbids later
+*changing* grouping semantics but not later adding them, so deferring is the reversible direction.
 
 ### 4.11 Null
 
@@ -358,6 +405,14 @@ A field **unmapped** in some indices gets a `keyword` leg, because that is what 
 as from `_source`. The leg is always declared even when `unmapped_fields` leaves it empty: an empty leg
 costs a null block, whereas a missing leg would have nowhere to put a value.
 
+**Declared is not loaded, and today it is only declared.** `TypeConflictedField.unionLegTypes` appends
+the keyword leg, but `UnionEsField.from` drops `isPotentiallyUnmapped()`, `FieldAttribute`'s
+potentially-unmapped test is false for a `UnionEsField`, and `PlannerUtils`' unmapped-field collector
+does not see it — so `blockLoaderAndConverter` returns constant nulls for a source-read field whose
+attribute type is not `keyword`. Either the flag travels on `UnionEsField` and the leg is loaded from
+`_source`, or this specification promises a leg that is always empty. The POC takes the first; until it
+does, the leg is declared and unloaded.
+
 ### 4.12 Two unions compared
 
 ```esql
@@ -371,15 +426,26 @@ two values whose types each row decides.
 
 ### 4.13 Multi-valued columns
 
-A union **value** is single-typed. A union **row** need not be.
+**In scope, and a prerequisite rather than a follow-up.** Any multi-valued mapped field — an array of
+strings in one index, an array of longs in another — produces a multi-valued union column as soon as a
+loader exists. Refusing it would refuse ordinary data, and the rule is to narrow the operations, never
+the input the engine must survive.
 
-Loaded data is single-typed per row, because within one index a field path has one mapper and the
-reader picks the loader per document's shard. But computed values are not: `VALUES()`, `MV_APPEND` and
-`TOP` can put a long and a keyword in the same row. The logical model is therefore **per value, not per
-row**, and so is the physical layout — the tag is indexed by sub-block position, not by row, so it
-already carries both shapes and needs no change.
+A union **value** is single-typed. A union **row** need not be. Loaded data happens to be single-typed
+per row, because within one index a field path has one mapper and the reader picks the loader per
+document's shard; computed values are not, since `VALUES()`, `MV_APPEND` and `TOP` can put a long and a
+keyword in the same row. The logical model is therefore **per value, not per row** — and so is the
+layout, because the tag is indexed by sub-block position and the invariant never requires equal tags
+within a position. **No layout change is needed.**
 
-Every operation above applies per value. Nothing in §4 distinguishes the single- and multi-valued cases.
+Every operation in §4 applies per value, and nothing in this section distinguishes the single- and
+multi-valued cases.
+
+What it costs is implementation, not design: `AbstractDelegatingCompoundBlock` throws
+`"Not yet implemented for multi-valued blocks"` from `filter`, `slice` and `keepMask`, and
+`UnionArrayBlock.expand` with them, so the first `FilterOperator` or `LimitOperator` after the loader
+would throw. `deepCopy` already handles multi-value. Fixing the base class lifts `TDigestArrayBlock`
+and `ExponentialHistogramArrayBlock` at the same time, which throw the identical message.
 
 ### 4.14 `TYPED` — selecting a leg
 
@@ -410,17 +476,24 @@ cast, it does so without changing a single value.
 
 | Refused | Because | Escape |
 |---|---|---|
-| `SORT` on legs spanning comparability classes | a permutation cannot carry an unknown (§4.6) | `::`, `TYPED` |
-| an ordering comparison against `::any` | no monotonicity metadata exists (§4.5) | `::`, `TYPED` |
-| an operation undefined on **every** leg | the single-typed column refuses it too (I3) | — |
-| `::any` applied to anything but a literal | a computed value has already committed; there is nothing to decline | drop it |
+| a comparison that does not resolve on **every** leg | the single-typed column refuses it too (I3) | `::`, `TYPED` |
+| `SORT` on a union | a permutation cannot carry an unknown (§4.6) | `::`, `TYPED` |
+| `MIN`, `MAX`, `SUM`, `AVG` | per-leg fan-out across the reduce boundary, for an answer that is usually unknown (§4.7) | `MAX(x::long)` |
+| `STATS … BY` a bare union | deferred on scope (§4.10) | `BY TYPEOF(x)`, `BY TYPED(x, "t")`, `BY x::t` |
+| `::any` applied to anything but a literal | a computed value has already committed | drop it |
 | `::any` on both sides of an operator | no type for either to resolve against | type one side |
+| an ordering comparison against `::any` | no monotonicity metadata exists (§4.5) | `::`, `TYPED` |
 
-Nothing else. In particular `KEEP`, `EVAL`, `WHERE`, `STATS`, `STATS … BY`, `MV_EXPAND`, `FORK` and
-rendering are **defined on every union**. Where the current implementation refuses one of those it is
-a defect to fix, not behaviour to specify — see §8.
+**A multi-valued union column is not on this list, and must not be.** Any multi-valued mapped field
+produces one the moment a loader exists, so refusing it refuses ordinary data rather than an ordinary
+operation. The rule is to narrow the *operations*, never the input the engine must survive. What this
+costs is stated in §8: `AbstractDelegatingCompoundBlock` refuses multi-valued `filter`, `slice` and
+`keepMask` today, and `UnionArrayBlock.expand` with them, so the support is a prerequisite of the
+loader and not a follow-up to it.
 
----
+`KEEP`, `RENAME`, `EVAL`-free projection, `WHERE` on a resolvable comparison, `MV_EXPAND`, `FORK` and
+rendering are **defined on every union**. Where the implementation refuses one of those it is a defect
+to fix, not behaviour to specify — see §8.
 
 ## 6. The undefined-leg policy: strict
 
@@ -429,9 +502,14 @@ Where an operation is defined on one leg and **undefined** on another — `durat
 analysis, so it does not depend on which values the column turns out to hold.
 
 ```
-cannot use [>] on [duration]: it holds [keyword] and [long] values, which have no common type.
+cannot use [>] on [duration]: its [keyword] values cannot be compared with [integer].
 Cast it: [duration::long > 200], or select one type: [TYPED(duration, "long") > 200]
 ```
+
+The message names **the leg that refuses and what it was compared against**, because that is what the
+rule actually consulted. An earlier wording said "which have no common type", which described a
+different and wrong rule: the oracle is per leg against the operand (§2.1), so a leg set with no common
+type can still resolve, and one with a common type can still refuse.
 
 The alternative was to null the undefined leg's values and warn, letting the query run. It is rejected
 on I1: the query would keep succeeding over a silently narrower answer, which is the one failure mode
@@ -446,6 +524,13 @@ which is §2.1's delegation with this policy.
 
 Strict also remains the reversible direction: it can be relaxed to lenient later additively, and
 lenient cannot be tightened without breaking queries.
+
+**And strict is load-bearing for pushdown correctness, not only for I1.** A comparison that survives
+analysis is pushed to each shard under the field's real name, where that shard's own `MappedFieldType`
+parses the literal. That is only sound because every leg resolved against the operand: a leg set that
+refused — `long｜keyword` against `200` — would otherwise push `term duration:200` to a keyword-mapped
+shard and match the string `"200"`, which is `::any` semantics rather than `==` semantics. Relaxing to
+lenient later would therefore require per-leg pushdown first, not merely a changed warning.
 
 ## 7. Syntax and naming
 
@@ -477,7 +562,32 @@ be refused by the verifier (§5) rather than accepted as no-ops.
 
 ## 8. What is behaviour and what is a defect
 
-Three current refusals are **mechanical**, not specified:
+Three runtime faults, each of which must be fixed before the behaviour above can be observed at all:
+
+- **The loader throws on multi-segment pages only.** `ValuesReader.Run.initFinalBuilders` builds each
+  final builder from `fields[f].info.type().newBlockBuilder(...)`, and `ElementType.UNION`'s builder
+  supplier throws `"a union block builder needs the leg element types"` by construction, since the enum
+  cannot know them. `ValuesFromSingleReader` bypasses `finalBuilders`, so single-segment pages would
+  succeed and multi-segment pages would throw — an intermittent failure, which is the worst shape.
+  `ValuesSourceReaderOperator.FieldInfo` has to carry a builder supplier, not only an `ElementType`.
+- **The leg list travels with the field, so a renamed union cannot render.** `originalTypes` is filled
+  only for an `UnsupportedAttribute`; `RENAME duration AS d`, `MV_EXPAND duration` and an aliased
+  grouping each yield a `ReferenceAttribute` of type `UNION` carrying no leg list, and rendering then
+  fails for want of one. The fix that keeps §5's promise is for the block to carry its leg type
+  **names** — compute cannot name a `DataType` but can carry strings — which also retires the
+  two-sided "both ends derive the canonical order independently" contract in favour of one side
+  carrying it.
+- **`SORT` on another column with a union in the projection throws.** `ValueExtractor.extractorFor`
+  and `ResultBuilder.resultBuilderFor` have no `UNION` arm, so `FROM logs-* | SORT @timestamp | KEEP
+  duration` — the Discover query — dies in `TopNOperator` even though the sort key is not the union.
+  Refusing `SORT` **on** a union (§4.6) does not cover this and never did.
+
+And `STATS … BY duration` passes analysis today, because `Aggregate.checkUnsupportedGroupingType` lists
+counters, `aggregate_metric_double`, `date_period`, `date_range`, `exponential_histogram`,
+`partial_agg`, `tdigest` and `time_duration` but not `union`. §4.10's refusal has to be added there, or
+the query reaches `BlockHash` and fails at runtime instead of at analysis.
+
+Three further refusals are **mechanical**, not specified:
 
 - **Across subqueries (`FORK`, `MergePlan`).** `MergePlan.output` is a constructor field fixed during
   resolution, so a column that becomes a union afterwards keeps its stale `UNSUPPORTED`. The fix is to
@@ -517,6 +627,17 @@ So the per-leg delegation in §2.1 is the substantial unbuilt piece, and every b
 - **Lexical ordering within a leg.** `duration >= "150"` on the keyword leg is defined, and compares
   lexically. That is what a keyword column does today, so I2 keeps it — but it is worth confirming
   that a user reading a mixed column finds it intuitive rather than surprising.
-- **`UNSIGNED_LONG` beside `LONG`.** Both are legs, and the engine relates them only through
-  `areTypesCompatible`'s both-unsigned arm. Whether the pair is comparable needs settling before a
-  corpus produces it.
+- ~~**`UNSIGNED_LONG` beside `LONG`.**~~ **Settled: refused**, by the operator's own rule rather than
+  by anything this design adds. `areTypesCompatible` admits unsigned_long only against another
+  unsigned_long, for the reason its javadoc gives — unsigned longs travel through the engine as longs,
+  negative values cannot be represented, and a conversion to double can no longer distinguish upper-range
+  values. So `long｜unsigned_long` refuses every comparison, including against a plain integer literal.
+  It is the sharpest case where the rule is right and the user will disagree: two columns of
+  non-negative integers that will not compare. The escape is `::long`, and `ToLong` from `UNSIGNED_LONG`
+  exists.
+- **The operational cost of I1, which is accepted but should be measured.** A `long` field that gains
+  one keyword-mapped index flips every `WHERE duration > 200` on it from working to refused, at
+  analysis. That is I1 behaving as intended — loudly — but the realistic trigger is template drift
+  adding a single index, and the blast radius is every saved query on that field. ClickHouse behaves
+  the same way (`NO_COMMON_TYPE`), so this is not a divergence; it is still the thing most likely to
+  be reported as a regression.

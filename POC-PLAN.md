@@ -53,80 +53,61 @@ pragma on, reading such a field fails on the data node.
 
 ## 0a. The minimal POC — the product shape
 
-**One sentence: you can read, inspect, filter and group a column whose indices disagree about its
-type; to rank or total it, you commit to a type.**
-
-That is the line. Everything a user needs to make a messy field *usable* is in; everything that needs
-an opinion about how two types relate is refused, with the refusal naming the escape.
+**You can read a column whose indices disagree about its type, see what is in it, filter it where the
+comparison resolves on every leg, and reduce it to one type. Ranking, totals and grouping need a cast.**
 
 ### What works
 
 | | Query | Needs |
 |---|---|---|
-| see it | `FROM logs-* \| KEEP duration` | C2 loader, C3 leg list |
-| inspect it | `STATS rows = COUNT(*) BY type = TYPEOF(duration)` | `TYPEOF` (new) |
-| count it | `STATS COUNT(duration)`, `WHERE duration IS NOT NULL` | tag only |
-| filter it | `WHERE duration == 200`, `> 200`, `IN (200, 250)` | per-leg comparison fan-out |
-| group it | `STATS COUNT(*) BY duration` | packed-values hash, tag as the type half |
-| escape it | `TYPED(duration, "long")`, `duration::long` | union wiring + tests; cast exists |
+| see it | `FROM logs-* \| KEEP duration` | the loader, the leg list |
+| rename it | `RENAME duration AS d` | the leg list on the block |
+| inspect it | `STATS rows = COUNT(*) BY type = TYPEOF(duration)` | `TYPEOF` (new); groups on a **keyword** |
+| count it | `STATS COUNT(duration)`, `WHERE duration IS NOT NULL` | the tag only |
+| filter it | `WHERE duration > 200` where every leg resolves against the operand | per-leg resolution + native pushdown |
+| escape it | `TYPED(duration, "long")`, `duration::long` | union wiring + tests; the cast exists |
+| expand it | `MV_EXPAND duration` | multi-value, which is a prerequisite anyway |
 
-### What is refused, and what the message says instead
+### What is refused
 
 | Refused | Escape named in the message |
 |---|---|
-| `SORT duration` | `duration::long`, or `TYPED(duration, "long")` |
+| a comparison that does not resolve on every leg | `duration::long > 200`, `TYPED(duration, "long") > 200` |
+| `SORT duration` | the same two |
 | `MIN` / `MAX` / `SUM` / `AVG` | `MAX(duration::long)` |
-| `duration == 200::any` | the untyped constant is not in this POC |
-| a multi-valued union column | blocked on `AbstractDelegatingCompoundBlock` |
-| a union as a lookup-join key, late materialization, across `FORK` branches | — |
+| `STATS … BY duration` | `BY TYPEOF(duration)`, `BY TYPED(duration, "t")`, `BY duration::t` |
+| `::any` | not in this POC |
+
+**Not refused: a multi-valued union column.** It is produced by any multi-valued mapped field the
+moment the loader exists, so it is a prerequisite, not a limit. The rule is to narrow the operations,
+never the input.
 
 ### Why the line falls there
 
-**Comparison is in because I1 requires it.** A `long` column that acquires a `keyword` leg must keep
-`WHERE duration > 200` working — refusing it breaks a query that worked, which is the one thing the
-union type exists to prevent. On the numeric legs it is exactly today's semantics; the keyword leg is
-null with a warning. Ordering *comparison* and equality are the same fan-out with a different
-operator, so they arrive together or not at all.
+**Comparison is in, and it is cheaper and better than the earlier sketch.** The oracle is the
+operator's own `areTypesCompatible`, per leg against the operand — not a common type across the leg
+set. Where every leg resolves, the filter is pushed to each shard under the field's **real name** and
+that shard's own `MappedFieldType` parses the literal, so a long-mapped shard receives precisely the
+query it would have received had the field never conflicted. That is the performance parity the design
+requires. The earlier `duration::double > 200` sketch would have failed it twice: a cast attribute
+carries a synthetic `$$…$converted_to$…` name that is not pushed at all, and `long`→`double` loses
+precision above 2^53 where the native per-shard range does not.
 
-**`SORT` is out even where it would work.** On `long｜double` every pair is comparable and a sort is
-well defined, but it needs TopN to encode a union's sort keys to bytes, and it buys little: a user who
-wants ranked output casts. Refusing it everywhere first is the reversible direction. This is the one
-accepted break of I1, and the design has always listed it.
+**Strict refusal is what makes that pushdown sound**, which is a second reason for it beyond I1: a leg
+set that refused would otherwise push `term duration:200` to a keyword-mapped shard and match the
+string `"200"`.
 
-**Extrema and sums are out because they are the most expensive increment and the least often
-answerable.** `AggregateMapper.toDataType` throws for `UNION`, the aggregators are strongly typed with
-generated classes chosen at planning, and a union aggregate must fan out per leg, multiplying
-intermediate state across the reduce boundary. Meanwhile on a genuinely mixed field the principled
-answer is usually null anyway, and the escape is one cast. `COUNT` needs none of it — it reads the tag.
+**Grouping is out, reversing the earlier call.** It is the one place this design would go beyond every
+engine measured; under multi-value it needs a dedicated hash rather than the packed one, because a
+packed hash cross-products the tag and leg channels; and `STATS … BY TYPEOF(duration)` already answers
+the question grouping was wanted for, with no union machinery at all. I1 forbids later changing
+grouping semantics but not later adding them, so deferring is reversible. The semantics stay recorded
+in `UNION-TYPES-SPEC.md` §4.10.
 
-**Grouping is in because it is cheap and it is the point.** `STATS COUNT(*) BY duration` on
-`(leg, value)` is how a user sees what is actually in the field, and the tag sub-block is the type half
-of the key read directly, through the packed-values hash rather than a dedicated one.
-
-### Increments, smallest first after the prerequisite
-
-1. **C2, the data-node loader.** The hard prerequisite — nothing else can be demonstrated without it.
-   `EsPhysicalOperationProviders.fieldLoader` must load each shard's values with that shard's own
-   native loader and append into leg `legOf(shardMappedType)`; the method already reads each shard's
-   own mapping, which is exactly what decides the leg. Fold in `RandomBlock` support for union blocks,
-   or block coverage stays hand-written only.
-2. **C3, the response's leg list.** Ungate the `original_types` producer in
-   `TransportEsqlQueryAction` and `TransportEsqlStreamQueryAction`, which is gated on
-   `instanceof UnsupportedAttribute` and so never fires for a union attribute.
-3. **`TYPEOF`.** Tag only, result always `keyword`. It does not exist, and
-   `UNION-TYPES-ARCHITECTURE.md` leans on it in nine places.
-4. **`COUNT`, `IS NULL`, `IS NOT NULL`.** Tag only.
-5. **The refusals and their messages.** Cheap, and they define the product's edges.
-6. **`TYPED`'s union wiring and its tests.** There is no `TypedTests.java` and no csv-spec case;
-   `ResolveUnionTypes` matches `TypeConflictedField`, not `UnionEsField`, so `TYPED` is currently
-   disconnected from the union. Load-bearing, because every refusal points at it.
-7. **Comparison fan-out.** The main engine work: `EsqlBinaryComparison` has no `UNION` arm, and
-   neither `commonType` nor `DataTypeConverter` knows the type. The layout is what keeps this from
-   being new per-type code — each leg is a conventional typed block, so a fan-out substitutes
-   `legBlock(i)` into the page and reuses the existing per-type evaluator, combining by tag.
-8. **Grouping.** Increment F, as described above.
-
----
+**Extrema and sums are out** because `AggregateMapper.toDataType` throws for `UNION`, aggregators are
+strongly typed with generated classes chosen at planning, a union aggregate must fan out per leg across
+the reduce boundary, and the answer on a genuinely mixed field is usually unknown anyway. ClickHouse
+refuses `max` even on an all-numeric Variant.
 
 ## 0b. What ClickHouse does, measured
 
@@ -189,16 +170,12 @@ that makes a messy field legible, and unlike a forced `ORDER BY` its answer is n
 bucket per distinct type-and-value. ClickHouse considers it suspicious enough to gate; this is the one
 place to disagree deliberately rather than by omission.
 
-**And filtering under that rule is nearly free**, which earlier cost estimates in this plan got wrong.
-Where the legs share a common type, `WHERE duration > 200` on `long｜double` is
-`WHERE duration::double > 200` — the existing `ResolveUnionTypes` conversion, already implemented and
-already pushdown-capable, so none of §5's sixteen `UnionTypeEsField` guards are even reached. Where
-they do not, it is a verifier rule over the leg types. No `EsqlBinaryComparison` union arm, no per-leg
-evaluator fan-out, no new per-type code.
-
-Using `commonType` for that rule is safe here despite its gap on `datetime`×`date_nanos`, because
-`DateMillisToNanosInEsRelation` resolves an all-dates conflict with `ToDateNanos` before it can become
-a union, so that leg pair is unreachable.
+**Our filter rule is not theirs in mechanism, though it agrees on these cases.** Ours is per leg
+against the operand, using the operator's own `areTypesCompatible`; a leg-set common type would be the
+wrong rule, since `commonType` islands `unsigned_long` where the operator does and joins
+`datetime`×`date_nanos` where the operator does not. See `UNION-TYPES-SPEC.md` §2.1. An earlier version
+of this section proposed implementing the filter as `duration::double > 200` and claimed that was
+already pushdown-capable; both halves were wrong, and §0a now states what replaces them.
 
 ---
 
@@ -276,50 +253,98 @@ real field name.
 ## 3. Remaining increments
 
 Each is independently committable, leaves the tree green, and ends with a Fable adversarial review of
-the diff.
+the diff. Ordering is load-bearing in three places, noted inline.
 
-### C. Stop erasing the types
+**1. Derive `isLegType`; delete the exclusion map.** Three hand-maintained lists express one concept.
+Replace `UnionEsField.isLegType`'s switch with a derivation — widened to itself, a mapping type, has an
+element type, and `UnionBlockBuilder.canHoldLeg` accepts it — leaving `canHoldLeg` as the single
+hand-written list, which is the one genuinely physical statement ("this element type has a scalar
+append") and lives beside the builder's switch. `NOT_LEG_TYPES_ON_PURPOSE` in `UnionEsFieldTests` goes;
+its test becomes a property over `DataType.values()`: every admitted type round-trips through
+`UnionBlockBuilder`. This admits spatial, grid, histogram and counter legs, which is intended — legs
+load with `FieldExtractPreference.NONE`, which fixes a spatial leg's element type, and a UNION-typed
+attribute never enters the doc-values/centroid/bounds sets that would ask for another preference.
+*Red on revert:* the new property test, plus `AnalyzerTests.testAConflictWithALegNoBlockCanHoldIsNotAUnion`,
+which must be rewritten against a genuinely unholdable pair such as `keyword｜aggregate_metric_double`.
 
-`UnionTypesCleanup.cleanTypeConflicts` rewrites a union-typed attribute away today. The data node
-should load each leg natively and tag it, and the coordinator should keep the union attribute.
+**2. Multi-value in `AbstractDelegatingCompoundBlock` — `filter`, `slice`, `keepMask`, and
+`UnionArrayBlock.expand`.** *This must precede the loader*, not follow it: any multi-valued mapped field
+produces a multi-valued union block, and the first `FilterOperator` or `LimitOperator` after it throws.
+Pure compute, and it lifts `TDigestArrayBlock` and `ExponentialHistogramArrayBlock`, which throw the
+identical message. *Red on revert:* `UnionBlockTests`' refusal tests, inverted.
 
-Sites: `UnionTypesCleanup`; `EsPhysicalOperationProviders.fieldLoader`, which takes the per-type
-conversion expression out of the `UnionTypeEsField` and wraps it in a `TypeConverter`; and the
-`original_types` producer in `TransportEsqlQueryAction` and `TransportEsqlStreamQueryAction`, gated on
-`instanceof UnsupportedAttribute` so it will not fire for a union attribute. The leg order fixed here
-is the one the block and `originalTypes` share, and it has to be deterministic.
+**3. `RandomBlock` union support.** *Must precede 2's tests*, or the block changes ship covered only by
+hand-written cases. Then remove UNION from the exclusion lists this branch added to `BlockBuilderTests`,
+`BlockMultiValuedTests` and `TopNOperatorTests`. *Red on revert:* every randomized suite that then
+generates a union.
 
-### D. Rendering, and representability
+**4. The loader, with the builder-supplier fix.** In `EsPhysicalOperationProviders.blockLoaderAndConverter`,
+for a `FieldAttribute` over a `UnionEsField`: read the shard's mapped type exactly as the
+`CompactMultiTypeEsField` arm does, compute the leg, load natively with the shard's own loader at
+`NONE`, and convert by appending each value into a `UnionBlockBuilder` under that tag, multi-valued
+positions included. A shard mapped as a type not among the legs — reachable if the mapping moved
+between field-caps and execution — loads constant nulls with a warning. **`ValuesSourceReaderOperator.FieldInfo`
+must carry a builder supplier**, because `ValuesReader.Run.initFinalBuilders` calls
+`info.type().newBlockBuilder(...)` and `ElementType.UNION`'s supplier throws by construction; without
+this, single-segment pages pass and multi-segment pages throw. *Red on revert:* the first csv-spec
+fixture (6), and a two-shard reader test asserting tags and values.
 
-Done; see §0. What it leaves: the Arrow sparse-union write-out, where the tag sub-block is the types
-buffer so the mapping is a write-out rather than a translation, and a `CsvTestUtils.Type` member for
-csv-spec assertions. The leg types are paired with the block's legs positionally and nothing checks
-that they agree, which is a contract increment C has to establish and keep.
+**5. The leg list on the block, and the response.** `UnionArrayBlock` carries its leg type **names**,
+written and read with the block. Renderers take them from the block, falling back to `originalTypes`
+only for an all-null page; the transport actions fill `originalTypes` from `UnionEsField.legTypes()`
+for a field attribute and from the first non-null block otherwise. This is what lets `RENAME` and
+`MV_EXPAND` render, since both produce a `ReferenceAttribute` with no field behind it. It also retires
+the two-sided "both ends derive the canonical order" contract for one side carrying it, which is
+strictly less to go wrong. `CsvTestUtils.Type` gains a union member. *Red on revert:* the response test
+with a renamed union column.
 
-### E. Operations
+**6. The first csv-spec fixture.** `union_types.csv-spec` already loads `sample_data`,
+`sample_data_str`, `sample_data_ts_long` and `sample_data_ts_nanos`; a `KEEP` over two of them under the
+pragma is the first query that renders a union. Gate on a new snapshot-only capability.
 
-Projection, `COUNT`, `IS NULL`, `TYPEOF` and the per-type selector, everything else refused.
-`AggregateMapper.toDataType` throws for `UNION` today, which is where per-type aggregate intermediate
-state will announce itself. Scope it so aggregate-metric-double and the all-dates promotion keep
-working.
+**7. TopN pass-through.** A union in the projection with the sort on another column currently throws in
+`TopNOperator`, because `ValueExtractor` and `ResultBuilder` have no union arm — and that is the
+Discover query. Encode the tag, delegate to the leg; the result builder needs the same richer
+descriptor as 4. *Red on revert:* a csv-spec `SORT @timestamp | KEEP <union>`.
 
-### F. Grouping on the pair of type and value
+**8. `TYPEOF`, the tag-only tier, and the refusals.** `TYPEOF(x)` is a new scalar returning `keyword`,
+reading the tag and naming the leg from the block's leg names, so it agrees with `original_types` by
+construction. `COUNT` and `IS NULL`/`IS NOT NULL` already resolve and need csv-spec cases, not code —
+except that `IsNotNull`'s pushdown must treat a `UnionEsField` like a plain field, or `WHERE x IS NOT
+NULL` runs in compute where a typed field gets an exists query, which breaks the performance-parity
+rule on the always-allowed tier. Add UNION to `Aggregate.checkUnsupportedGroupingType` so `STATS … BY`
+fails at analysis rather than in `BlockHash`, and add the `SORT`/extrema refusals with their messages.
 
-Through the packed-values hash rather than a dedicated one. The tag sub-block is the type half of the
-key, read directly.
+**9. The comparison tier.** Resolution: when an operand is a union, require every leg to satisfy
+`areTypesCompatible` against the other operand, failing with the leg that refuses. Evaluation: per leg,
+substitute the leg block into the page and run the existing typed evaluator, combining by tag — no new
+per-type code. Pushdown: `LucenePushdownPredicates.isQueryable` gains a `UnionEsField` arm of the same
+shape as the `UnionTypeEsField` one, and `isPushableValueAttribute`'s guard must exclude `UnionEsField`
+too, since a value query over a union would compare the wrong type. *Red on revert:* an optimizer test
+asserting the range reaches `EsQueryExec` under the real field name with no filter above it for a
+resolvable leg set, and a refusal for one that is not.
 
-### G. Datasets
+**10. `TYPED`'s tests.** The standard scalar-function suite, which also generates the docs, plus a
+csv-spec case. Note `TYPED` on a *conflicted field* already resolves, because `ResolveUnionTypes` runs
+before `UnionTypesCleanup` and matches `TypeConflictedField`; what is missing is coverage, and `TYPED`
+over a union-typed reference stays refused in the POC.
 
-Its own mechanism on `ColumnMapping`, identity-or-absent per file. `ColumnMapping.mapFilters` and
-`inferFileType` are the sites. The `union_by_name` keyword fallback is the behaviour to replace with a
-surfaced conflict, numeric promotions left intact.
+**11. After the POC:** grouping (§0a), Arrow sparse-union write-out, `::any`, datasets.
 
----
+### The sixteen guards: no shared supertype, five explicit arms
+
+`UnionTypeEsField` exists because such a column holds **converted** values whose type no shard holds.
+A `UnionEsField` column holds **unconverted** values whose leg types are exactly what the shards hold.
+They are different kinds of thing, and a shared supertype would hand one of them the other's reasoning
+in `isQueryable`, `isPushableValueAttribute`, `IsNotNull.translatable` and the unmapped-field collector.
+Handle those four plus the loader explicitly; the other eleven sites are unreachable for a union-typed
+attribute, because a date check, an `aggregate_metric_double` check or a synthetic-name check precedes
+each. If an abstraction is wanted later it is "field whose attribute name is the real field name", not
+a type hierarchy.
 
 ## 4. Known limits this plan accepts
 
-- Multivalued union columns, until `AbstractDelegatingCompoundBlock` supports multivalued `filter`,
-  `slice`, `keepMask` and `expand`.
+- ~~Multivalued union columns~~ — **no longer a limit; increment 2, and a prerequisite of the loader.**
 - Late materialization of a union column, refused in `FetchGather`.
 - A union as a lookup-join key, refused in `QueryList.createBlockValueReaderForType`.
 - No randomized suite generates a union block, since `RandomBlock` cannot build one.

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeList;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -60,6 +61,10 @@ public class PlanConsistencyChecker {
         }
 
         List<Attribute> output = p.output();
+        if (output instanceof AttributeList) {
+            // names and ids are distinct by construction
+            return;
+        }
         var outputAttributeNames = Sets.<String>newHashSetWithExpectedSize(output.size());
         var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(output.size());
         for (Attribute outputAttr : output) {

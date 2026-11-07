@@ -299,7 +299,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
         boolean childrenChanged = false;
         for (LogicalPlan child : unionAll.children()) {
-            var pad = child.outputSet().names().contains(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false;
+            var pad = child.outputSet().containsName(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false;
             newChildren.add(pad ? padNullUnmappedFields(child) : child);
             childrenChanged |= pad;
         }

@@ -566,3 +566,8 @@ tests:
   - :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
   method: test {yaml=ml/sparse_vector_search/Check sparse_vector should prune by default}
   issue: https://github.com/elastic/elasticsearch/issues/165040
+- class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRefreshBlockRemovedAfterRestart
+  issue: https://github.com/elastic/elasticsearch/issues/165044

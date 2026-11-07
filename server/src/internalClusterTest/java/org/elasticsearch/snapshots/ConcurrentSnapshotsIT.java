@@ -380,7 +380,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock");
+        // the abort is seen while reading the data to upload, and some repositories wrap that exception
+        createRepository(repoName, "mock", randomRepositorySettings().put("wrap_write_exceptions", true));
         final String firstIndex = "index-one";
         createIndexWithContent(firstIndex);
 
@@ -422,6 +423,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final SnapshotInfo firstSnapshotInfo = firstSnapshotResponse.get().getSnapshotInfo();
         assertThat(firstSnapshotInfo.state(), is(SnapshotState.FAILED));
         assertThat(firstSnapshotInfo.reason(), is("Snapshot was aborted by deletion"));
+        // the shard failure only says "aborted" if the wrapped abort exception was recognised
+        assertThat(firstSnapshotInfo.shardFailures(), not(empty()));
+        for (final var shardFailure : firstSnapshotInfo.shardFailures()) {
+            assertThat(shardFailure.reason(), is("aborted"));
+        }
 
         final SnapshotInfo secondSnapshotInfo = assertSuccessful(secondSnapshotResponse);
         final SnapshotInfo thirdSnapshotInfo = assertSuccessful(thirdSnapshotResponse);

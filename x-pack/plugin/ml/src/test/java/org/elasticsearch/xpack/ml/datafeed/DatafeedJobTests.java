@@ -728,6 +728,104 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
+    public void testEsqlTruncatedChunkShouldAuditWarningAndAdvancePastInterval() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        datafeedJob.runLookBack(0L, 1000L);
+
+        String expectedMessage = Messages.getMessage(
+            Messages.DATAFEED_ESQL_INCOMPLETE_CHUNK,
+            Instant.ofEpochMilli(100L),
+            Instant.ofEpochMilli(200L)
+        );
+        verify(auditor).warning(jobId, expectedMessage);
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(999L));
+    }
+
+    public void testEsqlTruncatedChunkWithFlushFailureShouldNotAudit() {
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+        when(flushJobFuture.actionGet()).thenThrow(new RuntimeException("flush failed"));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testEsqlTruncatedChunkWithPostFailureShouldNotAudit() {
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+        when(postDataFuture.actionGet()).thenThrow(new RuntimeException("post failed"));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testEsqlTruncatedChunkAbsentShouldNotAudit() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.empty());
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        datafeedJob.runLookBack(0L, 1000L);
+
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testEsqlTruncatedChunkWithConsecutiveCyclesShouldAuditOncePerEpisode() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(2000L).thenReturn(4000L).thenReturn(6000L).thenReturn(8000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)))
+            .thenReturn(Optional.of(new SearchInterval(300L, 400L)))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(new SearchInterval(500L, 600L)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        runRealtimeCycleAt(datafeedJob, 3000L);
+        runRealtimeCycleAt(datafeedJob, 5000L);
+        verify(auditor, times(1)).warning(any(), any());
+
+        runRealtimeCycleAt(datafeedJob, 7000L);
+        runRealtimeCycleAt(datafeedJob, 9000L);
+        verify(auditor, times(2)).warning(any(), any());
+    }
+
+    private void runRealtimeCycleAt(DatafeedJob datafeedJob, long now) throws Exception {
+        currentTime = now;
+        try {
+            datafeedJob.runRealtime();
+        } catch (DatafeedJob.EmptyDataCountException e) {
+            // The default mocked extractor yields data only on its first call; an empty cycle still runs the audit check.
+        }
+    }
+
+    public void testEsqlTruncatedChunkWithIsolateDuringExtractionShouldNotAudit() throws Exception {
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            datafeedJob.isolate();
+            return new DataExtractor.Result(new SearchInterval(0L, 1000L), Optional.empty(), List.of());
+        }).when(dataExtractor).next();
+
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testEsqlTruncatedChunkWithCancelledExtractorShouldNotAudit() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+        when(dataExtractor.isCancelled()).thenReturn(true);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        datafeedJob.runLookBack(0L, 1000L);
+
+        verify(auditor, never()).warning(any(), any());
+    }
+
     public void testFlushAnalysisProblem() {
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenThrow(new RuntimeException());
 

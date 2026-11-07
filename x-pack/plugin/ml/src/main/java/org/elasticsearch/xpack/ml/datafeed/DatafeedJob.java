@@ -97,6 +97,9 @@ class DatafeedJob {
     private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
+    // Audit once per episode of consecutive truncated cycles so a persistent truncation does not flood the audit log
+    // every realtime cycle. Accepted blind spot: later distinct truncated intervals in the same episode are not audited.
+    private volatile boolean auditedIncompleteEsqlChunk;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile SearchInterval searchInterval;
     @Nullable
@@ -554,6 +557,8 @@ class DatafeedJob {
 
             CrossClusterSearchStats.ScopeChangeResult scopeChange = updateCrossClusterSearchStats(linkedClusterStates);
 
+            Optional<SearchInterval> incompleteSearchInterval = dataExtractor.getIncompleteSearchInterval();
+
             // We can now throw any stored error as we have updated time.
             if (error != null) {
                 throw error;
@@ -572,6 +577,19 @@ class DatafeedJob {
                     handleFieldConflictsAfterScopeChange(scopeChange);
                     checkForAnomaliesAfterScopeChange(scopeChange);
                 }
+
+                // Only after post and flush succeeded, so an error path never reports the interval as skipped. A cancelled
+                // run is excluded: its end-time advance is not guaranteed, so it makes no claim about skipped intervals.
+                if (dataExtractor.isCancelled() == false) {
+                    if (incompleteSearchInterval.isPresent() == false) {
+                        auditedIncompleteEsqlChunk = false;
+                    } else if (auditedIncompleteEsqlChunk == false) {
+                        auditedIncompleteEsqlChunk = true;
+                        notifyIncompleteEsqlChunk(incompleteSearchInterval.get());
+                    } else {
+                        LOGGER.debug("[{}] ES|QL chunk still incomplete for {}", jobId, incompleteSearchInterval.get());
+                    }
+                }
             }
 
             if (recordCount == 0) {
@@ -582,6 +600,20 @@ class DatafeedJob {
             dataExtractor.destroy();
             activeDataExtractor = null;
         }
+    }
+
+    /**
+     * Audits an extraction that ended on a chunk truncated at the row limit. The window has been posted and flushed and
+     * lastEndTimeMs has moved past it, so the rows beyond the limit are never extracted again; the user must be told.
+     */
+    private void notifyIncompleteEsqlChunk(SearchInterval interval) {
+        String message = Messages.getMessage(
+            Messages.DATAFEED_ESQL_INCOMPLETE_CHUNK,
+            Instant.ofEpochMilli(interval.startMs()),
+            Instant.ofEpochMilli(interval.endMs())
+        );
+        LOGGER.warn("[{}] {}", jobId, message);
+        auditor.warning(jobId, message);
     }
 
     private void cancelActiveExtractor() {

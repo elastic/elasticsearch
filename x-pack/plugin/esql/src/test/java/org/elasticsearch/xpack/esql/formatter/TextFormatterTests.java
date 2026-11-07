@@ -212,6 +212,131 @@ public class TextFormatterTests extends ESTestCase {
         );
     }
 
+    public void testFormatSourceAsJson() {
+        String source1 = "{\"key\":\"value\",\"num\":42}";
+        String source2 = "{\"key\":\"other\",\"num\":99}";
+
+        EsqlQueryResponse sourceResponse = new EsqlQueryResponse(
+            Arrays.asList(
+                new ColumnInfoImpl("name", "keyword", null),
+                new ColumnInfoImpl("_unmapped_fields", "_source", null)
+            ),
+            List.of(
+                new Page(
+                    blockFactory.newBytesRefBlockBuilder(2)
+                        .appendBytesRef(new BytesRef("Alice"))
+                        .appendBytesRef(new BytesRef("Bob"))
+                        .build(),
+                    blockFactory.newBytesRefBlockBuilder(2)
+                        .appendBytesRef(new BytesRef(source1))
+                        .appendBytesRef(new BytesRef(source2))
+                        .build()
+                )
+            ),
+            0,
+            0,
+            null,
+            randomBoolean(),
+            randomBoolean(),
+            ZoneOffset.UTC,
+            0L,
+            0L,
+            createEsqlExecutionInfo(randomBoolean())
+        );
+
+        String[] result = getTextBodyContent(new TextFormatter(sourceResponse, true, false).format()).split("\n");
+        assertThat(result, arrayWithSize(4));
+        // The SOURCE column should render as JSON, e.g. {"key":"value","num":42}
+        // not as Java Map.toString() output like {key=value, num=42}
+        assertTrue(
+            "SOURCE value should be rendered as JSON but was: " + result[2],
+            result[2].contains("{\"key\":\"value\",\"num\":42}")
+        );
+        assertTrue(
+            "SOURCE value should be rendered as JSON but was: " + result[3],
+            result[3].contains("{\"key\":\"other\",\"num\":99}")
+        );
+    }
+
+    public void testFormatNullSourceAsJson() {
+        String source1 = "{\"key\":\"value\"}";
+
+        EsqlQueryResponse sourceResponse = new EsqlQueryResponse(
+            Arrays.asList(
+                new ColumnInfoImpl("name", "keyword", null),
+                new ColumnInfoImpl("_unmapped_fields", "_source", null)
+            ),
+            List.of(
+                new Page(
+                    blockFactory.newBytesRefBlockBuilder(2)
+                        .appendBytesRef(new BytesRef("Alice"))
+                        .appendBytesRef(new BytesRef("Bob"))
+                        .build(),
+                    blockFactory.newBytesRefBlockBuilder(2)
+                        .appendBytesRef(new BytesRef(source1))
+                        .appendNull()
+                        .build()
+                )
+            ),
+            0,
+            0,
+            null,
+            randomBoolean(),
+            randomBoolean(),
+            ZoneOffset.UTC,
+            0L,
+            0L,
+            createEsqlExecutionInfo(randomBoolean())
+        );
+
+        String[] result = getTextBodyContent(new TextFormatter(sourceResponse, true, false).format()).split("\n");
+        assertTrue(
+            "First row should contain JSON SOURCE but was: " + result[2],
+            result[2].contains("{\"key\":\"value\"}")
+        );
+        assertTrue(
+            "Second row should contain null for null SOURCE but was: " + result[3],
+            result[3].contains("null")
+        );
+    }
+
+    public void testFormatMultiValueSourceAsJson() {
+        EsqlQueryResponse sourceResponse = new EsqlQueryResponse(
+            Arrays.asList(
+                new ColumnInfoImpl("name", "keyword", null),
+                new ColumnInfoImpl("_unmapped_fields", "_source", null)
+            ),
+            List.of(
+                new Page(
+                    blockFactory.newBytesRefBlockBuilder(1)
+                        .appendBytesRef(new BytesRef("Alice"))
+                        .build(),
+                    blockFactory.newBytesRefBlockBuilder(1)
+                        .beginPositionEntry()
+                        .appendBytesRef(new BytesRef("{\"a\":1}"))
+                        .appendBytesRef(new BytesRef("{\"b\":2}"))
+                        .endPositionEntry()
+                        .build()
+                )
+            ),
+            0,
+            0,
+            null,
+            randomBoolean(),
+            randomBoolean(),
+            ZoneOffset.UTC,
+            0L,
+            0L,
+            createEsqlExecutionInfo(randomBoolean())
+        );
+
+        String[] result = getTextBodyContent(new TextFormatter(sourceResponse, true, false).format()).split("\n");
+        assertTrue(
+            "Multi-value SOURCE should be rendered as JSON array but was: " + result[2],
+            result[2].contains("[{\"a\":1},{\"b\":2}]")
+        );
+    }
+
     public void testVeryLongPadding() {
         final var smallFieldContent = "is twenty characters";
         final var largeFieldContent = "a".repeat(between(smallFieldContent.length(), 200));

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164460
+summary: Render ES|QL SOURCE map values as JSON in text formats
+type: bug

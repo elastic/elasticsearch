@@ -100,6 +100,9 @@ server/src/main/resources/transport/definitions/manifest.txt
 # Vector data files
 qa/vector/.data
 
+# Node/npm dependencies
+node_modules
+
 # Flakiness detection: written into the repo root by a local `entrypoints/local.ts` run
 # (and by the CI steps, which use them as Buildkite artifacts).
 flakiness-refs.json

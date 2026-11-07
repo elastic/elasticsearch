@@ -661,3 +661,47 @@ The two tests that now hold it are unit-level and named for the message that rec
 `AnalyzerTests.testTypeOfOverAUnionResolvesToAKeyword` and `testCountByTypeOfOverAUnionResolves`.
 The grouping refusal's own test only ever checked the wording of its suggestion, never that the
 suggested query ran.
+
+## 9. RENAME, and the lateness defect's real shape
+
+Probed on the two pinned indices of `UnionTypedFieldIT`, one query at a time. Everything works except
+one shape:
+
+| query over a union column | result |
+|---|---|
+| `KEEP duration`, `… \| LIMIT 3` | renders per leg |
+| `EVAL t = TYPEOF(duration)` | `long`/`keyword` per value |
+| `EVAL c = 1 \| KEEP duration, c` | renders per leg |
+| `WHERE duration IS NOT NULL` | all five rows |
+| `STATS n = COUNT(*)` | 5 |
+| `STATS n = COUNT(*) BY t = TYPEOF(duration)` | `[[2, keyword], [3, long]]` |
+| `EVAL s = TYPED(duration, "long")` | longs selected, keywords null |
+| `EVAL d = duration::long` | longs converted, keywords null + warning |
+| **`RENAME duration AS d`** | **refused; was two internal failures** |
+
+**What `RENAME` did before the refusal, measured twice.** `RENAME` resolves its new name while the
+conflict is still an `InvalidMappedField`, so the attribute a later `KEEP` binds to is minted with
+`UNSUPPORTED` and keeps it. The plan then says two things about one column, and the optimizer's own
+consistency check reports it as
+`Output has changed from [d{r}#16[unsupported]] to [d{r}#16[union]]` — a dump of internal ids, not an
+answer.
+
+Retyping those references by id inside `UnionTypesCleanup` does fix that, and I wrote it and threw it
+away, because it only moves the failure: past the consistency check the renderer throws
+`rendering a union needs its leg types`. The legs live on the `UnionEsField`, so they travel while the
+column *is* the field; an alias makes a `ReferenceAttribute`, which has no field, so the response says
+`union` with nothing saying what a tag indexes.
+
+**So this is a deviation from "a union is always renderable", and the compliant fix is that the legs
+must travel with any attribute of this type rather than only with a field.** Until then `RENAME` is
+refused with a message naming both ways through (`TYPED` and `::`), and both are tested to work, because
+a refusal that recommends a broken escape is worse than no refusal.
+
+**The general statement, now that there are three instances.** A type decided at the *end* of analysis
+cannot be seen by anything minted *during* it. `MergePlan.output` computes eagerly in its constructor
+(§7), a `RENAME` alias mints its reference during resolution (here), and `TYPEOF` would read legs off an
+attribute that has none. Fixing them one at a time is whack-a-mole; the two candidate roots are
+building the union earlier — which fights `ResolveUnionTypes`, since `TYPED` and `::type` need the
+conflicted field to still be a conflict — or making the leg list part of what any attribute of type
+`UNION` carries. The second is the one that also discharges renderability, and it is where I would
+spend the next increment.

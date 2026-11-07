@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -83,6 +86,46 @@ public class UnionTypedFieldIT extends AbstractEsqlIntegTestCase {
             assertFalse("the query should not be partial: " + response.getExecutionInfo(), response.isPartial());
             assertColumnNames(response.columns(), List.of("c", "t"));
             assertThat(getValuesList(response), equalTo(List.of(List.of(2L, "keyword"), List.of(3L, "long"))));
+        }
+    }
+
+    /**
+     * Renaming a union column is refused, and the message is the deliverable: without this check the query fails
+     * twice over, first as a dump of internal ids from the optimizer's consistency check (the plan says
+     * {@code unsupported} where the field says {@code union}) and then, past that, as the renderer throwing on the
+     * data node because an aliased column has no field to carry the leg types. Both were measured before the check
+     * existed. This is a stated deviation from "a union is always renderable", not a hidden one - see the check's own
+     * javadoc for what compliance would take.
+     */
+    public void testRenamingAUnionColumnIsRefusedWithBothWaysThrough() {
+        setupConflictingIndices();
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("FROM union-a,union-b | RENAME duration AS d | KEEP d")
+        );
+        assertThat(e.getMessage(), containsString("Column [duration] holds more than one type, so it cannot be renamed"));
+        assertThat(e.getMessage(), containsString("TYPED(duration, \"<type>\")"));
+        assertThat(e.getMessage(), containsString("duration::<type>"));
+    }
+
+    /** Both escapes the message offers have to work, or it is sending the user nowhere. */
+    public void testTheEscapesOfferedForARenameWork() {
+        setupConflictingIndices();
+        // TYPED selects the long-mapped values and nulls the rest, so the two keyword rows collapse to one null.
+        try (var response = run("FROM union-a,union-b | EVAL d = TYPED(duration, \"long\") | KEEP d")) {
+            assertColumnTypes(response.columns(), List.of("long"));
+            assertThat(
+                Set.copyOf(getValuesList(response)),
+                equalTo(Set.of(List.of(200L), List.of(201L), List.of(202L), Collections.singletonList(null)))
+            );
+        }
+        // The cast converts instead of selecting, so "two hundred" is not a long and warns rather than erroring.
+        try (var response = run("FROM union-a,union-b | EVAL d = duration::long | KEEP d")) {
+            assertColumnTypes(response.columns(), List.of("long"));
+            assertThat(
+                Set.copyOf(getValuesList(response)),
+                equalTo(Set.of(List.of(200L), List.of(201L), List.of(202L), Collections.singletonList(null)))
+            );
         }
     }
 

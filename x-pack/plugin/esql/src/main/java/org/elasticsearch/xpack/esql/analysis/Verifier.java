@@ -201,6 +201,7 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkUnsupportedAttributeRenaming(p, failures);
+            checkUnionTypedAttributeRenaming(p, failures);
             checkLimitBeforeInlineStats(p, failures);
             checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(p, failures);
             checkBucketIncludeEmptyBucketsIsGrouping(p, failures);
@@ -568,6 +569,42 @@ public class Verifier {
             p.forEachExpression(Alias.class, alias -> {
                 if (alias.child() instanceof UnsupportedAttribute ua) {
                     failures.add(fail(alias, ua.unresolvedMessage()));
+                }
+            });
+        }
+    }
+
+    /**
+     * A union-typed column cannot be given a second name, for the same reason an unsupported one cannot: what the name
+     * would have to carry does not fit on the thing a name makes.
+     * <p>
+     * A union's legs live on its {@link org.elasticsearch.xpack.esql.core.type.UnionEsField}, so they travel while the
+     * column is the field. An alias makes a {@code ReferenceAttribute}, which has no field, so the type arrives at the
+     * response saying {@code union} with nothing saying what its tags index - and the renderer refuses, by design,
+     * rather than guess. Left unchecked the query fails twice over: the plan says {@code unsupported} where the field
+     * says {@code union}, which the optimizer's consistency check reports as a dump of internal ids, and past that the
+     * renderer throws on the data node.
+     * </p>
+     * <p>
+     * So this is a deviation from "a union is always renderable", stated rather than hidden: the compliant fix is for
+     * the legs to travel with any attribute of this type, not only with a field, and until they do the honest answer
+     * is a message naming the two ways through.
+     * </p>
+     */
+    private static void checkUnionTypedAttributeRenaming(LogicalPlan p, Failures failures) {
+        if (p instanceof Project) {
+            p.forEachExpression(Alias.class, alias -> {
+                if (alias.child().dataType() == DataType.UNION) {
+                    failures.add(
+                        fail(
+                            alias,
+                            "Column [{}] holds more than one type, so it cannot be renamed. Select one type first "
+                                + "[TYPED({}, \"<type>\")], or cast it [{}::<type>]",
+                            alias.child().sourceText(),
+                            alias.child().sourceText(),
+                            alias.child().sourceText()
+                        )
+                    );
                 }
             });
         }

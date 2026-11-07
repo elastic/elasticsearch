@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 132371
+pr: 162153
+summary: Skip `cardinality` post-collection work for segments with no matching docs
+type: bug

@@ -10,7 +10,7 @@ applies_to:
 # KQL query [query-dsl-kql-query]
 
 Returns documents matching a provided KQL expression. The value of the `query` parameter is parsed using the
-[Kibana Query Language (KQL)](/reference/query-languages/kql.md) and rewritten
+[Kibana Query Language (KQL)](docs-content://reference/query-languages/kql.md) and rewritten
 into standard Query DSL.
 
 Use this query when you want to accept KQL input (for example from a Kibana search bar) directly in Elasticsearch.

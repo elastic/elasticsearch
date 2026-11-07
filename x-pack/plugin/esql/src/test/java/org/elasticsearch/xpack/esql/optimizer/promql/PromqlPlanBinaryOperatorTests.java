@@ -744,7 +744,11 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         Eval presentOverTime = acrossSeriesInput("present_over_time");
         List<Case> falseAsNull = new ArrayList<>();
         presentOverTime.forEachExpressionDown(Case.class, c -> {
-            if (c.children().size() == 3 && Literal.TRUE.equals(c.children().get(1)) && Literal.NULL.equals(c.children().get(2))) {
+            if (c.children().size() == 3
+                && c.children().get(1) instanceof Literal kept
+                && kept.dataType() == DataType.DOUBLE
+                && Double.valueOf(1.0).equals(kept.value())
+                && Literal.NULL.equals(c.children().get(2))) {
                 falseAsNull.add(c);
             }
         });

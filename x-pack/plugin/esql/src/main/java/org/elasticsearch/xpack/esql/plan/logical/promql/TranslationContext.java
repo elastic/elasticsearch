@@ -756,19 +756,27 @@ public record TranslationContext(
      * {@code absent_over_time} is the mirror: it has an element only for a series without a sample, so only true stays.
      * A series the operand never selects reads true too - its matchers reject every row, or only another operand's metric
      * has values - so true stays only for a series the operand selects.
+     * <p>
+     * {@code present_over_time} and {@code absent_over_time} hold Prometheus's float {@code 1} when they hold an element,
+     * so the kept value is a double rather than a boolean: numeric functions and aggregations accept the result
+     * directly, as in Prometheus.
      */
     public static Expression emptyRangeAsNull(Expression function, Expression time) {
         if (function instanceof CountOverTime) {
             return zeroCountAsNull(function);
         }
         if (function instanceof PresentOverTime present) {
-            return new Case(present.source(), present, List.of(Literal.TRUE, Literal.NULL));
+            return new Case(present.source(), present, List.of(one(present.source()), Literal.NULL));
         }
         if (function instanceof AbsentOverTime absent) {
             Expression absentFromSelected = new And(absent.source(), selectedBy(absent, time), absent);
-            return new Case(absent.source(), absentFromSelected, List.of(Literal.TRUE, Literal.NULL));
+            return new Case(absent.source(), absentFromSelected, List.of(one(absent.source()), Literal.NULL));
         }
         return function;
+    }
+
+    private static Literal one(Source source) {
+        return new Literal(source, 1.0, DataType.DOUBLE);
     }
 
     /**

@@ -60,8 +60,13 @@ import static org.hamcrest.Matchers.empty;
  *       either fail to be created in columnar mode or produce legitimately different results by
  *       design (e.g. {@code index:false} becomes a no-op, geo_point precision differs). Each
  *       entry carries a comment naming the reason.</li>
- *   <li>Datasets with {@code index.mode: time_series} are excluded: the dimension, routing, and
- *       counter field requirements of TSDB cannot simply be re-moded to columnar.</li>
+ *   <li>Tests that query a {@code index.mode: time_series} dataset with the {@code TS} source
+ *       command (top-level or in a subquery), {@code PROMQL}, or a TS-backed view are excluded:
+ *       ES|QL hard-filters field-caps resolution on {@code _index_mode == time_series}
+ *       ({@code EsqlSession.createQueryFilter}), so these can never run against a columnar copy.
+ *       Measured (October 2026): 2,093 of the 2,249 time-series-excluded tests are in this bucket.
+ *       Plain {@code FROM} tests over time-series datasets (the other 156) do run: the dataset is
+ *       re-moded to columnar, dropping {@code routing_path} and the time-series boundaries.</li>
  *   <li>Individual tests may carry a {@code skip_columnar: <reason>} preamble directive (parsed
  *       by {@link CsvSpecReader}) to silence a known per-test limitation without excluding the
  *       whole dataset.</li>
@@ -158,6 +163,13 @@ public class CsvColumnarIT extends CsvIT {
         "partial_mapping_mv_sample_data",
         // Has no explicit mapping at all, so every field is unmapped and the same reasoning applies.
         "no_mapping_sample_data",
+        // dynamic:false time-series fixture (k8s data with region/event/network.* removed from the
+        // mapping): the unmapped content lives in _source only, which strict columnar drops at
+        // ingest. Measured (October 2026, when time-series datasets were first re-moded to
+        // columnar): 16 tests fail, all asserting on the dropped fields (nulls, or a missing
+        // "unmapped in some indices" warning). Its sibling k8s_nonexistent has the same mapping
+        // shape but all of its launched tests pass, so it stays included.
+        "k8s_unmapped",
         // Same reason, for the LOAD_ALL fixtures: all of these are dynamic:false and deliberately leave
         // everything but the mapped keys in _source / _ignored_source, which strict columnar drops at
         // ingest. synthetic_source_partial_mapping reuses mapping-partial_mapping_sample_data.json.
@@ -507,12 +519,35 @@ public class CsvColumnarIT extends CsvIT {
                 EXCLUDED_INCOMPATIBLE_COUNT.incrementAndGet();
                 return true;
             }
-            if (isTimeSeries(dataset)) {
+            if (isTimeSeries(dataset) && usesTsSourceCommandOrPromql(testCase.query)) {
+                // TS (top-level or in a subquery) and PROMQL hard-filter field-caps resolution on
+                // _index_mode == time_series (EsqlSession.createQueryFilter), so they can never run
+                // against the columnar-ized copy. Plain FROM tests are kept: the dataset is
+                // re-moded to columnar by ColumnarStrategy#transformSettings.
                 EXCLUDED_TIME_SERIES_COUNT.incrementAndGet();
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Matches the {@code TS} source command at the start of a query or of a parenthesised
+     * subquery. The trailing {@code [\s"]} keeps a parenthesised expression over a column that
+     * happens to be named {@code ts} from matching in most shapes; a residual false positive only
+     * over-excludes (counted in the summary), while a miss is caught by the
+     * {@link #FORCED_STANDARD_DATASETS}-style run-time failure ("is not a time series index").
+     */
+    private static final java.util.regex.Pattern TS_SOURCE_COMMAND = java.util.regex.Pattern.compile("(^|\\()\\s*TS[\\s\"]");
+
+    /**
+     * Returns {@code true} when the query uses a source command that requires
+     * {@code _index_mode == time_series}: the {@code TS} command (top-level or inside a subquery)
+     * or {@code PROMQL}. Such queries cannot run against a columnar-ized time-series dataset.
+     */
+    private static boolean usesTsSourceCommandOrPromql(String query) {
+        String upper = stripLeadingSetStatements(query).stripLeading().toUpperCase(Locale.ROOT);
+        return TS_SOURCE_COMMAND.matcher(upper).find() || upper.contains("PROMQL");
     }
 
     // -----------------------------------------------------------------------------------------
@@ -670,19 +705,22 @@ public class CsvColumnarIT extends CsvIT {
                     return settings;
                 }
                 if (isTimeSeries(dataset)) {
-                    // IndexMode.COLUMNAR rejects index.routing_path — that is the only setting-level
-                    // blocker. But removing routing_path deliberately is not done: ES|QL's TS source
-                    // command hard-filters field-caps resolution on _index_mode == time_series
-                    // (EsqlSession.createQueryFilter). A columnar-ized k8s would fail every
-                    // "TS k8s" test ("is not a time series index; use FROM instead") and silently
-                    // return empty for wildcard forms. Keeping the original settings is the only safe
-                    // choice. Both categories below are excluded at generation time by shouldExclude,
-                    // but a query not matched by the index-pattern extractor may slip through; the guard
-                    // keeps any such miss from poisoning the cluster and FORCED_STANDARD_DATASETS makes
-                    // the coverage loss visible.
-                    FORCED_STANDARD_DATASETS.add(dataset.indexName());
-                    logger.warn("columnar: [{}] is time-series; keeping original mode", dataset.indexName());
-                    return settings;
+                    // Re-mode to columnar, dropping the settings only time_series mode accepts:
+                    // routing_path (rejected by IndexMode.COLUMNAR) and the time-series time
+                    // boundaries. Tests that query the dataset with TS or PROMQL cannot run against
+                    // the columnar copy (ES|QL hard-filters field-caps resolution on
+                    // _index_mode == time_series in EsqlSession.createQueryFilter); those are
+                    // excluded at generation time by shouldExclude. Plain FROM tests run normally.
+                    // A TS/PROMQL query shape that slips past the generation-time extractor fails
+                    // loudly at run time with "is not a time series index", so the coverage gap
+                    // cannot go silent.
+                    logger.info("columnar: re-moding time-series dataset [{}] to columnar", dataset.indexName());
+                    Settings.Builder remoded = Settings.builder().put(settings);
+                    remoded.remove("index.mode");
+                    remoded.remove("index.routing_path");
+                    remoded.remove("index.time_series.start_time");
+                    remoded.remove("index.time_series.end_time");
+                    return remoded.put(extraSettings).build();
                 }
                 if (COLUMNAR_INCOMPATIBLE_DATASETS.contains(dataset.indexName())) {
                     // These datasets produce wrong results by design (geo_point precision,

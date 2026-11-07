@@ -653,6 +653,7 @@ time:datetime            | cnt:long | kind:keyword | significance:double
 
 null keys
 required_capability: change_point
+skip_columnar: rows with NULL CHANGE_POINT keys have no defined position in the detector input; their placement follows engine-internal row order, which is stable under TSDB's (_tsid, @timestamp) index sort but varies per run on a columnar index
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)

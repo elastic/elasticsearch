@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -78,6 +79,8 @@ import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -114,6 +117,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -3245,6 +3249,57 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .toList();
         assertThat(outerModes, containsInAnyOrder(AggregatorMode.INITIAL, AggregatorMode.FINAL));
         assertThat(plan.collect(ExchangeExec.class), hasSize(1));
+    }
+
+    public void testSinglePassRateOnMultipleIndices() {
+        for (boolean enabled : List.of(false, true)) {
+            assertSinglePassRateOnMultipleIndices(planSinglePassRateOnMultipleIndices(enabled, null), enabled);
+            assertSinglePassRateOnMultipleIndices(planSinglePassRateOnMultipleIndices(enabled == false, enabled), enabled);
+        }
+    }
+
+    private void assertSinglePassRateOnMultipleIndices(PhysicalPlan plan, boolean enabled) {
+        var timeSeriesAggs = plan.collect(TimeSeriesAggregateExec.class);
+        if (enabled) {
+            assertThat(timeSeriesAggs, hasSize(1));
+            assertThat(timeSeriesAggs.getFirst().getMode(), equalTo(AggregatorMode.SINGLE));
+            assertThat(Alias.unwrap(timeSeriesAggs.getFirst().aggregates().getFirst()), instanceOf(Rate.class));
+            assertThat(plan.collect(ExchangeExec.class), hasSize(1));
+        } else {
+            assertThat(timeSeriesAggs, hasSize(greaterThanOrEqualTo(1)));
+            assertFalse(timeSeriesAggs.stream().anyMatch(agg -> agg.getMode() == AggregatorMode.SINGLE));
+        }
+    }
+
+    private PhysicalPlan planSinglePassRateOnMultipleIndices(boolean flagEnabled, Boolean setValue) {
+        String query = "TS * | STATS sum(rate(network.total_bytes_in)) BY pod, TBUCKET(5 minute)";
+        String statementText = (setValue == null ? "" : "SET time_series_reduce_per_index=" + setValue + "; ") + query;
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement(statementText);
+        var resolvedSettings = QuerySettings.resolve(
+            Map.of(),
+            statement,
+            new SettingsValidationContext(false, Build.current().isSnapshot())
+        );
+        var configuration = new ConfigurationBuilder(EsqlTestUtils.configuration(QueryPragmas.EMPTY)).resolvedSettings(resolvedSettings)
+            .build();
+        var index = EsIndexGenerator.esIndex(
+            "*",
+            loadMapping("k8s-mappings.json"),
+            Map.of("metrics-1", IndexMode.TIME_SERIES, "metrics-2", IndexMode.TIME_SERIES)
+        );
+        var analyzer = EsqlTestUtils.analyzer()
+            .minimumTransportVersion(TransportVersion.current())
+            .addIndex(IndexResolution.valid(index))
+            .buildAnalyzer();
+        var optimizer = new LogicalPlanOptimizer(
+            new LogicalOptimizerContext(
+                configuration,
+                FoldContext.small(),
+                TransportVersion.current(),
+                EsqlFlags.withTimeSeriesReducePerIndex(flagEnabled)
+            )
+        );
+        return new TestPlannerOptimizer(configuration, analyzer, optimizer).plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
     }
 
     public void testSinglePassDisabledByPragma() {

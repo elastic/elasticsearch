@@ -31,6 +31,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestModifyDataStreamsAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, RestUtils.REST_TIMEOUT_PARAM);
+
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
     public RestModifyDataStreamsAction(Predicate<NodeFeature> clusterSupportsFeature) {
@@ -40,6 +42,11 @@ public class RestModifyDataStreamsAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "modify_data_stream_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.tablefunction.TableFunctionResolver;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.time.ZoneId;
@@ -136,6 +137,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
     private final DatasetResolver datasetResolver;
+    private final TableFunctionResolver tableFunctionResolver;
     private final RemoteClusterService remoteClusterService;
     private final TransportActionServices services;
     private final ClusterService clusterService;
@@ -171,6 +173,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         this.computeService = transportEsqlQueryAction.computeService();
         this.enrichPolicyResolver = transportEsqlQueryAction.enrichPolicyResolver();
         this.datasetResolver = transportEsqlQueryAction.datasetResolver();
+        this.tableFunctionResolver = transportEsqlQueryAction.tableFunctionResolver();
         this.activityLogger = transportEsqlQueryAction.activityLogger();
         this.transportEsqlQueryAction = transportEsqlQueryAction;
         this.clusterService = clusterService;
@@ -360,6 +363,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             enrichPolicyResolver,
             viewResolver,
             datasetResolver,
+            tableFunctionResolver,
             executionInfo,
             remoteClusterService,
             planRunner,

@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.time.Instant;
@@ -435,6 +436,75 @@ public class EsqlSessionTests extends ESTestCase {
 
         Map<String, Map<String, Object>> result = EsqlSession.extractExternalConfigs(relation);
         assertThat(result, equalTo(Map.of("s3://bucket/table", config)));
+    }
+
+    /**
+     * Resolution is keyed by the resource path, so one path yields one listing and one schema. Two relations
+     * reading that path under configurations that would read differently cannot both be honoured, and silently
+     * honouring whichever was visited last resolves the other against settings nobody asked for - a different
+     * format, or another data source's credentials. The refusal is the contract.
+     */
+    public void testExtractExternalConfigsRefusesDivergingConfigsOnOnePath() {
+        String path = "s3://bucket/table";
+        LogicalPlan plan = twoRelationsOnOnePath(path, configWith("format", "csv"), configWith("format", "ndjson"));
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> EsqlSession.extractExternalConfigs(plan));
+        assertThat(ex.getMessage(), containsString("resource [" + path + "] is read through datasets with different configurations"));
+    }
+
+    /**
+     * Two registered datasets over one resource with the same definition are twins: they read identically and must
+     * keep sharing one resolution. Their configs are nevertheless unequal as maps, because the dataset-context key
+     * carries each dataset's own name for diagnostics. Comparing whole configs would refuse {@code FROM a, b} here,
+     * which works today - so the comparison excludes that key and nothing else.
+     */
+    public void testExtractExternalConfigsAcceptsTwinsDifferingOnlyInDatasetContext() {
+        String path = "s3://bucket/table";
+        Map<String, Object> first = configWith("format", "csv");
+        first.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "a", "datasource", "src", "type", "s3"));
+        Map<String, Object> second = configWith("format", "csv");
+        second.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "b", "datasource", "src", "type", "s3"));
+        assertThat("the two configs must be unequal as maps, or this test proves nothing", first, not(equalTo(second)));
+
+        Map<String, Map<String, Object>> result = EsqlSession.extractExternalConfigs(twoRelationsOnOnePath(path, first, second));
+
+        assertThat(result.keySet(), equalTo(Set.of(path)));
+        assertThat(result.get(path), equalTo(first));
+    }
+
+    /** Different paths never compare, however far their configurations diverge. */
+    public void testExtractExternalConfigsKeepsDistinctPathsApart() {
+        UnresolvedExternalRelation left = new UnresolvedExternalRelation(
+            EMPTY,
+            Literal.keyword(EMPTY, "s3://bucket/left"),
+            configWith("format", "csv")
+        );
+        UnresolvedExternalRelation right = new UnresolvedExternalRelation(
+            EMPTY,
+            Literal.keyword(EMPTY, "s3://bucket/right"),
+            configWith("format", "ndjson")
+        );
+
+        Map<String, Map<String, Object>> result = EsqlSession.extractExternalConfigs(new UnionAll(EMPTY, List.of(left, right), List.of()));
+
+        assertThat(result.keySet(), equalTo(Set.of("s3://bucket/left", "s3://bucket/right")));
+    }
+
+    private static Map<String, Object> configWith(String key, Object value) {
+        Map<String, Object> config = new HashMap<>();
+        config.put(key, value);
+        return config;
+    }
+
+    private static LogicalPlan twoRelationsOnOnePath(String path, Map<String, Object> left, Map<String, Object> right) {
+        return new UnionAll(
+            EMPTY,
+            List.of(
+                new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), left),
+                new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), right)
+            ),
+            List.of()
+        );
     }
 
     public void testComputeLookupJoinIndexScope() {

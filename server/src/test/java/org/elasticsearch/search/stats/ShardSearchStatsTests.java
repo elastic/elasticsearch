@@ -83,7 +83,7 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     public void testDfsPhase_Failure() {
         try (SearchContext sc = createSearchContext(false)) {
             shardSearchStatsListener.onPreDfsPhase(sc);
-            shardSearchStatsListener.onFailedDfsPhase(sc);
+            shardSearchStatsListener.onFailedDfsPhase(sc, new RuntimeException());
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
             assertEquals(0.0, stats.getSearchLoadRate(), 0);
@@ -169,7 +169,7 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     public void testQueryPhase_SuggestOnly_Failure() {
         try (SearchContext sc = createSearchContext(true)) {
             shardSearchStatsListener.onPreQueryPhase(sc);
-            shardSearchStatsListener.onFailedQueryPhase(sc);
+            shardSearchStatsListener.onFailedQueryPhase(sc, new RuntimeException());
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
             assertEquals(0, stats.getSuggestCurrent());
@@ -184,7 +184,7 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     public void testQueryPhase_Failure() {
         try (SearchContext sc = createSearchContext(false)) {
             shardSearchStatsListener.onPreQueryPhase(sc);
-            shardSearchStatsListener.onFailedQueryPhase(sc);
+            shardSearchStatsListener.onFailedQueryPhase(sc, new RuntimeException());
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
             assertEquals(0, stats.getQueryCurrent());
@@ -230,7 +230,7 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     public void testFetchPhase_Failure() {
         try (SearchContext sc = createSearchContext(false)) {
             shardSearchStatsListener.onPreFetchPhase(sc);
-            shardSearchStatsListener.onFailedFetchPhase(sc);
+            shardSearchStatsListener.onFailedFetchPhase(sc, new RuntimeException());
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
             assertEquals(0, stats.getFetchCurrent());

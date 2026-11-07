@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -62,6 +64,23 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
 
     /** Source data types observed for this field across all indices. */
     public abstract Set<DataType> types();
+
+    /**
+     * The field's types as the legs of a union column, in the one order everything agrees on.
+     * <p>
+     * The order is a function of the types themselves, by type name, so the block's legs and the leg types the
+     * response declares are each derived from this and neither has to carry an order to the other. Two sides
+     * computing the same function of the same set cannot disagree, which a positional contract between them
+     * could.
+     * </p>
+     * <p>
+     * The types are widened first. A {@code float} or a {@code short} is widened on load and never reaches a
+     * value, so a leg declared as one could not be rendered.
+     * </p>
+     */
+    public List<DataType> unionLegTypes() {
+        return types().stream().map(DataType::widenSmallNumeric).distinct().sorted(Comparator.comparing(DataType::typeName)).toList();
+    }
 
     /**
      * A "two-legged PUNK": a field that is mapped to a single type in some indices and unmapped in others. Under

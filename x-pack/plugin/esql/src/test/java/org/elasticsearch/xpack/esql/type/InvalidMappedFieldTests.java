@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -82,4 +84,47 @@ public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMap
         }
         return new InvalidMappedField(name, typesToIndices, properties);
     }
+
+    /**
+     * The leg order is a function of the leg types, so the block and the response each derive it and cannot
+     * disagree. Small numerics are widened first: a {@code float} is widened on load and never reaches a value,
+     * so a leg declared as one could not be rendered.
+     */
+    public void testUnionLegTypesAreWidenedDedupedAndOrderedByName() {
+        InvalidMappedField field = new InvalidMappedField(
+            "flow",
+            new TreeMap<>(
+                Map.of(
+                    "long",
+                    Set.of("index-1"),
+                    "keyword",
+                    Set.of("index-2"),
+                    "float",
+                    Set.of("index-3"),
+                    "double",
+                    Set.of("index-4"),
+                    "date",
+                    Set.of("index-5")
+                )
+            )
+        );
+        // float widens to double and collapses into the double leg; the rest sort by type name.
+        assertEquals(List.of(DataType.DATETIME, DataType.DOUBLE, DataType.KEYWORD, DataType.LONG), field.unionLegTypes());
+    }
+
+    /** The order does not depend on the order the types were discovered in. */
+    public void testUnionLegTypeOrderIsIndependentOfDiscoveryOrder() {
+        Map<String, Set<String>> forward = new TreeMap<>(Map.of("long", Set.of("a"), "keyword", Set.of("b"), "boolean", Set.of("c")));
+        List<DataType> fromForward = new InvalidMappedField("flow", forward).unionLegTypes();
+        List<DataType> fromReversed = new InvalidMappedField("flow", new java.util.LinkedHashMap<>() {
+            {
+                put("long", Set.of("a"));
+                put("keyword", Set.of("b"));
+                put("boolean", Set.of("c"));
+            }
+        }).unionLegTypes();
+        assertEquals(fromForward, fromReversed);
+        assertEquals(List.of(DataType.BOOLEAN, DataType.KEYWORD, DataType.LONG), fromForward);
+    }
+
 }

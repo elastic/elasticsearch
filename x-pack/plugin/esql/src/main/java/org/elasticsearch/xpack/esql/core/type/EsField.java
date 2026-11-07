@@ -110,6 +110,7 @@ public class EsField implements Writeable {
         Map.entry("CompactMultiTypeEsField", CompactMultiTypeEsField::new),
         Map.entry("PotentiallyUnmappedKeywordEsField", PotentiallyUnmappedKeywordEsField::readField),
         Map.entry("TextEsField", TextEsField::new),
+        Map.entry("UnionEsField", UnionEsField::new),
         Map.entry("UnsupportedEsField", UnsupportedEsField::new)
     );
 

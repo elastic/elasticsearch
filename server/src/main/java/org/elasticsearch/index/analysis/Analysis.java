@@ -351,12 +351,7 @@ public class Analysis {
         String wordListPath = settings.get(settingPath, null);
 
         if (wordListPath == null) {
-            List<String> explicitWordList = settings.getAsList(settingList, null);
-            if (explicitWordList == null) {
-                return null;
-            } else {
-                return explicitWordList;
-            }
+            return settings.getAsList(settingList, null);
         }
 
         final Path path = env.configDir().resolve(wordListPath);

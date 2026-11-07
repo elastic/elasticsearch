@@ -412,6 +412,50 @@ public class ContextIndexSearcherTests extends ESTestCase {
         IOUtils.close(reader, w, dir);
     }
 
+    /**
+     * Without the 10% floor the slice count is bounded by {@code maxSliceNum} alone: every slice still carries at
+     * least its fair share ({@code numDocs / maxSliceNum}) of the docs, but a shard can fan out past ten slices.
+     */
+    public void testComputeSlicesWithoutPercentFloor() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        int numDocs = randomIntBetween(1000, 25000);
+        Document doc = new Document();
+        for (int i = 0; i < numDocs; i++) {
+            w.addDocument(doc);
+        }
+        DirectoryReader reader = w.getReader();
+        List<LeafReaderContext> contexts = reader.leaves();
+        int iter = randomIntBetween(16, 64);
+        for (int i = 0; i < iter; i++) {
+            int numThreads = randomIntBetween(1, 32);
+            LeafSlice[] slices = ContextIndexSearcher.computeSlices(contexts, numThreads, 1, 0.0);
+            assertThat(slices.length, lessThanOrEqualTo(numThreads));
+            int fairShare = (int) ((1.0 / numThreads) * numDocs);
+            int sumDocs = 0;
+            for (LeafSlice slice : slices) {
+                int sliceDocs = slice.getMaxDocs();
+                if (slices.length > 1) {
+                    assertThat(sliceDocs, greaterThanOrEqualTo(fairShare));
+                }
+                sumDocs += sliceDocs;
+            }
+            assertThat(sumDocs, equalTo(numDocs));
+        }
+        // a 10% floor reproduces the _search flavour exactly
+        int numThreads = randomIntBetween(1, 32);
+        LeafSlice[] withFloor = ContextIndexSearcher.computeSlices(
+            contexts,
+            numThreads,
+            1,
+            ContextIndexSearcher.MINIMUM_DOCS_PERCENT_PER_SLICE
+        );
+        LeafSlice[] searchFlavour = ContextIndexSearcher.computeSlices(contexts, numThreads, 1);
+        assertThat(withFloor.length, equalTo(searchFlavour.length));
+        assertSlices(withFloor, numDocs, numThreads);
+        IOUtils.close(reader, w, dir);
+    }
+
     private static void assertSlices(LeafSlice[] slices, int numDocs, int numThreads) {
         // checks that the number of slices is not bigger than the number of available threads
         // and each slice contains at least 10% of the data (which means the max number of slices is 10)

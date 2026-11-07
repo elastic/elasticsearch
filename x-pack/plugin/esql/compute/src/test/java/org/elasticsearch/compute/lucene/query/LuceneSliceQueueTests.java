@@ -363,6 +363,102 @@ public class LuceneSliceQueueTests extends ESTestCase {
         assertThat(slices, hasSize(sliceOffset));
     }
 
+    /**
+     * SEGMENT must be able to fan a large shard out to {@code taskConcurrency} slices when the segment count allows it.
+     * The {@code _search} grouping this delegates to carries an extra "10% of the docs per slice" floor which, on its
+     * own, caps any shard at ten slices; ES|QL does not inherit that floor. Sixteen equal segments on
+     * {@code taskConcurrency = 16} therefore give one segment per slice instead of eight pairs.
+     */
+    public void testSegmentPartitioningHonorsTaskConcurrency() throws IOException {
+        List<LeafReader> readers = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            readers.add(new MockLeafReader(1_000_000));
+        }
+        // 12M docs on 16 drivers -> fair share 750k: every 1M segment clears it on its own. The 10% floor
+        // (1.2M) would have paired them up into six slices.
+        var slices = segmentGroups(readers, 16);
+        assertThat(slices, hasSize(12));
+        for (List<PartialLeafReaderContext> slice : slices) {
+            assertThat(slice, hasSize(1));
+            assertWholeLeaf(slice.getFirst());
+        }
+    }
+
+    /**
+     * Segments stay whole, so the slice count is still bounded by the segment count: the wikipedia-shaped shard
+     * (a dozen big merged segments plus a tail of small ones) ends up with one slice per big segment and the
+     * small ones grouped up to the fair share, rather than pairs of big segments.
+     */
+    public void testSegmentPartitioningBigSegmentsGetTheirOwnSlice() throws IOException {
+        List<LeafReader> big = new ArrayList<>();
+        List<LeafReader> readers = new ArrayList<>();
+        for (int i = 0; i < 13; i++) {
+            big.add(new MockLeafReader(1_700_000));
+        }
+        readers.addAll(big);
+        for (int i = 0; i < 20; i++) {
+            readers.add(new MockLeafReader(50_000));
+        }
+        int taskConcurrency = 25;
+        // total = 23.1M docs -> fair share is ~924k docs per slice: every big segment clears it alone and the
+        // 20 small ones are grouped together instead of each opening a slice.
+        var slices = segmentGroups(readers, taskConcurrency);
+        assertThat(slices.size(), Matchers.lessThanOrEqualTo(taskConcurrency));
+        assertThat(slices.size(), Matchers.greaterThanOrEqualTo(big.size()));
+        int singleBig = 0;
+        for (List<PartialLeafReaderContext> slice : slices) {
+            for (PartialLeafReaderContext leaf : slice) {
+                assertWholeLeaf(leaf);
+            }
+            if (slice.size() == 1 && big.contains(slice.getFirst().leafReaderContext().reader())) {
+                singleBig++;
+            }
+        }
+        assertThat("each big segment is its own slice", singleBig, equalTo(big.size()));
+    }
+
+    /**
+     * Dropping the 10% floor must not make SEGMENT over-split small shards: the {@code minDocsPerSlice} floor
+     * still groups tiny segments together.
+     */
+    public void testSegmentPartitioningKeepsMinDocsPerSliceFloor() throws IOException {
+        List<LeafReader> readers = new ArrayList<>();
+        for (int i = 0; i < 16; i++) {
+            readers.add(new MockLeafReader(10_000));
+        }
+        // 160k docs on 16 drivers is a 10k fair share, well under the 50k floor: the floor wins.
+        var slices = segmentGroups(readers, 16);
+        assertThat(slices.size(), Matchers.lessThanOrEqualTo(3));
+        assertThat(slices.stream().mapToInt(List::size).sum(), equalTo(16));
+        for (List<PartialLeafReaderContext> slice : slices) {
+            long docs = slice.stream().mapToLong(l -> l.leafReaderContext().reader().maxDoc()).sum();
+            assertThat(docs, Matchers.greaterThanOrEqualTo((long) LuceneSliceQueue.MIN_DOCS_PER_SLICE));
+        }
+    }
+
+    public void testSegmentPartitioningSingleDriver() throws IOException {
+        List<LeafReader> readers = List.of(new MockLeafReader(1_000_000), new MockLeafReader(1_000_000), new MockLeafReader(1_000_000));
+        var slices = segmentGroups(readers, 1);
+        assertThat(slices, hasSize(1));
+        assertThat(slices.getFirst(), hasSize(3));
+    }
+
+    private static List<List<PartialLeafReaderContext>> segmentGroups(List<LeafReader> readers, int taskConcurrency) throws IOException {
+        IndexSearcher searcher = new IndexSearcher(new MultiReader(readers.toArray(LeafReader[]::new)));
+        return LuceneSliceQueue.PartitioningStrategy.SEGMENT.groups(
+            searcher,
+            taskConcurrency,
+            null,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+        );
+    }
+
+    private static void assertWholeLeaf(PartialLeafReaderContext leaf) {
+        assertThat(leaf.minDoc(), equalTo(0));
+        assertThat(leaf.maxDoc(), equalTo(Integer.MAX_VALUE));
+    }
+
     public void testBalancedBinPackOneBigManySmall() {
         // 1 big segment + 100 small segments, target = 2 slices.
         // Worst-fit-decreasing should produce two roughly-equal slices: big alone vs all the smalls.

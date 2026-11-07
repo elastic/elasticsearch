@@ -15,9 +15,8 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.elasticsearch.core.IOUtils;
 
@@ -79,12 +78,29 @@ public final class TSDBDocValuesBlockWriter {
         final BlockEncoder blockEncoder,
         int blockSize
     ) throws IOException {
-        return writeFieldEntry(ctx, field, valuesSource, maxOrd, docValueCountConsumer, sortedFieldObserver, blockEncoder, null, blockSize);
+        return writeFieldEntry(
+            ctx,
+            field,
+            valuesSource,
+            maxOrd,
+            docValueCountConsumer,
+            sortedFieldObserver,
+            null,
+            blockEncoder,
+            null,
+            blockSize
+        );
     }
 
     /**
      * Writes one field's value blocks, block index, and DISI metadata with an optional
      * metadata header hook.
+     *
+     * <p>Numeric fields are written in a single pass over the values: the value counts, the
+     * block index and anything attached through {@code valuesObserver} are all collected while
+     * the blocks are encoded, and the field's metadata is written afterwards. Ordinal fields
+     * still count first, because the choice between the three ordinal layouts depends on the
+     * counts.
      *
      * @param ctx                 segment-scoped write state
      * @param field               field being written
@@ -95,6 +111,11 @@ public final class TSDBDocValuesBlockWriter {
      *                              or {@code null} when offsets are not needed
      * @param sortedFieldObserver receives {@code (docId, value)} pairs during the doc pass,
      *                            or {@code null} when no observer is attached
+     * @param valuesObserver      receives every document and value during the single encode
+     *                            pass of a numeric field, or {@code null}; its
+     *                            {@link NumericValuesObserver#finish()} runs before this
+     *                            field's metadata is written. Must be {@code null} for ordinal
+     *                            fields
      * @param blockEncoder        codec-specific encoder for each value block
      * @param fieldMetaWriter    optional callback invoked after the block-shift marker to write
      *                            additional per-field metadata, or {@code null}
@@ -111,11 +132,14 @@ public final class TSDBDocValuesBlockWriter {
         long maxOrd,
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver,
+        final NumericValuesObserver valuesObserver,
         final BlockEncoder blockEncoder,
         final FieldMetaWriter fieldMetaWriter,
         int blockSize
     ) throws IOException {
         assert blockSize > 0 && (blockSize & (blockSize - 1)) == 0 : "blockSize must be a positive power of two, got " + blockSize;
+        assert valuesObserver == null || maxOrd == AbstractTSDBDocValuesConsumer.NO_MAX_ORD
+            : "a values observer is only supported for numeric fields";
         final IndexOutput meta = ctx.meta();
         final IndexOutput data = ctx.data();
         final int blockShift = Integer.numberOfTrailingZeros(blockSize);
@@ -124,13 +148,16 @@ public final class TSDBDocValuesBlockWriter {
 
         int numDocsWithValue = 0;
         long numValues = 0;
-
-        SortedNumericDocValues values;
+        // Ordinal fields need the counts up front to choose a layout. Numeric fields always use the
+        // block layout, so on flush (no merge stats) they pick the counts up during the encode pass
+        // instead of paying for a counting pass over the values.
+        boolean countsKnown = false;
         if (valuesSource.mergeStats.supported()) {
             numDocsWithValue = valuesSource.mergeStats.sumNumDocsWithField();
             numValues = valuesSource.mergeStats.sumNumValues();
-        } else {
-            values = valuesSource.getSortedNumeric(field);
+            countsKnown = true;
+        } else if (maxOrd != AbstractTSDBDocValuesConsumer.NO_MAX_ORD) {
+            final SortedNumericDocValues values = valuesSource.getSortedNumeric(field);
             final NumericDocValues singleton = DocValues.unwrapSingleton(values);
             if (singleton != null) {
                 for (int doc = singleton.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = singleton.nextDoc()) {
@@ -143,142 +170,119 @@ public final class TSDBDocValuesBlockWriter {
                     numValues += values.docValueCount();
                 }
             }
+            countsKnown = true;
         }
-
-        meta.writeLong(numValues);
-        meta.writeInt(numDocsWithValue);
 
         DISIAccumulator disiAccumulator = null;
         try {
-            if (numValues > 0) {
-                assert numDocsWithValue > 0;
-                final ByteBuffersDataOutput indexOut = new ByteBuffersDataOutput();
-                DirectMonotonicWriter indexWriter = null;
-
+            // TODO: the three branches below (single ordinal, ordinal range, block layout) are
+            // three encoding strategies that could be extracted behind a common delegate interface.
+            // Stats gathering and DISI writing are shared; only the value encoding varies.
+            if (countsKnown && numValues == 0) {
+                assert numDocsWithValue == 0;
+                writeCounts(meta, numValues, numDocsWithValue);
+            } else if (countsKnown && maxOrd == 1) {
+                writeCounts(meta, numValues, numDocsWithValue);
                 final long valuesDataOffset = data.getFilePointer();
-                // TODO: the three branches below (single ordinal, ordinal range, block layout) are
-                // three encoding strategies that could be extracted behind a common delegate interface.
-                // Stats gathering and DISI writing are shared; only the value encoding varies.
-                if (maxOrd == 1) {
-                    meta.writeInt(AbstractTSDBDocValuesConsumer.INDEX_SINGLE_ORDINAL);
-                    if (sortedFieldObserver != null) {
-                        sortedFieldObserver.onDoc(0, 0);
+                meta.writeInt(AbstractTSDBDocValuesConsumer.INDEX_SINGLE_ORDINAL);
+                if (sortedFieldObserver != null) {
+                    sortedFieldObserver.onDoc(0, 0);
+                }
+                writeOffsets(meta, data, valuesDataOffset, data.getFilePointer());
+            } else if (countsKnown && shouldEncodeOrdinalRange(ctx, field, maxOrd, numDocsWithValue, numValues)) {
+                assert docValueCountConsumer == null;
+                writeCounts(meta, numValues, numDocsWithValue);
+                final long valuesDataOffset = data.getFilePointer();
+                meta.writeInt(AbstractTSDBDocValuesConsumer.INDEX_ORDINAL_RANGE);
+                meta.writeVInt(Math.toIntExact(maxOrd));
+                meta.writeByte((byte) formatConfig.ordinalRangeBlockShift());
+                final SortedNumericDocValues values = valuesSource.getSortedNumeric(field);
+                if (valuesSource.mergeStats.supported() && numDocsWithValue < maxDoc) {
+                    disiAccumulator = new DISIAccumulator(ctx.dir(), ctx.ioContext(), data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                }
+                final DirectMonotonicWriter startDocs = DirectMonotonicWriter.getInstance(
+                    meta,
+                    data,
+                    maxOrd + 1,
+                    formatConfig.ordinalRangeBlockShift()
+                );
+                long lastOrd = 0;
+                startDocs.add(0);
+                if (sortedFieldObserver != null) {
+                    sortedFieldObserver.onDoc(0, lastOrd);
+                }
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    if (disiAccumulator != null) {
+                        disiAccumulator.addDocId(doc);
                     }
-                } else if (shouldEncodeOrdinalRange(ctx, field, maxOrd, numDocsWithValue, numValues)) {
-                    assert docValueCountConsumer == null;
-                    meta.writeInt(AbstractTSDBDocValuesConsumer.INDEX_ORDINAL_RANGE);
-                    meta.writeVInt(Math.toIntExact(maxOrd));
-                    meta.writeByte((byte) formatConfig.ordinalRangeBlockShift());
-                    values = valuesSource.getSortedNumeric(field);
-                    if (valuesSource.mergeStats.supported() && numDocsWithValue < maxDoc) {
-                        disiAccumulator = new DISIAccumulator(ctx.dir(), ctx.ioContext(), data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-                    }
-                    final DirectMonotonicWriter startDocs = DirectMonotonicWriter.getInstance(
-                        meta,
-                        data,
-                        maxOrd + 1,
-                        formatConfig.ordinalRangeBlockShift()
-                    );
-                    long lastOrd = 0;
-                    startDocs.add(0);
-                    if (sortedFieldObserver != null) {
-                        sortedFieldObserver.onDoc(0, lastOrd);
-                    }
-                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                        if (disiAccumulator != null) {
-                            disiAccumulator.addDocId(doc);
-                        }
-                        final long nextOrd = values.nextValue();
-                        if (nextOrd != lastOrd) {
-                            lastOrd = nextOrd;
-                            startDocs.add(doc);
-                            if (sortedFieldObserver != null) {
-                                sortedFieldObserver.onDoc(doc, nextOrd);
-                            }
+                    final long nextOrd = values.nextValue();
+                    if (nextOrd != lastOrd) {
+                        lastOrd = nextOrd;
+                        startDocs.add(doc);
+                        if (sortedFieldObserver != null) {
+                            sortedFieldObserver.onDoc(doc, nextOrd);
                         }
                     }
-                    startDocs.add(maxDoc);
-                    startDocs.finish();
+                }
+                startDocs.add(maxDoc);
+                startDocs.finish();
+                writeOffsets(meta, data, valuesDataOffset, data.getFilePointer());
+            } else {
+                // Block layout. Everything that goes to meta is written after the pass: the counts
+                // may still be unknown, and a values observer may have metadata of its own that the
+                // reader expects before this field's entry. Block start offsets are therefore kept
+                // in memory (8 bytes per block of blockSize values) and fed to the block index
+                // writer once the values are out.
+                final SortedNumericDocValues values = valuesSource.getSortedNumeric(field);
+                if (valuesSource.mergeStats.supported() && numDocsWithValue < maxDoc) {
+                    disiAccumulator = new DISIAccumulator(ctx.dir(), ctx.ioContext(), data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                }
+                final int expectedBlocks = countsKnown ? Math.toIntExact(1L + ((numValues - 1) >>> blockShift)) : 16;
+                final BlockPass pass = new BlockPass(data, blockEncoder, blockSize, expectedBlocks);
+                // Iterate a single-valued field directly: through the wrapper, the call to the underlying iterator is
+                // shared with every other user of the wrapper in the JVM and ends up megamorphic.
+                final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+                if (singleton != null) {
+                    pass.writeSingleValued(singleton, disiAccumulator, docValueCountConsumer, sortedFieldObserver, valuesObserver);
                 } else {
-                    indexWriter = DirectMonotonicWriter.getInstance(
-                        meta,
-                        new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),
-                        1L + ((numValues - 1) >>> blockShift),
-                        formatConfig.directMonotonicBlockShift()
-                    );
+                    pass.writeMultiValued(values, disiAccumulator, docValueCountConsumer, sortedFieldObserver, valuesObserver);
+                }
+                pass.finish();
+                if (countsKnown) {
+                    assert pass.numDocsWithValue == numDocsWithValue : pass.numDocsWithValue + " != " + numDocsWithValue;
+                    assert pass.numValues == numValues : pass.numValues + " != " + numValues;
+                } else {
+                    numDocsWithValue = pass.numDocsWithValue;
+                    numValues = pass.numValues;
+                }
+                assert numValues == 0 ? pass.numBlocks == 0 : pass.numBlocks == 1L + ((numValues - 1) >>> blockShift);
+
+                if (valuesObserver != null) {
+                    valuesObserver.finish();
+                }
+                writeCounts(meta, numValues, numDocsWithValue);
+                if (numValues > 0) {
+                    assert numDocsWithValue > 0;
                     meta.writeInt(formatConfig.directMonotonicBlockShift());
                     if (fieldMetaWriter != null) {
                         fieldMetaWriter.write();
                     }
-                    final long[] buffer = new long[blockSize];
-                    int bufferSize = 0;
-                    values = valuesSource.getSortedNumeric(field);
-                    if (valuesSource.mergeStats.supported() && numDocsWithValue < maxDoc) {
-                        disiAccumulator = new DISIAccumulator(ctx.dir(), ctx.ioContext(), data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                    final long indexDataOffset = data.getFilePointer();
+                    final DirectMonotonicWriter indexWriter = DirectMonotonicWriter.getInstance(
+                        meta,
+                        data,
+                        pass.numBlocks,
+                        formatConfig.directMonotonicBlockShift()
+                    );
+                    for (int i = 0; i < pass.numBlocks; i++) {
+                        indexWriter.add(pass.blockOffsets[i]);
                     }
-                    // Iterate a single-valued field directly: through the wrapper, the call to the underlying iterator is
-                    // shared with every other user of the wrapper in the JVM and ends up megamorphic.
-                    final NumericDocValues singleton = DocValues.unwrapSingleton(values);
-                    if (singleton != null) {
-                        for (int doc = singleton.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = singleton.nextDoc()) {
-                            if (disiAccumulator != null) {
-                                disiAccumulator.addDocId(doc);
-                            }
-                            if (docValueCountConsumer != null) {
-                                docValueCountConsumer.accept(1);
-                            }
-                            final long v = singleton.longValue();
-                            if (sortedFieldObserver != null) {
-                                sortedFieldObserver.onDoc(doc, v);
-                            }
-                            buffer[bufferSize++] = v;
-                            if (bufferSize == blockSize) {
-                                indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                                blockEncoder.encode(buffer, data);
-                                bufferSize = 0;
-                            }
-                        }
-                    } else {
-                        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                            if (disiAccumulator != null) {
-                                disiAccumulator.addDocId(doc);
-                            }
-                            final int count = values.docValueCount();
-                            if (docValueCountConsumer != null) {
-                                docValueCountConsumer.accept(count);
-                            }
-                            for (int i = 0; i < count; ++i) {
-                                final long v = values.nextValue();
-                                if (sortedFieldObserver != null) {
-                                    sortedFieldObserver.onDoc(doc, v);
-                                }
-                                buffer[bufferSize++] = v;
-                                if (bufferSize == blockSize) {
-                                    indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                                    blockEncoder.encode(buffer, data);
-                                    bufferSize = 0;
-                                }
-                            }
-                        }
-                    }
-                    if (bufferSize > 0) {
-                        indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                        Arrays.fill(buffer, bufferSize, blockSize, 0L);
-                        blockEncoder.encode(buffer, data);
-                    }
-                }
-
-                final long valuesDataLength = data.getFilePointer() - valuesDataOffset;
-                if (indexWriter != null) {
                     indexWriter.finish();
+                    meta.writeLong(indexDataOffset);
+                    meta.writeLong(data.getFilePointer() - indexDataOffset);
+                    meta.writeLong(pass.valuesDataOffset);
+                    meta.writeLong(pass.valuesDataEnd - pass.valuesDataOffset);
                 }
-                final long indexDataOffset = data.getFilePointer();
-                data.copyBytes(indexOut.toDataInput(), indexOut.size());
-                meta.writeLong(indexDataOffset);
-                meta.writeLong(data.getFilePointer() - indexDataOffset);
-
-                meta.writeLong(valuesDataOffset);
-                meta.writeLong(valuesDataLength);
             }
 
             writeDISI(meta, data, ctx, valuesSource, field, maxOrd, numDocsWithValue, disiAccumulator);
@@ -287,6 +291,164 @@ public final class TSDBDocValuesBlockWriter {
         }
 
         return new DocValueFieldCountStats(numDocsWithValue, numValues);
+    }
+
+    private static void writeCounts(final IndexOutput meta, long numValues, int numDocsWithValue) throws IOException {
+        meta.writeLong(numValues);
+        meta.writeInt(numDocsWithValue);
+    }
+
+    /**
+     * Writes the (empty) block index location and the values location for the two ordinal
+     * layouts that have no block index, keeping the metadata shape identical to the block layout.
+     */
+    private static void writeOffsets(final IndexOutput meta, final IndexOutput data, long valuesDataOffset, long valuesDataEnd)
+        throws IOException {
+        meta.writeLong(data.getFilePointer()); // index data offset
+        meta.writeLong(0L); // index data length
+        meta.writeLong(valuesDataOffset);
+        meta.writeLong(valuesDataEnd - valuesDataOffset);
+    }
+
+    /**
+     * One block-layout pass over a field's values: fills and encodes blocks, remembers where each
+     * block starts (8 bytes per block, so the block index can be written after the pass) and
+     * counts documents and values.
+     *
+     * <p>The two iteration loops are deliberately kept in small methods of their own rather than
+     * inlined into {@link #writeFieldEntry}: that method is large, and when the loops lived there
+     * C2 stopped inlining the per-value iterator calls, which cost more than the pass that this
+     * class saves.
+     */
+    private static final class BlockPass {
+        private final IndexOutput data;
+        private final BlockEncoder blockEncoder;
+        private final long[] buffer;
+        private int bufferSize;
+        final long valuesDataOffset;
+        long valuesDataEnd;
+        long[] blockOffsets;
+        int numBlocks;
+        int numDocsWithValue;
+        long numValues;
+
+        BlockPass(final IndexOutput data, final BlockEncoder blockEncoder, int blockSize, int expectedBlocks) {
+            this.data = data;
+            this.blockEncoder = blockEncoder;
+            this.buffer = new long[blockSize];
+            this.valuesDataOffset = data.getFilePointer();
+            this.blockOffsets = new long[expectedBlocks];
+        }
+
+        void writeSingleValued(
+            final NumericDocValues values,
+            final DISIAccumulator disiAccumulator,
+            final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
+            final SortedFieldObserver sortedFieldObserver,
+            final NumericValuesObserver valuesObserver
+        ) throws IOException {
+            // Per-value state lives in locals: C2 reloads fields on every iteration, which is
+            // measurable at this call frequency.
+            final long[] buffer = this.buffer;
+            int bufferSize = this.bufferSize;
+            int docs = 0;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                if (disiAccumulator != null) {
+                    disiAccumulator.addDocId(doc);
+                }
+                if (docValueCountConsumer != null) {
+                    docValueCountConsumer.accept(1);
+                }
+                final long v = values.longValue();
+                if (sortedFieldObserver != null) {
+                    sortedFieldObserver.onDoc(doc, v);
+                }
+                if (valuesObserver != null) {
+                    valuesObserver.startDoc(doc, 1, v);
+                }
+                docs++;
+                buffer[bufferSize++] = v;
+                if (bufferSize == buffer.length) {
+                    encodeBlock();
+                    bufferSize = 0;
+                }
+            }
+            this.bufferSize = bufferSize;
+            numDocsWithValue = docs;
+            numValues = docs;
+        }
+
+        void writeMultiValued(
+            final SortedNumericDocValues values,
+            final DISIAccumulator disiAccumulator,
+            final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
+            final SortedFieldObserver sortedFieldObserver,
+            final NumericValuesObserver valuesObserver
+        ) throws IOException {
+            final long[] buffer = this.buffer;
+            int bufferSize = this.bufferSize;
+            int docs = 0;
+            long vals = 0;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                if (disiAccumulator != null) {
+                    disiAccumulator.addDocId(doc);
+                }
+                final int count = values.docValueCount();
+                if (docValueCountConsumer != null) {
+                    docValueCountConsumer.accept(count);
+                }
+                docs++;
+                vals += count;
+                // The first value is peeled out of the inner loop so the observer sees the
+                // document boundary without a branch per value.
+                long v = values.nextValue();
+                if (sortedFieldObserver != null) {
+                    sortedFieldObserver.onDoc(doc, v);
+                }
+                if (valuesObserver != null) {
+                    valuesObserver.startDoc(doc, count, v);
+                }
+                buffer[bufferSize++] = v;
+                if (bufferSize == buffer.length) {
+                    encodeBlock();
+                    bufferSize = 0;
+                }
+                for (int i = 1; i < count; ++i) {
+                    v = values.nextValue();
+                    if (sortedFieldObserver != null) {
+                        sortedFieldObserver.onDoc(doc, v);
+                    }
+                    if (valuesObserver != null) {
+                        valuesObserver.addValue(v);
+                    }
+                    buffer[bufferSize++] = v;
+                    if (bufferSize == buffer.length) {
+                        encodeBlock();
+                        bufferSize = 0;
+                    }
+                }
+            }
+            this.bufferSize = bufferSize;
+            numDocsWithValue = docs;
+            numValues = vals;
+        }
+
+        /** Encodes the trailing partial block, if any, and records where the values end. */
+        void finish() throws IOException {
+            if (bufferSize > 0) {
+                Arrays.fill(buffer, bufferSize, buffer.length, 0L);
+                encodeBlock();
+            }
+            valuesDataEnd = data.getFilePointer();
+        }
+
+        private void encodeBlock() throws IOException {
+            if (numBlocks == blockOffsets.length) {
+                blockOffsets = ArrayUtil.grow(blockOffsets, numBlocks + 1);
+            }
+            blockOffsets[numBlocks++] = data.getFilePointer() - valuesDataOffset;
+            blockEncoder.encode(buffer, data);
+        }
     }
 
     /**

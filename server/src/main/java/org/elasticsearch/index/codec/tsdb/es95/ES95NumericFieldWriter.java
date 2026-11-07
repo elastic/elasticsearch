@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesConsumer;
 import org.elasticsearch.index.codec.tsdb.DocValueFieldCountStats;
 import org.elasticsearch.index.codec.tsdb.NumericFieldWriter;
+import org.elasticsearch.index.codec.tsdb.NumericValuesObserver;
 import org.elasticsearch.index.codec.tsdb.NumericWriteContext;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserver;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesBlockWriter;
@@ -67,7 +68,8 @@ final class ES95NumericFieldWriter implements NumericFieldWriter {
         final FieldInfo field,
         final TsdbDocValuesProducer valuesSource,
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
-        final SortedFieldObserver sortedFieldObserver
+        final SortedFieldObserver sortedFieldObserver,
+        final NumericValuesObserver valuesObserver
     ) throws IOException {
         final FieldContext context = fieldContextResolver.resolve(field.name, ctx.blockSize());
         final PipelineConfig pipelineConfig = resolver.resolve(context);
@@ -80,6 +82,7 @@ final class ES95NumericFieldWriter implements NumericFieldWriter {
             AbstractTSDBDocValuesConsumer.NO_MAX_ORD,
             docValueCountConsumer,
             sortedFieldObserver,
+            valuesObserver,
             (buffer, data) -> numericFieldEncoder.encodeBlock(buffer, blockSize, data),
             () -> FieldDescriptor.write(ctx.meta(), numericFieldEncoder.descriptor()),
             blockSize

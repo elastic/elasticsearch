@@ -45,6 +45,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ERROR_TRACE_DEFAULT;
+import static org.elasticsearch.rest.RestController.ERROR_TRACE_PARAM;
 
 public final class RestResponse implements Releasable {
 
@@ -171,7 +172,7 @@ public final class RestResponse implements Releasable {
         // switched in the xcontent rendering parameters.
         // For authorization problems (RestStatus.UNAUTHORIZED) we don't want to do this since this could
         // leak information to the caller who is unauthorized to make this call
-        if (params.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && status != RestStatus.UNAUTHORIZED) {
+        if (params.paramAsBoolean(ERROR_TRACE_PARAM, ERROR_TRACE_DEFAULT) && status != RestStatus.UNAUTHORIZED) {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
 

@@ -23,10 +23,13 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /** Rest handler for feature state reset requests */
 @ServerlessScope(Scope.INTERNAL)
 public class RestResetFeatureStateAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM);
 
     @Override
     public boolean allowSystemIndexAccessByDefault() {
@@ -41,6 +44,11 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "reset_feature_state";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

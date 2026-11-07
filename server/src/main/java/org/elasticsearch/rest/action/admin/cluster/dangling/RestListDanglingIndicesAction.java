@@ -18,6 +18,7 @@ import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -30,6 +31,11 @@ public class RestListDanglingIndicesAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "list_dangling_indices";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
     }
 
     @Override

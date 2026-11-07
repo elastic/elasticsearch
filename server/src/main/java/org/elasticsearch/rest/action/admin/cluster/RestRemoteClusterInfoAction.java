@@ -19,6 +19,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -33,6 +34,11 @@ public final class RestRemoteClusterInfoAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "remote_cluster_info_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
     }
 
     @Override

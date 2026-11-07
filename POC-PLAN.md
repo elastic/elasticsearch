@@ -534,3 +534,58 @@ a type hierarchy.
 - No randomized suite generates a union block, since `RandomBlock` cannot build one.
 - `FORK` and `UNION ALL` branches go through `ResolveUnionTypesInUnionAll`, untraced here.
 - The per-value coercion path for Parquet and ORC, untraced.
+
+## 5. Datasets: answered, and the answer is "inert, by construction"
+
+The question was whether the leg loader sitting in the index path breaks datasets. It cannot, and the
+risk ran the other way from how I first framed it.
+
+**Why nothing breaks.** `UnionTypesCleanup` rewrites `FieldAttribute`s whose `EsField` is a
+`TypeConflictedField`. A dataset column is a `ReferenceAttribute` built by
+`DeclaredSchemaResolver.declaredAttributes`, carrying a plain `DataType` and no `EsField` at all, and
+the only two production sites that construct a conflicted field are `IndexResolver` and
+`InvalidMappedField.potentiallyUnmapped` — neither on a dataset path. So the rule never matches a
+dataset column and there is nothing for the loader to be asked for.
+
+**Why nothing is gained either.** Datasets already answer cross-file type disagreement, by a different
+and total mechanism: `SchemaReconciliation` widens losslessly where a supertype exists and otherwise
+takes `TypeWidening.join`'s top, `KEYWORD`, with a stringification warning. A dataset therefore never
+has an unreadable column — it has a *lossy* one. `ExternalCsvUnionByNameNumericWideningIT` pins the
+shape: one file's `col` is numeric, another's is text, and the answer is
+`("100", "200", "oops", "abc", "def")` — the numbers are strings, so nothing can sum them and nothing
+can say which file produced which.
+
+**So datasets are where this type pays next, not a hazard to it.** The union keeps `100` a `long` and
+lets `TYPEOF` name the file's type, which is the same proposition as against an index conflict. It is
+out of scope here because it is a second producer of legs, not a second consumer: the reconciler would
+have to stop collapsing and start declaring legs, and the dataset read path would need a per-file leg
+loader answering to the same carried order.
+
+`ExternalCsvUnionTypedPragmaIT` holds the "inert" half, pinned against the pragma-less assertions, with
+a control that fails if the pragma stops reaching the queries.
+
+## 6. Two process faults worth keeping
+
+**The docs sync deletes what a filtered run did not generate.** `EsqlFunctionPlugin`'s `test.doLast`
+syncs generated docs into `docs/`, and `Fs.sync` deletes destination files absent from the source. The
+`preserve` guard is conditional on the run producing at most 100 of them, so a filtered run over
+`expression.function.*` that crosses that count is taken for a full suite and deletes every other
+function's snippets, SVGs and Kibana definitions. That is how 55 generated files for `to_ip`,
+`inline_cast` and the arithmetic and comparison operators left the tree under a blanket `git add`, and
+it is why the docs CI was red. Check `git status docs/` after any filtered function-test run.
+
+**A green function test is not evidence its docs render.** `AbstractFunctionTestCase.functionName()`
+derives the name from the test class, so `TypeOfTests` asked for `type_of` while the function is
+`typeof`; the renderer found nothing and did nothing, and the class passed having checked neither the
+docs nor the Kibana definition — nor, it turned out, the declared parameter types, which disagreed with
+the test cases. `@FunctionName` is the fix and the only tell is that no generated file exists.
+
+**Correction to §3.10 and to an earlier conclusion of mine.** csv-spec cannot render a union column,
+because `CsvTestUtils.Type` is one type per column. It can express any column *derived* from one, such
+as `TYPEOF(u)` or `COUNT(*) BY TYPEOF(u)`, both keyword; `pragma:union_typed_fields=true` is accepted by
+`CsvSpecReader`. Whether the pragma survives into a `CsvIT` run is unverified — a first attempt failed
+with `Unknown column` and was not diagnosed, so the committed `TYPEOF` example uses a single-type column
+and the union evidence stays in `UnionTypedFieldIT`.
+
+**Review finding N2 is withdrawn.** `FunctionDefinition.Builder#capabilities` does exist; the finding
+grepped for `Builder capabilities(` and the signature is `Builder<T> capabilities(String...)`.

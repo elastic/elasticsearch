@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -105,7 +106,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Bucket.class)
         .quinaryConfigWithOptions(Bucket::new)
-        .capabilities("histogram_types")
+        .capabilities(
+            "histogram_types",
+            // unsigned_long from/to bounds are decoded instead of being read in their sortable-encoded form
+            "unsigned_long_bounds"
+        )
         .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
     public static final TransportVersion ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION = TransportVersion.fromName(
@@ -875,15 +880,52 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         if (from != null) {
             assert to != null : "Both from and to must be set";
             long b = ((Number) buckets.fold(foldContext)).longValue();
-            double f = ((Number) from.fold(foldContext)).doubleValue();
-            double t = ((Number) to.fold(foldContext)).doubleValue();
-            double precise = (t - f) / b;
+            double precise = numericRange(foldContext) / b;
             double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
             double halfPower = nextPowerOfTen / 2;
             return precise < halfPower ? halfPower : nextPowerOfTen;
         } else {
             return ((Number) buckets.fold(foldContext)).doubleValue();
         }
+    }
+
+    /**
+     * The width of the {@code from}..{@code to} range as a double. When both bounds are whole numbers the difference
+     * is computed exactly in BigInteger space first and rounded once: converting each side to a double separately
+     * loses precision above 2^53 and can round away the entire range (doubles quantize in steps of 16 near 1e17 and
+     * up to 2048 near 2^64, so e.g. {@code Long.MAX_VALUE} and {@code Long.MAX_VALUE + 100} become the same double).
+     * BigInteger rather than {@code long} arithmetic because the range of two longs can exceed {@code Long.MAX_VALUE},
+     * and because {@code unsigned_long} bounds fold to their sortable-encoded representation and must be decoded.
+     */
+    private double numericRange(FoldContext foldContext) {
+        if (from.dataType().isWholeNumber() && to.dataType().isWholeNumber()) {
+            return wholeNumberBound(foldContext, to).subtract(wholeNumberBound(foldContext, from)).doubleValue();
+        }
+        return foldNumericBound(foldContext, to) - foldNumericBound(foldContext, from);
+    }
+
+    private static BigInteger wholeNumberBound(FoldContext foldContext, Expression e) {
+        long value = ((Number) e.fold(foldContext)).longValue();
+        return e.dataType() == DataType.UNSIGNED_LONG ? NumericUtils.unsignedLongAsBigInteger(value) : BigInteger.valueOf(value);
+    }
+
+    /**
+     * The numeric {@code from} bound as a double, decoding sortable-encoded unsigned_long values.
+     */
+    public double numericRangeFrom(FoldContext foldContext) {
+        return foldNumericBound(foldContext, from);
+    }
+
+    /**
+     * The numeric {@code to} bound as a double, decoding sortable-encoded unsigned_long values.
+     */
+    public double numericRangeTo(FoldContext foldContext) {
+        return foldNumericBound(foldContext, to);
+    }
+
+    private static double foldNumericBound(FoldContext foldContext, Expression e) {
+        Number value = (Number) e.fold(foldContext);
+        return e.dataType() == DataType.UNSIGNED_LONG ? NumericUtils.unsignedLongToDouble(value.longValue()) : value.doubleValue();
     }
 
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):

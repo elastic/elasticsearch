@@ -15,6 +15,8 @@ apply plugin: 'elasticsearch.esql-csv-spec-tests'
 
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  // The registration contract the dataset CRUD suites assert against.
+  javaRestTestImplementation project(xpackModule('esql:qa:fixture-common'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   javaRestTestImplementation project(xpackModule('esql:tools'))
   javaRestTestImplementation project(xpackModule('esql'))

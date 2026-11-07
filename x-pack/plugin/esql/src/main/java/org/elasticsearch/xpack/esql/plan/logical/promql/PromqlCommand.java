@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -312,6 +314,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     public NameId stepId() {
         return stepId;
+    }
+
+    /**
+     * Whether {@code _timeseries} is typed metadata for this query: the feature is on and every participating node reads
+     * it. Otherwise the translated plan is lowered to the keyword column.
+     */
+    public static boolean usesTimeSeriesMetadata(AnalyzerContext analyzer) {
+        return EsqlCapabilities.Cap.ENABLE_TIMESERIES_DATA_TYPE.isEnabled()
+            && DataType.TIMESERIES_DATA_TYPE.supportedVersion().supportedOn(analyzer.minimumVersion(), Build.current().isSnapshot());
     }
 
     public ReferenceAttribute valueAttribute() {

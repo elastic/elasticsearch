@@ -31,6 +31,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
+import org.elasticsearch.xpack.stateless.cache.reader.VectorFillPolicy;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -253,6 +254,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return blobFileRanges != null ? blobFileRanges.blobLocation() : null;
     }
 
+    /**
+     * The current file name to {@link BlobFileRanges} map of the directory (read-only view).
+     */
+    public Map<String, BlobFileRanges> getFileRangesByName() {
+        return Collections.unmodifiableMap(getCurrentMetadata());
+    }
+
     public Collection<BlobFileRanges> getBlobFileRanges() {
         return Collections.unmodifiableCollection(getCurrentMetadata().values());
     }
@@ -455,8 +463,24 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             context,
             cacheService.hasSearchRole(),
             cacheService.isObjectStorePrefetchEnabled()
-        );
+        ).withVectorFillPolicy(vectorFillPolicy(), name).withReadPresentWithoutFill(this::readPresentWithoutFill);
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
+    }
+
+    /**
+     * @return whether reads whose bytes are all cached are served without filling their fill range (prototype, phase 4, see
+     * {@code CacheFileReader#withReadPresentWithoutFill})
+     */
+    protected boolean readPresentWithoutFill() {
+        return false;
+    }
+
+    /**
+     * @return how this directory fills the cache for vector files, or {@code null} to fill them like any other file
+     */
+    @Nullable
+    protected VectorFillPolicy vectorFillPolicy() {
+        return null;
     }
 
     /**

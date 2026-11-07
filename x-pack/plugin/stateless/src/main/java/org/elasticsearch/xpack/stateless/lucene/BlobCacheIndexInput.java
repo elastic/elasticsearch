@@ -51,6 +51,11 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     private final IOContext context;
     private final long offset;
     private final String sliceDescription;
+    /**
+     * Whether this input (or a clone of it) already prefetched itself whole on a cache miss, see
+     * {@link CacheFileReader#prefetchWholeInputOnMiss}. Shared with clones, not with slices.
+     */
+    private final AtomicBoolean prefetchedWholeOnMiss;
 
     public BlobCacheIndexInput(
         String name,
@@ -61,7 +66,21 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         long offset,
         String sliceDescription
     ) {
+        this(name, context, cacheFileReader, releasable, length, offset, sliceDescription, new AtomicBoolean());
+    }
+
+    private BlobCacheIndexInput(
+        String name,
+        IOContext context,
+        CacheFileReader cacheFileReader,
+        Releasable releasable,
+        long length,
+        long offset,
+        String sliceDescription,
+        AtomicBoolean prefetchedWholeOnMiss
+    ) {
         super(name, context, length);
+        this.prefetchedWholeOnMiss = prefetchedWholeOnMiss;
         this.cacheFileReader = cacheFileReader;
         this.closed = new AtomicBoolean(false);
         this.releasable = releasable;
@@ -143,7 +162,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         return new BlobCacheIndexInput(
             "(" + sliceDescription + ") " + super.toString(),
             sliceContext,
-            cacheFileReader.copyWithContext(sliceContext, subFileOffset, length),
+            cacheFileReader.copyWithContext(sliceContext, subFileOffset, length).applyVectorFillPolicy(sliceDescription),
             null,
             length,
             subFileOffset,
@@ -164,7 +183,8 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
             null,
             length(),
             offset,
-            sliceDescription != null ? sliceDescription : super.toString()
+            sliceDescription != null ? sliceDescription : super.toString(),
+            prefetchedWholeOnMiss
         );
         try {
             clone.seek(getFilePointer());
@@ -231,7 +251,10 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
 
     @Override
     public void prefetch(long offset, long length) throws IOException {
-        cacheFileReader.tryPrefetch(this.offset + offset, length);
+        final boolean cached = cacheFileReader.tryPrefetch(this.offset + offset, length);
+        if (logger.isTraceEnabled()) {
+            logger.trace("prefetch [{}] pos [{}] len [{}] cached [{}]", super.toString(), offset, length, cached);
+        }
     }
 
     @Override
@@ -302,6 +325,30 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     private void readInternalSlow(ByteBuffer b, long position, int length) throws Exception {
+        if (cacheFileReader.prefetchWholeInputOnMiss(length()) && prefetchedWholeOnMiss.compareAndSet(false, true)) {
+            // a vector file of a cold shard: start filling all of it at once rather than one dependent read after the other
+            try {
+                cacheFileReader.tryPrefetch(offset, length());
+            } catch (Exception e) {
+                logger.debug(() -> this + " failed to prefetch whole input on cache miss", e);
+            }
+        }
+        if (logger.isTraceEnabled()) {
+            final long start = System.nanoTime();
+            doReadInternalSlow(b, position, length);
+            logger.trace(
+                "slow read [{}] pos [{}] len [{}] took [{}us]",
+                super.toString(),
+                position - offset,
+                length,
+                (System.nanoTime() - start) / 1000
+            );
+        } else {
+            doReadInternalSlow(b, position, length);
+        }
+    }
+
+    private void doReadInternalSlow(ByteBuffer b, long position, int length) throws Exception {
         cacheFileReader.read(
             this,
             b,

@@ -12,6 +12,8 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 
 /**
  * An allocation strategy that only allows for a replica to be allocated when the primary is active.
@@ -19,6 +21,36 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecider {
 
     private static final String NAME = "replica_after_primary_active";
+
+    /**
+     * Fast activation prototype (stateless only, default off): an unpromotable copy (stateless search shard) reads its data from the object
+     * store and never recovers from the primary, so it may be allocated and recovered while the primary is unassigned (e.g. a parked
+     * indexing shard). Also read by {@link ThrottlingAllocationDecider} and {@code IndicesClusterStateService}.
+     */
+    public static final Setting<Boolean> UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.unpromotable_without_primary.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Node-wide copy of {@link #UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING} for the relaxed assertions and recovery accounting in
+     * {@code RoutingNodes} and {@code IndexShardRoutingTable}, which have no {@link ClusterSettings}: with it off they run their original
+     * code. Prototype shortcut: a mutable static (one value per JVM, last writer wins) rather than threading the setting through.
+     */
+    public static volatile boolean UNPROMOTABLE_WITHOUT_PRIMARY = false;
+
+    private volatile boolean unpromotableWithoutPrimary = false;
+
+    public ReplicaAfterPrimaryActiveAllocationDecider() {}
+
+    public ReplicaAfterPrimaryActiveAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING, value -> {
+            this.unpromotableWithoutPrimary = value;
+            UNPROMOTABLE_WITHOUT_PRIMARY = value;
+        });
+    }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -31,6 +63,9 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
             return allocation.decision(Decision.YES, NAME, "shard is primary and can be allocated");
         }
         ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting.shardId());
+        if (primary == null && unpromotableWithoutPrimary && shardRouting.isPromotableToPrimary() == false) {
+            return allocation.decision(Decision.YES, NAME, "unpromotable copy may be allocated without an active primary");
+        }
         if (primary == null) {
             return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
         }

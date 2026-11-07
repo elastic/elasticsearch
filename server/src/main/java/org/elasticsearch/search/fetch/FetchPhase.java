@@ -92,10 +92,26 @@ public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;
+    private volatile boolean prefetchStoredFields;
+    private volatile boolean prefetchIdDocValues;
 
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
+    }
+
+    /**
+     * See {@link SearchService#FETCH_PHASE_PREFETCH_STORED_FIELDS}.
+     */
+    public void setPrefetchStoredFields(boolean prefetchStoredFields) {
+        this.prefetchStoredFields = prefetchStoredFields;
+    }
+
+    /**
+     * See {@link SearchService#FETCH_PHASE_PREFETCH_ID_DOC_VALUES}.
+     */
+    public void setPrefetchIdDocValues(boolean prefetchIdDocValues) {
+        this.prefetchIdDocValues = prefetchIdDocValues;
     }
 
     /**
@@ -382,6 +398,21 @@ public final class FetchPhase {
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadDirectoryMetricsCapture()) {
+
+            @Override
+            protected boolean prefetchStoredFields() {
+                return prefetchStoredFields;
+            }
+
+            @Override
+            protected boolean prefetchIdDocValues() {
+                return prefetchIdDocValues;
+            }
+
+            @Override
+            protected void prefetchIdDocValues(LeafReaderContext ctx) throws IOException {
+                idLoader.prefetch(ctx.reader());
+            }
 
             LeafReaderContext ctx;
             LeafNestedDocuments leafNestedDocuments;

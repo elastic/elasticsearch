@@ -45,6 +45,11 @@ public class PressuredCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
+    public ByteRange getRange(long position, int length, long remainingFileLength, long minRangeSize) {
+        return delegate.getRange(position, length, remainingFileLength, minRangeSize);
+    }
+
+    @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
         pressure.acquire(length, deferredReadExecutor(), listener.delegateFailureAndWrap((delegatedListener, budget) -> {
             ActionListener<InputStream> readListener = new ActionListener<>() {

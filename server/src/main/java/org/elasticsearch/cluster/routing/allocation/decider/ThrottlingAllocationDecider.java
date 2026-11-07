@@ -89,8 +89,13 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     private volatile int concurrentIncomingRecoveries;
     private volatile int concurrentOutgoingRecoveries;
     private volatile boolean unthrottleReplicaAssignmentInSimulation = false;
+    private volatile boolean unpromotableWithoutPrimary = false;
 
     public ThrottlingAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatchIfRegistered(
+            ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING,
+            value -> this.unpromotableWithoutPrimary = value
+        );
         clusterSettings.initializeAndWatch(
             CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
             this::setPrimariesInitialRecoveries
@@ -188,6 +193,10 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             } else {
                 // search for corresponding recovery source (= primary shard) and check number of outgoing recoveries on that node
                 ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
+                if (primaryShard == null && unpromotableWithoutPrimary && shardRouting.isPromotableToPrimary() == false) {
+                    // fast activation prototype: no recovery source node, the copy recovers from the object store only
+                    return allocation.decision(YES, NAME, "unpromotable copy recovers without a primary, no outgoing recovery to throttle");
+                }
                 if (primaryShard == null) {
                     return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
                 }

@@ -28,12 +28,14 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledAsyncTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
@@ -71,6 +73,7 @@ import org.elasticsearch.xpack.stateless.utils.IndexingShardWarmingComparator;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -856,6 +859,160 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
+    /**
+     * Bounded warming for the fast cold activation of a search shard (see
+     * {@link org.elasticsearch.xpack.stateless.recovery.FastSearchActivationSettings}): fetches, in parallel, what opening a reader on
+     * {@code commit} reads, and nothing else, so that the reader opens from the cache. The caller waits for the listener before opening
+     * the reader. Needs no object store read to plan: everything is derived from the commit's file locations.
+     * <ul>
+     *     <li>blobs whose referenced bytes end at or before {@code wholeBlobThreshold} are fetched from offset 0 to the end of the last
+     *     referenced file (one request per blob and cache region: for a small blob an extra round trip costs more than reading it
+     *     all);</li>
+     *     <li>for the files of other blobs, the header warming of {@link ShardWarmer} (1 KiB header and footer of each file, whole
+     *     metadata and small files), without its whole-region fills: the ranges fetched are those of the directory's cache blob reader,
+     *     i.e. small ranges when the directory has a range size override.</li>
+     * </ul>
+     * Unlike {@link #warmCacheForSearchShardRecovery}, this never reads compound commit headers and never warms whole regions or
+     * whole large blobs.
+     */
+    public void warmCacheForFastSearchActivation(
+        IndexShard indexShard,
+        StatelessCompoundCommit commit,
+        BlobStoreCacheDirectory directory,
+        long wholeBlobThreshold,
+        ActionListener<Void> listener
+    ) {
+        warmCacheForFastSearchActivation(indexShard, commit, directory, wholeBlobThreshold, false, listener);
+    }
+
+    /**
+     * As {@link #warmCacheForFastSearchActivation(IndexShard, StatelessCompoundCommit, BlobStoreCacheDirectory, long, ActionListener)};
+     * with {@code openBytesSeeded} (phase 4: the open-time bytes of the commit were written in the cache from its commit pointer, see
+     * {@link #seedCacheFromCommitPointer}) only whole small blobs are fetched, not the headers/footers/metadata of the other blobs.
+     */
+    public void warmCacheForFastSearchActivation(
+        IndexShard indexShard,
+        StatelessCompoundCommit commit,
+        BlobStoreCacheDirectory directory,
+        long wholeBlobThreshold,
+        boolean openBytesSeeded,
+        ActionListener<Void> listener
+    ) {
+        final Map<BlobFile, Long> referencedEndPerBlob = new HashMap<>();
+        for (var location : commit.commitFiles().values()) {
+            referencedEndPerBlob.merge(location.blobFile(), location.offset() + location.fileLength(), Math::max);
+        }
+        // A single ShardWarmer fetches both kinds of locations so that they all go out in parallel through the warming task runner.
+        final List<BlobLocation> wholeBlobs = new ArrayList<>();
+        final Map<String, BlobLocation> filesToWarm = new HashMap<>();
+        long wholeBlobBytes = 0L;
+        for (var entry : referencedEndPerBlob.entrySet()) {
+            if (entry.getValue() <= wholeBlobThreshold) {
+                wholeBlobs.add(new BlobLocation(entry.getKey(), 0L, entry.getValue()));
+                wholeBlobBytes += entry.getValue();
+            }
+        }
+        for (var entry : commit.commitFiles().entrySet()) {
+            if (openBytesSeeded == false && referencedEndPerBlob.get(entry.getValue().blobFile()) > wholeBlobThreshold) {
+                filesToWarm.put(entry.getKey(), entry.getValue());
+            }
+        }
+        final int wholeBlobCount = wholeBlobs.size();
+        logger.debug(
+            "{} fast activation warming of {}: {} whole blobs ({} bytes) and the headers/footers/metadata of {} larger blobs",
+            indexShard.shardId(),
+            commit.toShortDescription(),
+            wholeBlobCount,
+            wholeBlobBytes,
+            referencedEndPerBlob.size() - wholeBlobCount
+        );
+        final Store store = indexShard.store();
+        if (store.isClosing() || store.tryIncRef() == false) {
+            listener.onFailure(new AlreadyClosedException("Failed to warm cache for " + indexShard.shardId() + ", store is closing"));
+            return;
+        }
+        try {
+            final var warmingRun = new WarmingRun(
+                Type.SEARCH,
+                indexShard.shardId(),
+                "generation=" + commit.generation(),
+                Map.of(
+                    "primary",
+                    false,
+                    "es_primary_shard",
+                    false,
+                    "prewarming_type",
+                    Type.SEARCH.name(),
+                    "es_prewarming_type",
+                    Type.SEARCH.name(),
+                    WARMING_TYPE_ATTRIBUTE_KEY,
+                    "fastActivation"
+                )
+            );
+            try (var warmer = new ShardWarmer(warmingRun, indexShard, store::isClosing, filesToWarm, directory, false, listener)) {
+                warmer.addWholeLocations(wholeBlobs);
+                warmer.run();
+            }
+        } finally {
+            store.decRef();
+        }
+    }
+
+    /**
+     * Prototype (fast activation, phase 4): writes the open-time bytes carried by a commit pointer (see
+     * {@link org.elasticsearch.xpack.stateless.commits.CommitPointerOpenBytes}) in the shared cache, at their blob positions, without any
+     * object store read, so that the reader of the pointed commit opens from the cache. The ranges are page aligned, as cache writes must
+     * be. Ranges already present in the cache are left as they are; ranges for which the cache has no room are skipped (the reader then
+     * reads them from the object store on a cache miss). Completes once every range is written or skipped.
+     */
+    public void seedCacheFromCommitPointer(
+        ShardId shardId,
+        List<org.elasticsearch.xpack.stateless.commits.CommitPointerOpenBytes.OpenRange> ranges,
+        ActionListener<Void> listener
+    ) {
+        final int regionSize = cacheService.getRegionSize();
+        try (var listeners = new RefCountingListener(listener)) {
+            for (var range : ranges) {
+                final var cacheKey = new FileCacheKey(shardId, range.blobFile().primaryTerm(), range.blobFile().blobName());
+                final long start = range.position();
+                final long end = range.end();
+                for (int region = cacheService.getRegion(start); region <= cacheService.getEndingRegion(end); region++) {
+                    final long regionRangeStart = Math.max(start, (long) region * regionSize);
+                    final long regionRangeEnd = Math.min(end, (region + 1L) * regionSize);
+                    if (regionRangeEnd <= regionRangeStart) {
+                        continue;
+                    }
+                    final BytesReference bytes = range.bytes()
+                        .slice(Math.toIntExact(regionRangeStart - start), Math.toIntExact(regionRangeEnd - regionRangeStart));
+                    cacheService.maybeFetchRange(
+                        cacheKey,
+                        region,
+                        ByteRange.of(regionRangeStart, regionRangeEnd),
+                        // as in the warming tasks: not used since StatelessSharedBlobCacheService fully utilizes each region
+                        (region + 1L) * regionSize,
+                        // relativePos is relative to the start of the range to fetch
+                        (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> ActionListener
+                            .completeWith(completionListener, () -> {
+                                SharedBytes.copyToCacheFileAligned(
+                                    channel,
+                                    bytes.slice(relativePos, len).streamInput(),
+                                    channelPos,
+                                    relativePos,
+                                    len,
+                                    progressUpdater,
+                                    ByteBuffer.allocate(MAX_BYTES_PER_WRITE)
+                                );
+                                return null;
+                            }),
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        SharedBlobCacheService.UNKNOWN_TIMESTAMP,
+                        listeners.acquire(ignored -> {})
+                    );
+                }
+            }
+        }
+    }
+
     // this indirection is for test purposes (some tests check the listener type that's passed in to warmCache)
     protected void warmCacheAndTimeIt(
         Type type,
@@ -1417,6 +1574,17 @@ public class SharedBlobCacheWarmingService {
             this.filesToWarm = Collections.unmodifiableMap(filesToWarm);
             this.segmentCount = segmentCount(filesToWarm);
             this.preWarmForIdLookup = preWarmForIdLookup;
+        }
+
+        /**
+         * Warms the given blob locations entirely, e.g. whole small blobs (see {@link #warmCacheForFastSearchActivation}).
+         */
+        void addWholeLocations(Collection<BlobLocation> locations) {
+            for (BlobLocation location : locations) {
+                if (isCancelled() == false) {
+                    addLocation(location, location.blobName(), listeners.acquire());
+                }
+            }
         }
 
         void run() {

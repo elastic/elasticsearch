@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.stateless.cache.reader;
 
+import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -501,6 +504,77 @@ public class CacheFileReaderTests extends ESTestCase {
                     .size(),
                 equalTo(0)
             );
+        }
+    }
+
+    public void testObjectStoreReaderWidensRangeToMinRangeSize() {
+        // the blob container is not used to compute ranges
+        var reader = new ObjectStoreCacheBlobReader(null, "blob", SharedBytes.PAGE_SIZE, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        long position = 3L * SharedBytes.PAGE_SIZE + 10;
+        assertThat(
+            reader.getRange(position, 1, BLOB_LENGTH),
+            equalTo(ByteRange.of(3L * SharedBytes.PAGE_SIZE, 4L * SharedBytes.PAGE_SIZE))
+        );
+        assertThat(reader.getRange(position, 1, BLOB_LENGTH, 0L), equalTo(reader.getRange(position, 1, BLOB_LENGTH)));
+        assertThat(reader.getRange(position, 1, BLOB_LENGTH, BLOB_LENGTH), equalTo(ByteRange.of(0L, BLOB_LENGTH)));
+    }
+
+    public void testVectorFillPolicyAppliesToVectorFilesReadBySearches() throws Exception {
+        assertTrue(VectorFillPolicy.isVectorFile("_0.vex"));
+        assertTrue(VectorFillPolicy.isVectorFile("_1g_ES94HnswScalarQuantizedVectorsFormat_0.veq"));
+        assertTrue(VectorFillPolicy.isVectorFile("_3_ES920DiskBBQVectorsFormat_0.cenivf"));
+        assertFalse(VectorFillPolicy.isVectorFile("_0.cfs"));
+        assertFalse(VectorFillPolicy.isVectorFile("_0_Lucene104_0.tim"));
+        assertFalse(VectorFillPolicy.isVectorFile("_0.vemf"));
+
+        Settings settings = nodeSettings();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(new RecordingMeterRegistry(), NOOP_TIME_PROVIDER);
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
+        ) {
+            final boolean vectorFile = randomBoolean();
+            final boolean onSearchThread = randomBoolean();
+            final String fileName = vectorFile ? "_0.vex" : "_0.tim";
+            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
+            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
+            AtomicInteger fetchCount = new AtomicInteger();
+            // small fills (one page), as a fast-activated shard does for every file
+            CacheBlobReader reader = countingObjectStoreReader(fileName, blob, SharedBytes.PAGE_SIZE, fetchCount);
+            CacheFileReader cacheFileReader = new CacheFileReader(
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
+                reader,
+                createBlobFileRanges(1L, 0L, 0, blob.length),
+                metrics,
+                System::currentTimeMillis,
+                true
+            ).withVectorFillPolicy(new VectorFillPolicy(BLOB_LENGTH, BLOB_LENGTH), fileName);
+
+            final long position = 3L * SharedBytes.PAGE_SIZE + 10;
+            final CheckedSupplier<Object[], Exception> decide = () -> new Object[] {
+                cacheFileReader.prefetchWholeInputOnMiss(BLOB_LENGTH),
+                cacheFileReader.prefetchWholeInputOnMiss(BLOB_LENGTH + 1),
+                cacheFileReader.getRangeToWrite(position, 1, BLOB_LENGTH - position) };
+            final Object[] decision = onSearchThread
+                ? threadPool.executor(ThreadPool.Names.SEARCH).submit(decide::get).get()
+                : decide.get();
+            final boolean expectLarge = vectorFile && onSearchThread;
+            assertThat(decision[0], equalTo(expectLarge));
+            assertThat("larger than the policy's maximum", decision[1], equalTo(false));
+            // a vector file read by a search fills the whole (one region) blob, other reads only the page read
+            assertThat(
+                decision[2],
+                equalTo(expectLarge ? ByteRange.of(0L, BLOB_LENGTH) : ByteRange.of(3L * SharedBytes.PAGE_SIZE, 4L * SharedBytes.PAGE_SIZE))
+            );
+
+            // the policy is carried on to sub-files of a compound file, which decide for themselves whether they are vector files
+            var subFile = cacheFileReader.copyWithContext(IOContext.DEFAULT, 0L, BLOB_LENGTH);
+            assertThat(subFile.applyVectorFillPolicy("_0_Lucene99HnswVectorsFormat_0.vec") == subFile, equalTo(true));
+            threadPool.executor(ThreadPool.Names.SEARCH).submit(() -> {
+                assertTrue(subFile.prefetchWholeInputOnMiss(BLOB_LENGTH));
+                assertFalse(subFile.copy().applyVectorFillPolicy("_0.fdt").prefetchWholeInputOnMiss(BLOB_LENGTH));
+                return null;
+            }).get();
         }
     }
 

@@ -22,10 +22,16 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
- * The union block is single-valued in this increment. {@link AbstractDelegatingCompoundBlock} refuses
- * filter, slice, keep-mask and expand on a multi-valued compound block, as it does for tdigest and
- * exponential histogram, so {@link #testMultivaluedFilterIsRefused} pins that boundary rather than
- * leaving it undiscovered.
+ * A union column may be multi-valued, and must be: any multi-valued mapped field produces one as soon as a loader
+ * exists, so refusing it would refuse ordinary data rather than an operation. {@link AbstractDelegatingCompoundBlock}
+ * reshapes such a block for filter and slice; keep-mask and expand are still refused there, for a union exactly as for
+ * tdigest and exponential histogram, and {@link #testMultivaluedKeepMaskIsStillRefused} holds that remaining line
+ * visible.
+ * <p>
+ * The case worth keeping in mind throughout is a position whose values sit in <em>different</em> legs. Loaded data
+ * never produces one, since a field path has one mapper within an index, but {@code VALUES}, {@code MV_APPEND} and
+ * {@code TOP} do - which is why the tag is indexed by sub-block position and never by position.
+ * </p>
  */
 public class UnionBlockTests extends ComputeTestCase {
 
@@ -400,24 +406,152 @@ public class UnionBlockTests extends ComputeTestCase {
      * Multi-valued compound blocks are refused by the shared base class, for a union exactly as for tdigest and
      * exponential histogram. This holds that line visible until multi-value lands in that base class.
      */
-    public void testMultivaluedFilterIsRefused() {
+    public void testTheMultivaluedSampleIsShapedAsExpected() {
         BlockFactory blockFactory = blockFactory();
-        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(LEGS, 1)) {
+        try (UnionBlock block = buildMultivaluedSample(blockFactory)) {
+            assertTrue(block.mayHaveMultivaluedFields());
+            assertThat(block.getPositionCount(), equalTo(4));
+            assertThat(block.getValueCount(0), equalTo(2));
+            assertThat(block.getValueCount(1), equalTo(1));
+            assertThat("a null holds no values", block.getValueCount(2), equalTo(0));
+            assertThat(block.getValueCount(3), equalTo(2));
+            // Five values, since getTotalValueCount does not count nulls - which is also what makes COUNT right.
+            assertThat(block.getTotalValueCount(), equalTo(5));
+            // But six sub-block positions for four block positions: the null occupies one even though it holds no
+            // value, which is why reshaping has to measure runs by the value indexes and not by the value counts.
+            assertThat(block.getFirstValueIndex(2), equalTo(3));
+            assertThat(block.getFirstValueIndex(3), equalTo(4));
+            assertThat(block.tag(0), equalTo(LONG_LEG));
+            assertThat(block.tag(3), equalTo(UnionBlock.NO_TAG));
+            assertThat("one position, two legs", block.tag(4), equalTo(BOOL_LEG));
+            assertThat(block.tag(5), equalTo(LONG_LEG));
+        }
+    }
+
+    /**
+     * Filtering keeps each surviving position's whole run of values, including the run of length one that a null
+     * occupies. Were the runs taken from {@link Block#getValueCount}, which is zero for a null, the null's sub-position
+     * would be dropped and every tag after it would name the wrong leg.
+     */
+    public void testMultivaluedFilterKeepsEachPositionsWholeRun() {
+        BlockFactory blockFactory = blockFactory();
+        try (UnionBlock block = buildMultivaluedSample(blockFactory)) {
+            // Keep the two multi-valued positions, dropping the single value and the null between them.
+            try (UnionBlock filtered = (UnionBlock) block.filter(false, new int[] { 0, 3 }, 0, 2)) {
+                assertThat(filtered.getPositionCount(), equalTo(2));
+                assertThat(filtered.legElementTypes(), equalTo(LEGS));
+                assertThat(filtered.getValueCount(0), equalTo(2));
+                assertThat(filtered.getValueCount(1), equalTo(2));
+                assertThat(filtered.getFirstValueIndex(0), equalTo(0));
+                assertThat(filtered.getFirstValueIndex(1), equalTo(2));
+
+                LongBlock longs = (LongBlock) filtered.legBlock(LONG_LEG);
+                assertThat(filtered.tag(0), equalTo(LONG_LEG));
+                assertThat(longs.getLong(0), equalTo(1L));
+                assertThat(filtered.tag(1), equalTo(LONG_LEG));
+                assertThat(longs.getLong(1), equalTo(2L));
+                // The second surviving position still spans two legs.
+                assertThat(filtered.tag(2), equalTo(BOOL_LEG));
+                assertThat(((BooleanBlock) filtered.legBlock(BOOL_LEG)).getBoolean(2), equalTo(true));
+                assertThat(filtered.tag(3), equalTo(LONG_LEG));
+                assertThat(longs.getLong(3), equalTo(7L));
+            }
+        }
+    }
+
+    public void testMultivaluedFilterKeepsANullAndRepeatsADuplicate() {
+        BlockFactory blockFactory = blockFactory();
+        try (UnionBlock block = buildMultivaluedSample(blockFactory)) {
+            try (UnionBlock filtered = (UnionBlock) block.filter(true, new int[] { 2, 0, 0 }, 0, 3)) {
+                assertThat(filtered.getPositionCount(), equalTo(3));
+                assertTrue("the null survives as a null", filtered.isNull(0));
+                assertThat(filtered.tag(0), equalTo(UnionBlock.NO_TAG));
+                // Both copies of position 0 keep both of its values: four values over five sub-positions, the fifth
+                // being the null's.
+                assertThat(filtered.getValueCount(1), equalTo(2));
+                assertThat(filtered.getValueCount(2), equalTo(2));
+                assertThat(filtered.getTotalValueCount(), equalTo(4));
+                assertThat(filtered.getFirstValueIndex(1), equalTo(1));
+                assertThat(filtered.getFirstValueIndex(2), equalTo(3));
+                LongBlock longs = (LongBlock) filtered.legBlock(LONG_LEG);
+                assertThat(longs.getLong(1), equalTo(1L));
+                assertThat(longs.getLong(2), equalTo(2L));
+                assertThat(longs.getLong(3), equalTo(1L));
+                assertThat(longs.getLong(4), equalTo(2L));
+            }
+        }
+    }
+
+    public void testMultivaluedSliceRebasesTheValueIndexes() {
+        BlockFactory blockFactory = blockFactory();
+        try (UnionBlock block = buildMultivaluedSample(blockFactory)) {
+            // Positions 1 and 2 of the sample: the single bytes_ref value, then the null.
+            try (UnionBlock sliced = (UnionBlock) block.slice(1, 3)) {
+                assertThat(sliced.getPositionCount(), equalTo(2));
+                assertThat(sliced.getFirstValueIndex(0), equalTo(0));
+                assertThat(sliced.getValueCount(0), equalTo(1));
+                assertThat(sliced.tag(0), equalTo(BYTES_LEG));
+                assertThat(bytesAt(sliced, BYTES_LEG, 0), equalTo("second"));
+                assertThat(sliced.getFirstValueIndex(1), equalTo(1));
+                assertTrue(sliced.isNull(1));
+                assertThat(sliced.tag(1), equalTo(UnionBlock.NO_TAG));
+            }
+        }
+    }
+
+    public void testMultivaluedSliceKeepsAPositionSpanningTwoLegs() {
+        BlockFactory blockFactory = blockFactory();
+        try (UnionBlock block = buildMultivaluedSample(blockFactory)) {
+            try (UnionBlock sliced = (UnionBlock) block.slice(3, 4)) {
+                assertThat(sliced.getPositionCount(), equalTo(1));
+                assertThat(sliced.getValueCount(0), equalTo(2));
+                assertThat(sliced.tag(0), equalTo(BOOL_LEG));
+                assertThat(((BooleanBlock) sliced.legBlock(BOOL_LEG)).getBoolean(0), equalTo(true));
+                assertThat(sliced.tag(1), equalTo(LONG_LEG));
+                assertThat(((LongBlock) sliced.legBlock(LONG_LEG)).getLong(1), equalTo(7L));
+            }
+        }
+    }
+
+    /**
+     * Keep-mask would have to turn a masked-off multi-valued position into a single null, which changes the
+     * sub-position count and so cannot be expressed by reshaping and delegating. Its only caller is the filtered
+     * aggregation path, which a union does not reach while aggregates on a union are refused.
+     */
+    public void testMultivaluedKeepMaskIsStillRefused() {
+        BlockFactory blockFactory = blockFactory();
+        try (
+            UnionBlock block = buildMultivaluedSample(blockFactory);
+            BooleanVector.Builder mask = blockFactory.newBooleanVectorBuilder(4)
+        ) {
+            for (int i = 0; i < 4; i++) {
+                mask.appendBoolean(true);
+            }
+            try (BooleanVector maskVector = mask.build()) {
+                UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> block.keepMask(maskVector));
+                assertThat(e.getMessage(), equalTo("Not yet implemented for multi-valued blocks"));
+            }
+        }
+    }
+
+    /**
+     * Positions 0 = [long 1, long 2], 1 = "second", 2 = null, 3 = [boolean true, long 7]. The last position spans two
+     * legs, which only a computed value can do, and the null sits between them so that any reshaping which loses its
+     * sub-position misaligns everything after it.
+     */
+    private static UnionBlock buildMultivaluedSample(BlockFactory blockFactory) {
+        try (UnionBlock.Builder builder = blockFactory.newUnionBlockBuilder(LEGS, 4)) {
             builder.beginPositionEntry();
             appendLong(builder, 1L);
             appendLong(builder, 2L);
             builder.endPositionEntry();
-            try (UnionBlock block = builder.build()) {
-                assertTrue(block.mayHaveMultivaluedFields());
-                assertThat(block.getValueCount(0), equalTo(2));
-                assertThat(block.tag(0), equalTo(LONG_LEG));
-                assertThat(block.tag(1), equalTo(LONG_LEG));
-                UnsupportedOperationException e = expectThrows(
-                    UnsupportedOperationException.class,
-                    () -> block.filter(false, new int[] { 0 }, 0, 1)
-                );
-                assertThat(e.getMessage(), equalTo("Not yet implemented for multi-valued blocks"));
-            }
+            appendBytes(builder, "second");
+            builder.appendNull();
+            builder.beginPositionEntry();
+            appendBoolean(builder, true);
+            appendLong(builder, 7L);
+            builder.endPositionEntry();
+            return builder.build();
         }
     }
 

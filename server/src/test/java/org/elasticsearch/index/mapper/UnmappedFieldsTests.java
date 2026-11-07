@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -436,6 +438,237 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
             assertThat(block.get(2), nullValue());
         }
         assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * An array of many short values costs many times its size in {@code _source} while its values are held, more than the reservation
+     * of the loader of all fields stands for. The values are charged as they are held, the read trips the breaker and it leaves nothing
+     * charged.
+     */
+    public void testAllFieldsLoaderChargesTheValuesItHolds() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        // A reservation of the size of _source: all of what is held beyond the JSON that is built is charged.
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 1.0));
+        assertTripsWhileHoldingValues(loader, json("{\"a\":" + arrayOfShortStrings(100_000) + "}"));
+    }
+
+    /**
+     * The values of a name are held with no reservation at all, so what they cost is charged from the first byte.
+     */
+    public void testNamedLoaderChargesTheValuesItHolds() throws IOException {
+        assertTripsWhileHoldingValues(loader("a"), json("{\"a\":" + arrayOfShortStrings(100_000) + "}"));
+    }
+
+    /**
+     * A document that spells a field in two ways is walked again with all of its values held.
+     */
+    public void testValuesOfADocumentSpelledInTwoWaysAreCharged() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 1.0));
+        String array = arrayOfShortStrings(60_000);
+        assertTripsWhileHoldingValues(loader, json("{\"a.b\":" + array + ",\"a\":{\"b\":" + array + "}}"));
+    }
+
+    /**
+     * What is held up to the part of the reservation that stands for held values is paid for already, and is not charged again.
+     */
+    public void testHeldValuesTheReservationCoversAreNotChargedAgain() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 10.0));
+        // Held values cost less than the share of the reservation that is left once the JSON that is built is paid for.
+        String json = "{\"a\":" + "[" + String.join(",", Collections.nCopies(3_000, "\"" + "x".repeat(100) + "\"")) + "]}";
+        long reservation = json.length() * 10L;
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(reservation + ByteSizeValue.ofKb(100).getBytes()));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+            long inherited = breaker.getUsed();
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            reader.read(0, storedFields(json(json)), builder);
+            assertThat(breaker.getUsed(), equalTo(inherited));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Reads {@code source} with a breaker that has room for the reservation of the loader but not for the values that the read holds,
+     * which trips it and leaves nothing charged. A breaker with room for all of it reads the same document, so what trips the small
+     * one is what is held.
+     */
+    private void assertTripsWhileHoldingValues(BlockLoader loader, Source source) throws IOException {
+        CircuitBreaker roomy = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(roomy, null)) {
+            reader.read(0, storedFields(source), loader.builder(TestBlock.factory(), 1));
+        }
+        assertThat(roomy.getUsed(), equalTo(0L));
+
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(2));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+            long inherited = breaker.getUsed();
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            expectThrows(CircuitBreakingException.class, () -> reader.read(0, storedFields(source), builder));
+            assertThat(breaker.getUsed(), equalTo(inherited));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    private static String arrayOfShortStrings(int elements) {
+        return "[" + String.join(",", Collections.nCopies(elements, "\"x\"")) + "]";
+    }
+
+    /**
+     * The heap that the loader of all fields holds while it reads an array of many short values is no more than what it has charged
+     * to the breaker by then, with the reservation that ES|QL makes by default.
+     */
+    public void testAllFieldsLoaderChargesAtLeastTheHeapItHolds() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 10.0));
+        assertChargesAtLeastTheHeapItHolds(loader, json("{\"a\":" + arrayOfShortStrings(1_000_000) + "}"));
+    }
+
+    /**
+     * The heap that the loader of a named field holds while it reads an array of many short values, with no reservation, is no more
+     * than what it has charged to the breaker by then.
+     */
+    public void testNamedLoaderChargesAtLeastTheHeapItHolds() throws IOException {
+        assertChargesAtLeastTheHeapItHolds(loader("a"), json("{\"a\":" + arrayOfShortStrings(1_000_000) + "}"));
+    }
+
+    /**
+     * A document that spells a field in two ways is walked again with all of its values held, and what that holds is no more than what
+     * is charged for it.
+     */
+    public void testFieldSpelledInTwoWaysChargesAtLeastTheHeapItHolds() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 10.0));
+        String array = arrayOfShortStrings(500_000);
+        assertChargesAtLeastTheHeapItHolds(loader, json("{\"a.b\":" + array + ",\"a\":{\"b\":" + array + "}}"));
+    }
+
+    /**
+     * Reads {@code source} with a {@link MeasuringBreaker} and checks that every time it measured, the heap held since the read started
+     * was no more than what had been charged since then, give or take {@link #MEASUREMENT_SLACK} for the noise of measuring it.
+     * <p>
+     * This is what a heap attack test at the default request breaker limit would show, without a document large enough to exhaust a
+     * heap: a read that holds more than it charges can exhaust the heap before the breaker trips.
+     */
+    private void assertChargesAtLeastTheHeapItHolds(BlockLoader loader, Source source) throws IOException {
+        MeasuringBreaker breaker = new MeasuringBreaker(newLimitedBreaker(ByteSizeValue.ofGb(1)), ByteSizeValue.ofMb(4).getBytes());
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            BlockLoader.StoredFields storedFields = storedFields(source);
+            breaker.start();
+            reader.read(0, storedFields, builder);
+        }
+        logger.info("charged and held heap since the read started, in MB: {}", breaker.samples);
+        assertThat("too few measurements to show anything", breaker.samples.size(), greaterThan(4));
+        for (Sample sample : breaker.samples) {
+            assertThat(sample.toString(), sample.held, lessThanOrEqualTo(sample.charged + MEASUREMENT_SLACK));
+        }
+    }
+
+    /** How far the heap measured after a GC may be off: objects of other threads, and what the GC leaves behind. */
+    private static final long MEASUREMENT_SLACK = ByteSizeValue.ofMb(2).getBytes();
+
+    private record Sample(long charged, long held) {
+        @Override
+        public String toString() {
+            return "charged=" + charged / (1 << 20) + " held=" + held / (1 << 20);
+        }
+    }
+
+    /**
+     * A breaker that, each time what is charged to it has grown by {@code step} bytes, measures the heap that is reachable after a full
+     * GC. That is the only point during a walk at which the values that it holds can be measured from outside, since they are alive
+     * only while it runs, and it is where the breaker would trip.
+     */
+    private static final class MeasuringBreaker implements CircuitBreaker {
+        private final CircuitBreaker delegate;
+        private final long step;
+        private final List<Sample> samples = new ArrayList<>();
+        private long chargedAtStart;
+        private long heldAtStart;
+        private long nextSample = -1;
+
+        MeasuringBreaker(CircuitBreaker delegate, long step) {
+            this.delegate = delegate;
+            this.step = step;
+        }
+
+        /** Takes what is charged and the heap that is reachable now as the baseline, and starts measuring. */
+        void start() {
+            chargedAtStart = delegate.getUsed();
+            heldAtStart = reachableHeapBytes();
+            nextSample = 0;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            delegate.addEstimateBytesAndMaybeBreak(bytes, label);
+            if (nextSample < 0 || bytes <= 0) {
+                return;
+            }
+            long charged = delegate.getUsed() - chargedAtStart;
+            if (charged >= nextSample) {
+                samples.add(new Sample(charged, reachableHeapBytes() - heldAtStart));
+                nextSample = charged + step;
+            }
+        }
+
+        private static long reachableHeapBytes() {
+            // A hint, though with the collectors that tests run with it is a full collection. Twice, for what the first one finalizes.
+            System.gc();
+            System.gc();
+            return ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
+        }
+
+        @Override
+        public void circuitBreak(String fieldName, long bytesNeeded) {
+            delegate.circuitBreak(fieldName, bytesNeeded);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            delegate.addWithoutBreaking(bytes);
+        }
+
+        @Override
+        public long getUsed() {
+            return delegate.getUsed();
+        }
+
+        @Override
+        public long getLimit() {
+            return delegate.getLimit();
+        }
+
+        @Override
+        public double getOverhead() {
+            return delegate.getOverhead();
+        }
+
+        @Override
+        public long getTrippedCount() {
+            return delegate.getTrippedCount();
+        }
+
+        @Override
+        public String getName() {
+            return delegate.getName();
+        }
+
+        @Override
+        public Durability getDurability() {
+            return delegate.getDurability();
+        }
+
+        @Override
+        public void setLimitAndOverhead(long limit, double overhead) {
+            delegate.setLimitAndOverhead(limit, overhead);
+        }
     }
 
     /**

@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 164276
+summary: Add invariant log helper and calendar update drop event
+type: enhancement

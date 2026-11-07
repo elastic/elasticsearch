@@ -294,7 +294,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
             });
         } finally {
             NodeShutdownTestUtils.clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));
-            cancelTask(taskName);
+            removeTask(taskId, taskName);
         }
     }
 
@@ -328,7 +328,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
             );
         } finally {
             NodeShutdownTestUtils.clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));
-            cancelTask(taskName);
+            removeTask(taskId, taskName);
         }
     }
 
@@ -341,9 +341,8 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
     public void testLocalAbort() throws Exception {
         internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName())
             .setRecheckInterval(TimeValue.timeValueMillis(1));
+        final var taskId = startTask(TestLocalAbortExecutor.NAME);
         try {
-            final var taskId = startTask(TestLocalAbortExecutor.NAME);
-
             // Add a listener to explicitly check the "test local abort" message.
             final var abortReasonObserved = new PlainActionFuture<Void>();
             final ClusterStateListener abortReasonListener = event -> {
@@ -376,7 +375,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
             awaitClusterStateHasTaskAssigned(taskId, TestLocalAbortExecutor.NAME);
         } finally {
             TestLocalAbortExecutor.allowAssignment = true;
-            cancelTask(TestLocalAbortExecutor.NAME);
+            removeTask(taskId, TestLocalAbortExecutor.NAME);
         }
     }
 
@@ -417,12 +416,15 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
         return task;
     }
 
-    private static void cancelTask(String taskName) {
-        final var tasks = clusterAdmin().prepareListTasks().setActions(taskName + "[c]").get().getTasks();
-        if (tasks.isEmpty()) {
-            return;
-        }
-        assertThat(tasks, hasSize(1));
-        clusterAdmin().prepareCancelTasks().setTargetTaskId(tasks.getFirst().taskId()).get();
+    /**
+     * Removes the persistent task from the cluster state, which also cancels its allocated task wherever it runs. Cancelling only a
+     * currently-running allocated task is not enough: a task that is assigned in the cluster state but not yet started on its node
+     * would be missed and then leak into the next test.
+     */
+    private static void removeTask(String taskId, String taskName) {
+        final var future = new PlainActionFuture<PersistentTask<?>>();
+        internalCluster().getInstance(PersistentTasksService.class).sendRemoveRequest(taskId, TEST_REQUEST_TIMEOUT, future);
+        future.actionGet();
+        awaitClusterState(state -> findTasks(state, taskName).isEmpty());
     }
 }

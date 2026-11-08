@@ -8,17 +8,23 @@
 package org.elasticsearch.xpack.parquet;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.parquet.dv.ScanRegistry;
 import org.elasticsearch.xpack.parquet.engine.ParquetEngineFactory;
@@ -29,8 +35,10 @@ import org.elasticsearch.xpack.parquet.mount.RestPreviewParquetAction;
 import org.elasticsearch.xpack.parquet.mount.TransportMountParquetAction;
 import org.elasticsearch.xpack.parquet.mount.TransportPreviewParquetAction;
 import org.elasticsearch.xpack.parquet.repository.ParquetBackedSettings;
+import org.elasticsearch.xpack.parquet.repository.ParquetBlobCache;
 
 import java.io.Closeable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -49,12 +57,17 @@ public class ParquetDocValuesPlugin extends Plugin implements EnginePlugin, Acti
     /** How often the idle scans are closed, see {@link ScanRegistry#sweep()}. */
     private static final TimeValue SWEEP_INTERVAL = TimeValue.timeValueSeconds(5);
 
+    private static final Logger logger = LogManager.getLogger(ParquetDocValuesPlugin.class);
+
     private final SetOnce<RepositoriesService> repositories = new SetOnce<>();
     private final SetOnce<Scheduler.Cancellable> sweeper = new SetOnce<>();
+    private final SetOnce<ParquetBlobCache> cache = new SetOnce<>();
 
     /**
-     * Keeps the repositories service, through which the engine reads the files, and starts the sweep that closes the scans that no
-     * iterator uses any more; the plugin has no components.
+     * Keeps the repositories service, through which the engine reads the files, starts the sweep that closes the scans that no
+     * iterator uses any more, and creates the node-local disk cache of file ranges when {@code xpack.parquet.cache.size} asks for one.
+     * A cache is an optimization, so a node that cannot create it (the data path is full, or there are several data paths) still starts
+     * and reads the repository directly.
      */
     @Override
     public Collection<?> createComponents(PluginServices services) {
@@ -62,6 +75,35 @@ public class ParquetDocValuesPlugin extends Plugin implements EnginePlugin, Acti
         sweeper.set(
             services.threadPool().scheduleWithFixedDelay(ScanRegistry.INSTANCE::sweep, SWEEP_INTERVAL, services.threadPool().generic())
         );
+        Settings settings = services.environment().settings();
+        if (ParquetBlobCache.isEnabled(settings)) {
+            if (services.nodeEnvironment().nodeDataPaths().length != 1) {
+                logger.warn(
+                    "[{}] is set, but the node has [{}] data paths and the cache needs exactly one: reads go straight to the repository",
+                    ParquetBlobCache.CACHE_SIZE.getKey(),
+                    services.nodeEnvironment().nodeDataPaths().length
+                );
+                return List.of();
+            }
+            try {
+                ParquetBlobCache blobCache = new ParquetBlobCache(
+                    services.nodeEnvironment(),
+                    settings,
+                    services.threadPool(),
+                    // No metrics: BlobCacheMetrics registers fixed metric names, and the searchable snapshots plugin of the default
+                    // distribution registers the same ones, so a second registration stops the node with "already registered".
+                    new BlobCacheMetrics(MeterRegistry.NOOP, services.threadPool())
+                );
+                cache.set(blobCache);
+                return List.of(blobCache);
+            } catch (RuntimeException e) {
+                logger.warn(
+                    "cannot create the Parquet cache of [{}]: reads go straight to the repository",
+                    ParquetBlobCache.CACHE_SIZE.get(settings),
+                    e
+                );
+            }
+        }
         return List.of();
     }
 
@@ -70,6 +112,10 @@ public class ParquetDocValuesPlugin extends Plugin implements EnginePlugin, Acti
         Scheduler.Cancellable cancellable = sweeper.get();
         if (cancellable != null) {
             cancellable.cancel();
+        }
+        ParquetBlobCache blobCache = cache.get();
+        if (blobCache != null) {
+            blobCache.close();
         }
     }
 
@@ -91,14 +137,21 @@ public class ParquetDocValuesPlugin extends Plugin implements EnginePlugin, Acti
     }
 
     @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(ParquetBlobCache.fetchExecutorBuilder(settings));
+    }
+
+    @Override
     public List<Setting<?>> getSettings() {
-        return ParquetBackedSettings.all();
+        List<Setting<?>> settings = new ArrayList<>(ParquetBackedSettings.all());
+        settings.addAll(ParquetBlobCache.settings());
+        return settings;
     }
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (ParquetBackedSettings.isParquetBacked(indexSettings.getSettings())) {
-            return Optional.of(new ParquetEngineFactory(repositories::get));
+            return Optional.of(new ParquetEngineFactory(repositories::get, cache::get));
         }
         return Optional.empty();
     }

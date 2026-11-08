@@ -45,6 +45,14 @@ that a mount would create. A mount creates one index (`"index"`) or a data strea
 `@timestamp` field, so a column named `timestamp_field` with a type override). The other keys of the body are `exclude`,
 `max_rows_per_index` and `index_settings`, and `fields` can also rename a column (`name`) or choose another type.
 
+A node reads the files through the repository on every query, which is slow for an object store. The node-local disk cache of file
+ranges is off until you give it a size. It needs exactly one data path and as much free space in it as its size, and a node that cannot
+create it logs why and reads the repository directly.
+
+```
+-Dtests.es.xpack.parquet.cache.size=8g -Dtests.es.xpack.parquet.cache.region_size=16mb      # to ./gradlew run
+```
+
 Then use the index like any other:
 
 ```
@@ -131,7 +139,9 @@ conversions. The packages `engine` and `mount` use `dv` and `repository`.
   bounds. A column with unreliable or missing statistics, an unknown null count, an unsigned 32 or 64 bit type, a decimal or a time gets
   no skipper, or the widest range, and is read in full: slower and never wrong.
 - `repository/` (`RepositoryLocation`, `RepositoryStorageObject`, `ParquetBackedSettings`) a file in a repository as the ES|QL reader sees a
-  storage object, and the `index.parquet.*` settings that tie an index to its repository, pieces and fields.
+  storage object, and the `index.parquet.*` settings that tie an index to its repository, pieces and fields. `ParquetBlobCache` and
+  `CachedStorageObject` are the disk cache of file ranges: the decorator sends every read of the reader through the cache, which is a
+  thin layer on the shared cache of the `blob-cache` plugin (its own cache file, `parquet_cache`, and its own fetch thread pool).
 
 ## Checking concurrency and memory
 
@@ -154,5 +164,7 @@ framework checks that it is back to zero.
   scans the synthesized values of every document.
 - There is no memory backpressure. The reader runs with a byte budget that never refuses and a block factory with no circuit breaker,
   because a Lucene iterator cannot park the way an ES|QL driver does. The iterators bound their open scans themselves.
-- No data cache and no prefetch: every read goes to the repository.
+- The disk cache (see above) is off by default, needs a node with one data path, and keys a file by its location and length, so it
+  assumes that a file is never replaced by another file of the same length under the same name. A node that starts again fills it
+  anew. There is no prefetch.
 - The ES|QL plugin must be on the node, because this plugin extends it.

@@ -6,6 +6,7 @@
  */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 versions << [
   'hadoop' : '3.4.3',
@@ -16,8 +17,9 @@ esplugin {
   description = 'A Lucene doc values format that reads Parquet files through the ES|QL Parquet reader'
   classname = 'org.elasticsearch.xpack.parquet.ParquetDocValuesPlugin'
   // The ES|QL plugin provides the compute blocks and the data source SPI; esql-datasource-parquet provides the reader.
-  // A plugin's class loader only sees the plugins it names directly, so both are listed.
-  extendedPlugins = ['x-pack-esql', 'esql-datasource-parquet']
+  // blob-cache provides the shared disk cache that holds the byte ranges of the files.
+  // A plugin's class loader only sees the plugins it names directly, so all of them are listed.
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-parquet', 'blob-cache']
 }
 
 base {
@@ -32,6 +34,8 @@ dependencies {
   compileOnly project(xpackModule('esql:compute'))
   // The reader and its parquet-hadoop-bundle classes are provided at runtime by the esql-datasource-parquet class loader.
   compileOnly project(path: xpackModule('esql-datasource-parquet'))
+  // the local disk cache for the byte ranges of the files (the same cache that searchable snapshots and stateless use)
+  compileOnly project(xpackModule('blob-cache'))
 
   // parquet-hadoop-bundle types appear in the API of the reader facade (the footer), so the plugin compiles against them. The
   // Hadoop jars are needed at compile time only, because the bundle's API surface references Hadoop types.
@@ -51,6 +55,7 @@ dependencies {
   testImplementation project(xpackModule('esql:compute'))
   testImplementation project(path: xpackModule('esql-datasource-parquet'))
   testImplementation project(xpackModule('esql:qa:testFixtures'))
+  testImplementation project(xpackModule('blob-cache'))
   testImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   // the compression libraries that the reader plugin gets from esql-datasource-compression-libs at runtime
   testImplementation "io.airlift:aircompressor:${versions.aircompressor}"
@@ -65,6 +70,30 @@ dependencies {
 
 tasks.withType(JavaCompile).configureEach {
   options.compilerArgs << '-Xlint:-classfile'
+}
+
+dependencies {
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation project(xpackModule('blob-cache'))
+  internalClusterTestImplementation project(xpackModule('esql'))
+  internalClusterTestImplementation project(xpackModule('esql-core'))
+  internalClusterTestImplementation project(xpackModule('esql:compute'))
+  internalClusterTestImplementation project(xpackModule('esql-datasource-parquet'))
+  internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  internalClusterTestImplementation "io.airlift:aircompressor:${versions.aircompressor}"
+  internalClusterTestImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  // the integration tests write the Parquet files that they mount with the helpers of the unit tests
+  internalClusterTestImplementation sourceSets.test.output
+  internalClusterTestCompileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
+  }
+  internalClusterTestCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
+    transitive = false
+  }
+}
+
+tasks.named("internalClusterTest").configure {
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
 tasks.named("test").configure {

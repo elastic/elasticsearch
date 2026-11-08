@@ -21,12 +21,15 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.parquet.dv.ColumnBinding;
 import org.elasticsearch.xpack.parquet.dv.Conversion;
 import org.elasticsearch.xpack.parquet.dv.ExternalFilePiece;
 import org.elasticsearch.xpack.parquet.dv.ParquetFileInfo;
 import org.elasticsearch.xpack.parquet.dv.ParquetReadContext;
+import org.elasticsearch.xpack.parquet.repository.CachedStorageObject;
 import org.elasticsearch.xpack.parquet.repository.ParquetBackedSettings;
+import org.elasticsearch.xpack.parquet.repository.ParquetBlobCache;
 import org.elasticsearch.xpack.parquet.repository.RepositoryLocation;
 import org.elasticsearch.xpack.parquet.repository.RepositoryStorageObject;
 
@@ -47,9 +50,18 @@ import java.util.function.Supplier;
 public final class ParquetEngineFactory implements EngineFactory {
 
     private final Supplier<RepositoriesService> repositories;
+    /** The disk cache of file ranges of the node, which answers {@code null} when the node has none. */
+    private final Supplier<ParquetBlobCache> cache;
 
-    public ParquetEngineFactory(Supplier<RepositoriesService> repositories) {
+    public ParquetEngineFactory(Supplier<RepositoriesService> repositories, Supplier<ParquetBlobCache> cache) {
         this.repositories = repositories;
+        this.cache = cache;
+    }
+
+    /** The file as the reader reads it: through the disk cache of the node when it has one. */
+    private StorageObject cached(RepositoryStorageObject object) {
+        ParquetBlobCache blobCache = cache.get();
+        return blobCache == null ? object : new CachedStorageObject(object, blobCache);
     }
 
     @Override
@@ -58,12 +70,14 @@ public final class ParquetEngineFactory implements EngineFactory {
             attachIfEmpty(config);
             // The engine opens the segments, and each segment keeps the resolver that it finds in the context. A segment stores where
             // its file is and the length it was attached with, so opening it makes no request.
-            ParquetReadContext.Resolver resolver = (location, length) -> RepositoryStorageObject.open(
-                repositories.get(),
-                // TODO: the project of the index, once the mount API can mount indices of other projects
-                ProjectId.DEFAULT,
-                RepositoryLocation.parse(location),
-                length
+            ParquetReadContext.Resolver resolver = (location, length) -> cached(
+                RepositoryStorageObject.open(
+                    repositories.get(),
+                    // TODO: the project of the index, once the mount API can mount indices of other projects
+                    ProjectId.DEFAULT,
+                    RepositoryLocation.parse(location),
+                    length
+                )
             );
             return ParquetReadContext.with(resolver, () -> new ParquetReadOnlyEngine(config));
         } catch (IOException e) {
@@ -87,7 +101,10 @@ public final class ParquetEngineFactory implements EngineFactory {
                 RepositoryLocation location = spec.location(repository);
                 files.put(
                     spec.path(),
-                    ParquetFileInfo.read(location.toString(), RepositoryStorageObject.open(repositories.get(), ProjectId.DEFAULT, location))
+                    ParquetFileInfo.read(
+                        location.toString(),
+                        cached(RepositoryStorageObject.open(repositories.get(), ProjectId.DEFAULT, location))
+                    )
                 );
             }
         }

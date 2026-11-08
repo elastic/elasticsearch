@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.tablefunction;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -17,12 +18,18 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -127,6 +134,65 @@ public class FieldsTableFunctionTests extends ESTestCase {
         FieldsTableFunction function = noResolver();
         ParsingException e = expectThrows(ParsingException.class, () -> function.validate(call("  ")));
         assertThat(e.getMessage(), containsString("[fields] requires an index pattern, found an empty one"));
+    }
+
+    /**
+     * The function's own fork, which is there for the work rather than for an assertion. The facility hands the finished plan back
+     * on the planning pool whatever a function does, so nothing here would fail without this; what would change is where the mapping
+     * walk, the sort and the block building run, which is the thread the field-caps merge completed on. That merge is itself the
+     * reason this resolution is not done on a transport worker, so it is not a thread to go on using once the resolution is in hand.
+     */
+    public void testTheRowsAreBuiltOnTheGivenExecutor() throws Exception {
+        AtomicReference<Thread> resolverThread = new AtomicReference<>();
+        AtomicReference<Thread> rowsThread = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        ExecutorService planning = Executors.newSingleThreadExecutor(runnable -> new Thread(runnable, PLANNING_THREAD));
+        try {
+            FieldsTableFunction function = new FieldsTableFunction(resolvesOnItsOwnThread(resolverThread), planning);
+            function.rows(call("logs-*"), null, ActionListener.wrap(rows -> {
+                rowsThread.set(Thread.currentThread());
+                done.countDown();
+            }, e -> {
+                failure.set(e);
+                done.countDown();
+            }));
+            assertTrue("the function never answered", done.await(10, TimeUnit.SECONDS));
+            resolverThread.get().join(TimeUnit.SECONDS.toMillis(10));
+        } finally {
+            planning.shutdown();
+            assertTrue(planning.awaitTermination(10, TimeUnit.SECONDS));
+        }
+
+        assertThat(failure.get(), nullValue());
+        // Not vacuous: the resolution really did arrive somewhere else, so the row building had a thread to leave.
+        assertThat(resolverThread.get().getName(), equalTo(RESOLVER_THREAD));
+        assertThat(rowsThread.get().getName(), equalTo(PLANNING_THREAD));
+    }
+
+    private static final String PLANNING_THREAD = "fields-test-planning";
+    private static final String RESOLVER_THREAD = "fields-test-resolver";
+
+    /** Completes off any pool the function could be using, so the executor the function was given is the only way onto a known one. */
+    private static IndexResolver resolvesOnItsOwnThread(AtomicReference<Thread> started) {
+        return new IndexResolver(null, null) {
+            @Override
+            public void resolveAllFields(String indexPattern, ActionListener<IndexResolution> listener) {
+                Thread thread = new Thread(
+                    () -> listener.onResponse(
+                        resolution(
+                            Map.of(
+                                "host",
+                                new KeywordEsField("host", new HashMap<>(), true, 2048, false, false, EsField.TimeSeriesFieldType.NONE)
+                            )
+                        )
+                    ),
+                    RESOLVER_THREAD
+                );
+                started.set(thread);
+                thread.start();
+            }
+        };
     }
 
     /** These tests never dispatch, so neither the resolver nor the executor is read: the row builder and the column list need neither. */

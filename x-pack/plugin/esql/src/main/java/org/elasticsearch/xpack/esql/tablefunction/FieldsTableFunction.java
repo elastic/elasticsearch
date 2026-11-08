@@ -129,12 +129,14 @@ public class FieldsTableFunction extends CoordinatorRowsFunction {
     }
 
     /**
-     * Forks back onto the planning pool before completing, which is this function's own obligation and not the facility's to discharge.
-     * <p>
-     * The field-caps merge asserts {@code search_coordination} because it is too expensive for a transport worker, so the resolution
-     * arrives on that pool; {@code EsqlSession} resumes planning on {@code search} and asserts as much the moment the facility hands
-     * the plan back. Nothing between the two restores the thread, so a function that does I/O has to. The precedent is
-     * {@code DatasetResolver}, which wraps its own round-trip in the same way for the same reason.
+     * Forks onto the planning pool before turning the resolution into rows, so that the row building is not charged to the pool the
+     * field-caps merge answered on.
+     *
+     * <p>Not to satisfy an assertion: the facility hands the finished plan back on the planning pool whatever a function does, so
+     * {@code EsqlSession} resumes where it expects to either way. What the fork decides is where this function's own work runs. The
+     * merge asserts {@code search_coordination} because it is too expensive for a transport worker, and walking the merged mapping,
+     * sorting it and building the blocks is more of the same kind of work on a pool kept for coordinating. The precedent is
+     * {@code DatasetResolver}, which wraps its own round-trip in the same way.
      */
     @Override
     protected void rows(TableFunctionInvocation call, TableFunctionContext context, ActionListener<List<List<Object>>> listener) {

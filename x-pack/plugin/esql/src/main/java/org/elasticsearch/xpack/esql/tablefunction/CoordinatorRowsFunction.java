@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.tablefunction;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
@@ -28,10 +29,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -171,12 +174,13 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             case KEYWORD, TEXT, SOURCE -> value instanceof String || value instanceof BytesRef
                 ? value
                 : refuse(function, column, value, "a String or a BytesRef");
-            case IP -> switch (value) {
-                case InetAddress address -> new BytesRef(InetAddressPoint.encode(address));
-                // The one encoded family with a cheap invariant, so an already-encoded value is still accepted.
-                case BytesRef bytes when bytes.length == InetAddressPoint.BYTES -> bytes;
-                default -> refuse(function, column, value, "an InetAddress");
-            };
+            // A raw BytesRef is refused here as it is everywhere else encoded. The sixteen-byte length looked like
+            // an invariant and is not one: every 16-character IPv6 literal is sixteen bytes of text, so
+            // BytesRef("2001:db8::ff00:4") passed and decoded as a different address. A function holding encoded
+            // bytes has InetAddressPoint.decode.
+            case IP -> value instanceof InetAddress address
+                ? new BytesRef(InetAddressPoint.encode(address))
+                : refuse(function, column, value, "an InetAddress");
             case VERSION -> switch (value) {
                 case Version version -> version.toBytesRef();
                 case String text -> new Version(text).toBytesRef();
@@ -187,38 +191,117 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             case GEO_SHAPE -> encodedShape(function, column, SpatialCoordinateTypes.GEO, value);
             case CARTESIAN_SHAPE -> encodedShape(function, column, SpatialCoordinateTypes.CARTESIAN, value);
             // No natural Java form to encode from, so the function owns the bytes and says so by handing them over.
-            default -> value instanceof BytesRef ? value : refuse(function, column, value, "a BytesRef");
+            // Enumerated rather than left to a default arm: a default standing for valid types is what made the
+            // encoded types above arrive one at a time, each silently taking the raw-bytes pass-through until
+            // somebody noticed. A BYTES_REF type added later lands on the throw instead.
+            case HISTOGRAM, UNSUPPORTED, FLATTENED, TSID_DATA_TYPE -> value instanceof BytesRef
+                ? value
+                : refuse(function, column, value, "a BytesRef");
+            default -> throw badCell(
+                function,
+                column,
+                "no cell encoding is declared for this type - add an arm to CoordinatorRowsFunction"
+            );
         };
     }
 
     /**
      * A cell for a column the engine reads out of a numeric or boolean block, where the Java type is not the whole
-     * question either. {@code unsigned_long} is stored <i>biased</i>: the number written has {@code Long.MIN_VALUE}
-     * added to it, so a {@code Long} of 5 handed in as five is read back as 9223372036854775813, and the cast
-     * {@code BlockUtils.appendValue} performs cannot tell — right element type, wrong number, which is the class
-     * the {@code ip} arm above exists to close. The unambiguous natural form is a {@code BigInteger}, so that is
-     * what this takes and encodes, range-checked first because {@code NumericUtils.asLongUnsigned} says it checks
-     * nothing. A {@code Long} is refused rather than guessed at: nothing distinguishes one meant as the number from
-     * one already biased, and either reading is silently wrong for the other caller.
+     * question either: several of these longs are an <i>encoding</i> rather than the number written, and the cast
+     * {@code BlockUtils.appendValue} performs cannot tell the difference.
      * <p>
-     * {@code geohash}, {@code geotile} and {@code geohex} also sit in a {@code long} that is an encoding, and they
-     * are left to the function for the reason the {@code BytesRef} default arm is: nothing about the long can be
-     * checked, so the function owns it and says so by handing it over. {@code datetime} and {@code date_nanos} need
-     * nothing — their long is the number written rather than a representation of it.
+     * {@code unsigned_long} is stored biased — the number plus {@code Long.MIN_VALUE} — so a {@code Long} of 5 is
+     * read back as 9223372036854775813. The unambiguous natural form is a {@code BigInteger}, so that is what this
+     * takes and encodes, range-checked first because {@code NumericUtils.asLongUnsigned} says it checks nothing. A
+     * {@code Long} is refused rather than guessed at: nothing distinguishes one meant as the number from one
+     * already biased, and either reading is silently wrong for the other caller.
+     * <p>
+     * {@code geohash}, {@code geotile} and {@code geohex} hold a grid id, and the engine has a validator for each
+     * ({@code EsqlDataTypeConverter.longToGeohash}, {@code longToGeotile}, {@code longToGeohex}) plus a parser for
+     * each natural string form, so both are used. They are checked rather than trusted because an invalid grid long
+     * is accepted by every builder and then throws in the response writer, which turns a function's bug into an
+     * error at result time — the thing {@link #encodedPoint} refuses for the same reason.
+     * <p>
+     * {@code datetime} and {@code date_nanos} hold the number written, in a unit the declaration decides: millis
+     * for one and nanos since the epoch for the other, so the same {@code Long} means two different instants and
+     * only the column says which. An {@link Instant} is the form that cannot be misread, and it is accepted and
+     * encoded per declared type; a {@code Long} is taken as already being in the column's unit. A negative
+     * {@code date_nanos} is refused, because {@code ToDateNanos.fromLong} and {@code DateUtils.toNanoSeconds}
+     * both refuse pre-epoch, so no index and no conversion can produce one and nothing downstream expects it.
+     * <p>
+     * Everything else — {@code long}, {@code integer}, {@code double}, {@code boolean}, the counters — is the
+     * number written, and passes through. {@link #ENCODED_LONGS} is what a test holds the whole set of
+     * {@code ElementType.LONG} types against, so a new type whose long is an encoding is a red test rather than a
+     * value that passes through here looking like the number it is not.
      */
     private static Object encodedNumber(String function, Attribute column, DataType declared, Object value) {
-        if (declared != DataType.UNSIGNED_LONG) {
-            // The numeric and boolean builders cast, so a wrong type fails there with the column named by page.
-            return value;
-        }
-        if (value instanceof BigInteger natural) {
-            if (NumericUtils.isUnsignedLong(natural) == false) {
-                throw badCell(function, column, "[" + natural + "] is outside the unsigned_long range");
+        return switch (declared) {
+            case UNSIGNED_LONG -> {
+                if (value instanceof BigInteger natural) {
+                    if (NumericUtils.isUnsignedLong(natural) == false) {
+                        throw badCell(function, column, "[" + natural + "] is outside the unsigned_long range");
+                    }
+                    yield NumericUtils.asLongUnsigned(natural);
+                }
+                yield refuse(function, column, value, "a BigInteger");
             }
-            return NumericUtils.asLongUnsigned(natural);
-        }
-        return refuse(function, column, value, "a BigInteger");
+            case GEOHASH, GEOTILE, GEOHEX -> encodedGrid(function, column, declared, value);
+            case DATETIME -> value instanceof Instant instant ? instant.toEpochMilli() : value;
+            case DATE_NANOS -> {
+                if (value instanceof Instant instant) {
+                    yield DateUtils.toLong(instant);
+                }
+                if (value instanceof Long nanos && nanos < 0) {
+                    throw badCell(function, column, "[" + nanos + "] is before 1970-01-01T00:00:00Z, which date_nanos cannot hold");
+                }
+                yield value;
+            }
+            // The numeric and boolean builders cast, so a wrong type fails there with the column named by page.
+            default -> value;
+        };
     }
+
+    /**
+     * A grid cell, from the string form a user would write or the long the engine stores, both put through the
+     * engine's own converter so neither rule is restated here to drift from it.
+     */
+    private static Object encodedGrid(String function, Attribute column, DataType declared, Object value) {
+        try {
+            if (value instanceof String text) {
+                return switch (declared) {
+                    case GEOHASH -> EsqlDataTypeConverter.stringToGeohash(text);
+                    case GEOTILE -> EsqlDataTypeConverter.stringToGeotile(text);
+                    case GEOHEX -> EsqlDataTypeConverter.stringToGeohex(text);
+                    default -> throw new AssertionError("not a grid type [" + declared + "]");
+                };
+            }
+            if (value instanceof Long encoded) {
+                return switch (declared) {
+                    case GEOHASH -> EsqlDataTypeConverter.longToGeohash(encoded);
+                    case GEOTILE -> EsqlDataTypeConverter.longToGeotile(encoded);
+                    case GEOHEX -> EsqlDataTypeConverter.longToGeohex(encoded);
+                    default -> throw new AssertionError("not a grid type [" + declared + "]");
+                };
+            }
+        } catch (IllegalArgumentException e) {
+            throw badCell(function, column, e.getMessage(), e);
+        }
+        return refuse(function, column, value, "a String or a Long");
+    }
+
+    /**
+     * The types whose {@code long} this seam encodes or checks, named so that a test can hold the set of
+     * {@code ElementType.LONG} types against it: a new one is a red test rather than a value that passes through
+     * {@link #encodedNumber} looking like the number it is not. Package-private for
+     * {@code TableFunctionResolverTests.testEveryLongBackedTypeIsEitherEncodedHereOrPlainlyTheNumber} alone.
+     */
+    static final Set<DataType> ENCODED_LONGS = Set.of(
+        DataType.UNSIGNED_LONG,
+        DataType.GEOHASH,
+        DataType.GEOTILE,
+        DataType.GEOHEX,
+        DataType.DATE_NANOS
+    );
 
     /**
      * A point column holds a point, and one the coordinate system admits. {@code asWkb} writes whatever geometry it
@@ -331,6 +414,11 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
     private static Page page(String function, int maxRows, List<Attribute> columns, List<List<Object>> rows) {
         if (rows == null) {
             throw new IllegalStateException("table function [" + function + "] produced no row list at all");
+        }
+        // A bound no row could satisfy is a declaration bug, not a refusal to report per call, and it is cheaper
+        // to find here than to wonder why a function never returns anything.
+        if (maxRows < 1) {
+            throw new IllegalStateException("table function [" + function + "] declared a row bound of [" + maxRows + "]");
         }
         // Before any block is built, so a function that produced far more than it said costs one list rather than
         // a page of it. Nothing downstream would refuse it: the page is already materialized by then.

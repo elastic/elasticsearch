@@ -56,10 +56,11 @@ public record TableFunctionSignature(List<Argument> arguments) {
         return new Argument(name, Kind.NAME, true);
     }
 
-    /** A required {@code {...}}. */
     /**
-     * A {@code {...}} payload argument. The consumer is {@code DatasetTableFunction}, whose second argument is a
-     * dataset definition written where it is read — named here so this is not read as machinery without a caller.
+     * A required {@code {...}} payload. No function on this branch declares one: the facility carries the kind
+     * because the grammar admits the map and the builder folds it, and the first function to take one — a dataset
+     * definition written where it is read — is a separate change. Stated so this is neither read as machinery with
+     * a caller it does not have, nor cut as having no purpose.
      */
     public static Argument namedValues(String name) {
         return new Argument(name, Kind.NAMED_VALUES, true);

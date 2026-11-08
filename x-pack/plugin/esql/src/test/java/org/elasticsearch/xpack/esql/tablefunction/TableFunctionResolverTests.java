@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -35,15 +37,19 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +58,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The facility driven by a function that exists only here.
@@ -395,24 +402,32 @@ public class TableFunctionResolverTests extends ESTestCase {
     }
 
     /**
-     * And the shape that cannot be checked is refused. A {@code BytesRef} of the text "1.2.3.4" is seven bytes
-     * where sixteen belong — right element type, wrong bytes, and nothing downstream able to tell, which is why
-     * the length is the one invariant the {@code ip} arm accepts an already-encoded value on.
+     * And every raw {@code BytesRef} is refused, whatever its length. The sixteen-byte length looked like an
+     * invariant and is not one: a 16-character IPv6 literal is sixteen bytes of text, so it passed the length
+     * check and decoded as a different address — right element type, wrong bytes, and nothing downstream able to
+     * tell. Both lengths are pinned here because the short one alone is what let the long one through.
      */
     public void testATextBytesRefIsRefusedForAnIpColumn() {
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> resolve(new Typed(DataType.IP, List.of(List.of(new BytesRef("1.2.3.4")))), call("1"))
-        );
-        assertThat(e.getMessage(), containsString("declared [ip], which needs an InetAddress"));
+        for (String text : List.of("1.2.3.4", "2001:db8::ff00:4")) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> resolve(new Typed(DataType.IP, List.of(List.of(new BytesRef(text)))), call("1"))
+            );
+            assertThat(e.getMessage(), containsString("declared [ip], which needs an InetAddress"));
+        }
     }
 
-    /** An already-encoded ip is still accepted, because sixteen bytes is an invariant the seam can check. */
-    public void testAnEncodedIpBytesRefIsAccepted() throws Exception {
+    /**
+     * Including bytes that really are an encoded address: there is no way to tell them from text of the same
+     * length, and a function holding them has {@code InetAddressPoint.decode}.
+     */
+    public void testAnEncodedIpBytesRefIsRefusedToo() throws Exception {
         BytesRef encoded = new BytesRef(InetAddressPoint.encode(InetAddress.getByName("1.2.3.4")));
-        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.IP, List.of(List.of(encoded))), call("1"));
-
-        assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.IP, List.of(List.of(encoded))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared [ip], which needs an InetAddress"));
     }
 
     /** A version is encoded too, and its encoding is not its text: twelve bytes for "1.2.3", not five. */
@@ -455,14 +470,20 @@ public class TableFunctionResolverTests extends ESTestCase {
     private static class Bounded extends CoordinatorRowsFunction {
 
         private final int rowCount;
+        private final int bound;
 
         Bounded(int rowCount) {
+            this(rowCount, 1);
+        }
+
+        Bounded(int rowCount, int bound) {
             this.rowCount = rowCount;
+            this.bound = bound;
         }
 
         @Override
         protected int maxRows() {
-            return 1;
+            return bound;
         }
 
         @Override
@@ -980,6 +1001,141 @@ public class TableFunctionResolverTests extends ESTestCase {
         LocalRelation rows = (LocalRelation) resolve(new Bounded(1), call("1"));
 
         assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
+    }
+
+    /**
+     * A {@code Version} object, not its text. The string arm was the only one pinned, so replacing this arm with
+     * {@code new BytesRef(version.toString())} left every suite green while every version handed in as an object
+     * carried its text where the other version values carry twelve encoded bytes.
+     */
+    public void testAVersionObjectIsEncodedRatherThanRendered() {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.VERSION, List.of(List.of(new Version("1.2.3")))), call("1"));
+
+        BytesRef held = ((BytesRefBlock) rows.supplier().get().getBlock(0)).getBytesRef(0, new BytesRef());
+        assertThat(held, equalTo(new Version("1.2.3").toBytesRef()));
+        assertThat(held, not(equalTo(new BytesRef("1.2.3"))));
+    }
+
+    /** The cartesian arms, which had no test at all: the geo ones were pinned and these two were not. */
+    public void testACartesianPointIsEncodedAndARawBytesRefRefused() {
+        Point point = new Point(1, 2);
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.CARTESIAN_POINT, List.of(List.of(point))), call("1"));
+        BytesRef held = ((BytesRefBlock) rows.supplier().get().getBlock(0)).getBytesRef(0, new BytesRef());
+        assertThat(held, equalTo(SpatialCoordinateTypes.CARTESIAN.asWkb(point)));
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.CARTESIAN_POINT, List.of(List.of(new BytesRef("x")))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared [cartesian_point], which needs a Point"));
+    }
+
+    public void testACartesianShapeIsEncodedAndARawBytesRefRefused() {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, 1, 0 }, new double[] { 0, 0, 1, 0 }));
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.CARTESIAN_SHAPE, List.of(List.of(polygon))), call("1"));
+        BytesRef held = ((BytesRefBlock) rows.supplier().get().getBlock(0)).getBytesRef(0, new BytesRef());
+        assertThat(held, equalTo(SpatialCoordinateTypes.CARTESIAN.asWkb(polygon)));
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.CARTESIAN_SHAPE, List.of(List.of(new BytesRef("x")))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared [cartesian_shape], which needs a Geometry"));
+    }
+
+    /**
+     * A grid long is a grid id, and an invalid one is accepted by every block builder and then throws in the
+     * response writer — a function's bug turned into an error at result time. Checked here through the engine's
+     * own validators, so the rules are not restated to drift from them.
+     */
+    public void testAnInvalidGridLongIsRefused() {
+        // A different invalid value per type, because what is invalid differs: zero is level 0 for a geohash and
+        // not an H3 cell, but it is the perfectly valid geotile 0/0/0, so only a negative is invalid there.
+        Map<DataType, Long> invalid = Map.of(DataType.GEOHASH, 0L, DataType.GEOTILE, -1L, DataType.GEOHEX, 0L);
+        for (var entry : invalid.entrySet()) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> resolve(new Typed(entry.getKey(), List.of(List.of(entry.getValue()))), call("1"))
+            );
+            assertThat(e.getMessage(), containsString("declared [" + entry.getKey().typeName() + "]"));
+        }
+    }
+
+    /** A bound no row could satisfy is a declaration bug, and it is reported as one rather than per call. */
+    public void testANonPositiveRowBoundIsRefused() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> resolve(new Bounded(0, 0), call("1")));
+        assertThat(e.getMessage(), containsString("declared a row bound of [0]"));
+    }
+
+    /** And the valid one the type-by-type difference turns on, so the loop above is not passing by accident. */
+    public void testTheZeroGeotileIsAValidTile() {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.GEOTILE, List.of(List.of(0L))), call("1"));
+
+        assertThat(((LongBlock) rows.supplier().get().getBlock(0)).getLong(0), equalTo(0L));
+    }
+
+    /** And the natural string form is taken, as the version arm takes one, and encoded through the same converter. */
+    public void testAGridStringIsEncoded() {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.GEOHASH, List.of(List.of("u4pruyd"))), call("1"));
+
+        long stored = ((LongBlock) rows.supplier().get().getBlock(0)).getLong(0);
+        assertThat(stored, equalTo(EsqlDataTypeConverter.stringToGeohash("u4pruyd")));
+    }
+
+    /**
+     * The same {@code Long} means two different instants under the two date types and only the column says which,
+     * so an {@link Instant} is the form that cannot be misread. Both are accepted; this pins that the encoding
+     * follows the declaration rather than the value.
+     */
+    public void testAnInstantIsEncodedInTheColumnsOwnUnit() {
+        Instant instant = Instant.parse("2023-11-14T22:13:20Z");
+
+        LocalRelation millis = (LocalRelation) resolve(new Typed(DataType.DATETIME, List.of(List.of(instant))), call("1"));
+        assertThat(((LongBlock) millis.supplier().get().getBlock(0)).getLong(0), equalTo(instant.toEpochMilli()));
+
+        LocalRelation nanos = (LocalRelation) resolve(new Typed(DataType.DATE_NANOS, List.of(List.of(instant))), call("1"));
+        assertThat(((LongBlock) nanos.supplier().get().getBlock(0)).getLong(0), equalTo(DateUtils.toLong(instant)));
+    }
+
+    /** {@code ToDateNanos.fromLong} and {@code DateUtils.toNanoSeconds} both refuse pre-epoch, so this does too. */
+    public void testAPreEpochDateNanosIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.DATE_NANOS, List.of(List.of(-1L))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("is before 1970-01-01T00:00:00Z, which date_nanos cannot hold"));
+    }
+
+    /**
+     * The guard against the next encoded long arriving unnoticed, which is how {@code unsigned_long} and the three
+     * grid types each arrived. Every type the engine reads out of a {@code LONG} block is either one this seam
+     * encodes or checks, or one whose long is plainly the number written — and this is the list of the second kind,
+     * so a new type is a red test here rather than a value that passes through looking like a number it is not.
+     */
+    public void testEveryLongBackedTypeIsEitherEncodedHereOrPlainlyTheNumber() {
+        Set<DataType> plainlyTheNumber = Set.of(
+            DataType.LONG,
+            DataType.DATETIME,
+            DataType.COUNTER_LONG,
+            DataType.AGGREGATE_METRIC_DOUBLE,
+            DataType.DATE_RANGE
+        );
+        for (DataType type : DataType.values()) {
+            ElementType element;
+            try {
+                element = PlannerUtils.toElementType(type);
+            } catch (Exception unsupported) {
+                continue;
+            }
+            if (element != ElementType.LONG) {
+                continue;
+            }
+            assertThat(
+                "a long-backed type this seam neither encodes nor declares plain: " + type.typeName(),
+                CoordinatorRowsFunction.ENCODED_LONGS.contains(type) || plainlyTheNumber.contains(type),
+                equalTo(true)
+            );
+        }
     }
 
     /** A function that completes with no row list at all, which is not the same as completing with no rows. */

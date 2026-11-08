@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -470,6 +472,43 @@ public class EsqlSessionTests extends ESTestCase {
 
         assertThat(result.keySet(), equalTo(Set.of(path)));
         assertThat(result.get(path), equalTo(first));
+    }
+
+    /**
+     * Two data sources holding the <i>same</i> secret are the same read, and the raw map cannot see it: encryption
+     * draws a fresh IV per write, so each source's stored ciphertext is different bytes and {@code EncryptedData}
+     * compares payloads. The folded {@code _definition_version} is the engine's canonical identity for a
+     * definition and folds the key id rather than the payload, which is why it decides this.
+     */
+    public void testExtractExternalConfigsAcceptsTwinsWhoseSecretsEncryptedDifferently() {
+        String path = "s3://bucket/table";
+        Map<String, Object> first = configWith("format", "csv");
+        first.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of("secret_key", new EncryptedData("key-1", new byte[] { 1, 2, 3 })));
+        first.put(DefinitionVersion.CONFIG_KEY, "v1");
+        Map<String, Object> second = configWith("format", "csv");
+        second.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of("secret_key", new EncryptedData("key-1", new byte[] { 9, 9, 9 })));
+        second.put(DefinitionVersion.CONFIG_KEY, "v1");
+        assertThat("the two configs must be unequal as maps, or this test proves nothing", first, not(equalTo(second)));
+
+        Map<String, Map<String, Object>> result = EsqlSession.extractExternalConfigs(twoRelationsOnOnePath(path, first, second));
+
+        assertThat(result.keySet(), equalTo(Set.of(path)));
+        assertThat(result.get(path), equalTo(first));
+    }
+
+    /** And a genuine divergence is still refused, so the version is not simply believed over everything. */
+    public void testExtractExternalConfigsStillRefusesDifferentVersionsOnOnePath() {
+        String path = "s3://bucket/table";
+        Map<String, Object> first = configWith("format", "csv");
+        first.put(DefinitionVersion.CONFIG_KEY, "v1");
+        Map<String, Object> second = configWith("format", "ndjson");
+        second.put(DefinitionVersion.CONFIG_KEY, "v2");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EsqlSession.extractExternalConfigs(twoRelationsOnOnePath(path, first, second))
+        );
+        assertThat(e.getMessage(), containsString("different configurations in one query"));
     }
 
     /** Different paths never compare, however far their configurations diverge. */

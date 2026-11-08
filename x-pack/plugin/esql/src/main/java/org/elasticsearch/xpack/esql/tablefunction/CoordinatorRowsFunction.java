@@ -29,7 +29,9 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -146,16 +148,38 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
     }
 
     private static Object refuse(Attribute column, Object value, String wanted) {
-        throw new IllegalStateException(
-            "table function produced ["
-                + value.getClass().getSimpleName()
-                + "] for column ["
-                + column.name()
-                + "] declared ["
-                + column.dataType().typeName()
-                + "], which needs "
-                + wanted
-        );
+        throw new IllegalStateException(producedFor(column, value) + ", which needs " + wanted);
+    }
+
+    private static String producedFor(Attribute column, Object value) {
+        return "table function produced "
+            + describe(value)
+            + " for column ["
+            + column.name()
+            + "] declared ["
+            + column.dataType().typeName()
+            + "]";
+    }
+
+    /**
+     * What the cell held, rather than which class the JDK happened to use for it. A list reported as its own class
+     * name reads as {@code List12}, which names neither that it was a list nor what was in it.
+     */
+    private static String describe(Object value) {
+        if (value == null) {
+            return "[null]";
+        }
+        if (value instanceof List<?> list) {
+            if (list.isEmpty()) {
+                return "an empty list";
+            }
+            Set<String> elements = new LinkedHashSet<>();
+            for (Object element : list) {
+                elements.add(element == null ? "null" : element.getClass().getSimpleName());
+            }
+            return "a list of [" + String.join(", ", elements) + "]";
+        }
+        return "[" + value.getClass().getSimpleName() + "]";
     }
 
     /**
@@ -174,8 +198,24 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
         BlockUtils.BuilderWrapper[] wrappers = new BlockUtils.BuilderWrapper[columns.size()];
         try {
             for (int i = 0; i < wrappers.length; i++) {
-                ElementType type = PlannerUtils.toElementType(columns.get(i).dataType());
-                wrappers[i] = BlockUtils.wrapperFor(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, type, rows.size());
+                Attribute column = columns.get(i);
+                try {
+                    ElementType type = PlannerUtils.toElementType(column.dataType());
+                    wrappers[i] = BlockUtils.wrapperFor(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, type, rows.size());
+                } catch (Exception e) {
+                    // A declared type with no element type at all fails here, in toElementType, and the raw failure
+                    // names the element type rather than the column that asked for it - which is the only thing a
+                    // function's author can change. A type that has an element type but no way to append a value,
+                    // ElementType.NULL being the one, gets as far as a builder and fails at the append below.
+                    throw new IllegalStateException(
+                        "table function declared column ["
+                            + column.name()
+                            + "] as ["
+                            + column.dataType().typeName()
+                            + "], which it cannot produce values for",
+                        e
+                    );
+                }
             }
             for (List<Object> row : rows) {
                 // Checked rather than asserted: a function that disagrees with its own column list would otherwise
@@ -189,21 +229,13 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
                     Object value = encodedFor(columns.get(i), row.get(i));
                     try {
                         wrappers[i].accept(value);
-                    } catch (ClassCastException e) {
-                        // The builder is typed from the declaration, so it rejects a value of another Java type. That
-                        // is the behaviour we want; the bare cast failure is not, as it names neither the column nor
-                        // the declaration it disagreed with.
-                        Attribute column = columns.get(i);
-                        throw new IllegalStateException(
-                            "table function produced ["
-                                + (value == null ? "null" : value.getClass().getSimpleName())
-                                + "] for column ["
-                                + column.name()
-                                + "] declared ["
-                                + column.dataType().typeName()
-                                + "]",
-                            e
-                        );
+                    } catch (ClassCastException | UnsupportedOperationException e) {
+                        // Two ways one value fails to go into one column, both of them reported against the element
+                        // type alone. A builder typed from the declaration casts, so a value of another Java type is
+                        // a ClassCastException; a declared type whose element type has no append arm at all -
+                        // ElementType.NULL - is an UnsupportedOperationException, and fails for every value. Neither
+                        // names the column or the declaration it disagreed with, which is what this adds.
+                        throw new IllegalStateException(producedFor(columns.get(i), value), e);
                     }
                 }
             }

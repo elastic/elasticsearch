@@ -134,10 +134,8 @@ indexPatternOrSubquery
 // parses. An unknown one is refused during analysis, at the position it was written.
 //
 // Shaped after functionExpression, including the trailing optional mapExpression: the map stays a separate
-// alternative in the grammar -- so it can only be written last, and writing it elsewhere is a parse error --
-// and is folded into the one argument list in the builder, exactly as
-// ExpressionBuilder.visitFunctionExpression appends it to the args it collected. A table function therefore
-// sees a map as its last argument rather than as a slot beside them.
+// alternative here -- so it can only be written last, and writing it elsewhere is a parse error -- and the
+// builder folds it into the one argument list. Why, on TableFunctionArgument.
 tableFunction
     : {this.isDevVersion()}? name=DEV_TABLE_FUNCTION_NAME LP (tableFunctionArgument (COMMA tableFunctionArgument)* (COMMA mapExpression)?)? RP
     ;

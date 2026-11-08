@@ -330,6 +330,45 @@ public class TableFunctionResolverTests extends ESTestCase {
     }
 
     /**
+     * A wrong-typed cell inside a list says what the list held. Reporting the value's own class names the JDK's
+     * list implementation — {@code List12} for a two-element {@code List.of} — which tells a function's author
+     * neither that it was a list nor what was in it.
+     */
+    public void testAListOfTheWrongTypeSaysWhatItHeld() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.LONG, List.of(List.of(List.of("a", "b")))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("produced a list of [String] for column [c] declared [long]"));
+    }
+
+    /**
+     * A declared type the engine has no builder for is refused against the column that declared it. Both calls
+     * behind this throw about the element type alone, which is not the thing a function's author chose.
+     */
+    public void testADeclaredTypeWithNoBuilderNamesItsColumn() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.FLOAT, List.of(List.of(1.0f))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared column [c] as [float], which it cannot produce values for"));
+    }
+
+    /**
+     * {@code NULL} is the other way a declaration fails, and it fails later: it has an element type and a block
+     * builder, and no arm that appends a value to one, so every value is refused rather than the column being
+     * refused up front. Reported against the column all the same, which is the whole point.
+     */
+    public void testANullDeclaredColumnNamesItsColumn() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.NULL, List.of(List.of("anything"))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("produced [String] for column [c] declared [null]"));
+        assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
+    }
+
+    /**
      * For a type whose bytes are an encoding rather than the text, the seam encodes: a function hands back an
      * {@code InetAddress} and the block carries the sixteen bytes {@code InetAddressPoint} produces.
      */

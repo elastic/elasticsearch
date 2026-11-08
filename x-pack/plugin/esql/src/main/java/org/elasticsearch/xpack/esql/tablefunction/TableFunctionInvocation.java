@@ -20,9 +20,8 @@ import java.util.Objects;
  * tree — {@code PromqlFunctionCall} and {@code HistogramFunctionCall} both extend {@code UnaryPlan} — and
  * this is not one and never will be.
  * <p>
- * One flat argument list, as a scalar function has: {@code ExpressionBuilder.visitFunctionExpression} appends a
- * trailing map to the same list it collected the other arguments into, so a map is a scalar function's last
- * argument rather than a slot beside them. Following that is why a map is one of them rather than a slot beside them.
+ * One flat argument list, in which a trailing map is the last argument rather than a slot beside the arguments.
+ * Why it is shaped that way is on {@link TableFunctionArgument}.
  * <p>
  * A carrier, with no validation of its own: what shape of call a function accepts is
  * {@link TableFunction#signature()}'s question and what else is true of it is {@link TableFunction#validate}'s, and

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -23,6 +24,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -30,7 +33,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.util.TimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -38,11 +40,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.junit.After;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
@@ -56,7 +58,7 @@ public class TimeSeriesFunctionEvaluatorTests extends ESTestCase {
 
     /** Metadata operations treat null as empty; rendering preserves nulls and missing labels remain nullable. */
     public void testEmptyMetadata() {
-        for (Object empty : new Object[] { null, new BytesRef("{}"), new BytesRef("{\"empty\":\"\",\"null\":null}") }) {
+        for (Object empty : new Object[] { null, new BytesRef("{}") }) {
             assertNull(evaluate(new TimeSeriesPath(Source.EMPTY, METADATA, label("pod")), empty));
             assertEquals("{}", evaluate(new TimeSeriesTransform(Source.EMPTY, METADATA, List.of(label("pod"))), empty));
             assertEquals(empty == null ? null : "{}", evaluate(new ToString(Source.EMPTY, METADATA, TEST_CFG), empty));
@@ -94,9 +96,32 @@ public class TimeSeriesFunctionEvaluatorTests extends ESTestCase {
         assertNull(evaluate(cast, (Object) null));
     }
 
+    /** Equal label sets get equal bytes whatever their source order, spelling, nesting, or null and empty values. */
+    public void testToTimeSeriesIsCanonical() {
+        var cast = new ToTimeSeries(Source.EMPTY, field("source", DataType.KEYWORD));
+        for (String source : List.of(
+            "{\"b\":\"2\",\"a\":\"1\"}",
+            "{ \"\\u0061\": \"\\u0031\", \"b\": [\"2\"], \"empty\": \"\", \"null\": null, \"none\": [null, \"\"] }",
+            "{\"labels\":{\"b\":2},\"a\":\"1\"}"
+        )) {
+            assertEquals("{\"a\":\"1\",\"b\":\"2\"}", evaluate(cast, new BytesRef(source)));
+        }
+        assertEquals("{}", evaluate(cast, new BytesRef("{\"empty\":\"\",\"null\":null,\"none\":[]}")));
+        assertEquals("{\"n\":\"5\",\"t\":\"true\"}", evaluate(cast, new BytesRef("{\"t\":true,\"n\":5}")));
+        assertEquals("{\"r\":[\"w\",\"e\",\"w\"]}", evaluate(cast, new BytesRef("{\"r\":[\"w\",\"\",\"e\",null,\"w\"]}")));
+    }
+
+    /** Sources that are not a label set, or whose fields resolve to the same label, fail rather than merge series. */
+    public void testToTimeSeriesRejectsInvalidSources() {
+        var cast = new ToTimeSeries(Source.EMPTY, field("source", DataType.KEYWORD));
+        for (String invalid : List.of("not JSON", "[]", "{\"pod\":[{}]}", "{} {}", "{\"labels\":{\"pod\":\"a\"},\"pod\":\"b\"}")) {
+            expectThrows(RuntimeException.class, () -> evaluateBytes(cast, new BytesRef(invalid)));
+        }
+    }
+
     /** Removing a label is idempotent, including repeated and absent names, and an empty label reads as absent. */
     public void testRemovals() {
-        BytesRef metadata = new BytesRef("{\"pod\":\"a\",\"job\":\"api\"}");
+        BytesRef metadata = new BytesRef("{\"job\":\"api\",\"pod\":\"a\"}");
         assertEquals(
             "{\"job\":\"api\"}",
             evaluate(new TimeSeriesTransform(Source.EMPTY, METADATA, List.of(label("pod"), label("pod"), label("missing"))), metadata)
@@ -105,7 +130,8 @@ public class TimeSeriesFunctionEvaluatorTests extends ESTestCase {
             "{\"job\":\"api\",\"pod\":\"a\"}",
             evaluate(new TimeSeriesTransform(Source.EMPTY, METADATA, List.of(label("missing"))), metadata)
         );
-        assertNull(evaluate(new TimeSeriesPath(Source.EMPTY, METADATA, label("pod")), new BytesRef("{\"pod\":\"\"}")));
+        var cast = new ToTimeSeries(Source.EMPTY, field("source", DataType.KEYWORD));
+        assertNull(evaluate(new TimeSeriesPath(Source.EMPTY, cast, label("pod")), new BytesRef("{\"pod\":\"\"}")));
     }
 
     /** Escaping and non-ASCII data survive reading and rendering without changing label identity. */
@@ -146,16 +172,20 @@ public class TimeSeriesFunctionEvaluatorTests extends ESTestCase {
         }
     }
 
-    /** Invalid metadata must fail rather than silently merge series through a null result. */
+    /** Metadata that is not a JSON object fails rather than silently merging series through a null result. */
     public void testMalformedMetadataFails() {
-        for (String invalid : List.of("not JSON", "[]", "{\"pod\":3}", "{\"pod\":\"a\",\"pod\":\"b\"}", "{} {}")) {
+        for (String invalid : List.of("not JSON", "[]")) {
             for (Expression expression : List.of(
-                new TimeSeriesTransform(Source.EMPTY, METADATA, List.of(label("pod"))),
-                new ToString(Source.EMPTY, METADATA, TEST_CFG)
+                new TimeSeriesPath(Source.EMPTY, METADATA, label("pod")),
+                new TimeSeriesTransform(Source.EMPTY, METADATA, List.of(label("pod")))
             )) {
                 expectThrows(RuntimeException.class, () -> evaluateBytes(expression, new BytesRef(invalid)));
             }
         }
+        expectThrows(
+            RuntimeException.class,
+            () -> evaluateBytes(new TimeSeriesTransform(Source.EMPTY, METADATA, List.of(label("pod"))), new BytesRef("{} {}"))
+        );
     }
 
     /** Metadata itself is one encoded value, even when the labels inside it contain multiple values. */
@@ -174,18 +204,20 @@ public class TimeSeriesFunctionEvaluatorTests extends ESTestCase {
 
     /** GET exposes all members as one multivalued position, while UNSET removes the complete label. */
     public void testMultipleValuesReadRenderAndRemove() {
-        var metadata = new BytesRef("{\"pod\":[\"b\",\"a\",\"b\",\"\"],\"empty\":[null,\"\"],\"single\":[\"one\"]}");
+        var cast = new ToTimeSeries(Source.EMPTY, field("source", DataType.KEYWORD));
+        var source = new BytesRef("{\"pod\":[\"b\",\"a\",\"b\",\"\"],\"empty\":[null,\"\"],\"single\":[\"one\"]}");
         assertEquals(
             List.of(new BytesRef("b"), new BytesRef("a"), new BytesRef("b")),
-            evaluateValues(new TimeSeriesPath(Source.EMPTY, METADATA, label("pod")), metadata)
+            evaluateValues(new TimeSeriesPath(Source.EMPTY, cast, label("pod")), source)
         );
-        assertEquals("one", evaluate(new TimeSeriesPath(Source.EMPTY, METADATA, label("single")), metadata));
-        assertNull(evaluate(new TimeSeriesPath(Source.EMPTY, METADATA, label("empty")), metadata));
+        assertEquals("one", evaluate(new TimeSeriesPath(Source.EMPTY, cast, label("single")), source));
+        assertNull(evaluate(new TimeSeriesPath(Source.EMPTY, cast, label("empty")), source));
+        assertEquals("{\"pod\":[\"b\",\"a\",\"b\"],\"single\":\"one\"}", evaluate(new ToString(Source.EMPTY, cast, TEST_CFG), source));
+        assertEquals("{\"single\":\"one\"}", evaluate(new TimeSeriesTransform(Source.EMPTY, cast, List.of(label("pod"))), source));
         assertEquals(
-            "{\"pod\":[\"b\",\"a\",\"b\"],\"single\":\"one\"}",
-            evaluate(new ToString(Source.EMPTY, METADATA, TEST_CFG), metadata)
+            "{\"pod\":[\"b\",\"a\",\"b\"]}",
+            evaluate(new TimeSeriesTransform(Source.EMPTY, cast, List.of(label("single"))), source)
         );
-        assertEquals("{\"single\":\"one\"}", evaluate(new TimeSeriesTransform(Source.EMPTY, METADATA, List.of(label("pod"))), metadata));
     }
 
     /** Breaker-accounted metadata is not subject to the arbitrary limit for unaccounted scalar strings. */
@@ -207,7 +239,6 @@ public class TimeSeriesFunctionEvaluatorTests extends ESTestCase {
         BytesRef large = encode(Map.of("pod", "x".repeat(16 * 1024)));
         for (Expression expression : List.of(
             new TimeSeriesTransform(Source.EMPTY, METADATA, List.of(label("job"))),
-            new ToString(Source.EMPTY, METADATA, TEST_CFG),
             new ToTimeSeries(Source.EMPTY, field("source", DataType.KEYWORD))
         )) {
             DriverContext context = driverContext(ByteSizeValue.ofKb(32));
@@ -268,14 +299,14 @@ public class TimeSeriesFunctionEvaluatorTests extends ESTestCase {
         return new Literal(Source.EMPTY, new BytesRef(json), DataType.TSMD_DATA_TYPE);
     }
 
+    /** The canonical encoding of single-valued {@code labels}: a JSON object sorted by label name. */
     private static BytesRef encode(Map<String, String> labels) {
-        var output = new ByteArrayOutputStream();
-        try {
-            TimeSeriesMetadata.of(labels).writeTo(output);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.map(new TreeMap<>(labels));
+            return BytesReference.bytes(builder).toBytesRef();
         } catch (IOException e) {
             throw new AssertionError(e);
         }
-        return new BytesRef(output.toByteArray());
     }
 
     private String evaluate(Expression expression, Object... values) {

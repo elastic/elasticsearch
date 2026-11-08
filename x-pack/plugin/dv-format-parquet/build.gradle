@@ -79,6 +79,11 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('esql-core'))
   internalClusterTestImplementation project(xpackModule('esql:compute'))
   internalClusterTestImplementation project(xpackModule('esql-datasource-parquet'))
+  // the integration test that mounts a file through an ES|QL data source loads the ES|QL plugin, in the way that the prometheus module does
+  internalClusterTestImplementation(testArtifact(project(xpackModule('esql')), 'internalClusterTest'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('esql'))))
+  // the type `local` of data source and the file:// scheme
+  internalClusterTestImplementation project(xpackModule('esql-datasource-http'))
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   internalClusterTestImplementation "io.airlift:aircompressor:${versions.aircompressor}"
   internalClusterTestImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
@@ -94,6 +99,10 @@ dependencies {
 
 tasks.named("internalClusterTest").configure {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Local file:// access is on by default in snapshot builds; in release builds the local flag is off unless it is enabled here.
+  systemProperty 'es.esql_external_datasources_local_feature_flag_enabled', 'true'
+  // Data sources require the project encryption key feature (the ES|QL plugin fails fast otherwise).
+  systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
 }
 
 tasks.named("test").configure {

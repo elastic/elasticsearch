@@ -179,6 +179,9 @@ conversions. The packages `engine` and `mount` use `dv` and `repository`.
   `CachedStorageObject` are the disk cache of file ranges: the decorator sends every read of the reader through the cache, which is a
   thin layer on the shared cache of the `blob-cache` plugin (its own cache file, `parquet_cache`, and its own fetch thread pool).
 
+`ParquetDataSourceMountIT` (an integration test that loads the ES|QL plugin) mounts a file through a data source of type `local` and
+compares ES|QL over the mount with ES|QL over a dataset of the same file and the same data source.
+
 ## Checking concurrency and memory
 
 `clickbench/concurrency_check.py` runs a mix of ES|QL queries, Query DSL searches and gets from several clients at once and checks that

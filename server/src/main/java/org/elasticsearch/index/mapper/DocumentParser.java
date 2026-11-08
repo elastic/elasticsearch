@@ -293,8 +293,7 @@ public final class DocumentParser {
         }
         MappingBuilder mappingBuilder = new MappingBuilder(rootBuilder, Map.of(), null);
         mappingBuilder.normalize(MapperService.MergeReason.MAPPING_AUTO_UPDATE);
-        // the update asserts only what the document made it set, so it can be merged into the mapping as a delta
-        return mappingBuilder.toDynamicUpdate();
+        return mappingBuilder.toCompressedXContent();
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {

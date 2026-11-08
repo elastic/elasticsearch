@@ -4244,18 +4244,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = fieldType().element.parseDimensionCount(context);
-            // The update is a delta: the dimensions found, and the element type they were counted for, since the limits on
-            // the dimensions depend on it. Anything else about the field is as the mapping already has it.
-            DenseVectorFieldMapper.Builder builder = new Builder(
-                leafName(),
-                indexCreatedVersion,
-                indexMode,
-                excludeSourceVectorsSetting,
-                experimentalFeaturesEnabled,
-                extraVectorsFormatProviders,
-                indexDisabledByDefault
-            ).elementType(fieldType().getElementType()).dimensions(dims);
-            context.addDynamicMapper(builder, fullPath());
+            context.updateMapping(fullPath(), builder -> ((Builder) builder).dimensions(dims));
             return ParseResult.INDEXED;
         }
         if (fieldType().indexed) {

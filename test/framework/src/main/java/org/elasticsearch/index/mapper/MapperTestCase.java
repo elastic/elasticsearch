@@ -759,12 +759,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
-    /** How a dynamic update is serialized, as it is for a document that adds to the mapping. */
-    private static final ToXContent.Params EXPLICIT_ONLY = new ToXContent.MapParams(Map.of(Mapper.EXPLICIT_ONLY_PARAM, "true"));
-
     /**
-     * Override to disable testing that a multi-field can be added to the mapped field by a dynamic update, in fields that either
-     * don't support multi-fields or can't be re-created from nothing but their type to carry one.
+     * Override to disable testing that a multi-field can be added to the mapped field by a dynamic update, in fields that
+     * don't support multi-fields.
      */
     protected boolean supportsDynamicallyAddedMultiFields() {
         return true;
@@ -772,7 +769,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     /**
      * A multi-field discovered while parsing a document is added to a field that is already mapped. The update that results has to
-     * be a delta, so that merging it into the mapping adds the sub-field and leaves everything else about the field as it was.
+     * restate the field as it is mapped, so that merging it adds the sub-field and leaves everything else about the field as it was.
      */
     public final void testDynamicMultiField() throws IOException {
         assumeTrue("Field doesn't support dynamically added multi-fields", supportsDynamicallyAddedMultiFields());
@@ -788,14 +785,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         FieldMapper.Builder multiField = (FieldMapper.Builder) parserContext.typeParser("keyword")
             .parse("dynamic_sub", new HashMap<>(), parserContext);
         DocumentParserContext context = new TestDocumentParserContext(parserContext, mapperService.mappingLookup());
-        context.addDynamicMultiField("field", multiField);
+        context.updateMapping("field", builder -> ((FieldMapper.Builder) builder).addMultiField(multiField));
         List<Mapper.Builder> added = context.getDynamicMappers("field");
         assertThat(added, hasSize(1));
 
         merge(
             mapperService,
             MapperService.MergeReason.MAPPING_AUTO_UPDATE,
-            "{\"_doc\":{\"properties\":" + Strings.toString(added.get(0), EXPLICIT_ONLY) + "}}"
+            "{\"_doc\":{\"properties\":" + Strings.toString(added.get(0)) + "}}"
         );
 
         @SuppressWarnings("unchecked")

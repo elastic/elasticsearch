@@ -131,11 +131,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
             this.isExcludeSourceVectors = isExcludeSourceVectors;
         }
 
-        public Builder elementType(DenseVectorFieldMapper.ElementType elementType) {
-            this.elementType.setValue(elementType);
-            return this;
-        }
-
         public Builder dimensions(int dimensions) {
             this.dims.setValue(dimensions);
             return this;
@@ -349,9 +344,8 @@ public class RankVectorsFieldMapper extends FieldMapper {
                         + "] requires at least one vector; use null to indicate a missing value"
                 );
             }
-            var builder = new Builder(leafName(), indexCreatedVersion, licenseState, isExcludeSourceVectors);
-            builder.elementType(fieldType().element.elementType()).dimensions(currentDims);
-            context.addDynamicMapper(builder, fullPath());
+            final int dims = currentDims;
+            context.updateMapping(fullPath(), builder -> ((Builder) builder).dimensions(dims));
             return ParseResult.INDEXED;
         }
         int dims = fieldType().dims;

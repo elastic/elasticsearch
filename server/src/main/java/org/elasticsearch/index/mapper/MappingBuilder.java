@@ -207,25 +207,8 @@ public class MappingBuilder implements ToXContentFragment {
     }
 
     public CompressedXContent toCompressedXContent() {
-        return toCompressedXContent(ToXContent.EMPTY_PARAMS);
-    }
-
-    /**
-     * Serializes this as a dynamic mapping update, which asserts only what was explicitly set on it, so that it can be merged into the
-     * mapping as a delta.
-     */
-    public CompressedXContent toDynamicUpdate() {
-        return toCompressedXContent(DYNAMIC_UPDATE_PARAMS);
-    }
-
-    private static final ToXContent.Params DYNAMIC_UPDATE_PARAMS = new ToXContent.MapParams(Map.of(Mapper.EXPLICIT_ONLY_PARAM, "true"));
-
-    /**
-     * @param params the serialization parameters, such as {@link Mapper#EXPLICIT_ONLY_PARAM}
-     */
-    public CompressedXContent toCompressedXContent(ToXContent.Params params) {
         try {
-            return new CompressedXContent(this, params);
+            return new CompressedXContent(this);
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + rootBuilder.leafName() + "]", e);
         }

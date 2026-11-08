@@ -158,7 +158,7 @@ public final class DynamicMappingUpdateMerger {
             }
         }
         builder.build(REASON);
-        return builder.toDynamicUpdate();
+        return builder.toCompressedXContent();
     }
 
     private MappingBuilder parse(CompressedXContent update) {

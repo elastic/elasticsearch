@@ -13,8 +13,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -54,8 +56,11 @@ public class MappingParserContext {
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     private final Supplier<ProjectMetadata> projectMetadataSupplier;
     private final ParseFieldLimits parseFieldLimits;
+    // How the source of a mapping that is already stored is parsed into builders, for updating one of its fields
+    @Nullable
+    private final Function<CompressedXContent, MappingBuilder> storedMappingParser;
 
-    // Package-private: used by MapperService (to pass ParseFieldLimits directly) and by inner subcontexts.
+    // Package-private: used by MapperService (to pass ParseFieldLimits and the stored mapping parser directly) and by inner subcontexts.
     MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
         Function<String, Mapper.TypeParser> typeParsers,
@@ -71,7 +76,8 @@ public class MappingParserContext {
         List<VectorsFormatProvider> vectorsFormatProviders,
         RootObjectMapperNamespaceValidator namespaceValidator,
         Supplier<ProjectMetadata> projectMetadataSupplier,
-        ParseFieldLimits parseFieldLimits
+        ParseFieldLimits parseFieldLimits,
+        @Nullable Function<CompressedXContent, MappingBuilder> storedMappingParser
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -89,6 +95,7 @@ public class MappingParserContext {
         this.namespaceValidator = namespaceValidator;
         this.projectMetadataSupplier = projectMetadataSupplier;
         this.parseFieldLimits = parseFieldLimits;
+        this.storedMappingParser = storedMappingParser;
     }
 
     public MappingParserContext(
@@ -127,7 +134,8 @@ public class MappingParserContext {
                 indexSettings.getMappingNestedFieldsLimit(),
                 NewFieldsBudget.unlimited(),
                 0
-            )
+            ),
+            null
         );
     }
 
@@ -204,6 +212,17 @@ public class MappingParserContext {
      */
     public boolean clusterHasFeature(NodeFeature feature) {
         return clusterSupportsFeature.test(feature);
+    }
+
+    /**
+     * Parses the source of a mapping that is already stored into builders, without enforcing limits: the mapping was
+     * validated when it was written.
+     */
+    MappingBuilder parseStoredMapping(CompressedXContent source) {
+        if (storedMappingParser == null) {
+            throw new IllegalStateException("this context has no parser for stored mappings");
+        }
+        return storedMappingParser.apply(source);
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {
@@ -328,7 +347,8 @@ public class MappingParserContext {
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
                 null,
-                in.parseFieldLimits
+                in.parseFieldLimits,
+                in.storedMappingParser
             );
         }
 
@@ -363,7 +383,8 @@ public class MappingParserContext {
                 in.namespaceValidator,
                 null,
                 // Use UNLIMITED so that parsing a dynamic template definition does not count against field limits.
-                ParseFieldLimits.UNLIMITED
+                ParseFieldLimits.UNLIMITED,
+                in.storedMappingParser
             );
             this.dateFormatter = dateFormatter;
         }

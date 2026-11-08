@@ -71,7 +71,7 @@ public class DocumentMapper {
     ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().fullPath();
-        this.mappingLookup = MappingLookup.fromMapping(mapping, indexMode);
+        this.mappingLookup = MappingLookup.fromMapping(mapping, indexMode, source);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
         this.indexVersion = version;

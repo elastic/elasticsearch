@@ -1381,6 +1381,22 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
+    /**
+     * Discovering the dimensions of a field updates the mapping of a field that is already mapped. The update has to restate the
+     * field, so that merging it does not reset the parameters, such as {@code index}, that can not be updated.
+     */
+    public void testDimensionsUpdateRestatesTheField() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "dense_vector").field("index", false)));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", 1.0f, 2.0f, 3.0f)));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, MapperService.MergeReason.MAPPING_AUTO_UPDATE, doc.dynamicMappingsUpdate().string());
+
+        String mapping = mapperService.documentMapper().mappingSource().string();
+        assertThat(mapping, containsString("\"dims\":3"));
+        assertThat(mapping, containsString("\"index\":false"));
+    }
+
     public void testDims() {
         {
             Exception e = expectThrows(

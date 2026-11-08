@@ -77,7 +77,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -310,11 +309,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 Objects::toString
             ) {
                 @Override
-                protected void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-                    if (isOmittedBy(params)) {
-                        return;
-                    }
-                    boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+                protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
                     SemanticIndexOptions value = getValue();
                     if (includeDefaults || isConfigured()) {
                         EndpointClusterState resolvedModelSettings = getResolvedModelSettings(null, false);
@@ -1011,27 +1006,15 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
     }
 
-    /**
-     * A builder of this mapper's own type with nothing set, for a dynamic update to carry only what the document makes known.
-     */
-    protected Builder newUpdateBuilder() {
-        return new Builder(
-            leafName(),
-            fieldType().getChunksField().bitsetProducer(),
-            fieldType().getChunksField().indexSettings(),
-            modelRegistry,
-            vectorsFormatProviders
-        );
-    }
-
     protected SemanticFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
-        Builder update = newUpdateBuilder().setInferenceId(field.inference().inferenceId())
-            .setModelSettings(field.inference().modelSettings());
         context.path().remove();
         try {
+            Builder update = (Builder) context.updateMapping(
+                fullPath(),
+                builder -> ((Builder) builder).setInferenceId(field.inference().inferenceId())
+                    .setModelSettings(field.inference().modelSettings())
+            );
             if (context.mappingLookup().isMultiField(fullPath())) {
-                // The field is part of a multi-field, so the parent field must also be updated accordingly.
-                context.addDynamicMultiField(context.mappingLookup().parentField(fullPath()), update);
                 var fieldName = context.path().remove();
                 try {
                     return update.build(context.createDynamicMapperBuilderContext());
@@ -1039,8 +1022,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                     context.path().add(fieldName);
                 }
             } else {
-                MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
-                return (SemanticFieldMapper) context.getDynamicMapper(update, update.build(builderContext), builderContext);
+                return update.build(context.createDynamicMapperBuilderContext());
             }
         } finally {
             context.path().add(leafName());

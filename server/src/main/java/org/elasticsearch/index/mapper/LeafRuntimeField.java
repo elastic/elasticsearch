@@ -45,8 +45,9 @@ public final class LeafRuntimeField implements RuntimeField {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", mappedFieldType.typeName());
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         for (FieldMapper.Parameter<?> parameter : parameters) {
-            parameter.toXContent(builder, params);
+            parameter.toXContent(builder, includeDefaults);
         }
         builder.endObject();
         return builder;

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -37,6 +38,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
@@ -228,6 +230,7 @@ public abstract class DocumentParserContext {
     private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
     private final Map<String, Mapper> builtDynamicMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
+    private final StoredMapping storedMapping;
     private final RoutingFields routingFields;
     private final ObjectMapper parent;
     private final ObjectMapper.Dynamic dynamic;
@@ -266,6 +269,7 @@ public abstract class DocumentParserContext {
         Map<String, ObjectMapper.Builder> dynamicObjectMappers,
         Map<String, Mapper> builtDynamicMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
+        StoredMapping storedMapping,
         String id,
         Field version,
         SeqNoFieldMapper.SequenceIDFields seqID,
@@ -295,6 +299,7 @@ public abstract class DocumentParserContext {
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.builtDynamicMappers = builtDynamicMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
+        this.storedMapping = storedMapping;
         this.id = id;
         this.version = version;
         this.seqID = seqID;
@@ -324,6 +329,7 @@ public abstract class DocumentParserContext {
             in.dynamicObjectMappers,
             in.builtDynamicMappers,
             in.dynamicRuntimeFields,
+            in.storedMapping,
             in.id,
             in.version,
             in.seqID,
@@ -368,6 +374,7 @@ public abstract class DocumentParserContext {
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
+            new StoredMapping(),
             null,
             null,
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(mappingParserContext.getIndexSettings().seqNoIndexOptions()),
@@ -885,36 +892,46 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Registers a dynamically discovered multi-field on a field that is already mapped. The update is a delta: the parent is
-     * re-created as an empty builder of its own type carrying only the new sub-field, so it asserts nothing else about the
-     * parent, whose other parameters are left as the mapping has them when the update is merged.
+     * Updates the mapping of a field that already exists, and registers the change as a dynamic update
+     * <p>
+     * If the field is a multi-field, then the dynamic update also contains the parent.
      *
-     * @param parentFullPath the full dotted path of the existing field that gets the multi-field
-     * @param multiField     the builder for the new multi-field
-     * @throws IllegalArgumentException if there is no field mapped at {@code parentFullPath}, or if its type can not be created
-     *                                  without parameters and so can not host a multi-field in an update
+     * @param fullPath the full dotted path of the existing field
+     * @param update   lambda to make changes to the mapper's Builder
+     * @return the updated Builder
+     * @throws IllegalArgumentException if there is no field mapped at {@code fullPath}
      */
-    public void addDynamicMultiField(String parentFullPath, FieldMapper.Builder multiField) {
-        if (mappingLookup.getMapper(parentFullPath) instanceof FieldMapper == false) {
-            throw new IllegalArgumentException(
-                "cannot add multi-field [" + multiField.leafName() + "] to [" + parentFullPath + "], which is not a mapped field"
-            );
+    public Mapper.Builder updateMapping(String fullPath, Consumer<Mapper.Builder> update) {
+        Map<String, Mapper.Builder> stored = storedMapping.fieldBuilders(mappingParserContext, mappingLookup);
+        Mapper.Builder builder = stored.get(fullPath);
+        if (builder == null) {
+            throw new IllegalArgumentException("cannot update the mapping of [" + fullPath + "], which is not a mapped field");
         }
-        // the content type is what the type parser is registered under; the type name is that of the field type, which can differ
-        // from it, as it does for token_count fields that are integers
-        String parentType = ((FieldMapper) mappingLookup.getMapper(parentFullPath)).contentType();
-        String parentLeafName = parentFullPath.substring(parentFullPath.lastIndexOf('.') + 1);
-        Mapper.TypeParser typeParser = mappingParserContext.typeParser(parentType);
-        FieldMapper.Builder host;
-        try {
-            host = (FieldMapper.Builder) typeParser.parse(parentLeafName, new HashMap<>(), dynamicTemplateParserContext(null));
-        } catch (MapperParsingException e) {
-            throw new IllegalArgumentException(
-                "cannot add multi-field [" + multiField.leafName() + "] to field [" + parentFullPath + "] of type [" + parentType + "]",
-                e
-            );
+        update.accept(builder);
+        String registeredPath = mappingLookup.isMultiField(fullPath) ? mappingLookup.parentField(fullPath) : fullPath;
+        addDynamicMapper(stored.get(registeredPath), registeredPath);
+        return builder;
+    }
+
+    /**
+     * Lazily computed Builders for the current set of Mappings, used by {@link #updateMapping(String, Consumer)}
+     */
+    private static final class StoredMapping {
+        private Map<String, Mapper.Builder> fieldBuilders;
+
+        // TODO add a filter so that we don't re-parse the entire Mapping just to update a single field
+        Map<String, Mapper.Builder> fieldBuilders(MappingParserContext parserContext, MappingLookup mappingLookup) {
+            if (fieldBuilders == null) {
+                CompressedXContent source = mappingLookup.mappingSource();
+                if (source == null) {
+                    throw new IllegalStateException("the source of the mapping is not available to update a field of it");
+                }
+                Map<String, Mapper.Builder> collected = new HashMap<>();
+                parserContext.parseStoredMapping(source).collectFieldBuilders(MergeReason.MAPPING_RECOVERY, collected::put);
+                fieldBuilders = collected;
+            }
+            return fieldBuilders;
         }
-        addDynamicMapper(host.addMultiField(multiField), parentFullPath);
     }
 
     /*

@@ -27,8 +27,9 @@ import java.util.Objects;
  * Deliberately NOT a {@link UnresolvedSourceRelation}: that marker is for traversals wanting any FROM-style leaf, and
  * all of them run after the rewrite, so joining it would add a branch per site for a shape that cannot arrive. Being
  * {@link Unresolvable} is what makes that safe rather than assumed: a skipped rewrite fails the query rather than
- * quietly reading nothing. Which stage reports it is not guaranteed — a leaf reaching the planner is refused by the
- * telemetry mapper before the verifier sees it — so the property to rely on is that it fails, not where.
+ * quietly reading nothing. Which stage reports it is not guaranteed — a leaf surviving analysis is refused by the
+ * telemetry mapper, which {@code Analyzer} and {@code Verifier.gatherMetrics} both walk, before the verifier's own
+ * checks run — so the property to rely on is that it fails, not where.
  */
 public final class UnresolvedTableFunctionRelation extends LeafPlan implements Unresolvable {
 

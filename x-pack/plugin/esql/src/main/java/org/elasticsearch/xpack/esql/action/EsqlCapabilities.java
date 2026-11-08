@@ -4729,9 +4729,16 @@ public class EsqlCapabilities {
         /**
          * Table functions in a {@code FROM} source list — {@code FROM foo, bar*, SOMEFUNC(a_name, {...})}. This
          * is the facility; which functions exist is a separate capability each, emitted per registered function
-         * as {@code table_fn_<name>}. Snapshot-only, and gated twice over: the {@code tableFunction}
-         * parser rule in {@code EsqlBaseParser.g4} carries {@code isDevVersion()}, which is what decides
-         * whether the syntax parses at all, and this capability mirrors it so a test only runs where it does.
+         * as {@code table_fn_<name>}. Snapshot-only: the {@code tableFunction} parser rule in
+         * {@code EsqlBaseParser.g4} carries {@code isDevVersion()}, which is what decides whether the syntax parses
+         * at all, and this capability mirrors it so a test only runs where it does.
+         * <p>
+         * The <i>lexer</i> half is not gated and deliberately so — a predicate there would have to re-enter the
+         * lexer's own mode stack — which has one effect on a release build, where no table function can be called:
+         * {@code FROM te()st} is now refused at the name rather than at the parenthesis, because {@code te(} lexes
+         * as a function-name token before the parser rejects the call. No query that was valid changes, the lexer
+         * fragment behind an unquoted source having never admitted {@code (}; the refusal's position and its
+         * expected-token list do. {@code StatementParserTests} pins the message for both builds.
          */
         FROM_TABLE_FUNCTION(Build.current().isSnapshot()),
 

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -57,9 +60,9 @@ import java.util.function.Supplier;
  * boxed values, this builds one block per column through {@code PlannerUtils.NON_BREAKING_BLOCK_FACTORY}, and the
  * resulting {@link Page} sits in the {@code LocalRelation}. Nothing here caps the row count and no circuit
  * breaker is charged. That is the same arrangement {@code ROW} has, but {@code ROW}'s size is bounded by the
- * length of the query and a function's by whatever it decided to return — so
- * <b>a function that cannot say how many rows it will produce has to bound itself</b>, and one that lists
- * something unbounded does not belong on this base class.
+ * length of the query and a function's by whatever it decided to return — so <b>a function states its own bound
+ * through {@link #maxRows()}</b>, which has no default and which {@link #page} enforces, and one whose row count
+ * has no bound it can state does not belong on this base class.
  *
  * <h2>What this deliberately does not do</h2>
  *
@@ -90,9 +93,21 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
         rows(
             call,
             context,
-            listener.map(rows -> new LocalRelation(call.source(), columns, LocalSupplier.of(page(call.name(), columns, rows))))
+            listener.map(rows -> new LocalRelation(call.source(), columns, LocalSupplier.of(page(call.name(), maxRows(), columns, rows))))
         );
     }
+
+    /**
+     * The most rows this function will hand back — stated by the function, with no default, because the base class
+     * cannot know and guessing a cap for someone else's relation is worse than making them say.
+     * <p>
+     * This is the class javadoc's rule made into a signature. Nothing caps the row count downstream and no circuit
+     * breaker is charged, so the bound was a sentence a function's author had to read and obey; now it is a method
+     * they cannot compile without, and {@link #page} refuses past it before a single block is built. A function
+     * whose row count has no bound it can state does not belong on this base class — that is the same sentence,
+     * and now there is nowhere to put the number it does not have.
+     */
+    protected abstract int maxRows();
 
     /** For a function that answers from memory: no listener, no I/O. */
     protected static void computed(ActionListener<List<List<Object>>> listener, Supplier<List<List<Object>>> rows) {
@@ -129,7 +144,7 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
         if (value instanceof List<?> multivalue) {
             // One level deep, no nulls and never empty, because a block position holds values rather than cells.
             // BuilderWrapper opens a position entry and hands each element to BlockUtils.appendValue, so: a nested
-            // list reaches the BYTES_REF arm and is stored as its own toString(); a null element reaches
+            // list under a BYTES_REF column is stored as its own toString(); a null element reaches
             // appendNull, which closes the open entry and starts another, turning one row into three positions in
             // a page that says it has one; and an empty list opens an entry and closes it with nothing in it. The
             // block API guards all three with assertions alone, so without this they are production-only faults.
@@ -150,8 +165,7 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
         }
         DataType declared = column.dataType();
         if (PlannerUtils.toElementType(declared) != ElementType.BYTES_REF) {
-            // The numeric and boolean builders cast, so a wrong type fails there with the column named by page.
-            return value;
+            return encodedNumber(function, column, declared, value);
         }
         return switch (declared) {
             case KEYWORD, TEXT, SOURCE -> value instanceof String || value instanceof BytesRef
@@ -178,6 +192,35 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
     }
 
     /**
+     * A cell for a column the engine reads out of a numeric or boolean block, where the Java type is not the whole
+     * question either. {@code unsigned_long} is stored <i>biased</i>: the number written has {@code Long.MIN_VALUE}
+     * added to it, so a {@code Long} of 5 handed in as five is read back as 9223372036854775813, and the cast
+     * {@code BlockUtils.appendValue} performs cannot tell — right element type, wrong number, which is the class
+     * the {@code ip} arm above exists to close. The unambiguous natural form is a {@code BigInteger}, so that is
+     * what this takes and encodes, range-checked first because {@code NumericUtils.asLongUnsigned} says it checks
+     * nothing. A {@code Long} is refused rather than guessed at: nothing distinguishes one meant as the number from
+     * one already biased, and either reading is silently wrong for the other caller.
+     * <p>
+     * {@code geohash}, {@code geotile} and {@code geohex} also sit in a {@code long} that is an encoding, and they
+     * are left to the function for the reason the {@code BytesRef} default arm is: nothing about the long can be
+     * checked, so the function owns it and says so by handing it over. {@code datetime} and {@code date_nanos} need
+     * nothing — their long is the number written rather than a representation of it.
+     */
+    private static Object encodedNumber(String function, Attribute column, DataType declared, Object value) {
+        if (declared != DataType.UNSIGNED_LONG) {
+            // The numeric and boolean builders cast, so a wrong type fails there with the column named by page.
+            return value;
+        }
+        if (value instanceof BigInteger natural) {
+            if (NumericUtils.isUnsignedLong(natural) == false) {
+                throw badCell(function, column, "[" + natural + "] is outside the unsigned_long range");
+            }
+            return NumericUtils.asLongUnsigned(natural);
+        }
+        return refuse(function, column, value, "a BigInteger");
+    }
+
+    /**
      * A point column holds a point, and one the coordinate system admits. {@code asWkb} writes whatever geometry it
      * is handed with no dimensionality or coordinate check, so a polygon would sit under a point column as 93 bytes
      * of polygon, and a latitude of 500 would sit there as a point — each failing far downstream, in whatever reads
@@ -190,7 +233,7 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             try {
                 system.wkbAsPoint(wkb);
             } catch (IllegalArgumentException e) {
-                throw badCell(function, column, e.getMessage());
+                throw badCell(function, column, e.getMessage(), e);
             }
             return wkb;
         }
@@ -204,7 +247,7 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             try {
                 system.wkbToGeometry(wkb);
             } catch (IllegalArgumentException e) {
-                throw badCell(function, column, e.getMessage());
+                throw badCell(function, column, e.getMessage(), e);
             }
             return wkb;
         }
@@ -213,6 +256,11 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
 
     /** A cell that is the wrong shape rather than the wrong Java type, so there is no "needs" to name. */
     private static IllegalStateException badCell(String function, Attribute column, String why) {
+        return badCell(function, column, why, null);
+    }
+
+    /** As above, keeping the exception that decided it: the message is carried verbatim, the frame below is not. */
+    private static IllegalStateException badCell(String function, Attribute column, String why, @Nullable Throwable cause) {
         return new IllegalStateException(
             "table function ["
                 + function
@@ -221,7 +269,8 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
                 + "] declared ["
                 + column.dataType().typeName()
                 + "]: "
-                + why
+                + why,
+            cause
         );
     }
 
@@ -279,9 +328,22 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
      * Typing the builder from the declaration is not by itself enough to catch a value of the wrong Java type —
      * see {@link #encodedFor}, which owns the encoding for the family whose bytes are not their text.
      */
-    private static Page page(String function, List<Attribute> columns, List<List<Object>> rows) {
+    private static Page page(String function, int maxRows, List<Attribute> columns, List<List<Object>> rows) {
         if (rows == null) {
             throw new IllegalStateException("table function [" + function + "] produced no row list at all");
+        }
+        // Before any block is built, so a function that produced far more than it said costs one list rather than
+        // a page of it. Nothing downstream would refuse it: the page is already materialized by then.
+        if (rows.size() > maxRows) {
+            throw new IllegalStateException(
+                "table function ["
+                    + function
+                    + "] produced ["
+                    + rows.size()
+                    + "] rows, past the ["
+                    + maxRows
+                    + "] it declared it would not exceed"
+            );
         }
         // A relation with no output, or with one name twice, is a plan the rest of the language has no answer for:
         // a reference to the repeated name is ambiguous and nothing downstream is positioned to say which

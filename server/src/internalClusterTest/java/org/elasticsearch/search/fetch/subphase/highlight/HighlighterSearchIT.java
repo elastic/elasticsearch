@@ -2308,12 +2308,13 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             equalTo("This is the first sentence")
         );
 
-        // if there's a match we only return the values with matches (whole value as number_of_fragments == 0)
+        // With noMatchSize, non-matching values from multi-valued fields are also returned as plain text
         MatchQueryBuilder queryBuilder = QueryBuilders.matchQuery("text", "third fifth");
         field.highlighterType("plain");
         assertResponse(prepareSearch("test").setQuery(queryBuilder).highlighter(new HighlightBuilder().field(field)), response -> {
-            assertHighlight(response, 0, "text", 0, 2, equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
-            assertHighlight(response, 0, "text", 1, 2, equalTo("This is the <em>fifth</em> sentence"));
+            assertHighlight(response, 0, "text", 0, 3, equalTo("This is the first"));
+            assertHighlight(response, 0, "text", 1, 3, equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
+            assertHighlight(response, 0, "text", 2, 3, equalTo("This is the <em>fifth</em> sentence"));
         });
 
         field.highlighterType("fvh");
@@ -2323,9 +2324,98 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         });
         field.highlighterType("unified");
         assertResponse(prepareSearch("test").setQuery(queryBuilder).highlighter(new HighlightBuilder().field(field)), response -> {
-            assertHighlight(response, 0, "text", 0, 2, equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
-            assertHighlight(response, 0, "text", 1, 2, equalTo("This is the <em>fifth</em> sentence"));
+            assertHighlight(response, 0, "text", 0, 3, equalTo("This is the first sentence"));
+            assertHighlight(response, 0, "text", 1, 3, equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
+            assertHighlight(response, 0, "text", 2, 3, equalTo("This is the <em>fifth</em> sentence"));
         });
+    }
+
+    public void testHighlightNoMatchSizeWithMultivaluedFieldsAndQuery() throws IOException {
+        assertAcked(
+            prepareCreate("test").setMapping(
+                "text",
+                "type=text," + randomStoreField() + "term_vector=with_positions_offsets,index_options=offsets"
+            )
+        );
+        ensureGreen();
+
+        indexDoc("test", "1", "text", new String[] { "foo", "foobar", "bar" });
+        indexDoc("test", "2", "text", new String[] { "<b>foo</b>", "<i>foobar</i>", "bar" });
+        indexDoc("test", "3", "text", new String[] { "<em>foo</em>", "bar" });
+        indexDoc("test", "4", "text", new String[] { "bar", "foo", "baz" });
+        refresh();
+
+        // With noMatchSize configured, non-matching values should be included as plain text
+        HighlightBuilder.Field field = new HighlightBuilder.Field("text").fragmentSize(1).numOfFragments(0).noMatchSize(100);
+
+        for (String type : new String[] { "plain", "unified" }) {
+            field.highlighterType(type);
+            assertResponse(
+                prepareSearch("test").setQuery(boolQuery().must(matchQuery("text", "foo")).filter(QueryBuilders.idsQuery().addIds("1")))
+                    .highlighter(new HighlightBuilder().field(field)),
+                response -> {
+                    // Only the exact token "foo" matches; "foobar" and "bar" are non-matching
+                    assertHighlight(response, 0, "text", 0, 3, equalTo("<em>foo</em>"));
+                    assertHighlight(response, 0, "text", 1, 3, equalTo("foobar"));
+                    assertHighlight(response, 0, "text", 2, 3, equalTo("bar"));
+                }
+            );
+        }
+
+        HighlightBuilder.Field htmlField = new HighlightBuilder.Field("text").fragmentSize(1)
+            .numOfFragments(0)
+            .noMatchSize(100)
+            .encoder("html");
+        for (String type : new String[] { "plain", "unified" }) {
+            htmlField.highlighterType(type);
+            assertResponse(
+                prepareSearch("test").setQuery(boolQuery().must(matchQuery("text", "foo")).filter(QueryBuilders.idsQuery().addIds("2")))
+                    .highlighter(new HighlightBuilder().field(htmlField)),
+                response -> {
+                    assertHighlight(response, 0, "text", 0, 3, equalTo("&lt;b&gt;<em>foo</em>&lt;&#x2F;b&gt;"));
+                    assertHighlight(response, 0, "text", 1, 3, equalTo("&lt;i&gt;foobar&lt;&#x2F;i&gt;"));
+                    assertHighlight(response, 0, "text", 2, 3, equalTo("bar"));
+                }
+            );
+        }
+
+        HighlightBuilder.Field literalTagsField = new HighlightBuilder.Field("text").numOfFragments(0).noMatchSize(100);
+        for (String type : new String[] { "plain", "unified" }) {
+            literalTagsField.highlighterType(type);
+            assertResponse(
+                prepareSearch("test").setQuery(boolQuery().must(matchQuery("text", "foo")).filter(QueryBuilders.idsQuery().addIds("3")))
+                    .highlighter(new HighlightBuilder().field(literalTagsField)),
+                response -> {
+                    assertHighlight(response, 0, "text", 0, 2, equalTo("<em><em>foo</em></em>"));
+                    assertHighlight(response, 0, "text", 1, 2, equalTo("bar"));
+                }
+            );
+        }
+
+        for (String type : new String[] { "plain", "unified" }) {
+            HighlightBuilder.Field scoreOrderedField = new HighlightBuilder.Field("text").numOfFragments(0)
+                .noMatchSize(100)
+                .highlighterType(type)
+                .order("score");
+            assertResponse(
+                prepareSearch("test").setQuery(boolQuery().must(matchQuery("text", "foo")).filter(QueryBuilders.idsQuery().addIds("4")))
+                    .highlighter(new HighlightBuilder().field(scoreOrderedField)),
+                response -> {
+                    assertHighlight(response, 0, "text", 0, 3, equalTo("<em>foo</em>"));
+                    assertHighlight(response, 0, "text", 1, 3, equalTo("bar"));
+                    assertHighlight(response, 0, "text", 2, 3, equalTo("baz"));
+                }
+            );
+        }
+
+        for (String type : new String[] { "plain", "unified" }) {
+            HighlightBuilder.Field defaultField = new HighlightBuilder.Field("text").numOfFragments(0).highlighterType(type);
+            assertResponse(
+                prepareSearch("test").setQuery(boolQuery().must(matchQuery("text", "foo")).filter(QueryBuilders.idsQuery().addIds("1")))
+                    .highlighter(new HighlightBuilder().field(defaultField)),
+                response -> assertHighlight(response, 0, "text", 0, 1, equalTo("<em>foo</em>"))
+            );
+        }
     }
 
     public void testPostingsHighlighter() throws Exception {

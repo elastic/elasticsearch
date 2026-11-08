@@ -1810,7 +1810,10 @@ public class LocalExecutionPlanner {
 
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
 
-        return sourceWithMetadata.with(new TsInfoOperator.Factory(fieldLookup, metadataSourceChannel, indexChannel), layoutBuilder.build());
+        return sourceWithMetadata.with(
+            new TsInfoOperator.Factory(fieldLookup, metadataSourceChannel, indexChannel, context.plannerSettings().tsInfoPartialEmitThreshold()),
+            layoutBuilder.build()
+        );
     }
 
     private static int tsInfoSampleRows(Integer limit, PlannerSettings plannerSettings) {

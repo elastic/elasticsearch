@@ -788,7 +788,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
             PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
             PlannerSettings.DEFAULTS.tsInfoSampleMinRows(),
-            PlannerSettings.DEFAULTS.tsInfoSampleLimitMultiplier()
+            PlannerSettings.DEFAULTS.tsInfoSampleLimitMultiplier(),
+            PlannerSettings.DEFAULTS.tsInfoPartialEmitThreshold()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",

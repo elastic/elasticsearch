@@ -8,11 +8,13 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.hamcrest.Matcher;
 
 import java.util.HashSet;
@@ -38,10 +40,30 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     private static final int METADATA_CHANNEL = 0;
     private static final int INDEX_CHANNEL = 1;
     private static final int[] FINAL_CHANNELS = { 0, 1, 2, 3, 4, 5, 6 };
+    /** Any non-empty input reaches this threshold, so every such page is emitted early. */
+    private static final ByteSizeValue EMIT_AFTER_EVERY_PAGE = ByteSizeValue.ofBytes(1);
+
+    private ByteSizeValue simplePartialEmitThreshold;
 
     @Override
     protected TsInfoOperator.Factory simple(SimpleOptions options) {
-        return new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        return initialFactory(SIMPLE_LOOKUP,simplePartialEmitThreshold());
+    }
+
+    /** Chosen once per test so that {@link #simple} and its expected description agree. */
+    private ByteSizeValue simplePartialEmitThreshold() {
+        if (simplePartialEmitThreshold == null) {
+            simplePartialEmitThreshold = randomFrom(
+                EMIT_AFTER_EVERY_PAGE,
+                ByteSizeValue.ofBytes(between(2, 4096)),
+                TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD
+            );
+        }
+        return simplePartialEmitThreshold;
+    }
+
+    private static TsInfoOperator.Factory initialFactory(MetricsInfoOperator.MetricFieldLookup lookup, ByteSizeValue partialEmitThreshold) {
+        return new TsInfoOperator.Factory(lookup, METADATA_CHANNEL, INDEX_CHANNEL, partialEmitThreshold);
     }
 
     @Override
@@ -89,12 +111,16 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("TsInfoOperator[mode=INITIAL, metadataSourceChannel=0, indexChannel=1]");
+        return equalTo(
+            "TsInfoOperator[mode=INITIAL, metadataSourceChannel=0, indexChannel=1, partialEmitThreshold="
+                + simplePartialEmitThreshold()
+                + "]"
+        );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("TsInfoOperator[mode=INITIAL]");
+        return equalTo("TsInfoOperator[mode=INITIAL, partialEmitThreshold=" + simplePartialEmitThreshold() + "]");
     }
 
     @Override
@@ -123,7 +149,11 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     private Operator createInitialOperator() {
-        return new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext());
+        return createInitialOperator(TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD);
+    }
+
+    private Operator createInitialOperator(ByteSizeValue partialEmitThreshold) {
+        return initialFactory(SIMPLE_LOOKUP,partialEmitThreshold).get(driverContext());
     }
 
     private Operator createFinalOperator(int[] channels) {
@@ -563,9 +593,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
     /**
      * When the _index block contains a cluster-prefixed backing index name
-     * (e.g. "remote_cluster:.ds-k8s-2024.01.15-000001"), resolveDataStreamName
-     * strips the backing-index suffix but preserves the cluster prefix, producing
-     * "remote_cluster:k8s".
+     * the supplied data-stream lookup preserves the cluster qualifier in the output.
      */
     public void testRemoteClusterPrefixPreservedForBackingIndex() {
         BlockFactory blockFactory = driverContext().blockFactory();
@@ -590,9 +618,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    /**
-     * Local index names (no cluster prefix) pass through unchanged.
-     */
+    /** Local index names without a parent data stream pass through unchanged. */
     public void testLocalIndexNameUnchanged() {
         BlockFactory blockFactory = driverContext().blockFactory();
         Operator op = createInitialOperator();
@@ -618,7 +644,9 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx)) {
+        try (
+            TsInfoOperator op = (TsInfoOperator) initialFactory(SIMPLE_LOOKUP, TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD).get(ctx)
+        ) {
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
             op.addInput(input1);
             long usedAfterOne = blockFactory.breaker().getUsed();
@@ -811,7 +839,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
 
-        TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx);
+        TsInfoOperator op = (TsInfoOperator) initialFactory(SIMPLE_LOOKUP, TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD).get(ctx);
         Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
         op.addInput(input);
         assertThat(blockFactory.breaker().getUsed(), greaterThan(usedBefore));
@@ -823,5 +851,124 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
         op.close();
         assertThat(blockFactory.breaker().getUsed(), equalTo(usedBefore));
+    }
+
+    public void testInitialStopsTakingInputAtPartialEmitThreshold() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createInitialOperator(EMIT_AFTER_EVERY_PAGE)) {
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a"));
+
+            assertFalse(op.needsInput());
+            assertTrue(op.canProduceMoreDataWithoutExtraInput());
+        }
+    }
+
+    public void testInitialEmitsBufferedRowsBeforeFinish() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createInitialOperator(EMIT_AFTER_EVERY_PAGE)) {
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a"));
+
+            Page output = op.getOutput();
+
+            assertNotNull(output);
+            try {
+                assertThat(output.getPositionCount(), equalTo(1));
+                assertColumnValue(output, 0, 0, "cpu_usage");
+                assertColumnValue(output, 1, 0, "index-a");
+            } finally {
+                output.releaseBlocks();
+            }
+            assertTrue(op.needsInput());
+            assertFalse(op.isFinished());
+        }
+    }
+
+    public void testInitialPartialEmitReturnsBufferedMemory() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        long usedBefore = blockFactory.breaker().getUsed();
+        try (Operator op = initialFactory(SIMPLE_LOOKUP,EMIT_AFTER_EVERY_PAGE).get(ctx)) {
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a"));
+            assertThat(blockFactory.breaker().getUsed(), greaterThan(usedBefore));
+
+            op.getOutput().releaseBlocks();
+
+            assertThat(blockFactory.breaker().getUsed(), equalTo(usedBefore));
+        }
+    }
+
+    public void testInitialBelowPartialEmitThresholdWaitsForFinish() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createInitialOperator(TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD)) {
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a"));
+
+            assertTrue(op.needsInput());
+            assertFalse(op.canProduceMoreDataWithoutExtraInput());
+            assertNull(op.getOutput());
+        }
+    }
+
+    public void testFinalNeverEmitsBeforeFinish() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createFinalOperator(FINAL_CHANNELS)) {
+            for (String metric : List.of("cpu_usage", "disk_io")) {
+                op.addInput(
+                    buildFinalPage(blockFactory, metric, Set.of("ds-a"), Set.of("bytes"), Set.of("gauge"), Set.of("long"), Set.of(), "{}")
+                );
+            }
+
+            assertTrue(op.needsInput());
+            assertNull(op.getOutput());
+        }
+    }
+
+    /**
+     * The same series in two indices is merged into one row when INITIAL buffers both. Emitting early splits it
+     * into two INITIAL rows, and FINAL must merge them back.
+     */
+    public void testFinalMergesRowsThatInitialEmittedEarly() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        String series = "{\"cpu_usage\": 0.5, \"host\": \"h1\"}";
+        var runner = new TestDriverRunner().builder(driverContext)
+            .input(buildPage(blockFactory, series, "index-a"), buildPage(blockFactory, series, "index-b"));
+
+        List<Page> output = runner.run(
+            initialFactory(SIMPLE_LOOKUP,EMIT_AFTER_EVERY_PAGE),
+            new TsInfoOperator.FinalFactory(FINAL_CHANNELS, TsInfoOperator.NO_LIMIT)
+        );
+
+        try {
+            TsInfoOperator.Status initialStatus = (TsInfoOperator.Status) runner.statuses().get(0);
+            assertThat(initialStatus.rowsEmitted(), equalTo(2L));
+            assertThat(output.stream().mapToInt(Page::getPositionCount).sum(), equalTo(1));
+            Page merged = output.stream().filter(p -> p.getPositionCount() > 0).findFirst().orElseThrow();
+            assertThat(collectMultiValues(merged, 1, 0), equalTo(Set.of("index-a", "index-b")));
+        } finally {
+            output.forEach(Page::releaseBlocks);
+        }
+    }
+
+    /** A key emitted early and then seen again is a new entry, so it is counted again. */
+    public void testStatusCountsEntriesEmittedEarly() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        String series = "{\"cpu_usage\": 0.5, \"host\": \"h1\"}";
+        var runner = new TestDriverRunner().builder(driverContext)
+            .input(buildPage(blockFactory, series, "index-a"), buildPage(blockFactory, series, "index-a"));
+
+        List<Page> output = runner.run(initialFactory(SIMPLE_LOOKUP,EMIT_AFTER_EVERY_PAGE));
+
+        output.forEach(Page::releaseBlocks);
+        TsInfoOperator.Status status = (TsInfoOperator.Status) runner.statuses().get(0);
+        assertThat(status.entriesAccumulated(), equalTo(2));
+    }
+
+    public void testFactoryRejectsZeroPartialEmitThreshold() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> initialFactory(SIMPLE_LOOKUP,ByteSizeValue.ZERO)
+        );
+        assertThat(e.getMessage(), equalTo("partialEmitThreshold must be positive; got [0b]"));
     }
 }

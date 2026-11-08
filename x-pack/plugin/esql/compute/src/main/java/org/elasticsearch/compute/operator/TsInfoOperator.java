@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -44,11 +45,15 @@ import java.util.TreeMap;
  * representation of dimension key/values.
  * <p>
  * Operates in two modes (INITIAL/FINAL), mirroring the pattern used by {@link MetricsInfoOperator}.
+ * <p>
+ * INITIAL emits its buffered rows early whenever their tracked memory reaches the partial emit threshold.
+ * The same (metric, data stream, dimensions) key can then appear in several INITIAL pages. FINAL merges
+ * those rows again, so it must buffer everything until it has seen all of its input.
  *
  * <h2>Output columns (both modes)</h2>
  * <ul>
  *   <li>{@code metric_name} – keyword (single-valued)</li>
- *   <li>{@code data_stream} – keyword (multi-valued); data stream names</li>
+ *   <li>{@code data_stream} – keyword (multi-valued); data stream or standalone index names</li>
  *   <li>{@code unit} – keyword (multi-valued when backing indices differ; may be null)</li>
  *   <li>{@code metric_type} – keyword (multi-valued when definitions differ)</li>
  *   <li>{@code field_type} – keyword (multi-valued when definitions differ)</li>
@@ -62,36 +67,45 @@ public class TsInfoOperator implements Operator {
     public static final int NO_LIMIT = Integer.MAX_VALUE;
 
     /**
-     * Key for grouping per (metric, data-stream, dimensions) in INITIAL mode.
+     * Default tracked memory at which INITIAL emits its buffered rows early. A larger value merges more rows
+     * on the data node, at the cost of more data node memory per driver.
      */
-    private record TsInfoKey(String metricName, String dataStreamName, String dimensionsJson) {}
+    public static final ByteSizeValue DEFAULT_PARTIAL_EMIT_THRESHOLD = ByteSizeValue.ofMb(4);
+
+    /** FINAL must see every row of a key before merging, so it never emits early. */
+    private static final long NEVER_EMIT_PARTIAL = Long.MAX_VALUE;
 
     /**
-     * Intermediate state grouped by (metric, data-stream, dimensions).
+     * Key for grouping per metric, parent data-stream or concrete index, and dimensions in INITIAL mode.
+     */
+    private record TsInfoKey(String metricName, String indexAbstractionName, String dimensionsJson) {}
+
+    /**
+     * Intermediate state grouped by metric, parent data-stream or concrete index, and dimensions.
      */
     private static class TsInfoEntry {
         final String metricName;
-        final String dataStream;
+        final String indexAbstractionName;
         final String dimensionsJson;
         final Set<String> units = new HashSet<>();
         final Set<String> metricTypes = new HashSet<>();
         final Set<String> fieldTypes = new HashSet<>();
         final Set<String> dimensionFieldKeys = new HashSet<>();
 
-        TsInfoEntry(String metricName, String dataStream, String dimensionsJson) {
+        TsInfoEntry(String metricName, String indexAbstractionName, String dimensionsJson) {
             this.metricName = metricName;
-            this.dataStream = dataStream;
+            this.indexAbstractionName = indexAbstractionName;
             this.dimensionsJson = dimensionsJson;
         }
     }
 
     /**
-     * Merged output row: multiple data streams with the same signature are combined.
+     * Merged output row: indices and data streams with the same signature are combined.
      */
     private static class TsInfoRow {
         final String metricName;
         final String dimensionsJson;
-        final Set<String> dataStreams = new HashSet<>();
+        final Set<String> indexAbstractionNames = new HashSet<>();
         final Set<String> units;
         final Set<String> fieldTypes;
         final Set<String> metricTypes;
@@ -132,10 +146,20 @@ public class TsInfoOperator implements Operator {
      * @param fieldLookup          on-demand lookup for metric field metadata
      * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
      * @param indexChannel          channel index for {@code _index} block
+     * @param partialEmitThreshold  tracked memory of buffered rows at which they are emitted early
      */
-    public record Factory(MetricsInfoOperator.MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel)
-        implements
-            OperatorFactory {
+    public record Factory(
+        MetricsInfoOperator.MetricFieldLookup fieldLookup,
+        int metadataSourceChannel,
+        int indexChannel,
+        ByteSizeValue partialEmitThreshold
+    ) implements OperatorFactory {
+        public Factory {
+            if (partialEmitThreshold.getBytes() <= 0) {
+                throw new IllegalArgumentException("partialEmitThreshold must be positive; got [" + partialEmitThreshold + "]");
+            }
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
             return new TsInfoOperator(
@@ -145,13 +169,20 @@ public class TsInfoOperator implements Operator {
                 metadataSourceChannel,
                 indexChannel,
                 null,
-                NO_LIMIT
+                NO_LIMIT,
+                partialEmitThreshold.getBytes()
             );
         }
 
         @Override
         public String describe() {
-            return "TsInfoOperator[mode=INITIAL, metadataSourceChannel=" + metadataSourceChannel + ", indexChannel=" + indexChannel + "]";
+            return "TsInfoOperator[mode=INITIAL, metadataSourceChannel="
+                + metadataSourceChannel
+                + ", indexChannel="
+                + indexChannel
+                + ", partialEmitThreshold="
+                + partialEmitThreshold
+                + "]";
         }
     }
 
@@ -164,7 +195,16 @@ public class TsInfoOperator implements Operator {
     public record FinalFactory(int[] channels, int limit) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new TsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, -1, -1, channels, limit);
+            return new TsInfoOperator(
+                Mode.FINAL,
+                driverContext.blockFactory(),
+                null,
+                -1,
+                -1,
+                channels,
+                limit,
+                NEVER_EMIT_PARTIAL
+            );
         }
 
         @Override
@@ -193,7 +233,7 @@ public class TsInfoOperator implements Operator {
     private final CircuitBreaker breaker;
     private long trackedBytes;
 
-    /** INITIAL-mode fields (null in FINAL mode). */
+    /** Fields used only in INITIAL mode. */
     private final MetricsInfoOperator.MetricFieldLookup fieldLookup;
     private final int metadataSourceChannel;
     private final int indexChannel;
@@ -201,6 +241,7 @@ public class TsInfoOperator implements Operator {
     private final int[] finalChannels;
     private final int limit;
     private final Set<MetricDimensions> metricDimensions = new HashSet<>();
+    private final long partialEmitThresholdBytes;
 
     private boolean finished = false;
     private boolean outputProduced = false;
@@ -208,6 +249,7 @@ public class TsInfoOperator implements Operator {
     private int pagesReceived;
     private long rowsReceived;
     private long rowsEmitted;
+    private int entriesAccumulated;
 
     private TsInfoOperator(
         Mode mode,
@@ -216,7 +258,8 @@ public class TsInfoOperator implements Operator {
         int metadataSourceChannel,
         int indexChannel,
         int[] channels,
-        int limit
+        int limit,
+        long partialEmitThresholdBytes
     ) {
         this.mode = mode;
         this.blockFactory = blockFactory;
@@ -226,11 +269,16 @@ public class TsInfoOperator implements Operator {
         this.indexChannel = indexChannel;
         this.finalChannels = channels;
         this.limit = limit;
+        this.partialEmitThresholdBytes = partialEmitThresholdBytes;
     }
 
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return finished == false && partialEmitThresholdReached() == false;
+    }
+
+    private boolean partialEmitThresholdReached() {
+        return entriesByKey.isEmpty() == false && trackedBytes >= partialEmitThresholdBytes;
     }
 
     @Override
@@ -262,7 +310,7 @@ public class TsInfoOperator implements Operator {
                 }
 
                 String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
-                String dataStreamName = MetricsInfoOperator.resolveDataStreamName(indexName);
+                String indexAbstractionName = MetricsInfoOperator.resolveDataStreamName(indexName);
                 Map<String, Object> metadata = parseMetadataSource(metadataSource, p, sourceScratch);
                 if (metadata == null) {
                     continue;
@@ -273,7 +321,7 @@ public class TsInfoOperator implements Operator {
                 Set<String> dimensionKeys = new HashSet<>();
                 Set<TsInfoEntry> touchedEntries = new HashSet<>();
 
-                collectFields(metadata, null, indexName, dataStreamName, dimensionKeyValues, dimensionKeys, touchedEntries);
+                collectFields(metadata, null, indexName, indexAbstractionName, dimensionKeyValues, dimensionKeys, touchedEntries);
 
                 // Assign dimension keys to all metrics touched by this tsid
                 if (dimensionKeys.isEmpty() == false) {
@@ -293,7 +341,7 @@ public class TsInfoOperator implements Operator {
      *   <li>First pass: classifies each leaf — metric fields are skipped (but their keys
      *       are noted), non-metric leaves are collected as dimension key-values.</li>
      *   <li>Second pass (at the root level): creates {@link TsInfoEntry} objects for each
-     *       metric, keyed by (metricName, dataStream, dimensionsJson).</li>
+     *       metric, keyed by (metricName, indexAbstractionName, dimensionsJson).</li>
      * </ol>
      * The field lookup is checked <em>before</em> inspecting the value type so that nested
      * metric types (histogram, exponential_histogram, tdigest) are not recursed into.
@@ -303,7 +351,7 @@ public class TsInfoOperator implements Operator {
         Map<String, Object> metadata,
         String prefix,
         String indexName,
-        String dataStreamName,
+        String indexAbstractionName,
         Map<String, String> dimensionKeyValues,
         Set<String> dimensionKeys,
         Set<TsInfoEntry> touchedEntries
@@ -319,7 +367,7 @@ public class TsInfoOperator implements Operator {
                         (Map<String, Object>) nested,
                         key,
                         indexName,
-                        dataStreamName,
+                        indexAbstractionName,
                         dimensionKeyValues,
                         dimensionKeys,
                         touchedEntries
@@ -333,7 +381,7 @@ public class TsInfoOperator implements Operator {
 
         if (prefix == null) {
             String dimensionsJson = buildDimensionsJson(dimensionKeyValues);
-            collectMetrics(metadata, null, indexName, dataStreamName, dimensionsJson, touchedEntries);
+            collectMetrics(metadata, null, indexName, indexAbstractionName, dimensionsJson, touchedEntries);
         }
     }
 
@@ -347,7 +395,7 @@ public class TsInfoOperator implements Operator {
         Map<String, Object> metadata,
         String prefix,
         String indexName,
-        String dataStreamName,
+        String indexAbstractionName,
         String dimensionsJson,
         Set<TsInfoEntry> touchedEntries
     ) {
@@ -357,20 +405,14 @@ public class TsInfoOperator implements Operator {
 
             MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
             if (fieldInfo != null) {
-                TsInfoKey infoKey = new TsInfoKey(fieldInfo.name(), dataStreamName, dimensionsJson);
-                TsInfoEntry tsEntry = entriesByKey.get(infoKey);
-                if (tsEntry == null) {
-                    trackNewEntry(fieldInfo.name(), dataStreamName, dimensionsJson);
-                    tsEntry = new TsInfoEntry(infoKey.metricName(), infoKey.dataStreamName(), infoKey.dimensionsJson());
-                    entriesByKey.put(infoKey, tsEntry);
-                }
+                TsInfoEntry tsEntry = getOrCreateEntry(fieldInfo.name(), indexAbstractionName, dimensionsJson);
                 touchedEntries.add(tsEntry);
 
                 trackSetAdd(tsEntry.units, fieldInfo.unit());
                 trackSetAdd(tsEntry.fieldTypes, fieldInfo.fieldType());
                 trackSetAdd(tsEntry.metricTypes, fieldInfo.metricType());
             } else if (value instanceof Map<?, ?> nested) {
-                collectMetrics((Map<String, Object>) nested, key, indexName, dataStreamName, dimensionsJson, touchedEntries);
+                collectMetrics((Map<String, Object>) nested, key, indexName, indexAbstractionName, dimensionsJson, touchedEntries);
             }
         }
     }
@@ -419,20 +461,14 @@ public class TsInfoOperator implements Operator {
                     metricDimensions.add(metricDims);
                 }
 
-                Set<String> dataStreams = readMultiValue(dsBlock, pos, scratch);
+                Set<String> indexAbstractionNames = readMultiValue(dsBlock, pos, scratch);
                 Set<String> units = readMultiValue(unitBlock, pos, scratch);
                 Set<String> fieldTypes = readMultiValue(ftBlock, pos, scratch);
                 Set<String> metricTypes = readMultiValue(mtBlock, pos, scratch);
                 Set<String> dimensionFields = readMultiValue(dfBlock, pos, scratch);
 
-                for (String ds : dataStreams) {
-                    TsInfoKey key = new TsInfoKey(metricName, ds, dimensionsJson);
-                    TsInfoEntry entry = entriesByKey.get(key);
-                    if (entry == null) {
-                        trackNewEntry(metricName, ds, dimensionsJson);
-                        entry = new TsInfoEntry(key.metricName(), key.dataStreamName(), key.dimensionsJson());
-                        entriesByKey.put(key, entry);
-                    }
+                for (String indexAbstractionName : indexAbstractionNames) {
+                    TsInfoEntry entry = getOrCreateEntry(metricName, indexAbstractionName, dimensionsJson);
                     trackSetAddAll(entry.units, units);
                     trackSetAddAll(entry.fieldTypes, fieldTypes);
                     trackSetAddAll(entry.metricTypes, metricTypes);
@@ -469,11 +505,27 @@ public class TsInfoOperator implements Operator {
         trackedBytes += delta;
     }
 
-    private void trackNewEntry(String metricName, String dataStream, String dimensionsJson) {
+    private void releaseTrackedBytes() {
+        breaker.addWithoutBreaking(-trackedBytes);
+        trackedBytes = 0;
+    }
+
+    private TsInfoEntry getOrCreateEntry(String metricName, String indexAbstractionName, String dimensionsJson) {
+        TsInfoKey key = new TsInfoKey(metricName, indexAbstractionName, dimensionsJson);
+        TsInfoEntry entry = entriesByKey.get(key);
+        if (entry == null) {
+            trackNewEntry(metricName, indexAbstractionName, dimensionsJson);
+            entry = new TsInfoEntry(metricName, indexAbstractionName, dimensionsJson);
+            entriesByKey.put(key, entry);
+            entriesAccumulated++;
+        }
+        return entry;
+    }
+
+    private void trackNewEntry(String metricName, String indexAbstractionName, String dimensionsJson) {
         trackBytes(
-            ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(metricName) + RamUsageEstimator.sizeOf(dataStream) + RamUsageEstimator.sizeOf(
-                dimensionsJson
-            )
+            ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(metricName) + RamUsageEstimator.sizeOf(indexAbstractionName) + RamUsageEstimator
+                .sizeOf(dimensionsJson)
         );
     }
 
@@ -501,7 +553,7 @@ public class TsInfoOperator implements Operator {
                 s -> new TsInfoRow(s.metricName(), s.dimensionsJson(), s.units(), s.fieldTypes(), s.metricTypes())
             );
 
-            row.dataStreams.add(entry.dataStream);
+            row.indexAbstractionNames.add(entry.indexAbstractionName);
             row.dimensionFieldKeys.addAll(entry.dimensionFieldKeys);
         }
 
@@ -520,11 +572,14 @@ public class TsInfoOperator implements Operator {
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return false;
+        return partialEmitThresholdReached();
     }
 
     @Override
     public Page getOutput() {
+        if (partialEmitThresholdReached()) {
+            return emitBufferedEntries();
+        }
         if (finished == false || outputProduced) {
             return null;
         }
@@ -534,9 +589,18 @@ public class TsInfoOperator implements Operator {
         if (entriesByKey.isEmpty()) {
             return createEmptyPage();
         }
+        return emitBufferedEntries();
+    }
 
+    /**
+     * Builds a page from the buffered entries, then drops them and returns their memory to the breaker.
+     */
+    private Page emitBufferedEntries() {
         Page output = createOutputPageFromRows(mergeRowsBySignature(entriesByKey));
-        rowsEmitted = output.getPositionCount();
+        rowsEmitted += output.getPositionCount();
+        entriesByKey.clear();
+        metricDimensions.clear();
+        releaseTrackedBytes();
         return output;
     }
 
@@ -571,7 +635,7 @@ public class TsInfoOperator implements Operator {
         ) {
             for (TsInfoRow row : rows) {
                 nameBuilder.appendBytesRef(new BytesRef(row.metricName));
-                appendMultiValued(dsBuilder, row.dataStreams);
+                appendMultiValued(dsBuilder, row.indexAbstractionNames);
                 appendMultiValued(unitBuilder, row.units);
                 appendMultiValued(mtBuilder, row.metricTypes);
                 appendMultiValued(ftBuilder, row.fieldTypes);
@@ -618,19 +682,26 @@ public class TsInfoOperator implements Operator {
 
     @Override
     public void close() {
-        breaker.addWithoutBreaking(-trackedBytes);
+        releaseTrackedBytes();
     }
 
     @Override
     public Operator.Status status() {
-        return new Status(mode, pagesReceived, rowsReceived, rowsEmitted, entriesByKey.size());
+        return new Status(mode, pagesReceived, rowsReceived, rowsEmitted, entriesAccumulated);
     }
 
     @Override
     public String toString() {
-        return "TsInfoOperator[mode=" + mode + (limit == NO_LIMIT ? "" : ", limit=" + limit) + "]";
+        return switch (mode) {
+            case INITIAL -> "TsInfoOperator[mode=INITIAL, partialEmitThreshold=" + ByteSizeValue.ofBytes(partialEmitThresholdBytes) + "]";
+            case FINAL -> "TsInfoOperator[mode=FINAL" + (limit == NO_LIMIT ? "" : ", limit=" + limit) + "]";
+        };
     }
 
+    /**
+     * @param entriesAccumulated entries created over the operator's lifetime. In INITIAL mode this includes
+     *                           entries that were emitted early, so the same key can be counted more than once.
+     */
     public record Status(Mode mode, int pagesReceived, long rowsReceived, long rowsEmitted, int entriesAccumulated)
         implements
             Operator.Status {

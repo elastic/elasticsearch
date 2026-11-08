@@ -29,6 +29,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class TsInfoOperatorTests extends OperatorTestCase {
 
@@ -50,6 +51,12 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         "{\"cpu_usage\": 0.5, \"host\": \"h1\"}",
         "{\"cpu_usage\": 0.5, \"host\": \"h2\"}",
         "{\"cpu_usage\": 0.5, \"host\": \"h3\"}"
+    );
+    /** Series with several dimensions, so that each merged row has a set with several values. */
+    private static final List<String> WIDE_SERIES = List.of(
+        "{\"cpu_usage\": 0.5, \"host\": \"h1\", \"az\": \"a\", \"rack\": \"r1\", \"region\": \"eu\", \"zone\": \"z1\"}",
+        "{\"cpu_usage\": 0.5, \"host\": \"h2\", \"az\": \"a\", \"rack\": \"r1\", \"region\": \"eu\", \"zone\": \"z1\"}",
+        "{\"cpu_usage\": 0.5, \"host\": \"h3\", \"az\": \"a\", \"rack\": \"r1\", \"region\": \"eu\", \"zone\": \"z1\"}"
     );
 
     private ByteSizeValue simplePartialEmitThreshold;
@@ -1164,6 +1171,43 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
             assertThat(driverContext.breaker().getUsed(), equalTo(usedBefore));
         }
+    }
+
+    /**
+     * The merge builds a row per signature with its own sets. Those rows outlive the buffered entries until they are
+     * emitted, so their memory is reserved on top of what the entries reserved.
+     */
+    public void testMergedRowsStayReservedUntilEmitted() {
+        DriverContext driverContext = driverContext();
+        try (Operator op = oneRowPerPageOperator(driverContext)) {
+            op.addInput(buildPageForIndex(driverContext.blockFactory(), "index-a", WIDE_SERIES));
+            long usedAfterInput = driverContext.breaker().getUsed();
+            op.finish();
+
+            op.getOutput().releaseBlocks();
+
+            assertThat(driverContext.breaker().getUsed(), greaterThan(usedAfterInput));
+        }
+    }
+
+    public void testEmittedRowsReturnTheirReservation() {
+        DriverContext driverContext = driverContext();
+        try (Operator op = oneRowPerPageOperator(driverContext)) {
+            op.addInput(buildPageForIndex(driverContext.blockFactory(), "index-a", WIDE_SERIES));
+            op.finish();
+            op.getOutput().releaseBlocks();
+            long usedAfterFirstRow = driverContext.breaker().getUsed();
+
+            op.getOutput().releaseBlocks();
+
+            assertThat(driverContext.breaker().getUsed(), lessThan(usedAfterFirstRow));
+        }
+    }
+
+    private static Operator oneRowPerPageOperator(DriverContext driverContext) {
+        return initialFactory(SIMPLE_LOOKUP, DATA_STREAMS_BY_INDEX, TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD, ONE_ROW_PER_PAGE).get(
+            driverContext
+        );
     }
 
     public void testNoEmptyPageAfterEarlyEmit() {

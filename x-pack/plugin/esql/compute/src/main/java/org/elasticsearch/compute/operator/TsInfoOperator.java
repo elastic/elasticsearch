@@ -27,10 +27,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -119,6 +119,11 @@ public class TsInfoOperator implements Operator {
             this.units = units;
             this.fieldTypes = fieldTypes;
             this.metricTypes = metricTypes;
+        }
+
+        /** The memory reserved for this row while merging, see {@link #MERGED_ROW_SIZE} and {@link #MERGED_SET_VALUE_SIZE}. */
+        long mergedBytes() {
+            return MERGED_ROW_SIZE + (long) (indexAbstractionNames.size() + dimensionFieldKeys.size()) * MERGED_SET_VALUE_SIZE;
         }
     }
 
@@ -240,6 +245,32 @@ public class TsInfoOperator implements Operator {
     /** Shallow size of a TsInfoKey + TsInfoEntry pair (object headers and field slots only). */
     static final long ENTRY_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TsInfoKey.class) + RamUsageEstimator
         .shallowSizeOfInstance(TsInfoEntry.class);
+
+    /*
+     * The node classes of HashMap and LinkedHashMap are not accessible, so their sizes are estimated from their fields.
+     * A load factor of 0.75 and doubling on resize leave up to about two table slots per node.
+     */
+    private static final long HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+    ) + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+    private static final long LINKED_HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+    ) + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+    /** A HashSet with the default table that its first value allocates. */
+    private static final long HASH_SET_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashSet.class) + RamUsageEstimator
+        .shallowSizeOfInstance(HashMap.class) + RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 16L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        );
+
+    /**
+     * Memory of one merged row besides the strings and sets it shares with the entries: the signature and row objects,
+     * the row's own two sets, and its node in the map of rows by signature.
+     */
+    static final long MERGED_ROW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TsSignature.class) + RamUsageEstimator
+        .shallowSizeOfInstance(TsInfoRow.class) + 2 * HASH_SET_SIZE + LINKED_HASH_MAP_NODE_SIZE;
+
+    /** Memory of one value in a set of a merged row. The value is a string shared with an entry. */
+    static final long MERGED_SET_VALUE_SIZE = HASH_MAP_NODE_SIZE;
 
     public enum Mode {
         INITIAL,
@@ -575,21 +606,45 @@ public class TsInfoOperator implements Operator {
         }
     }
 
-    private List<TsInfoRow> mergeRowsBySignature(Map<TsInfoKey, TsInfoEntry> entriesByKey) {
+    private void untrackBytes(long delta) {
+        breaker.addWithoutBreaking(-delta);
+        trackedBytes -= delta;
+    }
+
+    /**
+     * Merges the buffered entries into rows with the same signature. Each row and set value is reserved on the breaker
+     * before it is created. Each entry is removed as soon as it is merged, and the memory of its own objects is returned.
+     * Its strings and value sets are shared by the rows, so their memory stays reserved until the last row is emitted.
+     */
+    private MergedRows mergeBufferedEntries() {
         Map<TsSignature, TsInfoRow> bySignature = new LinkedHashMap<>();
-
-        for (TsInfoEntry entry : entriesByKey.values()) {
+        Iterator<TsInfoEntry> entries = entriesByKey.values().iterator();
+        while (entries.hasNext()) {
+            TsInfoEntry entry = entries.next();
             TsSignature sig = new TsSignature(entry.metricName, entry.dimensionsJson, entry.units, entry.fieldTypes, entry.metricTypes);
-            TsInfoRow row = bySignature.computeIfAbsent(
-                sig,
-                s -> new TsInfoRow(s.metricName(), s.dimensionsJson(), s.units(), s.fieldTypes(), s.metricTypes())
-            );
-
-            row.indexAbstractionNames.add(entry.indexAbstractionName);
-            row.dimensionFieldKeys.addAll(entry.dimensionFieldKeys);
+            TsInfoRow row = bySignature.get(sig);
+            if (row == null) {
+                trackBytes(MERGED_ROW_SIZE);
+                row = new TsInfoRow(sig.metricName(), sig.dimensionsJson(), sig.units(), sig.fieldTypes(), sig.metricTypes());
+                bySignature.put(sig, row);
+            }
+            addToMergedSet(row.indexAbstractionNames, entry.indexAbstractionName);
+            for (String dimensionFieldKey : entry.dimensionFieldKeys) {
+                addToMergedSet(row.dimensionFieldKeys, dimensionFieldKey);
+            }
+            entries.remove();
+            untrackBytes(ENTRY_SHALLOW_SIZE);
         }
+        untrackBytes(metricDimensions.size() * METRIC_DIMENSIONS_SHALLOW_SIZE);
+        metricDimensions.clear();
+        return new MergedRows(bySignature);
+    }
 
-        return new ArrayList<>(bySignature.values());
+    private void addToMergedSet(Set<String> set, String value) {
+        if (set.contains(value) == false) {
+            trackBytes(MERGED_SET_VALUE_SIZE);
+            set.add(value);
+        }
     }
 
     @Override
@@ -632,17 +687,6 @@ public class TsInfoOperator implements Operator {
         return output;
     }
 
-    /**
-     * Merges the buffered entries into rows and drops the entries. Their tracked memory is kept until the last
-     * row is emitted, because the rows share the entries' strings and sets.
-     */
-    private MergedRows mergeBufferedEntries() {
-        MergedRows rows = new MergedRows(mergeRowsBySignature(entriesByKey));
-        entriesByKey.clear();
-        metricDimensions.clear();
-        return rows;
-    }
-
     private Page createEmptyPage() {
         Block[] blocks = new Block[NUM_BLOCKS];
         boolean success = false;
@@ -663,7 +707,8 @@ public class TsInfoOperator implements Operator {
     /**
      * Merged rows emitted over several pages. Each page stops at the first row that brings the estimated block
      * memory to {@link #targetPageBytes}, so a page holds at least one row and a single wide row can exceed the target.
-     * Emitted rows are cleared from the list so they can be collected while later pages are built.
+     * Each emitted row is removed and returns the memory reserved for it while merging, so it can be collected while
+     * later pages are built.
      */
     private final class MergedRows {
         /**
@@ -672,19 +717,20 @@ public class TsInfoOperator implements Operator {
          */
         private static final int INITIAL_PAGE_POSITIONS = 128;
 
-        private final List<TsInfoRow> rows;
-        private int next;
+        private final Iterator<TsInfoRow> rows;
+        private int remaining;
 
-        MergedRows(List<TsInfoRow> rows) {
-            this.rows = rows;
+        MergedRows(Map<TsSignature, TsInfoRow> bySignature) {
+            this.rows = bySignature.values().iterator();
+            this.remaining = bySignature.size();
         }
 
         boolean hasNext() {
-            return next < rows.size();
+            return remaining > 0;
         }
 
         Page nextPage() {
-            int initialPositions = Math.min(rows.size() - next, INITIAL_PAGE_POSITIONS);
+            int initialPositions = Math.min(remaining, INITIAL_PAGE_POSITIONS);
             try (
                 BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
                 BytesRefBlock.Builder dsBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
@@ -695,9 +741,11 @@ public class TsInfoOperator implements Operator {
                 BytesRefBlock.Builder dimBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions)
             ) {
                 Block.Builder[] builders = { nameBuilder, dsBuilder, unitBuilder, mtBuilder, ftBuilder, dfBuilder, dimBuilder };
-                int start = next;
+                int positions = 0;
                 do {
-                    TsInfoRow row = rows.set(next++, null);
+                    TsInfoRow row = rows.next();
+                    rows.remove();
+                    remaining--;
                     nameBuilder.appendBytesRef(new BytesRef(row.metricName));
                     appendMultiValued(dsBuilder, row.indexAbstractionNames);
                     appendMultiValued(unitBuilder, row.units);
@@ -705,8 +753,10 @@ public class TsInfoOperator implements Operator {
                     appendMultiValued(ftBuilder, row.fieldTypes);
                     appendMultiValued(dfBuilder, row.dimensionFieldKeys);
                     dimBuilder.appendBytesRef(new BytesRef(row.dimensionsJson));
+                    untrackBytes(row.mergedBytes());
+                    positions++;
                 } while (hasNext() && estimatedBytes(builders) < targetPageBytes);
-                return new Page(next - start, Block.Builder.buildAll(builders));
+                return new Page(positions, Block.Builder.buildAll(builders));
             }
         }
 

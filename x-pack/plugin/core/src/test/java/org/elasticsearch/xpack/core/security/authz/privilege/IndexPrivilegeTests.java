@@ -114,6 +114,12 @@ public class IndexPrivilegeTests extends ESTestCase {
             findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_GET_DATASET_ACTION_NAME),
             equalTo(List.of("read_dataset_metadata", "manage_dataset", "manage", "all"))
         );
+        // Describing a dataset without registering it asks for what registering one asks for, so the list is the
+        // put action's and notably has no "read" in it.
+        assertThat(
+            findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME),
+            equalTo(List.of("create_dataset", "manage_dataset", "manage", "all"))
+        );
         assertThat(
             findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME),
             equalTo(List.of("delete_dataset", "manage_dataset", "manage", "all"))
@@ -526,7 +532,13 @@ public class IndexPrivilegeTests extends ESTestCase {
             createDataset.predicate.test(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME + randomAlphaOfLengthBetween(1, 8)),
             is(false)
         );
+        assertThat(createDataset.predicate.test(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME), is(true));
         assertThat(createDataset.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+
+        // The half of the decision that only a negative can state: a caller who may read a data source's registered
+        // datasets cannot describe a new one against it, so read must not reach the authorize action.
+        final IndexPrivilege read = resolvePrivilegeAndAssertSingleton(Set.of("read"));
+        assertThat(read.predicate.test(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME), is(false));
 
         final IndexPrivilege deleteDataset = resolvePrivilegeAndAssertSingleton(Set.of("delete_dataset"));
         assertThat(deleteDataset.predicate.test(EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME), is(true));

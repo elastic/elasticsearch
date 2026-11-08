@@ -117,14 +117,16 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     private static final String DLS_READER = "ds_dls_reader";
     /** {@code read} on {@link #OTHER_INDEX} only: a credential allowed to send the compute action, with no dataset. */
     private static final String INDEX_ONLY_READER = "ds_index_only_reader";
-    /** Index {@code read} on {@link #DATA_SOURCE} and {@code read} on it under {@code global.data_source}. */
+    /** {@code create_dataset} on {@link #DATA_SOURCE} and {@code read} on it under {@code global.data_source}. */
     private static final String INLINE_READER = "ds_inline_reader";
-    /** Index {@code read} on {@link #DATA_SOURCE}, nothing under {@code global.data_source}. */
+    /** {@code create_dataset} on {@link #DATA_SOURCE}, nothing under {@code global.data_source}. */
     private static final String INLINE_NO_DATASOURCE = "ds_inline_no_datasource";
-    /** {@code read} on {@link #DATA_SOURCE} under {@code global.data_source}, index {@code read} on another name. */
+    /** {@code read} on {@link #DATA_SOURCE} under {@code global.data_source}, the index half on another name. */
     private static final String INLINE_NO_NAME = "ds_inline_no_name";
     /** Both privileges over {@link #DATA_SOURCE}, but the index grant carries a DLS query. */
     private static final String INLINE_DLS_READER = "ds_inline_dls_reader";
+    /** Both halves over {@link #DATA_SOURCE}, but index {@code read} rather than the creation privilege. */
+    private static final String INLINE_READ_ONLY = "ds_inline_read_only";
 
     private static final String DATA_SOURCE = "authz_ds";
     private static final String DATASET_A = "authz_a";
@@ -164,7 +166,8 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
             INLINE_READER,
             INLINE_NO_DATASOURCE,
             INLINE_NO_NAME,
-            INLINE_DLS_READER
+            INLINE_DLS_READER,
+            INLINE_READ_ONLY
         );
     }
 
@@ -190,7 +193,9 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
                   privileges: [ 'read' ]
             ds_inline_reader:
               indices:
-                - names: [ 'authz_ds', 'authz_idx' ]
+                - names: [ 'authz_ds' ]
+                  privileges: [ 'read', 'create_dataset' ]
+                - names: [ 'authz_idx' ]
                   privileges: [ 'read' ]
               global:
                 data_source:
@@ -198,21 +203,33 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
                     privileges: [ 'read' ]
             ds_inline_no_datasource:
               indices:
-                - names: [ 'authz_ds', 'authz_idx' ]
+                - names: [ 'authz_ds' ]
+                  privileges: [ 'read', 'create_dataset' ]
+                - names: [ 'authz_idx' ]
                   privileges: [ 'read' ]
             ds_inline_no_name:
               indices:
                 - names: [ 'authz_other_idx' ]
-                  privileges: [ 'read' ]
+                  privileges: [ 'read', 'create_dataset' ]
               global:
                 data_source:
                   - names: [ 'authz_ds' ]
                     privileges: [ 'read' ]
             ds_inline_dls_reader:
               indices:
+                - names: [ 'authz_ds' ]
+                  privileges: [ 'read', 'create_dataset' ]
+                  query: '{"match_all": {}}'
+                - names: [ 'authz_idx' ]
+                  privileges: [ 'read' ]
+              global:
+                data_source:
+                  - names: [ 'authz_ds' ]
+                    privileges: [ 'read' ]
+            ds_inline_read_only:
+              indices:
                 - names: [ 'authz_ds', 'authz_idx' ]
                   privileges: [ 'read' ]
-                  query: '{"match_all": {}}'
               global:
                 data_source:
                   - names: [ 'authz_ds' ]
@@ -344,6 +361,13 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
 
         Outcome underDls = sendShard(INLINE_DLS_READER, inlineFragment(fileA));
         assertThat(underDls.failure.getMessage(), containsString("document or field level security restrictions are not supported"));
+
+        // Index read on the source's name is not the privilege this gate asks for, here as on the coordinator.
+        Outcome readOnly = sendShard(INLINE_READ_ONLY, inlineFragment(fileA));
+        assertThat(
+            readOnly.failure.getMessage(),
+            containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME + "] is unauthorized")
+        );
     }
 
     /**

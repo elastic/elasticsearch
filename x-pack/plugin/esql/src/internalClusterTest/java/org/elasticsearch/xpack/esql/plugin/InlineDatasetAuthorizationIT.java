@@ -66,12 +66,18 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
 
     private static final String DATA_SOURCE = "inline_ds";
 
-    /** Index {@code read} on the name and {@code read} on the data source: the only user who may read this way. */
+    // Every role below carries index read somewhere as well as whatever it is testing, because
+    // indices:data/read/esql is itself an index read action: a caller holding no index read privilege at all is
+    // refused before any dataset gate is reached, and the refusal under test would never be the one observed.
+
+    /** {@code create_dataset} on the name and {@code read} on the data source: the only user who may read this way. */
     private static final String FULL = "inline_full";
-    /** Index {@code read} on the name, nothing under {@code global.data_source}. */
+    /** {@code create_dataset} on the name, nothing under {@code global.data_source}. */
     private static final String NO_DATASOURCE = "inline_no_datasource";
-    /** {@code read} on the data source, index {@code read} on another name only. */
+    /** {@code read} on the data source, {@code create_dataset} on another name only. */
     private static final String NO_NAME = "inline_no_name";
+    /** Both halves, but index {@code read} rather than the creation privilege: enough to query, not to describe. */
+    private static final String READ_ONLY = "inline_read_only";
     /** Both privileges, but the index grant carries a DLS query an external read cannot apply. */
     private static final String DLS = "inline_dls";
 
@@ -81,7 +87,7 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         StringBuilder users = new StringBuilder(super.configUsers());
-        for (String user : List.of(FULL, NO_DATASOURCE, NO_NAME, DLS)) {
+        for (String user : List.of(FULL, NO_DATASOURCE, NO_NAME, READ_ONLY, DLS)) {
             users.append(user).append(':').append(SecuritySettingsSource.TEST_PASSWORD_HASHED).append('\n');
         }
         return users.toString();
@@ -90,7 +96,7 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
     @Override
     protected String configUsersRoles() {
         StringBuilder usersRoles = new StringBuilder(super.configUsersRoles());
-        for (String user : List.of(FULL, NO_DATASOURCE, NO_NAME, DLS)) {
+        for (String user : List.of(FULL, NO_DATASOURCE, NO_NAME, READ_ONLY, DLS)) {
             usersRoles.append(user).append(':').append(user).append('\n');
         }
         return usersRoles.toString();
@@ -102,7 +108,7 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
             inline_full:
               indices:
                 - names: [ 'inline_ds' ]
-                  privileges: [ 'read' ]
+                  privileges: [ 'read', 'create_dataset' ]
               global:
                 data_source:
                   - names: [ 'inline_ds' ]
@@ -110,10 +116,18 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
             inline_no_datasource:
               indices:
                 - names: [ 'inline_ds' ]
-                  privileges: [ 'read' ]
+                  privileges: [ 'read', 'create_dataset' ]
             inline_no_name:
               indices:
                 - names: [ 'inline_other' ]
+                  privileges: [ 'read', 'create_dataset' ]
+              global:
+                data_source:
+                  - names: [ 'inline_ds' ]
+                    privileges: [ 'read' ]
+            inline_read_only:
+              indices:
+                - names: [ 'inline_ds' ]
                   privileges: [ 'read' ]
               global:
                 data_source:
@@ -122,7 +136,7 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
             inline_dls:
               indices:
                 - names: [ 'inline_ds' ]
-                  privileges: [ 'read' ]
+                  privileges: [ 'read', 'create_dataset' ]
                   query: '{"match_all": {}}'
               global:
                 data_source:
@@ -183,6 +197,20 @@ public class InlineDatasetAuthorizationIT extends SecurityIntegTestCase {
         assertThat(
             ExceptionsHelper.unwrapCause(e).getMessage(),
             containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME + "] is unauthorized")
+        );
+    }
+
+    /**
+     * Index {@code read} on the data source's name is not enough, and this is the decision the gate carries:
+     * describing a dataset against a source is the same act whether or not the description is kept, so it is held to
+     * the privilege a registration is held to. A caller who may query that source's registered datasets cannot
+     * describe a new one against it. Returning the action to {@code indices:data/read/*} reddens exactly this test.
+     */
+    public void testIndexReadOnTheNameIsNotEnough() {
+        Exception e = expectThrows(Exception.class, () -> query(READ_ONLY).close());
+        assertThat(
+            ExceptionsHelper.unwrapCause(e).getMessage(),
+            containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASOURCE_ACTION_NAME + "] is unauthorized")
         );
     }
 

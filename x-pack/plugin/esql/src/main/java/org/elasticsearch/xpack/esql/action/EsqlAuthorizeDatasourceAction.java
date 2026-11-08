@@ -38,18 +38,20 @@ import java.util.Map;
  * Such a read names two objects, and this action is authorized on both, by the two mechanisms that already govern
  * them:
  * <ul>
- *   <li><b>the name</b>, by the index {@code read} privilege. This is an {@code indices:data/read} action carrying
- *       {@code indices()}, so the authorization engine checks the caller's index privileges against that name. The
- *       name is the <i>data source's</i>, which is the only name an inline read has; a data source is not itself in
- *       the index namespace, so this half is what makes a role's index privileges reach an inline read at all, and
- *       the datasource half below is what makes the grant specific.</li>
+ *   <li><b>the name</b>, by the dataset-creation privilege. This action carries {@code indices()}, so the
+ *       authorization engine checks the caller's index privileges against that name, and the action's name is
+ *       outside {@code indices:data/read/*} so {@code read} does not reach it: {@code create_dataset} names this
+ *       action and {@code manage_dataset} matches its namespace. The name is the <i>data source's</i>, which is the
+ *       only name an inline read has; a data source is not itself in the index namespace, so this half is what makes
+ *       a role's index privileges reach an inline read at all, and the datasource half below is what makes the grant
+ *       specific.</li>
  *   <li><b>the data source</b>, by {@code read} under {@code global.data_source} — the request advertises
  *       {@link DataSourceRequestInfo#dataSourceClusterActionName()}, which is what {@code PutDatasetAction} uses to
  *       have the datasource interceptor settle whether the caller may attach a dataset to that source at all.</li>
  * </ul>
- * Those two are not what a registration asks for, because the index half here is {@code read} where a registration's
- * is an admin privilege. {@code DatasetTableFunction} states the difference and that it is an open policy question;
- * it is not restated here.
+ * Those two are what a registration asks for. One difference of object remains — a registration is checked against
+ * the dataset's name and this against the source's, an inline read having no dataset name — and
+ * {@code DatasetTableFunction} states it rather than this file.
  * A third question is settled on the way in rather than here: a grant that narrows documents or fields cannot be
  * honoured by an external read, and {@code ViewAndDatasetDlsFlsRequestInterceptor} refuses this action for one, as it
  * does a registered dataset read. The body asks nothing at all — it does not look the data source up, so a caller who

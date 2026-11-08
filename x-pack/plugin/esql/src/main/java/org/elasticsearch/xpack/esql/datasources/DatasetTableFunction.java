@@ -53,22 +53,24 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *
  * <h2>The two privileges</h2>
  *
- * This read names one object, the data source, and it is authorized both ways that object is governed: index
- * {@code read} on the name, and {@code read} on the source under {@code global.data_source}. Both are settled by
- * {@link EsqlAuthorizeDatasourceAction}, issued here as the caller before any definition is bound, and again by a
- * node that receives a plan carrying a definition ({@link ExternalSourceAuthorizer}), because a plan arriving over
- * the wire was not necessarily built by a coordinator the caller was allowed to use.
+ * This read names one object, the data source, and it is authorized both ways that object is governed: the
+ * dataset-creation privilege on the name, and {@code read} on the source under {@code global.data_source}. Both are
+ * settled by {@link EsqlAuthorizeDatasourceAction}, issued here as the caller before any definition is bound, and
+ * again by a node that receives a plan carrying a definition ({@link ExternalSourceAuthorizer}), because a plan
+ * arriving over the wire was not necessarily built by a coordinator the caller was allowed to use.
  * <p>
- * <b>This is not the set a registration asks for, and the difference is open rather than settled.</b> The
- * {@code global.data_source} half is the same one: {@code PutDatasetAction} advertises the same datasource cluster
- * action, which {@code ConfigurableClusterPrivileges} maps to {@code read}. The index half is not. Registering a
- * dataset is {@code indices:admin/esql/dataset/put} against the <i>dataset's</i> name, reachable only from
- * {@code create_dataset}, {@code manage_dataset}, {@code manage} or {@code all}; this action is
- * {@code indices:data/read/esql/authorize_datasource} against the <i>data source's</i> name, which plain
- * {@code read} covers. So a caller holding index {@code read} broadly and {@code read} on one source can read
- * inline what they could not have registered, and the effective gate for them is the {@code global.data_source}
- * half alone. Whether an inline read should instead require the dataset-creation privilege on that name is a policy
- * question that has not been answered.
+ * <b>The same privilege a registration asks for.</b> What is being authorized is describing a dataset against a
+ * source, and that is the same act whether or not the description is kept, so it is held to the same privilege. The
+ * {@code global.data_source} half is literally the same one: {@code PutDatasetAction} advertises the same datasource
+ * cluster action, which {@code ConfigurableClusterPrivileges} maps to {@code read}. The index half is the creation
+ * privilege: {@code create_dataset} names {@link EsqlAuthorizeDatasourceAction} outright and {@code manage_dataset}
+ * matches its namespace, while {@code read} reaches neither. A caller who may query a source's registered datasets
+ * cannot describe a new one against it.
+ * <p>
+ * One asymmetry is left, and it is a missing name rather than a weaker check: a registration is authorized against
+ * the <i>dataset's</i> name, the object it creates, and an inline read has no such name, so it is authorized against
+ * the <i>data source's</i>. A role granting {@code create_dataset} on a set of dataset names and nothing on the
+ * source's own name can register but cannot read inline, and the reverse holds too.
  */
 public final class DatasetTableFunction implements TableFunction {
 

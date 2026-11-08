@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryMetrics;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.DataSourceStorageResolver;
 import org.elasticsearch.xpack.esql.datasources.DatasetListingService;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
@@ -689,6 +690,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new MlAnomaliesView(viewService),
             new FederationLicense(this::getLicenseState),
             dataSourceService,
+            // reads a file of a data source outside of a query, for plugins such as one that mounts Parquet files as indices
+            new DataSourceStorageResolver(dataSourceModule.storageProviderRegistry(), settings, crudValidators),
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             inventoryCounters,
             inventoryMetrics,

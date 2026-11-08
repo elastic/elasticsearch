@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.tablefunction;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -26,7 +29,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.versionfield.Version;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,10 +47,9 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * The facility driven by a function that exists only here.
  * <p>
- * That is the point of these tests rather than an accident of them: this change adds the facility and registers
- * no function at all, so if a function written in a test exercises every part of the shared path, nothing in that
- * path can have been shaped by one real function's needs. A test that reached for the one shipped function would
- * prove the opposite.
+ * That is the point of these tests rather than an accident of them: a function written in a test exercises every
+ * part of the shared path, so nothing in that path can have been shaped by a particular shipped function's needs.
+ * A test that reached for a real function would prove the opposite.
  */
 public class TableFunctionResolverTests extends ESTestCase {
 
@@ -326,15 +330,64 @@ public class TableFunctionResolverTests extends ESTestCase {
     }
 
     /**
-     * And a String is refused for a type whose bytes are an encoding rather than the text: an ip is the sixteen
-     * bytes InetAddressPoint encodes, not the seven characters someone typed.
+     * For a type whose bytes are an encoding rather than the text, the seam encodes: a function hands back an
+     * {@code InetAddress} and the block carries the sixteen bytes {@code InetAddressPoint} produces.
      */
-    public void testAStringIsRefusedForAnIpColumn() {
+    public void testAnIpColumnIsEncodedBySeam() throws Exception {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.IP, List.of(List.of(InetAddress.getByName("1.2.3.4")))), call("1"));
+
+        BytesRef held = ((BytesRefBlock) rows.supplier().get().getBlock(0)).getBytesRef(0, new BytesRef());
+        assertThat(held.length, equalTo(InetAddressPoint.BYTES));
+        assertThat(held, equalTo(new BytesRef(InetAddressPoint.encode(InetAddress.getByName("1.2.3.4")))));
+    }
+
+    /**
+     * And the shape that cannot be checked is refused. A {@code BytesRef} of the text "1.2.3.4" is seven bytes
+     * where sixteen belong — right element type, wrong bytes, and nothing downstream able to tell. Checking the
+     * Java type alone let this through, which is what the encoding above exists to close.
+     */
+    public void testATextBytesRefIsRefusedForAnIpColumn() {
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> resolve(new Typed(DataType.IP, List.of(List.of("1.2.3.4"))), call("1"))
+            () -> resolve(new Typed(DataType.IP, List.of(List.of(new BytesRef("1.2.3.4")))), call("1"))
         );
-        assertThat(e.getMessage(), containsString("declared [ip], which needs an encoded BytesRef"));
+        assertThat(e.getMessage(), containsString("declared [ip], which needs an InetAddress"));
+    }
+
+    /** An already-encoded ip is still accepted, because sixteen bytes is an invariant the seam can check. */
+    public void testAnEncodedIpBytesRefIsAccepted() throws Exception {
+        BytesRef encoded = new BytesRef(InetAddressPoint.encode(InetAddress.getByName("1.2.3.4")));
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.IP, List.of(List.of(encoded))), call("1"));
+
+        assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
+    }
+
+    /** A version is encoded too, and its encoding is not its text: twelve bytes for "1.2.3", not five. */
+    public void testAVersionColumnIsEncoded() {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.VERSION, List.of(List.of("1.2.3"))), call("1"));
+
+        BytesRef held = ((BytesRefBlock) rows.supplier().get().getBlock(0)).getBytesRef(0, new BytesRef());
+        assertThat(held, equalTo(new Version("1.2.3").toBytesRef()));
+        assertThat(held.length, equalTo(12));
+    }
+
+    /**
+     * A multivalued cell is one position holding several values, which the block builders support — so the seam
+     * takes a List for every type rather than for the numeric family only, and encodes each element.
+     */
+    public void testAMultivaluedKeywordCellIsOnePosition() {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.KEYWORD, List.of(List.of(List.of("a", "b")))), call("1"));
+
+        assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
+        assertThat(rows.supplier().get().getBlock(0).getValueCount(0), equalTo(2));
+    }
+
+    /** The same for a numeric column, which went through a different arm and had no test either. */
+    public void testAMultivaluedLongCellIsOnePosition() {
+        LocalRelation rows = (LocalRelation) resolve(new Mismatched(List.of(List.of(List.of(1L, 2L)))), call("1"));
+
+        assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
+        assertThat(rows.supplier().get().getBlock(0).getValueCount(0), equalTo(2));
     }
 
     /** A String is what a keyword column is for, so that one passes. */
@@ -518,8 +571,7 @@ public class TableFunctionResolverTests extends ESTestCase {
      * A function may throw instead of completing its listener, and the failure has to arrive the way every other
      * failure does: through the listener. Without the guard the exception escapes this method synchronously - so a
      * caller that catches it and then waits on the listener waits for good, because the ref acquired before the
-     * function ran is never released and the count never reaches zero. Verified by mutation: replacing the guarded
-     * dispatch with a bare call makes this throw out of {@code resolveTableFunctions} rather than out of the future.
+     * function ran is never released and the count never reaches zero.
      */
     public void testFunctionThrowingInsteadOfCompletingFailsTheQuery() {
         TableFunctionResolver resolver = new TableFunctionResolver(

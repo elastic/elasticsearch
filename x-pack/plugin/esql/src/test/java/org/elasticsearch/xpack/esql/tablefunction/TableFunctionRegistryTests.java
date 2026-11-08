@@ -86,8 +86,8 @@ public class TableFunctionRegistryTests extends ESTestCase {
     }
 
     /**
-     * One capability per registered function, so a client can ask for a particular one. Untested until now, and
-     * untestable from production code while the registry ships empty.
+     * One capability per registered function, so a client can ask for a particular one rather than only asking
+     * whether the facility exists.
      */
     public void testCapabilityPerRegisteredFunction() {
         TableFunctionRegistry registry = new TableFunctionRegistry(List.of(new NamedOnly("thing"), new NamedOnly("other")));

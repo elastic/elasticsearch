@@ -84,10 +84,12 @@ public class TableFunctionResolver {
             return;
         }
 
-        // Keyed by identity, and it has to be: UnresolvedTableFunctionRelation's equals excludes its own Source, so
-        // two leaves in one plan can compare equal, and an equality-keyed map would collapse them onto a single
-        // relation instance - the same attribute NameIds installed in two places. Synchronized because the binds
-        // below run concurrently.
+        // Keyed by identity rather than by equality. Two calls written in one query do differ today, because an
+        // invocation's first component is its Source and the parser gives each its own - so equality would work.
+        // It is identity because the alternative depends on that staying true: were a call's identity ever to stop
+        // including its position, an equality-keyed map would silently collapse two leaves onto one relation
+        // instance, installing the same attribute ids twice in one plan. Synchronized because the binds below run
+        // concurrently.
         Map<UnresolvedTableFunctionRelation, LeafPlan> bound = Collections.synchronizedMap(new IdentityHashMap<>(leaves.size()));
         TableFunctionContext context = new TableFunctionContext(projectMetadata);
         // Forked here and not on the early return above: a query naming no function never leaves the caller's

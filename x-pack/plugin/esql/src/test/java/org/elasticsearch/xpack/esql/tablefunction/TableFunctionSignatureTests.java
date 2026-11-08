@@ -81,8 +81,8 @@ public class TableFunctionSignatureTests extends ESTestCase {
     }
 
     /**
-     * The three declaration guards, each a shape no call could satisfy. Untested when they were added, and a
-     * mutation deleting all three left every test in the change green - so they were decoration until now.
+     * The three declaration guards, each a shape no call could satisfy. Thrown rather than asserted, so these
+     * hold in production, which is the only place a mis-declared function would otherwise surface.
      */
     public void testARequiredArgumentCannotFollowAnOptionalOne() {
         IllegalStateException e = expectThrows(

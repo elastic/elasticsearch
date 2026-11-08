@@ -1462,7 +1462,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         }
         // awaitVacated reads the routing table to say that indexNodeA is no longer listed.
         // Node A might close its old shards afterwards, and that close is what decrements its hollow shards counter,
-        //  so the telemetry on A can still show the shards for a short while.
+        // so the telemetry on A can still show the shards for a short while.
         assertBusy(() -> {
             telemetryPluginA.collect();
             assertThat(

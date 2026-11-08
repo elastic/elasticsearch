@@ -117,9 +117,13 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() {
+        final int numShards = between(1, 3);
         Settings.Builder settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster"));
         if (randomBoolean()) {
-            settings.put("index.codec", "default").put("index.number_of_replicas", 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+            settings.put("index.codec", "default")
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", numShards)
+                .put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         client().admin()
             .indices()
@@ -143,18 +147,18 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             )
             .get();
         Map<String, String> hostToClusters = new HashMap<>();
-        for (int i = 0; i < 5; i++) {
+        int numHosts = between(numShards * 15, numShards * 30);
+        for (int i = 0; i < numHosts; i++) {
             hostToClusters.put("p" + i, randomFrom("qa", "prod"));
         }
-        long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
-        int numDocs = between(50, 200);
         docs.clear();
         Map<String, Integer> requestCounts = new HashMap<>();
         List<String> allProjects = List.of("project-1", "project-2", "project-3");
-        for (int i = 0; i < numDocs; i++) {
-            List<String> hosts = randomSubsetOf(between(1, hostToClusters.size()), hostToClusters.keySet());
-            timestamp += between(1, 10) * 1000L;
-            for (String host : hosts) {
+        for (String host : hostToClusters.keySet()) {
+            int samples = between(5, 20);
+            long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
+            for (int i = 0; i < samples; i++) {
+                timestamp += between(1, 10) * 1000L;
                 var requestCount = requestCounts.compute(host, (k, curr) -> {
                     if (curr == null || randomInt(100) <= 20) {
                         return randomIntBetween(0, 10);
@@ -1206,7 +1210,6 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testAggregationEmitPartialResultPeriodically() {
-        assumeTrue("query pragmas require a snapshot build", canUseQueryPragmas());
         String query = "TS hosts | STATS sum(max_over_time(cpu)) BY host, bucket(@timestamp, 1 minute)";
         Settings basePragma = Settings.builder()
             .put(QueryPragmas.TASK_CONCURRENCY.getKey(), "1")

@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTsInfoWithMetricsInfo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SelectSlicesFromFilter;
@@ -96,6 +97,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteTransportVersionAwareExpressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.UseSinglePassTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnUnfillableFillNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
@@ -147,6 +149,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new CombineProjections()
         ),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero(), new AddTopNPreFilterToAggregate()),
+        new Batch<>("Single Pass Time Series", Limiter.ONCE, new UseSinglePassTimeSeriesAggregate()),
         cleanup(),
         warnings(),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
@@ -244,6 +247,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ConstantFolding(),
             new ReplaceDeferredRegex(),
             new PruneRedundantAggregateGroupings(),
+            new ReplaceTsInfoWithMetricsInfo(),
             /* Then deduplicate aggregations
                We need this after the constant folding
                because we could have expressions like

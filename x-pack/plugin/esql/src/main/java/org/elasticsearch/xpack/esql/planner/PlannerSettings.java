@@ -381,7 +381,7 @@ public class PlannerSettings {
     /**
      * The memory each data node driver of {@code TS_INFO} buffers before it sends its rows on early. Rows sent early are
      * merged again on the coordinator, so this does not change the result. A smaller value lowers data node memory. A larger
-     * value merges more rows on the data node and sends fewer duplicates.
+     * value merges more rows on the data node, so it sends fewer duplicate rows and serializes fewer pages.
      */
     public static final Setting<ByteSizeValue> TS_INFO_PARTIAL_EMIT_THRESHOLD = Setting.byteSizeSetting(
         "esql.ts_info_partial_emit_threshold",

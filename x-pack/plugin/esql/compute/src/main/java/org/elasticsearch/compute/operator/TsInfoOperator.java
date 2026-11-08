@@ -70,7 +70,7 @@ public class TsInfoOperator implements Operator {
      * Default tracked memory at which INITIAL emits its buffered rows early. A larger value merges more rows
      * on the data node, at the cost of more data node memory per driver.
      */
-    public static final ByteSizeValue DEFAULT_PARTIAL_EMIT_THRESHOLD = ByteSizeValue.ofMb(1);
+    public static final ByteSizeValue DEFAULT_PARTIAL_EMIT_THRESHOLD = ByteSizeValue.ofMb(4);
 
     /** FINAL must see every row of a key before merging, so it never emits early. */
     private static final long NEVER_EMIT_PARTIAL = Long.MAX_VALUE;

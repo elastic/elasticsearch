@@ -460,6 +460,32 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         LongSupplier relativeTimeInNanosSupplier,
         EvictionPolicy<KeyType> evictionPolicy
     ) {
+        this(
+            environment,
+            settings,
+            threadPool,
+            ioExecutor,
+            blobCacheMetrics,
+            relativeTimeInNanosSupplier,
+            evictionPolicy,
+            SharedBytes.CACHE_FILE_NAME
+        );
+    }
+
+    /**
+     * @param cacheFileName the name of the cache file in the data path of the node. Another cache in the same node must not use the
+     *                      same name, because the file is not locked and the caches would overwrite each other's regions.
+     */
+    public SharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        Executor ioExecutor,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInNanosSupplier,
+        EvictionPolicy<KeyType> evictionPolicy,
+        String cacheFileName
+    ) {
         this.threadPool = threadPool;
         this.ioExecutor = ioExecutor;
         long totalFsSize;
@@ -486,7 +512,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 environment,
                 writeBytes::add,
                 SHARED_CACHE_COUNT_READS.get(settings) ? readBytes::add : ignored -> {},
-                SHARED_CACHE_MMAP.get(settings)
+                SHARED_CACHE_MMAP.get(settings),
+                cacheFileName
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -1,0 +1,73 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+versions << [
+  'hadoop' : '3.4.3',
+]
+
+esplugin {
+  name = 'dv-format-parquet'
+  description = 'A Lucene doc values format that reads Parquet files through the ES|QL Parquet reader'
+  classname = 'org.elasticsearch.xpack.parquet.ParquetDocValuesPlugin'
+  // The ES|QL plugin provides the compute blocks and the data source SPI; esql-datasource-parquet provides the reader.
+  // A plugin's class loader only sees the plugins it names directly, so both are listed.
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-parquet']
+}
+
+base {
+  archivesName = 'x-pack-dv-format-parquet'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(xpackModule('esql:compute'))
+  // The reader and its parquet-hadoop-bundle classes are provided at runtime by the esql-datasource-parquet class loader.
+  compileOnly project(path: xpackModule('esql-datasource-parquet'))
+
+  // parquet-hadoop-bundle types appear in the API of the reader facade (the footer), so the plugin compiles against them. The
+  // Hadoop jars are needed at compile time only, because the bundle's API surface references Hadoop types.
+  compileOnly "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  compileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
+  }
+  compileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
+    transitive = false
+  }
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  // Unit tests have no plugin class loaders, so they need the classes that the extended plugins provide at runtime.
+  testImplementation project(path: xpackModule('esql'))
+  testImplementation project(path: xpackModule('esql-core'))
+  testImplementation project(xpackModule('esql:compute'))
+  testImplementation project(path: xpackModule('esql-datasource-parquet'))
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
+  testImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  // the compression libraries that the reader plugin gets from esql-datasource-compression-libs at runtime
+  testImplementation "io.airlift:aircompressor:${versions.aircompressor}"
+  testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  testCompileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
+  }
+  testCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
+    transitive = false
+  }
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
+tasks.named("test").configure {
+  // Needed for Arrow's direct memory access, which the ES|QL reader uses (same as esql-datasource-parquet)
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}

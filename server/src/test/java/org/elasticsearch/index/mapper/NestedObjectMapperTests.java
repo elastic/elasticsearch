@@ -1216,7 +1216,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
-        assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+        assertThat(mapperService.documentMapper().mappingSource().string(), containsString("""
             "properties":{"object":{"type":"nested","include_in_parent":true}}"""));
     }
 
@@ -1583,7 +1583,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                     }
                 }}}
                 """);
-            assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+            assertThat(mapperService.documentMapper().mappingSource().string(), containsString("""
                 {"type":"nested","include_in_parent":true,"properties":{"""));
         }
         {
@@ -1609,7 +1609,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                     }
                 }}}
                 """);
-            assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+            assertThat(mapperService.documentMapper().mappingSource().string(), containsString("""
                 {"type":"nested","include_in_parent":true,"properties":{"""));
         }
     }

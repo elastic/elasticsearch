@@ -38,7 +38,7 @@ class AmazonBedrockCompletionStreamingProcessor extends AmazonBedrockStreamingPr
             var result = new ArrayDeque<StreamingCompletionResults.Result>(1);
             result.offer(new StreamingCompletionResults.Result(text));
             var results = new StreamingCompletionResults.Results(result);
-            downstream.onNext(results);
+            emitNext(results);
         });
     }
 }

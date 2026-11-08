@@ -103,25 +103,37 @@ public class ScalarOperations {
         }
     }
 
-    static void bulkWithOffsets(SimdVecLibrary.SimilarityFunction function, byte[] query, byte[][] data, int[] offsets, float[] scores) {
+    static void bulkSparse(SimdVecLibrary.SimilarityFunction function, byte[] query, byte[][] data, int[] ordinals, float[] scores) {
         Similarity<byte[]> sim = switch (function) {
             case COSINE -> ScalarOperations::cosine;
             case DOT_PRODUCT -> ScalarOperations::dotProduct;
             case SQUARE_DISTANCE -> ScalarOperations::squareDistance;
         };
         for (int i = 0; i < data.length; i++) {
-            scores[i] = sim.apply(query, data[offsets[i]]);
+            scores[i] = sim.apply(query, data[ordinals[i]]);
         }
     }
 
-    static void bulkWithOffsets(SimdVecLibrary.SimilarityFunction function, float[] query, float[][] data, int[] offsets, float[] scores) {
+    static void bulkSparse(SimdVecLibrary.SimilarityFunction function, float[] query, float[][] data, int[] ordinals, float[] scores) {
         Similarity<float[]> sim = switch (function) {
             case DOT_PRODUCT -> ScalarOperations::dotProduct;
             case SQUARE_DISTANCE -> ScalarOperations::squareDistance;
             case COSINE -> throw new UnsupportedOperationException("cosine not supported for float");
         };
         for (int i = 0; i < data.length; i++) {
-            scores[i] = sim.apply(query, data[offsets[i]]);
+            scores[i] = sim.apply(query, data[ordinals[i]]);
+        }
+    }
+
+    static void bulkMasked(SimdVecLibrary.SimilarityFunction function, byte[] query, byte[][] data, int mask, float[] scores) {
+        Similarity<byte[]> sim = switch (function) {
+            case COSINE -> ScalarOperations::cosine;
+            case DOT_PRODUCT -> ScalarOperations::dotProduct;
+            case SQUARE_DISTANCE -> ScalarOperations::squareDistance;
+        };
+        for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+            int i = BulkMask.first(m);
+            scores[i] = sim.apply(query, data[i]);
         }
     }
 }

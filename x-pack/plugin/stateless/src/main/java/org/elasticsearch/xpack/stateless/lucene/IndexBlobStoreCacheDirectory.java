@@ -22,12 +22,17 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 
 public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
+
+    private volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
+    private volatile long currentDataSetSizeInBytes = 0L;
 
     public IndexBlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
         super(cacheService, shardId);
@@ -41,6 +46,30 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         @Nullable LongFunction<BlobContainer> blobContainerFunction
     ) {
         super(cacheService, shardId, totalBytesRead, totalBytesWarmed, blobContainerFunction);
+    }
+
+    @Override
+    protected Map<String, BlobFileRanges> getCurrentMetadata() {
+        return currentMetadata;
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() {
+        // data set size is equal to the size of the last commit uploaded to the object store
+        return currentDataSetSizeInBytes;
+    }
+
+    /**
+     * Replaces this directory's file metadata and data set size with a complete snapshot of the latest uploaded commit.
+     */
+    public void updateMetadata(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
+        assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
+        try {
+            currentMetadata = Map.copyOf(metadata);
+            currentDataSetSizeInBytes = dataSetSizeInBytes;
+        } finally {
+            assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
+        }
     }
 
     @Override
@@ -146,8 +175,8 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
      * {@code SharedBlobCacheWarmingServiceTests#testColdBccHeaderReadRunsAsOneShardReadTaskPerBlob}.
      */
     @Override
-    public IndexBlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
-        return new IndexBlobStoreCacheDirectory(
+    public IndexBlobStoreCacheDirectory createPerBccMetadataReadDirectory(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
+        IndexBlobStoreCacheDirectory directory = new IndexBlobStoreCacheDirectory(
             cacheService,
             shardId,
             totalBytesReadFromObjectStore,
@@ -171,6 +200,8 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
                 return getCacheService().getShardReadThreadPoolExecutor();
             }
         };
+        directory.updateMetadata(Map.copyOf(metadata), dataSetSizeInBytes);
+        return directory;
     }
 
     public static IndexBlobStoreCacheDirectory unwrapDirectory(final Directory directory) {

@@ -961,6 +961,61 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * MATCH over a union of an index and a dataset runs as a Lucene query on the index branch and at runtime on the
+     * dataset branch; both must give a keyword column the same exact-value semantics.
+     */
+    public void testMatchOnKeywordAcrossIndexAndDataset() {
+        createRealEmployees();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM real_employees, (FROM employees)
+            | WHERE MATCH(first_name, "Alice") OR MATCH(first_name, "Carol-real")
+            | KEEP emp_no, first_name
+            | SORT first_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertValues(response.values(), List.of(List.of(1, "Alice"), List.of(3, "Carol-real")));
+        }
+    }
+
+    /**
+     * TO_TEXT over a union of an index and a dataset analyzes both branches at runtime, so "Alice-real" from the
+     * index tokenizes to a match just like the dataset's "Alice".
+     */
+    public void testMatchOnTextAcrossIndexAndDataset() {
+        createRealEmployees();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM real_employees, (FROM employees)
+            | EVAL name = TO_TEXT(first_name)
+            | WHERE MATCH(name, "alice")
+            | KEEP emp_no, first_name
+            | SORT first_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertValues(response.values(), List.of(List.of(1, "Alice"), List.of(1, "Alice-real")));
+        }
+    }
+
+    public void testMatchPhraseOnTextAcrossIndexAndDataset() {
+        createRealEmployees();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM real_employees, (FROM employees)
+            | EVAL name = TO_TEXT(first_name)
+            | WHERE MATCH_PHRASE(name, "carol real") OR MATCH_PHRASE(name, "bob")
+            | KEEP emp_no, first_name
+            | SORT first_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertValues(response.values(), List.of(List.of(2, "Bob"), List.of(3, "Carol-real")));
+        }
+    }
+
     // Mixed data types across subquery branches
 
     public void testConflictingTypesAcrossSubqueriesRejected() {
@@ -1479,6 +1534,25 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         request.filter(QueryBuilders.rangeQuery("emp_no").gte(10));
         try (var response = run(request, TIMEOUT)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(10), List.of(10), List.of(11), List.of(11))));
+        }
+    }
+
+    /**
+     * The request filter and a runtime MATCH both filter the same dataset reads, so only rows passing both remain:
+     * the range drops Alice (emp_no 1) and the match drops the Sales rows.
+     */
+    public void testMatchOnDatasetWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        for (String condition : List.of("MATCH(department, \"Engineering\")", "MATCH(TO_TEXT(department), \"engineering\")")) {
+            var request = syncEsqlQueryRequest("FROM (FROM employees), (FROM employees_alt) | WHERE " + condition + """
+                 | KEEP emp_no
+                 | SORT emp_no
+                """);
+            request.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
+            try (var response = run(request, TIMEOUT)) {
+                assertThat(condition, getValuesList(response), equalTo(List.of(List.of(2), List.of(10))));
+            }
         }
     }
 

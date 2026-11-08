@@ -60,6 +60,14 @@ public final class DslKeywordAnalyticsChecks {
 
     private DslKeywordAnalyticsChecks() {}
 
+    /**
+     * @return every check except the composite aggregation, for field types whose composite source reads postings
+     *         terms instead of doc values when the field is indexed.
+     */
+    public static List<BehaviorCheck> allExceptComposite() {
+        return all().stream().filter(check -> check instanceof CompositeAggregationCheck == false).toList();
+    }
+
     public static List<BehaviorCheck> all() {
         return List.of(
             new TermsAggregationCheck(),
@@ -80,8 +88,8 @@ public final class DslKeywordAnalyticsChecks {
         @Override
         public void check(final DuelContext ctx) {
             final Map<String, Long> expected = ctx.valueDocCounts();
-            final Map<String, Long> baseline = termsBuckets(ctx.client(), ctx.baselineIndex(), ctx.keywordField());
-            final Map<String, Long> contender = termsBuckets(ctx.client(), ctx.contenderIndex(), ctx.keywordField());
+            final Map<String, Long> baseline = termsBuckets(ctx.client(), ctx.baselineIndex(), ctx.field());
+            final Map<String, Long> contender = termsBuckets(ctx.client(), ctx.contenderIndex(), ctx.field());
             final String context = ctx.failureContext(name());
             assertEqualBuckets(context + " stage=[baseline-oracle]", expected, baseline);
             assertEqualBuckets(context + " stage=[contender-vs-baseline]", baseline, contender);
@@ -96,8 +104,8 @@ public final class DslKeywordAnalyticsChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            final long baseline = cardinality(ctx.client(), ctx.baselineIndex(), ctx.keywordField());
-            final long contender = cardinality(ctx.client(), ctx.contenderIndex(), ctx.keywordField());
+            final long baseline = cardinality(ctx.client(), ctx.baselineIndex(), ctx.field());
+            final long contender = cardinality(ctx.client(), ctx.contenderIndex(), ctx.field());
             // cardinality is an approximate aggregation, so the contender is compared to the baseline, which
             // estimates the same values identically, rather than to an exact distinct-value oracle.
             assertCount(ctx.failureContext(name()) + " stage=[contender-vs-baseline]", baseline, contender);
@@ -112,8 +120,8 @@ public final class DslKeywordAnalyticsChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            final long baseline = valueCount(ctx.client(), ctx.baselineIndex(), ctx.keywordField());
-            final long contender = valueCount(ctx.client(), ctx.contenderIndex(), ctx.keywordField());
+            final long baseline = valueCount(ctx.client(), ctx.baselineIndex(), ctx.field());
+            final long contender = valueCount(ctx.client(), ctx.contenderIndex(), ctx.field());
             final String context = ctx.failureContext(name());
             assertCount(context + " stage=[baseline-oracle]", ctx.expectedValueCount(), baseline);
             assertCount(context + " stage=[contender-vs-baseline]", baseline, contender);
@@ -128,8 +136,8 @@ public final class DslKeywordAnalyticsChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            final Map<String, Long> baseline = compositeBuckets(ctx.client(), ctx.baselineIndex(), ctx.keywordField());
-            final Map<String, Long> contender = compositeBuckets(ctx.client(), ctx.contenderIndex(), ctx.keywordField());
+            final Map<String, Long> baseline = compositeBuckets(ctx.client(), ctx.baselineIndex(), ctx.field());
+            final Map<String, Long> contender = compositeBuckets(ctx.client(), ctx.contenderIndex(), ctx.field());
             final String context = ctx.failureContext(name());
             assertEqualBuckets(context + " stage=[baseline-oracle]", ctx.expectedValueBuckets(), baseline);
             assertEqualBuckets(context + " stage=[contender-vs-baseline]", baseline, contender);
@@ -145,8 +153,8 @@ public final class DslKeywordAnalyticsChecks {
         @Override
         public void check(final DuelContext ctx) {
             final Map<Long, List<String>> expected = ctx.perDocSortedDistinct();
-            final Map<Long, List<String>> baseline = docValues(ctx.client(), ctx.baselineIndex(), ctx.keywordField(), ctx.docIdField());
-            final Map<Long, List<String>> contender = docValues(ctx.client(), ctx.contenderIndex(), ctx.keywordField(), ctx.docIdField());
+            final Map<Long, List<String>> baseline = docValues(ctx.client(), ctx.baselineIndex(), ctx.field(), ctx.docIdField());
+            final Map<Long, List<String>> contender = docValues(ctx.client(), ctx.contenderIndex(), ctx.field(), ctx.docIdField());
             assertSameKeys(ctx.failureContext(name()), expected.keySet(), baseline.keySet(), contender.keySet());
             for (final Map.Entry<Long, List<String>> entry : expected.entrySet()) {
                 final Long docId = entry.getKey();
@@ -170,13 +178,8 @@ public final class DslKeywordAnalyticsChecks {
         @Override
         public void check(final DuelContext ctx) {
             final Map<Long, List<String>> expected = ctx.perDocOrderedValues();
-            final Map<Long, List<String>> baseline = sourceValues(ctx.client(), ctx.baselineIndex(), ctx.keywordField(), ctx.docIdField());
-            final Map<Long, List<String>> contender = sourceValues(
-                ctx.client(),
-                ctx.contenderIndex(),
-                ctx.keywordField(),
-                ctx.docIdField()
-            );
+            final Map<Long, List<String>> baseline = sourceValues(ctx.client(), ctx.baselineIndex(), ctx.field(), ctx.docIdField());
+            final Map<Long, List<String>> contender = sourceValues(ctx.client(), ctx.contenderIndex(), ctx.field(), ctx.docIdField());
             assertSameKeys(ctx.failureContext(name()), expected.keySet(), baseline.keySet(), contender.keySet());
             for (final Map.Entry<Long, List<String>> entry : expected.entrySet()) {
                 final Long docId = entry.getKey();
@@ -258,26 +261,21 @@ public final class DslKeywordAnalyticsChecks {
         return buckets;
     }
 
-    private static Map<Long, List<String>> docValues(
-        final Client client,
-        final String index,
-        final String keywordField,
-        final String docIdField
-    ) {
+    private static Map<Long, List<String>> docValues(final Client client, final String index, final String field, final String docIdField) {
         final Map<Long, List<String>> byDoc = new TreeMap<>();
         assertResponse(
             client.prepareSearch(index)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(MAX_HITS)
-                .addDocValueField(keywordField)
+                .addDocValueField(field)
                 .addDocValueField(docIdField)
                 .addSort(SortBuilders.fieldSort(docIdField).order(SortOrder.ASC)),
             response -> {
                 for (final SearchHit hit : response.getHits().getHits()) {
                     final long docId = ((Number) hit.field(docIdField).getValue()).longValue();
                     final List<String> values = new ArrayList<>();
-                    if (hit.field(keywordField) != null) {
-                        for (final Object value : hit.field(keywordField).getValues()) {
+                    if (hit.field(field) != null) {
+                        for (final Object value : hit.field(field).getValues()) {
                             values.add(String.valueOf(value));
                         }
                     }
@@ -291,7 +289,7 @@ public final class DslKeywordAnalyticsChecks {
     private static Map<Long, List<String>> sourceValues(
         final Client client,
         final String index,
-        final String keywordField,
+        final String field,
         final String docIdField
     ) {
         final Map<Long, List<String>> byDoc = new TreeMap<>();
@@ -304,16 +302,16 @@ public final class DslKeywordAnalyticsChecks {
             response -> {
                 for (final SearchHit hit : response.getHits().getHits()) {
                     final long docId = ((Number) hit.field(docIdField).getValue()).longValue();
-                    byDoc.put(docId, sourceKeyword(hit, keywordField));
+                    byDoc.put(docId, sourceKeyword(hit, field));
                 }
             }
         );
         return byDoc;
     }
 
-    private static List<String> sourceKeyword(final SearchHit hit, final String keywordField) {
+    private static List<String> sourceKeyword(final SearchHit hit, final String field) {
         final Map<String, Object> source = hit.getSourceAsMap();
-        final Object raw = source == null ? null : source.get(keywordField);
+        final Object raw = source == null ? null : source.get(field);
         if (raw == null) {
             return List.of();
         }

@@ -33,6 +33,7 @@ public class S3RepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRes
         .keystore("s3.client.repositories_metering.secret_key", System.getProperty("s3SecretKey"))
         .setting("xpack.license.self_generated.type", "trial")
         .setting("s3.client.repositories_metering.protocol", () -> "http", (n) -> USE_FIXTURE)
+        .setting("s3.client.repositories_metering.region", () -> getProperty("test.s3.region"))
         .setting("s3.client.repositories_metering.endpoint", s3Fixture::getAddress, (n) -> USE_FIXTURE)
         .setting("xpack.security.enabled", "false")
         .build();

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
 /**
  * N-ary logical plan whose children are independently planned branches and whose output is the
  * name-union of those branches. {@link Fork} (the {@code FORK} command), {@link UnionAll} (subquery
- * unions), and {@link ViewUnionAll} (view-produced unions) are the concrete forms. All of them map
+ * unions), and {@link BranchPlan} (view-produced unions) are the concrete forms. All of them map
  * to {@code MergeExec} at the physical layer.
  */
 public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanVerificationAware, ExecutesOn.Coordinator {
@@ -94,7 +95,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * <p>
      * Deliberately {@code final} and expressed in terms of {@link #replaceSubPlansAndOutput}: a per-subclass
      * implementation only has to construct the node itself, and any such implementation that names a concrete
-     * constructor silently downgrades a further subclass. {@link ViewUnionAll} is the case in point — it carries a
+     * constructor silently downgrades a further subclass. {@link BranchPlan} is the case in point — it carries a
      * named-subqueries map and view-branch keys that a {@code new UnionAll(...)} here would drop, turning its view
      * boundaries back into anonymous union branches. Subclasses only need {@link #replaceSubPlansAndOutput} to be
      * faithful, which they already need for every other rewrite.
@@ -106,7 +107,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     /**
      * Drop branches whose root the {@code isEmpty} predicate considers empty. Each
      * {@link MergePlan} subclass with structural invariants beyond the positional children list
-     * (notably {@link ViewUnionAll}, which carries a named-subqueries map) overrides this method
+     * (notably {@link BranchPlan}, which carries a named-subqueries map) overrides this method
      * to preserve those invariants.
      * <p>
      * Behaviour:
@@ -119,7 +120,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      *       a {@code LocalRelation} when every branch reduces to empty) or to let the
      *       analyzer's verifier surface the empty-merge state via {@link #checkBranchCount}.</li>
      * </ul>
-     * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
+     * Single-survivor collapse semantics — a {@link UnionAll}/{@link BranchPlan} with one
      * branch left is equivalent to that branch — are not part of this primitive; callers that
      * want that collapse do it explicitly (see {@code ViewCompaction.stripViewShadowRelations}).
      * A {@link Fork} with a single branch is still a {@link Fork} per FORK syntax.
@@ -204,7 +205,11 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                     continue;
                 }
 
-                if (names.contains(attr.name()) == false && attr != NO_FIELDS.getFirst()) {
+                // Keep union-type cast synthetics ($$field$converted_to$type): a conversion above the merge still references them. Drop
+                // only IN-subquery marks/consts, which are local to the rewrite and leak if FORK alignment null-fills them.
+                if (names.contains(attr.name()) == false
+                    && attr != NO_FIELDS.getFirst()
+                    && InSubqueryResolver.isInSubquerySynthetic(attr) == false) {
                     names.add(attr.name());
                     output.add(attr);
                 }

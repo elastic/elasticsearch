@@ -119,8 +119,11 @@ public class AzureBccWriteStallIT extends AbstractStatelessPluginIntegTestCase {
     protected Settings.Builder nodeSettings() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.test.account", ACCOUNT);
-        // The mock server does not validate HMAC signatures; any base64-encoded value works.
-        secureSettings.setString("azure.client.test.key", Base64.getEncoder().encodeToString("test-key".getBytes(StandardCharsets.UTF_8)));
+        // The mock server does not validate HMAC signatures, but FIPS requires keys of at least 112 bits.
+        secureSettings.setString(
+            "azure.client.test.key",
+            Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8))
+        );
 
         String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://" + testServer.serverUrl() + "/" + ACCOUNT;
 
@@ -262,7 +265,7 @@ public class AzureBccWriteStallIT extends AbstractStatelessPluginIntegTestCase {
                     }
                 }
                 logger.info("--> first try resumes opening [{}] on [{}]", filename, Thread.currentThread().getName());
-            } else if (filename.endsWith(".cfs")) {
+            } else if (filename.endsWith(".cfs") && resetLatch.getCount() > 0) {
                 // retry's call: unblock the first try and give it time to make its stray read
                 logger.info("--> retry opening [{}] on [{}]", filename, Thread.currentThread().getName());
                 resetLatch.countDown();

@@ -201,13 +201,13 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         QueryBuilder fake = QueryBuilders.termQuery("fake", 1);
         // View branch alongside a bare index: only the bare-index branch survives.
         String mixed = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + INDEX + " | KEEP id", fake);
-        assertThat("the view branch is pruned, leaving the bare-index branch", mixed, containsString("ViewUnionAll[[main]]"));
+        assertThat("the view branch is pruned, leaving the bare-index branch", mixed, containsString("BranchPlan[[main=INDEX]]"));
         assertThat(mixed, not(containsString(PREFILTERED_VIEW)));
         // Every branch is a view: the union collapses to an empty local relation.
         String allViews = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + STATS_VIEW, fake);
         assertThat("no branch survives", allViews, startsWith("LocalRelation["));
         assertThat(allViews, containsString("EMPTY"));
-        assertThat(allViews, not(containsString("ViewUnionAll")));
+        assertThat(allViews, not(containsString("BranchPlan")));
     }
 
     /** Runs {@code EXPLAIN} over {@code query} with the given request filter and returns the coordinator's optimized logical plan. */
@@ -348,7 +348,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         final int BASE3 = 2000;
         indexRows(idx3, BASE3);
 
-        // View branch first, bare index second: one ViewUnionAll carrying one view branch and one bare-index branch.
+        // View branch first, bare index second: one BranchPlan carrying one view branch and one bare-index branch.
         // status=300 is ids 1 and 4 from the view, 2001 and 2004 from the bare index.
         assertThat(
             "the view branch and the bare-index branch must both be filtered, by different paths",
@@ -395,6 +395,27 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         assertThat(
             "the EVAL-computed field can only be filtered on the view's output",
             rows("FROM " + view + " | KEEP id, region_upper | SORT id ASC", QueryBuilders.termQuery("region_upper", "EU")),
+            equalTo(List.of(List.of(0, "EU"), List.of(2, "EU"), List.of(4, "EU")))
+        );
+    }
+
+    /**
+     * A view nested inside a user-written subquery branch is still named by the query, so the request filter must
+     * reach its output. The inner LIMIT blocks compaction from flattening the subquery, so the view's boundary
+     * survives nested below the outer union — where the rewriter used to stop at the outer union and never visit it,
+     * while the view-fragment marking also kept the raw DSL out of the view's source scan: the view's rows leaked
+     * entirely unfiltered. The bare-index sibling takes the Lucene path, where the computed field matches nothing.
+     */
+    public void testFilterReachesViewNestedInSubqueryBranch() {
+        String view = "vrf_eval_nested";
+        createView(view, "FROM " + INDEX + " | EVAL region_upper = TO_UPPER(region)");
+
+        assertThat(
+            "the view nested under the subquery is filtered at its output, below the user's LIMIT",
+            rows(
+                "FROM (FROM " + view + " | LIMIT 1000), (FROM " + INDEX + ") | KEEP id, region_upper | SORT id ASC",
+                QueryBuilders.termQuery("region_upper", "EU")
+            ),
             equalTo(List.of(List.of(0, "EU"), List.of(2, "EU"), List.of(4, "EU")))
         );
     }
@@ -448,7 +469,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A view whose body ends in {@code KEEP} — the most ordinary view shape there is. Preserving its boundary for the filter used to
-     * leave everything above the {@code ViewUnionAll} unresolved: the analyzer's merge alignment saw a branch that was already a
+     * leave everything above the {@code BranchPlan} unresolved: the analyzer's merge alignment saw a branch that was already a
      * {@code Project} over exactly the merge columns, rewrote nothing, and returned the merge with the empty output view resolution
      * gave it. The filter rewriter then marked the tree analyzed, so the optimizer hit {@code UnresolvedException: Invalid call to
      * dataType on an unresolved object ?id} instead of verification reporting anything.
@@ -466,7 +487,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     /**
      * Two views that both end in {@code KEEP} over the same columns. Every branch is already an aligned {@code Project}, so the
      * merge alignment rewrites nothing — the same path as {@link #testFilterOnViewEndingInKeep}, but with a multi-branch
-     * {@code ViewUnionAll} that existed before boundaries were ever preserved.
+     * {@code BranchPlan} that existed before boundaries were ever preserved.
      */
     public void testFilterOnTwoViewsBothEndingInKeep() {
         createView("vrf_keep_a", "FROM " + INDEX + " | KEEP id, status");
@@ -483,7 +504,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A view whose body contains a subquery branches internally, so preserving its boundary nests a plain
-     * {@code UnionAll} under the {@code ViewUnionAll} wrapper — a shape that verifies and executes like any other
+     * {@code UnionAll} under the {@code BranchPlan} wrapper — a shape that verifies and executes like any other
      * nested subquery. This test filters on a <em>mapped</em> pass-through field; the computed-field variants below
      * are what distinguish output-filtering from pushdown.
      *
@@ -514,7 +535,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A view whose body is a <em>bare</em> union — no trailing operator — flattens: compaction lifts each body piece
-     * into its own branch of the outer {@code ViewUnionAll}. Each lifted piece is still part of the view, so the filter
+     * into its own branch of the outer {@code BranchPlan}. Each lifted piece is still part of the view, so the filter
      * must apply to its output, not its source scan. Here only the subquery piece computes {@code tag}, so the filter
      * selects its {@code eu} row and binds {@code tag} to NULL on the other piece, matching nothing there — while a
      * pushdown would have matched nothing anywhere.
@@ -627,6 +648,44 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * Review-found leak shapes: any processing inside the subquery (a KEEP here), or the frozen {@code _class} Eval
+     * from METADATA, keeps compaction from lifting the inner view union into the outer one. The rewriter must still
+     * reach the nested view's output — {@code cnt > 3} matches none of the view's buckets (every {@code cnt} is 3),
+     * and on the bare-index branch {@code cnt} does not exist, so both queries must return no rows at all.
+     */
+    public void testFilterReachesViewNestedUnderSubqueryProcessingAndMetadata() {
+        assertThat(
+            rows(
+                "FROM " + INDEX + ", (FROM " + STATS_VIEW + " | KEEP region, cnt) | KEEP region, cnt",
+                QueryBuilders.rangeQuery("cnt").gt(3)
+            ),
+            equalTo(List.of())
+        );
+        assertThat(
+            rows("FROM " + INDEX + ", (FROM " + STATS_VIEW + ") METADATA _class | KEEP region, cnt", QueryBuilders.rangeQuery("cnt").gt(3)),
+            equalTo(List.of())
+        );
+    }
+
+    /**
+     * An aggregate directly above the union invites {@code PushAggregateThroughUnionAll} to rebuild the union around
+     * per-branch partial aggregates — which must not cost the view branch its identity before {@code Mapper} marks its
+     * fragments. Were the raw request filter pushed into the view's source scan, {@code cnt} (view-computed) would
+     * match nothing there and the total would be null; the filter belongs on the view's output, where both buckets
+     * have {@code cnt = 3} and the total is 6. The subquery branch computes its own {@code cnt}, so the raw filter on
+     * its source scan correctly matches nothing.
+     */
+    public void testAggregateOverFilteredViewUnionFiltersAtViewOutput() {
+        assertThat(
+            rows(
+                "FROM " + STATS_VIEW + ", (FROM " + INDEX + " | STATS cnt = COUNT(*) BY region) | STATS total = SUM(cnt)",
+                QueryBuilders.rangeQuery("cnt").gte(3)
+            ),
+            equalTo(List.of(List.of(6L)))
+        );
+    }
+
+    /**
      * A view nested inside a user-written subquery branch is a view the query names, so the request filter applies to its
      * output just as it does to a view at the top level. {@code cnt} exists only in the stats view's output, so it can
      * only be filtered there; its fragments are marked as view-branch fragments and skipped by the Lucene push-in path,
@@ -709,6 +768,28 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
             rows("FROM " + view + " | KEEP id, doubled | SORT id", QueryBuilders.termQuery("doubled", 6)),
             equalTo(List.of(List.of(3, 6)))
         );
+    }
+
+    /**
+     * A view whose body ends in FORK is flattened by compaction: the Fork node dissolves and each fork branch is
+     * lifted into the enclosing merge as its own view branch (the parser already attached the per-branch
+     * {@code _fork} Evals, so results are unchanged). The lifted branches keep the view's identity, so a request
+     * filter on a column the fork branches compute binds at each branch's output instead of leaking into the
+     * source scan. Pins the fork-topped shape from the PR review: {@code FORK (EVAL x = 1) (EVAL x = 2)} with a
+     * range filter on {@code x}.
+     */
+    public void testRequestFilterOnForkComputedColumnBindsAtFlattenedBranches() {
+        String view = "vrf_fork_computed";
+        createView(view, "FROM " + INDEX + " | FORK (EVAL x = 1) (EVAL x = 2)");
+        // Matches both fork branches: every doc appears once per branch.
+        assertThat(rows("FROM " + view + " | STATS c = COUNT(*)", QueryBuilders.rangeQuery("x").gte(0)), equalTo(List.of(List.of(12L))));
+        // Matches only the second fork branch.
+        List<List<Object>> rows = rows("FROM " + view + " | KEEP x, id | SORT id", QueryBuilders.rangeQuery("x").gte(2));
+        assertThat(rows, hasSize(6));
+        for (int i = 0; i < 6; i++) {
+            assertThat(rows.get(i).get(0), equalTo(2));
+            assertThat(rows.get(i).get(1), equalTo(i));
+        }
     }
 
     public void testForkAfterForkViewWithAndWithoutRequestFilter() {

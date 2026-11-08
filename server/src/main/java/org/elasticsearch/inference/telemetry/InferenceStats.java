@@ -12,6 +12,7 @@ package org.elasticsearch.inference.telemetry;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -26,6 +27,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_ORIGIN;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 import static org.elasticsearch.telemetry.metric.MetricAttributesUtils.normalizeProductOrigin;
 
 /**
@@ -214,20 +217,21 @@ public class InferenceStats {
         }
 
         /**
-         * Adds product attribution attributes from the given context. Values are normalized against
-         * {@link #KNOWN_PRODUCT_USE_CASES} and {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS};
+         * Adds the product use case and product origin from the given metadata; no other field becomes a metric attribute.
+         * Values are normalized against {@link #KNOWN_PRODUCT_USE_CASES} and {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS};
          * anything not in the allowlist is recorded as {@link #OTHER_VALUE} to bound APM attribute cardinality.
          * Either field may be absent; they are recorded independently.
          */
-        public B withProductContext(@Nullable InferenceProductContext ctx) {
-            if (ctx == null) {
+        public B withRequestMetadata(@Nullable InferenceRequestMetadata metadata) {
+            if (metadata == null) {
                 return cast();
             }
 
-            withProductUseCase(ctx.productUseCase());
+            withProductUseCase(metadata.get(PRODUCT_USE_CASE));
 
-            if (Strings.isNullOrEmpty(ctx.productOrigin()) == false) {
-                attributes.put(MetricAttributes.ES_PRODUCT_ORIGIN, normalizeProductOrigin(ctx.productOrigin(), OTHER_VALUE));
+            var origin = metadata.get(PRODUCT_ORIGIN);
+            if (Strings.isNullOrEmpty(origin) == false) {
+                attributes.put(MetricAttributes.ES_PRODUCT_ORIGIN, normalizeProductOrigin(origin, OTHER_VALUE));
             }
 
             return cast();

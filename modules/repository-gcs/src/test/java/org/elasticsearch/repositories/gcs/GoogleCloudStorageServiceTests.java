@@ -10,6 +10,8 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.cloud.http.HttpTransportOptions;
+import com.google.cloud.storage.StorageException;
+import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
@@ -31,10 +33,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
@@ -129,6 +133,31 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertTrue(handler.shouldRetry(new RuntimeException(new SSLException("(internal_error) Unhandled exception")), null));
         assertTrue(handler.shouldRetry(new SocketException("Connection reset"), null));
         assertFalse(handler.shouldRetry(new IllegalArgumentException("not a transport failure"), null));
+    }
+
+    public void testRetryStrategyRetriesReadTimeouts() {
+        final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        final var handler = service.getRetryStrategy().getIdempotentHandler();
+        assertTrue(handler.shouldRetry(new SocketTimeoutException("Read timed out"), null));
+        assertTrue(handler.shouldRetry(resumableUploadReadTimeout(), null));
+        assertFalse(handler.shouldRetry(new IOException(randomAlphaOfLength(10)), null));
+    }
+
+    /// The SDK's default strategy retries read timeouts wrapped by the resumable upload path.
+    /// ES pins the legacy strategy, so this pins parity with the default and fails if an SDK bump changes the classification.
+    public void testRetryStrategyMatchesSdkDefaultForReadTimeouts() {
+        final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        final StorageException e = resumableUploadReadTimeout();
+        assertTrue(StorageRetryStrategy.getDefaultStorageRetryStrategy().getIdempotentHandler().shouldRetry(e, null));
+        assertTrue(service.getRetryStrategy().getIdempotentHandler().shouldRetry(e, null));
+    }
+
+    /// Shape produced by `JsonResumableSessionPutTask` when a chunk PUT throws an `IOException`
+    /// (`UploadFailureScenario.SCENARIO_0`): code 0, no reason, `SocketTimeoutException` cause.
+    private static StorageException resumableUploadReadTimeout() {
+        return new StorageException(0, "Unknown Error", null, new SocketTimeoutException("Read timed out"));
     }
 
     public void testReinitClientSettings() throws Exception {

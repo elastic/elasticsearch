@@ -78,7 +78,15 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
         // We need the plan before optimization here, because otherwise the verification exception
         // "Nested subqueries are not supported" is thrown at the end of logical optimization.
-        LogicalPlan plan = EsqlTestUtils.analyzer().addDefaultIndex().query("FROM test, (FROM test, (FROM test)) | STATS COUNT()");
+        // The inner LIMIT keeps the nesting in place: the analyzer's compaction flattens unconstrained
+        // nested literal subquery unions into a single union (a Limit-topped branch is not liftable),
+        // so the unconstrained form below reaches the verifier as one flat union and is approximable.
+        LogicalPlan flattened = EsqlTestUtils.analyzer().addDefaultIndex().query("FROM test, (FROM test, (FROM test)) | STATS COUNT()");
+        ApproximationVerifier.verifyPlanOrThrow(flattened, TransportVersion.current());
+
+        LogicalPlan plan = EsqlTestUtils.analyzer()
+            .addDefaultIndex()
+            .query("FROM test, (FROM test, (FROM test) | LIMIT 5) | STATS COUNT()");
         VerificationException exception = assertThrows(
             VerificationException.class,
             () -> ApproximationVerifier.verifyPlanOrThrow(plan, TransportVersion.current())

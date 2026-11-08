@@ -886,14 +886,19 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 }
                 """);
         }
-        Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
+        Set<DataType> shouldBeSupported = Stream.of(DataType.values())
+            .filter(DataType::isRepresentableInOutput)
+            .collect(Collectors.toSet());
         shouldBeSupported.remove(DataType.CARTESIAN_POINT);
         shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
         shouldBeSupported.remove(DataType.GEOHASH);
         shouldBeSupported.remove(DataType.GEOTILE);
         shouldBeSupported.remove(DataType.GEOHEX);
         shouldBeSupported.remove(DataType.NULL);
-        shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
+        // These response types require metadata, time-series mappings, or unsupported fields rather than ordinary mapped fields.
+        shouldBeSupported.remove(DataType.SOURCE);
+        shouldBeSupported.remove(DataType.UNSUPPORTED);
+        shouldBeSupported.removeIf(type -> type.isCounter());
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
         shouldBeSupported.remove(DataType.DENSE_VECTOR);
         shouldBeSupported.remove(DataType.EXPONENTIAL_HISTOGRAM); // TODO(b/133393): add support when blockloader is implemented
@@ -1272,7 +1277,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("start_millis", greaterThan(0L))
             .entry("stop_millis", greaterThan(0L))
             .entry("iterations", greaterThan(0L))
-            .entry("cpu_nanos", greaterThan(0L))
+            // Thread CPU time can read 0 for a short driver where it ticks coarsely, like on Windows.
+            .entry("cpu_nanos", greaterThanOrEqualTo(0L))
+            .entry("driver_nanos", greaterThan(0L))
             .entry("took_nanos", greaterThan(0L))
             .entry("operators", instanceOf(List.class))
             .entry("sleeps", matchesMap().extraOk())
@@ -1501,6 +1508,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     static void fixTypesOnProfile(Map<String, Object> profile) {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
+        profile.put("driver_nanos", ((Number) profile.get("driver_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
         profile.put("rows_emitted", ((Number) profile.get("rows_emitted")).longValue());
         profile.put("bytes_read", ((Number) profile.get("bytes_read")).longValue());
@@ -1536,6 +1544,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))
                 .entry("bytes_read", greaterThanOrEqualTo(0))
+                .entry("bytes_decoded", greaterThanOrEqualTo(0))
                 .entry("readers_built", matchesMap().extraOk())
                 .entry("source_docs_loaded", greaterThanOrEqualTo(0))
                 .entry("source_field_reads", greaterThanOrEqualTo(0))

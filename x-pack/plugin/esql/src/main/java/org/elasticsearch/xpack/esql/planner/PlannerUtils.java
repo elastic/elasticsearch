@@ -32,15 +32,20 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
@@ -75,11 +80,13 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -303,27 +310,13 @@ public class PlannerUtils {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
             case TopNByExec topNBy -> new TopNByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topNBy));
             case LimitByExec limitBy -> new LimitByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, limitBy));
+            // Time-series queries are grouped by `_tsid, bucket` and the data is sorted by `_tsid`, so the sub-results are basically
+            // disjoint between shards/indices (though not between segments); hence, node-reduce doesn't merge/compact them much,
+            // and the little it does merge isn't worth its cost, so it's more efficient to disable it.
+            case TimeSeriesAggregateExec ignored -> SimplePlanReduction.NO_REDUCTION;
+            case MetricsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
+            case TsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
-            case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
-                estimatedRowSize,
-                new MetricsInfoExec(
-                    metricsInfoExec.source(),
-                    metricsInfoExec.child(),
-                    metricsInfoExec.outputAttrs(),
-                    plan.output(),
-                    MetricsInfoExec.Mode.INTERMEDIATE
-                )
-            );
-            case TsInfoExec tsInfoExec -> getPhysicalPlanReduction(
-                estimatedRowSize,
-                new TsInfoExec(
-                    tsInfoExec.source(),
-                    tsInfoExec.child(),
-                    tsInfoExec.outputAttrs(),
-                    plan.output(),
-                    TsInfoExec.Mode.INTERMEDIATE
-                )
-            );
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
     }
@@ -477,6 +470,38 @@ public class PlannerUtils {
         List<? extends ExternalSplit> externalSplits,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            plan,
+            searchStats,
+            formatReaderRegistry,
+            externalSplits,
+            planTimeProfile,
+            null
+        );
+    }
+
+    /**
+     * The production entry: besides the split injection above, every {@link ExternalSourceExec} is rebound to this node's
+     * registered dataset definition by {@code datasetConfigResolver} before anything reads its config, whether the plan
+     * arrived over the wire or is the coordinator's own local scan. See {@link DatasetConfigResolver} for what that
+     * refuses and why.
+     */
+    public static PhysicalPlan localPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        FormatReaderRegistry formatReaderRegistry,
+        List<? extends ExternalSplit> externalSplits,
+        PlanTimeProfile planTimeProfile,
+        @Nullable DatasetConfigResolver datasetConfigResolver
+    ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
         );
@@ -491,7 +516,7 @@ public class PlannerUtils {
             )
         );
 
-        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile);
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile, null, datasetConfigResolver);
     }
 
     /**
@@ -565,6 +590,25 @@ public class PlannerUtils {
         PlanTimeProfile planTimeProfile,
         @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
     ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile, onLogicalPlanOptimized, null);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        List<? extends ExternalSplit> externalSplits,
+        PlanTimeProfile planTimeProfile,
+        @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized,
+        @Nullable DatasetConfigResolver datasetConfigResolver
+    ) {
+        if (datasetConfigResolver != null) {
+            // An ExternalSourceExec that arrived already materialized (the coordinator ships that shape when it
+            // distributes discovered splits) sits outside any FragmentExec, so the walk below never sees it and it
+            // skips local physical optimization altogether; its config is read only at the operator build. Rebind it
+            // here. A FragmentExec is a leaf of the physical tree, so this pass leaves its logical fragment alone.
+            plan = plan.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
+        }
         var isCoordPlan = new Holder<>(Boolean.TRUE);
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
@@ -606,6 +650,14 @@ public class PlannerUtils {
                 // listing copied onto every worker, and INITIAL COUNT(*) would fold the full set
                 // on each data node (#161409).
                 physicalFragment = physicalFragment.transformUp(ExternalSourceExec.class, exec -> exec.withSplits(typedSplits));
+            }
+            if (datasetConfigResolver != null) {
+                // After the splits, which the rebind checks against the dataset's resource, and before the physical
+                // optimizer, whose rules read the exec's config (error policy) and must see the registered one. The
+                // stamp above puts the node's whole split list on every exec; the check holds because a fragment carries
+                // one dataset (a second exchange is refused in breakPlanBetweenCoordinatorAndDataNode), so a fragment
+                // with two datasets would need the splits assigned per exec first.
+                physicalFragment = physicalFragment.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
             }
 
             // Physical optimization
@@ -781,4 +833,39 @@ public class PlannerUtils {
         }
     }
 
+    /**
+     * The fields {@code plan} reads that some shards may not map. Each shard resolves them to what it holds (see
+     * {@link EsqlSearchExecutionContext}).
+     */
+    public static Set<String> unmappedFieldNames(PhysicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        Consumer<QueryPlan<?>> collect = p -> {
+            p.forEachExpressionDown(FieldAttribute.class, fa -> collectUnmappedFieldName(fa, names));
+            for (Attribute attribute : p.output()) {
+                if (attribute instanceof FieldAttribute fa) {
+                    collectUnmappedFieldName(fa, names);
+                }
+            }
+        };
+        plan.forEachDown(p -> {
+            collect.accept(p);
+            if (p instanceof FragmentExec fragment) {
+                fragment.fragment().forEachDown(collect::accept);
+            }
+        });
+        return names;
+    }
+
+    /**
+     * Adds to {@code names} the fields {@code fa} reads that some shards may not map: the field itself, or those its union type reads
+     * where an index does not map it.
+     */
+    public static void collectUnmappedFieldName(FieldAttribute fa, Set<String> names) {
+        if (fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+            names.add(fa.fieldName().string());
+        } else if (fa.field() instanceof UnionTypeEsField unionTypes && unionTypes.getUnmappedConversionExpression() != null) {
+            // The conversion reads the field where an index does not map it
+            unionTypes.getUnmappedConversionExpression().forEachDown(FieldAttribute.class, inner -> names.add(inner.fieldName().string()));
+        }
+    }
 }

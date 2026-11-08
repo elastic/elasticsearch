@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,6 +26,15 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class UnionAll extends MergePlan {
+
+    private static final String TOTAL_BRANCH_COUNT_ERROR =
+        "query resolved to {} branches in total, exceeding the limit of {} set by the {}. "
+            + "Reduce the number of sources - forks, subqueries, patterns expanding to several indices, or views,"
+            + " or split this into multiple queries.";
+
+    public static final String PARTIAL_BRANCH_COUNT_ERROR = "query resolved to at least {} branches, exceeding the limit of {}. "
+        + "Reduce the number of sources - forks, subqueries, patterns expanding to several indices, or views,"
+        + " or split this into multiple queries.";
 
     public UnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
@@ -72,7 +82,9 @@ public class UnionAll extends MergePlan {
 
     @Override
     public int hashCode() {
-        return hasUnmappedFieldsAttribute() ? Objects.hash(UnionAll.class, output(), children()) : Objects.hash(UnionAll.class, children());
+        return hasUnmappedFieldsAttribute()
+            ? Objects.hash(UnionAll.class, output(), children())
+            : Objects.hash(UnionAll.class, children(), output().size());
     }
 
     @Override
@@ -85,6 +97,13 @@ public class UnionAll extends MergePlan {
         }
         UnionAll other = (UnionAll) o;
         if (Objects.equals(children(), other.children()) == false) {
+            return false;
+        }
+        // Output arity is resolution state: view compaction builds unions with an empty output that resolveMergePlan fills
+        // in later, possibly without rewriting any branch (every branch may already end in a user projection of exactly the
+        // merge columns). If the filled-in node compared equal to the stale one, transformUp would discard the rewrite and
+        // the union could never resolve. Same-arity attribute churn (ids/types) keeps the children-only identity below.
+        if (output().size() != other.output().size()) {
             return false;
         }
         // LOAD_ALL alignment can rewrite output without changing children. Default UnionAll identity is children-only.
@@ -143,7 +162,7 @@ public class UnionAll extends MergePlan {
         String maxBranchLevelSource,
         Failures failures
     ) {
-        UnionStats stats = unionStats(optimizedPlan);
+        UnionStats stats = unionStats(optimizedPlan, new IdentityHashMap<>());
         checkTotalBranchCount(stats, maxBranchCount, maxBranchCountSource, failures);
         checkMaxNestingLevel(stats, maxBranchLevel, maxBranchLevelSource, failures);
         checkInSubqueryLimits(optimizedPlan, maxBranchCount, maxBranchLevel, maxBranchCountSource, maxBranchLevelSource, failures);
@@ -177,24 +196,14 @@ public class UnionAll extends MergePlan {
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
      * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
-     * compute service. It counts leaves under {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs
+     * compute service. It counts leaves under {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs
      * exactly the same at execution time as one the user wrote.
      */
     private static void checkTotalBranchCount(UnionStats stats, int maxBranches, String branchCountSource, Failures failures) {
         if (stats.first() == null || stats.leaves() <= maxBranches) {
             return;
         }
-        failures.add(
-            Failure.fail(
-                stats.first(),
-                "query resolved to {} branches in total, exceeding the limit of {} set by the {}. "
-                    + "Reduce the number of sources - forks, subqueries, patterns expanding to several indices, or views,"
-                    + " or split this into multiple queries.",
-                stats.leaves(),
-                maxBranches,
-                branchCountSource
-            )
-        );
+        failures.add(Failure.fail(stats.first(), TOTAL_BRANCH_COUNT_ERROR, stats.leaves(), maxBranches, branchCountSource));
     }
 
     /**
@@ -208,7 +217,7 @@ public class UnionAll extends MergePlan {
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
      * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the compute
-     * service. It counts {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
+     * service. It counts {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
      * execution time as one the user wrote.
      */
     private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, String branchLevelSource, Failures failures) {
@@ -234,15 +243,22 @@ public class UnionAll extends MergePlan {
      * side of a {@link Join} is excluded: a {@code LOOKUP JOIN} (and {@code INLINE STATS}) lookup/stub is not a union producer leaf, and
      * the right side of an {@link AbstractSubqueryJoin} is an independently executed query counted via {@link #checkInSubqueryLimits}. The
      * first and deepest unions provide distinct failure locations when both limits are exceeded.
+     * <p>
+     * The stats of every node reached are kept in {@code cache} by identity, so a plan whose FORK branches still share their input,
+     * as they do before analysis, is walked once rather than once per path.
      */
-    private static UnionStats unionStats(LogicalPlan plan) {
+    public static UnionStats unionStats(LogicalPlan plan, Map<LogicalPlan, UnionStats> cache) {
+        UnionStats cached = cache.get(plan);
+        if (cached != null) {
+            return cached;
+        }
         MergePlan first = plan instanceof MergePlan mergePlan ? mergePlan : null;
         MergePlan deepest = first;
-        int leaves = 0;
+        long leaves = 0;
         int depth = 0;
         List<LogicalPlan> children = plan instanceof Join join ? List.of(join.left()) : plan.children();
         for (LogicalPlan child : children) {
-            UnionStats childStats = unionStats(child);
+            UnionStats childStats = unionStats(child, cache);
             if (first == null) {
                 first = childStats.first();
             }
@@ -252,14 +268,19 @@ public class UnionAll extends MergePlan {
                 deepest = childStats.deepest();
             }
         }
+        int totalLeaves = (int) Math.min(leaves, Integer.MAX_VALUE);
+        UnionStats stats;
         if (plan instanceof MergePlan) {
-            return new UnionStats(first, deepest, leaves, depth + 1);
+            stats = new UnionStats(first, deepest, totalLeaves, depth + 1);
+        } else if (first == null) {
+            stats = new UnionStats(null, null, 1, 0);
+        } else {
+            stats = new UnionStats(first, deepest, totalLeaves, depth);
         }
-        if (first == null) {
-            return new UnionStats(null, null, 1, 0);
-        }
-        return new UnionStats(first, deepest, leaves, depth);
+        cache.put(plan, stats);
+        return stats;
     }
 
-    private record UnionStats(MergePlan first, MergePlan deepest, int leaves, int depth) {}
+    /** The merge plans under a plan: its producer leaves counted once per path, and how deeply its merge plans nest. */
+    public record UnionStats(MergePlan first, MergePlan deepest, int leaves, int depth) {}
 }

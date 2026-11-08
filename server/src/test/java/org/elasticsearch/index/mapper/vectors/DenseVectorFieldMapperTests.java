@@ -31,6 +31,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -52,10 +53,10 @@ import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectors
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -71,6 +72,9 @@ import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
+import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
@@ -84,6 +88,7 @@ import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -100,7 +105,9 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAUL
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getFieldType;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getIndexOptions;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorTestSettingsBuilder.EXPERIMENTAL_FEATURES_DISABLED;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorTestSettingsBuilder.EXPERIMENTAL_FEATURES_ENABLED;
@@ -364,7 +371,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         String changeOptionField,
         Object originalOption,
         Object changeOption,
-        Matcher<FieldMapper> check
+        Matcher<String> check
     ) throws IOException {
         registerIndexOptionsUpdate(
             checker,
@@ -380,7 +387,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         IOConsumer<XContentBuilder> base,
         IOConsumer<XContentBuilder> originalOptions,
         IOConsumer<XContentBuilder> changeOptions,
-        Matcher<FieldMapper> check
+        Matcher<String> check
     ) throws IOException {
         checker.registerUpdateCheck("index_options", b -> {
             base.accept(b);
@@ -392,7 +399,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.startObject("index_options");
             changeOptions.accept(b);
             b.endObject();
-        }, m -> assertThat(m, check));
+        }, (mapperService, m) -> {
+            try {
+                assertThat(fieldMappingToString(mapperService, "field"), check);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     @Override
@@ -440,18 +453,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
         for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
-            registerIndexOptionsUpdate(
-                checker,
-                bbqMapping::build,
-                "type",
-                "flat",
-                newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
-            );
+            registerIndexOptionsUpdate(checker, bbqMapping::build, "type", "flat", newType, containsString("\"type\":\"" + newType + "\""));
         }
 
         // update for int8_flat
@@ -469,7 +475,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int8_flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
         for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
@@ -479,7 +485,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int8_flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
 
@@ -500,7 +506,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "hnsw",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
         registerIndexOptionsUpdate(
@@ -508,7 +514,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             indexedMapping::build,
             b -> b.field("type", "hnsw"),
             b -> b.field("type", "hnsw").field("m", 100),
-            hasToString(containsString("\"m\":100"))
+            containsString("\"m\":100")
         );
         registerConflict(
             checker,
@@ -525,14 +531,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b -> b.field("index_options", Map.of("type", "bbq_flat"))
         );
         for (String newType : List.of("bbq_hnsw")) {
-            registerIndexOptionsUpdate(
-                checker,
-                bbqMapping::build,
-                "type",
-                "hnsw",
-                newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
-            );
+            registerIndexOptionsUpdate(checker, bbqMapping::build, "type", "hnsw", newType, containsString("\"type\":\"" + newType + "\""));
         }
 
         // update for int8_hnsw
@@ -541,14 +540,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             indexedMapping::build,
             b -> b.field("type", "int8_hnsw"),
             b -> b.field("type", "int8_hnsw").field("m", 256),
-            hasToString(containsString("\"m\":256"))
+            containsString("\"m\":256")
         );
         registerIndexOptionsUpdate(
             checker,
             indexedMapping::build,
             b -> b.field("type", "int8_hnsw"),
             b -> b.field("type", "int4_hnsw").field("m", 256),
-            hasToString(containsString("\"type\":\"int4_hnsw\""))
+            containsString("\"type\":\"int4_hnsw\"")
         );
         registerConflict(
             checker,
@@ -580,7 +579,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int8_hnsw",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
 
@@ -592,7 +591,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int4_flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
         for (String newType : List.of("flat", "int8_flat")) {
@@ -600,7 +599,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 checker,
                 "index_options",
                 indexedMapping::build,
-                b -> b.field("index_options", Map.of("type", "int4_flat", "m", 32)),
+                b -> b.field("index_options", Map.of("type", "int4_flat")),
                 b -> b.field("index_options", Map.of("type", newType))
             );
         }
@@ -611,7 +610,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int4_flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
 
@@ -621,14 +620,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             indexedMapping::build,
             b -> b.field("type", "int4_hnsw"),
             b -> b.field("type", "int4_hnsw").field("m", 256),
-            hasToString(containsString("\"m\":256"))
+            containsString("\"m\":256")
         );
         registerIndexOptionsUpdate(
             checker,
             indexedMapping::build,
             b -> b.field("type", "int4_hnsw").field("m", 4),
             b -> b.field("type", "int4_hnsw").field("m", 100),
-            hasToString(containsString("\"m\":100"))
+            containsString("\"m\":100")
         );
         registerConflict(
             checker,
@@ -674,7 +673,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int4_hnsw",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
 
@@ -686,7 +685,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "bbq_flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
         for (String newType : List.of("flat", "int8_flat", "int4_flat", "hnsw", "int8_hnsw", "int4_hnsw")) {
@@ -716,7 +715,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             bbqMapping::build,
             b -> b.field("type", "bbq_disk").field("cluster_size", 1000),
             b -> b.field("type", "bbq_disk").field("cluster_size", 500),
-            hasToString(containsString("\"cluster_size\":500"))
+            containsString("\"cluster_size\":500")
         );
         registerConflict(
             checker,
@@ -730,7 +729,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             bbqMapping::build,
             b -> b.field("type", "bbq_disk").field("bits", 4),
             b -> b.field("type", "bbq_disk").field("bits", 2),
-            hasToString(containsString("\"bits\":2"))
+            containsString("\"bits\":2")
         );
         registerIndexOptionsUpdate(checker, bbqMapping::build, b -> {
             b.field("type", "bbq_disk").field("bits", 4);
@@ -742,7 +741,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.startObject("rescore_vector");
             b.field("oversample", 4f);
             b.endObject();
-        }, hasToString(containsString("\"oversample\":4.0")));
+        }, containsString("\"oversample\":4.0"));
     }
 
     @Override
@@ -896,7 +895,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
         };
 
-        assertParsing.accept(null, IvfAutoCalibrationProfile.DISABLED);
+        assertParsing.accept(null, IvfAutoCalibrationProfile.ISO_SIZING);
         assertParsing.accept(true, IvfAutoCalibrationProfile.ISO_SIZING);
         assertParsing.accept(false, IvfAutoCalibrationProfile.DISABLED);
         for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
@@ -943,16 +942,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertEquals(4f, indexOptions.rescoreVector.oversample(), 0f);
 
-        final Map<String, Object> autocalibrateDisabledIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
-            oversampleFourIndexOptionsMap,
-            "auto_calibrate",
-            false
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> merge(mapperService, fieldMapping(b -> baseMapping.clone().indexOptions(autocalibrateDisabledIndexOptionsMap).build(b)))
-        );
-
         final Map<String, Object> preconditionTrueIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
             oversampleFourIndexOptionsMap,
             "precondition",
@@ -995,43 +984,111 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
-    public void testAutoCalibrateMappingUpdates() throws IOException {
-        IndexVersion current = IndexVersion.current();
-        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
+    public void testAutoCalibrateDefaultByIndexVersion() throws IOException {
+        IndexVersion enabledByDefaultVersion = IndexVersions.DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT;
+        IndexVersion lastDisabledByDefaultVersion = IndexVersionUtils.getPreviousVersion(enabledByDefaultVersion);
+        List<Tuple<IndexVersion, IvfAutoCalibrationProfile>> testCases = List.of(
+            Tuple.tuple(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE, lastDisabledByDefaultVersion),
+                IvfAutoCalibrationProfile.DISABLED
+            ),
+            Tuple.tuple(lastDisabledByDefaultVersion, IvfAutoCalibrationProfile.DISABLED),
+            Tuple.tuple(enabledByDefaultVersion, IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple(IndexVersionUtils.randomVersionOnOrAfter(enabledByDefaultVersion), IvfAutoCalibrationProfile.ISO_SIZING)
         );
 
-        assertAutoCalibrateUpdate(current, null, false, true);
-        assertAutoCalibrateUpdate(current, false, "disabled", true);
-        assertAutoCalibrateUpdate(current, true, "iso_sizing", true);
-        assertAutoCalibrateUpdate(oldVersion, true, "quality", true);
-        assertAutoCalibrateUpdate(oldVersion, true, "iso_sizing", false);
-        assertAutoCalibrateUpdate(current, "quality", "iso_sizing", false);
-        assertAutoCalibrateUpdate(current, "iso_sizing", "quality", false);
-        assertAutoCalibrateUpdate(current, null, "quality", false);
-    }
+        for (Tuple<IndexVersion, IvfAutoCalibrationProfile> testCase : testCases) {
+            IndexVersion version = testCase.v1();
+            IvfAutoCalibrationProfile expectedProfile = testCase.v2();
+            String message = "index version [" + version + "]";
+            MapperService mapperService = createMapperService(version, EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(null));
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
+            assertEquals(message, expectedProfile, indexOptions.autoCalibrationProfile());
+            assertEquals(message, expectedProfile != IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrate());
 
-    private void assertAutoCalibrateUpdate(IndexVersion version, Object from, Object to, boolean accepted) throws IOException {
-        String message = "index version [" + version + "], from [" + from + "] to [" + to + "]";
-        MapperService mapperService = createMapperService(version, EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(from));
-        if (accepted) {
-            merge(mapperService, autoCalibrateMapping(to));
-            DenseVectorAutoCalibrate expected = DenseVectorAutoCalibrate.parse(to, version, f -> true, "field");
+            // The default is not persisted, so recovery must re-derive it from the index version
+            String mappingSource = mapperService.documentMapper().mappingSource().string();
+            assertThat(message, mappingSource, not(containsString("auto_calibrate")));
+            MapperService recovered = new TestMapperServiceBuilder().indexVersion(version).settings(EXPERIMENTAL_FEATURES_ENABLED).build();
+            merge(recovered, MapperService.MergeReason.MAPPING_RECOVERY, mappingSource);
             assertEquals(
                 message,
-                expected.profile(),
-                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+                expectedProfile,
+                getIndexOptions(recovered, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
             );
-            String expectedSource = to instanceof String ? "\"auto_calibrate\":\"" + to + "\"" : "\"auto_calibrate\":" + to;
-            assertThat(message, mapperService.documentMapper().mappingSource().toString(), containsString(expectedSource));
+        }
+    }
+
+    public void testAutoCalibrateMappingUpdates() throws IOException {
+        List<Object> values = new ArrayList<>(Arrays.asList(null, true, "true", false, "false"));
+        for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
+            values.add(profile.toString());
+        }
+
+        List<IndexVersion> versions = new ArrayList<>();
+        versions.add(IndexVersion.current());
+        for (int i = 0; i < 20; i++) {
+            versions.add(
+                IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
+                    IndexVersionUtils.getPreviousVersion(IndexVersion.current())
+                )
+            );
+        }
+
+        for (IndexVersion version : versions) {
+            for (int i = 0; i < 20; i++) {
+                assertAutoCalibrateUpdate(version, randomFrom(values), randomFrom(values));
+            }
+        }
+    }
+
+    private void assertAutoCalibrateUpdate(IndexVersion version, Object from, Object to) throws IOException {
+        String message = "index version [" + version + "], from [" + from + "] to [" + to + "]";
+        DenseVectorAutoCalibrate expected = DenseVectorAutoCalibrate.parse(to, version, f -> true, "field");
+
+        MapperService mapperService = createMapperService(version, EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(from));
+        merge(mapperService, autoCalibrateMapping(to));
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+            mapperService,
+            "field",
+            DenseVectorFieldMapper.BBQIVFIndexOptions.class
+        );
+        assertEquals(message, expected.profile() != IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrate());
+        assertEquals(message, expected.profile(), indexOptions.autoCalibrationProfile());
+
+        String mappingSource = mapperService.documentMapper().mappingSource().toString();
+        if (to == null) {
+            assertThat(message, mappingSource, not(containsString("auto_calibrate")));
         } else {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                message,
-                () -> merge(mapperService, autoCalibrateMapping(to))
-            );
-            assertThat(message, e.getMessage(), containsString("Cannot update parameter [index_options]"));
+            String expectedSource = to instanceof String ? "\"auto_calibrate\":\"" + to + "\"" : "\"auto_calibrate\":" + to;
+            assertThat(message, mappingSource, containsString(expectedSource));
+        }
+
+        // Verify that the kNN query type produced by the field type matches the autocalibration state
+        DenseVectorFieldType fieldType = getFieldType(mapperService, "field");
+        Query knnQuery = fieldType.createKnnQuery(
+            VectorData.fromFloats(randomFloatVector(fieldType.getVectorDimensions())),
+            10,
+            100,
+            null,
+            null,
+            null,
+            null,
+            null,
+            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+            false
+        );
+
+        if (indexOptions.autoCalibrate()) {
+            assertThat(knnQuery, instanceOf(IVFKnnFloatVectorQuery.class));
+        } else {
+            assertThat(knnQuery, instanceOf(RescoreKnnVectorQuery.class));
+            assertThat(((RescoreKnnVectorQuery) knnQuery).innerQuery(), instanceOf(IVFKnnFloatVectorQuery.class));
         }
     }
 
@@ -1065,10 +1122,56 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
+    public void testAutoCalibrateUpdateRequiresClusterFeature() throws IOException {
+        // Only withhold the updatability feature so that profile names still parse
+        final Supplier<MapperService> createMapperService = () -> new TestMapperServiceBuilder().settings(EXPERIMENTAL_FEATURES_ENABLED)
+            .clusterSupportsFeature(f -> f != MapperFeatures.BBQ_DISK_UPDATABLE_AUTO_CALIBRATE)
+            .build();
+
+        // Values that don't change the profile are not updates
+        {
+            MapperService mapperService = createMapperService.get();
+            merge(mapperService, autoCalibrateMapping(false));
+            for (Object value : List.of(false, "false", "disabled")) {
+                merge(mapperService, autoCalibrateMapping(value));
+                assertEquals(
+                    IvfAutoCalibrationProfile.DISABLED,
+                    getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+                );
+            }
+        }
+
+        // Updates from disabled, with the profile expected when using MAPPING_RECOVERY
+        List<Tuple<Object, IvfAutoCalibrationProfile>> updates = List.of(
+            Tuple.tuple(true, IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple("true", IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple("iso_sizing", IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple("quality", IvfAutoCalibrationProfile.QUALITY)
+        );
+        for (Tuple<Object, IvfAutoCalibrationProfile> update : updates) {
+            String message = "update to [" + update.v1() + "]";
+            MapperService mapperService = createMapperService.get();
+            merge(mapperService, autoCalibrateMapping(false));
+
+            XContentBuilder mapping = autoCalibrateMapping(update.v1());
+            Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping));
+            assertThat(message, e.getMessage(), containsString("cannot update [auto_calibrate] until all nodes in the cluster support it"));
+
+            // Recovery assumes all features are supported
+            merge(mapperService, MapperService.MergeReason.MAPPING_RECOVERY, mapping);
+            assertEquals(
+                message,
+                update.v2(),
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+        }
+    }
+
     public void testAutoCalibrateWithAsh() throws IOException {
         assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
 
-        for (Object value : List.of(false, "disabled")) {
+        // null means unset, which defaults to disabled for ash
+        for (Object value : Arrays.asList(null, false, "disabled")) {
             MapperService mapperService = createMapperService(
                 EXPERIMENTAL_FEATURES_ENABLED,
                 autoCalibrateMapping(value, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH)
@@ -1107,7 +1210,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         return fieldMapping(
             b -> new DenseVectorMappingBuilder().dims(128)
                 .index(true)
-                .similarity(VectorSimilarity.DOT_PRODUCT)
+                .similarity(VectorSimilarity.COSINE)  // Use cosine similarity so unit vectors are not required
                 .indexOptions(indexOptions)
                 .build(b)
         );
@@ -1361,7 +1464,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testDefaultsUnderVectordbColumnarIndexMode() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> new DenseVectorMappingBuilder().dims(8).build(b)));
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
@@ -1370,7 +1472,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testExplicitElementTypeOverridesVectordbColumnarModeDefault() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -2854,6 +2955,17 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    /** The post-filter threshold is user-settable, so it must reject anything outside [0, 1], including NaN. */
+    public void testPostFilterSelectivityThresholdValidation() {
+        Setting<Float> setting = DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD;
+        assertEquals(PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD, setting.get(Settings.EMPTY), 0f);
+        float valid = randomFloatBetween(0f, 1f, true);
+        assertEquals(valid, setting.get(Settings.builder().put(setting.getKey(), valid).build()), 0f);
+        for (String invalid : List.of("-0.1", "1.1", "NaN")) {
+            expectThrows(IllegalArgumentException.class, () -> setting.get(Settings.builder().put(setting.getKey(), invalid).build()));
+        }
     }
 
     /** {@code on_disk_merge} can be flipped by a mapping update: the index type stays the same, so the update is not rejected. */

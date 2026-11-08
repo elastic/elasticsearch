@@ -127,6 +127,10 @@ public class ResolvingProject extends Project {
         return command.unmappedFieldsPattern();
     }
 
+    public Kind kind() {
+        return command.kind();
+    }
+
     /** Whether KEEP/DROP/RENAME would keep a field named {@code name} that is materialized only after this node was resolved. */
     public boolean admitsLateUnmappedField(String name) {
         return switch (command.kind()) {

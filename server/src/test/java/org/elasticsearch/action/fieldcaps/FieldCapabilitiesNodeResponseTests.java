@@ -52,6 +52,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     randomFrom(IndexMode.availableModes()),
                     0,
                     0,
+                    0,
                     0
                 )
             );
@@ -83,6 +84,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     randomFrom(IndexMode.availableModes()),
                     0,
                     0,
+                    0,
                     0
                 )
             );
@@ -102,6 +104,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         randomFrom(IndexMode.availableModes()),
                         0,
                         0,
+                        0,
                         0
                     )
                 );
@@ -118,6 +121,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         true,
                         randomFrom(IndexMode.availableModes()),
                         resp.getNumberOfShards(),
+                        resp.getCreatedVersion(),
                         resp.getIndexSettingsVersion(),
                         resp.getMappingVersion()
                     )

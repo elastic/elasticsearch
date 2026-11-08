@@ -1,0 +1,7 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "k": { "type": "long" },
+        "v": { "type": "long" }
+    }
+}

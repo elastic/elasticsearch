@@ -10,17 +10,20 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnUnfillableFillNull;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -39,18 +43,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
  * Replaces nulls in the targeted columns with a fill value or type-appropriate defaults, expanding into a
- * {@link Project} over an {@link Eval} of {@link Coalesce} aliases that preserves column order. The aliases are derived
- * during analysis like {@link Eval#fields()}.
+ * {@link Project} over an {@link Eval} of {@link Coalesce} aliases that preserves column order. Until then the output keeps
+ * its child's ids, a filled column as a reference: the aliases and their new ids only come into being in {@code SubstituteFillNull}.
  * <p>
  * Syntax is {@code FILLNULL <value> ON <fields>}. Each target resolves like {@code KEEP}, independently of the rest of
  * the list, so an unknown name or a pattern matching nothing is an error even alongside a {@code *}. A bare {@code *}
  * sweeps up every user column but no internals; naming a metadata or synthetic column explicitly still targets it.
  * <p>
  * <b>Filling never fails.</b> A column the value cannot be applied to is left exactly as it was - null or not - and
- * reported by {@code WarnUnfillableFillNull}. How the column was selected does not change the outcome or the message.
+ * reported by {@link WarnUnfillableFillNull}. How the column was selected does not change the outcome or the message.
  * This covers an incompatible type, an out-of-range value, a string that will not parse into a boolean / date / ip / version, a
  * {@code null}-typed column, a type with no default under {@code DEFAULT}, and a multi-valued value. {@code DEFAULT}
  * uses a type-appropriate default and is represented as a {@code null} fill value; an explicit {@code NULL} means "do
@@ -59,7 +66,7 @@ import java.util.Set;
  * A column's type is never changed, only its null positions - which is why {@link #fillExpression} wraps a {@code text}
  * column's {@link Coalesce} in {@code TO_TEXT}: {@code Coalesce} normalizes its own type to {@code keyword}.
  */
-public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware {
+public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
 
     private final @Nullable Expression fillValue;
 
@@ -69,13 +76,18 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
     // Whether {@code *} appeared in the target list, selecting every user column.
     private final boolean allColumns;
 
-    // The col = COALESCE(col, default) aliases, or null until derived during analysis; empty means nothing to fill (no-op).
-    private final @Nullable List<Alias> fields;
+    // Patterns that match no column yet. They must not keep the node unresolved: a command above may name the field the pattern is
+    // meant to match, and unmapped_fields only loads it once that command resolves. Reported by postAnalysisVerification.
+    private final List<UnresolvedPattern> unmatchedPatterns;
+
+    private final @Nullable Function<List<Attribute>, List<NamedExpression>> targetResolver;
+
+    // The aliases cannot be derived without the Configuration: converterFor reads the time zone from it for datetime/date_nanos.
+    private final @Nullable Configuration configuration;
 
     private List<Attribute> lazyOutput;
 
-    // fields cannot be derived without the Configuration: converterFor reads the time zone from it for datetime/date_nanos.
-    private final @Nullable Configuration configuration;
+    private Set<String> lazyFilledNames;
 
     public FillNull(Source source, LogicalPlan child, @Nullable Expression fillValue, List<NamedExpression> targetFields) {
         this(source, child, fillValue, targetFields, false);
@@ -88,18 +100,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
         List<NamedExpression> targetFields,
         boolean allColumns
     ) {
-        this(source, child, fillValue, targetFields, allColumns, null);
-    }
-
-    public FillNull(
-        Source source,
-        LogicalPlan child,
-        @Nullable Expression fillValue,
-        List<NamedExpression> targetFields,
-        boolean allColumns,
-        @Nullable List<Alias> fields
-    ) {
-        this(source, child, fillValue, targetFields, allColumns, fields, null);
+        this(source, child, fillValue, targetFields, allColumns, List.of(), null, null);
     }
 
     private FillNull(
@@ -108,37 +109,61 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
         @Nullable Expression fillValue,
         List<NamedExpression> targetFields,
         boolean allColumns,
-        @Nullable List<Alias> fields,
+        List<UnresolvedPattern> unmatchedPatterns,
+        @Nullable Function<List<Attribute>, List<NamedExpression>> targetResolver,
         @Nullable Configuration configuration
     ) {
         super(source, child);
         this.fillValue = fillValue;
         this.targetFields = targetFields;
         this.allColumns = allColumns;
-        this.fields = fields;
+        this.unmatchedPatterns = unmatchedPatterns;
+        this.targetResolver = targetResolver;
         this.configuration = configuration;
     }
 
-    // rebuilds the node with fields re-derived from the child output
-    private static FillNull rebuildFillNullWithFields(
-        Source source,
-        LogicalPlan child,
-        @Nullable Expression fillValue,
-        List<NamedExpression> targetFields,
-        boolean allColumns,
-        @Nullable Configuration configuration,
-        @Nullable List<Alias> previousFields
-    ) {
-        // Before the configuration arrives, or while the child is still unresolved, there is nothing to derive from;
-        // expressionsResolved() reports unresolved until then, so ResolveRefs comes back.
-        List<Alias> derived = configuration == null || child.resolved() == false
-            ? previousFields
-            : buildFields(child.output(), fillValue, targetFields, allColumns, configuration, previousFields);
-        return new FillNull(source, child, fillValue, targetFields, allColumns, derived, configuration);
+    public FillNull withConfiguration(Configuration newConfiguration) {
+        return new FillNull(source(), child(), fillValue, targetFields, allColumns, unmatchedPatterns, targetResolver, newConfiguration);
     }
 
-    public FillNull withConfiguration(Configuration newConfiguration) {
-        return rebuildFillNullWithFields(source(), child(), fillValue, targetFields, allColumns, newConfiguration, fields);
+    public FillNull withTargetResolver(Function<List<Attribute>, List<NamedExpression>> resolver) {
+        return resolvedOver(child(), resolver);
+    }
+
+    private FillNull resolvedOver(LogicalPlan newChild, @Nullable Function<List<Attribute>, List<NamedExpression>> resolver) {
+        if (resolver == null || newChild.resolved() == false) {
+            return new FillNull(source(), newChild, fillValue, targetFields, allColumns, unmatchedPatterns, resolver, configuration);
+        }
+        // Like ResolvingProject, keep the automatic LOAD_ALL column out of the resolver's scope: a pattern must not match it.
+        List<Attribute> input = new ArrayList<>(newChild.output().size());
+        for (Attribute attr : newChild.output()) {
+            if (attr instanceof UnmappedFieldsAttribute == false) {
+                input.add(attr);
+            }
+        }
+        List<NamedExpression> resolved = resolver.apply(input);
+        List<NamedExpression> targets = new ArrayList<>(resolved.size());
+        List<UnresolvedPattern> unmatched = new ArrayList<>();
+        for (NamedExpression target : resolved) {
+            if (target instanceof UnresolvedPattern pattern) {
+                unmatched.add(pattern);
+            } else {
+                targets.add(target);
+            }
+        }
+        return new FillNull(source(), newChild, fillValue, targets, allColumns, unmatched, resolver, configuration);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        for (UnresolvedPattern pattern : unmatchedPatterns) {
+            failures.add(fail(pattern, pattern.unresolvedMessage()));
+        }
+    }
+
+    @Nullable
+    public Function<List<Attribute>, List<NamedExpression>> targetResolver() {
+        return targetResolver;
     }
 
     // Whether {@code *} was among the targets, i.e. every column is filled and skipping is lenient
@@ -155,48 +180,49 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
         return targetFields;
     }
 
-    @Nullable
-    public List<Alias> fields() {
-        return fields;
-    }
-
     @Override
     public List<Attribute> output() {
-        if (fields == null) {
-            // Not yet materialized (only happens transiently during analysis): the schema is unchanged.
-            return child().output();
-        }
         if (lazyOutput == null) {
-            // Replace each filled column in place; mergeOutputAttributes would move shadowed columns to the end.
-            Map<String, Attribute> filled = new HashMap<>(fields.size());
-            for (Alias field : fields) {
-                filled.put(field.name(), field.toAttribute());
-            }
+            Set<String> filled = filledNames();
             List<Attribute> childOutput = child().output();
-            List<Attribute> output = new ArrayList<>(childOutput.size());
-            for (Attribute attr : childOutput) {
-                Attribute replacement = filled.get(attr.name());
-                output.add(replacement != null ? replacement : attr);
+            if (filled.isEmpty()) {
+                lazyOutput = childOutput;
+            } else {
+                // A filled column is computed, so the analysis-time rules must not take it for the field below (e.g. ResolveUnionTypes
+                // would re-load a field from the index under a CONVERT, skipping the fill); it keeps the field's id until the expansion.
+                List<Attribute> output = new ArrayList<>(childOutput.size());
+                for (Attribute attr : childOutput) {
+                    output.add(
+                        filled.contains(attr.name()) && attr instanceof ReferenceAttribute == false
+                            ? new ReferenceAttribute(
+                                attr.source(),
+                                attr.qualifier(),
+                                attr.name(),
+                                attr.dataType(),
+                                attr.nullable(),
+                                attr.id(),
+                                attr.synthetic()
+                            )
+                            : attr
+                    );
+                }
+                lazyOutput = output;
             }
-            lazyOutput = output;
         }
         return lazyOutput;
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        if (fields != null) {
-            return Eval.computeReferences(fields);
-        }
-        // Before materialization (e.g. pre-analysis field-name collection) the inputs are the target fields plus the
-        // fill value; they must be reported so field-caps requests them. The all-fields form uses the fallback instead.
+        // The inputs are the target fields plus the fill value; before analysis they must be reported so field-caps requests them. The
+        // all-fields form uses the fallback instead.
         AttributeSet refs = Expressions.references(targetFields);
         return fillValue == null ? refs : refs.combine(fillValue.references());
     }
 
     /**
      * Whether the command inputs (the fill value and target fields) are resolved. Distinct from
-     * {@link #expressionsResolved()}, which additionally requires the fill aliases to be materialized.
+     * {@link #expressionsResolved()}, which additionally requires the query {@link Configuration}.
      */
     public boolean inputsResolved() {
         if (fillValue != null && fillValue.resolved() == false) {
@@ -212,71 +238,126 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
 
     @Override
     public boolean expressionsResolved() {
-        // Stay unresolved until the aliases are derived so ResolveRefs (which skips resolved nodes) runs resolveFillNull
-        // to supply the Configuration - including the all-fields form `... | FILLNULL <value> ON *`, which has no unresolved targets
-        if (inputsResolved() == false || fields == null) {
-            return false;
-        }
-        return Resolvables.resolved(fields);
+        // Stay unresolved until the Configuration arrives so ResolveRefs (which skips resolved nodes) runs resolveFillNull - including
+        // the all-fields form `... | FILLNULL <value> ON *`, which has no unresolved targets
+        return inputsResolved() && configuration != null;
     }
 
     @Override
     public FillNull replaceChild(LogicalPlan newChild) {
-        return rebuildFillNullWithFields(source(), newChild, fillValue, targetFields, allColumns, configuration, fields);
+        return resolvedOver(newChild, targetResolver);
     }
 
-    public FillNull withTargetFields(List<NamedExpression> newTargetFields) {
-        return rebuildFillNullWithFields(source(), child(), fillValue, newTargetFields, allColumns, configuration, fields);
-    }
-
-    private static List<Alias> buildFields(
-        List<Attribute> childOutput,
-        @Nullable Expression fillValue,
-        List<NamedExpression> targetFields,
-        boolean allColumns,
-        Configuration configuration,
-        @Nullable List<Alias> previousFields
-    ) {
-        // A null fillNames set marks the all-columns form (the ON * form); otherwise only the resolved target names are filled.
-        Set<String> namedTargets = targetNames(targetFields);
-        final Set<String> fillNames = (allColumns || targetFields.isEmpty()) ? null : namedTargets;
-
-        Map<String, Alias> existing;
-        if (previousFields == null || previousFields.isEmpty()) {
-            existing = Map.of();
-        } else {
-            existing = new HashMap<>(previousFields.size());
-            for (Alias a : previousFields) {
-                existing.put(a.name(), a);
-            }
+    public List<Alias> fillAliases() {
+        if (configuration == null || inputsResolved() == false || child().resolved() == false) {
+            return List.of();
         }
-
-        List<Alias> built = new ArrayList<>(childOutput.size());
+        Set<String> namedTargets = targetNames(targetFields);
+        Set<String> fillNames = fillsAllColumns() ? null : namedTargets;
+        List<Attribute> childOutput = child().output();
+        List<Alias> aliases = new ArrayList<>(childOutput.size());
         for (Attribute field : childOutput) {
             // `*` sweeps up every user column, not the internals: metadata (_index, _score) and synthetic attributes such
             // as the `$$<field>$converted_to$<type>` union-type columns. Naming one explicitly still fills it, even
             // alongside a `*` - what a column does must not depend on whether a `*` happens to be in the same list.
-            if (isInternal(field) && namedTargets.contains(field.name()) == false) {
+            if (field.isInternal() && namedTargets.contains(field.name()) == false) {
                 continue;
             }
             if (fillNames == null || fillNames.contains(field.name())) {
-                Alias previous = existing.get(field.name());
-                // Reuse the existing alias (keeping its id) only while valid: resolved, same type, and still wrapping the same attribute
-                if (previous != null
-                    && previous.resolved()
-                    && previous.dataType() == field.dataType()
-                    && unwrapCoalesce(previous.child()) instanceof Coalesce c
-                    && c.children().get(0).equals(field)) {
-                    built.add(previous);
-                    continue;
-                }
                 Expression defaultValue = resolveDefaultValue(field.dataType(), fillValue, configuration);
                 if (defaultValue != null) {
-                    built.add(new Alias(field.source(), field.name(), fillExpression(field, defaultValue)));
+                    aliases.add(new Alias(field.source(), field.name(), fillExpression(field, defaultValue)));
                 }
             }
         }
-        return built;
+        return aliases;
+    }
+
+    public boolean fills(Attribute attribute) {
+        return child().outputSet().contains(attribute) && filledNames().contains(attribute.name());
+    }
+
+    private Set<String> filledNames() {
+        if (lazyFilledNames == null) {
+            Set<String> filled = new HashSet<>();
+            for (Alias alias : fillAliases()) {
+                filled.add(alias.name());
+            }
+            lazyFilledNames = filled;
+        }
+        return lazyFilledNames;
+    }
+
+    public static LogicalPlan expandAll(LogicalPlan plan) {
+        return plan.anyMatch(FillNull.class::isInstance) ? expandBelow(plan, new HashMap<>()) : plan;
+    }
+
+    private static LogicalPlan expandBelow(LogicalPlan plan, Map<NameId, Attribute> replacedInOutput) {
+        List<LogicalPlan> children = plan.children();
+        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+        Map<NameId, Attribute> replaced = new HashMap<>();
+        boolean childrenChanged = false;
+        for (LogicalPlan child : children) {
+            LogicalPlan newChild = expandBelow(child, replaced);
+            childrenChanged |= newChild != child;
+            newChildren.add(newChild);
+        }
+        LogicalPlan result = childrenChanged ? plan.replaceChildren(newChildren) : plan;
+        if (replaced.isEmpty() == false) {
+            result = result.transformExpressionsOnly(Attribute.class, a -> replaced.getOrDefault(a.id(), a));
+        }
+        if (result instanceof FillNull fillNull) {
+            LogicalPlan expanded = fillNull.expand();
+            List<Attribute> before = fillNull.output();
+            List<Attribute> after = expanded.output();
+            assert before.size() == after.size() && Expressions.names(before).equals(Expressions.names(after))
+                : "FILLNULL expansion changed the output from " + before + " to " + after;
+            assert before.stream().map(Attribute::dataType).toList().equals(after.stream().map(Attribute::dataType).toList())
+                : "FILLNULL expansion changed the output types from " + before + " to " + after;
+            Map<NameId, Attribute> filled = new HashMap<>();
+            for (int i = 0; i < before.size(); i++) {
+                if (before.get(i).id().equals(after.get(i).id()) == false) {
+                    filled.put(before.get(i).id(), after.get(i));
+                }
+            }
+            replaced.replaceAll((id, attr) -> filled.getOrDefault(attr.id(), attr));
+            replaced.putAll(filled);
+            result = expanded;
+        }
+        // A column that leaves the output - dropped, redefined, or behind a merge whose output has ids of its own - is not referenced
+        // further up, so its replacement stops here. This also keeps a FORK branch's replacements out of its siblings.
+        if (replaced.isEmpty() == false) {
+            AttributeSet output = result.outputSet();
+            for (Map.Entry<NameId, Attribute> entry : replaced.entrySet()) {
+                if (output.contains(entry.getValue())) {
+                    replacedInOutput.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+        return result;
+    }
+
+    private LogicalPlan expand() {
+        List<Alias> aliases = fillAliases();
+        if (aliases.isEmpty()) {
+            return child();
+        }
+        // Replace each filled column in place; mergeOutputAttributes would move shadowed columns to the end.
+        Map<String, Attribute> filled = new HashMap<>(aliases.size());
+        for (Alias alias : aliases) {
+            filled.put(alias.name(), alias.toAttribute());
+        }
+        List<Attribute> childOutput = child().output();
+        List<Attribute> output = new ArrayList<>(childOutput.size());
+        for (Attribute attr : childOutput) {
+            Attribute replacement = filled.get(attr.name());
+            output.add(replacement != null ? replacement : attr);
+        }
+        return new Project(source(), new Eval(source(), child(), aliases), output);
+    }
+
+    private boolean fillsAllColumns() {
+        return allColumns || (targetFields.isEmpty() && unmatchedPatterns.isEmpty());
     }
 
     /**
@@ -290,31 +371,26 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
         return field.dataType() == DataType.TEXT ? new ToText(field.source(), coalesce) : coalesce;
     }
 
-    /** The {@link Coalesce} inside a fill expression, looking through the {@code text} wrapper added by {@link #fillExpression}. */
-    private static Expression unwrapCoalesce(Expression fillExpression) {
-        return fillExpression instanceof ToText toText ? toText.field() : fillExpression;
-    }
-
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        // configuration is captured by the closure rather than being a property: it is an input, not something plan
-        // transformations rewrite, and it must survive a property rebuild or replaceChild could not re-derive fields.
+        // The resolver and the configuration are captured by the closure rather than being properties: they are inputs, not something
+        // plan transformations rewrite, and they must survive a property rebuild or replaceChild could not re-resolve the targets.
         return NodeInfo.create(
             this,
-            (source, child, fillValue, targetFields, allColumns, fields) -> new FillNull(
+            (source, child, fillValue, targetFields, allColumns) -> new FillNull(
                 source,
                 child,
                 fillValue,
                 targetFields,
                 allColumns,
-                fields,
+                unmatchedPatterns,
+                targetResolver,
                 configuration
             ),
             child(),
             fillValue,
             targetFields,
-            allColumns,
-            fields
+            allColumns
         );
     }
 
@@ -330,7 +406,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fillValue, targetFields, allColumns, fields, configuration);
+        return Objects.hash(super.hashCode(), fillValue, targetFields, allColumns, unmatchedPatterns, configuration);
     }
 
     @Override
@@ -346,17 +422,8 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
             && Objects.equals(fillValue, other.fillValue)
             && Objects.equals(targetFields, other.targetFields)
             && allColumns == other.allColumns
-            && Objects.equals(fields, other.fields)
+            && Objects.equals(unmatchedPatterns, other.unmatchedPatterns)
             && Objects.equals(configuration, other.configuration);
-    }
-
-    @Override
-    public LogicalPlan surrogate() {
-        if (fields == null || fields.isEmpty()) {
-            return child();
-        }
-        Eval eval = new Eval(source(), child(), fields);
-        return new Project(source(), eval, output());
     }
 
     @Nullable
@@ -433,11 +500,6 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
         return names;
     }
 
-    /** Columns {@code *} does not sweep up: metadata ({@code _index}, {@code _score}) and synthetic attributes. */
-    private static boolean isInternal(Attribute attr) {
-        return attr instanceof MetadataAttribute || attr.synthetic();
-    }
-
     @Nullable
     private static List<?> multiValuedFill(@Nullable Expression fillValue) {
         return fillValue instanceof Literal lit && lit.value() instanceof List<?> values ? values : null;
@@ -464,23 +526,21 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
      * The targeted columns that were left unchanged - whatever the reason: the type has no default under
      * {@code DEFAULT}, the value's type is incompatible, the value is out of range for the column, a string could not be
      * parsed into it, or the column is {@code null}-typed. {@code FILLNULL} never fails over any of these; they are all
-     * reported by {@code WarnUnfillableFillNull}, so this list is what it warns about. Only meaningful once
-     * {@link #fields} has been derived.
+     * reported by {@code WarnUnfillableFillNull}, so this list is what it warns about. Only meaningful once the node is
+     * resolved.
      */
     public List<Attribute> unfillableTargets() {
         Set<String> filled = new HashSet<>();
-        if (fields != null) {
-            for (Alias a : fields) {
-                filled.add(a.name());
-            }
+        for (Alias a : fillAliases()) {
+            filled.add(a.name());
         }
         Set<String> namedTargets = targetNames(targetFields);
         List<Attribute> result = new ArrayList<>();
-        if (allColumns || targetFields.isEmpty()) {
+        if (fillsAllColumns()) {
             for (Attribute attr : child().output()) {
                 // `*` never sweeps up the internals, so they were never in scope and are not "left unchanged". Naming
-                // one explicitly does put it in scope, so it is reported like any other target. Mirrors buildFields.
-                if (isInternal(attr) && namedTargets.contains(attr.name()) == false) {
+                // one explicitly does put it in scope, so it is reported like any other target. Mirrors fillAliases.
+                if (attr.isInternal() && namedTargets.contains(attr.name()) == false) {
                     continue;
                 }
                 if (attr.resolved() && filled.contains(attr.name()) == false) {

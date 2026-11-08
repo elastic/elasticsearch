@@ -1355,6 +1355,14 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
+    public void testLoadAllSubqueryFillNullAllColumnsFillsTheColumnLoadedForTheUnion() throws Exception {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        loadAll("""
+            FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | FILLNULL "x" ON *)
+            | KEEP @timestamp
+            """).stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION)).run();
+    }
+
     // KEEP of an unmapped name is a mention: LOAD_ALL loads it from _source on the unrestricted sibling too.
     public void testLoadAllSubqueryKeepUnmappedLoadsOnSibling() throws Exception {
         loadAll("""
@@ -1449,24 +1457,59 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """);
     }
 
-    // Branching view (expands to ViewUnionAll, a UnionAll subclass): does_not_exist is referenced only in the outer KEEP and is
-    // unmapped in every branch, so it is loaded from _source in all branches (#142033). Exercises the ViewUnionAll scope boundary.
-    public void testViewBranchingLoadsUnmappedField() throws Exception {
+    // Branching view (expands to BranchPlan, a UnionAll subclass): does_not_exist is referenced only in the outer KEEP.
+    // The caller's setting does not reach inside the view, so nothing is loaded in any branch; the reference is
+    // answered once at the view's output with a null column (KEYWORD under load, untyped under nullify).
+    public void testViewBranchingNullFillsOuterReferenceAtViewOutput() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM emp_lang_view
             | KEEP emp_no, language_code, does_not_exist
             """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code)"));
+        assertViewBoundaryWarnings("emp_lang_view", "does_not_exist");
     }
 
-    // Branching view (ViewUnionAll): does_not_exist is referenced inside the languages branch (via the view's KEEP), so under load it is
-    // loaded into that branch's source and null-filled in the employees branch (Decision A), mirroring the subquery case.
-    public void testViewBranchingLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
+    /** Under LOAD and LOAD_ALL, but not NULLIFY, the caller is told its mode stopped at the view. */
+    private void assertViewBoundaryWarnings(String viewName, String field) {
+        assertWarnings(
+            Analyzer.viewBoundaryNullFillWarning(
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, viewName, null, false),
+                List.of(field)
+            ),
+            Analyzer.viewBoundaryNullFillWarning(
+                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, viewName, null, false),
+                List.of(field)
+            )
+        );
+    }
+
+    // Mixed union of a bare index and a view: the caller's own branch loads does_not_exist from _source, while the
+    // view branch stays untouched inside (no loader on its relation) and contributes the column as a null at its
+    // output boundary instead.
+    public void testViewBranchNullFillsAtOutputWhileCallerBranchLoads() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        runInNullifyAndLoadModes("""
-            FROM emp_lang_view
-            | KEEP emp_no, language_code, does_not_exist
-            """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code, does_not_exist)"));
+        runInNullifyLoadAndLoadAllModes("""
+            FROM employees, scaled_emp_view
+            | KEEP emp_no, scaled, does_not_exist
+            """, Map.of("scaled_emp_view", "FROM employees | EVAL scaled = emp_no * 10"));
+        assertViewBoundaryWarnings("scaled_emp_view", "does_not_exist");
+    }
+
+    // LOAD_ALL: only the caller's own branch reads _source, so only its relation is stamped with the _unmapped_fields column. The
+    // view branch is padded with a null one at its output. Without the view, the same union has both branches stamped.
+    public void testViewBranchNullsUnmappedFieldsWhileCallerBranchLoadsAll() throws Exception {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        loadAll("""
+            FROM employees, scaled_emp_view
+            """).views(Map.of("scaled_emp_view", "FROM employees | EVAL scaled = emp_no * 10")).run();
+    }
+
+    // LOAD_ALL over views only: no relation is stamped, and as no branch has the _unmapped_fields column, neither does the union.
+    public void testViewsOnlyHaveNoUnmappedFieldsColumnUnderLoadAll() throws Exception {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        loadAll("""
+            FROM scaled_emp_view, emp_view
+            """).views(Map.of("scaled_emp_view", "FROM employees | EVAL scaled = emp_no * 10", "emp_view", "FROM employees")).run();
     }
 
     // does_not_exist is in-branch (loaded in the languages branch; LOAD null-fills it in employees, LOAD_ALL copies the mention);

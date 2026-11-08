@@ -12,9 +12,9 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -129,7 +129,7 @@ public final class RequestFilterRewriter {
     }
 
     /**
-     * The {@link ExternalRelation} leaves of {@code plan} that sit under a view branch of <em>any</em> {@link ViewUnionAll},
+     * The {@link ExternalRelation} leaves of {@code plan} that sit under a view branch of <em>any</em> {@link BranchPlan},
      * by identity. This is exactly the set {@link ViewRequestFilterRewriter} covers: a view nested inside another view's
      * body is wholly contained in the outer view's branch, and a view nested inside a non-view branch (a user-written
      * subquery) is reached by that rewriter's walk and filtered at its own output. Bare-index and literal-subquery
@@ -139,7 +139,7 @@ public final class RequestFilterRewriter {
      */
     private static Set<LogicalPlan> datasetsInsideViews(LogicalPlan plan) {
         Set<LogicalPlan> inside = Collections.newSetFromMap(new IdentityHashMap<>());
-        plan.forEachDown(ViewUnionAll.class, vua -> {
+        plan.forEachDown(BranchPlan.class, vua -> {
             for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
                 if (vua.isViewBranch(entry.getKey())) {
                     inside.addAll(entry.getValue().collect(ExternalRelation.class::isInstance));

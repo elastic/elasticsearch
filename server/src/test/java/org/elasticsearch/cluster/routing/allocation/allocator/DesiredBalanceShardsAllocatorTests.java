@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -856,7 +857,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "new index"),
                     ShardRouting.Role.DEFAULT,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+                    RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                 ),
                 firstNode.getId()
             )
@@ -870,7 +871,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "new index"),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             ),
             thirdNode.getId()
         );
@@ -906,7 +907,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                             100,
                             "test",
                             allocation.changes(),
-                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
                 }
             }

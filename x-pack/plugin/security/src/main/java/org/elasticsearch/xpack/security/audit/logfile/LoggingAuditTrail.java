@@ -44,6 +44,9 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
+import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.Grant;
@@ -106,6 +109,7 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.audit.AuditSubject;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -228,6 +232,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
     public static final String TRACE_ID_FIELD_NAME = "trace.id";
     public static final String X_FORWARDED_FOR_FIELD_NAME = "x_forwarded_for";
+    public static final String DATA_SOURCES_FIELD_NAME = "data_sources";
     // the fields below are used exclusively for "security_config_change" type of events, and show the configuration
     // object taking effect; it could be creating a new, or updating an existing configuration
     // if our (REST) APIs (at least the security APIs) would make the distinction between creating a *new* resource using the POST
@@ -365,7 +370,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         UpdateApiKeyAction.NAME,
         BulkUpdateApiKeyAction.NAME,
         CreateCrossClusterApiKeyAction.NAME,
-        UpdateCrossClusterApiKeyAction.NAME
+        UpdateCrossClusterApiKeyAction.NAME,
+        EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
+        EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME,
+        EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
+        EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -779,6 +788,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             Optional.of(action)
                         )
                     ) == false) {
+                var dataSources = msg instanceof DataSourceRequestInfo info ? info.dataSourceNames() : null;
+
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "access_granted")
                     .with(ACTION_FIELD_NAME, action)
@@ -787,6 +798,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(msg, threadContext)
                     .withIndices(indices.orElse(null))
+                    .with(DATA_SOURCES_FIELD_NAME, dataSources)
                     .withContext(ctx)
                     .with(authorizationInfo.asMap())
                     .build();
@@ -891,6 +903,37 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof final UpdateCrossClusterApiKeyRequest updateCrossClusterApiKeyRequest) {
                     assert UpdateCrossClusterApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(updateCrossClusterApiKeyRequest).build();
+                } else if (msg instanceof SecurityConfigChangeRequest change) {
+                    switch (action) {
+                        case EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("put_data_source", PUT_CONFIG_FIELD_NAME, "data_source", change.auditFields()).build();
+                        case EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("delete_data_source", DELETE_CONFIG_FIELD_NAME, "data_source", change.auditFields())
+                            .build();
+                        case EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("put_dataset", PUT_CONFIG_FIELD_NAME, "dataset", change.auditFields()).build();
+                        case EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("delete_dataset", DELETE_CONFIG_FIELD_NAME, "dataset", change.auditFields()).build();
+                        default -> throw new IllegalStateException(
+                            "Unknown action type ["
+                                + msg.getClass().getSimpleName()
+                                + "] for the \"security change\" action ["
+                                + action
+                                + "]"
+                        );
+                    }
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -969,6 +1012,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            var dataSources = transportRequest instanceof DataSourceRequestInfo info ? info.dataSourceNames() : null;
+
             String realm = ApiKeyService.getCreatorRealmName(authentication);
             final var ctx = new AuditEventContext(
                 indices.orElse(null),
@@ -995,6 +1040,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
+                    .with(DATA_SOURCES_FIELD_NAME, dataSources)
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
                     .with(authorizationInfo.asMap())
@@ -1441,6 +1487,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             withRequestBody(builder, bulkUpdateApiKeyRequest);
             builder.endObject();
             logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withSecurityConfigChange(String action, String operation, String objectType, Map<String, Object> auditFields)
+            throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, action);
+
+            var builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject().startObject(objectType);
+            for (var entry : auditFields.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject().endObject();
+
+            logEntry.with(operation, Strings.toString(builder));
             return this;
         }
 

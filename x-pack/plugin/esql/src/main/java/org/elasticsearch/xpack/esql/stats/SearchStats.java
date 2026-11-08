@@ -11,8 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Map;
 
@@ -29,6 +31,14 @@ public interface SearchStats {
 
     boolean hasDocValues(FieldName field);
 
+    /**
+     * Whether every shard here can query {@code field}, read as {@code type}: see
+     * {@link SearchContextStats#isQueryable(SearchExecutionContext, String, DataType, boolean)}. At least one must hold the field.
+     */
+    default boolean isQueryable(FieldName field, DataType type, boolean comparesValuesAsRead) {
+        return hasDocValues(field);
+    }
+
     boolean hasExactSubfield(FieldName field);
 
     long count();
@@ -44,6 +54,15 @@ public interface SearchStats {
     boolean isSingleValue(FieldName field);
 
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
+
+    /**
+     * Whether every index this reads holds no empty string for {@code field}, because one given at index time was
+     * read as a null. A comparison against an empty string is then a question about whether the field holds a
+     * value at all.
+     */
+    default boolean emptyStringReadsAsNull(FieldName field) {
+        return false;
+    }
 
     /**
      * Do all fields with the matching name answer a query over the values their doc values hold? Such a query matches a

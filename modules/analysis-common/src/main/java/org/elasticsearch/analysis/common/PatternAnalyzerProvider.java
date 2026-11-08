@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
     private final PatternAnalyzer analyzer;
+    private final Object sharingKey;
 
     PatternAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -38,10 +39,19 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
         Pattern pattern = Regex.compile(sPattern, settings.get("flags"));
 
         analyzer = new PatternAnalyzer(pattern, lowercase, stopWords);
+        // Pattern has identity equality, so key on the regex string and flags it was compiled from.
+        this.sharingKey = new Key(pattern.pattern(), pattern.flags(), lowercase, Analysis.stableStopWords(settings, stopWords));
     }
 
     @Override
     public PatternAnalyzer get() {
         return analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String pattern, int flags, boolean lowercase, Analysis.StableCharArraySet stopWords) {}
 }

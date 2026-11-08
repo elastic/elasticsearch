@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -278,7 +277,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }"""), Strings.toString(parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot()));
+            }"""), doc.dynamicMappingsUpdate().string());
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
         Mapping merged = mapperService.documentMapper().mapping();
         assertNotNull(merged.getRoot().getMapper("test"));
@@ -967,7 +966,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getFields("host.name"));
         assertNotNull(doc.rootDoc().getFields("host.id"));
 
-        merge(mapperService, dynamicMapping(mappingsUpdate));
+        merge(mapperService, doc.dynamicMappingsUpdate().string());
 
         assertNotNull(mapperService.fieldType("time"));
         assertNotNull(mapperService.fieldType("time.max"));
@@ -1178,7 +1177,6 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     public void testVectordbColumnarDynamicStringsMapAsText() throws IOException {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createVectordbColumnarModeDocumentMapper(topMapping(b -> {}));
         ParsedDocument parsedDocument = mapper.parse(source(b -> b.field("title", "A dynamically mapped title")));
         Mapping update = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate());

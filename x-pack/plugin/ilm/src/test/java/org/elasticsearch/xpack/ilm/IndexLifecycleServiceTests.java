@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
@@ -66,6 +67,7 @@ import org.mockito.Mockito;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -733,9 +735,13 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         }
     }
 
-    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
-        var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
-        dataStreamLifecycleSettings.setMinimumLifecycleEnabled(enabled);
-        return dataStreamLifecycleSettings;
+    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean minimumLifecycleEnabled) {
+        // Mimics the ILM plugin, which is the one registering the minimum lifecycle setting.
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
+        Settings settings = Settings.builder()
+            .put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled)
+            .build();
+        return DataStreamLifecycleSettings.create(new ClusterSettings(settings, settingsSet));
     }
 }

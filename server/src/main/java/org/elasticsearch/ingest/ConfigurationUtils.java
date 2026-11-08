@@ -571,9 +571,11 @@ public final class ConfigurationUtils {
      * is being done with the result of calling the script, and the code can then avoid doing that thing per-document.
      */
     public static class ConstantTemplateScriptFactory implements TemplateScript.Factory {
-        final TemplateScript script;
+        private final String value;
+        private final TemplateScript script;
 
         private ConstantTemplateScriptFactory(String value) {
+            this.value = value;
             this.script = new TemplateScript(Map.of()) {
                 @Override
                 public String execute() {
@@ -585,6 +587,15 @@ public final class ConfigurationUtils {
         @Override
         public TemplateScript newInstance(Map<String, Object> params) {
             return script;
+        }
+
+        /**
+         * The constant that this always renders as, which is mostly helpful for being able to see what a processor has been configured with
+         * (e.g. when a test checks the field that a processor has been given).
+         */
+        @Override
+        public String toString() {
+            return value;
         }
     }
 

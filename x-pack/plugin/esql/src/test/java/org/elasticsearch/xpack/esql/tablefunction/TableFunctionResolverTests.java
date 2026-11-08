@@ -47,6 +47,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,6 +58,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -1113,29 +1116,124 @@ public class TableFunctionResolverTests extends ESTestCase {
      * so a new type is a red test here rather than a value that passes through looking like a number it is not.
      */
     public void testEveryLongBackedTypeIsEitherEncodedHereOrPlainlyTheNumber() {
-        Set<DataType> plainlyTheNumber = Set.of(
-            DataType.LONG,
-            DataType.DATETIME,
-            DataType.COUNTER_LONG,
-            DataType.AGGREGATE_METRIC_DOUBLE,
-            DataType.DATE_RANGE
-        );
+        // Read out of PlannerUtils.toElementType rather than remembered: aggregate_metric_double and date_range
+        // were in this set and are not LONG-backed at all, so they widened it without the census ever consulting
+        // them - the same mistake on this side that ENCODED_LONGS exists to catch on the other.
+        Set<DataType> plainlyTheNumber = Set.of(DataType.LONG, DataType.DATETIME, DataType.COUNTER_LONG);
+        Set<DataType> longBacked = new HashSet<>();
         for (DataType type : DataType.values()) {
-            ElementType element;
             try {
-                element = PlannerUtils.toElementType(type);
+                if (PlannerUtils.toElementType(type) == ElementType.LONG) {
+                    longBacked.add(type);
+                }
             } catch (Exception unsupported) {
-                continue;
+                // A type no block holds is not this seam's business.
             }
-            if (element != ElementType.LONG) {
-                continue;
-            }
-            assertThat(
-                "a long-backed type this seam neither encodes nor declares plain: " + type.typeName(),
-                CoordinatorRowsFunction.ENCODED_LONGS.contains(type) || plainlyTheNumber.contains(type),
-                equalTo(true)
-            );
         }
+        // Both directions, so neither set can carry an entry the mapping does not put there: an unaccounted
+        // long-backed type fails the first, and a stale entry in either set fails the second.
+        Set<DataType> accounted = new HashSet<>(CoordinatorRowsFunction.ENCODED_LONGS);
+        accounted.addAll(plainlyTheNumber);
+        assertThat("long-backed types this seam does not account for", longBacked, everyItem(in(accounted)));
+        assertThat("types accounted for that are not long-backed", accounted, everyItem(in(longBacked)));
+    }
+
+    /** A flattened cell is read with {@code utf8ToString}, so for it the bytes are the text and a String fits. */
+    public void testAStringIsAcceptedForAFlattenedColumn() {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.FLATTENED, List.of(List.of("x"))), call("1"));
+
+        BytesRef held = ((BytesRefBlock) rows.supplier().get().getBlock(0)).getBytesRef(0, new BytesRef());
+        assertThat(held, equalTo(new BytesRef("x")));
+    }
+
+    /** A _source cell is parsed as XContent on the way out, so bytes that are not are refused here instead. */
+    public void testUnparseableSourceBytesAreRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.SOURCE, List.of(List.of(new BytesRef("not json")))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("the bytes are not a readable _source"));
+    }
+
+    public void testParseableSourceBytesAreAccepted() {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.SOURCE, List.of(List.of(new BytesRef("{\"a\":1}")))), call("1"));
+
+        assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
+    }
+
+    /** The same for a histogram, whose reader is a converter rather than a parser. */
+    public void testUnreadableHistogramBytesAreRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.HISTOGRAM, List.of(List.of(new BytesRef("x")))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("the bytes are not a readable histogram"));
+    }
+
+    /**
+     * An {@link Instant} the nanosecond range cannot hold. The pre-epoch {@code Long} was pinned and this was
+     * not, and the two took different paths: {@code DateUtils.toLong} throws an {@code IllegalArgumentException},
+     * which unwrapped names neither function nor column and reaches a user as a 400 for a function's bug.
+     */
+    public void testAnOutOfRangeInstantIsRefusedForDateNanos() {
+        for (Instant instant : List.of(Instant.parse("1969-01-01T00:00:00Z"), Instant.parse("2300-01-01T00:00:00Z"))) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> resolve(new Typed(DataType.DATE_NANOS, List.of(List.of(instant))), call("1"))
+            );
+            assertThat(e.getMessage(), containsString("declared [date_nanos]"));
+        }
+    }
+
+    /**
+     * The coordinate system each spatial arm names, which only a value outside the geographic range can show:
+     * swap {@code CARTESIAN} for {@code GEO} in either cartesian arm and the WKB still encodes, so nothing but an
+     * out-of-geo-range coordinate tells the two apart.
+     */
+    public void testACartesianValueOutsideTheGeographicRangeIsAccepted() {
+        Point far = new Point(1e7, 2e7);
+        LocalRelation point = (LocalRelation) resolve(new Typed(DataType.CARTESIAN_POINT, List.of(List.of(far))), call("1"));
+        assertThat(point.supplier().get().getPositionCount(), equalTo(1));
+
+        Polygon shape = new Polygon(new LinearRing(new double[] { 0, 1e7, 1e7, 0 }, new double[] { 0, 0, 2e7, 0 }));
+        LocalRelation polygon = (LocalRelation) resolve(new Typed(DataType.CARTESIAN_SHAPE, List.of(List.of(shape))), call("1"));
+        assertThat(polygon.supplier().get().getPositionCount(), equalTo(1));
+    }
+
+    /** And the geographic arms refuse exactly that, so the pair above is a contrast rather than a coincidence. */
+    public void testTheSameValueIsRefusedForTheGeographicArms() {
+        Point far = new Point(1e7, 2e7);
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.GEO_POINT, List.of(List.of(far))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared [geo_point]"));
+    }
+
+    /**
+     * One string per grid type, because each arm names its own converter and the three parse different alphabets:
+     * with {@code geotile} routed through {@code stringToGeohex} or {@code geohex} through {@code stringToGeohash}
+     * the only geohash-string test in the tree stays green.
+     */
+    public void testEachGridTypeTakesItsOwnStringForm() {
+        assertGridString(DataType.GEOHASH, "u4pruyd", EsqlDataTypeConverter.stringToGeohash("u4pruyd"));
+        assertGridString(DataType.GEOTILE, "3/4/5", EsqlDataTypeConverter.stringToGeotile("3/4/5"));
+        assertGridString(DataType.GEOHEX, "8075fffffffffff", EsqlDataTypeConverter.stringToGeohex("8075fffffffffff"));
+    }
+
+    private void assertGridString(DataType declared, String text, long expected) {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(declared, List.of(List.of(text))), call("1"));
+
+        assertThat(declared.typeName(), ((LongBlock) rows.supplier().get().getBlock(0)).getLong(0), equalTo(expected));
+    }
+
+    /** Neither a string nor a long is not a grid cell, and the final refusal in that arm is what says so. */
+    public void testANonStringNonLongIsRefusedForAGridColumn() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.GEOHASH, List.of(List.of(5))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared [geohash], which needs a String or a Long"));
     }
 
     /** A function that completes with no row list at all, which is not the same as completing with no rows. */

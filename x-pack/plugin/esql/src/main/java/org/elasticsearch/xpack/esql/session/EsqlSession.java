@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
@@ -2456,15 +2457,6 @@ public class EsqlSession {
     }
 
     /**
-     * Whether two configurations describe the same read of one resource.
-     * <p>
-     * Everything that decides what gets read is compared: the dataset's own settings, the parent's
-     * credentials under {@code _datasource}, and the folded {@code _definition_version}. Only
-     * {@code _dataset_context} is excluded, because it carries the dataset's own name for diagnostics
-     * and so differs between two registered datasets that are otherwise twins — which read identically
-     * and must keep sharing one resolution.
-     */
-    /**
      * The two datasets the refusal is about, when both named themselves. Each config carries its own
      * {@code _dataset_context} ({@code DatasetRewriter.datasetConfig} puts {@code dataset}, {@code datasource} and
      * {@code type} there), which is the one key {@link #sameRead} strips — so the names are in hand here and a user
@@ -2485,7 +2477,24 @@ public class EsqlSession {
         return null;
     }
 
+    /**
+     * Whether two configurations over one path are the same read.
+     * <p>
+     * The folded {@code _definition_version} decides it when both carry one, because it is the engine's own
+     * canonical identity for a definition and the raw map is not: the map holds the parent's credentials under
+     * {@code _datasource} as the stored {@code EncryptedData}, whose equality is byte-wise over the ciphertext,
+     * and encryption draws a fresh IV per write — so two data sources registered with the <i>same</i> secret hold
+     * different payloads and compare unequal. {@code DefinitionVersion.renderSettingValue} folds the key id rather
+     * than the payload for exactly this reason, and its own javadoc says why.
+     * <p>
+     * The map comparison stays as the fallback for a config with no version behind it, a snapshot-only source
+     * being the case that has none. It can only accept fewer reads than the version does, never more.
+     */
     private static boolean sameRead(Map<String, Object> left, Map<String, Object> right) {
+        Object version = left.get(DefinitionVersion.CONFIG_KEY);
+        if (version != null && version.equals(right.get(DefinitionVersion.CONFIG_KEY))) {
+            return true;
+        }
         return withoutDatasetContext(left).equals(withoutDatasetContext(right));
     }
 

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.tablefunction;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
@@ -18,6 +20,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -32,6 +36,8 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.time.Instant;
@@ -39,6 +45,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -171,7 +178,9 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             return encodedNumber(function, column, declared, value);
         }
         return switch (declared) {
-            case KEYWORD, TEXT, SOURCE -> value instanceof String || value instanceof BytesRef
+            // flattened belongs here and _source does not, which is what the engine's own readers do with each:
+            // ResponseValueUtils reads a flattened cell with utf8ToString and parses a _source cell as XContent.
+            case KEYWORD, TEXT, FLATTENED -> value instanceof String || value instanceof BytesRef
                 ? value
                 : refuse(function, column, value, "a String or a BytesRef");
             // A raw BytesRef is refused here as it is everywhere else encoded. The sixteen-byte length looked like
@@ -194,9 +203,13 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             // Enumerated rather than left to a default arm: a default standing for valid types is what made the
             // encoded types above arrive one at a time, each silently taking the raw-bytes pass-through until
             // somebody noticed. A BYTES_REF type added later lands on the throw instead.
-            case HISTOGRAM, UNSUPPORTED, FLATTENED, TSID_DATA_TYPE -> value instanceof BytesRef
-                ? value
-                : refuse(function, column, value, "a BytesRef");
+            case UNSUPPORTED, TSID_DATA_TYPE -> value instanceof BytesRef ? value : refuse(function, column, value, "a BytesRef");
+            // Bytes the function owns, but with a reader that can say whether they are what the type claims, so
+            // they are read back the way encodedPoint and encodedShape read theirs back. Without this a histogram
+            // or a _source cell of arbitrary bytes is accepted here and throws in the response writer instead -
+            // a function's bug reported at result time, which is what this seam exists to prevent.
+            case HISTOGRAM -> readBack(function, column, value, bytes -> EsqlDataTypeConverter.histogramToString(bytes));
+            case SOURCE -> readBack(function, column, value, CoordinatorRowsFunction::parseSource);
             default -> throw badCell(
                 function,
                 column,
@@ -226,8 +239,10 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
      * for one and nanos since the epoch for the other, so the same {@code Long} means two different instants and
      * only the column says which. An {@link Instant} is the form that cannot be misread, and it is accepted and
      * encoded per declared type; a {@code Long} is taken as already being in the column's unit. A negative
-     * {@code date_nanos} is refused, because {@code ToDateNanos.fromLong} and {@code DateUtils.toNanoSeconds}
-     * both refuse pre-epoch, so no index and no conversion can produce one and nothing downstream expects it.
+     * {@code date_nanos} is refused, because nothing downstream can hold one: {@code ToDateNanos.fromLong} and
+     * {@code DateUtils.toNanoSeconds} both refuse pre-epoch, so no index and no conversion produces one. The
+     * {@code Long} form is checked here and the {@code Instant} form by {@code DateUtils.toLong}, which is the
+     * call this makes and which refuses the far end of the range too.
      * <p>
      * Everything else — {@code long}, {@code integer}, {@code double}, {@code boolean}, the counters — is the
      * number written, and passes through. {@link #ENCODED_LONGS} is what a test holds the whole set of
@@ -249,7 +264,15 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             case DATETIME -> value instanceof Instant instant ? instant.toEpochMilli() : value;
             case DATE_NANOS -> {
                 if (value instanceof Instant instant) {
-                    yield DateUtils.toLong(instant);
+                    try {
+                        // Wrapped like every other converter call here: DateUtils.toLong refuses pre-epoch and
+                        // anything past 2262-04-11T23:47:16.854775807Z with an IllegalArgumentException, which
+                        // unwrapped would name neither the function nor the column and would reach the user as a
+                        // 400 - their fault - for a bug in the function.
+                        yield DateUtils.toLong(instant);
+                    } catch (IllegalArgumentException e) {
+                        throw badCell(function, column, e.getMessage(), e);
+                    }
                 }
                 if (value instanceof Long nanos && nanos < 0) {
                     throw badCell(function, column, "[" + nanos + "] is before 1970-01-01T00:00:00Z, which date_nanos cannot hold");
@@ -259,6 +282,37 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
             // The numeric and boolean builders cast, so a wrong type fails there with the column named by page.
             default -> value;
         };
+    }
+
+    /**
+     * Bytes checked by handing them to the reader that will read them, so the rule is the reader's rather than a
+     * restatement of it here. The value read back is discarded: what is being asked is whether reading throws.
+     */
+    private static Object readBack(String function, Attribute column, Object value, Consumer<BytesRef> reader) {
+        if (value instanceof BytesRef bytes) {
+            try {
+                reader.accept(bytes);
+            } catch (Exception e) {
+                throw badCell(function, column, "the bytes are not a readable " + column.dataType().typeName(), e);
+            }
+            return bytes;
+        }
+        return refuse(function, column, value, "a BytesRef");
+    }
+
+    /** Parses a {@code _source} cell as the response writer parses one, for its side effect of throwing. */
+    private static void parseSource(BytesRef bytes) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(bytes.bytes, bytes.offset, bytes.length)
+            )
+        ) {
+            parser.nextToken();
+            parser.mapOrdered();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -506,10 +560,22 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
                 }
             }
             Block[] blocks = new Block[wrappers.length];
-            for (int i = 0; i < blocks.length; i++) {
-                blocks[i] = wrappers[i].builder().build();
+            boolean success = false;
+            try {
+                for (int i = 0; i < blocks.length; i++) {
+                    blocks[i] = wrappers[i].builder().build();
+                }
+                Page page = new Page(rows.size(), blocks);
+                success = true;
+                return page;
+            } finally {
+                // Closing the wrappers does not reach a block already built, so a throw from a later build() or
+                // from the Page constructor would leave the earlier ones held. BlockUtils.fromList and
+                // fromListRow - the methods this one displaces - each guard the same loop the same way.
+                if (success == false) {
+                    Releasables.closeExpectNoException(blocks);
+                }
             }
-            return new Page(rows.size(), blocks);
         } finally {
             Releasables.close(wrappers);
         }

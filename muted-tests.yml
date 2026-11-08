@@ -153,6 +153,11 @@ tests:
   - :x-pack:plugin:ml:qa:ml-with-security:yamlRestTest
   method: test {yaml=ml/jobs_get_result_buckets/Test get buckets with paging in body}
   issue: https://github.com/elastic/elasticsearch/issues/165072
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  tasks:
+  - :x-pack:plugin:sql:qa:mixed-node:v8.17.10#javaRestTest
+  method: testNullsOrderWithMissingOrderSupportQueryingOldNode
+  issue: https://github.com/elastic/elasticsearch/issues/165074
 
 # Examples:
 #

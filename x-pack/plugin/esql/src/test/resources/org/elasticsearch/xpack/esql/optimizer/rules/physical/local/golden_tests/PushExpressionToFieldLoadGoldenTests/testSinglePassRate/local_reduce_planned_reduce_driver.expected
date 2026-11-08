@@ -1,0 +1,3 @@
+ExchangeSinkExec[[time_bucket{r}#0, _$packed_dims{r}#1, $$m$max{r}#2, $$m$seen{r}#3],false]
+\_AggregateExec[[time_bucket{r}#0, _$packed_dims{r}#1],[MAX(RATE_$1{r}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#5, time_bucket{r}#0 AS time_bucket#0, _$packed_dims{r}#1 AS _$packed_grouping_dims#6],INTERMEDIATE,[time_bucket{r}#0, _$packed_dims{r}#1, $$m$max{r}#7, $$m$seen{r}#8],10256]
+  \_ExchangeSourceExec[[time_bucket{r}#0, _$packed_dims{r}#1, $$m$max{r}#2, $$m$seen{r}#3],false]

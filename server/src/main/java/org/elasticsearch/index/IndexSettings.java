@@ -598,7 +598,9 @@ public final class IndexSettings {
 
     /**
      * This index setting is intentionally undocumented and should be used as an escape hatch to disable BloomFilter of the
-     * _id field of non-data-stream indices, which is enabled by default. This setting doesn't affect data-stream indices.
+     * _id field of non-data-stream indices, which is enabled by default. Unless
+     * {@link #BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME} is enabled, this setting doesn't affect
+     * data-stream indices.
      */
     public static final Setting<Boolean> BLOOM_FILTER_ID_FIELD_ENABLED_SETTING = Setting.boolSetting(
         "index.bloom_filter_for_id_field.enabled",
@@ -607,6 +609,33 @@ public final class IndexSettings {
         Setting.Property.IndexScope,
         Property.DeprecatedWarning
     );
+
+    /**
+     * Name of the internal node setting that extends the BloomFilter of the _id field to non time series indices whose mapping
+     * enables the data stream timestamp field, i.e. data stream backing indices and any index mapped like one. Such indices are
+     * assumed to be append-only, which is not the case when clients provide explicit ids, as every write then needs a version
+     * lookup in all the segments of the shard. The setting is only registered, and enabled, by the stateless plugin, so any other
+     * node rejects it as unknown; {@link #BLOOM_FILTER_ID_FIELD_ENABLED_SETTING} can still disable it per index.
+     */
+    public static final String BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME =
+        "node._internal.bloom_filter_for_id_field.data_stream_timestamp.enabled";
+
+    public static boolean isBloomFilterIdFieldWithDataStreamTimestampEnabled(Settings nodeSettings) {
+        return nodeSettings.getAsBoolean(BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME, false);
+    }
+
+    /**
+     * Name of the internal node setting that makes {@code index.mapping.combine_dynamic_updates} default to {@code true} for indices
+     * that do not set it explicitly. The setting is only registered, and enabled, by the stateless plugin, so any other node rejects
+     * it as unknown.
+     */
+    public static final String COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT_SETTING_NAME =
+        "node._internal.combine_dynamic_mapping_updates.enabled";
+
+    public static boolean isCombineDynamicMappingUpdatesEnabledByDefault(Settings nodeSettings) {
+        return nodeSettings.getAsBoolean(COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT_SETTING_NAME, false);
+    }
+
     public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
     public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING = Setting.longSetting(
         LIFECYCLE_ORIGINATION_DATE,
@@ -1783,7 +1812,7 @@ public final class IndexSettings {
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         ignoreDynamicFieldNamesBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
-        combineDynamicMappingUpdates = scopedSettings.get(INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING);
+        combineDynamicMappingUpdates = resolveCombineDynamicMappingUpdates(indexMetadata.getSettings());
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
@@ -1939,7 +1968,10 @@ public final class IndexSettings {
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
             this::setIgnoreDynamicFieldsBeyondLimit
         );
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING, this::setCombineDynamicMappingUpdates);
+        scopedSettings.addSettingsUpdateConsumer(
+            updated -> this.combineDynamicMappingUpdates = resolveCombineDynamicMappingUpdates(updated),
+            List.of(INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING)
+        );
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
             this::setIgnoreDynamicFieldNamesBeyondLimit
@@ -2560,8 +2592,11 @@ public final class IndexSettings {
         return ignoreDynamicFieldsBeyondLimit;
     }
 
-    private void setCombineDynamicMappingUpdates(boolean combineDynamicMappingUpdates) {
-        this.combineDynamicMappingUpdates = combineDynamicMappingUpdates;
+    private boolean resolveCombineDynamicMappingUpdates(Settings indexSettings) {
+        if (INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.exists(indexSettings)) {
+            return INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.get(indexSettings);
+        }
+        return isCombineDynamicMappingUpdatesEnabledByDefault(nodeSettings);
     }
 
     public boolean isCombineDynamicMappingUpdates() {

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -29,7 +30,9 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -47,6 +50,16 @@ import java.util.function.Supplier;
  * {@link #toRelation} is {@code final}. There is no seam here for a wire format, a node stage or credentials,
  * because a function of this shape has none — not by convention but because the only method it can override
  * cannot express one.
+ *
+ * <h2>What a function's rows cost</h2>
+ *
+ * All of them, in memory, for as long as the plan lives. A subclass hands over a {@code List<List<Object>>} of
+ * boxed values, this builds one block per column through {@code PlannerUtils.NON_BREAKING_BLOCK_FACTORY}, and the
+ * resulting {@link Page} sits in the {@code LocalRelation}. Nothing here caps the row count and no circuit
+ * breaker is charged. That is the same arrangement {@code ROW} has, but {@code ROW}'s size is bounded by the
+ * length of the query and a function's by whatever it decided to return — so
+ * <b>a function that cannot say how many rows it will produce has to bound itself</b>, and one that lists
+ * something unbounded does not belong on this base class.
  *
  * <h2>What this deliberately does not do</h2>
  *
@@ -74,7 +87,11 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
         ActionListener<LeafPlan> listener
     ) {
         List<Attribute> columns = columns(call, context);
-        rows(call, context, listener.map(rows -> new LocalRelation(call.source(), columns, LocalSupplier.of(page(columns, rows)))));
+        rows(
+            call,
+            context,
+            listener.map(rows -> new LocalRelation(call.source(), columns, LocalSupplier.of(page(call.name(), columns, rows))))
+        );
     }
 
     /** For a function that answers from memory: no listener, no I/O. */
@@ -98,19 +115,36 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
      * <p>
      * So the seam owns the encoding instead of trusting each function with it: a function hands back the natural
      * Java value and this turns it into the bytes the type is read as. A raw {@code BytesRef} is refused for those
-     * types, because it is exactly the shape that cannot be checked. {@code KEYWORD}, {@code TEXT} and
-     * {@code SOURCE} take a {@code String} or a {@code BytesRef}, since for them the bytes <i>are</i> the text.
+     * types wherever nothing about it can be checked, which is all of them but {@code ip}, whose encoding is a
+     * fixed sixteen bytes and so carries its own invariant. {@code KEYWORD}, {@code TEXT} and {@code SOURCE} take
+     * a {@code String} or a {@code BytesRef}, since for them the bytes <i>are</i> the text.
      * <p>
-     * A {@code List} is a multivalued cell, which the builders support, so each element goes through the same rule.
+     * A {@code List} is a multivalued cell, and each element goes through the same rule — but one level only, with
+     * no null element and never empty, because a block position holds values and not cells.
      */
-    private static Object encodedFor(Attribute column, Object value) {
+    private static Object encodedFor(String function, Attribute column, Object value) {
         if (value == null) {
             return null;
         }
         if (value instanceof List<?> multivalue) {
+            // One level deep, no nulls and never empty, because a block position holds values rather than cells.
+            // BuilderWrapper opens a position entry and hands each element to BlockUtils.appendValue, so: a nested
+            // list reaches the BYTES_REF arm and is stored as its own toString(); a null element reaches
+            // appendNull, which closes the open entry and starts another, turning one row into three positions in
+            // a page that says it has one; and an empty list opens an entry and closes it with nothing in it. The
+            // block API guards all three with assertions alone, so without this they are production-only faults.
+            if (multivalue.isEmpty()) {
+                throw badCell(function, column, "an empty list has no value to store - hand back null for an empty cell");
+            }
             List<Object> encoded = new ArrayList<>(multivalue.size());
             for (Object element : multivalue) {
-                encoded.add(encodedFor(column, element));
+                if (element == null) {
+                    throw badCell(function, column, "a multivalued cell cannot hold null - hand back null for the whole cell");
+                }
+                if (element instanceof List<?>) {
+                    throw badCell(function, column, "a multivalued cell cannot hold a list - a position holds values, not cells");
+                }
+                encoded.add(encodedFor(function, column, element));
             }
             return encoded;
         }
@@ -122,40 +156,115 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
         return switch (declared) {
             case KEYWORD, TEXT, SOURCE -> value instanceof String || value instanceof BytesRef
                 ? value
-                : refuse(column, value, "a String or a BytesRef");
+                : refuse(function, column, value, "a String or a BytesRef");
             case IP -> switch (value) {
                 case InetAddress address -> new BytesRef(InetAddressPoint.encode(address));
                 // The one encoded family with a cheap invariant, so an already-encoded value is still accepted.
                 case BytesRef bytes when bytes.length == InetAddressPoint.BYTES -> bytes;
-                default -> refuse(column, value, "an InetAddress");
+                default -> refuse(function, column, value, "an InetAddress");
             };
             case VERSION -> switch (value) {
                 case Version version -> version.toBytesRef();
                 case String text -> new Version(text).toBytesRef();
-                default -> refuse(column, value, "a Version or a String");
+                default -> refuse(function, column, value, "a Version or a String");
             };
-            case GEO_POINT, GEO_SHAPE -> value instanceof Geometry geometry
-                ? SpatialCoordinateTypes.GEO.asWkb(geometry)
-                : refuse(column, value, "a Geometry");
-            case CARTESIAN_POINT, CARTESIAN_SHAPE -> value instanceof Geometry geometry
-                ? SpatialCoordinateTypes.CARTESIAN.asWkb(geometry)
-                : refuse(column, value, "a Geometry");
+            case GEO_POINT -> encodedPoint(function, column, SpatialCoordinateTypes.GEO, value);
+            case CARTESIAN_POINT -> encodedPoint(function, column, SpatialCoordinateTypes.CARTESIAN, value);
+            case GEO_SHAPE -> encodedShape(function, column, SpatialCoordinateTypes.GEO, value);
+            case CARTESIAN_SHAPE -> encodedShape(function, column, SpatialCoordinateTypes.CARTESIAN, value);
             // No natural Java form to encode from, so the function owns the bytes and says so by handing them over.
-            default -> value instanceof BytesRef ? value : refuse(column, value, "a BytesRef");
+            default -> value instanceof BytesRef ? value : refuse(function, column, value, "a BytesRef");
         };
     }
 
-    private static Object refuse(Attribute column, Object value, String wanted) {
-        throw new IllegalStateException(
-            "table function produced ["
-                + value.getClass().getSimpleName()
-                + "] for column ["
+    /**
+     * A point column holds a point, and one the coordinate system admits. {@code asWkb} writes whatever geometry it
+     * is handed with no dimensionality or coordinate check, so a polygon would sit under a point column as 93 bytes
+     * of polygon, and a latitude of 500 would sit there as a point — each failing far downstream, in whatever reads
+     * it. Validated by reading the bytes back the way the engine will: {@code wkbAsPoint} applies this coordinate
+     * system's own validator and refuses a non-point, so neither rule is restated here to drift from it.
+     */
+    private static BytesRef encodedPoint(String function, Attribute column, SpatialCoordinateTypes system, Object value) {
+        if (value instanceof Point point) {
+            BytesRef wkb = system.asWkb(point);
+            try {
+                system.wkbAsPoint(wkb);
+            } catch (IllegalArgumentException e) {
+                throw badCell(function, column, e.getMessage());
+            }
+            return wkb;
+        }
+        throw wrongType(function, column, value, "a Point");
+    }
+
+    /** As {@link #encodedPoint}, for the shape types, which admit any geometry whose coordinates are in range. */
+    private static BytesRef encodedShape(String function, Attribute column, SpatialCoordinateTypes system, Object value) {
+        if (value instanceof Geometry geometry) {
+            BytesRef wkb = system.asWkb(geometry);
+            try {
+                system.wkbToGeometry(wkb);
+            } catch (IllegalArgumentException e) {
+                throw badCell(function, column, e.getMessage());
+            }
+            return wkb;
+        }
+        throw wrongType(function, column, value, "a Geometry");
+    }
+
+    /** A cell that is the wrong shape rather than the wrong Java type, so there is no "needs" to name. */
+    private static IllegalStateException badCell(String function, Attribute column, String why) {
+        return new IllegalStateException(
+            "table function ["
+                + function
+                + "] produced an invalid cell for column ["
                 + column.name()
                 + "] declared ["
                 + column.dataType().typeName()
-                + "], which needs "
-                + wanted
+                + "]: "
+                + why
         );
+    }
+
+    /** Throws, and returns {@code Object} so a switch arm producing a value can use it as one. */
+    private static Object refuse(String function, Attribute column, Object value, String wanted) {
+        throw wrongType(function, column, value, wanted);
+    }
+
+    private static IllegalStateException wrongType(String function, Attribute column, Object value, String wanted) {
+        return new IllegalStateException(producedFor(function, column, value) + ", which needs " + wanted);
+    }
+
+    private static String producedFor(String function, Attribute column, Object value) {
+        return "table function ["
+            + function
+            + "] produced "
+            + describe(value)
+            + " for column ["
+            + column.name()
+            + "] declared ["
+            + column.dataType().typeName()
+            + "]";
+    }
+
+    /**
+     * What the cell held, rather than which class the JDK happened to use for it. A list reported as its own class
+     * name reads as {@code List12}, which names neither that it was a list nor what was in it.
+     */
+    private static String describe(Object value) {
+        if (value == null) {
+            return "[null]";
+        }
+        if (value instanceof List<?> list) {
+            if (list.isEmpty()) {
+                return "an empty list";
+            }
+            Set<String> elements = new LinkedHashSet<>();
+            for (Object element : list) {
+                elements.add(element == null ? "null" : element.getClass().getSimpleName());
+            }
+            return "a list of [" + String.join(", ", elements) + "]";
+        }
+        return "[" + value.getClass().getSimpleName() + "]";
     }
 
     /**
@@ -170,40 +279,79 @@ public abstract class CoordinatorRowsFunction implements TableFunction {
      * Typing the builder from the declaration is not by itself enough to catch a value of the wrong Java type —
      * see {@link #encodedFor}, which owns the encoding for the family whose bytes are not their text.
      */
-    private static Page page(List<Attribute> columns, List<List<Object>> rows) {
+    private static Page page(String function, List<Attribute> columns, List<List<Object>> rows) {
+        if (rows == null) {
+            throw new IllegalStateException("table function [" + function + "] produced no row list at all");
+        }
+        // A relation with no output, or with one name twice, is a plan the rest of the language has no answer for:
+        // a reference to the repeated name is ambiguous and nothing downstream is positioned to say which
+        // function caused it. Refused here because this is where the columns and the function are both in hand.
+        if (columns.isEmpty()) {
+            throw new IllegalStateException("table function [" + function + "] declared no columns");
+        }
+        Set<String> names = new LinkedHashSet<>(columns.size());
+        for (Attribute column : columns) {
+            if (names.add(column.name()) == false) {
+                throw new IllegalStateException(
+                    "table function [" + function + "] declared the column [" + column.name() + "] more than once"
+                );
+            }
+        }
         BlockUtils.BuilderWrapper[] wrappers = new BlockUtils.BuilderWrapper[columns.size()];
         try {
             for (int i = 0; i < wrappers.length; i++) {
-                ElementType type = PlannerUtils.toElementType(columns.get(i).dataType());
-                wrappers[i] = BlockUtils.wrapperFor(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, type, rows.size());
+                Attribute column = columns.get(i);
+                try {
+                    ElementType type = PlannerUtils.toElementType(column.dataType());
+                    wrappers[i] = BlockUtils.wrapperFor(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, type, rows.size());
+                } catch (Exception e) {
+                    // A declared type with no element type at all fails here, in toElementType, and the raw failure
+                    // names the element type rather than the column that asked for it - which is the only thing a
+                    // function's author can change. A type that has an element type but no way to append a value,
+                    // ElementType.NULL being the one, gets as far as a builder and fails at the append below.
+                    throw new IllegalStateException(
+                        "table function ["
+                            + function
+                            + "] declared column ["
+                            + column.name()
+                            + "] as ["
+                            + column.dataType().typeName()
+                            + "], which it cannot produce values for",
+                        e
+                    );
+                }
             }
-            for (List<Object> row : rows) {
+            for (int r = 0; r < rows.size(); r++) {
+                List<Object> row = rows.get(r);
                 // Checked rather than asserted: a function that disagrees with its own column list would otherwise
                 // build a page of a different width than the output it is attached to, and do it in production only.
+                if (row == null) {
+                    throw new IllegalStateException("table function [" + function + "] produced a null row at [" + r + "]");
+                }
                 if (row.size() != wrappers.length) {
                     throw new IllegalStateException(
-                        "table function produced a row of [" + row.size() + "] values for [" + wrappers.length + "] columns"
+                        "table function ["
+                            + function
+                            + "] produced a row of ["
+                            + row.size()
+                            + "] values at ["
+                            + r
+                            + "] for ["
+                            + wrappers.length
+                            + "] columns"
                     );
                 }
                 for (int i = 0; i < wrappers.length; i++) {
-                    Object value = encodedFor(columns.get(i), row.get(i));
+                    Object value = encodedFor(function, columns.get(i), row.get(i));
                     try {
                         wrappers[i].accept(value);
-                    } catch (ClassCastException e) {
-                        // The builder is typed from the declaration, so it rejects a value of another Java type. That
-                        // is the behaviour we want; the bare cast failure is not, as it names neither the column nor
-                        // the declaration it disagreed with.
-                        Attribute column = columns.get(i);
-                        throw new IllegalStateException(
-                            "table function produced ["
-                                + (value == null ? "null" : value.getClass().getSimpleName())
-                                + "] for column ["
-                                + column.name()
-                                + "] declared ["
-                                + column.dataType().typeName()
-                                + "]",
-                            e
-                        );
+                    } catch (ClassCastException | UnsupportedOperationException e) {
+                        // Two ways one value fails to go into one column, both of them reported against the element
+                        // type alone. A builder typed from the declaration casts, so a value of another Java type is
+                        // a ClassCastException; a declared type whose element type has no append arm at all -
+                        // ElementType.NULL - is an UnsupportedOperationException, and fails for every value. Neither
+                        // names the column or the declaration it disagreed with, which is what this adds.
+                        throw new IllegalStateException(producedFor(function, columns.get(i), value), e);
                     }
                 }
             }

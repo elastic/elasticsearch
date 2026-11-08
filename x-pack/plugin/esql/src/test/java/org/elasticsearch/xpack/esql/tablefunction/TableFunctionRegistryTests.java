@@ -79,8 +79,8 @@ public class TableFunctionRegistryTests extends ESTestCase {
     }
 
     public void testRegistryStartsEmpty() {
-        // The facility arrives with no functions, so this is the whole of what an empty registry says - and it
-        // says it without listing an empty set, which would read as an engine fault rather than an answer.
+        // An empty registry answers without listing an empty set, which would read as an engine fault rather
+        // than as an answer about the name that was asked for.
         ParsingException e = expectThrows(ParsingException.class, () -> new TableFunctionRegistry(List.of()).resolve(Source.EMPTY, "x"));
         assertThat(e.getMessage(), containsString("no table functions are registered, so [x] cannot be used here"));
     }
@@ -88,11 +88,16 @@ public class TableFunctionRegistryTests extends ESTestCase {
     /**
      * One capability per registered function, so a client can ask for a particular one rather than only asking
      * whether the facility exists.
+     * <p>
+     * Asked for every capability rather than the enabled ones, because the facility's own capability is gated on a
+     * snapshot build: with the enabled set, this asserted nothing on a release build and failed there instead,
+     * which the pull request's own CI cannot see and the periodic release-tests job can. What is being checked is
+     * that the registry contributes a name per function, and an empty registry still contributes none below.
      */
     public void testCapabilityPerRegisteredFunction() {
         TableFunctionRegistry registry = new TableFunctionRegistry(List.of(new NamedOnly("thing"), new NamedOnly("other")));
 
-        Set<String> capabilities = EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), registry, false).capabilities();
+        Set<String> capabilities = EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), registry, true).capabilities();
 
         assertThat(capabilities, hasItem("table_fn_thing"));
         assertThat(capabilities, hasItem("table_fn_other"));
@@ -100,9 +105,9 @@ public class TableFunctionRegistryTests extends ESTestCase {
         assertThat(capabilities, hasItem("from_table_function"));
     }
 
-    /** An empty registry contributes no per-function capability, which is the state this change ships in. */
+    /** An empty registry contributes no per-function capability. Every capability again, for the same reason. */
     public void testNoCapabilitiesWithoutFunctions() {
-        Set<String> capabilities = EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), new TableFunctionRegistry(List.of()), false)
+        Set<String> capabilities = EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), new TableFunctionRegistry(List.of()), true)
             .capabilities();
 
         assertThat(capabilities.stream().anyMatch(c -> c.startsWith("table_fn_")), equalTo(false));

@@ -635,12 +635,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             }
         };
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        // Built here rather than held statically, as the function registry is: a table function declares its own
-        // dependencies by being constructed with them, which is what keeps the facility from carrying any one
-        // function's.
+        // Built from already-constructed functions: a table function declares its own dependencies by being
+        // constructed with them, which is what keeps the facility from carrying any one function's.
         DatasetDefinitionValidator datasetDefinitionValidator = new DatasetDefinitionValidator(crudValidators);
         TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(
-            extraTableFunctions(services.client(), datasetDefinitionValidator)
+            tableFunctions(services.client(), datasetDefinitionValidator)
         );
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
@@ -985,11 +984,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     /**
      * The table functions this node registers. {@link DatasetTableFunction} is the only one.
      * <p>
-     * A seam rather than a constant so that the facility does not name a function, and so that a test can register
-     * a set of its own: {@code TableFunctionFacilityIT} overrides this to drive the facility through real queries
-     * with a function that exists only in that test, which replaces this list rather than adding to it. The
-     * precedent for a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState},
-     * both overridden by test subclasses.
+     * A seam rather than a constant so that nothing in the facility names a function, and so that a test can
+     * register a set of its own: {@code TableFunctionFacilityIT} overrides this to drive the facility through real
+     * queries with a function that exists only in that test. An override <b>replaces</b> this set rather than
+     * adding to it, which is why the method is not named for extras. The precedent for a protected hook on this
+     * plugin is {@link #loadMetricsCollectors} and {@code getLicenseState}, both overridden by test subclasses.
      * <p>
      * A function needing collaborators is constructed with them here; that is why the registry takes
      * already-constructed functions rather than names, and why the client and the dataset validator are parameters
@@ -997,7 +996,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * hold a definition to what a registration is held to, is given the handles it needs, and the facility itself
      * never acquires one.
      */
-    protected List<TableFunction> extraTableFunctions(Client client, DatasetDefinitionValidator datasetDefinitionValidator) {
+    protected List<TableFunction> tableFunctions(Client client, DatasetDefinitionValidator datasetDefinitionValidator) {
         return List.of(new DatasetTableFunction(client, datasetDefinitionValidator));
     }
 

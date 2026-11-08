@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 
 /**
  * One argument of a table-function invocation.
@@ -48,11 +49,21 @@ public sealed interface TableFunctionArgument {
      * function may well accept.
      */
     record NamedValues(Source source, Map<String, Object> values) implements TableFunctionArgument {
+
         public NamedValues {
             Objects.requireNonNull(source, "source");
             // LinkedHashMap rather than Map.copyOf: written order is what a diagnostic listing keys reports, and an
             // unordered copy would make the same bad input produce a differently ordered message.
             values = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(values, "values")));
+        }
+
+        /**
+         * The keys and nothing else. These values are whatever the user wrote inside the braces, which for a
+         * definition includes credentials, and a record's generated {@code toString} renders all of them.
+         */
+        @Override
+        public String toString() {
+            return "NamedValues" + new TreeSet<>(values.keySet());
         }
     }
 }

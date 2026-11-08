@@ -47,10 +47,10 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
 
-    /** Registers the test function in place of whatever this node would have registered, so the facility is alone here. */
+    /** Registers the test function in place of this node's set, so the facility stands alone in these tests. */
     public static final class EsqlWithTestTableFunction extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
-        protected List<TableFunction> extraTableFunctions(Client client, DatasetDefinitionValidator datasetDefinitionValidator) {
+        protected List<TableFunction> tableFunctions(Client client, DatasetDefinitionValidator datasetDefinitionValidator) {
             return List.of(new Letters());
         }
     }

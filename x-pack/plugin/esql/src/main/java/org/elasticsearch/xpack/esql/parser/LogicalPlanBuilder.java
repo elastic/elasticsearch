@@ -431,8 +431,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     indexPatternsCtx.add(c.indexPattern());
                 } else if (c.subquery() != null) {
                     subqueriesCtx.add(c.subquery());
-                } else {
+                } else if (c.tableFunction() != null) {
                     tableFunctionsCtx.add(c.tableFunction());
+                } else {
+                    // Named rather than trailing: a fourth alternative added to indexPatternOrSubquery would
+                    // otherwise be filed here as a table function with a null context, and fail somewhere further
+                    // down. The class names the alternative that was added; the user's own text is not in it,
+                    // because nothing in this builder puts a source list's text into a message.
+                    throw new IllegalStateException("unhandled source list entry [" + c.getClass().getSimpleName() + "]");
                 }
             });
         }
@@ -513,8 +519,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private TableFunctionInvocation tableFunctionInvocation(EsqlBaseParser.TableFunctionContext ctx) {
         Source source = source(ctx);
         String name = ctx.name.getText();
-        // One flat list with the map appended last, as ExpressionBuilder.visitFunctionExpression builds a scalar
-        // function's arguments: the grammar keeps the map a separate trailing alternative, the builder folds it in.
+        // One flat list with the map appended last: the grammar keeps the map a separate trailing alternative, and
+        // this folds it in. Why, on TableFunctionArgument.
         List<TableFunctionArgument> arguments = new ArrayList<>(ctx.tableFunctionArgument().size() + 1);
         for (EsqlBaseParser.TableFunctionArgumentContext argumentCtx : ctx.tableFunctionArgument()) {
             arguments.add(new TableFunctionArgument.Name(source(argumentCtx), tableFunctionArgumentName(argumentCtx)));

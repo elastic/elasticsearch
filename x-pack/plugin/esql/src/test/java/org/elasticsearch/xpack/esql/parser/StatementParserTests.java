@@ -5652,8 +5652,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         expectError("from test)", "line -1:-1: Invalid query [from test)]");
-        // A name immediately followed by '(' now opens a table function call, so the error moves off the '(' and
-        // onto what follows the call. Still rejected, and still for having parentheses in an index name - but the
+        // A name immediately followed by '(' opens a table function call, so the error falls on what follows the
+        // call rather than on the '('. Still rejected, and still for having parentheses in an index name - but the
         // message differs by build, because the lexer emits the table-function token on both while only a dev
         // parser has a rule that can consume it. Branched for the same reason testQuotedName and testLookup are.
         if (Build.current().isSnapshot()) {

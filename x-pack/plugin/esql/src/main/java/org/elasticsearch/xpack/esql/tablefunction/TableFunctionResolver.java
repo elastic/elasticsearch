@@ -28,8 +28,7 @@ import java.util.concurrent.Executor;
  * The whole of what is common to every table function lives here, and it is four things: resolve the name, check
  * the shape, run the function's own validation, and bind. Everything else a particular function needs — a
  * privilege, a round-trip, a collaborator — belongs to that function or to the base class it extends, not here.
- * That boundary is the point of the facility, and it is easy to lose: the first function to need something is
- * always the one that looks like it should be served by the shared path.
+ * Nothing here reads a function's arguments, holds a collaborator, or checks a privilege.
  * <p>
  * Resolution of the <i>name</i> happens before any of it, so a misspelled function is answered by its own
  * diagnostic at its own position rather than by whatever the next stage would have made of it.
@@ -94,12 +93,16 @@ public class TableFunctionResolver {
         TableFunctionContext context = new TableFunctionContext(projectMetadata);
         // Forked here and not on the early return above: a query naming no function never leaves the caller's
         // thread, so it pays nothing for this.
-        ActionListener<LogicalPlan> onPlanningPool = new ThreadedActionListener<>(executor, PlanningCpuTracker.inheritMeteredCpu(listener));
-        try (
-            var refs = new RefCountingListener(
-                onPlanningPool.delegateFailureAndWrap((delegate, ignored) -> delegate.onResponse(substitute(parsed, bound)))
-            )
-        ) {
+        //
+        // The rewrite is inside the fork rather than in front of it. The last function to complete releases the
+        // last ref, so anything run before the fork runs on that function's thread - a transport worker, for a
+        // function backed by a client call - and outside the metering this listener installs. Walking the plan is
+        // planning work, so it belongs on the pool planning continues on, which is what the executor names.
+        ActionListener<Void> onPlanningPool = new ThreadedActionListener<>(
+            executor,
+            PlanningCpuTracker.inheritMeteredCpu(listener.map(ignored -> substitute(parsed, bound)))
+        );
+        try (var refs = new RefCountingListener(onPlanningPool)) {
             for (int i = 0; i < leaves.size(); i++) {
                 UnresolvedTableFunctionRelation leaf = leaves.get(i);
                 TableFunction function = functions.get(i);

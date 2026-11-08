@@ -633,10 +633,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             }
         };
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        // Built here rather than held statically, as the function registry is: a table function declares its own
-        // dependencies by being constructed with them, which is what keeps the facility from carrying any one
-        // function's.
-        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(extraTableFunctions(services.client()));
+        // Built from already-constructed functions: a table function declares its own dependencies by being
+        // constructed with them, which is what keeps the facility from carrying any one function's.
+        TableFunctionRegistry tableFunctionRegistry = new TableFunctionRegistry(tableFunctions(services.client()));
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, tableFunctionRegistry, false));
 
@@ -978,18 +977,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     /**
      * The table functions this node registers. {@link FieldsTableFunction} is the only one.
      * <p>
-     * A seam rather than a constant so that the facility does not name a function, and so that a test can register
-     * a set of its own: {@code TableFunctionFacilityIT} overrides this to drive the facility through real queries
-     * with a function that exists only in that test, which replaces this list rather than adding to it. The
-     * precedent for a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState},
-     * both overridden by test subclasses.
+     * A seam rather than a constant so that nothing in the facility names a function, and so that a test can
+     * register a set of its own: {@code TableFunctionFacilityIT} overrides this to drive the facility through real
+     * queries with a function that exists only in that test. An override <b>replaces</b> this set rather than
+     * adding to it, which is why the method is not named for extras. The precedent for a protected hook on this
+     * plugin is {@link #loadMetricsCollectors} and {@code getLicenseState}, both overridden by test subclasses.
      * <p>
      * A function needing collaborators is constructed with them here; that is why the registry takes
      * already-constructed functions rather than names, and why the client is a parameter here rather than
      * something a function reaches for: a function that has to ask the cluster something is given the one
      * handle it needs, and the facility itself never acquires one.
      */
-    protected List<TableFunction> extraTableFunctions(Client client) {
+    protected List<TableFunction> tableFunctions(Client client) {
         return List.of(new FieldsTableFunction(client));
     }
 

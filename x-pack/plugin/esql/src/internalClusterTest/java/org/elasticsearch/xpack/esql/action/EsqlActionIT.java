@@ -1188,10 +1188,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Selectors must be outside of date math expressions or else they trip up the selector parsing
         testCases.put("<test-{now/d}::failures>", "Invalid index name [<test-{now/d}], must not contain the following characters [");
         // Only one selector separator is allowed per expression. The expected-token set is matched without its
-        // closing brace because this change adds a token at this position: EsqlParser's error listener strips
-        // DEV_-prefixed tokens only when the parser is not a dev version, and this suite runs on a snapshot
-        // build, so the set here now ends with DEV_TABLE_FUNCTION_NAME. Matching the prefix keeps the assertion
-        // about the separator, which is what the case is for, rather than about the token set.
+        // closing brace because a table function's name is one of the tokens a source list admits here, and this
+        // suite runs on both kinds of build: internalClusterTest is wired into check, so release-tests runs it
+        // with build.snapshot=false,
+        // where EsqlParser's error listener strips the DEV_-prefixed name that a snapshot build leaves in. The
+        // prefix stops before the one position the two builds differ at, so one assertion holds for both, and it
+        // stays an assertion about the separator, which is what the case is for. The set a production parser
+        // prints is pinned on its own by
+        // GrammarInDevelopmentParsingTests.testTableFunctionTokenIsNotNamedInProductionErrors.
         testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, '(', UNQUOTED_SOURCE");
         // Suffix case is not supported because there is no component named with the empty string
         testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");

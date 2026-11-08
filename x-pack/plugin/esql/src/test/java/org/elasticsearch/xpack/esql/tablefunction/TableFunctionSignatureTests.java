@@ -21,9 +21,8 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * The shared shape check, exercised directly rather than through a query.
  * <p>
- * These used to be parser tests, which they can no longer be: a call is left unresolved by the parser, as a scalar
- * function's is, so the shape is checked when the call is resolved. Asserting it here keeps the cases and drops the
- * query, which is the cheaper and more direct test of the same statements.
+ * Not through the parser, because the parser leaves a call unresolved, as it does a scalar function's: the shape
+ * is checked where the call is resolved. Asserting it here keeps the cases and drops the query.
  */
 public class TableFunctionSignatureTests extends ESTestCase {
 

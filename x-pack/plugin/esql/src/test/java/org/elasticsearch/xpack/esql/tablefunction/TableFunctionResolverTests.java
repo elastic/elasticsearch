@@ -13,8 +13,12 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -33,6 +37,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -415,7 +420,7 @@ public class TableFunctionResolverTests extends ESTestCase {
      * takes a List for every type rather than for the numeric family only, and encodes each element.
      */
     public void testAMultivaluedKeywordCellIsOnePosition() {
-        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.KEYWORD, List.of(List.of(List.of("a", "b")))), call("1"));
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.KEYWORD, oneCell(List.of("a", "b"))), call("1"));
 
         assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
         assertThat(rows.supplier().get().getBlock(0).getValueCount(0), equalTo(2));
@@ -652,13 +657,18 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat(rows.supplier().get().getPositionCount(), equalTo(2));
     }
 
-    /** A function disagreeing with its own column list is refused rather than building a page of another width. */
+    /**
+     * A function disagreeing with its own column list is refused rather than building a page of another width, and
+     * the refusal names the function and which row, because a source list may name several functions and a wide
+     * answer may have one bad row in it.
+     */
     public void testRowOfTheWrongWidthIsRefused() {
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> resolve(new Mismatched(List.of(List.of(1L, 2L))), call("1"))
+            () -> resolve(new Mismatched(List.of(List.of(1L), List.of(1L, 2L))), call("1"))
         );
-        assertThat(e.getMessage(), containsString("row of [2] values for [1] columns"));
+        assertThat(e.getMessage(), containsString("row of [2] values at [1] for [1] columns"));
+        assertThat(e.getMessage(), containsString("table function [numbers]"));
     }
 
     /**
@@ -681,6 +691,73 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat(children.get(0) == children.get(1), equalTo(false));
     }
 
+    /** A relation with no output is not a relation the rest of the language can read, so it is refused here. */
+    public void testAFunctionDeclaringNoColumnsIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Shaped(List.of(), List.of(List.of())), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("table function [numbers] declared no columns"));
+    }
+
+    /** And one name twice, because a reference to it would be ambiguous with nothing able to say whose fault. */
+    public void testAFunctionDeclaringOneNameTwiceIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Shaped(List.of("c", "c"), List.of(List.of("a", "b"))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared the column [c] more than once"));
+    }
+
+    /** Declares the column names it was built with, so a test can hand over a shape the other doubles cannot. */
+    private static class Shaped extends CoordinatorRowsFunction {
+
+        private final List<String> names;
+        private final List<List<Object>> rows;
+
+        Shaped(List<String> names, List<List<Object>> rows) {
+            this.names = names;
+            this.rows = rows;
+        }
+
+        @Override
+        public String name() {
+            return "numbers";
+        }
+
+        @Override
+        public TableFunctionSignature signature() {
+            return TableFunctionSignature.of(TableFunctionSignature.name("upto"));
+        }
+
+        @Override
+        protected List<Attribute> columns(TableFunctionInvocation call, TableFunctionContext context) {
+            return names.stream().map(n -> column(n, DataType.KEYWORD)).toList();
+        }
+
+        @Override
+        protected void rows(TableFunctionInvocation call, TableFunctionContext context, ActionListener<List<List<Object>>> listener) {
+            computed(listener, () -> rows);
+        }
+    }
+
+    /**
+     * One row holding one cell, so a test names the cell it hands over instead of counting brackets. The three
+     * levels - rows, row, cell - are easy to be one out on, and being one out turns a nested list into an ordinary
+     * multivalue, which is exactly the thing under test.
+     */
+    private static List<List<Object>> oneCell(Object cell) {
+        List<Object> row = new ArrayList<>(1);
+        row.add(cell);
+        return List.of(row);
+    }
+
+    /** A call of the same function with nothing in the parentheses, which its signature refuses. */
+    private static UnresolvedTableFunctionRelation callWithNoArguments() {
+        Source source = Source.EMPTY;
+        return new UnresolvedTableFunctionRelation(source, new TableFunctionInvocation(source, "numbers", List.of()), List.of());
+    }
+
     private static UnresolvedTableFunctionRelation call(String argument) {
         Source source = Source.EMPTY;
         return new UnresolvedTableFunctionRelation(
@@ -688,6 +765,116 @@ public class TableFunctionResolverTests extends ESTestCase {
             new TableFunctionInvocation(source, "numbers", List.of(new TableFunctionArgument.Name(source, argument))),
             List.of()
         );
+    }
+
+    /**
+     * A nested list is refused, because a block position holds values rather than cells. The builders accept one:
+     * the inner list reaches the {@code BYTES_REF} arm and is stored as its own {@code toString()}, so "a, b"
+     * becomes the six bytes of {@code [a, b]} in a single value, which nothing downstream can tell from text a
+     * function meant.
+     */
+    public void testANestedListIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.KEYWORD, oneCell(List.of(List.of("a", "b")))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("a multivalued cell cannot hold a list"));
+        assertThat(e.getMessage(), containsString("column [c] declared [keyword]"));
+    }
+
+    /**
+     * A null inside a multivalue is refused, and this is the one that only bites in production: {@code appendNull}
+     * closes the open position entry and appends a null position, so one row becomes three positions in a page
+     * that says it holds one. Both guards on that path are assertions, so with assertions off it is accepted.
+     */
+    public void testANullInsideAMultivalueIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.KEYWORD, oneCell(Arrays.asList("a", null))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("a multivalued cell cannot hold null"));
+    }
+
+    /** An empty list is refused for the same reason, and the block API's own assertion says what to hand back. */
+    public void testAnEmptyListIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.LONG, oneCell(List.of())), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("an empty list has no value to store"));
+    }
+
+    /** A null cell is still a null cell: it is the empty list that has nowhere to go, not the absence of a value. */
+    public void testANullCellIsAccepted() {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.KEYWORD, oneCell(null)), call("1"));
+
+        Block block = rows.supplier().get().getBlock(0);
+        assertThat(block.getPositionCount(), equalTo(1));
+        assertThat(block.isNull(0), equalTo(true));
+    }
+
+    /**
+     * A point column holds a point. {@code asWkb} writes any geometry it is given with no dimensionality check, so
+     * without this a polygon sat under a point column as 93 bytes of polygon WKB, failing only in whatever read it.
+     */
+    public void testAPolygonIsRefusedForAPointColumn() {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, 1, 0 }, new double[] { 0, 0, 1, 0 }));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.GEO_POINT, List.of(List.of(polygon))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("which needs a Point"));
+    }
+
+    /** And a point the coordinate system does not admit, which the Java type cannot tell you either. */
+    public void testAnOutOfRangeGeoPointIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.GEO_POINT, List.of(List.of(new Point(500, 500)))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("column [c] declared [geo_point]"));
+        assertThat(e.getMessage(), containsString("latitude"));
+    }
+
+    /** A polygon is a shape, so the shape column takes it, and the same validation still applies to it. */
+    public void testAPolygonIsAcceptedForAShapeColumn() {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, 1, 0 }, new double[] { 0, 0, 1, 0 }));
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.GEO_SHAPE, List.of(List.of(polygon))), call("1"));
+
+        assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
+    }
+
+    /**
+     * The arm for the types with no natural Java form to encode from: the function owns the bytes, and says so by
+     * handing over a {@code BytesRef} rather than something this would have to guess at.
+     */
+    public void testATypeWithNoEncodingNeedsItsOwnBytes() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.HISTOGRAM, List.of(List.of("x"))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared [histogram], which needs a BytesRef"));
+    }
+
+    /**
+     * A failure in the shape stage arrives through the listener rather than being thrown at the caller. The caller
+     * is inside a listener chain of its own — {@code EsqlSession} calls this from within
+     * {@code datasetResolver.replaceDatasets}' callback — so a synchronous throw would escape that chain instead of
+     * failing the query. Asserted off the future, not around the call, because wrapping both in one
+     * {@code expectThrows} passes either way.
+     */
+    public void testAShapeFailureArrivesThroughTheListener() {
+        TableFunctionResolver resolver = new TableFunctionResolver(
+            new TableFunctionRegistry(List.of(new Typed(DataType.KEYWORD, List.of()))),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
+
+        // No throw here: the signature wants one argument and this call has none.
+        resolver.resolveTableFunctions(callWithNoArguments(), null, future);
+
+        ParsingException e = expectThrows(ParsingException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("numbers"));
     }
 
     private static LogicalPlan resolve(TableFunction function, LogicalPlan plan) {

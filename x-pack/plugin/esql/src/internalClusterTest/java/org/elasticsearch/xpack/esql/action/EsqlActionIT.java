@@ -1188,8 +1188,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Selectors must be outside of date math expressions or else they trip up the selector parsing
         testCases.put("<test-{now/d}::failures>", "Invalid index name [<test-{now/d}], must not contain the following characters [");
         // Only one selector separator is allowed per expression. The expected-token set is matched without its
-        // closing brace because this change adds a token at this position, and this suite runs on both kinds of
-        // build: internalClusterTest is wired into check, so release-tests runs it with build.snapshot=false,
+        // closing brace because a table function's name is one of the tokens a source list admits here, and this
+        // suite runs on both kinds of build: internalClusterTest is wired into check, so release-tests runs it
+        // with build.snapshot=false,
         // where EsqlParser's error listener strips the DEV_-prefixed name that a snapshot build leaves in. The
         // prefix stops before the one position the two builds differ at, so one assertion holds for both, and it
         // stays an assertion about the separator, which is what the case is for. The set a production parser

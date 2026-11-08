@@ -22,9 +22,8 @@ import java.util.TreeMap;
  * carries no privilege of its own. Built from a list of already-constructed functions, so a function that needs
  * collaborators is handed them where it is created and nothing shared has to know about them.
  * <p>
- * <b>It may legitimately be empty.</b> A node registering no function is a working state, which is what makes
- * the separation checkable rather than asserted: everything below is exercised by a function defined in the
- * tests, so nothing here can be shaped by one real function's needs.
+ * <b>It may legitimately be empty.</b> A node registering no function is a working state, not a half-built one,
+ * and {@code resolve} answers for that case in its own words rather than listing an empty set.
  */
 public final class TableFunctionRegistry {
 

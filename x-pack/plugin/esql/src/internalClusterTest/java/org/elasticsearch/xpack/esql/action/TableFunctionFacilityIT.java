@@ -46,10 +46,10 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
 
-    /** Registers the test function. The production seam returns nothing, so nothing else here changes. */
+    /** Registers the test function in place of this node's set, which on this branch is empty anyway. */
     public static final class EsqlWithTestTableFunction extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
-        protected List<TableFunction> extraTableFunctions(Client client) {
+        protected List<TableFunction> tableFunctions(Client client) {
             return List.of(new Letters());
         }
     }

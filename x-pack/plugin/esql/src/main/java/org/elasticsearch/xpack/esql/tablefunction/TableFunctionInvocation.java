@@ -49,4 +49,15 @@ public record TableFunctionInvocation(Source source, String name, List<TableFunc
     public Map<String, Object> namedValues(int i) {
         return i < arguments.size() ? ((TableFunctionArgument.NamedValues) arguments.get(i)).values() : null;
     }
+
+    /**
+     * The name and how many arguments there were, never what was in them. A record's generated {@code toString}
+     * renders every component, and an argument may be a definition carrying credentials, so the generated one
+     * would put them wherever anyone writes {@code logger.debug("{}", call)}. The leaf that holds an invocation
+     * redacts for the same reason; redacting here means a caller does not have to know to.
+     */
+    @Override
+    public String toString() {
+        return "TableFunctionInvocation[name=" + name + ", arguments=" + arguments.size() + "]";
+    }
 }

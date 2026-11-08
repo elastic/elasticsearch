@@ -22,7 +22,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnionTypedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -151,10 +151,8 @@ public class TypeOf extends UnaryScalarFunction implements AnyNullIsNull {
      * attribute inside every expression when it does - so by the time an evaluator is built the names are on the child.
      */
     private List<String> legNames() {
-        if (field() instanceof FieldAttribute attribute && attribute.field() instanceof UnionEsField union) {
-            return union.legTypes().stream().map(DataType::esType).toList();
-        }
-        return null;
+        List<DataType> legTypes = UnionTypedExpression.legTypesOf(field());
+        return legTypes == null ? null : legTypes.stream().map(DataType::esType).toList();
     }
 
     @Override

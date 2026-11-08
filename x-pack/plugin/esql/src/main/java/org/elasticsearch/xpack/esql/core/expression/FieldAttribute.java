@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -49,7 +50,8 @@ import java.util.Set;
  * and {@code field::ip}, we'll generate 2 field attributes called {@code $$field$converted_to$keyword} and {@code $$field$converted_to$ip}
  * which still refer to the same underlying index field.
  */
-public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMetadataAttribute, UnsupportedAttribute {
+public sealed class FieldAttribute extends TypedAttribute implements UnionTypedExpression permits TimeSeriesMetadataAttribute,
+    UnsupportedAttribute {
 
     /**
      * A field name, as found in the mapping. Includes the whole path from the root of the document.
@@ -354,6 +356,16 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
 
     public EsField field() {
         return field;
+    }
+
+    /**
+     * Derived from the field rather than stored: a field already carries its legs, and storing them twice would let
+     * the two disagree. {@code null} for every other field, which is what makes this answer the question "is this
+     * union-typed" as well as "what are its legs".
+     */
+    @Override
+    public List<DataType> unionLegTypes() {
+        return field instanceof UnionEsField union ? union.legTypes() : null;
     }
 
     /**

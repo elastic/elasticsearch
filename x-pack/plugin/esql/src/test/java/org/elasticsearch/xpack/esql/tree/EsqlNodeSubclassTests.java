@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -439,6 +440,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
         if (argType instanceof ParameterizedType pt) {
+            if (toBuildClass == ReferenceAttribute.class && pt.getRawType() == List.class) {
+                // The leg types; see the ReferenceAttribute block below for why this generator builds a non-union
+                // reference. Handled here because the parameterized-type branch returns before that block is reached.
+                return null;
+            }
             if (pt.getRawType() == LinkedHashMap.class) {
                 return makeOrderedMap(toBuildClass, pt);
             }
@@ -485,7 +491,19 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          * Sometimes all of the required type information isn't in the ctor
          * so we have to hard code it here.
          */
-        if (toBuildClass == FieldAttribute.class) {
+        if (toBuildClass == ReferenceAttribute.class) {
+            /*
+             * A reference carries leg types exactly when its type is UNION, and the constructor refuses either
+             * without the other. This generator fills parameters one at a time from their declared types, so it
+             * cannot honour an invariant that spans two of them: it would pair a random type with a random leg list.
+             * Build a non-union reference instead. Nothing is lost here - what these tests check is structural
+             * (info, replaceChildren, transform) and does not vary with the type - and ReferenceAttributeTests
+             * covers the union case, its serialization and its witherers directly.
+             */
+            if (argClass == DataType.class) {
+                return randomValueOtherThan(DataType.UNION, () -> randomFrom(DataType.types()));
+            }
+        } else if (toBuildClass == FieldAttribute.class) {
             // `parent` is nullable.
             if (argClass == FieldAttribute.class && randomBoolean()) {
                 return null;

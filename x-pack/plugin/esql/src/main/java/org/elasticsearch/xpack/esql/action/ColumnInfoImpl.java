@@ -19,10 +19,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnionTypedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.UnionEsField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -146,12 +145,13 @@ public class ColumnInfoImpl implements ColumnInfo {
             Collections.sort(types);
             return types;
         }
-        if (attribute instanceof FieldAttribute field && field.field() instanceof UnionEsField union) {
+        List<DataType> legTypes = UnionTypedExpression.legTypesOf(attribute);
+        if (legTypes != null) {
             // The mapping type name, as field_caps spells it, because that is the vocabulary this field already
             // speaks for an unsupported column and a client should not have to know two. It differs from the type's
             // own name for exactly one leg type today, `date` against `datetime`, and the renderer's lookup accepts
             // both; UnionEsFieldTests pins that for every leg type rather than for the one that differs.
-            return union.legTypes().stream().map(DataType::esType).toList();
+            return legTypes.stream().map(DataType::esType).toList();
         }
         return null;
     }

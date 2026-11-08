@@ -568,13 +568,24 @@ a control that fails if the pragma stops reaching the queries.
 
 ## 6. Two process faults worth keeping
 
-**The docs sync deletes what a filtered run did not generate.** `EsqlFunctionPlugin`'s `test.doLast`
-syncs generated docs into `docs/`, and `Fs.sync` deletes destination files absent from the source. The
-`preserve` guard is conditional on the run producing at most 100 of them, so a filtered run over
-`expression.function.*` that crosses that count is taken for a full suite and deletes every other
-function's snippets, SVGs and Kibana definitions. That is how 55 generated files for `to_ip`,
-`inline_cast` and the arithmetic and comparison operators left the tree under a blanket `git add`, and
-it is why the docs CI was red. Check `git status docs/` after any filtered function-test run.
+**The docs sync deletes whatever the run did not generate, and one function is permanently exposed.**
+`EsqlFunctionPlugin`'s `test.doLast` syncs generated docs into `docs/`, and `Fs.sync` deletes
+destination files absent from the source. The `preserve` guard is conditional on the run producing at
+most 100 of them, so a filtered run over `expression.function.*` that crosses that count is taken for a
+full suite — which is how 55 files for `to_ip`, `inline_cast` and the arithmetic and comparison
+operators left the tree under a blanket `git add`, and why the docs CI was red.
+
+An earlier draft of this stopped there and was too narrow. The rule is not about filtering: sync deletes
+anything the run did not produce, and a **muted** generator guarantees that for its function on every
+run, full or not. `ToIpTests` is muted for `:x-pack:plugin:esql:test` (issue 163299), so a complete unit
+run still deletes `to_ip`'s ten files. `unpopulatedKibanaSubdirs` exists for exactly this reason — its
+comment names muting — but it preserves whole kibana subdirectories, so it cannot save one function
+whose siblings in that subdirectory were generated.
+
+**The consequence for gating: the two suites cannot be run back to back.** `CsvFlattenedKeywordIT` reads
+the generated kibana docs to enumerate function parameters, so a `test` run followed by an
+`internalClusterTest` run makes the second fail with `TO_IP:0 is unexpected` — a positional index where
+a parameter name should be, caused entirely by the preceding task. Restore `docs/` between them.
 
 **A green function test is not evidence its docs render.** `AbstractFunctionTestCase.functionName()`
 derives the name from the test class, so `TypeOfTests` asked for `type_of` while the function is

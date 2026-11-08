@@ -14,51 +14,24 @@ import java.util.List;
 
 /**
  * A function that stands where an index pattern stands: {@code FROM logs-*, NAME(<arguments>)}.
- *
- * <h2>What a table function is</h2>
- *
- * <b>A function from an invocation to a relation.</b> The input is a {@link TableFunctionInvocation} — a name and
- * an ordered argument list, which is everything the user wrote and nothing else. The output is a plan leaf that
- * denotes rows. Then the function is done: resolution, optimization, placement, splitting and execution all happen
- * to that leaf, and no stage after this one has a table-function branch in it.
  * <p>
- * One instance per function, held by {@link TableFunctionRegistry}, built at startup and identical on every node. A
- * source list may mix functions with index patterns and subqueries freely, so a function describes one leaf of such
- * a list and never assumes it is alone in it.
- *
- * <h2>A function does not return a schema</h2>
- *
- * It returns a relation, and a relation has an output — so the question never arises separately. A function whose
- * columns follow from its arguments returns a resolved leaf with its output set; a function whose columns are only
- * knowable by looking returns an <i>unresolved</i> leaf and the ordinary analyzer resolves it, exactly as
- * {@code FROM logs-*} is resolved. Nothing here is a second schema mechanism.
- *
- * <h2>What a function cannot do, and why</h2>
- *
- * <ul>
- *   <li><b>It authorizes what it reads, and the facility does not do it for it.</b> A privilege is a property of
- *       what one particular function reads, so the function owns the check: it is constructed with the client it
- *       needs (see {@code EsqlPlugin#extraTableFunctions}) and asks before it binds, inside {@link #toRelation}, in
- *       the caller's thread context. {@link TableFunctionContext} stays a project and nothing else, so a function
- *       needing more is given it where it is constructed. <b>Nothing here checks that a function did ask.</b> A leaf
- *       returned from {@link #toRelation} is not re-authorized — a function may name any dataset the project has,
- *       and resolution will read it — so a function that reads something privileged and does not ask has opened a
- *       hole no later stage closes.</li>
- *   <li><b>It cannot choose where it runs.</b> Placement follows the leaf it returned: {@code Mapper#mapLeaf}
- *       sends some leaf types to data nodes through a fragment and keeps others on the coordinator. A function
- *       picks what it denotes, not where that is read.</li>
- *   <li><b>It cannot carry state from here to a data node.</b> Only the leaf travels, so anything a node needs has
- *       to be derivable from what the leaf carries. Two derivations of one configuration would be two things to
- *       keep in step, and the second is the one an attacker gets to write.</li>
- *   <li><b>It cannot know how it was written.</b> Nothing downstream may branch on whether a leaf came from a
- *       function call, which is what keeps it possible for an ordinary index pattern to become one of these later
- *       without the facility changing.</li>
- * </ul>
- *
- * <h2>Writing one</h2>
- *
- * A name, a signature, and the leaf. Most functions should extend a base class rather than implement this
- * directly — {@link CoordinatorRowsFunction} for a function whose rows the coordinator produces — because the
+ * It is a function from an invocation to a relation. The input is a {@link TableFunctionInvocation} — a name and
+ * an ordered argument list, which is everything the user wrote and nothing else. The output is a plan leaf that
+ * denotes rows, and then the function is done: no stage after this one has a table-function branch in it.
+ * <p>
+ * It does not return a schema, because a relation has an output. A function whose columns follow from its
+ * arguments returns a resolved leaf; a function whose columns are only knowable by looking returns an
+ * <i>unresolved</i> leaf, and the ordinary analyzer resolves it exactly as it resolves {@code FROM logs-*}.
+ * <p>
+ * Three things a function cannot do, each of which something else owns. It cannot authorize: nothing here checks
+ * a privilege, so a function reaching something access-controlled does that itself, and dispatching the action
+ * its REST equivalent dispatches is how to do it without inventing a rule. It cannot choose where it runs, since
+ * placement follows the leaf it returned. And it cannot know how it was written — nothing downstream may branch
+ * on whether a leaf came from a call, which is what would let an index pattern become one of these later.
+ * <p>
+ * One instance per function, held by {@link TableFunctionRegistry} and identical on every node. A source list may
+ * mix functions with patterns and subqueries, so a function describes one leaf and never assumes it is alone.
+ * Prefer extending a base class — {@link CoordinatorRowsFunction} for rows the coordinator produces — because the
  * bases own the parts that must not vary between functions.
  */
 public interface TableFunction {
@@ -70,34 +43,25 @@ public interface TableFunction {
     String name();
 
     /**
-     * The shape of invocation this function accepts: its arity, and the kind of each argument. Checked before
-     * {@link #validate} and before anything is authorized, with wording shared by every table function, so no
-     * function writes arity code of its own and two functions cannot word the same complaint differently.
-     * <p>
-     * Because the shape is known to hold by the time a function reads its arguments, the accessors on
-     * {@link TableFunctionInvocation} may cast without testing.
+     * The arity and argument kinds this function accepts, checked before {@link #validate} with wording shared by
+     * every table function. Because it is known to hold by the time a function reads its arguments, the accessors
+     * on {@link TableFunctionInvocation} may cast without testing.
      */
     TableFunctionSignature signature();
 
     /**
-     * Whatever must be true of an invocation beyond its {@link #signature()}.
-     * <p>
-     * Raises {@link org.elasticsearch.xpack.esql.parser.ParsingException} against the source of the offending
-     * argument rather than of the whole call, so the error points at what the user has to change.
-     * <p>
-     * Empty by default: a function whose shape is its whole contract needs nothing here.
+     * Whatever must be true of an invocation beyond its {@link #signature()}. Raises
+     * {@link org.elasticsearch.xpack.esql.parser.ParsingException} against the offending argument's source rather
+     * than the whole call's, so the error points at what the user has to change.
      */
     default void validate(TableFunctionInvocation call) {}
 
     /**
-     * Completes {@code listener} with the {@link LeafPlan} this invocation denotes, bound against {@code context}'s project.
+     * Completes {@code listener} with the {@link LeafPlan} this invocation denotes.
      * <p>
-     * Asynchronous because some functions cannot answer without I/O — a listing, a schema, a round-trip — and the
-     * resolver this runs inside is already asynchronous. A function needing none completes inline, and the base
-     * classes do that for it, so the simple case never handles a listener.
-     * <p>
-     * Called only after the shape has been checked and {@link #validate} has passed. Whatever privilege the rows
-     * behind this call need is this function's to check, here, before it binds anything.
+     * Asynchronous because some functions cannot answer without I/O; one needing none completes inline, and the
+     * base classes do that for it. Called after the shape has been checked and {@link #validate} has passed for
+     * every call in the query, not just this one.
      *
      * @param metadataFields the names from the user's {@code METADATA} clause, threaded to every leaf in the source
      *                       list. A leaf that binds its own metadata consumes them; one that does not may ignore

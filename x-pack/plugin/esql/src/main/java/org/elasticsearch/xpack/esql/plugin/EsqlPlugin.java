@@ -983,12 +983,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     /**
-     * The table functions this node registers.
+     * The table functions this node registers. {@link DatasetTableFunction} is the only one.
      * <p>
-     * A seam rather than a constant so that the facility can also be exercised by a function defined in a test,
-     * which is how its shared path is shown not to have been shaped by one real function's needs. The precedent for
-     * a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState}, both overridden
-     * by test subclasses.
+     * A seam rather than a constant so that the facility does not name a function, and so that a test can register
+     * a set of its own: {@code TableFunctionFacilityIT} overrides this to drive the facility through real queries
+     * with a function that exists only in that test, which replaces this list rather than adding to it. The
+     * precedent for a protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState},
+     * both overridden by test subclasses.
      * <p>
      * A function needing collaborators is constructed with them here; that is why the registry takes
      * already-constructed functions rather than names, and why the client and the dataset validator are parameters

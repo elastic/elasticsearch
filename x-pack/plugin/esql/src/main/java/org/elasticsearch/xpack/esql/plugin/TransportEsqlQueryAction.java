@@ -173,7 +173,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             Federation.isAvailable(clusterService.getSettings()),
             federationLicense
         );
-        this.tableFunctionResolver = new TableFunctionResolver(planExecutor.tableFunctionRegistry());
+        this.tableFunctionResolver = new TableFunctionResolver(planExecutor.tableFunctionRegistry(), requestExecutor);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(

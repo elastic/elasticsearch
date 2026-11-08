@@ -261,6 +261,11 @@ tests:
   tasks:
   - :x-pack:plugin:esql:test
   issue: https://github.com/elastic/elasticsearch/issues/165053
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
+  issue: https://github.com/elastic/elasticsearch/issues/165077
 
 # Examples:
 #

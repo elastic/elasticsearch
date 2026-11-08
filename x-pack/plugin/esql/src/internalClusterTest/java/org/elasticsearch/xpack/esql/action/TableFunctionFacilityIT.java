@@ -14,6 +14,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetDefinitionValidator;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.tablefunction.CoordinatorRowsFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunction;
 import org.elasticsearch.xpack.esql.tablefunction.TableFunctionContext;
@@ -158,7 +159,7 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
 
     /** An unknown name is answered by the facility, at the call, rather than read as a missing index. */
     public void testAnUnknownFunctionNamesTheOnesThatExist() {
-        var e = expectThrows(Exception.class, () -> run("FROM nosuchfunction(\"a\")").close());
+        var e = expectThrows(ParsingException.class, () -> run("FROM nosuchfunction(\"a\")").close());
         assertThat(e.getMessage(), containsString("unknown table function [nosuchfunction]"));
         assertThat(e.getMessage(), containsString("letters"));
     }

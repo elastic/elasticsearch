@@ -2438,7 +2438,10 @@ public class EsqlSession {
                 Map<String, Object> previous = pathConfigs.putIfAbsent(path, p.config());
                 if (previous != null && sameRead(previous, p.config()) == false) {
                     throw new IllegalArgumentException(
-                        "resource [" + path + "] is read through datasets with different configurations in one query"
+                        "resource ["
+                            + path
+                            + "] is read through datasets with different configurations in one query"
+                            + divergingDatasets(previous, p.config())
                     );
                 }
             } else {
@@ -2461,6 +2464,27 @@ public class EsqlSession {
      * and so differs between two registered datasets that are otherwise twins — which read identically
      * and must keep sharing one resolution.
      */
+    /**
+     * The two datasets the refusal is about, when both named themselves. Each config carries its own
+     * {@code _dataset_context} ({@code DatasetRewriter.datasetConfig} puts {@code dataset}, {@code datasource} and
+     * {@code type} there), which is the one key {@link #sameRead} strips — so the names are in hand here and a user
+     * who wrote {@code FROM a, b} should be told which two rather than only which path.
+     */
+    private static String divergingDatasets(Map<String, Object> left, Map<String, Object> right) {
+        String first = datasetName(left);
+        String second = datasetName(right);
+        return first == null || second == null ? "" : " - [" + first + "] and [" + second + "]";
+    }
+
+    @Nullable
+    private static String datasetName(Map<String, Object> config) {
+        if (config.get(ExternalSourceResolver.DATASET_CONTEXT_KEY) instanceof Map<?, ?> context
+            && context.get("dataset") instanceof String name) {
+            return name;
+        }
+        return null;
+    }
+
     private static boolean sameRead(Map<String, Object> left, Map<String, Object> right) {
         return withoutDatasetContext(left).equals(withoutDatasetContext(right));
     }

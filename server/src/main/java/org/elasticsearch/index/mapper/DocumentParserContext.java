@@ -902,15 +902,56 @@ public abstract class DocumentParserContext {
      * @throws IllegalArgumentException if there is no field mapped at {@code fullPath}
      */
     public Mapper.Builder updateMapping(String fullPath, Consumer<Mapper.Builder> update) {
+        // First check to see if the Builder has already been added dynamically during
+        // the current parse context, for example if it was added by a dynamic template
+        Mapper.Builder pending = findPendingFieldBuilder(fullPath);
+        if (pending != null) {
+            update.accept(pending);
+            return pending;
+        }
         Map<String, Mapper.Builder> stored = storedMapping.fieldBuilders(mappingParserContext, mappingLookup);
         Mapper.Builder builder = stored.get(fullPath);
         if (builder == null) {
             throw new IllegalArgumentException("cannot update the mapping of [" + fullPath + "], which is not a mapped field");
         }
+        // run the update before registering - updates may throw exceptions on bad data, for
+        // example documents with multiple dense_vector fields of different lengths.
         update.accept(builder);
         String registeredPath = mappingLookup.isMultiField(fullPath) ? mappingLookup.parentField(fullPath) : fullPath;
         addDynamicMapper(stored.get(registeredPath), registeredPath);
         return builder;
+    }
+
+    /**
+     * If a field {@code fullPath} has already been dynamically added while parsing this document,
+     * locate and return its Builder, otherwise return {@code null}
+     */
+    private Mapper.Builder findPendingFieldBuilder(String fullPath) {
+        int lastDot = fullPath.lastIndexOf('.');
+        // the field itself, or the parent that has it as a multi-field
+        for (String registeredPath : lastDot < 0 ? List.of(fullPath) : List.of(fullPath, fullPath.substring(0, lastDot))) {
+            List<Mapper.Builder> registered = dynamicMappers.get(registeredPath);
+            if (registered == null) {
+                continue;
+            }
+            for (int i = registered.size() - 1; i >= 0; i--) {
+                if (registered.get(i) instanceof FieldMapper.Builder fieldBuilder) {
+                    String parentPath = registeredPath.length() == fieldBuilder.leafName().length()
+                        ? null
+                        : registeredPath.substring(0, registeredPath.length() - fieldBuilder.leafName().length() - 1);
+                    Mapper.Builder[] found = new Mapper.Builder[1];
+                    fieldBuilder.collectFieldBuilders(parentPath, (path, builder) -> {
+                        if (path.equals(fullPath)) {
+                            found[0] = builder;
+                        }
+                    });
+                    if (found[0] != null) {
+                        return found[0];
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**

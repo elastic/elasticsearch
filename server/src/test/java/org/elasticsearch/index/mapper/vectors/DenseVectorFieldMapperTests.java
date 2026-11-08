@@ -1397,6 +1397,82 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertThat(mapping, containsString("\"index\":false"));
     }
 
+    /**
+     * A field that a dynamic template creates has no dimensions either, and learns them from the document that creates it, which is
+     * before the field is part of the stored mapping.
+     */
+    public void testDimensionsOfAFieldFromADynamicTemplate() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject().startObject("vectors");
+            b.field("match", "vec*");
+            b.startObject("mapping").field("type", "dense_vector").endObject();
+            b.endObject().endObject();
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("vec", 1.0f, 2.0f, 3.0f)));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, MapperService.MergeReason.MAPPING_AUTO_UPDATE, doc.dynamicMappingsUpdate().string());
+
+        assertThat(mapperService.documentMapper().mappingSource().string(), containsString("\"dims\":3"));
+    }
+
+    public void testVectorsOfTheSameLengthInNestedObjectsFixTheDimensions() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("vec").field("type", "dense_vector").endObject();
+            b.endObject().endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(
+                source(
+                    b -> b.startArray("n")
+                        .startObject()
+                        .array("vec", 1.0f, 2.0f, 3.0f)
+                        .endObject()
+                        .startObject()
+                        .array("vec", 4.0f, 5.0f, 6.0f)
+                        .endObject()
+                        .endArray()
+                )
+            );
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, MapperService.MergeReason.MAPPING_AUTO_UPDATE, doc.dynamicMappingsUpdate().string());
+
+        assertThat(mapperService.documentMapper().mappingSource().string(), containsString("\"dims\":3"));
+    }
+
+    /**
+     * Each vector of a document tells the field its dimensions, and they must agree before any of them is fixed in the mapping.
+     */
+    public void testVectorsOfDifferentLengthsInNestedObjectsAreRejected() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("vec").field("type", "dense_vector").endObject();
+            b.endObject().endObject();
+        }));
+
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper()
+                .parse(
+                    source(
+                        b -> b.startArray("n")
+                            .startObject()
+                            .array("vec", 1.0f, 2.0f)
+                            .endObject()
+                            .startObject()
+                            .array("vec", 1.0f, 2.0f, 3.0f)
+                            .endObject()
+                            .endArray()
+                    )
+                )
+        );
+        assertThat(e.getMessage(), containsString("different dimensions"));
+    }
+
     public void testDims() {
         {
             Exception e = expectThrows(

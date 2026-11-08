@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -133,6 +134,56 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             )
         );
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
+    }
+
+    /**
+     * A field that a dynamic template creates has no value, and the document that creates it fixes it, which is before the field is
+     * part of the stored mapping.
+     */
+    public void testDynamicValueOfAFieldFromADynamicTemplate() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject().startObject("constants");
+            b.field("match", "const*");
+            b.startObject("mapping").field("type", "constant_keyword").endObject();
+            b.endObject().endObject();
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("const", "foo")));
+        assertNotNull(doc.dynamicMappingsUpdate());
+
+        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_AUTO_UPDATE);
+        assertThat(updatedMapper.mappingSource().string(), containsString("\"value\":\"foo\""));
+    }
+
+    /**
+     * Each value in a document tells the field its value, and they must agree before any of them is fixed in the mapping.
+     */
+    public void testDifferentValuesInNestedObjectsAreRejected() throws Exception {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("field").field("type", "constant_keyword").endObject();
+            b.endObject().endObject();
+        }));
+
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper()
+                .parse(
+                    source(
+                        b -> b.startArray("n")
+                            .startObject()
+                            .field("field", "a")
+                            .endObject()
+                            .startObject()
+                            .field("field", "b")
+                            .endObject()
+                            .endArray()
+                    )
+                )
+        );
+        assertThat(e.getCause().getMessage(), containsString("only accepts values that are equal to the value defined in the mappings"));
     }
 
     public void testDynamicValueFieldLimit() throws Exception {

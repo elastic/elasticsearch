@@ -120,6 +120,22 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Sets the value inferred from a document. Throws an exception a different value has already been set.
+         */
+        public void setFromDocument(String v) {
+            if (value.isSet() && Objects.equals(value.getValue(), v) == false) {
+                throw new IllegalArgumentException(
+                    "[constant_keyword] field ["
+                        + leafName()
+                        + "] only accepts values that are equal to the value defined in the mappings, but got ["
+                        + v
+                        + "]"
+                );
+            }
+            setValue(v);
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { value, meta };
@@ -450,7 +466,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         if (fieldType().value == null) {
             // the mapper is already part of the mapping, we're just updating it with the new value
-            context.updateMapping(fullPath(), builder -> ((Builder) builder).setValue(value));
+            context.updateMapping(fullPath(), builder -> ((Builder) builder).setFromDocument(value));
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["

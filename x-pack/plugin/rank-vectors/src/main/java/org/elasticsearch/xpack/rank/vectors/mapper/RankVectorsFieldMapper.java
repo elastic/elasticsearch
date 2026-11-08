@@ -136,6 +136,19 @@ public class RankVectorsFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Sets dimensions inferred from a Document.  Throws an exception if dimensions have been
+         * previously set to a different value.
+         */
+        public void dimensionsFromDocument(int dimensions) {
+            if (dims.isSet() && Objects.equals(dims.getValue(), dimensions) == false) {
+                throw new IllegalArgumentException(
+                    "Field [" + leafName() + "] of type [" + CONTENT_TYPE + "] cannot be indexed with vectors of different dimensions"
+                );
+            }
+            dimensions(dimensions);
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { elementType, dims, meta };
@@ -345,7 +358,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 );
             }
             final int dims = currentDims;
-            context.updateMapping(fullPath(), builder -> ((Builder) builder).dimensions(dims));
+            context.updateMapping(fullPath(), builder -> ((Builder) builder).dimensionsFromDocument(dims));
             return ParseResult.INDEXED;
         }
         int dims = fieldType().dims;

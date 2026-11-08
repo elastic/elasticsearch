@@ -45,9 +45,10 @@ member so csv-spec tests can assert on a union column.
 `union_typed_fields` pragma `UnionTypesCleanup` builds a `UnionEsField` instead of flagging the
 conflict, so the attribute survives analysis. C2, the data-node loader, is done in `dab39ce2f1dd`
 with its two-shard test in this increment: each shard reads the field with its own loader and the
-values carry the leg that shard's mapping puts them in. **C3, the response's leg list, is not
-done** too, in this increment: `ColumnInfoImpl.forAttribute` is the one place a column's
-`original_types` is decided, and for a union it publishes the field's leg names in leg order.
+values carry the leg that shard's mapping puts them in. **C3, the response's leg list, is done**
+too, in `8664fdb67ed0`: `ColumnInfoImpl.forAttribute` is the one place a column's `original_types` is
+decided, and for a union it publishes the leg names in leg order - read off the attribute as of §11,
+so a column that is no longer a field still declares them.
 
 **And the cross-version fault §9.2 of the spec claimed does not exist.** Checking it rather than
 restating it: `TypeConflictedField.unionLegTypes()` has exactly one production caller, the analyzer,
@@ -688,7 +689,7 @@ one shape:
 | `STATS n = COUNT(*) BY t = TYPEOF(duration)` | `[[2, keyword], [3, long]]` |
 | `EVAL s = TYPED(duration, "long")` | longs selected, keywords null |
 | `EVAL d = duration::long` | longs converted, keywords null + warning |
-| **`RENAME duration AS d`** | **refused; was two internal failures** |
+| **`RENAME duration AS d`** | **was two internal failures; works as of §11** |
 
 **What `RENAME` did before the refusal, measured twice.** `RENAME` resolves its new name while the
 conflict is still an `InvalidMappedField`, so the attribute a later `KEEP` binds to is minted with
@@ -703,10 +704,10 @@ away, because it only moves the failure: past the consistency check the renderer
 column *is* the field; an alias makes a `ReferenceAttribute`, which has no field, so the response says
 `union` with nothing saying what a tag indexes.
 
-**So this is a deviation from "a union is always renderable", and the compliant fix is that the legs
-must travel with any attribute of this type rather than only with a field.** Until then `RENAME` is
-refused with a message naming both ways through (`TYPED` and `::`), and both are tested to work, because
-a refusal that recommends a broken escape is worse than no refusal.
+**So this was a deviation from "a union is always renderable", and the compliant fix is that the legs
+must travel with any attribute of this type rather than only with a field.** It was refused in the
+interim, with a message naming both ways through (`TYPED` and `::`), both tested to work, because a
+refusal recommending a broken escape is worse than no refusal. §11 is that fix; the refusal is gone.
 
 **The general statement, now that there are three instances.** A type decided at the *end* of analysis
 cannot be seen by anything minted *during* it. `MergePlan.output` computes eagerly in its constructor
@@ -714,8 +715,8 @@ cannot be seen by anything minted *during* it. `MergePlan.output` computes eager
 attribute that has none. Fixing them one at a time is whack-a-mole; the two candidate roots are
 building the union earlier — which fights `ResolveUnionTypes`, since `TYPED` and `::type` need the
 conflicted field to still be a conflict — or making the leg list part of what any attribute of type
-`UNION` carries. The second is the one that also discharges renderability, and it is where I would
-spend the next increment.
+`UNION` carries. The second is the one that also discharges renderability, and it is the one taken,
+in §11.
 
 ## 10. Two defects found by measuring instead of reasoning
 
@@ -737,9 +738,13 @@ will really carry. `UnionTypedFieldIT.testAUnionCannotRideThroughASort` pins bot
 and that sorting with the union *out* of the output still works.
 
 **`MV_EXPAND` on a union: five nulls.**
-`MV_EXPAND` re-mints its column as a reference, which carries no field and so no legs, and the column
-came back entirely null. An answer with nothing to say it is wrong is worse than an error. Refused in
-`MvExpand.postAnalysisVerification`.
+`MV_EXPAND` re-mints its column as a reference, which at the time carried no field and so no legs, and
+the column came back entirely null. An answer with nothing to say it is wrong is worse than an error.
+Refused in `MvExpand.postAnalysisVerification`, and it stays refused after §11 for two reasons that
+survive the legs travelling: `UnionArrayBlock#expand` throws for a block that may hold several values
+per position, which is the only input the command exists for, and `Analyzer.resolveMvExpand` mints its
+`expanded` attribute with a fresh `NameId` during resolution, so it is not an alias and the retype pass
+does not reach it. The refusal's javadoc now says that instead of the superseded reason.
 
 **What was checked and was fine.** The rename refusal only inspects `Project`, so an `EVAL` alias looked
 like a hole. It is not: `EVAL x = duration` is already refused with
@@ -747,10 +752,138 @@ like a hole. It is not: `EVAL x = duration` is already refused with
 through an `EVAL` likewise — which also means the `Coalesce` backstop comment's "nothing upstream yet
 stops one arriving" is true only for the `WHERE` path it names, not for `EVAL`.
 
-**A trap to carry into the next increment.** Lifting the rename refusal without also guarding `TYPED`
-ships a silent null. `ResolveUnionTypes` rewrites `TYPED` only over a `FieldAttribute` whose field is a
+**A trap carried into the next increment, and discharged there.** Lifting the rename refusal without
+also guarding `TYPED` ships a silent null. `ResolveUnionTypes` rewrites `TYPED` only over a `FieldAttribute` whose field is a
 `TypeConflictedField`; after a rename the child is a `ReferenceAttribute` typed `UNION`,
 `Typed.resolveType` constrains nothing and admits it, and `toEvaluator` computes
 `sameType(UNION, LONG) == false` and returns a constant-null column. So
 `RENAME duration AS d | EVAL s = TYPED(d, "long")` would answer five nulls — and `TYPED` is exactly what
 the refusal message recommends. The guard belongs in the same increment as the lift, not after it.
+
+## 11. The legs on the attribute, and what that bought
+
+Two commits, in the order that keeps each one reversible.
+
+**Increment 1, `ee22005a65a3` — a union attribute carries its legs, or does not exist.** Behaviour
+neutral on purpose: nothing minted a legged reference yet. `UnionTypedExpression` is the interface that
+makes the list askable of an expression rather than of a field; `FieldAttribute` derives it from its
+`UnionEsField`; `ReferenceAttribute` gained a `legTypes` payload with the invariant
+`(dataType == UNION) == (legTypes != null)` enforced in the constructor and carried through `clone`, so
+`withName` and `withId` cannot drop it and `withDataType` cannot forge it. `ColumnInfoImpl` and
+`TypeOf.legNames` then ask the expression instead of testing for a field. The two
+`EsPhysicalOperationProviders` field-extraction sites keep the field test deliberately: a per-shard
+loader is something only a field has.
+
+**Increment 2 — the producer, the lift and the one guard that has to come with it.** `Alias.toAttribute`
+passes `legTypesOf(child)` across the aliasing boundary, exactly as it already passed the values
+analyzer and the data type. `UnionTypesCleanup.refreshUnionReferences` then retypes every reference that
+names such an alias, keyed on `NameId`, one round per link of a rename chain. With that in place
+`Verifier.checkUnionTypedAttributeRenaming` is deleted.
+
+**`RENAME` now works end to end** across the two pinned data nodes of `UnionTypedFieldIT`: the column
+renders per leg, declares `["keyword", "long"]` in `original_types`, survives a chain of renames, and
+`TYPEOF` over the renamed name still names each value's own leg, because it reads the tag off the block
+and the names off the carried list.
+
+**`TYPED` is refused on a renamed union, in the same commit.** Selection happens by rewriting the
+*field* attribute into one conversion per mapped type, so a renamed copy is never rewritten and the
+function would compare `union` against the requested type, find them different, and answer null for
+every row. The check is `Typed.postAnalysisVerification` rather than `resolveType`, because the type is
+not a union yet while resolution runs — a conflict is an `InvalidMappedField` typed `UNSUPPORTED`
+throughout, which is the shape the function exists to be applied to. The message is anchored on the
+`TYPED` call rather than on the field, whose source for a rename is the `RENAME` clause the user wrote
+correctly, and it names the order that does work: select the leg off the column, then rename the result.
+
+**What each test is worth, measured by mutation rather than asserted.** Four mutants, each run against
+the five new `AnalyzerTests` cases:
+
+| mutant | red |
+|---|---|
+| `refreshUnionReferences` not called | the two rename cases, `TYPEOF`, and the `TYPED` refusal |
+| the retype loop cut to one round | the chained rename only |
+| `Typed.postAnalysisVerification` emptied | the `TYPED` refusal only |
+| `Alias.toAttribute` passes `null` legs | the same four as the first |
+
+The one-round mutant going red on exactly the chained rename is what says the loop is load-bearing
+rather than defensive.
+
+**And the state this removes was worse than an error.** Running the eleven `UnionTypedFieldIT` cases
+against the first mutant: the three rename cases fail with the plan-consistency dump as expected, the
+`TYPED` refusal stops firing because its trigger never appears — and six *unrelated* cases then fail
+with `Request breaker not reset to 0 on node: node_s0 … was 1836L`. The planning failure leaks the
+request breaker and poisons the rest of the suite. The shipped code's run is 11/11 with no breaker
+failure, so this is a fact about the state being removed; whether the same leak attends any
+`PostOptimizationPhasePlanVerifier` failure on main is not isolated here and is not claimed.
+
+**One asymmetry left standing, deliberately.** `RENAME u AS d` works; `EVAL d = u` is still refused,
+with `EVAL does not support type [union] as the return data type of expression [u]`. Both are copies of
+a column, so the distinction is not a design choice — the refusal belongs to the `EVAL` command, whose
+`postAnalysisVerification` asks `DataType.isRepresentableInExpression`, and that excludes `UNION`.
+Widening it so an `EVAL` could copy a union would also admit a union argument to every scalar function
+that types itself off a child, which is the blast radius the `Coalesce` finding is about. The gate
+stays; the asymmetry is recorded here rather than left for a reader to discover.
+
+**Per-function admission is a separate axis and is not uniform**, which an earlier draft of this
+section got wrong by calling `isRepresentableInExpression` "the single gate keeping every scalar
+function from accepting a union argument". It is not a gate on functions at all. `TypeOf` admits a
+union deliberately — it is the function that exists for one. `Coalesce` and `Case` admit one by
+omission, taking their type from a child with no representability test, which is §12's second finding.
+
+## 12. What Fable's review of §11 found, and it was not cosmetic
+
+Two blockers, both server errors, both reachable with an ordinary query under the pragma, and **neither
+visible to any gate I had run** — `AnalyzerTests` at 810 green and `internalClusterTest` at 11/11
+covered neither, because every pragma-on query in the suite resolves and none of them wraps a union in
+a function. The green gate was evidence only about what it checked, again.
+
+**B1 — an unknown column answered with a 500.** `refreshUnionReferences` asked every `Alias` in the
+plan for `child().dataType()`. The analyzer deliberately leaves an unresolved child in place for the
+verifier to report, and `UnresolvedAttribute.dataType()` throws `UnresolvedException`, which is a
+`QlServerException`. So `FROM union_index* | EVAL x = nope` and `FROM union_index* | RENAME nope AS x`
+both came back as `Invalid call to dataType on an unresolved object ?nope` instead of
+`Unknown column [nope]`. The in-repo precedent for a late retype pass, `collectAliasesNeedingTypeUpdate`
+in the same file, guards exactly this and says why; I had not read it.
+
+**B2 — a function that types itself as a union hit my own invariant.** `Coalesce.resolveType` takes its
+type from its first child with no representability test, so after the transform swapped the conflict for
+a `UnionEsField` the `Coalesce` was typed `UNION` with no legs. `Alias.toAttribute()` then refused to
+build the reference, and `FROM union_index* | EVAL x = COALESCE(id, id)` answered
+`[x] is a union and must carry its leg types` — an internal invariant in place of the user-facing
+refusal that already existed. Same for `CASE`. Measured at `ee22005a65a3`: both queries give the correct
+`EVAL does not support type [union]`, so this was introduced by §11 and not pre-existing.
+
+**One fix for both: ask the child for its legs, never for its type.**
+`UnionTypedExpression.legTypesOf(alias.child()) != null` is true exactly when the child is a union
+attribute. It cannot touch `dataType()` on anything unresolved, and it cannot reach an expression that
+is a union without being able to describe itself. Both shapes then fall through to the refusal that
+owns them.
+
+**And one message regression, found by the same review.** An attribute carries the source it was minted
+with. `handleSpecialFields` mints a reference with `withLocation(u.source())` — the usage site — and the
+retype pass was replacing it with `alias.toAttribute()`, whose source is the `RENAME` clause. So
+`RENAME id AS d | STATS c = COUNT(*) BY d` reported the grouping refusal at the rename rather than at
+the grouping. Each replacement now keeps the source of the reference it replaces, pinned by
+`testARefusalOnARenamedUnionPointsAtTheUseNotTheRename` on the exact column. Newly reachable, since the
+rename was refused before.
+
+**Checked and standing.** The review traced and cleared the wire path (the legs are written immediately
+after the type, inside the attribute-cache body, and `innerEquals` includes them so the cache cannot
+conflate a legged and a legless attribute), the `TYPED` guard's reach (dispatched via
+`forEachExpression`, so a nested, `WHERE`, `STATS` or `SORT` use is covered, and `::type` on a renamed
+union is refused by `isTypeOrUnionType` requiring a `FieldAttribute`), termination (each round grows the
+map by an id or returns; a chain of N renames is O(N²), bounded), `FILLNULL`, `SORT`, `STATS BY`, the
+`LOOKUP JOIN` key, and `MV_EXPAND`. `FORK` over a renamed union is caught by
+`MergePlan.checkNoUnionAcrossBranches` — the merge mints its output with a fresh `NameId` during
+resolution, so the retype pass cannot reach it, and that check is the one thing between the lifted
+refusal and a column of silent nulls. It now has a test of its own.
+
+**Recorded, not fixed, and measured rather than taken on the review's word.**
+`FROM union_index* | RENAME id AS d | ENRICH languages ON d` answers
+`line 1:58: Unsupported type [unsupported] for enrich matching field [d]; only [keyword, text, ip,
+long, integer, float, double, datetime] allowed for type [match]`. `resolveEnrich`'s `deferToUnionTypes`
+branch recognises only a `FieldAttribute`, so a retyped reference misses it and gets the misleading
+wording that branch exists to avoid — the attribute is still `UNSUPPORTED` at that point because
+`resolveEnrich` runs during resolution. The fix is to widen that branch; it is not in this increment.
+The message is wrong, the refusal is right, and no test asserts it, because a test pinning a message
+known to be wrong is a test defending the defect. The position is correct, which is the relocation fix
+reaching this path too.

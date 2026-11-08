@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.RelationClass;
+import org.elasticsearch.xpack.esql.core.expression.UnionTypedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
@@ -4608,10 +4609,65 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // pragma, so an older cluster loses the capability and changes no answer.
             boolean unionTypedFields = context.configuration().pragmas().unionTypedFields()
                 && DataType.UNION.supportedVersion().supportedOn(context.minimumVersion(), Build.current().isSnapshot());
-            return cleanPlan.transformUp(
+            LogicalPlan cleaned = cleanPlan.transformUp(
                 LogicalPlan.class,
                 p -> p.transformExpressionsOnly(FieldAttribute.class, fa -> cleanTypeConflicts(fa, unionTypedFields))
             );
+            return unionTypedFields ? refreshUnionReferences(cleaned) : cleaned;
+        }
+
+        /**
+         * Retypes every reference to an alias that has just become a union. The conflict becomes a {@link UnionEsField}
+         * here, at the end of analysis, but the references that name an aliased copy of it - what {@code RENAME u AS d}
+         * produces, and what {@code EVAL d = u} would if an {@code EVAL} could return one - were minted during
+         * resolution, when the conflict was still typed
+         * {@code UNSUPPORTED}. Nothing else revisits them: {@link Alias#toAttribute} is consulted anew because the
+         * transform above rebuilt the alias, but a {@code ReferenceAttribute} sitting in a projection or an argument
+         * list above it is its own node and keeps whatever type it was built with. Left alone it is a column whose
+         * plan says one thing and whose block says another, which is how a rename used to fail the plan-consistency
+         * check and then throw in the renderer.
+         * <p>
+         * One round per link of a rename chain: an alias only learns it wraps a union once the reference it wraps has
+         * itself been retyped, so {@code RENAME u AS d | RENAME d AS e} needs two. A round that adds no alias ends it,
+         * and the map is bounded by the plan's aliases, so it terminates.
+         * </p>
+         */
+        private static LogicalPlan refreshUnionReferences(LogicalPlan plan) {
+            Map<NameId, Attribute> unionAliases = new HashMap<>();
+            LogicalPlan current = plan;
+            while (true) {
+                int known = unionAliases.size();
+                // Asking the child for its legs and never for its type, which is load-bearing twice over - both
+                // shapes below were measured as server errors before this read the legs instead.
+                //
+                // An unresolved child never gets asked anything: UnresolvedAttribute#dataType throws
+                // UnresolvedException, which is a QlServerException, and the analyzer deliberately leaves such a
+                // child in place for the verifier to report. EVAL x = nope and RENAME nope AS x both do that, and
+                // both have to come back as "Unknown column [nope]" rather than as a 500.
+                //
+                // And an expression that is typed UNION without being a union attribute has no legs to carry, so
+                // toAttribute() would refuse to build the reference at all. COALESCE and CASE take their type from
+                // their first argument with no representability test, so once the transform above has swapped the
+                // conflict for a UnionEsField they are typed UNION with nothing to say what a tag indexes. That is
+                // a union this pass cannot make renderable and must not try to: Eval refuses both in
+                // postAnalysisVerification, with a message about the query rather than about an invariant.
+                current.forEachExpressionDown(Alias.class, alias -> {
+                    if (UnionTypedExpression.legTypesOf(alias.child()) != null) {
+                        unionAliases.put(alias.id(), alias.toAttribute());
+                    }
+                });
+                if (unionAliases.size() == known) {
+                    return current;
+                }
+                // Each replacement keeps the source of the reference it replaces. The alias's own source is the
+                // RENAME clause, so without this every later failure anchored on the retyped attribute - a grouping
+                // refusal, MV_EXPAND, an enrich key - would point at a rename the user wrote correctly instead of at
+                // where the column was used.
+                current = current.transformExpressionsDown(
+                    ReferenceAttribute.class,
+                    ra -> unionAliases.containsKey(ra.id()) ? unionAliases.get(ra.id()).withLocation(ra.source()) : ra
+                );
+            }
         }
 
         private static Attribute cleanTypeConflicts(FieldAttribute fa, boolean unionTypedFields) {

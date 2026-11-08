@@ -18,7 +18,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -35,6 +38,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -43,7 +47,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * conversion and never inspects a value: the type comes from the mapping, which {@code ResolveUnionTypes}
  * pins per leg.
  */
-public class Typed extends EsqlScalarFunction implements ConvertFunction {
+public class Typed extends EsqlScalarFunction implements ConvertFunction, PostAnalysisVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Typed", Typed::new);
 
@@ -172,6 +176,43 @@ public class Typed extends EsqlScalarFunction implements ConvertFunction {
             return new TypeResolution("second argument of [" + sourceText() + "] must be a known type name");
         }
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    /**
+     * Refuses a field that is still a union by the time analysis is over, which means this call was never bound to a
+     * leg. Selection happens in {@code ResolveUnionTypes}, which rewrites the <em>field attribute</em> under this
+     * function into one conversion per mapped type, so it reaches only a column read straight from an index. A
+     * reference to an aliased copy of that column - {@code RENAME u AS d}, {@code EVAL d = u} - is not a field and is
+     * never rewritten, so the function would keep the union as its argument type, {@code sameType(UNION, target)}
+     * would answer false in {@code toEvaluator}, and every row would come back null for a column that has values.
+     * <p>
+     * Here rather than in {@code resolveType} because the type is not a union yet while that runs: a conflict is an
+     * {@code InvalidMappedField} typed {@code UNSUPPORTED} throughout resolution and only becomes a
+     * {@link org.elasticsearch.xpack.esql.core.type.UnionEsField} in {@code Analyzer.UnionTypesCleanup}, after it.
+     * Refusing {@code UNSUPPORTED} instead is not an option - that is the shape this function exists to be applied to.
+     * </p>
+     * <p>
+     * The limit is this function's, not the type's: {@code TYPEOF} reads the tags off the block and so works on a
+     * renamed union. Selecting a leg from a block the same way is what would remove this refusal.
+     * </p>
+     */
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (field.dataType() == DataType.UNION) {
+            // Anchored on this call rather than on the field, because the call is the expression the user has to
+            // change: the field's source is where the column was named in this command, which is inside the call and
+            // tells nobody which function objected.
+            failures.add(
+                fail(
+                    this,
+                    "[{}] cannot select a type from [{}]: it holds more than one type but is not a column read from an "
+                        + "index, and the type is selected from the index's own mapping. Select the type from the "
+                        + "column itself and rename or compute from the result instead",
+                    sourceText(),
+                    Expressions.name(field)
+                )
+            );
+        }
     }
 
     @Override

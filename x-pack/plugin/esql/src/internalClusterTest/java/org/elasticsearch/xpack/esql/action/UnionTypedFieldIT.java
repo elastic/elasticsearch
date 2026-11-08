@@ -20,6 +20,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * A field two indices disagree about, read as a union rather than erased. The two indices are pinned to two different
@@ -90,26 +91,99 @@ public class UnionTypedFieldIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Renaming a union column is refused, and the message is the deliverable: without this check the query fails
-     * twice over, first as a dump of internal ids from the optimizer's consistency check (the plan says
-     * {@code unsupported} where the field says {@code union}) and then, past that, as the renderer throwing on the
-     * data node because an aliased column has no field to carry the leg types. Both were measured before the check
-     * existed. This is a stated deviation from "a union is always renderable", not a hidden one - see the check's own
-     * javadoc for what compliance would take.
+     * A renamed union renders, which it did not before the leg list travelled with the attribute rather than with the
+     * field. Measured, the same query used to fail twice over: first as a dump of internal ids from the optimizer's
+     * consistency check, because the plan said {@code unsupported} where the field said {@code union}, and past that
+     * as the renderer throwing on the data node for an aliased column with no legs to read its tags by. The column
+     * still declares the same legs in the same order, because they are the field's list carried across the rename
+     * rather than a list computed again from the new name.
      */
-    public void testRenamingAUnionColumnIsRefusedWithBothWaysThrough() {
+    public void testAUnionColumnCanBeRenamedAndStillRenders() {
+        setupConflictingIndices();
+        try (var response = run("FROM union-a,union-b | RENAME duration AS d | KEEP d")) {
+            assertFalse("the query should not be partial: " + response.getExecutionInfo(), response.isPartial());
+            assertColumnNames(response.columns(), List.of("d"));
+            assertColumnTypes(response.columns(), List.of("union"));
+            assertThat(response.columns().getFirst().originalTypes(), equalTo(List.of("keyword", "long")));
+            // The count as well as the set: a set alone cannot tell a dropped or duplicated row from the right answer.
+            assertThat(getValuesList(response), hasSize(5));
+            assertThat(
+                Set.copyOf(getValuesList(response)),
+                equalTo(Set.of(List.of(200L), List.of(201L), List.of(202L), List.of("two hundred"), List.of("a while")))
+            );
+        }
+    }
+
+    /** A chain of renames, because each link learns it holds a union only once the one below it has. */
+    public void testAUnionColumnSurvivesAChainOfRenames() {
+        setupConflictingIndices();
+        try (var response = run("FROM union-a,union-b | RENAME duration AS d | RENAME d AS e | KEEP e")) {
+            assertColumnNames(response.columns(), List.of("e"));
+            assertColumnTypes(response.columns(), List.of("union"));
+            assertThat(response.columns().getFirst().originalTypes(), equalTo(List.of("keyword", "long")));
+            assertThat(getValuesList(response), hasSize(5));
+            assertThat(
+                Set.copyOf(getValuesList(response)),
+                equalTo(Set.of(List.of(200L), List.of(201L), List.of(202L), List.of("two hundred"), List.of("a while")))
+            );
+        }
+    }
+
+    /**
+     * {@code TYPEOF} over the renamed column still names each value's own leg. It reads the tag off the block and the
+     * names off the carried leg list, so this is the end-to-end half of the rename: not only does the column render,
+     * the per-value type travels with it.
+     */
+    public void testTypeOfReadsARenamedUnion() {
+        setupConflictingIndices();
+        try (var response = run("FROM union-a,union-b | RENAME duration AS d | EVAL t = TYPEOF(d) | KEEP d, t")) {
+            assertFalse("the query should not be partial: " + response.getExecutionInfo(), response.isPartial());
+            assertColumnTypes(response.columns(), List.of("union", "keyword"));
+            assertThat(getValuesList(response), hasSize(5));
+            assertThat(
+                Set.copyOf(getValuesList(response)),
+                equalTo(
+                    Set.of(
+                        List.of(200L, "long"),
+                        List.of(201L, "long"),
+                        List.of(202L, "long"),
+                        List.of("two hundred", "keyword"),
+                        List.of("a while", "keyword")
+                    )
+                )
+            );
+        }
+    }
+
+    /**
+     * {@code TYPED} is the one thing a rename does take away, and it is refused rather than answered wrongly.
+     * Selection happens by rewriting the field attribute into one conversion per mapped index, which a renamed copy
+     * of the column is not; applied there the function would compare {@code union} against the requested type, find
+     * them different, and hand back a null for every row. Measured: five nulls before this refusal existed.
+     */
+    public void testTypedIsRefusedOnARenamedUnion() {
         setupConflictingIndices();
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> run("FROM union-a,union-b | RENAME duration AS d | KEEP d")
+            () -> run("FROM union-a,union-b | RENAME duration AS d | EVAL s = TYPED(d, \"long\")")
         );
-        assertThat(e.getMessage(), containsString("Column [duration] holds more than one type, so it cannot be renamed"));
-        assertThat(e.getMessage(), containsString("TYPED(duration, \"<type>\")"));
-        assertThat(e.getMessage(), containsString("duration::<type>"));
+        assertThat(e.getMessage(), containsString("cannot select a type from [d]"));
+        assertThat(e.getMessage(), containsString("is not a column read from an index"));
+        // And the order it asks for answers the question the user was asking.
+        try (var response = run("FROM union-a,union-b | EVAL s = TYPED(duration, \"long\") | RENAME s AS d | KEEP d")) {
+            assertColumnNames(response.columns(), List.of("d"));
+            assertColumnTypes(response.columns(), List.of("long"));
+            // Five rows, not four: the two keyword-mapped values each answer null, and a set cannot see that.
+            assertThat(getValuesList(response), hasSize(5));
+            assertThat(
+                Set.copyOf(getValuesList(response)),
+                equalTo(Set.of(List.of(200L), List.of(201L), List.of(202L), Collections.singletonList(null)))
+            );
+        }
     }
 
-    /** Both escapes the message offers have to work, or it is sending the user nowhere. */
-    public void testTheEscapesOfferedForARenameWork() {
+    /** The two ways to collapse a union to a single type, which several refusals point the user at. */
+    public void testSelectingOrCastingALegGivesOneType() {
         setupConflictingIndices();
         // TYPED selects the long-mapped values and nulls the rest, so the two keyword rows collapse to one null.
         try (var response = run("FROM union-a,union-b | EVAL d = TYPED(duration, \"long\") | KEEP d")) {
@@ -194,9 +268,9 @@ public class UnionTypedFieldIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * {@code MV_EXPAND} re-mints its column as a reference, which carries no field and so no legs, and the column came
-     * back as five nulls - an answer with nothing to say it was wrong. Refused until the legs travel with any attribute
-     * of this type.
+     * {@code MV_EXPAND} stays refused even though a reference now carries its legs, because the block cannot expand
+     * one: {@code UnionArrayBlock#expand} throws for a block that may hold multiple values per position, which is the
+     * only input the command exists for. See the refusal's own javadoc for the second reason, on the plan side.
      */
     public void testAUnionCannotBeExpanded() {
         setupConflictingIndices();

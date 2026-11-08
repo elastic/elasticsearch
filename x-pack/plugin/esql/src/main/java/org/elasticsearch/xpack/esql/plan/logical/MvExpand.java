@@ -130,13 +130,19 @@ public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic,
     }
 
     /**
-     * A union column cannot be expanded. {@code MV_EXPAND} re-mints the expanded column as a reference, and a
-     * reference carries no {@code UnionEsField}, so the legs are gone while the type stays {@code UNION} - and a
-     * union whose legs are unknown has no way to say what a value's tag means. Measured, the column came back as
-     * five nulls, which is the one outcome worse than an error because nothing says the answer is wrong.
+     * A union column cannot be expanded, for two reasons that both still hold now that a reference carries its own
+     * leg list.
      * <p>
-     * Refused rather than fixed here because the fix is not local: the leg list has to travel with any attribute of
-     * this type, not only with a field.
+     * The block cannot do it: {@code MvExpandOperator} expands by calling {@code Block#expand}, and
+     * {@code UnionArrayBlock#expand} throws for a block that may have multi-valued fields - which is the only input
+     * {@code MV_EXPAND} exists for, so the command's whole purpose is the unimplemented case.
+     * </p>
+     * <p>
+     * And the plan cannot either: {@code Analyzer.resolveMvExpand} mints {@code expanded} during resolution with a
+     * fresh {@code NameId}, so it is not an alias and {@code UnionTypesCleanup.refreshUnionReferences} - which keys on
+     * alias ids - never reaches it. It would keep the {@code UNSUPPORTED} the conflict had at resolution while the
+     * target became a union. Measured before either refusal existed, the column came back as five nulls, which is the
+     * one outcome worse than an error because nothing says the answer is wrong.
      * </p>
      */
     @Override

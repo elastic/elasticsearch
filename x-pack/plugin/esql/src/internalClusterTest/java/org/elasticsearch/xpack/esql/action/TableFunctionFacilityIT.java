@@ -62,6 +62,11 @@ public class TableFunctionFacilityIT extends AbstractEsqlIntegTestCase {
     private static final class Letters extends CoordinatorRowsFunction {
 
         @Override
+        protected int maxRows() {
+            return 100;
+        }
+
+        @Override
         public String name() {
             return "letters";
         }

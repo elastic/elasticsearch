@@ -1187,16 +1187,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test::XXX::data", "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}");
         // Selectors must be outside of date math expressions or else they trip up the selector parsing
         testCases.put("<test-{now/d}::failures>", "Invalid index name [<test-{now/d}], must not contain the following characters [");
-        // Only one selector separator is allowed per expression. The expected-token set is matched without its
-        // closing brace because a table function's name is one of the tokens a source list admits here, and this
-        // suite runs on both kinds of build: internalClusterTest is wired into check, so release-tests runs it
-        // with build.snapshot=false,
-        // where EsqlParser's error listener strips the DEV_-prefixed name that a snapshot build leaves in. The
-        // prefix stops before the one position the two builds differ at, so one assertion holds for both, and it
-        // stays an assertion about the separator, which is what the case is for. The set a production parser
-        // prints is pinned on its own by
-        // GrammarInDevelopmentParsingTests.testTableFunctionTokenIsNotNamedInProductionErrors.
-        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, '(', UNQUOTED_SOURCE");
+        // Only one selector separator is allowed per expression. A source list admits a table function's name, so
+        // the expected-token set gains one token on a snapshot build; this suite runs on both, release-tests
+        // running it with build.snapshot=false, where EsqlParser's error listener strips DEV_-prefixed names.
+        testCases.put(
+            "::::data",
+            "mismatched input '::' expecting {QUOTED_STRING, '(', UNQUOTED_SOURCE"
+                + (Build.current().isSnapshot() ? ", DEV_TABLE_FUNCTION_NAME}" : "}")
+        );
         // Suffix case is not supported because there is no component named with the empty string
         testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
 

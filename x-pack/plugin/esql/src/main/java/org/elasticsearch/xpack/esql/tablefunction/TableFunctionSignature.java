@@ -64,6 +64,10 @@ public record TableFunctionSignature(List<Argument> arguments) {
     }
 
     /** A required {@code {...}}. */
+    /**
+     * A {@code {...}} payload argument. The consumer is {@code DatasetTableFunction}, whose second argument is a
+     * dataset definition written where it is read — named here so this is not read as machinery without a caller.
+     */
     public static Argument namedValues(String name) {
         return new Argument(name, Kind.NAMED_VALUES, true);
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -35,9 +37,11 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedTableFunctionRelation
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -66,6 +70,11 @@ public class TableFunctionResolverTests extends ESTestCase {
     private static class Numbers extends CoordinatorRowsFunction {
 
         private final AtomicInteger bindings = new AtomicInteger();
+
+        @Override
+        protected int maxRows() {
+            return 100;
+        }
 
         @Override
         public String name() {
@@ -387,8 +396,8 @@ public class TableFunctionResolverTests extends ESTestCase {
 
     /**
      * And the shape that cannot be checked is refused. A {@code BytesRef} of the text "1.2.3.4" is seven bytes
-     * where sixteen belong — right element type, wrong bytes, and nothing downstream able to tell. Checking the
-     * Java type alone let this through, which is what the encoding above exists to close.
+     * where sixteen belong — right element type, wrong bytes, and nothing downstream able to tell, which is why
+     * the length is the one invariant the {@code ip} arm accepts an already-encoded value on.
      */
     public void testATextBytesRefIsRefusedForAnIpColumn() {
         IllegalStateException e = expectThrows(
@@ -426,7 +435,7 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat(rows.supplier().get().getBlock(0).getValueCount(0), equalTo(2));
     }
 
-    /** The same for a numeric column, which went through a different arm and had no test either. */
+    /** The same for a numeric column, which reaches the block builder through a different arm. */
     public void testAMultivaluedLongCellIsOnePosition() {
         LocalRelation rows = (LocalRelation) resolve(new Mismatched(List.of(List.of(List.of(1L, 2L)))), call("1"));
 
@@ -442,6 +451,45 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat(rows.supplier().get().getBlock(0).elementType(), equalTo(ElementType.BYTES_REF));
     }
 
+    /** Declares a bound of one row and hands back however many it was built with. */
+    private static class Bounded extends CoordinatorRowsFunction {
+
+        private final int rowCount;
+
+        Bounded(int rowCount) {
+            this.rowCount = rowCount;
+        }
+
+        @Override
+        protected int maxRows() {
+            return 1;
+        }
+
+        @Override
+        public String name() {
+            return "numbers";
+        }
+
+        @Override
+        public TableFunctionSignature signature() {
+            return TableFunctionSignature.of(TableFunctionSignature.name("upto"));
+        }
+
+        @Override
+        protected List<Attribute> columns(TableFunctionInvocation call, TableFunctionContext context) {
+            return List.of(column("c", DataType.KEYWORD));
+        }
+
+        @Override
+        protected void rows(TableFunctionInvocation call, TableFunctionContext context, ActionListener<List<List<Object>>> listener) {
+            List<List<Object>> rows = new ArrayList<>(rowCount);
+            for (int i = 0; i < rowCount; i++) {
+                rows.add(List.of("r" + i));
+            }
+            computed(listener, () -> rows);
+        }
+    }
+
     /** Declares one column of a given type and hands back whatever it was built with. */
     private static class Typed extends CoordinatorRowsFunction {
 
@@ -451,6 +499,11 @@ public class TableFunctionResolverTests extends ESTestCase {
         Typed(DataType type, List<List<Object>> rows) {
             this.type = type;
             this.rows = rows;
+        }
+
+        @Override
+        protected int maxRows() {
+            return 100;
         }
 
         @Override
@@ -494,6 +547,11 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
+        protected int maxRows() {
+            return 100;
+        }
+
+        @Override
         public String name() {
             return name;
         }
@@ -528,6 +586,11 @@ public class TableFunctionResolverTests extends ESTestCase {
     private static class MapReading extends CoordinatorRowsFunction {
 
         private Map<String, Object> seen;
+
+        @Override
+        protected int maxRows() {
+            return 100;
+        }
 
         @Override
         public String name() {
@@ -567,6 +630,11 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
+        protected int maxRows() {
+            return 100;
+        }
+
+        @Override
         public String name() {
             return "numbers";
         }
@@ -589,6 +657,11 @@ public class TableFunctionResolverTests extends ESTestCase {
 
     /** Throws where a function may well throw: working out its own columns, before the listener goes anywhere. */
     private static class Throwing extends CoordinatorRowsFunction {
+
+        @Override
+        protected int maxRows() {
+            return 100;
+        }
 
         @Override
         public String name() {
@@ -721,6 +794,11 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
 
         @Override
+        protected int maxRows() {
+            return 100;
+        }
+
+        @Override
         public String name() {
             return "numbers";
         }
@@ -842,6 +920,116 @@ public class TableFunctionResolverTests extends ESTestCase {
         LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.GEO_SHAPE, List.of(List.of(polygon))), call("1"));
 
         assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
+    }
+
+    /**
+     * An {@code unsigned_long} block holds the number written plus {@code Long.MIN_VALUE}, so the natural form is a
+     * {@code BigInteger} and the seam encodes it. Read back the way the engine reads it, which is the only way to
+     * see that the stored long is not the number.
+     */
+    public void testANaturalBigIntegerIsEncodedForAnUnsignedLongColumn() {
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.UNSIGNED_LONG, List.of(List.of(BigInteger.valueOf(5)))), call("1"));
+
+        long stored = ((LongBlock) rows.supplier().get().getBlock(0)).getLong(0);
+        assertThat(NumericUtils.unsignedLongAsNumber(stored), equalTo(5L));
+    }
+
+    /** The half of the range a signed long cannot hold, which is the reason the type exists. */
+    public void testABigIntegerAboveSignedRangeRoundTripsForAnUnsignedLongColumn() {
+        BigInteger written = new BigInteger("9223372036854775813");
+        LocalRelation rows = (LocalRelation) resolve(new Typed(DataType.UNSIGNED_LONG, List.of(List.of(written))), call("1"));
+
+        long stored = ((LongBlock) rows.supplier().get().getBlock(0)).getLong(0);
+        assertThat(NumericUtils.unsignedLongAsNumber(stored), equalTo(written));
+    }
+
+    /**
+     * A {@code Long} under an {@code unsigned_long} column is refused rather than guessed at. It is the right
+     * element type, so the block builder's cast accepts it and stores it unchanged: five would be read back as
+     * 9223372036854775813. Nothing distinguishes a long meant as the number from one already biased.
+     */
+    public void testALongIsRefusedForAnUnsignedLongColumn() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.UNSIGNED_LONG, List.of(List.of(5L))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("produced [Long] for column [c] declared [unsigned_long], which needs a BigInteger"));
+    }
+
+    /** {@code NumericUtils.asLongUnsigned} states that it range-checks nothing, so the seam does. */
+    public void testABigIntegerOutsideTheUnsignedLongRangeIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.UNSIGNED_LONG, List.of(List.of(BigInteger.valueOf(-1)))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("[-1] is outside the unsigned_long range"));
+    }
+
+    /**
+     * A function that produced more rows than it said it would is refused rather than materialized. The bound is
+     * the function's own — there is no default — and it is checked before any block is built, because by the time
+     * a page exists the cost the bound exists to avoid has already been paid.
+     */
+    public void testMoreRowsThanTheFunctionDeclaredIsRefused() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> resolve(new Bounded(2), call("1")));
+        assertThat(e.getMessage(), containsString("produced [2] rows, past the [1] it declared it would not exceed"));
+    }
+
+    /** The bound itself is not the refusal: exactly as many rows as declared is a relation. */
+    public void testAsManyRowsAsDeclaredIsAccepted() {
+        LocalRelation rows = (LocalRelation) resolve(new Bounded(1), call("1"));
+
+        assertThat(rows.supplier().get().getPositionCount(), equalTo(1));
+    }
+
+    /** A function that completes with no row list at all, which is not the same as completing with no rows. */
+    public void testANullRowListIsRefused() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> resolve(new Typed(DataType.KEYWORD, null), call("1")));
+        assertThat(e.getMessage(), containsString("produced no row list at all"));
+    }
+
+    /** A null in place of a row, which would open a position entry the row never fills. */
+    public void testANullRowIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.KEYWORD, Collections.singletonList(null)), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("produced a null row at [0]"));
+    }
+
+    /**
+     * The {@code version} arm, whose bytes are an encoding rather than the text: anything but a {@code Version} or
+     * the string form is refused, because an already-encoded value carries no invariant to check it by.
+     */
+    public void testALongIsRefusedForAVersionColumn() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.VERSION, List.of(List.of(5L))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared [version], which needs a Version or a String"));
+    }
+
+    /** A shape column takes a geometry, not the bytes a function thought the engine wanted. */
+    public void testABytesRefIsRefusedForAShapeColumn() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.GEO_SHAPE, List.of(List.of(new BytesRef("not wkb")))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared [geo_shape], which needs a Geometry"));
+    }
+
+    /**
+     * A geometry whose coordinates are out of range, refused by reading the bytes back through this coordinate
+     * system's own validator rather than by a rule restated here.
+     */
+    public void testAnOutOfRangeShapeIsRefused() {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, 1, 0 }, new double[] { 0, 0, 500, 0 }));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(new Typed(DataType.GEO_SHAPE, List.of(List.of(polygon))), call("1"))
+        );
+        assertThat(e.getMessage(), containsString("declared [geo_shape]"));
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
     }
 
     /**

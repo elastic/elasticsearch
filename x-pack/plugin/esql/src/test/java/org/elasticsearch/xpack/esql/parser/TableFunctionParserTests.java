@@ -87,6 +87,15 @@ public class TableFunctionParserTests extends AbstractStatementParserTests {
     }
 
     /** The name is kept as typed, for diagnostics; the registry is what matches without regard to case. */
+    /**
+     * A lone call is the plan's root, not a one-child {@code UnionAll}. A source list of one index does not acquire
+     * a union either, and every test here finds the call with {@code forEachDown}, so nothing else would notice the
+     * difference — while a one-child union would reach the optimizer and every rule that matches on one.
+     */
+    public void testALoneCallStandsAloneRatherThanUnderAUnion() {
+        as(query("FROM EXAMPLE(my_source, \"res\")"), UnresolvedTableFunctionRelation.class);
+    }
+
     public void testNameIsCaseInsensitive() {
         assertThat(onlyCall("from example(my_source, \"res\", {\"x\": 1})").name(), equalTo("example"));
         assertThat(onlyCall("FROM DaTaSeT(my_source, \"res\", {\"x\": 1})").name(), equalTo("DaTaSeT"));

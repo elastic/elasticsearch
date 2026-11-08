@@ -18,7 +18,9 @@ public class DeleteEnrichPolicyActionRequestTests extends AbstractWireSerializin
 
     @Override
     protected DeleteEnrichPolicyAction.Request mutateInstance(DeleteEnrichPolicyAction.Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String name = instance.getName();
+        String newName = randomValueOtherThan(name, () -> randomAlphaOfLength(4));
+        return new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, newName);
     }
 
     @Override

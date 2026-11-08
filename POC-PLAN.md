@@ -705,3 +705,41 @@ building the union earlier — which fights `ResolveUnionTypes`, since `TYPED` a
 conflicted field to still be a conflict — or making the leg list part of what any attribute of type
 `UNION` carries. The second is the one that also discharges renderability, and it is where I would
 spend the next increment.
+
+## 10. Two defects found by measuring instead of reasoning
+
+Both came from asking what actually happens rather than reading what should. Both were reachable with
+ordinary queries, and one was the worst shape a defect can take.
+
+**`SORT <other column>` carrying a union: a hang, not an error.**
+`FROM union-a,union-b | SORT tag | KEEP duration` hung until the test's timeout, leaked four blocks and
+left the request breaker charged. The cause is mine and it had been written down as a *question* in the
+first adversarial review and never answered: `TopNExec.encoder` answers `DEFAULT_UNSORTABLE` for
+`UNION`, which is a claim that a union rides through a sort on another column, while
+`ResultBuilder.resultBuilderFor` has no union arm and throws — and that throw strands the driver rather
+than failing the query.
+
+Refused in `TopN.postOptimizationVerification`. The placement is the point: the analyzer sees every
+column the sort's child produces, including ones a later `KEEP` drops, so refusing there would refuse
+`SORT tag | KEEP tag`; by post-optimization the projections are pruned and the output is what the sort
+will really carry. `UnionTypedFieldIT.testAUnionCannotRideThroughASort` pins both halves — the refusal,
+and that sorting with the union *out* of the output still works.
+
+**`MV_EXPAND` on a union: five nulls.**
+`MV_EXPAND` re-mints its column as a reference, which carries no field and so no legs, and the column
+came back entirely null. An answer with nothing to say it is wrong is worse than an error. Refused in
+`MvExpand.postAnalysisVerification`.
+
+**What was checked and was fine.** The rename refusal only inspects `Project`, so an `EVAL` alias looked
+like a hole. It is not: `EVAL x = duration` is already refused with
+`EVAL does not support type [union] as the return data type of expression [duration]`, and `COALESCE`
+through an `EVAL` likewise — which also means the `Coalesce` backstop comment's "nothing upstream yet
+stops one arriving" is true only for the `WHERE` path it names, not for `EVAL`.
+
+**A trap to carry into the next increment.** Lifting the rename refusal without also guarding `TYPED`
+ships a silent null. `ResolveUnionTypes` rewrites `TYPED` only over a `FieldAttribute` whose field is a
+`TypeConflictedField`; after a rename the child is a `ReferenceAttribute` typed `UNION`,
+`Typed.resolveType` constrains nothing and admits it, and `toEvaluator` computes
+`sameType(UNION, LONG) == false` and returns a constant-null column. So
+`RENAME duration AS d | EVAL s = TYPED(d, "long")` would answer five nulls — and `TYPED` is exactly what
+the refusal message recommends. The guard belongs in the same increment as the lift, not after it.

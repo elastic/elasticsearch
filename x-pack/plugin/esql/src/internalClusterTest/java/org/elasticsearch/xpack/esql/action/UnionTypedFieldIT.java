@@ -177,6 +177,36 @@ public class UnionTypedFieldIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A union column riding through a sort on another column. {@code TopNExec.encoder} says a union is unsortable,
+     * which is meant to mean it passes through, but the rows are rebuilt on the way out by a builder with no union arm:
+     * measured, the query hung until it timed out and leaked four blocks, with the request breaker left charged. A
+     * refusal is what stands between a user and that.
+     */
+    public void testAUnionCannotRideThroughASort() {
+        setupConflictingIndices();
+        VerificationException e = expectThrows(VerificationException.class, () -> run("FROM union-a,union-b | SORT tag | KEEP duration"));
+        assertThat(e.getMessage(), containsString("Column [duration] holds more than one type, so it cannot be carried through a SORT"));
+        // Sorting by a column the union is not in still works, so the refusal is about carrying it rather than sorting.
+        try (var response = run("FROM union-a,union-b | SORT tag | KEEP tag | LIMIT 2")) {
+            assertColumnTypes(response.columns(), List.of("keyword"));
+        }
+    }
+
+    /**
+     * {@code MV_EXPAND} re-mints its column as a reference, which carries no field and so no legs, and the column came
+     * back as five nulls - an answer with nothing to say it was wrong. Refused until the legs travel with any attribute
+     * of this type.
+     */
+    public void testAUnionCannotBeExpanded() {
+        setupConflictingIndices();
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("FROM union-a,union-b | MV_EXPAND duration | KEEP duration")
+        );
+        assertThat(e.getMessage(), containsString("Column [duration] holds more than one type, so it cannot be expanded"));
+    }
+
     /** Two indices pinned to two different data nodes, disagreeing about one field, one document each. */
     private void setupConflictingIndices() {
         internalCluster().ensureAtLeastNumDataNodes(2);

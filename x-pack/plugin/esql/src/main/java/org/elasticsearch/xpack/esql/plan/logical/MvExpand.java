@@ -10,12 +10,16 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -23,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic, DocPreserving {
+public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic, DocPreserving, PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "MvExpand", MvExpand::new);
 
     private final NamedExpression target;
@@ -124,4 +128,31 @@ public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic,
         MvExpand other = ((MvExpand) obj);
         return Objects.equals(target, other.target) && Objects.equals(expanded, other.expanded);
     }
+
+    /**
+     * A union column cannot be expanded. {@code MV_EXPAND} re-mints the expanded column as a reference, and a
+     * reference carries no {@code UnionEsField}, so the legs are gone while the type stays {@code UNION} - and a
+     * union whose legs are unknown has no way to say what a value's tag means. Measured, the column came back as
+     * five nulls, which is the one outcome worse than an error because nothing says the answer is wrong.
+     * <p>
+     * Refused rather than fixed here because the fix is not local: the leg list has to travel with any attribute of
+     * this type, not only with a field.
+     * </p>
+     */
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (target().dataType() == DataType.UNION) {
+            failures.add(
+                Failure.fail(
+                    target(),
+                    "Column [{}] holds more than one type, so it cannot be expanded. Select one type first "
+                        + "[TYPED({}, \"<type>\")], or cast it [{}::<type>]",
+                    target().name(),
+                    target().name(),
+                    target().name()
+                )
+            );
+        }
+    }
+
 }

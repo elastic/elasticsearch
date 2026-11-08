@@ -10,11 +10,16 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -22,7 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn, DocPreserving {
+public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn, DocPreserving, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "TopN", TopN::new);
 
     private final List<Order> order;
@@ -130,4 +135,39 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn, DocP
     public ExecuteLocation executesOn() {
         return local ? ExecuteLocation.ANY : ExecuteLocation.COORDINATOR;
     }
+
+    /**
+     * A union column cannot be carried through a sort, even when the sort is on another column.
+     * <p>
+     * {@code TopNExec.encoder} answers {@code DEFAULT_UNSORTABLE} for a union, which says exactly this - that it rides
+     * through rather than being ordered by - but the rows are rebuilt on the way out by
+     * {@code ResultBuilder.resultBuilderFor}, which has no arm for a union and throws. Measured, that is not a clean
+     * error: the query hangs until it times out and leaks the blocks it was holding, which is the worst shape a refusal
+     * can take. So it is refused here instead.
+     * </p>
+     * <p>
+     * Here rather than in the analyzer because the analyzer sees every column the sort's child produces, including ones
+     * a later {@code KEEP} drops; by this point the projections have been pruned and the output is what the sort will
+     * really carry. The compliant fix is a union arm in the TopN row builder and extractor, which is why this is a
+     * refusal and not a limit of the design.
+     * </p>
+     */
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        for (Attribute attribute : output()) {
+            if (attribute.dataType() == DataType.UNION) {
+                failures.add(
+                    Failure.fail(
+                        attribute,
+                        "Column [{}] holds more than one type, so it cannot be carried through a SORT. Select one type "
+                            + "first [TYPED({}, \"<type>\")], or cast it [{}::<type>]",
+                        attribute.name(),
+                        attribute.name(),
+                        attribute.name()
+                    )
+                );
+            }
+        }
+    }
+
 }

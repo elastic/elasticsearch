@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -120,6 +121,32 @@ public class InlineDefinitionValidationParityTests extends ESTestCase {
         DatasetReference.Inline inline = new DatasetReference.Inline(DATA_SOURCE, Map.of("settings", Map.of("accepted", "value")));
         Exception e = expectThrows(Exception.class, () -> validator().validateInline(project(), inline));
         assertThat(e.getMessage(), containsString("resource"));
+    }
+
+    /**
+     * An <i>empty</i> resource, which is the one defect only the request's own {@code validate()} catches: the
+     * parser is satisfied by the field being present, and the shared validator never looks at it.
+     * <p>
+     * This is deliberately not an {@link #assertSameRefusal} case, because the two doors are genuinely asymmetric
+     * here and that assertion would fail for the wrong reason. A {@code PUT} has {@code validate()} run for it by
+     * the transport layer before {@code validatePutDataset} is ever called, so the registered door does not refuse
+     * this one itself; the inline door has nothing in front of it and so runs {@code validate()} on the request it
+     * assembles. Deleting that call leaves the whole package green, which is what this pins.
+     */
+    public void testDefinitionWithAnEmptyResourceIsRefused() {
+        DatasetReference.Inline inline = new DatasetReference.Inline(DATA_SOURCE, Map.of("resource", ""));
+        Exception e = expectThrows(Exception.class, () -> validator().validateInline(project(), inline));
+        assertThat(e.getMessage(), containsString("dataset resource is missing or empty"));
+    }
+
+    /** The description bound is the request's too, and reaches an inline definition by the same one call. */
+    public void testDefinitionWithTooLongADescriptionIsRefused() {
+        DatasetReference.Inline inline = new DatasetReference.Inline(
+            DATA_SOURCE,
+            Map.of("resource", RESOURCE, "description", randomAlphaOfLength(MAX_DESCRIPTION_LENGTH + 1))
+        );
+        Exception e = expectThrows(Exception.class, () -> validator().validateInline(project(), inline));
+        assertThat(e.getMessage(), containsString("dataset description is too large"));
     }
 
     private void assertSameRefusal(Map<String, Object> body, String expected) throws IOException {

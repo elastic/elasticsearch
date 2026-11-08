@@ -47,6 +47,9 @@ import java.util.Map;
  *       {@link DataSourceRequestInfo#dataSourceClusterActionName()}, which is what {@code PutDatasetAction} uses to
  *       have the datasource interceptor settle whether the caller may attach a dataset to that source at all.</li>
  * </ul>
+ * Those two are not what a registration asks for, because the index half here is {@code read} where a registration's
+ * is an admin privilege. {@code DatasetTableFunction} states the difference and that it is an open policy question;
+ * it is not restated here.
  * A third question is settled on the way in rather than here: a grant that narrows documents or fields cannot be
  * honoured by an external read, and {@code ViewAndDatasetDlsFlsRequestInterceptor} refuses this action for one, as it
  * does a registered dataset read. The body asks nothing at all — it does not look the data source up, so a caller who

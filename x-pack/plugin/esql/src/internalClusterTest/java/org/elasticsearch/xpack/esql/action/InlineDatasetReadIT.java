@@ -160,6 +160,27 @@ public class InlineDatasetReadIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * The same beside an index <i>pattern</i> rather than a concrete name, which is the form the facility is meant
+     * to serve: {@code FROM foo, bar*, DATASET(...)}. A pattern reaches the leaf through the dataset rewrite and the
+     * branch plan rather than the concrete-name path, so it is a different route to the same heterogeneous source
+     * list, and the two indices prove the pattern expanded rather than matching one by luck.
+     */
+    public void testItReadsBesideAnIndexPattern() throws IOException {
+        Path dir = csvFixture();
+        registerDataSource(DATA_SOURCE, Map.of());
+        for (String index : List.of("inline_pat_1", "inline_pat_2")) {
+            createIndex(index);
+            client().prepareIndex(index).setId("1").setSource("a", index).get();
+        }
+        client().admin().indices().prepareRefresh("inline_pat_1", "inline_pat_2").get();
+
+        String query = "FROM inline_pat_*, DATASET(" + DATA_SOURCE + ", \"" + glob(dir) + "\") | STATS c = COUNT(*)";
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query))) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(6L));
+        }
+    }
+
     /** Four rows over three files, so the splits can be spread over both data nodes. */
     private Path csvFixture() throws IOException {
         Path dir = createTempDir();

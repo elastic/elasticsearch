@@ -91,6 +91,20 @@ public class ExternalSourceDatasetsTests extends ESTestCase {
         assertThat(datasets.hasUnnamed(), is(true));
     }
 
+    /**
+     * A supplied definition inside a fragment, which is the shape a coordinator sends for an inline read: the
+     * reference is on a logical {@link ExternalRelation}, and the physical {@code ExternalSourceExec} the other
+     * tests here build arrives only in a crafted request. Nothing covered this branch for the inline arm, so
+     * dropping it left the node-side gate unasked for the only plan shape a real query produces.
+     */
+    public void testInlineRelationInsideFragmentIsCollectedAsItsDataSource() {
+        ExternalSourceDatasets datasets = ExternalSourceDatasets.of(sink(new FragmentExec(inlineRelation("supplier"))));
+        assertThat(datasets.dataSources(), contains("supplier"));
+        assertThat(datasets.names(), empty());
+        assertThat(datasets.hasUnnamed(), is(false));
+        assertThat(datasets.isEmpty(), is(false));
+    }
+
     public void testEveryBranchOfAMergedPlan() {
         PhysicalPlan merged = new MergeExec(
             SRC,
@@ -131,6 +145,21 @@ public class ExternalSourceDatasetsTests extends ESTestCase {
     private static ExternalSourceExec exec(String datasetName) {
         return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", "parquet", output(), Map.of(), Map.of(), null, 10)
             .withDatasetReference(reference(datasetName));
+    }
+
+    /** {@link #relation} carrying a supplied definition rather than a registered name. */
+    private static ExternalRelation inlineRelation(String dataSource) {
+        List<Attribute> output = output();
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
+        return new ExternalRelation(
+            SRC,
+            "s3://bucket/data/*.parquet",
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            new DatasetReference.Inline(dataSource, Map.of("resource", "s3://bucket/data/*.parquet"))
+        );
     }
 
     private static ExternalRelation relation(String datasetName) {

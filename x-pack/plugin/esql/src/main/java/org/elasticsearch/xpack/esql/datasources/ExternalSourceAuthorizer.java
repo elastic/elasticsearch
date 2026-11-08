@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -225,16 +224,25 @@ public final class ExternalSourceAuthorizer {
     }
 
     /**
-     * A name the resolve action can be asked about as-is: non-empty, not an exclusion, no wildcard, no comma, and no
-     * colon (a remote prefix or a selector). Datasets are registered under plain index-style names, so anything else
-     * cannot be registered and is refused without a round-trip.
+     * A name the resolve action can be asked about as-is: non-empty, not an exclusion, no comma, no colon (a remote
+     * prefix or a selector), and nothing the authorization layer would read as a pattern. Datasets are registered
+     * under plain index-style names, so anything else cannot be registered and is refused without a round-trip.
+     * <p>
+     * The pattern half is deliberately the security layer's notion rather than {@code Regex.isSimpleMatchPattern},
+     * which tests {@code *} alone. A privilege is granted over names, and {@code StringMatcher} routes {@code *},
+     * {@code ?} and a leading {@code /} to an automaton, so a name carrying one of those is matched against a grant
+     * as a pattern. Letting it through here would authorize the literal string and resolve nothing, which keeps the
+     * read singular by the later exact lookup rather than by this check, and leaves two meanings of the word in one
+     * facility.
      */
     static boolean isExactLocalName(String name) {
         return name.isEmpty() == false
             && name.charAt(0) != '-'
+            && name.charAt(0) != '/'
             && name.indexOf(',') < 0
             && name.indexOf(':') < 0
-            && Regex.isSimpleMatchPattern(name) == false;
+            && name.indexOf('*') < 0
+            && name.indexOf('?') < 0;
     }
 
     /** The refusal for an external node under a cross-cluster-access authentication or in a remote-cluster compute. */

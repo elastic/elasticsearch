@@ -57,9 +57,16 @@ public class DatasetTableFunctionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[dataset] expects a name for [data source]"));
     }
 
-    /** One data source, never a pattern, a list, an exclusion or a remote-prefixed name. */
+    /**
+     * One data source, never a pattern, a list, an exclusion or a remote-prefixed name.
+     * <p>
+     * {@code ?} and a leading {@code /} are in the list because the authorization layer reads both as patterns -
+     * {@code StringMatcher} routes a grant containing either to an automaton - while {@code Regex.isSimpleMatchPattern},
+     * the obvious predicate to reach for here, tests {@code *} alone. Admitting one would authorize the literal string
+     * and then resolve nothing, leaving the read singular by the later exact lookup rather than by this check.
+     */
     public void testTheDataSourceIsOneRegisteredName() {
-        for (String plural : List.of("", "*", "logs-*", "a,b", "-a", "remote:a")) {
+        for (String plural : List.of("", "*", "logs-*", "d?1", "/d1/", "a,b", "-a", "remote:a")) {
             TableFunctionInvocation call = call(name(plural), name("s3://bucket/*.csv"));
             ParsingException e = expectThrows(ParsingException.class, () -> FUNCTION.validate(call));
             assertThat(e.getMessage(), containsString("[dataset] reads one data source, found [" + plural + "]"));

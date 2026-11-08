@@ -22,11 +22,13 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -134,6 +136,46 @@ public class DatasetReferenceTests extends ESTestCase {
     public void testEachArmNamesItself() {
         assertThat(NAMED.describe(), equalTo("logs"));
         assertThat(INLINE.describe(), equalTo("s3_source"));
+    }
+
+    /**
+     * The inline arm renders its field names and never their values. A record's generated toString would print the
+     * whole definition, and this one holds whatever the user wrote inside the braces, so any log line or assertion
+     * message that formats a reference would carry it.
+     */
+    public void testTheInlineArmDoesNotRenderItsDefinition() {
+        String rendered = INLINE.toString();
+        assertThat(rendered, containsString("s3_source"));
+        assertThat(rendered, containsString("resource"));
+        assertThat(rendered, containsString("settings"));
+        assertThat(rendered, not(containsString("s3://bucket/*.csv")));
+        assertThat(rendered, not(containsString("csv")));
+    }
+
+    /** A definition a stream carried that the record cannot hold is a malformed request, reported as one. */
+    public void testAWireDefinitionThatIsNotAMapOfNamedValuesIsRefused() throws IOException {
+        assertThat(expectThrows(IOException.class, () -> readInlineDefinition("not a map")).getMessage(), containsString("not a map"));
+        Map<String, Object> withNull = new HashMap<>();
+        withNull.put("description", null);
+        assertThat(
+            expectThrows(IOException.class, () -> readInlineDefinition(withNull)).getMessage(),
+            containsString("sets [description] to null")
+        );
+    }
+
+    /** Writes the inline tag, a data source and {@code definition} as a generic value, then reads the slot back. */
+    private static DatasetReference readInlineDefinition(Object definition) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            out.writeBoolean(true);
+            out.writeByte((byte) 1);
+            out.writeString("s3_source");
+            out.writeGenericValue(definition);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(TransportVersion.current());
+                return DatasetReference.readOptionalFrom(in);
+            }
+        }
     }
 
     private static DatasetReference roundTrip(DatasetReference reference, TransportVersion version) throws IOException {

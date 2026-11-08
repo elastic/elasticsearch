@@ -180,6 +180,11 @@ public class ExternalSourceAuthorizerTests extends ESTestCase {
         assertThat(ExternalSourceAuthorizer.isExactLocalName("-logs"), is(false));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("logs*"), is(false));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("*"), is(false));
+        // A single-character wildcard and a leading slash are patterns to the authorization layer's own matcher,
+        // which routes either to an automaton, while Regex.isSimpleMatchPattern tests '*' alone. Letting one
+        // through here would authorize the literal string and then resolve nothing.
+        assertThat(ExternalSourceAuthorizer.isExactLocalName("log?"), is(false));
+        assertThat(ExternalSourceAuthorizer.isExactLocalName("/logs/"), is(false));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("a,b"), is(false));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("remote:logs"), is(false));
         assertThat(ExternalSourceAuthorizer.isExactLocalName("logs::data"), is(false));

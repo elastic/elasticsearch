@@ -54,11 +54,21 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  * <h2>The two privileges</h2>
  *
  * This read names one object, the data source, and it is authorized both ways that object is governed: index
- * {@code read} on the name, and {@code read} on the source under {@code global.data_source} — the privilege a
- * registration against it needs. Both are settled by {@link EsqlAuthorizeDatasourceAction}, issued here as the
- * caller before any definition is bound, and again by a node that receives a plan carrying a definition
- * ({@link ExternalSourceAuthorizer}), because a plan arriving over the wire was not necessarily built by a
- * coordinator the caller was allowed to use.
+ * {@code read} on the name, and {@code read} on the source under {@code global.data_source}. Both are settled by
+ * {@link EsqlAuthorizeDatasourceAction}, issued here as the caller before any definition is bound, and again by a
+ * node that receives a plan carrying a definition ({@link ExternalSourceAuthorizer}), because a plan arriving over
+ * the wire was not necessarily built by a coordinator the caller was allowed to use.
+ * <p>
+ * <b>This is not the set a registration asks for, and the difference is open rather than settled.</b> The
+ * {@code global.data_source} half is the same one: {@code PutDatasetAction} advertises the same datasource cluster
+ * action, which {@code ConfigurableClusterPrivileges} maps to {@code read}. The index half is not. Registering a
+ * dataset is {@code indices:admin/esql/dataset/put} against the <i>dataset's</i> name, reachable only from
+ * {@code create_dataset}, {@code manage_dataset}, {@code manage} or {@code all}; this action is
+ * {@code indices:data/read/esql/authorize_datasource} against the <i>data source's</i> name, which plain
+ * {@code read} covers. So a caller holding index {@code read} broadly and {@code read} on one source can read
+ * inline what they could not have registered, and the effective gate for them is the {@code global.data_source}
+ * half alone. Whether an inline read should instead require the dataset-creation privilege on that name is a policy
+ * question that has not been answered.
  */
 public final class DatasetTableFunction implements TableFunction {
 

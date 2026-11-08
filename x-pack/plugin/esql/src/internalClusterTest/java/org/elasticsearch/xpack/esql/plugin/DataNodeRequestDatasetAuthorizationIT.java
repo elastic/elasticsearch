@@ -322,6 +322,31 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     }
 
     /**
+     * The same shape for a definition the query supplied, which is what a coordinator actually sends for an inline
+     * read: the reference reaches the node inside a {@link FragmentExec}'s logical fragment, not as a physical
+     * {@code ExternalSourceExec}. That second shape arrives only in a crafted request, so the tests built on
+     * {@code inlineExec} exercise the branch a real query does not take, and nothing reached this one — dropping
+     * the fragment branch of {@code ExternalSourceDatasets.of} left every suite green.
+     * <p>
+     * The two refusals are what pin it. An accepted read cannot: with the reference uncollected no gate is asked,
+     * so the row assertion passes either way. Each refusal is a user whose index grant covers {@link #INDEX}, so
+     * the shard request passes the security filter and whatever refuses it is the datasource gate rather than the
+     * filter in front of it.
+     */
+    public void testShardRequestCarryingAnInlineDefinitionIsAuthorizedOnItsDataSource() throws Exception {
+        assertThat(sendShard(INLINE_READER, inlineFragment(fileA)).expectRows(), contains("a1", "a2"));
+
+        Outcome noDataSource = sendShard(INLINE_NO_DATASOURCE, inlineFragment(fileA));
+        assertThat(
+            noDataSource.failure.getMessage(),
+            containsString("action [" + EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME + "] is unauthorized")
+        );
+
+        Outcome underDls = sendShard(INLINE_DLS_READER, inlineFragment(fileA));
+        assertThat(underDls.failure.getMessage(), containsString("document or field level security restrictions are not supported"));
+    }
+
+    /**
      * A request carrying a definition rather than a name is authorized on the data source it reads through, by both
      * privileges that govern one. These three send the crafted request straight to the data node, so the
      * coordinator's own gate cannot be what refuses them.
@@ -375,7 +400,7 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
     }
 
     public void testMalformedDatasetNamesAreRefused() throws Exception {
-        for (String name : List.of("", "*", "-" + DATASET_A, DATASET_A + ",*", "remote:" + DATASET_A)) {
+        for (String name : List.of("", "*", "a?c", "-" + DATASET_A, DATASET_A + ",*", "remote:" + DATASET_A)) {
             assertRefused(sendExternal(READER, exec(name, fileA)), name);
         }
     }
@@ -585,6 +610,28 @@ public class DataNodeRequestDatasetAuthorizationIT extends SecurityIntegTestCase
                 FileList.UNRESOLVED,
                 Map.of(),
                 new DatasetReference.Named(dataset)
+            )
+        );
+    }
+
+    /**
+     * {@link #fragment} with a supplied definition in place of a registered name. The resource is the real file,
+     * because the node rebuilds the read from the carried definition rather than from a registered dataset, so this
+     * is the one shape where the resource on the relation is what gets read.
+     */
+    private static FragmentExec inlineFragment(Path file) {
+        List<Attribute> output = output();
+        String resource = StoragePath.fileUri(file);
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", resource, null, null, Map.of(), config());
+        return new FragmentExec(
+            new ExternalRelation(
+                Source.EMPTY,
+                resource,
+                metadata,
+                output,
+                FileList.UNRESOLVED,
+                Map.of(),
+                new DatasetReference.Inline(DATA_SOURCE, Map.of("resource", resource, "settings", Map.of("format", "csv")))
             )
         );
     }

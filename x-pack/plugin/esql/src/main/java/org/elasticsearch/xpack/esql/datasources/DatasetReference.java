@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 
 /**
  * Which dataset an external source reads: one slot, either a registered dataset's {@link Named name} or an
@@ -109,6 +110,18 @@ public sealed interface DatasetReference extends Writeable {
         @Override
         public String describe() {
             return dataSource;
+        }
+
+        /**
+         * The field names only, never their values. The definition is whatever the user wrote inside the braces, and
+         * a record's generated toString renders all of it, so this arm is redacted for the same reason
+         * {@code TableFunctionArgument.NamedValues} is: a setting that shadows one of the data source's secrets is
+         * refused rather than stored, but the resource and the rest are still the caller's text, and nothing should
+         * have to know which log line or assertion message it reached.
+         */
+        @Override
+        public String toString() {
+            return "Inline[dataSource=" + dataSource + ", definition=" + new TreeSet<>(definition.keySet()) + "]";
         }
 
         @Override
@@ -227,11 +240,38 @@ public sealed interface DatasetReference extends Writeable {
             case Named.TAG -> new Named(in.readString());
             case Inline.TAG -> {
                 String dataSource = in.readString();
-                @SuppressWarnings("unchecked")
-                Map<String, Object> definition = (Map<String, Object>) in.readGenericValue();
-                yield new Inline(dataSource, definition);
+                Object definition = in.readGenericValue();
+                if (definition instanceof Map<?, ?> fields) {
+                    yield new Inline(dataSource, inlineDefinition(fields));
+                }
+                throw new IOException("a dataset reference's inline definition is not a map");
             }
             default -> throw new IOException("unknown dataset reference tag [" + tag + "]");
         };
+    }
+
+    /**
+     * The definition a stream carried, checked rather than cast. A plan is not trusted to have been built by a
+     * coordinator the caller was allowed to use, so a payload the record cannot hold is a malformed request and is
+     * reported as one. Without this the cast raises a {@link ClassCastException} for a non-map and {@code Map.copyOf}
+     * a {@link NullPointerException} for a null key or value, both out of deserialization, where the tag's own
+     * default arm and everything else on this path produce an {@link IOException}.
+     * <p>
+     * Top level only, which is what {@code Map.copyOf} itself rejects. A null nested inside a value is carried and
+     * refused later by validation, as a 400 rather than a deserialization failure.
+     */
+    private static Map<String, Object> inlineDefinition(Map<?, ?> fields) throws IOException {
+        Map<String, Object> definition = new LinkedHashMap<>(fields.size());
+        for (Map.Entry<?, ?> field : fields.entrySet()) {
+            if (field.getKey() instanceof String key) {
+                if (field.getValue() == null) {
+                    throw new IOException("a dataset reference's inline definition sets [" + key + "] to null");
+                }
+                definition.put(key, field.getValue());
+            } else {
+                throw new IOException("a dataset reference's inline definition has a field not named by a string");
+            }
+        }
+        return definition;
     }
 }

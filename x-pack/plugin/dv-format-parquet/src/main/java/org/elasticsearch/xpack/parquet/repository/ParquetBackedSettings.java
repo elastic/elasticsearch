@@ -17,13 +17,23 @@ import java.util.function.Function;
 
 /**
  * Final index settings that mark an index as backed by Parquet files, in the way {@code index.store.snapshot.*} marks a searchable
- * snapshot. The mount API sets them. A check on {@link #REPOSITORY} selects the read-only engine.
+ * snapshot. The mount API sets them. A check on {@link #REPOSITORY} or {@link #DATA_SOURCE} selects the read-only engine.
  */
 public final class ParquetBackedSettings {
 
     /** The repository that holds the files, which also marks the index as Parquet-backed. */
     public static final Setting<String> REPOSITORY = Setting.simpleString(
         "index.parquet.repository",
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * The ES|QL data source that reads the files, instead of a repository: the other way to mark an index as Parquet-backed. An index
+     * has a repository or a data source, never both. The pieces then name complete URIs, for example {@code s3://bucket/file.parquet}.
+     */
+    public static final Setting<String> DATA_SOURCE = Setting.simpleString(
+        "index.parquet.data_source",
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
@@ -52,17 +62,39 @@ public final class ParquetBackedSettings {
     private ParquetBackedSettings() {}
 
     public static List<Setting<?>> all() {
-        return List.of(REPOSITORY, PIECES, FIELDS);
+        return List.of(REPOSITORY, DATA_SOURCE, PIECES, FIELDS);
     }
 
     public static boolean isParquetBacked(Settings indexSettings) {
-        return REPOSITORY.exists(indexSettings);
+        return REPOSITORY.exists(indexSettings) || DATA_SOURCE.exists(indexSettings);
+    }
+
+    /**
+     * The location of a file of the index.
+     *
+     * @throws IllegalArgumentException if the settings name both a repository and a data source, or neither
+     */
+    public static FileLocation location(Settings indexSettings, String path) {
+        boolean repository = REPOSITORY.exists(indexSettings);
+        boolean dataSource = DATA_SOURCE.exists(indexSettings);
+        if (repository == dataSource) {
+            throw new IllegalArgumentException(
+                "an index that is backed by Parquet files needs exactly one of ["
+                    + REPOSITORY.getKey()
+                    + "] and ["
+                    + DATA_SOURCE.getKey()
+                    + "]"
+            );
+        }
+        return repository
+            ? new RepositoryLocation(REPOSITORY.get(indexSettings), path)
+            : new DataSourceLocation(DATA_SOURCE.get(indexSettings), path);
     }
 
     /** A range of the row groups of one file, which is a piece of the index. */
     public record PieceSpec(String path, int firstRowGroup, int rowGroupCount) {
-        public RepositoryLocation location(String repository) {
-            return new RepositoryLocation(repository, path);
+        public FileLocation location(Settings indexSettings) {
+            return ParquetBackedSettings.location(indexSettings, path);
         }
 
         @Override

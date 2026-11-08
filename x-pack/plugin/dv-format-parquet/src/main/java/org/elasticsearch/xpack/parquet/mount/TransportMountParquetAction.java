@@ -31,14 +31,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.datasources.DataSourceStorageResolver;
 import org.elasticsearch.xpack.parquet.mount.MountPlanner.IndexPlan;
 import org.elasticsearch.xpack.parquet.repository.ParquetBackedSettings;
+import org.elasticsearch.xpack.parquet.repository.ParquetFiles;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -65,7 +66,7 @@ public class TransportMountParquetAction extends HandledTransportAction<ParquetM
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(60);
 
-    private final RepositoriesService repositories;
+    private final ParquetFiles parquetFiles;
     private final ProjectResolver projectResolver;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -75,7 +76,7 @@ public class TransportMountParquetAction extends HandledTransportAction<ParquetM
     public TransportMountParquetAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        RepositoriesService repositories,
+        ParquetFiles parquetFiles,
         ProjectResolver projectResolver,
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -88,11 +89,21 @@ public class TransportMountParquetAction extends HandledTransportAction<ParquetM
             ParquetMountRequest::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
-        this.repositories = repositories;
+        this.parquetFiles = parquetFiles;
         this.projectResolver = projectResolver;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
+    }
+
+    /**
+     * The ES|QL resolver that reads data sources is a component of the ES|QL plugin, which only Guice can reach. The transport actions
+     * are built when the node starts, so the read-only engine finds the resolver there before the first mount, and on every node. The
+     * plugin extends the ES|QL plugin, so the resolver is there on a node; it is optional only so that a test can load this plugin alone.
+     */
+    @Inject(optional = true)
+    public void bindDataSources(DataSourceStorageResolver dataSources) {
+        parquetFiles.bind(dataSources);
     }
 
     @Override
@@ -102,7 +113,7 @@ public class TransportMountParquetAction extends HandledTransportAction<ParquetM
             requireFreeName(spec.index() != null ? spec.index() : spec.dataStream());
             final ParquetMountAnalysis analysis;
             try {
-                analysis = ParquetMountAnalysis.analyze(spec, repositories, projectResolver.getProjectId());
+                analysis = ParquetMountAnalysis.analyze(spec, parquetFiles, projectResolver.getProjectId());
             } catch (NoSuchFileException e) {
                 throw new ResourceNotFoundException("the file [" + e.getFile() + "] does not exist");
             }
@@ -223,7 +234,10 @@ public class TransportMountParquetAction extends HandledTransportAction<ParquetM
             // the _id is a row number that the segments synthesize, so it has no postings and a query on it is a lookup
             .put(IndexSettings.ID_FIELD_INDEXED.getKey(), false)
             .put("index.number_of_shards", 1)
-            .put(ParquetBackedSettings.REPOSITORY.getKey(), spec.repository())
+            .put(
+                spec.dataSource() != null ? ParquetBackedSettings.DATA_SOURCE.getKey() : ParquetBackedSettings.REPOSITORY.getKey(),
+                spec.sourceName()
+            )
             .putList(ParquetBackedSettings.PIECES.getKey(), analysis.pieces(plan))
             .put(ParquetBackedSettings.FIELDS.getKey(), analysis.mapping().fieldsSetting())
             .build();

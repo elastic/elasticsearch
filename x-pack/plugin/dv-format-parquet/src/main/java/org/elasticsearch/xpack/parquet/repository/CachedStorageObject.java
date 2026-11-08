@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -23,7 +24,7 @@ import java.time.Instant;
  * {@link #readBytes(long, ByteBuffer)} (the asynchronous ones are defaults over them), so those two are the whole surface that needs to
  * change; the rest is the object that it wraps.
  */
-public final class CachedStorageObject implements StorageObject {
+public final class CachedStorageObject implements StorageObject, Closeable {
 
     /**
      * The most that one fetch of a stream asks the cache for. It matches the largest window that the reader reads at once, so that a
@@ -33,10 +34,25 @@ public final class CachedStorageObject implements StorageObject {
 
     private final StorageObject delegate;
     private final ParquetBlobCache cache;
+    private final String key;
 
-    public CachedStorageObject(StorageObject delegate, ParquetBlobCache cache) {
+    /** @param key what the cache keys the file by, see {@link ParquetBlobCache#read} */
+    public CachedStorageObject(StorageObject delegate, ParquetBlobCache cache, String key) {
         this.delegate = delegate;
         this.cache = cache;
+        this.key = key;
+    }
+
+    public CachedStorageObject(StorageObject delegate, ParquetBlobCache cache) {
+        this(delegate, cache, delegate.path().toString());
+    }
+
+    /** Releases the borrow of the file that the wrapped object holds, if it holds one (a file of an ES|QL data source does). */
+    @Override
+    public void close() throws IOException {
+        if (delegate instanceof Closeable closeable) {
+            closeable.close();
+        }
     }
 
     @Override
@@ -77,11 +93,11 @@ public final class CachedStorageObject implements StorageObject {
         }
         int count = (int) Math.min(target.remaining(), fileLength - position);
         if (target.hasArray()) {
-            cache.read(delegate, position, target.array(), target.arrayOffset() + target.position(), count);
+            cache.read(delegate, key, position, target.array(), target.arrayOffset() + target.position(), count);
             target.position(target.position() + count);
         } else {
             byte[] bytes = new byte[count];
-            cache.read(delegate, position, bytes, 0, count);
+            cache.read(delegate, key, position, bytes, 0, count);
             target.put(bytes);
         }
         return count;
@@ -136,7 +152,7 @@ public final class CachedStorageObject implements StorageObject {
             if (chunk.length < count) {
                 chunk = new byte[count];
             }
-            cache.read(delegate, next, chunk, 0, count);
+            cache.read(delegate, key, next, chunk, 0, count);
             next += count;
             chunkPosition = 0;
             chunkLimit = count;

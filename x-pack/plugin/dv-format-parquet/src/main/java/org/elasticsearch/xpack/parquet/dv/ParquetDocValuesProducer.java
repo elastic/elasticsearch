@@ -20,11 +20,13 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetFormatReader;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetPositionalReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -213,6 +215,12 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
     public void close() {
         ScanRegistry.INSTANCE.closeAllOf(this);
         pageCache.clear();
+        // a file of an ES|QL data source holds a borrow of the storage provider, which has to be given back when the segment is done
+        synchronized (this) {
+            if (storage instanceof Closeable closeable) {
+                IOUtils.closeWhileHandlingException(closeable);
+            }
+        }
     }
 
     /** The row group layout of the file; the file is opened by the first iterator. */

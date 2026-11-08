@@ -17,9 +17,9 @@ import java.util.List;
  * @param repository the name of the repository
  * @param path       the path of the file relative to the base path of the repository, with {@code /} between the segments
  */
-public record RepositoryLocation(String repository, String path) {
+public record RepositoryLocation(String repository, String path) implements FileLocation {
 
-    private static final String SCHEME = "repository://";
+    static final String SCHEME = "repository://";
 
     public RepositoryLocation {
         if (repository.isEmpty() || repository.contains("/")) {
@@ -42,6 +42,11 @@ public record RepositoryLocation(String repository, String path) {
             segments.add(segment);
         }
         return segments;
+    }
+
+    @Override
+    public String sourceName() {
+        return repository;
     }
 
     @Override

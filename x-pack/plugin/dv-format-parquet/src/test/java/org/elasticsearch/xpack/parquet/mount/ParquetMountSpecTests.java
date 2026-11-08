@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.parquet.mount;
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.parquet.dv.Conversion;
+import org.elasticsearch.xpack.parquet.repository.DataSourceLocation;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +42,31 @@ public class ParquetMountSpecTests extends ESTestCase {
         assertEquals(ParquetMountSpec.DEFAULT_MAX_ROWS_PER_INDEX, spec.maxRowsPerIndex());
         assertNull(spec.overrides().timestampColumn());
         assertTrue(spec.indexSettings().isEmpty());
+    }
+
+    public void testADataSourceTakesCompleteUrisAndIsExclusiveWithARepository() {
+        Map<String, Object> body = minimal();
+        body.remove("repository");
+        body.put("data_source", "clickbench");
+        body.put("paths", List.of("s3://clickhouse-public-datasets/hits_compatible/hits.parquet"));
+        ParquetMountSpec spec = ParquetMountSpec.parse(body, true);
+        assertNull(spec.repository());
+        assertEquals("clickbench", spec.dataSource());
+        assertEquals("clickbench", spec.sourceName());
+        assertEquals(
+            new DataSourceLocation("clickbench", "s3://clickhouse-public-datasets/hits_compatible/hits.parquet"),
+            spec.location(spec.paths().get(0))
+        );
+
+        body.put("repository", "lake");
+        assertThat(rejected(body), containsString("not both"));
+
+        // a path that is not a URI is no file of a data source
+        body.remove("repository");
+        body.put("paths", List.of("events/a.parquet"));
+        assertThat(rejected(body), containsString("must be a URI"));
+        body.put("paths", List.of("s3://bucket/a.parquet#1"));
+        assertThat(rejected(body), containsString("must not contain a #"));
     }
 
     public void testPreviewNeedsNoDataStreamButAMountDoes() {
@@ -103,7 +129,7 @@ public class ParquetMountSpecTests extends ESTestCase {
 
         Map<String, Object> noRepository = minimal();
         noRepository.remove("repository");
-        assertThat(rejected(noRepository), containsString("[repository] is required"));
+        assertThat(rejected(noRepository), containsString("[repository] or [data_source] is required"));
 
         for (Object paths : new Object[] { List.of(), "a.parquet", List.of(1), List.of("a.parquet", "a.parquet") }) {
             Map<String, Object> body = minimal();

@@ -13,6 +13,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.parquet.dv.Conversion;
 import org.elasticsearch.xpack.parquet.mount.ParquetMappingDeriver.ColumnOverride;
 import org.elasticsearch.xpack.parquet.mount.ParquetMappingDeriver.Overrides;
+import org.elasticsearch.xpack.parquet.repository.DataSourceLocation;
+import org.elasticsearch.xpack.parquet.repository.FileLocation;
 import org.elasticsearch.xpack.parquet.repository.RepositoryLocation;
 
 import java.util.ArrayList;
@@ -28,8 +30,8 @@ import java.util.Set;
  *
  * <pre>
  * {
- *   "repository": "lake",
- *   "paths": ["events/part-0001.parquet", "events/part-0002.parquet"],
+ *   "repository": "lake",   // or "data_source": "my_s3" for an ES|QL data source, whose paths are complete URIs
+ *   "paths": ["events/part-0001.parquet", "events/part-0002.parquet"],  // "s3://bucket/events/part-0001.parquet" for a data source
  *   "data_stream": "events",   // or "index": "events" for one plain index, which needs no timestamp field
  *   "timestamp_field": "event_time",
  *   "fields": { "event_time": { "type": "date", "conversion": "seconds_to_millis" }, "host": { "name": "hostname" } },
@@ -40,7 +42,8 @@ import java.util.Set;
  * </pre>
  */
 public record ParquetMountSpec(
-    String repository,
+    @Nullable String repository,
+    @Nullable String dataSource,
     List<String> paths,
     @Nullable String dataStream,
     @Nullable String index,
@@ -54,6 +57,7 @@ public record ParquetMountSpec(
 
     private static final Set<String> KEYS = Set.of(
         "repository",
+        "data_source",
         "paths",
         "data_stream",
         "index",
@@ -85,7 +89,15 @@ public record ParquetMountSpec(
                 throw new IllegalArgumentException("unknown field [" + key + "], the fields are " + KEYS.stream().sorted().toList());
             }
         }
-        String repository = string(body, "repository", true);
+        String repository = string(body, "repository", false);
+        String dataSource = string(body, "data_source", false);
+        if ((repository == null) == (dataSource == null)) {
+            throw new IllegalArgumentException(
+                repository == null
+                    ? "[repository] or [data_source] is required: the repository or the ES|QL data source that reads the files"
+                    : "give [repository] or [data_source], not both"
+            );
+        }
         List<String> paths = new ArrayList<>();
         Object rawPaths = body.get("paths");
         if (rawPaths instanceof List<?> pathList && pathList.isEmpty() == false && pathList.stream().allMatch(p -> p instanceof String)) {
@@ -93,8 +105,8 @@ public record ParquetMountSpec(
         } else {
             throw new IllegalArgumentException("[paths] must be a list of at least one path");
         }
-        // a path or a repository that is not valid is rejected here, before any request reaches the repository
-        paths.forEach(path -> new RepositoryLocation(repository, path));
+        // a path, a repository or a data source that is not valid is rejected here, before any request reaches the files
+        paths.forEach(path -> location(repository, dataSource, path));
         if (new HashSet<>(paths).size() != paths.size()) {
             throw new IllegalArgumentException("[paths] has a path more than once");
         }
@@ -182,6 +194,7 @@ public record ParquetMountSpec(
         }
         return new ParquetMountSpec(
             repository,
+            dataSource,
             List.copyOf(paths),
             dataStream,
             index,
@@ -189,6 +202,20 @@ public record ParquetMountSpec(
             maxRows,
             indexSettings.build()
         );
+    }
+
+    private static FileLocation location(@Nullable String repository, @Nullable String dataSource, String path) {
+        return dataSource != null ? new DataSourceLocation(dataSource, path) : new RepositoryLocation(repository, path);
+    }
+
+    /** The location of one of the {@link #paths()}. */
+    public FileLocation location(String path) {
+        return location(repository, dataSource, path);
+    }
+
+    /** The name of the repository or of the data source that reads the files, for messages. */
+    public String sourceName() {
+        return dataSource != null ? dataSource : repository;
     }
 
     @Nullable

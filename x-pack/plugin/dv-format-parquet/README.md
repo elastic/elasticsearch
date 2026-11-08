@@ -45,6 +45,40 @@ that a mount would create. A mount creates one index (`"index"`) or a data strea
 `@timestamp` field, so a column named `timestamp_field` with a type override). The other keys of the body are `exclude`,
 `max_rows_per_index` and `index_settings`, and `fields` can also rename a column (`name`) or choose another type.
 
+### Mounting through an ES|QL data source
+
+Instead of a repository, a mount can read its files through an ES|QL data source (`PUT /_query/data_source/<name>`), which holds the
+type and the settings of the store: the authentication, an endpoint. Give `data_source` instead of `repository`; the paths are then
+complete URIs, because a data source has no base path. The data source API needs the license that ES|QL external sources need (a trial
+works).
+
+```
+PUT /_query/data_source/clickbench
+{ "type": "s3", "settings": { "auth": "anonymous" } }
+
+POST /_parquet/_mount
+{
+  "data_source": "clickbench",
+  "paths": ["s3://clickhouse-public-datasets/hits_compatible/hits.parquet"],
+  "index": "hits",
+  "fields": { "EventTime": { "type": "date", "conversion": "seconds_to_millis" } },
+  "index_settings": { "index.number_of_replicas": 0 }
+}
+```
+
+`auth: anonymous` reads the public ClickBench bucket without credentials (a snapshot repository of type `s3` cannot do that, because the
+`repository-s3` module always signs its requests). The index gets `index.parquet.data_source` in the place of `index.parquet.repository`,
+and a segment stores `datasource://<name>/<uri>`. Notes:
+
+- the mount checks each URI with the validator that ES|QL applies to a dataset of that data source type (the scheme, so `gs://` is rejected for
+  an `s3` data source, and the endpoint allow-list), before it reads anything;
+- a data source with a custom endpoint needs the endpoint in the node setting `esql.external.allowed_endpoint_hosts`;
+- the `region` of a data source is ignored by ES|QL (it belongs to a dataset); with no region and no endpoint, the S3 client signs for
+  `us-east-1` and follows redirects to the region of the bucket;
+- a segment resolves the data source from the cluster state each time it opens, so a data source that is deleted, or renamed, or whose
+  endpoint is no longer allowed, breaks the segments that open afterwards (a node that restarts, a shard that moves), not the open ones;
+- the disk cache keys a file by the stored location, which includes the name of the data source.
+
 A node reads the files through the repository on every query, which is slow for an object store. The node-local disk cache of file
 ranges is off until you give it a size. It needs exactly one data path and as much free space in it as its size, and a node that cannot
 create it logs why and reads the repository directly.
@@ -138,8 +172,10 @@ conversions. The packages `engine` and `mount` use `dv` and `repository`.
   request, so range and term queries skip or match whole row groups, sorts prune, and the mapper's range check (a date field) sees real
   bounds. A column with unreliable or missing statistics, an unknown null count, an unsigned 32 or 64 bit type, a decimal or a time gets
   no skipper, or the widest range, and is read in full: slower and never wrong.
-- `repository/` (`RepositoryLocation`, `RepositoryStorageObject`, `ParquetBackedSettings`) a file in a repository as the ES|QL reader sees a
-  storage object, and the `index.parquet.*` settings that tie an index to its repository, pieces and fields. `ParquetBlobCache` and
+- `repository/` (`FileLocation` with `RepositoryLocation` and `DataSourceLocation`, `ParquetFiles`, `RepositoryStorageObject`,
+  `ParquetBackedSettings`) a file in a repository or of an ES|QL data source as the ES|QL reader sees a storage object (`ParquetFiles`
+  opens both. A data source is read through `DataSourceStorageResolver` of the ES|QL plugin, which returns a `BorrowedStorageObject` that
+  holds the borrow of the storage provider until the segment closes), and the `index.parquet.*` settings that tie an index to its repository, pieces and fields. `ParquetBlobCache` and
   `CachedStorageObject` are the disk cache of file ranges: the decorator sends every read of the reader through the cache, which is a
   thin layer on the shared cache of the `blob-cache` plugin (its own cache file, `parquet_cache`, and its own fetch thread pool).
 

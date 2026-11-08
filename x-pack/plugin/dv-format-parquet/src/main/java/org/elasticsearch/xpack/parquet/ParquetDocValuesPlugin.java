@@ -21,7 +21,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -36,6 +35,7 @@ import org.elasticsearch.xpack.parquet.mount.TransportMountParquetAction;
 import org.elasticsearch.xpack.parquet.mount.TransportPreviewParquetAction;
 import org.elasticsearch.xpack.parquet.repository.ParquetBackedSettings;
 import org.elasticsearch.xpack.parquet.repository.ParquetBlobCache;
+import org.elasticsearch.xpack.parquet.repository.ParquetFiles;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -59,7 +59,7 @@ public class ParquetDocValuesPlugin extends Plugin implements EnginePlugin, Acti
 
     private static final Logger logger = LogManager.getLogger(ParquetDocValuesPlugin.class);
 
-    private final SetOnce<RepositoriesService> repositories = new SetOnce<>();
+    private final SetOnce<ParquetFiles> files = new SetOnce<>();
     private final SetOnce<Scheduler.Cancellable> sweeper = new SetOnce<>();
     private final SetOnce<ParquetBlobCache> cache = new SetOnce<>();
 
@@ -71,7 +71,10 @@ public class ParquetDocValuesPlugin extends Plugin implements EnginePlugin, Acti
      */
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        repositories.set(services.repositoriesService());
+        ParquetFiles parquetFiles = new ParquetFiles(services::repositoriesService, services.clusterService());
+        files.set(parquetFiles);
+        // the mount actions get it by injection, so it is a component
+        List<Object> components = new ArrayList<>(List.of(parquetFiles));
         sweeper.set(
             services.threadPool().scheduleWithFixedDelay(ScanRegistry.INSTANCE::sweep, SWEEP_INTERVAL, services.threadPool().generic())
         );
@@ -83,7 +86,7 @@ public class ParquetDocValuesPlugin extends Plugin implements EnginePlugin, Acti
                     ParquetBlobCache.CACHE_SIZE.getKey(),
                     services.nodeEnvironment().nodeDataPaths().length
                 );
-                return List.of();
+                return components;
             }
             try {
                 ParquetBlobCache blobCache = new ParquetBlobCache(
@@ -95,7 +98,8 @@ public class ParquetDocValuesPlugin extends Plugin implements EnginePlugin, Acti
                     new BlobCacheMetrics(MeterRegistry.NOOP, services.threadPool())
                 );
                 cache.set(blobCache);
-                return List.of(blobCache);
+                components.add(blobCache);
+                return components;
             } catch (RuntimeException e) {
                 logger.warn(
                     "cannot create the Parquet cache of [{}]: reads go straight to the repository",
@@ -104,7 +108,7 @@ public class ParquetDocValuesPlugin extends Plugin implements EnginePlugin, Acti
                 );
             }
         }
-        return List.of();
+        return components;
     }
 
     @Override
@@ -151,7 +155,7 @@ public class ParquetDocValuesPlugin extends Plugin implements EnginePlugin, Acti
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (ParquetBackedSettings.isParquetBacked(indexSettings.getSettings())) {
-            return Optional.of(new ParquetEngineFactory(repositories::get, cache::get));
+            return Optional.of(new ParquetEngineFactory(files::get, cache::get));
         }
         return Optional.empty();
     }

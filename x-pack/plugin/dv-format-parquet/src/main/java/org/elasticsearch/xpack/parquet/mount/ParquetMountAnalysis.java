@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.parquet.mount;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.parquet.dv.ParquetFileInfo;
 import org.elasticsearch.xpack.parquet.mount.MountPlanner.IndexPlan;
 import org.elasticsearch.xpack.parquet.mount.MountPlanner.Piece;
 import org.elasticsearch.xpack.parquet.mount.ParquetMappingDeriver.DerivedMapping;
-import org.elasticsearch.xpack.parquet.repository.RepositoryLocation;
-import org.elasticsearch.xpack.parquet.repository.RepositoryStorageObject;
+import org.elasticsearch.xpack.parquet.repository.FileLocation;
+import org.elasticsearch.xpack.parquet.repository.ParquetFiles;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -33,21 +33,28 @@ import java.util.Map;
 public record ParquetMountAnalysis(ParquetMountSpec spec, List<ParquetFileInfo> files, DerivedMapping mapping, List<IndexPlan> plan) {
 
     /** Reads the footers and works out the mapping and the plan. */
-    public static ParquetMountAnalysis analyze(ParquetMountSpec spec, RepositoriesService repositories, ProjectId projectId)
-        throws IOException {
+    public static ParquetMountAnalysis analyze(ParquetMountSpec spec, ParquetFiles parquetFiles, ProjectId projectId) throws IOException {
         List<ParquetFileInfo> files = new ArrayList<>();
         for (String path : spec.paths()) {
-            RepositoryLocation location = new RepositoryLocation(spec.repository(), path);
-            RepositoryStorageObject object;
+            FileLocation location = spec.location(path);
+            StorageObject object;
             try {
-                object = RepositoryStorageObject.open(repositories, projectId, location);
+                object = parquetFiles.open(location, projectId);
             } catch (UncheckedIOException e) {
                 if (e.getCause() instanceof NoSuchFileException) {
-                    throw new ResourceNotFoundException("file [{}] does not exist in repository [{}]", e, path, spec.repository());
+                    throw new ResourceNotFoundException("file [{}] does not exist in [{}]", e, path, spec.sourceName());
                 }
                 throw e;
             }
-            files.add(ParquetFileInfo.read(location.toString(), object));
+            try {
+                // a repository finds out whether the file exists when it is opened, a data source when it is first asked
+                if (object.exists() == false) {
+                    throw new ResourceNotFoundException("file [{}] does not exist in [{}]", path, spec.sourceName());
+                }
+                files.add(ParquetFileInfo.read(location.toString(), object));
+            } finally {
+                ParquetFiles.close(object);
+            }
         }
         DerivedMapping mapping = ParquetMappingDeriver.derive(files.get(0), spec.overrides());
         List<String> columns = mapping.fields().stream().map(ParquetMappingDeriver.DerivedField::column).toList();

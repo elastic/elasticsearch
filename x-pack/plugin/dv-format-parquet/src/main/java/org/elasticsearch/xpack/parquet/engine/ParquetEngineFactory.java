@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.parquet.dv.ColumnBinding;
 import org.elasticsearch.xpack.parquet.dv.Conversion;
@@ -28,10 +27,10 @@ import org.elasticsearch.xpack.parquet.dv.ExternalFilePiece;
 import org.elasticsearch.xpack.parquet.dv.ParquetFileInfo;
 import org.elasticsearch.xpack.parquet.dv.ParquetReadContext;
 import org.elasticsearch.xpack.parquet.repository.CachedStorageObject;
+import org.elasticsearch.xpack.parquet.repository.FileLocation;
 import org.elasticsearch.xpack.parquet.repository.ParquetBackedSettings;
 import org.elasticsearch.xpack.parquet.repository.ParquetBlobCache;
-import org.elasticsearch.xpack.parquet.repository.RepositoryLocation;
-import org.elasticsearch.xpack.parquet.repository.RepositoryStorageObject;
+import org.elasticsearch.xpack.parquet.repository.ParquetFiles;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -49,19 +48,22 @@ import java.util.function.Supplier;
  */
 public final class ParquetEngineFactory implements EngineFactory {
 
-    private final Supplier<RepositoriesService> repositories;
+    private final Supplier<ParquetFiles> files;
     /** The disk cache of file ranges of the node, which answers {@code null} when the node has none. */
     private final Supplier<ParquetBlobCache> cache;
 
-    public ParquetEngineFactory(Supplier<RepositoriesService> repositories, Supplier<ParquetBlobCache> cache) {
-        this.repositories = repositories;
+    public ParquetEngineFactory(Supplier<ParquetFiles> files, Supplier<ParquetBlobCache> cache) {
+        this.files = files;
         this.cache = cache;
     }
 
-    /** The file as the reader reads it: through the disk cache of the node when it has one. */
-    private StorageObject cached(RepositoryStorageObject object) {
+    /**
+     * The file as the reader reads it: through the disk cache of the node when it has one. The cache keys the file by its stored
+     * location, which names the repository or the data source, so a source that cannot read a file is not served the bytes of another.
+     */
+    private StorageObject cached(FileLocation location, StorageObject object) {
         ParquetBlobCache blobCache = cache.get();
-        return blobCache == null ? object : new CachedStorageObject(object, blobCache);
+        return blobCache == null ? object : new CachedStorageObject(object, blobCache, location.toString());
     }
 
     @Override
@@ -70,15 +72,11 @@ public final class ParquetEngineFactory implements EngineFactory {
             attachIfEmpty(config);
             // The engine opens the segments, and each segment keeps the resolver that it finds in the context. A segment stores where
             // its file is and the length it was attached with, so opening it makes no request.
-            ParquetReadContext.Resolver resolver = (location, length) -> cached(
-                RepositoryStorageObject.open(
-                    repositories.get(),
-                    // TODO: the project of the index, once the mount API can mount indices of other projects
-                    ProjectId.DEFAULT,
-                    RepositoryLocation.parse(location),
-                    length
-                )
-            );
+            ParquetReadContext.Resolver resolver = (location, length) -> {
+                FileLocation fileLocation = FileLocation.parse(location);
+                // TODO: the project of the index, once the mount API can mount indices of other projects
+                return cached(fileLocation, files.get().open(fileLocation, ProjectId.DEFAULT, length));
+            };
             return ParquetReadContext.with(resolver, () -> new ParquetReadOnlyEngine(config));
         } catch (IOException e) {
             throw new UncheckedIOException("failed to open the Parquet-backed shard " + config.getShardId(), e);
@@ -92,20 +90,18 @@ public final class ParquetEngineFactory implements EngineFactory {
             return;
         }
         Settings settings = config.getIndexSettings().getSettings();
-        String repository = ParquetBackedSettings.REPOSITORY.get(settings);
         List<ParquetBackedSettings.PieceSpec> specs = ParquetBackedSettings.pieceSpecs(settings);
         // the one place that reads the footers when the shard is created: a segment reads its own footer when it first serves values
         Map<String, ParquetFileInfo> files = new LinkedHashMap<>();
         for (ParquetBackedSettings.PieceSpec spec : specs) {
             if (files.containsKey(spec.path()) == false) {
-                RepositoryLocation location = spec.location(repository);
-                files.put(
-                    spec.path(),
-                    ParquetFileInfo.read(
-                        location.toString(),
-                        cached(RepositoryStorageObject.open(repositories.get(), ProjectId.DEFAULT, location))
-                    )
-                );
+                FileLocation location = spec.location(settings);
+                StorageObject object = cached(location, this.files.get().open(location, ProjectId.DEFAULT));
+                try {
+                    files.put(spec.path(), ParquetFileInfo.read(location.toString(), object));
+                } finally {
+                    ParquetFiles.close(object);
+                }
             }
         }
         ParquetFileInfo first = files.get(specs.get(0).path());

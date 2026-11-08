@@ -14,17 +14,18 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.datasources.DataSourceStorageResolver;
+import org.elasticsearch.xpack.parquet.repository.ParquetFiles;
 
 import java.nio.file.NoSuchFileException;
 
 /** Runs a preview: it reads the footers on a thread that may block, and builds the answer from them. */
 public class TransportPreviewParquetAction extends HandledTransportAction<ParquetMountRequest, ParquetMountResponse> {
 
-    private final RepositoriesService repositories;
+    private final ParquetFiles parquetFiles;
     private final ProjectResolver projectResolver;
     private final ThreadPool threadPool;
 
@@ -32,7 +33,7 @@ public class TransportPreviewParquetAction extends HandledTransportAction<Parque
     public TransportPreviewParquetAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        RepositoriesService repositories,
+        ParquetFiles parquetFiles,
         ProjectResolver projectResolver,
         ThreadPool threadPool
     ) {
@@ -43,9 +44,19 @@ public class TransportPreviewParquetAction extends HandledTransportAction<Parque
             ParquetMountRequest::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
-        this.repositories = repositories;
+        this.parquetFiles = parquetFiles;
         this.projectResolver = projectResolver;
         this.threadPool = threadPool;
+    }
+
+    /**
+     * The ES|QL resolver that reads data sources is a component of the ES|QL plugin, which only Guice can reach. The transport actions
+     * are built when the node starts, so the read-only engine finds the resolver there before the first mount, and on every node. The
+     * plugin extends the ES|QL plugin, so the resolver is there on a node; it is optional only so that a test can load this plugin alone.
+     */
+    @Inject(optional = true)
+    public void bindDataSources(DataSourceStorageResolver dataSources) {
+        parquetFiles.bind(dataSources);
     }
 
     @Override
@@ -55,7 +66,7 @@ public class TransportPreviewParquetAction extends HandledTransportAction<Parque
             ParquetMountSpec spec = ParquetMountSpec.parse(request.body(), false);
             try {
                 return new ParquetMountResponse(
-                    ParquetMountAnalysis.analyze(spec, repositories, projectResolver.getProjectId()).toPreview()
+                    ParquetMountAnalysis.analyze(spec, parquetFiles, projectResolver.getProjectId()).toPreview()
                 );
             } catch (NoSuchFileException e) {
                 throw new ResourceNotFoundException("the file [" + e.getFile() + "] does not exist");

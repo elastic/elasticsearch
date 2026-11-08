@@ -146,10 +146,14 @@ public final class ParquetBlobCache implements Releasable {
      * Reads exactly {@code length} bytes of the file starting at {@code position} into {@code destination} at {@code destinationOffset},
      * from the cache where it can, and otherwise by a ranged read of the file that also fills the cache. This blocks until the bytes are
      * there, the same as a read of the file does.
+     *
+     * @param location what the cache keys the file by, together with its length. It must name the source of the file as well as its path
+     *                 (the stored location of a segment does): two data sources with different credentials may read the same URI, and
+     *                 the one that cannot read the file must not be served the bytes that the other fetched.
      */
-    public void read(StorageObject object, long position, byte[] destination, int destinationOffset, int length) throws IOException {
+    public void read(StorageObject object, String location, long position, byte[] destination, int destinationOffset, int length)
+        throws IOException {
         long fileLength = object.length();
-        String location = object.path().toString();
         SharedBlobCacheService<CacheKey>.CacheFile file = cache.getCacheFile(
             new CacheKey(location, fileLength),
             fileLength,

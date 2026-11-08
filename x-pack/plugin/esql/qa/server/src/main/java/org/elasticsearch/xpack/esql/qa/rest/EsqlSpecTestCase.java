@@ -571,6 +571,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.PARTITIONING_AGGREGATIONS.capabilityName()))) {
             pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(50_000, 100_000));
         }
+        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TIME_SERIES_SINGLE_PASS.capabilityName()))) {
+            pragma.put(QueryPragmas.TIME_SERIES_SINGLE_PASS.getKey(), randomBoolean());
+        }
     }
 
     protected MappedFieldType.FieldExtractPreference fieldExtractPreference() {

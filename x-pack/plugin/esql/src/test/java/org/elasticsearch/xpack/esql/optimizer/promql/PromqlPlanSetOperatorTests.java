@@ -247,6 +247,23 @@ public class PromqlPlanSetOperatorTests extends AbstractPromqlPlanOptimizerTests
     }
 
     /**
+     * grafanalabs baseline-2 cases 2017/2018/4687/4688: {@code (agg * 0 + 1) and (ratio >= thresh)} must optimize.
+     * Set-op folds null the right value where its filter fails (rather than Filter-dropping the row) so the left
+     * value stays live for {@code CASE(IS NOT NULL(right), left)}.
+     */
+    public void testAndWithArithmeticMaskOptimizes() {
+        assumeTrue("requires typed _timeseries", typedLabelContainer());
+        var plan = planPromql("""
+            PROMQL index=k8s step=1m result=(
+              ((max by (cluster) (network.bytes_in) * 0 + 1)
+                and
+               ((max by (cluster) (network.bytes_in) / max by (cluster) (network.cost)) >= 0.8))
+            )
+            """, true);
+        assertTrue(plan.resolved());
+    }
+
+    /**
      * grafanalabs baseline-2 cases 2357/2358: {@code (rate or irate)/(rate or irate)} is admitted and plans, but e2e
      * fails with "Cannot project block". Plan-only coverage is insufficient; keep this as a typed-path shape pin until
      * an e2e {@code @AwaitsFix} (FunctionalTimeSeriesIT / csv-spec) owns the runtime assertion.

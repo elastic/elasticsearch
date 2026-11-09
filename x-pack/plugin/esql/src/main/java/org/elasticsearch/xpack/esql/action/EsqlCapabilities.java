@@ -2843,8 +2843,9 @@ public class EsqlCapabilities {
 
         /**
          * PromQL shapes the translation admits by reading labels through references bound after it, rather than from
-         * concrete label columns: the {@code and} and {@code unless} set operators and vector matching between operands whose
-         * labels stay in the label container. Gates test coverage of those shapes.
+         * concrete label columns: the {@code and} and {@code unless} set operators, vector matching between operands whose
+         * labels stay in the label container, unmatched comparisons nested under aggregations, {@code label_replace}
+         * or reductions, and a filter comparison with a computed scalar on the left. Gates test coverage of those shapes.
          */
         PROMQL_LABEL_REFERENCES(PROMQL_COMMAND_V0.isEnabled()),
 

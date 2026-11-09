@@ -1332,6 +1332,30 @@ c:long
 2
 ;
 
+forkRegressionInlineStatsSortOnGeneratedColumnThenFilterFork
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+required_capability: inline_stats
+
+// Regression test for https://github.com/elastic/elasticsearch/issues/148386
+// The sorted column z is unused after FORK. Filtering on _fork used to fail with a ClassCastException
+// because a BytesRef block was read as an IntBlock. Reproducing it needs the extra columns that URI_PARTS adds.
+from employees
+| eval title = concat("https://example.com/", first_name, "#frag")
+| uri_parts x = title
+| rename gender AS ver
+| inline stats z = min(emp_no) by x.fragment
+| limit 1
+| fork (where z == 10001) (sort z)
+| where _fork == "fork1"
+| stats c = count(*)
+;
+
+c:long
+1
+;
+
 forkRegressionAllColumnsDroppedThenEval
 
 required_capability: fork_v9

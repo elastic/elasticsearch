@@ -85,7 +85,10 @@ public final class SetProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        FieldPath path = field.resolve(document);
+        // With override off the field has to be looked at before anything is written to it, so it is resolved (once) here. Otherwise
+        // it is only used to write to, so it is left for IngestDocument to resolve if (and only if) there turns out to be something to
+        // write, which matters for a field that is a template, as what it renders as depends on the document.
+        FieldPath path = overrideEnabled ? field : field.resolve(document);
         if (overrideEnabled || document.hasField(path) == false || document.getFieldValue(path, Object.class) == null) {
             if (copyFrom != null) {
                 Object fieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValue);

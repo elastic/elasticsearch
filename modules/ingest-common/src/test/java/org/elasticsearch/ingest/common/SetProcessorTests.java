@@ -16,6 +16,7 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -317,12 +319,76 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     /**
-     * A malformed field is reported even when there turns out to be nothing to write (an empty value, with ignore_empty_value). The path
-     * used to only be parsed once something was written to it, which meant that a malformed one in that situation was silently ignored.
+     * Where a value is written to is only looked at when there turns out to be something to write (which, with ignore_empty_value, it
+     * might not be, for example because the field that it is copied from is missing). That matters for a field that is a template, as
+     * it can render as nothing (or as something that is not a path) for some documents and not for others.
      */
-    public void testMalformedConstantFieldFailsEvenIfThereIsNothingToWrite() {
+    public void testFieldIsNotLookedAtIfThereIsNothingToWrite() throws Exception {
+        TemplateScript.Factory constantEmpty = ConfigurationUtils.compileTemplate(
+            SetProcessor.TYPE,
+            "tag",
+            "field",
+            "",
+            TestTemplateService.instance()
+        );
+        List<TemplateScript.Factory> fields = List.of(
+            constantEmpty,
+            new TestTemplateService.MockTemplateScript.Factory(""),
+            new TestTemplateService.MockTemplateScript.Factory("a..b")
+        );
+        for (TemplateScript.Factory field : fields) {
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            Processor processor = new SetProcessor("tag", null, field, null, "source.missing", true, true);
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of()));
+        }
+    }
+
+    public void testMalformedFieldIsReportedIfThereIsSomethingToWrite() {
         IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
-        Processor processor = createSetProcessorWithCompiledField("a..b", "", null, true, true);
+        ingestDocument.setFieldValue("source.present", "value");
+        Processor processor = createSetProcessorWithCompiledField("a..b", null, "source.present", true, true);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    /**
+     * A field that is a template is rendered as often as it has to be and no more: once if there is something to write (whether or not
+     * override is on), and not at all if there is nothing to write and nothing else needs to look at it.
+     */
+    public void testTemplatedFieldIsRenderedAsOftenAsItHasToBe() throws Exception {
+        AtomicInteger renders = new AtomicInteger();
+        TemplateScript.Factory field = params -> new TemplateScript(params) {
+            @Override
+            public String execute() {
+                renders.incrementAndGet();
+                return "target";
+            }
+        };
+        for (boolean overrideEnabled : new boolean[] { true, false }) {
+            // something to write
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            ingestDocument.setFieldValue("source", "value");
+            renders.set(0);
+            new SetProcessor("tag", null, field, null, "source", overrideEnabled, true).execute(ingestDocument);
+            assertThat(ingestDocument.getFieldValue("target", String.class), equalTo("value"));
+            assertThat("override " + overrideEnabled, renders.get(), equalTo(1));
+
+            // nothing to write: with override the field is not looked at at all, without it the field has to be looked at (once)
+            ingestDocument = TestIngestDocument.emptyIngestDocument();
+            renders.set(0);
+            new SetProcessor("tag", null, field, null, "source.missing", overrideEnabled, true).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of()));
+            assertThat("override " + overrideEnabled, renders.get(), equalTo(overrideEnabled ? 0 : 1));
+        }
+    }
+
+    /**
+     * Without override the field has to be looked at before anything is written, to see whether there is something there already.
+     */
+    public void testMalformedFieldIsReportedWithoutOverrideEvenIfThereIsNothingToWrite() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("a..b", null, "source.missing", false, true);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
     }

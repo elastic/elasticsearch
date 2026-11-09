@@ -9,7 +9,6 @@
 
 package org.elasticsearch.lucene.store;
 
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.function.IntFunction;
@@ -29,14 +28,12 @@ public final class SegmentBufferScratch implements IntFunction<MemorySegment> {
      * Returns an off-heap (native) {@link MemorySegment} of exactly {@code count} bytes, aligned for
      * any primitive layout. The backing allocation is grown lazily and never shrunk,
      * so a run of equally-sized requests allocates nothing at all.
-     *
-     * <p>Segments are returned from an auto arena, so they are garbage-collected.
      */
     @Override
     public MemorySegment apply(int count) {
         if (slice == null || slice.byteSize() != count) {
             if (backing == null || backing.byteSize() < count) {
-                backing = Arena.ofAuto().allocate(count, ValueLayout.JAVA_LONG.byteAlignment());
+                backing = ThreadConfinedArena.allocate(count, ValueLayout.JAVA_LONG.byteAlignment());
             }
             slice = backing.asSlice(0, count);
         }

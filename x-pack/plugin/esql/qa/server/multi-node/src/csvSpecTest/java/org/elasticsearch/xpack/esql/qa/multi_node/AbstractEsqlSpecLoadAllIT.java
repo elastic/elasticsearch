@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import org.elasticsearch.xpack.esql.CsvTestUtils.TestResults;
 import org.elasticsearch.xpack.esql.LoadAllFromLoad;
 
 import java.util.List;
@@ -47,7 +47,7 @@ public abstract class AbstractEsqlSpecLoadAllIT extends AbstractEsqlSpecIT {
 
     @Override
     protected void assertResults(
-        ExpectedResults expected,
+        TestResults expected,
         List<Map<String, String>> actualColumns,
         List<List<Object>> actualValues,
         Logger logger

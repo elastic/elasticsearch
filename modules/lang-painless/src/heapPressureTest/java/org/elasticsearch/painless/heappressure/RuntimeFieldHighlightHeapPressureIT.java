@@ -67,7 +67,7 @@ public class RuntimeFieldHighlightHeapPressureIT extends ESRestTestCase {
             format("""
                 "rf": {"type": "double", "script": {"source": "%s if (m != null) { emit(m.length()); }"}}""", READ_MESSAGE),
             HIGHLIGHTED_MATCH,
-            DOCS
+            TYPE_TEST_HITS
         );
     }
 

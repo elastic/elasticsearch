@@ -38,7 +38,10 @@ public final class LoadAllFromLoad {
         "unmapped-type-conflicts.csv-spec",
         "views.csv-spec" };
 
-    /** Tests with {@code ROW}, which the command allow-list of {@code LOAD_ALL} does not have yet. */
+    /**
+     * Tests with {@code ROW}, which the command allow-list of {@code LOAD_ALL} does not have yet.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/164812">#164812</a>.
+     */
     private static final Set<String> NEEDS_ROW = Set.of(
         "in_subquery.forkFoldableLHSUnmappedEvalLoadShouldNotLeakConst",
         "in_subquery.forkMarkJoinUnmappedEvalLoadShouldNotLeakMark",
@@ -49,7 +52,10 @@ public final class LoadAllFromLoad {
         "unmapped-load.loadViewRowEvalLoadMode"
     );
 
-    /** Tests with {@code TS}, which {@code LOAD_ALL} does not support. */
+    /**
+     * Tests with {@code TS}, which {@code LOAD_ALL} does not support.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/157190">#157190</a>.
+     */
     private static final Set<String> NEEDS_TS = Set.of(
         "unmapped-load.evalOnMaxOverTime",
         "unmapped-load.explicitLastOverTimeUnmappedTsIndex",

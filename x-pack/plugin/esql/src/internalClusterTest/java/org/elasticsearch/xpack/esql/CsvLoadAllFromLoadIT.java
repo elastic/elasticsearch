@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import org.elasticsearch.xpack.esql.CsvTestUtils.TestResults;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -46,10 +46,10 @@ public class CsvLoadAllFromLoadIT extends CsvIT {
 
     @BeforeClass
     public static void useLoadAll() {
-        indexLoadStrategy = new LoadAllStrategy();
+        differentialTestStrategy = new LoadAllStrategy();
     }
 
-    private static final class LoadAllStrategy implements IndexLoadStrategy {
+    private static final class LoadAllStrategy implements DifferentialTestStrategy {
         @Override
         public String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) throws IOException {
             return originalMapping;
@@ -73,7 +73,7 @@ public class CsvLoadAllFromLoadIT extends CsvIT {
         }
 
         @Override
-        public ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected) {
+        public TestResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, TestResults expected) {
             return expected;
         }
 
@@ -86,11 +86,11 @@ public class CsvLoadAllFromLoadIT extends CsvIT {
         }
 
         @Override
-        public ExpectedResults transformActualResults(
+        public TestResults transformActualResults(
             String testId,
             CsvSpecReader.CsvTestCase testCase,
-            ExpectedResults expected,
-            ExpectedResults actual
+            TestResults expected,
+            TestResults actual
         ) {
             int column = actual.columnNames().indexOf(LoadAllFromLoad.UNMAPPED_FIELDS_COLUMN);
             if (column < 0 || expected.columnNames().contains(LoadAllFromLoad.UNMAPPED_FIELDS_COLUMN)) {
@@ -106,7 +106,7 @@ public class CsvLoadAllFromLoadIT extends CsvIT {
                 copy.remove(column);
                 rows.add(copy);
             }
-            return new ExpectedResults(names, types, rows);
+            return new TestResults(names, types, rows);
         }
     }
 }

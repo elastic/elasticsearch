@@ -638,36 +638,51 @@ public final class FramedRunReader implements Releasable {
         }
 
         /**
-         * Copies logical [from, to) into the payload, window by window.
+         * Copies logical [from, to) into the payload, window by window: looping in place while the backend loads the
+         * next window inline and recursing only when it does not, so a record of many windows cannot nest one frame
+         * per window.
          */
         private void fill(byte[] payload, long from, long to, int at, ActionListener<Void> listener) {
-            if (from >= to) {
-                listener.onResponse(null);
-                return;
-            }
-            Window current = window;
-            if (current != null && from >= current.logicalStart() && from < current.logicalEnd()) {
-                long chunkTo = Math.min(to, current.logicalEnd());
-                current.copy(from, chunkTo, payload, at);
-                fill(payload, chunkTo, to, at + (int) (chunkTo - from), listener);
-                return;
-            }
-            long chunk = FramedRunLayout.chunkOf(from, header.chunkSize());
-            window(chunk, listener.delegateFailureAndWrap((l, loaded) -> {
-                // the swap and the close take the cursor's monitor, so a close cannot slip between the check and the swap
-                Window previous;
-                synchronized (this) {
-                    if (cursorClosed.get()) {
-                        loaded.close();
-                        l.onFailure(new IllegalStateException("cursor closed"));
+            long position = from;
+            int target = at;
+            while (position < to) {
+                Window current = window;
+                if (current != null && position >= current.logicalStart() && position < current.logicalEnd()) {
+                    long windowTo = Math.min(to, current.logicalEnd());
+                    current.copy(position, windowTo, payload, target);
+                    target += (int) (windowTo - position);
+                    position = windowTo;
+                    continue;
+                }
+                final long resumeFrom = position;
+                final int resumeAt = target;
+                // one hand-off between the caller and the callback: whoever loses it carries on, so the loop continues
+                // when the window landed before the caller checked, and the callback recurses otherwise
+                final AtomicBoolean handedOff = new AtomicBoolean();
+                long chunk = FramedRunLayout.chunkOf(position, header.chunkSize());
+                window(chunk, listener.delegateFailureAndWrap((l, loaded) -> {
+                    // the swap and the close take the cursor's monitor, so a close cannot slip between the check and the swap
+                    Window previous;
+                    synchronized (this) {
+                        if (cursorClosed.get()) {
+                            loaded.close();
+                            l.onFailure(new IllegalStateException("cursor closed"));
+                            return;
+                        }
+                        previous = window;
+                        window = loaded;
+                    }
+                    Releasables.close(previous);
+                    if (handedOff.compareAndSet(false, true)) {
                         return;
                     }
-                    previous = window;
-                    window = loaded;
+                    fill(payload, resumeFrom, to, resumeAt, l);
+                }));
+                if (handedOff.compareAndSet(false, true)) {
+                    return;
                 }
-                Releasables.close(previous);
-                fill(payload, from, to, at, l);
-            }));
+            }
+            listener.onResponse(null);
         }
 
         @Override

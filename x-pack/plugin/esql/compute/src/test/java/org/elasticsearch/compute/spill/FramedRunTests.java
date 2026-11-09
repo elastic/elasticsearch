@@ -597,26 +597,50 @@ public class FramedRunTests extends ComputeTestCase {
         await(scope::close);
     }
 
-    private MemorySpillStore deferredStore() {
-        // the harness store goes first; the deferred one takes its place and the teardown shuts that one down
+    /**
+     * A store of the given completion in the harness store's place: the harness one goes first, and the teardown shuts
+     * the replacement down.
+     */
+    private MemorySpillStore replaceStore(MemorySpillStore.Completion completion) {
         MemorySpillStore previous = store;
         PlainActionFuture<Void> down = new PlainActionFuture<>();
         previous.shutdown(down);
         while (down.isDone() == false) {
             previous.releaseRandom();
         }
-        store = new MemorySpillStore(
-            MemorySpillStore.Completion.DEFERRED,
-            null,
-            Long.MAX_VALUE,
-            "test.limit",
-            new Random(random().nextLong())
-        );
+        store = new MemorySpillStore(completion, null, Long.MAX_VALUE, "test.limit", new Random(random().nextLong()));
         return store;
     }
 
+    /**
+     * A record spanning thousands of windows reads back under a backend that completes every window inline: the fill
+     * loops in place instead of nesting a frame per window, which overflowed the stack.
+     */
+    public void testALargeRecordSpanningThousandsOfWindowsReadsBackInline() {
+        MemorySpillStore inline = replaceStore(MemorySpillStore.Completion.INLINE);
+        chunkSize = 16;
+        SpillScope scope = inline.newScope("q", breaker);
+        FramedRunWriter writer = newWriter(scope, FramedRunMaxima.DEFAULT);
+        byte[] bytes = new byte[chunkSize * 5000];
+        random().nextBytes(bytes);
+        append(writer, 0, bytes);
+        FramedRun run = await(writer::finish);
+        // a window of one chunk, so the record takes five thousand of them
+        try (
+            FramedRunReader reader = this.<FramedRunReader>await(
+                l -> FramedRunReader.open(run.name(), run.object(), breaker, FramedRunMaxima.DEFAULT, 1, l)
+            );
+            FramedRunReader.RecordCursor cursor = reader.cursor(0)
+        ) {
+            assertArrayEquals(bytes, readRecord(cursor));
+            assertThat(readRecord(cursor), nullValue());
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+        await(scope::close);
+    }
+
     public void testAPageIsHeldUntilItsBytesAreInTheStream() {
-        MemorySpillStore deferred = deferredStore();
+        MemorySpillStore deferred = replaceStore(MemorySpillStore.Completion.DEFERRED);
         chunkSize = between(1, 64);
         SpillScope scope = deferred.newScope("q", breaker);
         PageRunWriter writer = new PageRunWriter(newWriter(scope, FramedRunMaxima.DEFAULT));
@@ -641,7 +665,7 @@ public class FramedRunTests extends ComputeTestCase {
      * writer's buffers and its index and nothing that grows with the bytes already handed to the store.
      */
     public void testSerializedBytesInFlightAreBoundedByTheBuffers() {
-        MemorySpillStore deferred = deferredStore();
+        MemorySpillStore deferred = replaceStore(MemorySpillStore.Completion.DEFERRED);
         chunkSize = between(16, 128);
         depth = between(1, 3);
         SpillScope scope = deferred.newScope("q", breaker);
@@ -675,7 +699,7 @@ public class FramedRunTests extends ComputeTestCase {
         QueryScope queryScope = QueryScope.create("q", factory, ByteSizeValue.ofMb(64).getBytes(), 1024, null, ignored -> {});
         QueryScope.Lease lease = queryScope.tryAcquire();
         QueryScope.DriverAllocation allocation = queryScope.newDriverAllocation(new LocalCircuitBreaker.SizeSettings(1024, 4096));
-        MemorySpillStore deferred = deferredStore();
+        MemorySpillStore deferred = replaceStore(MemorySpillStore.Completion.DEFERRED);
         SpillScope scope = deferred.newScope("q", queryScope.rootView());
         PageRunWriter writer = new PageRunWriter(
             this.<FramedRunWriter>await(

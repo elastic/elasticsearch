@@ -1132,8 +1132,10 @@ public class TopNOperator implements Operator, Accountable {
 
     /**
      * The result of rows whose values are in the store, some or all: each page's values are gathered in physical order
-     * before the page is decoded in the rows' order, so the memory held is the keys plus one page's values. A page the
-     * jumbo bound cuts short leaves its gathered values for the next.
+     * before the page is decoded in the rows' order. A gather takes at most a page's rows and, since every value it reads
+     * is held until its page is decoded, at most the jumbo bound in value bytes, or its first row alone when that is
+     * wider, so the memory held is the keys plus about one page's values. A page the jumbo bound cuts short, the
+     * decoded blocks outgrowing the values, leaves its gathered values for the next.
      */
     private class SpilledResult implements ReleasableIterator<Page> {
         private final List<TopNRow> rows;
@@ -1162,7 +1164,7 @@ public class TopNOperator implements Operator, Accountable {
                 return true;
             }
             if (gather == null) {
-                gather = valueStore.gather(rows, r, Math.min(rows.size(), r + maxPageRows));
+                gather = valueStore.gather(rows, r, gatherEnd());
             }
             if (gather.isDone() == false) {
                 return false;
@@ -1176,6 +1178,30 @@ public class TopNOperator implements Operator, Accountable {
             valuesFrom = r;
             gather = null;
             return true;
+        }
+
+        /**
+         * Where the next gather ends: at {@code maxPageRows} rows, or before the row whose values would take the
+         * gathered bytes past {@code jumboPageBytes}, since every value gathered is held until its page is decoded; at
+         * least one row, however wide.
+         */
+        private int gatherEnd() {
+            int limit = Math.min(rows.size(), r + maxPageRows);
+            long bytes = valueBytes(rows.get(r));
+            int end = r + 1;
+            while (end < limit) {
+                long next = valueBytes(rows.get(end));
+                if (bytes + next > jumboPageBytes) {
+                    break;
+                }
+                bytes += next;
+                end++;
+            }
+            return end;
+        }
+
+        private long valueBytes(TopNRow row) {
+            return row.spilled() ? row.valueLength : row.values.length();
         }
 
         IsBlockedResult blocked() {

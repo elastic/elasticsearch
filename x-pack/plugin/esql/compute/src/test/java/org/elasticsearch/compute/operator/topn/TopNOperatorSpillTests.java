@@ -431,6 +431,51 @@ public class TopNOperatorSpillTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * Wide values under a node breaker that holds a few pages of them but not the whole top-N: each page's gather takes
+     * the rows the jumbo bound allows and no more, so the breaker never trips, where a gather of the page's count of
+     * rows at once would.
+     */
+    public void testWideValuesAreGatheredOnePageAtATime() throws Exception {
+        int rows = 128;
+        int valueLength = 64 * 1024;
+        long[] keys = uniqueKeys(rows);
+        BytesRef[] values = randomValues(rows, valueLength, valueLength);
+        int topCount = 64;
+        long jumboPageBytes = 2L * valueLength;
+        List<Page> expected = runResident(keys, values, topCount, true, topCount, null);
+        MemorySpillStore store = new MemorySpillStore(
+            MemorySpillStore.Completion.INLINE,
+            null,
+            Long.MAX_VALUE,
+            "test.spill",
+            new Random(randomLong())
+        );
+        try {
+            // the top-N's values are 4 MB, which a gather of all of them would charge at once; a page's worth and the
+            // reader's window fit
+            BlockFactory node = blockFactory(ByteSizeValue.ofMb(2));
+            DriverContext ctx = spillingDriverContext(node, ByteSizeValue.ofBytes(1), 0, store, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            TopNOperator op = factory(topCount, true, topCount, jumboPageBytes, null).get(ctx);
+            // the input is built apart from the node breaker, which is to account the operator's own state alone
+            List<Page> input = input(blockFactory(), keys, values, 8);
+            List<Page> actual = new TestDriverRunner().builder(ctx).input(input).run(op);
+            try {
+                assertThat("the run spilled", ((TopNOperatorStatus) op.status()).rowsSpilled(), greaterThan(0L));
+                assertRows(expected, actual);
+                assertThat(node.breaker().getTrippedCount(), equalTo(0L));
+            } finally {
+                Releasables.close(actual);
+            }
+        } finally {
+            Releasables.close(expected);
+            closeSpillingScopes();
+            PlainActionFuture<Void> shutdown = new PlainActionFuture<>();
+            store.shutdown(shutdown);
+            shutdown.get(30, TimeUnit.SECONDS);
+        }
+    }
+
     // ---- the runs
 
     /**
@@ -499,13 +544,23 @@ public class TopNOperatorSpillTests extends ComputeTestCase {
         int pageRows,
         @Nullable TopNOperator.ParallelWorkerConfig parallel
     ) {
+        return factory(topCount, asc, pageRows, Long.MAX_VALUE, parallel);
+    }
+
+    private static TopNOperator.TopNOperatorFactory factory(
+        int topCount,
+        boolean asc,
+        int pageRows,
+        long jumboPageBytes,
+        @Nullable TopNOperator.ParallelWorkerConfig parallel
+    ) {
         return new TopNOperator.TopNOperatorFactory(
             topCount,
             List.of(ElementType.LONG, ElementType.BYTES_REF),
             List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(0, asc, false)),
             pageRows,
-            Long.MAX_VALUE,
+            jumboPageBytes,
             TopNOperator.InputOrdering.NOT_SORTED,
             null,
             parallel

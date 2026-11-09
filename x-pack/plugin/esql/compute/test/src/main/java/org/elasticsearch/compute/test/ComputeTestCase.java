@@ -110,7 +110,20 @@ public abstract class ComputeTestCase extends ESTestCase {
      * spill as soon as the budget is crossed. The scope is closed after the test, which is when its spilled data goes.
      */
     protected DriverContext spillingDriverContext(ByteSizeValue budget, long minSpillBytes, SpillStore store, Executor codecExecutor) {
-        BlockFactory node = blockFactory();
+        return spillingDriverContext(blockFactory(), budget, minSpillBytes, store, codecExecutor);
+    }
+
+    /**
+     * As {@link #spillingDriverContext(ByteSizeValue, long, SpillStore, Executor)}, over {@code node}, the node's block
+     * factory the query's reservations come out of: a test of how much the spill path holds at once gives it a limit.
+     */
+    protected DriverContext spillingDriverContext(
+        BlockFactory node,
+        ByteSizeValue budget,
+        long minSpillBytes,
+        SpillStore store,
+        Executor codecExecutor
+    ) {
         QueryScope scope = QueryScope.create(
             "query-" + spillingScopes.size(),
             node,

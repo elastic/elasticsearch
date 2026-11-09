@@ -41,7 +41,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
         });
         MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping);
         assertThat(service.fieldType("myfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
-        assertEquals(Strings.toString(mapping), Strings.toString(service.documentMapper().mapping()));
+        assertEquals(Strings.toString(mapping), service.documentMapper().mappingSource().string());
 
         // check that field can be updated
         mapping = mapping(b -> {
@@ -52,7 +52,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
         });
         merge(service, mapping);
         assertThat(service.fieldType("myfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
-        assertEquals(Strings.toString(mapping), Strings.toString(service.documentMapper().mapping()));
+        assertEquals(Strings.toString(mapping), service.documentMapper().mappingSource().string());
     }
 
     public void testFetchValue() throws Exception {

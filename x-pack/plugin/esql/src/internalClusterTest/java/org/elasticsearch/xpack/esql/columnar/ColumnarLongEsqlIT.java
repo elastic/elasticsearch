@@ -94,11 +94,11 @@ public class ColumnarLongEsqlIT extends AbstractEsqlIntegTestCase {
 
         final long lower = randomLongBetween(-60, 20);
         final long upper = randomLongBetween(lower, 60);
-        assertSameResults("""
+        assertSameResults(String.format(Locale.ROOT, """
             | WHERE l >= %d AND l < %d
             | STATS s = SUM(l), c = COUNT(l), mn = MIN(l), mx = MAX(l) BY k
             | SORT k
-            | LIMIT 100""".formatted(lower, upper));
+            | LIMIT 100""", lower, upper));
         assertSameResults("""
             | STATS s = SUM(l), c = COUNT(l), mn = MIN(l), mx = MAX(l), n = COUNT(*) BY k
             | SORT k
@@ -107,6 +107,18 @@ public class ColumnarLongEsqlIT extends AbstractEsqlIntegTestCase {
             | KEEP id, l
             | SORT id
             | LIMIT 1000""");
+        // Multi-value functions take shortcuts on blocks that say their values are sorted, so these catch a block of values in
+        // array order that claims to be sorted.
+        assertSameResults("""
+            | EVAL mn = MV_MIN(l), mx = MV_MAX(l), sorted = MV_SORT(l)
+            | KEEP id, mn, mx, sorted
+            | SORT id
+            | LIMIT 1000""");
+        assertSameResults("""
+            | EVAL mn = MV_MIN(l), mx = MV_MAX(l)
+            | STATS smn = SUM(mn), smx = SUM(mx) BY k
+            | SORT k
+            | LIMIT 100""");
     }
 
     private static String source(int doc, boolean singleValued) {

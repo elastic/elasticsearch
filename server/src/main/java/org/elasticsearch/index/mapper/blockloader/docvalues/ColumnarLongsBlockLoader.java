@@ -66,7 +66,9 @@ public class ColumnarLongsBlockLoader extends BlockDocValuesReader.DocValuesBloc
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             final int count = docs.count() - offset;
-            try (LongBuilder builder = factory.longsFromDocValues(count)) {
+            // Values come out in the order they were written, not sorted ascending, so the block can't claim the order
+            // longsFromDocValues promises.
+            try (LongBuilder builder = factory.longs(count)) {
                 if (docValues.docValues() instanceof ColumnarNumericBinaryDocValues columnar) {
                     if (readPage(columnar, docs, offset, count, builder) == false) {
                         for (int i = offset; i < docs.count(); i++) {

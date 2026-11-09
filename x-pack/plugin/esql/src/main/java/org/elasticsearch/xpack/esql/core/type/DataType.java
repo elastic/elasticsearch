@@ -423,6 +423,11 @@ public enum DataType implements Writeable {
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
+    /**
+     * Dynamically loaded label container: a label dictionary that PromQL manipulates internally. Never reaches a response: PromQL
+     * hands the user its keyword JSON form.
+     */
+    TSMD_DATA_TYPE(builder().esType("_timeseries").estimatedSize(1024).underConstruction(TransportVersion.fromName("tsmd_data_type"))),
     PARTIAL_AGG(
         builder().esType("partial_agg")
             .estimatedSize(1024)
@@ -831,7 +836,8 @@ public enum DataType implements Writeable {
         SCALED_FLOAT,
         HALF_FLOAT,
         PARTIAL_AGG,
-        DOC_DATA_TYPE
+        DOC_DATA_TYPE,
+        TSMD_DATA_TYPE
     );
 
     /**
@@ -846,10 +852,11 @@ public enum DataType implements Writeable {
     /**
      * Types permitted as general-purpose values by expression validation. Individual functions may impose further
      * restrictions. Counters and {@code _source} require special handling in expressions rather than being accepted
-     * wherever a representable value is expected.
+     * wherever a representable value is expected. A typed label container never reaches a response but is an ordinary
+     * value inside the plan.
      */
     public static boolean isRepresentableInExpression(DataType t) {
-        return isRepresentableInOutput(t) && t.isCounter() == false && t != SOURCE && t != UNSUPPORTED;
+        return (isRepresentableInOutput(t) || t == TSMD_DATA_TYPE) && t.isCounter() == false && t != SOURCE && t != UNSUPPORTED;
     }
 
     public static boolean isCounter(DataType t) {
@@ -889,7 +896,8 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE
+        return false == (t == TSMD_DATA_TYPE
+            || t == SOURCE
             || isCounter(t)
             || isSpatialOrGrid(t)
             || t == AGGREGATE_METRIC_DOUBLE

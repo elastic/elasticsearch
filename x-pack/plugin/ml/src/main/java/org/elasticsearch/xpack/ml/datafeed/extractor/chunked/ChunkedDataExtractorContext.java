@@ -18,7 +18,6 @@ record ChunkedDataExtractorContext(
     boolean hasAggregations,
     Long histogramInterval,
     boolean hasEsqlQuery,
-    /** {@code true} when {@link #hasEsqlQuery()} and the delegate query gets an injected row cap. */
     boolean injectsEsqlRowLimit
 ) {
     ChunkedDataExtractorContext {

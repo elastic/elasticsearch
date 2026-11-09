@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -62,6 +61,23 @@ public final class IngestDocument {
 
     // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
     private static final Object NOT_FOUND = new Object();
+
+    // what 'resolve' returns, rather than a ResolveResult, when the path could not be resolved and the caller does not care why. That
+    // is the case for every caller that ignores missing fields, and not having to describe the failure (which would mean allocating a
+    // ResolveResult, and building an error message that is then thrown away) makes that very common situation allocation free.
+    private static final Object IGNORED_FAILURE = new Object();
+
+    /**
+     * What {@link #resolve} should do when a path can not be resolved.
+     */
+    private enum Failures {
+        /** Describe the failure, with a {@link ResolveResult}, so that the caller can report it. */
+        REPORT,
+        /** Return {@link #IGNORED_FAILURE} for an error, but still describe an incomplete result, as the caller can make use of that. */
+        IGNORE_ERRORS,
+        /** Return {@link #IGNORED_FAILURE} for any failure, including an incomplete result, as the caller has no use for either. */
+        IGNORE_ALL
+    }
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
@@ -205,18 +221,27 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
+        final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
+        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
         Object context = fieldPath.initialContext(this);
-        ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context, getCurrentAccessPatternSafe());
-        if (result.wasSuccessful) {
-            return cast(path, result.resolvedObject, clazz);
-        } else if (ignoreMissing) {
+        Object result = resolve(
+            fieldPath.pathElements,
+            fieldPath.pathElements.length,
+            path,
+            context,
+            accessPattern,
+            ignoreMissing ? Failures.IGNORE_ALL : Failures.REPORT
+        );
+        if (result == IGNORED_FAILURE) {
             return null;
-        } else {
+        } else if (result instanceof ResolveResult failure) {
+            assert ignoreMissing == false : "resolve would have ignored this failure";
             // Reconstruct the error message if the resolve result was incomplete
             throw new IllegalArgumentException(
-                Objects.requireNonNullElseGet(result.errorMessage, () -> Errors.notPresent(path, result.missingFields))
+                Objects.requireNonNullElseGet(failure.errorMessage, () -> Errors.notPresent(path, failure.missingFields))
             );
+        } else {
+            return cast(path, result, clazz);
         }
     }
 
@@ -238,7 +263,8 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
-        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
+        final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
+        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
@@ -248,7 +274,7 @@ public final class IngestDocument {
             if (context == null) {
                 return false;
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
-                switch (getCurrentAccessPatternSafe()) {
+                switch (accessPattern) {
                     case CLASSIC -> context = map.get(pathElement);
                     case FLEXIBLE -> {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND);
@@ -282,7 +308,7 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof Map<?, ?> map) {
-                switch (getCurrentAccessPatternSafe()) {
+                switch (accessPattern) {
                     case CLASSIC -> context = map.get(pathElement);
                     case FLEXIBLE -> {
                         @SuppressWarnings("unchecked")
@@ -318,7 +344,7 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof List<?> list) {
-                if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                     // Flexible access pattern cannot yet access array values, new syntax must be added.
                     // Handle this as if the path element was not parsable as an integer in the classic mode
                     return false;
@@ -350,7 +376,7 @@ public final class IngestDocument {
         } else if (context instanceof Map<?, ?> map) {
             return map.containsKey(leafKey);
         } else if (context instanceof List<?> list) {
-            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+            if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                 // Flexible access pattern cannot yet access array values, new syntax must be added.
                 // Handle this as if the path element was not parsable as an integer in the classic mode
                 return false;
@@ -392,26 +418,31 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
      */
     public void removeField(String path, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
+        final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
+        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
         Object context = fieldPath.initialContext(this);
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        ResolveResult result = resolve(
+        Object result = resolve(
             fieldPath.pathElements,
             fieldPath.pathElements.length - 1,
             path,
             context,
-            getCurrentAccessPatternSafe()
+            accessPattern,
+            ignoreMissing ? Failures.IGNORE_ERRORS : Failures.REPORT
         );
-        if (result.wasSuccessful) {
-            context = result.resolvedObject;
-        } else if (result.missingFields != null) {
-            // Incomplete result, update the leaf key and context to continue the operation
-            leafKey = result.missingFields + "." + leafKey;
-            context = result.resolvedObject;
-        } else if (ignoreMissing) {
+        if (result == IGNORED_FAILURE) {
             return; // nothing was found, so there's nothing to remove :shrug:
+        } else if (result instanceof ResolveResult failure) {
+            if (failure.missingFields != null) {
+                // Incomplete result, update the leaf key and context to continue the operation
+                leafKey = failure.missingFields + "." + leafKey;
+                context = failure.resolvedObject;
+            } else {
+                assert ignoreMissing == false : "resolve would have ignored this error";
+                throw new IllegalArgumentException(failure.errorMessage);
+            }
         } else {
-            throw new IllegalArgumentException(result.errorMessage);
+            context = result;
         }
 
         if (context == null && ignoreMissing == false) {
@@ -429,7 +460,7 @@ public final class IngestDocument {
                 throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
             }
         } else if (context instanceof List<?> list) {
-            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+            if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                 // Flexible access pattern cannot yet access array values, new syntax must be added.
                 if (ignoreMissing == false) {
                     throw new IllegalArgumentException("path [" + path + "] is not valid");
@@ -459,26 +490,38 @@ public final class IngestDocument {
     }
 
     /**
-     * Resolves the path elements (up to the limit) within the context. The result of such resolution can either be successful,
-     * or can indicate a failure.
+     * Resolves the path elements (up to the limit) within the context. The result is one of:
+     * <ul>
+     * <li>the object that was found (which can be null), if the resolution was successful. This is not wrapped in anything, so that the
+     * (by far) most common outcome does not allocate.</li>
+     * <li>{@link #IGNORED_FAILURE}, if the resolution failed and <code>failures</code> says that the caller does not care why. There is
+     * no need to describe such a failure, which would allocate. An incomplete result (see {@link ResolveResult#incomplete}) is only
+     * ignored if <code>failures</code> is {@link Failures#IGNORE_ALL}, as some callers that ignore errors can still use it.</li>
+     * <li>a {@link ResolveResult} describing the failure, otherwise.</li>
+     * </ul>
      */
-    private static ResolveResult resolve(
+    private static Object resolve(
         final String[] pathElements,
         final int limit,
         final String fullPath,
         Object context,
-        IngestPipelineFieldAccessPattern accessPattern
+        IngestPipelineFieldAccessPattern accessPattern,
+        Failures failures
     ) {
         for (int i = 0; i < limit; i++) {
             String pathElement = pathElements[i];
             if (context == null) {
-                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
+                return failures != Failures.REPORT
+                    ? IGNORED_FAILURE
+                    : ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
                 switch (accessPattern) {
                     case CLASSIC -> {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
-                            return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                            return failures != Failures.REPORT
+                                ? IGNORED_FAILURE
+                                : ResolveResult.error(Errors.notPresent(fullPath, pathElement));
                         } else {
                             context = object;
                         }
@@ -489,7 +532,7 @@ public final class IngestDocument {
                             context = object;
                         } else if (i == (limit - 1)) {
                             // This is our last path element, return incomplete
-                            return ResolveResult.incomplete(context, pathElement);
+                            return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, pathElement);
                         } else {
                             // Attempt a flexible lookup
                             // Iterate through the remaining elements until we get a hit
@@ -506,7 +549,7 @@ public final class IngestDocument {
                             }
                             if (object == NOT_FOUND) {
                                 // Not found, and out of path elements, return an incomplete result
-                                return ResolveResult.incomplete(context, combinedPath);
+                                return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, combinedPath);
                             }
                         }
                     }
@@ -518,7 +561,9 @@ public final class IngestDocument {
                         Map<String, Object> map = (Map<String, Object>) context;
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
-                            return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                            return failures != Failures.REPORT
+                                ? IGNORED_FAILURE
+                                : ResolveResult.error(Errors.notPresent(fullPath, pathElement));
                         } else {
                             context = object;
                         }
@@ -531,7 +576,7 @@ public final class IngestDocument {
                             context = object;
                         } else if (i == (limit - 1)) {
                             // This is our last path element, return incomplete
-                            return ResolveResult.incomplete(context, pathElement);
+                            return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, pathElement);
                         } else {
                             // Attempt a flexible lookup
                             // Iterate through the remaining elements until we get a hit
@@ -548,7 +593,7 @@ public final class IngestDocument {
                             }
                             if (object == NOT_FOUND) {
                                 // Not found, and out of path elements, return an incomplete result
-                                return ResolveResult.incomplete(context, combinedPath);
+                                return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, combinedPath);
                             }
                         }
                     }
@@ -556,24 +601,28 @@ public final class IngestDocument {
             } else if (context instanceof List<?> list) {
                 if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                     // Flexible access pattern cannot yet access array values, new syntax must be added.
-                    return ResolveResult.error(Errors.invalidPath(fullPath));
+                    return failures != Failures.REPORT ? IGNORED_FAILURE : ResolveResult.error(Errors.invalidPath(fullPath));
                 }
                 int index;
                 try {
                     index = Integer.parseInt(pathElement);
                 } catch (NumberFormatException e) {
-                    return ResolveResult.error(Errors.notInteger(fullPath, pathElement));
+                    return failures != Failures.REPORT ? IGNORED_FAILURE : ResolveResult.error(Errors.notInteger(fullPath, pathElement));
                 }
                 if (index < 0 || index >= list.size()) {
-                    return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
+                    return failures != Failures.REPORT
+                        ? IGNORED_FAILURE
+                        : ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
                 } else {
                     context = list.get(index);
                 }
             } else {
-                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
+                return failures != Failures.REPORT
+                    ? IGNORED_FAILURE
+                    : ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
             }
         }
-        return ResolveResult.success(context);
+        return context;
     }
 
     /**
@@ -716,7 +765,8 @@ public final class IngestDocument {
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {
         assert append || (allowDuplicates == false && ignoreEmptyValues == false)
             : "allowDuplicates and ignoreEmptyValues only apply if append is true";
-        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
+        final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
+        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
@@ -726,7 +776,7 @@ public final class IngestDocument {
             if (context == null) {
                 throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
-                switch (getCurrentAccessPatternSafe()) {
+                switch (accessPattern) {
                     case CLASSIC -> {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
@@ -769,7 +819,7 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof Map<?, ?>) {
-                switch (getCurrentAccessPatternSafe()) {
+                switch (accessPattern) {
                     case CLASSIC -> {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> map = (Map<String, Object>) context;
@@ -816,7 +866,7 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof List<?> list) {
-                if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                     // Flexible access pattern cannot yet access array values, new syntax must be added.
                     throw new IllegalArgumentException("path [" + path + "] is not valid");
                 }
@@ -877,7 +927,7 @@ public final class IngestDocument {
             }
             map.put(leafKey, value);
         } else if (context instanceof List<?>) {
-            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+            if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                 // Flexible access pattern cannot yet access array values, new syntax must be added.
                 throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
@@ -1093,18 +1143,12 @@ public final class IngestDocument {
     }
 
     /**
-     * @return The access pattern for any currently executing pipelines, or empty if no pipelines are in progress for this doc
+     * @return The access pattern of the pipeline that is currently executing on this doc, or
+     * {@link IngestPipelineFieldAccessPattern#CLASSIC} if no pipelines are in progress for the sake of backwards compatibility
      */
-    public Optional<IngestPipelineFieldAccessPattern> getCurrentAccessPattern() {
-        return Optional.ofNullable(accessPatternStack.peek());
-    }
-
-    /**
-     * @return The access pattern for any currently executing pipelines, or {@link IngestPipelineFieldAccessPattern#CLASSIC} if no
-     * pipelines are in progress for this doc for the sake of backwards compatibility
-     */
-    public IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
-        return getCurrentAccessPattern().orElse(IngestPipelineFieldAccessPattern.CLASSIC);
+    public IngestPipelineFieldAccessPattern getAccessPattern() {
+        final IngestPipelineFieldAccessPattern current = accessPatternStack.peek();
+        return current != null ? current : IngestPipelineFieldAccessPattern.CLASSIC;
     }
 
     /**
@@ -1319,26 +1363,21 @@ public final class IngestDocument {
         }
     }
 
-    private record ResolveResult(boolean wasSuccessful, Object resolvedObject, String errorMessage, String missingFields) {
-        /**
-         * The resolve operation ended with a successful result, locating the resolved object at the given path location
-         * @param resolvedObject The resolved object
-         * @return Successful result
-         */
-        static ResolveResult success(Object resolvedObject) {
-            return new ResolveResult(true, resolvedObject, null, null);
-        }
-
+    /**
+     * Describes a resolve operation that did not end with a successful result (which is just the object that was found, see
+     * {@link #resolve}).
+     */
+    private record ResolveResult(Object resolvedObject, String errorMessage, String missingFields) {
         /**
          * Due to the access pattern, the resolve operation was only partially completed. The last resolved context object is returned,
-         * along with the fields that have been tried up until running into the field limit. The result's success flag is set to false,
-         * but it contains additional information about further resolving the operation.
+         * along with the fields that have been tried up until running into the field limit. This is not an error, as it contains
+         * additional information about further resolving the operation.
          * @param lastResolvedObject The last successfully resolved context object from the document
          * @param missingFields The fields from the given path that have not been located yet
          * @return Incomplete result
          */
         static ResolveResult incomplete(Object lastResolvedObject, String missingFields) {
-            return new ResolveResult(false, lastResolvedObject, null, missingFields);
+            return new ResolveResult(lastResolvedObject, null, missingFields);
         }
 
         /**
@@ -1348,7 +1387,7 @@ public final class IngestDocument {
          * @return Error result
          */
         static ResolveResult error(String errorMessage) {
-            return new ResolveResult(false, null, errorMessage, null);
+            return new ResolveResult(null, errorMessage, null);
         }
     }
 

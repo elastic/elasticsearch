@@ -1427,7 +1427,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V7(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V8(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -4507,6 +4507,12 @@ public class EsqlCapabilities {
         NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
 
         /**
+         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
+         * and {@code column_metadata} reports the same field semantics as {@code _meta.field}.
+         */
+        DESCRIBE_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * Does the usage information for ESQL contain the datasource failure-reason counters
          * ({@code datasources.queries.failures.by_error_type.*}, {@code datasources.discovery.failures.by_error_type.*},
          * {@code datasources.config.<kind>.changes.rejected.by_reason.*} and
@@ -4694,6 +4700,36 @@ public class EsqlCapabilities {
          * where it can query that field, or matches every document for the filter to check.
          */
         UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
+
+        /**
+         * Loading a field that a pushed down {@code ROUND_TO} (or the {@code DATE_TRUNC} / {@code BUCKET} date histograms rewritten
+         * to it) also buckets no longer assumes the source query filtered out the documents without a value. The pushdown runs one
+         * query per rounding point plus one for the documents without a value, and older nodes only looked at the first of them.
+         * On an index whose doc values read nulls column-at-a-time (such as {@code columnar}) that failed the query, or the whole
+         * node when assertions are enabled.
+         */
+        FIX_NULLS_FILTERED_WITH_QUERY_AND_TAGS_PUSHDOWN,
+
+        /**
+         * The implicit {@code @timestamp} of an aggregation, e.g. in {@code rate()} or {@code latest()}, resolves to the
+         * {@code @timestamp} of the {@code STATS} input, even when a grouping of the same {@code STATS} is named
+         * {@code @timestamp}. Before, {@code STATS rate(x) BY @timestamp = TBUCKET(1 minute)} read the time bucket as the
+         * sample timestamp and returned wrong values that changed between runs.
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/164599">#164599</a>
+         */
+        FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
+
+        /**
+         * Run time-series aggregation single pass on data nodes when possible
+         */
+        TIME_SERIES_SINGLE_PASS,
+
+        /**
+         * {@code COUNT}, {@code PRESENT}, {@code ABSENT} and their {@code *_OVER_TIME} variants accept counter fields, since they only
+         * look at whether values exist. In {@code PROMQL}, {@code count_over_time}, {@code present_over_time} and
+         * {@code absent_over_time} read a counter as is.
+         */
+        COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

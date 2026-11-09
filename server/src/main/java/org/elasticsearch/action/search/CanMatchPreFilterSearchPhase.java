@@ -175,48 +175,6 @@ final class CanMatchPreFilterSearchPhase {
         boolean includeSkippedShardsInIterators,
         @Nullable ClusterState clusterState
     ) {
-        return execute(
-            logger,
-            searchTransportService,
-            nodeIdToConnection,
-            aliasFilter,
-            concreteIndexBoosts,
-            executor,
-            request,
-            shardsIts,
-            timeProvider,
-            task,
-            requireAtLeastOneMatch,
-            coordinatorRewriteContextProvider,
-            searchResponseMetrics,
-            searchRequestAttributes,
-            includeSkippedShardsInIterators,
-            null
-        );
-    }
-
-    /**
-     * As above, with the cluster state the {@code shardsIts} were built from, so that a search that cannot proceed because every copy of a
-     * shard is being restored from a snapshot can say so (see {@link SearchPhase#doCheckNoMissingShards}).
-     */
-    public static SubscribableListener<CanMatchResult> execute(
-        Logger logger,
-        SearchTransportService searchTransportService,
-        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-        Map<String, AliasFilter> aliasFilter,
-        Map<String, Float> concreteIndexBoosts,
-        Executor executor,
-        SearchRequest request,
-        List<SearchShardIterator> shardsIts,
-        TransportSearchAction.SearchTimeProvider timeProvider,
-        SearchTask task,
-        boolean requireAtLeastOneMatch,
-        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-        SearchResponseMetrics searchResponseMetrics,
-        Map<String, Object> searchRequestAttributes,
-        boolean includeSkippedShardsInIterators,
-        @Nullable ClusterState clusterState
-    ) {
         if (shardsIts.isEmpty()) {
             // Must be mutable: callers fold per-cluster skip counts into this map via Map#merge.
             return SubscribableListener.newSucceeded(new CanMatchResult(Collections.emptyList(), new HashMap<>()));

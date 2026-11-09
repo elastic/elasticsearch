@@ -13,11 +13,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 
-/**
- * Names, settings and executor builders of the thread pools used by the stateless plugin.
- * Thread pool sizes are decided separately (see {@link ThreadPoolConfig}) so that other components can reason about them
- * without depending on {@link StatelessPlugin}.
- */
 public class StatelessThreadPools {
 
     // Thread pool names are defined in the BlobStoreRepository because we need to verify there that no requests are running on other pools.
@@ -47,9 +42,6 @@ public class StatelessThreadPools {
     public static final String BLOB_COPY_THREAD_POOL = BlobStoreRepository.STATELESS_BLOB_COPY_THREAD_NAME;
     public static final String BLOB_COPY_THREAD_POOL_SETTING = "stateless." + BLOB_COPY_THREAD_POOL + "_thread_pool";
 
-    /**
-     * Core and max thread counts of the stateless thread pools. Which values apply depends on the roles of the node.
-     */
     public record ThreadPoolConfig(
         int shardReadMaxThreads,
         int translogCoreThreads,

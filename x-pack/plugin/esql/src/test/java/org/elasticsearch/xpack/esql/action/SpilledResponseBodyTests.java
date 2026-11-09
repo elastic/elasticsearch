@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -24,6 +25,7 @@ import org.elasticsearch.compute.spill.ResultPages;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.spill.MemorySpillStore;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -177,6 +179,65 @@ public class SpilledResponseBodyTests extends ESTestCase {
     }
 
     // ---- the comparison
+
+    /**
+     * A row handed out by a spilled response stays readable after the walk has moved on and released its page, as a
+     * resident response's rows do until the response closes: a caller may collect rows first and read them later.
+     */
+    public void testRetainedRowsStayReadableAfterTheWalkMovesOn() throws Exception {
+        MemorySpillStore store = new MemorySpillStore(
+            MemorySpillStore.Completion.INLINE,
+            null,
+            Long.MAX_VALUE,
+            "test.spill",
+            new Random(randomLong())
+        );
+        List<Page> pages = randomPagesWithRows(between(3, 8), between(1, 20));
+        List<Page> copy = BlockTestUtils.deepCopyOf(pages, TestBlockFactory.getNonBreakingInstance());
+        Spilled spilled = spill(store, copy, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        try {
+            List<List<Object>> expected = new ArrayList<>();
+            try (EsqlQueryResponse resident = response(ResultPages.resident(pages), false)) {
+                for (Iterable<Object> row : resident.rows()) {
+                    expected.add(Iterators.toList(row.iterator()));
+                }
+            }
+            try (EsqlQueryResponse response = response(spilled.pages(), false)) {
+                assertTrue(response.isSpilled());
+                List<Iterable<Object>> retained = new ArrayList<>();
+                for (Iterable<Object> row : response.rows()) {
+                    retained.add(row);
+                }
+                List<List<Object>> read = new ArrayList<>();
+                for (Iterable<Object> row : retained) {
+                    read.add(Iterators.toList(row.iterator()));
+                }
+                assertThat(read, equalTo(expected));
+                List<Iterator<Object>> retainedValues = new ArrayList<>();
+                response.values().forEachRemaining(retainedValues::add);
+                read.clear();
+                for (Iterator<Object> row : retainedValues) {
+                    read.add(Iterators.toList(row));
+                }
+                assertThat(read, equalTo(expected));
+            }
+        } finally {
+            spilled.close(store);
+        }
+    }
+
+    /**
+     * Random pages of which at least three have rows, so that a walk releases a page before it ends.
+     */
+    private static List<Page> randomPagesWithRows(int count, int maxRows) {
+        while (true) {
+            List<Page> pages = randomPages(count, maxRows);
+            if (pages.stream().filter(page -> page.getPositionCount() > 0).count() >= 3) {
+                return pages;
+            }
+            Releasables.close(pages);
+        }
+    }
 
     private void assertSameRendering(Map<String, String> params, boolean columnar) throws Exception {
         MemorySpillStore store = new MemorySpillStore(

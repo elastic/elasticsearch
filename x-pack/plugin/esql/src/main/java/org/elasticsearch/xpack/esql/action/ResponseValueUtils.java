@@ -63,28 +63,57 @@ public final class ResponseValueUtils {
      * for each block.
      */
     public static Iterator<Iterator<Object>> pagesToValues(List<DataType> dataTypes, Iterable<Page> pages, ZoneId zoneId) {
-        BytesRef scratch = new BytesRef();
-        var valueExtractors = valueExtractorsFor(dataTypes, zoneId);
-        return Iterators.flatMap(
-            pages.iterator(),
-            page -> Iterators.forRange(
-                0,
-                page.getPositionCount(),
-                pos -> Iterators.forRange(0, page.getBlockCount(), b -> valueAtPosition(valueExtractors[b], page.getBlock(b), pos, scratch))
-            )
-        );
+        return pagesToValues(dataTypes, pages, zoneId, false);
     }
 
-    /** Returns an iterable of iterables over the values in the given pages. There is one iterables for each row. */
-    static Iterable<Iterable<Object>> valuesForRowsInPages(List<DataType> dataTypes, Iterable<Page> pages, ZoneId zoneId) {
+    /**
+     * As {@link #pagesToValues(List, Iterable, ZoneId)}; a {@code detached} row is read whole as it is produced, while
+     * its page is held, so that it outlives the page, which a walk over a spilled result releases as it moves on.
+     */
+    public static Iterator<Iterator<Object>> pagesToValues(
+        List<DataType> dataTypes,
+        Iterable<Page> pages,
+        ZoneId zoneId,
+        boolean detached
+    ) {
         BytesRef scratch = new BytesRef();
         var valueExtractors = valueExtractorsFor(dataTypes, zoneId);
-        return () -> Iterators.flatMap(pages.iterator(), page -> valuesForRowsInPage(valueExtractors, page, scratch));
+        return Iterators.flatMap(pages.iterator(), page -> Iterators.forRange(0, page.getPositionCount(), pos -> {
+            Iterator<Object> row = Iterators.forRange(
+                0,
+                page.getBlockCount(),
+                b -> valueAtPosition(valueExtractors[b], page.getBlock(b), pos, scratch)
+            );
+            return detached ? Iterators.toList(row).iterator() : row;
+        }));
+    }
+
+    /**
+     * Returns an iterable of iterables over the values in the given pages. There is one iterables for each row. A
+     * {@code detached} row is read whole as it is produced, while its page is held, so that it outlives the page.
+     */
+    static Iterable<Iterable<Object>> valuesForRowsInPages(
+        List<DataType> dataTypes,
+        Iterable<Page> pages,
+        ZoneId zoneId,
+        boolean detached
+    ) {
+        BytesRef scratch = new BytesRef();
+        var valueExtractors = valueExtractorsFor(dataTypes, zoneId);
+        return () -> Iterators.flatMap(pages.iterator(), page -> valuesForRowsInPage(valueExtractors, page, scratch, detached));
     }
 
     /** Returns an iterable of iterables over the values in the given page. There is one iterables for each row. */
-    private static Iterator<Iterable<Object>> valuesForRowsInPage(BlockValueExtractor[] valueExtractors, Page page, BytesRef scratch) {
-        return Iterators.forRange(0, page.getPositionCount(), position -> valuesForRow(valueExtractors, page, position, scratch));
+    private static Iterator<Iterable<Object>> valuesForRowsInPage(
+        BlockValueExtractor[] valueExtractors,
+        Page page,
+        BytesRef scratch,
+        boolean detached
+    ) {
+        return Iterators.forRange(0, page.getPositionCount(), position -> {
+            Iterable<Object> row = valuesForRow(valueExtractors, page, position, scratch);
+            return detached ? Iterators.toList(row.iterator()) : row;
+        });
     }
 
     /** Returns an iterable over the values in the given row in a page. */

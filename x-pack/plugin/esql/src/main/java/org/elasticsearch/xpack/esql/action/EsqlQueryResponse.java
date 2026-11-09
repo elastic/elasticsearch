@@ -479,12 +479,18 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public Iterator<Iterator<Object>> values() {
         List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        return ResponseValueUtils.pagesToValues(dataTypes, pagesInOrder(), zoneId);
+        return ResponseValueUtils.pagesToValues(dataTypes, pagesInOrder(), zoneId, result.spilled());
     }
 
+    /**
+     * The rows, each an iterable over its values. A resident response's rows read their page, which lives until the
+     * response closes; a spilled response's rows are read whole as the walk produces them, since the page they come
+     * from is released as the walk moves past it, so that a caller may collect rows first and read them later with
+     * either kind; {@link #values()} does the same.
+     */
     public Iterable<Iterable<Object>> rows() {
         List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pagesInOrder(), zoneId);
+        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pagesInOrder(), zoneId, result.spilled());
     }
 
     public Iterator<Object> column(int columnIndex) {

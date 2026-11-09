@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -503,10 +504,13 @@ public final class UnmappedFields {
                             if (named.isEmpty()) {
                                 named = new HashMap<>();
                             }
-                            String text = value.toString();
-                            heldValues.add(namedValueBytes(text, depth));
-                            named.computeIfAbsent(path, k -> new NamedValues()).add(new BytesRef(text), Arrays.copyOf(spelling, depth));
+                            BytesRef bytes = utf8Exactly(value.toString());
+                            heldValues.add(namedValueBytes(bytes, depth));
+                            named.computeIfAbsent(path, k -> new NamedValues()).add(bytes, Arrays.copyOf(spelling, depth));
                         }
+                        // A value that is both named and written while a filter holds values is not charged twice: NamedValues keeps
+                        // its own copy of the bytes above, and `held` keeps the parsed value below, so the two charges are for
+                        // different objects.
                         if (written) {
                             if (held == null) {
                                 field(path);
@@ -692,11 +696,22 @@ public final class UnmappedFields {
     }
 
     /**
+     * {@code text} as UTF-8 in an array of exactly its length. {@code new BytesRef(CharSequence)} allocates the worst case of 3 bytes for
+     * each character, for every string, ASCII included, which holds up to three times what the value needs for as long as the
+     * document is read and which {@link #namedValueBytes} would then have to count.
+     */
+    private static BytesRef utf8Exactly(String text) {
+        byte[] bytes = new byte[UnicodeUtil.calcUTF16toUTF8Length(text, 0, text.length())];
+        UnicodeUtil.UTF16toUTF8(text, 0, text.length(), bytes);
+        return new BytesRef(bytes);
+    }
+
+    /**
      * What a value of a name costs in {@link NamedValues}: its {@link BytesRef}, the bytes of that, its spelling, and a slot in each
      * list.
      */
-    private static long namedValueBytes(String text, int depth) {
-        return 24 + aligned(16L + text.length()) + aligned(16L + 4L * depth) + 2 * 8;
+    private static long namedValueBytes(BytesRef value, int depth) {
+        return 24 + aligned(16L + value.bytes.length) + aligned(16L + 4L * depth) + 2 * 8;
     }
 
     private static long aligned(long bytes) {

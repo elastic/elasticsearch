@@ -518,6 +518,29 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     /**
+     * An array of {@code elements} strings of random length up to {@code maxLength} characters, some of them with characters that are
+     * not ASCII. Strings of one character cannot show that a charge is too small for longer ones, or for ones that take more than a
+     * byte for a character: what a value costs to hold depends on both. A few dozen random strings are repeated, to keep a large
+     * array cheap to make.
+     */
+    private static String arrayOfStrings(int elements, int maxLength) throws IOException {
+        String[] pool = new String[64];
+        for (int i = 0; i < pool.length; i++) {
+            pool[i] = randomBoolean()
+                ? randomAlphaOfLengthBetween(1, maxLength)
+                : randomRealisticUnicodeOfCodepointLengthBetween(1, maxLength);
+        }
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startArray();
+            for (int i = 0; i < elements; i++) {
+                builder.value(pool[i % pool.length]);
+            }
+            builder.endArray();
+            return Strings.toString(builder);
+        }
+    }
+
+    /**
      * The heap that the loader of all fields holds while it reads an array of many short values is no more than what it has charged
      * to the breaker by then, with the reservation that ES|QL makes by default.
      */
@@ -529,11 +552,33 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     /**
+     * The same for strings of random length, some not ASCII. The reservation of {@code 10.0} times the size of {@code _source} covers
+     * the values held of strings of more than a few characters, so a multiple that leaves no allowance is used, to charge every value
+     * held for the check to measure.
+     */
+    public void testAllFieldsLoaderChargesAtLeastTheHeapItHoldsForRandomStrings() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 4.0));
+        assertChargesAtLeastTheHeapItHolds(loader, json("{\"a\":" + arrayOfStrings(500_000, 16) + "}"));
+    }
+
+    /**
      * The heap that the loader of a named field holds while it reads an array of many short values, with no reservation, is no more
      * than what it has charged to the breaker by then.
      */
     public void testNamedLoaderChargesAtLeastTheHeapItHolds() throws IOException {
-        assertChargesAtLeastTheHeapItHolds(loader("a"), json("{\"a\":" + arrayOfShortStrings(1_000_000) + "}"));
+        assertChargesAtLeastTheHeapItHolds(loader("a"), json("{\"a\":" + arrayOfStrings(500_000, 16) + "}"));
+    }
+
+    /**
+     * The same for strings of up to a hundred characters. The named loader once charged a copy of a string for as many bytes as the
+     * string has characters, though the copy took three for each, which a string of one character cannot show.
+     */
+    public void testNamedLoaderChargesAtLeastTheHeapItHoldsForLongStrings() throws IOException {
+        String array = "[" + String.join(",", Collections.nCopies(200_000, "\"" + "x".repeat(100) + "\"")) + "]";
+        assertChargesAtLeastTheHeapItHolds(loader("a"), json("{\"a\":" + array + "}"));
+        assertChargesAtLeastTheHeapItHolds(loader("a"), json("{\"a\":" + arrayOfStrings(200_000, 100) + "}"));
     }
 
     /**
@@ -545,6 +590,15 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
         BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
             .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 10.0));
         String array = arrayOfShortStrings(500_000);
+        assertChargesAtLeastTheHeapItHolds(loader, json("{\"a.b\":" + array + ",\"a\":{\"b\":" + array + "}}"));
+    }
+
+    /** The same for strings of random length, some not ASCII, with no allowance, as in the test of the loader of all fields. */
+    public void testFieldSpelledInTwoWaysChargesAtLeastTheHeapItHoldsForRandomStrings() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 4.0));
+        String array = arrayOfStrings(250_000, 16);
         assertChargesAtLeastTheHeapItHolds(loader, json("{\"a.b\":" + array + ",\"a\":{\"b\":" + array + "}}"));
     }
 

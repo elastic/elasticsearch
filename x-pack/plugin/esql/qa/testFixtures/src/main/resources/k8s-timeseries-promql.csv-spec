@@ -2590,11 +2590,12 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_first_step_lookback
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(bottomk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result ASC;
 
 result:double | step:datetime            | _timeseries:keyword
-9969.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+8031.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 947.0         | 2024-05-10T00:25:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 
@@ -2638,4 +2639,32 @@ PROMQL index=k8s step=1h result=(bottomk(2, sum by (pod) (network.total_bytes_in
 result:double | step:datetime            | pod:keyword
 947.0         | 2024-05-10T01:00:00.000Z | one
 9969.0        | 2024-05-10T01:00:00.000Z | three
+;
+
+// A range query with `start == end` has a single step, whose bucket `(start - step, start]` holds the samples an instant
+// selector reads; the source filter must not start at `start`.
+range_single_step_selector
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_first_step_lookback
+PROMQL index=k8s step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(network.eth0.tx{pod="one"})
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+409.0         | 2024-05-10T00:10:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+506.0         | 2024-05-10T00:10:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+346.0         | 2024-05-10T00:10:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+;
+
+range_single_step_sum_by
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_first_step_lookback
+PROMQL index=k8s step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(sum by (pod) (network.eth0.tx))
+| SORT pod;
+
+result:double | step:datetime            | pod:keyword
+1261.0        | 2024-05-10T00:10:00.000Z | one
+1309.0        | 2024-05-10T00:10:00.000Z | three
+1678.0        | 2024-05-10T00:10:00.000Z | two
 ;

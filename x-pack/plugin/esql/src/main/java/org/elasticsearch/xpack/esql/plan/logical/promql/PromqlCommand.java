@@ -1006,12 +1006,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     /**
      * Returns the source-side timestamp lookback window.
      * Explicit and implicit range selectors contribute their requested window.
-     * Instant queries extend that window to at least the Prometheus lookback delta.
+     * Instant queries extend that window to at least the Prometheus lookback delta. Range queries extend it to at least
+     * one step: the first step's bucket {@code (start - step, start]} feeds an instant selector's implicit
+     * {@code last_over_time}, so reading only from {@code start} leaves a single-step range with no samples.
      */
     public Duration sourceFilterWindow() {
         Duration window = maxRangeSelectorWindow();
-        if (isInstantQuery() && DEFAULT_LOOKBACK.compareTo(window) > 0) {
-            window = DEFAULT_LOOKBACK;
+        Duration floor = isInstantQuery() ? DEFAULT_LOOKBACK : foldDuration(resolveTimeBucketSize(), STEP);
+        if (floor.compareTo(window) > 0) {
+            window = floor;
         }
         return window;
     }
@@ -1068,7 +1071,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     public Expression resolveTimeBucketSize() {
         if (isRangeQuery()) {
-            return Literal.timeDuration(source(), PromqlLogicalPlanBuilder.foldStep(timestamp(), start(), end(), step(), buckets()));
+            return Literal.timeDuration(source(), PromqlLogicalPlanBuilder.foldStep(start(), end(), step(), buckets()));
         }
         return Literal.timeDuration(source(), DEFAULT_LOOKBACK);
     }

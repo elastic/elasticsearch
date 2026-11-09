@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnio
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesTransform;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -109,6 +110,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
         // Special empty/null handling functions
         JsonString.class, // JSON_STRING("key", NULL) = {"key":null};
+        TimeSeriesTransform.class, // TS_TRANSFORM(NULL, "pod") = {}: null is the empty label container
 
         // Non-evaluatable grouping functions
         Categorize.class,

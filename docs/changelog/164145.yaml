@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 164145
-summary: "Emit JSON plans for logs, EXPLAIN, PROFILE"
+summary: "Emit JSON plans for logs, EXPLAIN, and PROFILE, with exchange ids and phase labels in PROFILE"
 type: enhancement

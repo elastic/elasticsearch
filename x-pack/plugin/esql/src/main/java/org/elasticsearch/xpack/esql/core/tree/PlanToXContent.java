@@ -31,10 +31,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code org.elasticsearch.xpack.esql.plan.json} logger.
  * <p>
  * Walks query-plan nodes only. Expressions are nested under {@code properties}, not given plan ids.
- * The tree skeleton ({@code id}, {@code type}, {@code role}, {@code source}, {@code origin}, {@code exchange_id}, {@code children})
- * is never truncated. {@link EsQueryExec} Lucene DSL is parked under {@code properties.detail.query}
- * so consumers can ignore it. {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec} exposes its
- * inner logical plan as the sole JSON child.
+ * Nothing is truncated or bounded, so the document grows with the plan, and with the index lists and Lucene queries it carries.
+ * {@link EsQueryExec} Lucene DSL is parked under {@code properties.detail.query} so consumers can ignore it. A node reports its
+ * properties through {@link QueryPlan#jsonPropertyValue}, so the JSON shows no more than the ASCII plan does.
+ * {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec} exposes its inner logical plan as the sole JSON child.
  */
 public final class PlanToXContent {
     private static final Map<Class<?>, List<Method>> ACCESSORS = new ConcurrentHashMap<>();
@@ -144,7 +144,7 @@ public final class PlanToXContent {
                 continue;
             }
             builder.field(name);
-            writeValue(builder, prop);
+            writeValue(builder, plan.jsonPropertyValue(prop));
         }
         if (detailQuery != null) {
             builder.startObject("detail");

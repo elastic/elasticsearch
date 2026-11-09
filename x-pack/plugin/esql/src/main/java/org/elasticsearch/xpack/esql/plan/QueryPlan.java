@@ -29,6 +29,11 @@ import java.util.function.Predicate;
 
 /**
  * There are two main types of plans, {@code LogicalPlan} and {@code PhysicalPlan}
+ * <p>
+ * A plan node also carries identity that is not part of the plan itself: its {@link PlanId}, the nodes it was {@link #planOrigin()
+ * derived from}, and the {@link #exchange()} it is one side of. These are set while a node is built or rewritten, by the thread that
+ * owns the tree, and are not synchronized. A node that several threads can reach, such as the plan of a request that is run for
+ * more than one data node, must be copied before it is tagged, or the tag shows on all of them.
  */
 public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends Node<PlanType> {
 
@@ -122,6 +127,16 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         }
         this.origin = List.copyOf(merged);
         return (PlanType) this;
+    }
+
+    /**
+     * The value the plan JSON reports for one of this node's {@link #nodeProperties()}. It is the property itself unless the node's
+     * {@code nodeString} shows less of it than that, such as the object name of an external source path, in which case the node
+     * returns the value that {@code nodeString} shows. The JSON is part of PROFILE and EXPLAIN responses, so it must not reveal more
+     * than the ASCII plan next to it, which hides what the user is not allowed to see.
+     */
+    public Object jsonPropertyValue(Object property) {
+        return property;
     }
 
     /**

@@ -66,7 +66,7 @@ public class LookupPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physi
             throw new VerificationException(failures);
         }
         log.debug("Lookup Physical plan:\n{}", optimizedPlan);
-        PlanJsonLog.debug("lookup_physical", optimizedPlan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.LOOKUP_PHYSICAL, optimizedPlan);
         return optimizedPlan;
     }
 }

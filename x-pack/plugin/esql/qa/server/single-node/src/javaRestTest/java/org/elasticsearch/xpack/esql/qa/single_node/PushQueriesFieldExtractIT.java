@@ -427,7 +427,8 @@ public class PushQueriesFieldExtractIT extends ESRestTestCase {
                 sig.add(name);
                 if (name.equals("LuceneSourceOperator")) {
                     MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))
-                        .entry("status", matchesMap().entry("processed_queries", matchesList().item(luceneQueryMatcher)).extraOk());
+                        .entry("status", matchesMap().entry("processed_queries", matchesList().item(luceneQueryMatcher)).extraOk())
+                        .extraOk();
                     assertMap(op, expectedOp);
                 }
             }

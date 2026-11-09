@@ -1531,7 +1531,7 @@ public class EsqlSession {
         // Same numbering as the subplan rows of EXPLAIN, so log and EXPLAIN phases can be matched up
         String phase = "subplan-" + subPlanIndex;
         PlanJsonLog.phase(phase, subPlan.kind(), subPlan.origin());
-        PlanJsonLog.debug("logical", phase, subPlan.subPlan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.LOGICAL, phase, subPlan.subPlan);
         // Create a physical plan out of the logical sub-plan
         var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, phase, request, physicalPlanOptimizer, planTimeProfile);
         // An IN subquery may not have a pipeline breaker inside it, and mapper does not receive the SemiJoin node because only the right
@@ -1578,7 +1578,7 @@ public class EsqlSession {
                     if (newSubPlan == null) {
                         executionInfo.finishSubPlans();
                         PlanJsonLog.phase(MAIN_PHASE, "main", null);
-                        PlanJsonLog.debug("logical", MAIN_PHASE, newMainPlan);
+                        PlanJsonLog.debug(PlanJsonLog.Stage.LOGICAL, MAIN_PHASE, newMainPlan);
                         var newPhysicalPlan = logicalPlanToPhysicalPlan(
                             newMainPlan,
                             MAIN_PHASE,
@@ -3247,7 +3247,7 @@ public class EsqlSession {
             );
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
-            PlanJsonLog.debug("analyzed", plan);
+            PlanJsonLog.debug(PlanJsonLog.Stage.ANALYZED, plan);
             // Analysis succeeded on the first attempt. For unmapped_fields=nullify/load we intentionally do NOT re-resolve without the
             // request filter to recover a field that is mapped only in a filter-pruned index: once the filter prunes an index we keep it
             // gone. Resurrecting it would drop real data from surviving indices and turn working queries into errors. The retry
@@ -3358,7 +3358,7 @@ public class EsqlSession {
             planTimeProfile.addLogicalOptimizationPlanTime(System.nanoTime() - start);
         }
         LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
-        PlanJsonLog.debug("optimized_logical", plan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.OPTIMIZED_LOGICAL, plan);
         return plan;
     }
 
@@ -3387,7 +3387,7 @@ public class EsqlSession {
         }
         PhysicalPlan plan = mapper.map(optimizedPlan);
         LOGGER.debug("Physical plan:\n{}", plan);
-        PlanJsonLog.debug("physical", phase, plan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.PHYSICAL, phase, plan);
         return plan;
     }
 
@@ -3405,7 +3405,7 @@ public class EsqlSession {
             planTimeProfile.addPhysicalOptimizationPlanTime(System.nanoTime() - start);
         }
         LOGGER.debug("Optimized physical plan:\n{}", plan);
-        PlanJsonLog.debug("optimized_physical", phase, plan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.OPTIMIZED_PHYSICAL, phase, plan);
         return plan;
     }
 

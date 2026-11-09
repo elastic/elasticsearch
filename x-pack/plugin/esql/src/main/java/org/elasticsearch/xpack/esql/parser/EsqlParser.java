@@ -173,7 +173,7 @@ public class EsqlParser {
             log.debug("Parsed logical plan:\n{}", parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
-        PlanJsonLog.debug("parsed", parsed.plan());
+        PlanJsonLog.debug(PlanJsonLog.Stage.PARSED, parsed.plan());
         return parsed;
     }
 
@@ -199,7 +199,7 @@ public class EsqlParser {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
-        PlanJsonLog.debug("parsed:" + viewName, parsed.plan());
+        PlanJsonLog.debug(PlanJsonLog.Stage.PARSED, viewName, parsed.plan());
         ViewQuerySettings.validate(parsed.settings(), parsed);
         return parsed;
     }

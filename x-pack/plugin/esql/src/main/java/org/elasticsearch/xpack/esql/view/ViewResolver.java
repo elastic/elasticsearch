@@ -880,7 +880,7 @@ public class ViewResolver {
                         bodySettings.requiresViewIdentity() ? ViewBoundaryPreservation.KEEP_VIEW_IDENTITY : ViewBoundaryPreservation.NONE,
                         planSize,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
-                            PlanJsonLog.debug("resolved", view.name(), fullyResolved);
+                            PlanJsonLog.debug(PlanJsonLog.Stage.RESOLVED, view.name(), fullyResolved);
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
                             resolvedViews.put(view.name(), viewPlan);
                             l3.onResponse(null);

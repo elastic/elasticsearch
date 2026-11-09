@@ -6,8 +6,8 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [explain, no_brackets_in_unquoted_index_names, explain_with_remote_plans]
-      reason: "EXPLAIN with remote plans"
+          capabilities: [explain, no_brackets_in_unquoted_index_names, explain_with_remote_plans, explain_with_json_plans]
+      reason: "EXPLAIN with remote plans and JSON plans"
   - do:
       indices.create:
         index: test

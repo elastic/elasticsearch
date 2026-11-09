@@ -317,6 +317,7 @@ public class PushQueriesIpIT extends ESRestTestCase {
                             op,
                             matchesMap().entry("operator", startsWith(name))
                                 .entry("status", matchesMap().entry("processed_queries", matchesList().item(luceneQueryMatcher)).extraOk())
+                                .extraOk()
                         );
                     }
                 }

@@ -69,7 +69,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             throw new VerificationException(failures);
         }
         log.debug("Local Physical plan:\n{}", optimizedPlan);
-        PlanJsonLog.debug("local_physical", optimizedPlan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.LOCAL_PHYSICAL, optimizedPlan);
         return optimizedPlan;
     }
 

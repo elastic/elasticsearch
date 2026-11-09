@@ -15,17 +15,23 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 
 import java.io.IOException;
@@ -33,6 +39,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -40,6 +47,56 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PlanToXContentTests extends ESTestCase {
+
+    /**
+     * A dataset's storage location is hidden from users who are not allowed to see it, and the ASCII plan shows only the object name.
+     * The JSON plan is part of the same PROFILE and EXPLAIN responses, so it must show no more than that.
+     */
+    public void testExternalRelationDoesNotRevealTheStorageLocation() {
+        List<Attribute> output = externalOutput();
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            EXTERNAL_PATH,
+            new SimpleSourceMetadata(output, "parquet", EXTERNAL_PATH),
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            null
+        );
+        assertNoStorageLocation(relation.toString(), relation.toJsonString());
+    }
+
+    public void testExternalSourceExecDoesNotRevealTheStorageLocation() {
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            EXTERNAL_PATH,
+            "parquet",
+            externalOutput(),
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        );
+        assertNoStorageLocation(exec.toString(), exec.toJsonString());
+    }
+
+    private static final String EXTERNAL_PATH = "s3://secret-bucket/secret-prefix/data/*.parquet";
+
+    private static List<Attribute> externalOutput() {
+        return List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+    }
+
+    private static void assertNoStorageLocation(String ascii, String json) {
+        // The object name is what the ASCII plan shows, and the JSON shows the same
+        assertThat(ascii, containsString("*.parquet"));
+        assertThat(json, containsString("*.parquet"));
+        for (String hidden : List.of("secret-bucket", "secret-prefix", "s3://")) {
+            assertThat("the ASCII plan shows [" + hidden + "]", ascii, not(containsString(hidden)));
+            assertThat("the JSON plan shows [" + hidden + "]", json, not(containsString(hidden)));
+        }
+    }
 
     public void testFilterOverRelation() throws IOException {
         Source source = new Source(3, 12, "pm25 > 0");

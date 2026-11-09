@@ -347,7 +347,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         awaitWatcherIndicesCreated(coordinator);
 
         boolean success = waitUntil(() -> {
-            refresh();
             SearchResponse searchResponse = executedStateSearch(coordinator, watchName);
             try {
                 return searchResponse.getHits().getTotalHits().value() >= minimumExpectedWatchActionsPerformed;
@@ -364,7 +363,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         awaitWatcherIndicesCreated(coordinator);
 
         var response = waitUntil(() -> {
-            refresh();
             SearchResponse searchResponse = executedStateSearch(coordinator, watchName);
 
             if (searchResponse.getHits().getTotalHits().value() >= minimumExpectedWatchActionsPerformed) {
@@ -405,6 +403,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     private SearchResponse executedStateSearch(String coordinator, String watchName) {
+        refresh(HistoryStoreField.DATA_STREAM + "*");
+
         return client(coordinator).prepareSearch(HistoryStoreField.DATA_STREAM + "*")
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))

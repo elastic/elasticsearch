@@ -1865,14 +1865,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     /// Executes provided supplier until it returns `true` or provided maximum wait time elapses.
     /// Up to 1 second of sleep is applied between executions of the supplier.
     public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) {
-        return waitUntil(() -> {
-            boolean conditionMet = breakSupplier.getAsBoolean();
-            return conditionMet ? Optional.of(Void.TYPE) : Optional.empty();
-        }, new TimeValue(maxWaitTime, unit)).isPresent();
+        return waitUntil(() -> Optional.of(breakSupplier.getAsBoolean()).filter(Boolean::booleanValue), new TimeValue(maxWaitTime, unit))
+            .isPresent();
     }
 
-    /// Executes provided supplier until it returns a tuple with `true` as the first value or provided maximum wait time elapses.
-    /// Returns the second value in the tuple on success and empty optional if timed out.
+    /// Executes provided supplier until it returns a non-empty [Optional] or provided maximum wait time elapses.
+    /// Returns an empty optional if timed out.
     /// Up to 1 second of sleep is applied between executions of the supplier.
     public static <T> Optional<T> waitUntil(Supplier<Optional<T>> evaluation, TimeValue maxWaitTime) {
         long maxTimeInMillis = maxWaitTime.millis();

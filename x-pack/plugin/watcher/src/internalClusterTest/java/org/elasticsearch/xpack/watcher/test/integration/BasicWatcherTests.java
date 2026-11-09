@@ -198,20 +198,33 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().trigger("_name");
         assertWatchWithMinimumPerformedActionsCount("_name", 1);
 
+        // Watcher writes a document into `idx` and we need to refresh it.
+        refresh();
+
+        // Note that we can edit trigger here, but it doesn't actually matter for this test since we trigger the watch
+        // via the test infra.
         new PutWatchRequestBuilder(client()).setId("_name")
             .setSource(
                 source.trigger(schedule(Schedules.cron("0/1 * * * * ? 2020")))
-                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0L))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
             )
             .get();
 
         timeWarp().clock().fastForwardSeconds(5);
         timeWarp().trigger("_name");
-        long count = findNumberOfPerformedActions("_name");
+        // Two executions since the condition right above matches.
+        assertWatchWithMinimumPerformedActionsCount("_name", 2);
 
         timeWarp().clock().fastForwardSeconds(5);
         timeWarp().trigger("_name");
-        assertThat(count, equalTo(findNumberOfPerformedActions("_name")));
+
+        // The condition doesn't match anymore so no new executions.
+        var searchResponse = searchHistoryForExecutedWatch("_name", 2);
+        try {
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testConditionSearchWithSource() throws Exception {

@@ -405,14 +405,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return builder.get();
     }
 
-    protected long findNumberOfPerformedActions(String watchName) {
-        refresh();
-        return SearchResponseUtils.getTotalHitsValue(
-            prepareSearch(HistoryStoreField.DATA_STREAM + "*").setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
-        );
-    }
-
     protected void assertWatchWithNoActionNeeded(final String watchName, final long expectedWatchActionsWithNoActionNeeded)
         throws Exception {
         final AtomicReference<SearchResponse> lastResponse = new AtomicReference<>();

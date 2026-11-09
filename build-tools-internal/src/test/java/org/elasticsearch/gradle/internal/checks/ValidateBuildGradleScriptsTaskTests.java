@@ -272,6 +272,94 @@ public class ValidateBuildGradleScriptsTaskTests {
         }
     }
 
+    @Test
+    public void testExecutionClosureBaselineLifecycle() throws Exception {
+        Project project = createProject();
+        File script = writeFile(project, "subproject/build.gradle", List.of("tasks.register('probe') {", "  onlyIf { project.name }", "}"));
+        ValidateBuildGradleScriptsTask task = createTask(project, script);
+        task.getIgnore().set(java.util.Map.of(ExecutionClosureScanner.RULE_ID, List.of("subproject/build.gradle::1")));
+        task.validateScripts();
+        assertOutputMarkerWritten(task);
+
+        Files.writeString(script.toPath(), "tasks.register('probe') { onlyIf { project.name }; doLast { gradle.startParameter } }\n");
+        try {
+            task.validateScripts();
+            fail("Added execution reference must fail");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains(ExecutionClosureScanner.RULE_ID));
+            assertTrue(e.getMessage().contains("gradle"));
+        }
+
+        Files.writeString(script.toPath(), "tasks.register('probe') { onlyIf { true } }\n");
+        try {
+            task.validateScripts();
+            fail("Removed execution reference must make the baseline stale");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("stale-ignore-entry"));
+        }
+    }
+
+    @Test
+    public void testLegacyTaskExecutionReferencesAreRejected() throws Exception {
+        for (String declaration : List.of("task probe", "task probe(type: Exec)", "task('probe')")) {
+            Project project = createProject();
+            File script = writeFile(project, "subproject/build.gradle", List.of(declaration + " {", "  doLast { project.name }", "}"));
+            ValidateBuildGradleScriptsTask task = createTask(project, script);
+            try {
+                task.validateScripts();
+                fail("Expected a model reference finding for " + declaration);
+            } catch (GradleException e) {
+                assertTrue(e.getMessage().contains(ExecutionClosureScanner.RULE_ID));
+                assertTrue(e.getMessage().contains("subproject/build.gradle:2"));
+            }
+        }
+    }
+
+    @Test
+    public void testLegacyTaskConfigurationCaptureIsAllowed() throws Exception {
+        for (String declaration : List.of("task probe", "task probe(type: Exec)", "task('probe')")) {
+            Project project = createProject();
+            File script = writeFile(
+                project,
+                "subproject/build.gradle",
+                List.of(declaration + " {", "  def name = project.name", "  doLast { println name }", "}")
+            );
+            ValidateBuildGradleScriptsTask task = createTask(project, script);
+            task.validateScripts();
+            assertOutputMarkerWritten(task);
+        }
+    }
+
+    @Test
+    public void testQualifiedModelAccessConsumesOneIgnorePerReceiver() throws Exception {
+        Project project = createProject();
+        File script = writeFile(
+            project,
+            "subproject/build.gradle",
+            List.of("tasks.register('probe') { doLast { project.file('data'); project.sourceSets.main.output } }")
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, script);
+        task.getIgnore().set(java.util.Map.of(ExecutionClosureScanner.RULE_ID, List.of("subproject/build.gradle::2")));
+        task.validateScripts();
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
+    public void testParseFailureIsActionableAndCannotBeIgnored() throws Exception {
+        Project project = createProject();
+        File script = writeFile(project, "subproject/build.gradle", List.of("tasks.register('broken') {"));
+        ValidateBuildGradleScriptsTask task = createTask(project, script);
+        task.getIgnore().set(java.util.Map.of("build-script-parse-failure", List.of("subproject/build.gradle")));
+        try {
+            task.validateScripts();
+            fail("Unparsed scripts cannot pass validation");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("build-script-parse-failure"));
+            assertTrue(e.getMessage().contains("subproject/build.gradle"));
+            assertTrue(e.getMessage().contains("Unexpected input"));
+        }
+    }
+
     private Project createProject() throws IOException {
         File projectDir = Files.createTempDirectory("validate-build-gradle-scripts-task").toFile();
         return ProjectBuilder.builder().withProjectDir(projectDir).build();

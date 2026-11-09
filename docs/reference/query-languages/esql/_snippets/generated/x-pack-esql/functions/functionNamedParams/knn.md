@@ -20,3 +20,6 @@
 `rescore_oversample`
 :   (double) Applies the specified oversampling for rescoring quantized vectors. See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) for details.
 
+`similarity_function` {applies_to}`{"stack": "preview 9.6+", "serverless": "preview"}`
+:   (keyword) The similarity metric to use when `KNN` runs on a `dense_vector` expression (rather than an indexed field). See the function description for more details about the default value. This option is rejected when used with an indexed `dense_vector` field, where the field's mapping determines the metric. Accepted values: `cosine`, `dot_product`, `l2_norm`, `max_inner_product`.
+

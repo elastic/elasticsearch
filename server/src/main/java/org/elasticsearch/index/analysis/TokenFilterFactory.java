@@ -97,6 +97,17 @@ public interface TokenFilterFactory {
     }
 
     /**
+     * Whether this filter was built from a fallback because a lenient load of its resource failed, e.g. a
+     * synonyms set that was missing or could not be read. A shared {@link ReloadableCustomAnalyzer} then retries
+     * the load when another index joining it recovers a shard, instead of treating the fallback as loaded. Any
+     * other analyzer holding it is not shared with indices built later. Wrapping factories must report this if any
+     * wrapped factory does.
+     */
+    default boolean isDegraded() {
+        return false;
+    }
+
+    /**
      * Returns a value-typed key used by {@link AnalysisRegistry} to share analyzers that reference
      * this factory across indices. Two factories whose {@code sharingKey()} results are equal (via
      * {@code Object.equals}/{@code hashCode} on the returned value) are treated as behaviorally
@@ -109,8 +120,10 @@ public interface TokenFilterFactory {
      * record component (no separate place to forget). A factory that reads no settings returns a
      * constant.
      *
-     * <p>An override MUST capture all state that affects behavior, including any external resource
-     * version (file mtime, synonyms-set generation, etc). The returned value's {@code equals}/
+     * <p>An override MUST capture all state that affects behavior. For an external resource, key on its
+     * content (e.g. a hash of a file's text) or, for a resource that is reloaded in place (a
+     * {@code synonyms_set}), on its name: a reload then updates every sharer, but an index that joins a
+     * loaded instance does not reload it, so it misses a change made without a reload. The returned value's {@code equals}/
      * {@code hashCode} MUST be stable across calls — notably, raw
      * {@link org.apache.lucene.analysis.CharArraySet} fields are unsafe (their {@code hashCode}
      * is unstable). Wrap them in {@link Analysis.StableCharArraySet} so the key holds a
@@ -125,6 +138,20 @@ public interface TokenFilterFactory {
      */
     default Object sharingKey() {
         return this;
+    }
+
+    /**
+     * Whether {@link #sharingKey()} stays true to this factory's behavior across an in-place reload of a
+     * {@link ReloadableCustomAnalyzer} containing it. A reload rebuilds every component from its current
+     * resource state, so a key folding content read from a local file at build time goes stale when the
+     * file has changed since: the shared instance then behaves per the new content while staying reachable
+     * under the old content's key, and a later index whose file matches the old content would wrongly join
+     * it. Return {@code false} in that case; {@link AnalysisRegistry} then builds reloadable analyzers
+     * containing this factory privately. Keys derived from settings alone, or naming a resource that
+     * reloads uniformly for every sharer (a {@code synonyms_set}), stay true and keep the default.
+     */
+    default boolean sharingKeyStableOnReload() {
+        return true;
     }
 
     /**

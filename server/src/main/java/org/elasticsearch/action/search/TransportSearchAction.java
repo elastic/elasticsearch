@@ -1187,10 +1187,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Charges a remote cluster's response while it waits, serialized, for the search coordination pool to read it. The listener charges
-     * what it keeps once it has the response. A trip on arrival reaches the listener as the {@link CircuitBreakingException} itself, since
-     * it is this node that has no room and not the remote cluster that failed, see {@link #isTripOnThisNode}. A trip while reading would
-     * arrive wrapped and count as the cluster's failure, but no {@link SearchResponse} reader charges a breaker today.
+     * Charges a remote cluster's response from when it starts arriving until it is read. The listener charges what it keeps once it has
+     * the response. A trip on arrival reaches the listener as the {@link CircuitBreakingException} itself, since it is this node that has
+     * no room and not the remote cluster that failed, see {@link #isTripOnThisNode}. A trip while reading would arrive wrapped and count as
+     * the cluster's failure, but no {@link SearchResponse} reader charges a breaker today.
      */
     static final class RemoteResponseHandler extends ActionListenerResponseHandler<SearchResponse> {
         private final CircuitBreaker circuitBreaker;

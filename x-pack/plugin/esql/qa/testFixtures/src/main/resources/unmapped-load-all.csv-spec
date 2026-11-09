@@ -7967,6 +7967,122 @@ nonexistent-1  | none             | text_state_nonexistent | null
 unmapped-1     | none             | text_state_unmapped    | null
 ;
 
+// COMPLETION, DENSE_VECTOR, RERANK, FUSE, HIGHLIGHT and MMR do not interact with _unmapped_fields. The ones that read or add columns of
+// their own pass it through. FUSE groups its input, like STATS, and so does not return the column.
+
+completionKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: completion
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| COMPLETION answer = message WITH { "inference_id" : "test_completion" }
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | answer:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}" | 42
+;
+
+denseVectorKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| DENSE_VECTOR message WITH { "inference_id" : "test_dense_inference" }
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | message_dense_vector:dense_vector
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}" | [49.0, 54.0, 54.0]
+;
+
+rerankKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: rerank
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data METADATA _score
+| WHERE message:"Connection error?"
+| RERANK "connection" ON message WITH { "inference_id" : "test_reranker" }
+| EVAL _score = ROUND(_score, 2)
+| SORT _score DESC, @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | _score:double
+2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""language_code"":""1""}" | 0.06
+2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""language_code"":""3""}" | 0.06
+;
+
+fuseDropsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: fork_v9
+required_capability: fuse_v6
+required_capability: match_operator_colon
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data METADATA _id, _index, _score
+| FORK ( WHERE message:"Connection error?" | SORT _score DESC, @timestamp | LIMIT 10)
+       ( WHERE message:"Connected to 10.1.0.3!" | SORT _score DESC, @timestamp | LIMIT 10)
+| FUSE
+| EVAL _score = ROUND(_score, 4)
+| DROP _id, _index
+| SORT _score DESC, @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _fork:keyword | _score:double
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | fork2 | 0.0164
+2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | fork1 | 0.0164
+;
+
+highlightKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: highlight_v6
+required_capability: match_operator_colon
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message:"Connection error?"
+| HIGHLIGHT ON message
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | highlight_message:keyword
+2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""language_code"":""1""}" | <em>Connection</em> <em>error</em>?
+2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""language_code"":""3""}" | <em>Connection</em> <em>error</em>?
+;
+
+mmrKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: mmr_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mmr_text_vector_keyword
+| SORT keyword_field
+| LIMIT 10
+| MMR ON text_vector LIMIT 3
+| DROP text_vector, byte_vector, bit_vector
+;
+
+keyword_field:keyword | text_body:text | _unmapped_fields:_source
+test1 | first text | null
+test3 | third text | null
+test6 | sixth text | null
+;
+
 // #162512: a union nested in a subquery next to an outer FROM source keeps the row, and the unmapped fields, of every branch.
 loadAllNestedUnionNextToOuterSourceLoadsFromEveryBranch
 required_capability: optional_fields_load_all_single_source_column

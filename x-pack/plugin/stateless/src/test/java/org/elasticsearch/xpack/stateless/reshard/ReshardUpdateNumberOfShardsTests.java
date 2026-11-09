@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
@@ -143,12 +144,9 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
         for (int shardId = shards; shardId < indexRoutingTable.size(); shardId++) {
             final var shardRoutingTable = indexRoutingTable.shard(shardId);
             assertThat(shardRoutingTable.size(), equalTo(replicas + 1));
-            assertThat(
-                shardRoutingTable.primaryShard().recoveryPriority(),
-                equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING)
-            );
+            assertThat(shardRoutingTable.primaryShard().recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
             for (final var replica : shardRoutingTable.replicaShards()) {
-                assertThat(replica.recoveryPriority(), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED));
+                assertThat(replica.recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_EXPECTED));
             }
         }
     }

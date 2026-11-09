@@ -23,6 +23,7 @@ import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -227,7 +228,7 @@ public final class ShardBatchMapper {
                     continue;
                 }
                 if (parentDynamic == ObjectMapper.Dynamic.FLATTENED) {
-                    final FieldMapper sink = unmappedSink(lookup);
+                    final FieldMapper sink = unmappedSink(lookup, indexSettings);
                     if (sink == null) {
                         return null;
                     }
@@ -311,9 +312,7 @@ public final class ShardBatchMapper {
         // RootObjectMapper. resolveDynamic() consults those when prefixProperties is non-empty,
         // and returns the fallback unchanged when it is empty (non-COLUMNAR path).
         //
-        // The root fallback must come from getRootDynamic rather than the raw root setting: an unset root
-        // dynamic resolves to FLATTENED, not TRUE, whenever the implicit _unmapped sink is present. This is
-        // the same value the sequential path seeds its root context with.
+        // The root fallback comes from getRootDynamic, the same value the sequential path seeds its root context with.
         final ObjectMapper.Dynamic rootFallback = ObjectMapper.Dynamic.getRootDynamic(lookup);
         return lookup.getMapping().getRoot().resolveDynamic(leafPath, rootFallback);
     }
@@ -333,7 +332,7 @@ public final class ShardBatchMapper {
      * Returns the implicit flattened {@code _unmapped} sink that absorbs unmapped leaves under
      * {@link ObjectMapper.Dynamic#FLATTENED}, or {@code null} if the batch cannot use it and must fall back.
      */
-    private static FieldMapper unmappedSink(MappingLookup lookup) {
+    private static FieldMapper unmappedSink(MappingLookup lookup, IndexSettings indexSettings) {
         // Dynamic templates are tried before the sink on the sequential path
         // (DynamicFieldsBuilder#createDynamicFieldFromValue), and a match creates a concrete field instead of
         // absorbing the value. The batch path cannot evaluate templates, so it cannot tell which leaves would
@@ -342,9 +341,16 @@ public final class ShardBatchMapper {
             logger.debug("batch indexing disabled: dynamic templates may pre-empt the [{}] sink", FlattenedFieldMapper.UNMAPPED_SINK_NAME);
             return null;
         }
-        // The sink's columnar support was already checked with every other metadata mapper above, so a sink that cannot batch never
-        // reaches this point.
-        return lookup.getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+        // Asked here rather than with the other metadata mappers, so that a sink that cannot batch only turns off batches that absorb.
+        UnmappedSinkFieldMapper sink = lookup.getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
+        if (sink.supportsColumnarAbsorb(indexSettings) == false) {
+            logger.debug(
+                "batch indexing disabled: the [{}] sink does not support columnar parsing",
+                FlattenedFieldMapper.UNMAPPED_SINK_NAME
+            );
+            return null;
+        }
+        return sink;
     }
 
     /**

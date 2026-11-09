@@ -264,6 +264,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributesOfUnsupportedColumns;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -2265,14 +2266,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // The output has to be populated even when no branch changes: view resolution builds a BranchPlan with an empty
             // output and relies on this rule to fill it in.
+            List<Attribute> output = toReferenceAttributesPreservingIds(outputUnion, mergePlan.output());
+            if (unmappedResolution.loadsAllUnmappedFields()) {
+                output = keepExistingUnsupportedAttributes(output, mergePlan.output());
+            }
             return mergePlan.replaceSubPlansAndOutput(
                 changed ? newSubPlans : mergePlan.children(),
-                unmappedResolution.loadsAllUnmappedFields()
-                    ? keepExistingUnsupportedAttributes(
-                        toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()),
-                        mergePlan.output()
-                    )
-                    : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
+                keepExistingUnsupportedAttributesOfUnsupportedColumns(output, mergePlan.output())
             );
         }
 
@@ -5899,10 +5899,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (int i = 0; i < oldOutput.size(); i++) {
                 Attribute oldAttr = oldOutput.get(i);
                 DataType commonType = commonTypes.get(i);
+                UnsupportedAttribute ua = unsupportedAttributes.get(i);
+                // The column of a conflict in a nested union is already typed UNSUPPORTED, as a plain attribute that lacks the conflict's
+                // original_types, so it needs the UnsupportedAttribute although its type does not change.
+                boolean lacksUnsupportedAttribute = ua != null && oldAttr instanceof UnsupportedAttribute == false;
 
-                if (oldAttr.dataType() != commonType) {
+                if (oldAttr.dataType() != commonType || lacksUnsupportedAttribute) {
                     Attribute newAttr;
-                    UnsupportedAttribute ua = unsupportedAttributes.get(i);
                     if (commonType == UNSUPPORTED && ua != null) {
                         // Use the UnsupportedAttribute directly so that original_types metadata
                         // is preserved and flows through to the response output.

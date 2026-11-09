@@ -32,6 +32,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributesOfUnsupportedColumns;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
@@ -204,6 +205,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         if (unmappedFieldsAttributeFromChildren() != null) {
             converted = keepExistingUnsupportedAttributes(converted, this.output());
         }
+        converted = keepExistingUnsupportedAttributesOfUnsupportedColumns(converted, this.output());
         return withUnmappedFieldsAttributeFromChildren(converted);
     }
 

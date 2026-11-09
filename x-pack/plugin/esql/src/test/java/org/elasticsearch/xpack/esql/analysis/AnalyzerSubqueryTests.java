@@ -89,6 +89,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -793,6 +794,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         Attribute name = plan.output().getFirst();
         assertEquals("name", name.name());
         assertEquals(UNSUPPORTED, name.dataType());
+        // An UnsupportedAttribute, not a plain attribute of type UNSUPPORTED, so that the response column has its original_types.
+        assertThat(plan.toString(), name, instanceOf(UnsupportedAttribute.class));
+        assertThat(((UnsupportedAttribute) name).originalTypes(), not(empty()));
     }
 
     /**

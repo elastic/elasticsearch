@@ -17,6 +17,8 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Strings;
 
+import java.nio.charset.StandardCharsets;
+
 /**
  * Fast IP parsing suitable for embedding in an {@link ExpressionEvaluator}
  * because they don't allocate memory on every run. Instead, it converts directly from
@@ -36,6 +38,13 @@ import org.elasticsearch.core.Strings;
  */
 public class ParseIp {
     private static final byte[] IPV4_PREFIX = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1 };
+
+    /**
+     * UTF-8 bytes of invalid input to decode for an error message. A code point is at most 4 UTF-8 bytes and at least one char,
+     * so this many bytes decode to more than {@link Strings#MAX_INPUT_LENGTH_IN_ERROR} chars, and a code point split at the cut
+     * falls past the truncation point.
+     */
+    private static final int MAX_BYTES_IN_ERROR = 4 * (Strings.MAX_INPUT_LENGTH_IN_ERROR + 1);
 
     static final AbstractConvertFunction.BuildFactory FROM_KEYWORD_LEADING_ZEROS_REJECTED = (source, field) -> {
         return new ParseIpLeadingZerosRejectedEvaluator.Factory(source, field, driverContext -> buildScratch(driverContext.breaker()));
@@ -240,7 +249,15 @@ public class ParseIp {
     }
 
     private static IllegalArgumentException invalid(BytesRef string) {
-        return new IllegalArgumentException("'" + Strings.truncateForError(string.utf8ToString()) + "' is not an IP string literal.");
+        return new IllegalArgumentException("'" + Strings.truncateForError(decodeForError(string)) + "' is not an IP string literal.");
+    }
+
+    /**
+     * Decodes only the first {@link #MAX_BYTES_IN_ERROR} bytes, as {@link Strings#truncateForError} keeps no more than that.
+     */
+    private static String decodeForError(BytesRef string) {
+        int length = Math.min(string.length, MAX_BYTES_IN_ERROR);
+        return new String(string.bytes, string.offset, length, StandardCharsets.UTF_8);
     }
 
     private static boolean isV6(BytesRef string, int end) {

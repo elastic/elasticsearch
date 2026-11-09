@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -28,6 +30,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RelocationFailureInfo;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -667,7 +670,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         routingNodes.failShard(
             routingNodes.node(failedShardNode).getByShardId(shardId),
             new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"),
-            RoutingChangesObserver.NOOP
+            RoutingChangesObserver.NOOP,
+            clusterState.metadata()
         );
 
         assertThat(routingNodes.unassigned().size(), equalTo(1));
@@ -678,6 +682,61 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             unassignedShard.recoveryPriority(),
             equalTo(failedShardActive ? RecoveryPriority.UNASSIGNED_UNEXPECTED : failedShardRecoveryPriority)
         );
+    }
+
+    /// A reshard split target primary takes over writes at [IndexReshardingState.Split.TargetShardState#HANDOFF], before
+    /// it becomes active. If it fails before the handoff, it keeps its deferrable recovery priority since the source shard
+    /// still serves its documents. If it fails at or after the handoff, its failure has reduced availability, so it becomes
+    /// [RecoveryPriority#UNASSIGNED_UNEXPECTED].
+    public void testFailedSplitTargetPrimaryRecoveryPriority() {
+        final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
+        final var initialMetadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        final var sourceShardId = new ShardId(initialMetadata.getIndex(), 0);
+        final var targetShardId = new ShardId(initialMetadata.getIndex(), 1);
+
+        final var targetShardState = randomFrom(IndexReshardingState.Split.TargetShardState.values());
+        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
+        for (final var state : IndexReshardingState.Split.TargetShardState.values()) {
+            if (state.ordinal() > IndexReshardingState.Split.TargetShardState.CLONE.ordinal()
+                && state.ordinal() <= targetShardState.ordinal()) {
+                reshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(targetShardId, state);
+            }
+        }
+        final var indexMetadata = IndexMetadata.builder(initialMetadata).reshardingMetadata(reshardingMetadata).build();
+
+        final var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addShard(shardRoutingBuilder(sourceShardId, "node-1", true, STARTED).build())
+            .addShard(
+                shardRoutingBuilder(targetShardId, "node-2", true, INITIALIZING).withRecoverySource(
+                    new RecoverySource.ReshardSplitRecoverySource(sourceShardId)
+                ).withRecoveryPriority(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING).build()
+            )
+            .build();
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).build())
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build()))
+            .build();
+
+        final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
+        routingNodes.failShard(
+            routingNodes.node("node-2").getByShardId(targetShardId),
+            new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"),
+            RoutingChangesObserver.NOOP,
+            clusterState.metadata()
+        );
+
+        assertThat(routingNodes.unassigned().size(), equalTo(1));
+        final var unassignedShard = routingNodes.unassigned().iterator().next();
+        assertThat(unassignedShard.shardId(), equalTo(targetShardId));
+        assertThat(unassignedShard.primary(), equalTo(true));
+        assertThat(unassignedShard.recoverySource().getType(), equalTo(RecoverySource.Type.RESHARD_SPLIT));
+        final var expectedRecoveryPriority = targetShardState == IndexReshardingState.Split.TargetShardState.CLONE
+            ? RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+            : RecoveryPriority.UNASSIGNED_UNEXPECTED;
+        assertThat(unassignedShard.recoveryPriority(), equalTo(expectedRecoveryPriority));
     }
 
     private void runMoveShardRolesTest(ShardRouting.Role primaryRole, ShardRouting.Role replicaRole) {

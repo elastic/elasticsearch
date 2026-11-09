@@ -44,7 +44,6 @@ import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -457,7 +456,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         }
     }
 
-    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, ScoringQuery quantizedTarget) {}
+    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, byte[] quantizedTarget) {}
 
     private static final int QUERY_CACHE_SIZE = 16;
 
@@ -489,7 +488,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<Integer, QueryQuantizerResult> eldest) {
                     if (size() > QUERY_CACHE_SIZE) {
-                        evictedQuantizedQuery = eldest.getValue().quantizedTarget().bytes();
+                        evictedQuantizedQuery = eldest.getValue().quantizedTarget();
                         return true;
                     }
                     return false;
@@ -533,7 +532,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
                 );
                 quantEncoding.packQuery(quantizationScratch, quantizedQuery);
                 currentCentroidOrdinal = nextCentroidOrdinal;
-                result = new QueryQuantizerResult(queryCorrections, new ScoringQuery(quantizedQuery));
+                result = new QueryQuantizerResult(queryCorrections, quantizedQuery);
                 cache.put(nextCentroidOrdinal, result);
             }
         }
@@ -542,7 +541,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             return result.queryCorrections();
         }
 
-        ScoringQuery getQuantizedTarget() {
+        byte[] getQuantizedTarget() {
             return result.quantizedTarget();
         }
     }

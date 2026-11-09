@@ -32,7 +32,7 @@ public abstract class ES93BinaryQuantizedVectorScorer {
     }
 
     public abstract float score(
-        ScoringQuery q,
+        byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryQuantizedComponentSum,
@@ -43,7 +43,7 @@ public abstract class ES93BinaryQuantizedVectorScorer {
     ) throws IOException;
 
     public float scoreBulk(
-        ScoringQuery q,
+        byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryQuantizedComponentSum,

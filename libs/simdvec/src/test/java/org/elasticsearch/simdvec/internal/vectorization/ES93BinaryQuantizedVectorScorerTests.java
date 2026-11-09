@@ -23,7 +23,6 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.BaseVectorizationTests;
-import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
@@ -100,7 +99,6 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
 
             VectorScorerTestUtils.randomVector(random(), vectorValues, similarityFunction);
             var queryData = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
-            var query = new ScoringQuery(queryData.vector());
 
             try (IndexInput in = openTestInput(dir, "testScore.bin", perVectorBytes)) {
                 assertEquals(in.length(), (long) numVectors * perVectorBytes + CodecUtil.footerLength());
@@ -112,7 +110,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
 
                 for (int i = 0; i < numVectors; i++) {
                     var defaultScore = defaultScorer.score(
-                        query,
+                        queryData.vector(),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
                         queryData.quantizedComponentSum(),
@@ -122,7 +120,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                         i
                     );
                     var panamaScore = nativeScorer.score(
-                        query,
+                        queryData.vector(),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
                         queryData.quantizedComponentSum(),
@@ -157,7 +155,6 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
 
             VectorScorerTestUtils.randomVector(random(), vectorValues, similarityFunction);
             var queryData = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
-            var query = new ScoringQuery(queryData.vector());
 
             try (IndexInput in = openTestInput(dir, "testScore.bin", perVectorBytes)) {
                 assertEquals(in.length(), (long) numVectors * perVectorBytes + CodecUtil.footerLength());
@@ -174,7 +171,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                 final int[] nodes = nodeList.stream().mapToInt(Integer::intValue).toArray();
 
                 float defaultMaxScore = defaultScorer.scoreBulk(
-                    query,
+                    queryData.vector(),
                     queryData.lowerInterval(),
                     queryData.upperInterval(),
                     queryData.quantizedComponentSum(),
@@ -186,7 +183,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                     numVectors
                 );
                 float panamaMaxScore = nativeScorer.scoreBulk(
-                    query,
+                    queryData.vector(),
                     queryData.lowerInterval(),
                     queryData.upperInterval(),
                     queryData.quantizedComponentSum(),
@@ -200,68 +197,6 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
 
                 assertEqualsPercent(defaultMaxScore, panamaMaxScore, 0.05f);
                 assertArrayEqualsPercent(scoresDefault, scoresPanama, 0.05f);
-            }
-        }
-    }
-
-    public void testScoreWithQueryRewrittenInPlace() throws IOException {
-        final int dims = random().nextInt(1, 2000);
-        final int numVectors = random().nextInt(10, 50);
-
-        final float[] centroid = new float[dims];
-        VectorScorerTestUtils.randomVector(random(), centroid, similarityFunction);
-        final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
-
-        float[] vectorValues = new float[dims];
-        OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
-
-        final int vectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
-        final int perVectorBytes = vectorLengthInBytes + BBQ_CORRECTIONS_BYTES;
-
-        try (Directory dir = newParametrizedDirectory()) {
-            createTestFile(dir, numVectors, vectorValues, centroid, quantizer, dims);
-
-            VectorScorerTestUtils.VectorData[] queries = new VectorScorerTestUtils.VectorData[2];
-            for (int q = 0; q < queries.length; q++) {
-                VectorScorerTestUtils.randomVector(random(), vectorValues, similarityFunction);
-                queries[q] = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
-            }
-            byte[] rewritten = new byte[queries[0].vector().length];
-
-            try (IndexInput in = openTestInput(dir, "testScore.bin", perVectorBytes)) {
-                var defaultScorer = defaultProvider().getVectorScorerFactory()
-                    .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
-                var nativeScorer = nativeProvider().getVectorScorerFactory()
-                    .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
-
-                for (int round = 0; round < 10; round++) {
-                    var queryData = queries[round % queries.length];
-                    System.arraycopy(queryData.vector(), 0, rewritten, 0, rewritten.length);
-                    var query = new ScoringQuery(rewritten);
-                    for (int i = 0; i < numVectors; i++) {
-                        var defaultScore = defaultScorer.score(
-                            query,
-                            queryData.lowerInterval(),
-                            queryData.upperInterval(),
-                            queryData.quantizedComponentSum(),
-                            queryData.additionalCorrection(),
-                            similarityFunction,
-                            centroidDp,
-                            i
-                        );
-                        var nativeScore = nativeScorer.score(
-                            query,
-                            queryData.lowerInterval(),
-                            queryData.upperInterval(),
-                            queryData.quantizedComponentSum(),
-                            queryData.additionalCorrection(),
-                            similarityFunction,
-                            centroidDp,
-                            i
-                        );
-                        assertEquals("round " + round + ", vector " + i, defaultScore, nativeScore, 1e-2f);
-                    }
-                }
             }
         }
     }
@@ -325,7 +260,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                     .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
 
                 float defaultScore = defaultScorer.score(
-                    new ScoringQuery(queryVector),
+                    queryVector,
                     queryLowerInterval,
                     queryUpperInterval,
                     Short.toUnsignedInt(queryComponentSum),
@@ -335,7 +270,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                     0
                 );
                 float nativeScore = nativeScorer.score(
-                    new ScoringQuery(queryVector),
+                    queryVector,
                     queryLowerInterval,
                     queryUpperInterval,
                     Short.toUnsignedInt(queryComponentSum),
@@ -407,7 +342,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                     .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
 
                 float defaultScore = defaultScorer.score(
-                    new ScoringQuery(queryVector),
+                    queryVector,
                     queryLowerInterval,
                     queryUpperInterval,
                     Short.toUnsignedInt(queryComponentSum),
@@ -417,7 +352,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                     0
                 );
                 float nativeScore = nativeScorer.score(
-                    new ScoringQuery(queryVector),
+                    queryVector,
                     queryLowerInterval,
                     queryUpperInterval,
                     Short.toUnsignedInt(queryComponentSum),

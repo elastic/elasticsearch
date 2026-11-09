@@ -21,7 +21,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.simdvec.BulkMask;
-import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
@@ -102,7 +101,7 @@ public class BBQDotProductTests extends BaseVectorizationTests {
 
                     for (int offset = 0; offset < count; offset += BULK_SIZE) {
                         int blockSize = Math.min(BULK_SIZE, count - offset);
-                        dotProduct.dotProductBulk(new ScoringQuery(query), blockSize, scores);
+                        dotProduct.dotProductBulk(query, blockSize, scores);
                         for (int j = 0; j < blockSize; j++) {
                             float expected = basicBitImplementation(query, vectors[offset + j], planeBytes, nDims);
                             assertThat(describe(impl + ", vector " + (offset + j)), scores[j], equalTo(expected));
@@ -136,8 +135,8 @@ public class BBQDotProductTests extends BaseVectorizationTests {
                     BBQDotProduct bulk = getImpl(impl, in.clone(), nDims);
 
                     float[] bulkScores = new float[1];
-                    bulk.dotProductBulk(new ScoringQuery(query), 1, bulkScores);
-                    assertThat(describe(impl.toString()), single.dotProduct(new ScoringQuery(query)), equalTo(expected));
+                    bulk.dotProductBulk(query, 1, bulkScores);
+                    assertThat(describe(impl.toString()), single.dotProduct(query), equalTo(expected));
                     assertThat(describe(impl.toString()), bulkScores[0], equalTo((float) expected));
                 }
             }
@@ -173,7 +172,7 @@ public class BBQDotProductTests extends BaseVectorizationTests {
                     BBQDotProduct dotProduct = getImpl(impl, read, nDims);
 
                     float[] scores = new float[BULK_SIZE];
-                    dotProduct.dotProductBulkMasked(new ScoringQuery(query), mask, scores, count);
+                    dotProduct.dotProductBulkMasked(query, mask, scores, count);
 
                     // the scores of the vectors that are not selected are unspecified
                     for (int i = 0; i < count; i++) {

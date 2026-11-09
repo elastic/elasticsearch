@@ -860,6 +860,52 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 1.8742138364779874 | prod            | two         | 2024-05-10T00:10:00.000Z
 ;
 
+// ignoring(...) group_left with an opaque LHS: its signature is every label but the ignored ones and __name__. The
+// concrete one side's cluster compares in its own key slot; the rest of the LHS signature must be empty to match.
+// Same numbers as vector_match_group_left.
+vector_match_matrix_opaque_ignoring
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
+required_capability: promql_binary_opaque_signature_match
+PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx / ignoring (pod, region) group_left sum by (cluster) (network.eth0.rx))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP r, _timeseries
+| SORT TO_STRING(_timeseries);
+
+r:double            | _timeseries:keyword
+0.4225206611570248  | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+0.37293388429752067 | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+0.30785123966942146 | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+0.257244534824606   | "{""cluster"":""qa"",""pod"":""one""}"
+0.2541942043721403  | "{""cluster"":""qa"",""pod"":""three""}"
+0.4616166751398068  | "{""cluster"":""qa"",""pod"":""two""}"
+0.25535055350553504 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+0.33062730627306275 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+0.34833948339483395 | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+;
+
+// ignoring(...) group_left (region) over a raw LHS: the source serves two label container views at once, the match key leaving
+// pod and region out and the result leaving region out, which the one side's region replaces.
+// Same numbers as vector_match_matrix_opaque_many_group_left_overwrite.
+vector_match_matrix_opaque_ignoring_group_left_include
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
+required_capability: promql_binary_opaque_signature_match
+PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx / ignoring (pod, region) group_left (region) sum by (cluster, region) (network.eth0.rx{cluster="staging"}))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP r, region, _timeseries
+| SORT TO_STRING(_timeseries);
+
+r:double            | region:keyword | _timeseries:keyword
+0.25535055350553504 | us             | "{""cluster"":""staging"",""pod"":""one""}"
+0.33062730627306275 | us             | "{""cluster"":""staging"",""pod"":""three""}"
+0.34833948339483395 | us             | "{""cluster"":""staging"",""pod"":""two""}"
+;
+
 // Opaque/opaque: both keys are materialized from _timeseries, no regrouping.
 vector_match_matrix_opaque_opaque_on-Ignore
 required_capability: promql_command_v0
@@ -1321,4 +1367,96 @@ result:double | cluster:keyword
 4112064.0     | prod
 8355816.0     | qa
 5756040.0     | staging
+;
+
+// Opaque topk x raw selector (default match): joins under typed _timeseries. Labels stay in _timeseries.
+binary_independent_opaque_topk_times_raw
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_independent_join
+required_capability: promql_topk
+required_capability: enable_tsmd_data_type
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=10m result=(topk(1, network.eth0.tx{cluster="prod", pod="one"}) * network.eth0.rx{cluster="prod", pod="one"})
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries;
+
+result:double | _timeseries:keyword
+179960.0      | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+;
+
+// Composed default-match: (by/on by) + opaque raw. Label sets differ ({cluster} vs full), so empty - must plan/run, not reject.
+binary_composed_match_plus_opaque
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_independent_join
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result;
+
+result:double
+;
+
+// Default matching pairs equal label sets only: a series with labels never matches the labelless one.
+labeled_times_labelless_default_match_is_empty
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_opaque_signature_match
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(max without (cluster) (last_over_time(network.eth0.tx[5m])) * sum without (cluster, pod, region) (last_over_time(network.eth0.tx[5m])))
+| KEEP result;
+
+result:double
+;
+
+// group_left () copies no label: each left series keeps its own labels, without __name__ after arithmetic.
+group_left_empty_include_keeps_left_labels
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_opaque_signature_match
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(floor(last_over_time(network.eth0.tx{cluster="qa"}[5m])) * on (cluster, pod) group_left () ceil(last_over_time(network.eth0.tx{cluster="qa"}[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+256036.0      | "{""cluster"":""qa"",""pod"":""one""}"
+250000.0      | "{""cluster"":""qa"",""pod"":""three""}"
+824464.0      | "{""cluster"":""qa"",""pod"":""two""}"
+;
+
+// The same over another metric on the one side.
+group_left_empty_include_other_metric_keeps_left_labels
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_opaque_signature_match
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(floor(last_over_time(network.eth0.tx{cluster="qa"}[5m])) * on (cluster, pod) group_left () ceil(last_over_time(network.eth0.rx{cluster="qa"}[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+413908.0      | "{""cluster"":""qa"",""pod"":""one""}"
+264500.0      | "{""cluster"":""qa"",""pod"":""three""}"
+562960.0      | "{""cluster"":""qa"",""pod"":""two""}"
+;
+
+// on (...) over an opaque topk exposes the matched labels as columns.
+topk_plus_on_range_function_keeps_matched_labels
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_opaque_signature_match
+required_capability: promql_topk
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk(1, last_over_time(network.eth0.tx{cluster="qa"}[5m])) + on (pod, cluster) ceil(sum_over_time(network.eth0.tx{cluster="qa"}[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, pod, cluster;
+
+result:double | pod:keyword | cluster:keyword
+6518.0        | two         | qa
 ;

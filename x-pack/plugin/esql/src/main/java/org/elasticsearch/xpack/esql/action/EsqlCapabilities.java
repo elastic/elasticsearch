@@ -2833,6 +2833,15 @@ public class EsqlCapabilities {
         PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Under typed {@code _timeseries}, a vector match's signature slot leaves the named key labels out and a side
+         * without a label container packs the empty signature, so an opaque operand matches a concrete or promoted-label sibling
+         * under {@code ignoring(...)} / default matching the way Prometheus signatures do, and a raw source serves two
+         * label container views that neither contain each other ({@code a * ignoring(pod) group_left(region) b}).
+         * Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
          * into one multi-valued row per series.
          */

@@ -438,10 +438,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * different metrics on a mapping that stores {@code __name__} as a dimension live in separate series, so a fold
      * yields no rows. This is a property of the data layout, not of the translated plans, so it is the one semantic
      * precondition the structural fold check cannot derive. They join on the label container excluding {@code __name__}.
-     *
-     * @param source the plan the command reads, whose dimensions say whether {@code __name__} is stored
      */
-    public boolean readsDisjointSeries(LogicalPlan source) {
+    private boolean readsDisjointSeries(TranslationContext context) {
         if (PromqlLabels.getTagsLabel(left().output()) == null && PromqlLabels.getTagsLabel(right().output()) == null) {
             return false;
         }
@@ -450,7 +448,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (leftNames.isEmpty() || rightNames.isEmpty() || leftNames.equals(rightNames)) {
             return false;
         }
-        return source.output()
+        return context.cmd()
+            .child()
+            .output()
             .stream()
             .anyMatch(a -> a instanceof FieldAttribute f && f.isDimension() && LabelMatcher.NAME.equals(PromqlLabels.labelName(f)));
     }
@@ -515,10 +515,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (collapsed) {
             Frame leftFrame = frame(context, left);
             Frame rightFrame = frame(context, right);
-            if (leftFrame == null
-                || rightFrame == null
-                || leftFrame.sharesGrainWith(rightFrame) == false
-                || readsDisjointSeries(context.cmd().child())) {
+            if (leftFrame == null || rightFrame == null || leftFrame.sharesGrainWith(rightFrame) == false || readsDisjointSeries(context)) {
                 return translateAsLeftJoin(context, leftTranslated, rightTranslated);
             }
             plan = emitBinaryOperatorAggregateExpression(left, leftFrame, right, rightFrame);
@@ -539,7 +536,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                 }
             }
             filter = null;
-        } else if (left.plan() == right.plan() && readsDisjointSeries(context.cmd().child()) == false) {
+        } else if (left.plan() == right.plan() && readsDisjointSeries(context) == false) {
             // Both raw over the shared source (a pure scalar reads it too): the expressions compose; the frame is still
             // pending and the selector predicates stay deferred with it.
             plan = left.plan();

@@ -1763,6 +1763,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** A relabel over an aggregated result keeps its series, whether or not the regex matches, and composes under operators. */
     public void testPromqlLabelReplaceOverAggregatesKeepsSeries() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         String index = "promql-relabel-aggregates";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);

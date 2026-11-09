@@ -52,6 +52,38 @@ public class PromqlPlanSortTests extends AbstractPromqlPlanOptimizerTests {
         assertWarnings("sort: ordering is discarded for range queries");
     }
 
+    /**
+     * Prometheus keeps an instant query's order through steps that pass a sort's values through unchanged, so the result is
+     * ordered by its own value.
+     */
+    public void testInstantSortBelowValuePreservingStepsInjectsOrderBy() {
+        for (String query : List.of(
+            "label_replace(sort(sum by (cluster) (network.bytes_in)), \"dst\", \"$1\", \"cluster\", \"(.*)\")",
+            "sort(network.bytes_in) > 100",
+            "100 < sort_desc(network.bytes_in)",
+            "sort(network.bytes_in) > network.cost"
+        )) {
+            assertEquals(query, 1, planInstant(query).collect(OrderBy.class).size());
+        }
+    }
+
+    /** Below a step that changes the values or the series, ordering by the result's value would not give the sort's order. */
+    public void testInstantSortBelowOtherStepsDoesNotInjectOrderBy() {
+        for (String query : List.of(
+            "abs(sort(network.bytes_in))",
+            "sort(network.bytes_in) * 2",
+            "sum(sort(network.bytes_in))",
+            "topk(1, sort_desc(network.bytes_in))",
+            "sort(network.bytes_in) or network.cost"
+        )) {
+            assertTrue(query, planInstant(query).collect(OrderBy.class).isEmpty());
+        }
+    }
+
+    private LogicalPlan planInstant(String query) {
+        return planPromql("PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" result=(" + query + ")", false);
+    }
+
     private void assertIdentity(String sorted, String bare) {
         LogicalPlan withSort = planPromql("PROMQL index=k8s step=1h result=(" + sorted + ")");
         LogicalPlan without = planPromql("PROMQL index=k8s step=1h result=(" + bare + ")");

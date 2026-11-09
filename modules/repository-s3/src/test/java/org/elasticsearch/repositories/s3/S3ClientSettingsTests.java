@@ -210,53 +210,48 @@ public class S3ClientSettingsTests extends ESTestCase {
         [%s] setting was deprecated in Elasticsearch and will be removed in a future release. \
         See the breaking changes documentation for the next major version.""";
 
-    public void testUnsafelyOmitOptionalRequestBodyChecksumsIsOffByDefaultAndDoesNotWarn() {
+    public void testUnsafelyOmitRequestBodyChecksumsIsOffByDefaultAndDoesNotWarn() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.EMPTY);
-        assertFalse(settings.get("default").unsafelyOmitOptionalRequestBodyChecksums);
+        assertFalse(settings.get("default").unsafelyOmitRequestBodyChecksums);
         // a client that exists but never mentions the setting must not warn either
         final Map<String, S3ClientSettings> withOther = S3ClientSettings.load(
             Settings.builder().put("s3.client.other.max_retries", 10).build()
         );
-        assertFalse(withOther.get("other").unsafelyOmitOptionalRequestBodyChecksums);
+        assertFalse(withOther.get("other").unsafelyOmitRequestBodyChecksums);
         ensureNoWarnings();
     }
 
-    public void testUnsafelyOmitOptionalRequestBodyChecksumsCanBeSetPerClient() {
+    public void testUnsafelyOmitRequestBodyChecksumsCanBeSetPerClient() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.on.unsafely_omit_optional_request_body_checksums", true).build()
+            Settings.builder().put("s3.client.on.unsafely_omit_request_body_checksums", true).build()
         );
-        assertFalse(settings.get("default").unsafelyOmitOptionalRequestBodyChecksums);
-        assertTrue(settings.get("on").unsafelyOmitOptionalRequestBodyChecksums);
-        assertWarnings(
-            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.on.unsafely_omit_optional_request_body_checksums")
-        );
+        assertFalse(settings.get("default").unsafelyOmitRequestBodyChecksums);
+        assertTrue(settings.get("on").unsafelyOmitRequestBodyChecksums);
+        assertWarnings(Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.on.unsafely_omit_request_body_checksums"));
     }
 
     /** A repository can turn the setting on or off whatever its client has, so the override has to be read in both directions. */
     public void testRepositorySettingOverridesTheClientSettingBothWays() {
         final S3ClientSettings clientOff = S3ClientSettings.load(Settings.EMPTY).get("default");
         final S3ClientSettings repositoryOn = clientOff.refine(
-            Settings.builder().put("unsafely_omit_optional_request_body_checksums", true).build()
+            Settings.builder().put("unsafely_omit_request_body_checksums", true).build()
         );
-        assertFalse(clientOff.unsafelyOmitOptionalRequestBodyChecksums);
-        assertTrue(repositoryOn.unsafelyOmitOptionalRequestBodyChecksums);
+        assertFalse(clientOff.unsafelyOmitRequestBodyChecksums);
+        assertTrue(repositoryOn.unsafelyOmitRequestBodyChecksums);
         assertNotSame(clientOff, repositoryOn);
 
         final S3ClientSettings clientOn = S3ClientSettings.load(
-            Settings.builder().put("s3.client.default.unsafely_omit_optional_request_body_checksums", true).build()
+            Settings.builder().put("s3.client.default.unsafely_omit_request_body_checksums", true).build()
         ).get("default");
         final S3ClientSettings repositoryOff = clientOn.refine(
-            Settings.builder().put("unsafely_omit_optional_request_body_checksums", false).build()
+            Settings.builder().put("unsafely_omit_request_body_checksums", false).build()
         );
-        assertTrue(clientOn.unsafelyOmitOptionalRequestBodyChecksums);
-        assertFalse(repositoryOff.unsafelyOmitOptionalRequestBodyChecksums);
+        assertTrue(clientOn.unsafelyOmitRequestBodyChecksums);
+        assertFalse(repositoryOff.unsafelyOmitRequestBodyChecksums);
         assertNotSame(clientOn, repositoryOff);
         assertWarnings(
-            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.default.unsafely_omit_optional_request_body_checksums"),
-            Strings.format(
-                REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT,
-                "s3.client.placeholder.unsafely_omit_optional_request_body_checksums"
-            )
+            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.default.unsafely_omit_request_body_checksums"),
+            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.placeholder.unsafely_omit_request_body_checksums")
         );
     }
 
@@ -267,18 +262,15 @@ public class S3ClientSettingsTests extends ESTestCase {
     public void testRefineWithNothingNewKeepsTheSameInstanceAndValue() {
         final boolean clientValue = randomBoolean();
         final S3ClientSettings client = S3ClientSettings.load(
-            Settings.builder().put("s3.client.default.unsafely_omit_optional_request_body_checksums", clientValue).build()
+            Settings.builder().put("s3.client.default.unsafely_omit_request_body_checksums", clientValue).build()
         ).get("default");
-        assertEquals(clientValue, client.unsafelyOmitOptionalRequestBodyChecksums);
+        assertEquals(clientValue, client.unsafelyOmitRequestBodyChecksums);
         assertSame(client, client.refine(Settings.EMPTY));
         assertSame(client, client.refine(Settings.builder().put("max_retries", client.maxRetries).build()));
-        assertSame(client, client.refine(Settings.builder().put("unsafely_omit_optional_request_body_checksums", clientValue).build()));
+        assertSame(client, client.refine(Settings.builder().put("unsafely_omit_request_body_checksums", clientValue).build()));
         assertWarnings(
-            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.default.unsafely_omit_optional_request_body_checksums"),
-            Strings.format(
-                REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT,
-                "s3.client.placeholder.unsafely_omit_optional_request_body_checksums"
-            )
+            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.default.unsafely_omit_request_body_checksums"),
+            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.placeholder.unsafely_omit_request_body_checksums")
         );
     }
 
@@ -286,30 +278,25 @@ public class S3ClientSettingsTests extends ESTestCase {
      * The client cache is keyed on the settings, so two settings that differ only in this field must not be equal, or a repository
      * could be handed a client that was built without the setting.
      */
-    public void testSettingsDifferingOnlyInUnsafelyOmitOptionalRequestBodyChecksumsAreNotEqual() {
+    public void testSettingsDifferingOnlyInUnsafelyOmitRequestBodyChecksumsAreNotEqual() {
         final S3ClientSettings off = S3ClientSettings.load(Settings.EMPTY).get("default");
-        final S3ClientSettings on = off.refine(Settings.builder().put("unsafely_omit_optional_request_body_checksums", true).build());
+        final S3ClientSettings on = off.refine(Settings.builder().put("unsafely_omit_request_body_checksums", true).build());
 
         assertNotEquals(off, on);
         assertNotEquals(on, off);
         assertNotEquals(off.hashCode(), on.hashCode());
         // and flipping it back gives something equal to where we started
-        final S3ClientSettings offAgain = on.refine(Settings.builder().put("unsafely_omit_optional_request_body_checksums", false).build());
+        final S3ClientSettings offAgain = on.refine(Settings.builder().put("unsafely_omit_request_body_checksums", false).build());
         assertEquals(off, offAgain);
         assertEquals(off.hashCode(), offAgain.hashCode());
         assertWarnings(
-            Strings.format(
-                REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT,
-                "s3.client.placeholder.unsafely_omit_optional_request_body_checksums"
-            )
+            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.placeholder.unsafely_omit_request_body_checksums")
         );
     }
 
     /** The setting is deprecated at critical level and not as a plain warning from the start, so the upgrade assistant reports it. */
-    public void testUnsafelyOmitOptionalRequestBodyChecksumsIsADeprecatedCriticalSetting() {
-        final Setting<Boolean> setting = S3ClientSettings.UNSAFELY_OMIT_OPTIONAL_REQUEST_BODY_CHECKSUMS.getConcreteSettingForNamespace(
-            "other"
-        );
+    public void testUnsafelyOmitRequestBodyChecksumsIsADeprecatedCriticalSetting() {
+        final Setting<Boolean> setting = S3ClientSettings.UNSAFELY_OMIT_REQUEST_BODY_CHECKSUMS.getConcreteSettingForNamespace("other");
         assertTrue(setting.getProperties().contains(Setting.Property.Deprecated));
         assertFalse(setting.getProperties().contains(Setting.Property.DeprecatedWarning));
         assertTrue(setting.get(Settings.builder().put(setting.getKey(), true).build()));

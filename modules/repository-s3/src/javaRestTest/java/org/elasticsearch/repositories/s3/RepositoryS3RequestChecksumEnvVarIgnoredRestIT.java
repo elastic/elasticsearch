@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * For S3 repositories only {@code unsafely_omit_optional_request_body_checksums} decides whether uploads carry a checksum. When it's
+ * For S3 repositories only {@code unsafely_omit_request_body_checksums} decides whether uploads carry a checksum. When it's
  * unset we tell the SDK {@code WHEN_SUPPORTED}, so an operator who set {@code AWS_REQUEST_CHECKSUM_CALCULATION=when_required} on the node
  * doesn't get what they asked for, because a value set on the client builder beats the env var.
  * <p>
@@ -128,11 +128,7 @@ public class RepositoryS3RequestChecksumEnvVarIgnoredRestIT extends ESRestTestCa
         );
         // The registration helper randomly adds the key, so clear it to leave the setting unset. Registering the repository writes a
         // small blob to check that it works, which is a single PutObject.
-        try (
-            var ignored = repository.register(
-                s -> Settings.builder().put(s).putNull("unsafely_omit_optional_request_body_checksums").build()
-            )
-        ) {
+        try (var ignored = repository.register(s -> Settings.builder().put(s).putNull("unsafely_omit_request_body_checksums").build())) {
             assertThat("expected registering the repository to send a PutObject", putObjectCount.get(), greaterThan(0));
             assertThat("uploads must carry a checksum even though the env var asks for when_required", uploadsWithoutChecksum, empty());
         }

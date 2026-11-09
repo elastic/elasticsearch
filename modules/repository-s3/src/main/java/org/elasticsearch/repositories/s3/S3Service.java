@@ -225,7 +225,7 @@ class S3Service extends AbstractLifecycleComponent {
         // AWS_REQUEST_CHECKSUM_CALCULATION env var, the system property and the profile file, so this setting alone decides. The
         // default is 'false', which sets the SDK's own default of WHEN_SUPPORTED.
         s3clientBuilder.requestChecksumCalculation(
-            clientSettings.unsafelyOmitOptionalRequestBodyChecksums
+            clientSettings.unsafelyOmitRequestBodyChecksums
                 ? RequestChecksumCalculation.WHEN_REQUIRED
                 : RequestChecksumCalculation.WHEN_SUPPORTED
         );

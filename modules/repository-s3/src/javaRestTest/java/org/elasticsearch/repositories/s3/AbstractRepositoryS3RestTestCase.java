@@ -58,10 +58,7 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
                     .put(randomFrom(Settings.EMPTY, Settings.builder().put("always_sign_requests", randomBoolean()).build()))
                     .put(randomFrom(Settings.EMPTY, Settings.builder().put("add_purpose_custom_query_parameter", randomBoolean()).build()))
                     .put(
-                        randomFrom(
-                            Settings.EMPTY,
-                            Settings.builder().put("unsafely_omit_optional_request_body_checksums", randomBoolean()).build()
-                        )
+                        randomFrom(Settings.EMPTY, Settings.builder().put("unsafely_omit_request_body_checksums", randomBoolean()).build())
                     )
                     .put(extraRepositorySettings)
                     .build()
@@ -88,9 +85,9 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
                     [s3.client.placeholder.legacy_content_md5] setting was deprecated in Elasticsearch and will be removed \
                     in a future release. See the breaking changes documentation for the next major version.""");
             }
-            if (settings.keySet().contains("unsafely_omit_optional_request_body_checksums")) {
+            if (settings.keySet().contains("unsafely_omit_request_body_checksums")) {
                 expectedWarnings.add("""
-                    [s3.client.placeholder.unsafely_omit_optional_request_body_checksums] setting was deprecated in Elasticsearch and \
+                    [s3.client.placeholder.unsafely_omit_request_body_checksums] setting was deprecated in Elasticsearch and \
                     will be removed in a future release. See the breaking changes documentation for the next major version.""");
             }
             if (expectedWarnings.isEmpty() == false) {

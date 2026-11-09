@@ -4731,6 +4731,15 @@ public class EsqlCapabilities {
          */
         COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch that lacks a column which a sibling branch computes
+         * (with {@code EVAL}, {@code STATS}, {@code RENAME}, ...) reads that column from its own {@code _source}, cast to the type of
+         * the sibling's column, instead of null-filling it. A branch that drops the column still null-fills it.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} is available.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/164545">#164545</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SUBQUERY_COMPUTED_COLUMNS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

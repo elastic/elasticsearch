@@ -7971,6 +7971,7 @@ unmapped-1     | none             | text_state_unmapped    | null
 loadAllSubqueryEvalInOneBranchLoadsSourceValueInSiblings
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_subquery_computed_columns
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -7987,6 +7988,7 @@ from_source:long | computed:long | null_rows:long
 loadAllSubqueryEvalInOneBranchNoKeepLoadsSourceValueInSiblings
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_subquery_computed_columns
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -8003,6 +8005,7 @@ Disconnected from 10.1.0.1 | sub | "{""@timestamp"":""2024-10-23T13:55:01.543Z""
 loadAllSubqueryEvalInOneBranchDroppedInSiblingStaysNull
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_subquery_computed_columns
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;

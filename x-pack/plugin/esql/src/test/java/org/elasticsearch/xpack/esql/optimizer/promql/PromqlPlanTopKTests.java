@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -138,20 +139,40 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(partition(topNBy), equalTo(List.of("pod")));
     }
 
-    public void testTopkWithoutGroupingNotYetSupported() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("topk"));
+    public void testTopkWithoutGroupingPartitionsByTheRest() {
+        assertWithoutPartitionsByTheRest("topk");
     }
 
-    public void testBottomkWithoutGroupingNotYetSupported() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(bottomk(2, network.bytes_in) without (pod))", true)
+    public void testBottomkWithoutGroupingPartitionsByTheRest() {
+        assertWithoutPartitionsByTheRest("bottomk");
+    }
+
+    /**
+     * {@code without (pod)} partitions the ranking by every label but {@code pod} and the metric name, as Prometheus groups a
+     * {@code without}: the series' label container leaving them out. The winning series keep their full identity. A keyword label container
+     * cannot derive that view beside the full one, so it requires a typed label container.
+     */
+    private void assertWithoutPartitionsByTheRest(String function) {
+        String query = "PROMQL index=k8s step=1h result=(" + function + "(2, network.bytes_in) without (pod))";
+        if (typedLabelContainer() == false) {
+            var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
+            assertThat(e.getMessage(), containsString("requires a typed label container"));
+            return;
+        }
+        var plan = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(topNBy.groupings(), hasSize(2));
+        assertThat(topNBy.groupings().get(1).dataType(), equalTo(DataType.TSMD_DATA_TYPE));
+    }
+
+    /** Over named labels {@code without} partitions by the labels it does not list, whatever the label container representation. */
+    public void testTopkWithoutGroupingOverNamedLabelsPartitionsByTheRest() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(topk(1, sum by (pod, region) (network.bytes_in)) without (pod))", false)
         );
-        assertThat(e.getMessage(), containsString("bottomk"));
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(partition(topNBy), equalTo(List.of("region")));
     }
 
     /**
@@ -224,14 +245,9 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(partition(topNBy), equalTo(List.of("pod")));
     }
 
-    public void testLimitkWithoutGroupingNotYetSupported() {
+    public void testLimitkWithoutGroupingPartitionsByTheRest() {
         assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
-
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("limitk"));
+        assertWithoutPartitionsByTheRest("limitk");
     }
 
     public void testLimitkOverSumByRanksAggregateRows() {
@@ -251,8 +267,8 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
 
     /** The labels {@code topNBy} partitions by, besides the step: they pack into one key. */
     private static List<String> partition(TopNBy topNBy) {
-        assertThat(topNBy.groupings().stream().map(g -> ((Attribute) g).name()).toList(), hasItem(PackDims.PACKED_FIELD_NAME));
         PackDims pack = as(topNBy.child().collect(PackDims.class).getFirst(), PackDims.class);
+        assertThat(topNBy.groupings(), hasItem(pack.packed()));
         return pack.dims().stream().map(Attribute::name).toList();
     }
 }

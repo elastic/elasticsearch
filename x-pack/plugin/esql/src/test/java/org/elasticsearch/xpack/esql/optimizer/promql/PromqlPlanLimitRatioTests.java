@@ -275,12 +275,15 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
         assertThat(plan.collect(MvExpand.class).isEmpty(), equalTo(false));
     }
 
-    public void testLimitRatioWithoutGroupingNotYetSupported() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("limit_ratio"));
+    /**
+     * Sampling is membership-neutral, so {@code without} partitions select the series bare {@code limit_ratio} does, on any
+     * label container representation: the sampling key is the series identity alone.
+     */
+    public void testLimitRatioWithoutGroupingIsMembershipNeutral() {
+        var bare = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in))");
+        var without = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) without (pod))");
+        assertThat(samplingKeyNames(without), equalTo(List.of(MetadataAttribute.TIMESERIES)));
+        assertThat(samplingKeyNames(without), equalTo(samplingKeyNames(bare)));
     }
 
     /**

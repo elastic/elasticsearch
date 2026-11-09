@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSe
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -724,7 +725,9 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
             if (labels.isEmpty()) {
                 return child;
             }
-            Attribute packed = new ReferenceAttribute(child.source(), null, PackDims.PACKED_FIELD_NAME, DataType.KEYWORD);
+            // Named apart from a key packed below or above, such as an aggregate's over the same labels.
+            String name = TemporaryNameGenerator.locallyUniqueTemporaryName(PackDims.PACKED_FIELD_NAME);
+            Attribute packed = new ReferenceAttribute(child.source(), null, name, DataType.KEYWORD);
             keys.add(packed);
             return new PackDims(child.source(), child, labels, packed, true);
         }

@@ -1687,6 +1687,35 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * group_left copies the one side's labels over the many side's: two many side series left with the same labels fail the
+     * query, as in Prometheus, rather than come back as two series with one label set. Prometheus matches before it compares,
+     * so a comparison no series passes fails too; copying a label the series agree on keeps them apart.
+     */
+    public void testPromqlGroupLeftLabelCollisionFails() {
+        String index = "promql-group-left-collision";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "optional", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "optional", "east", "tx", 3.0);
+        refresh(index);
+
+        for (String expression : List.of(
+            "tx * on(cluster) group_left(host) sum by (cluster) (tx)",
+            "tx > on(cluster) group_left(host) (sum by (cluster) (tx) * 100)"
+        )) {
+            var error = expectThrows(Exception.class, () -> run(promqlQuery(index, expression)));
+            assertThat(error.getMessage(), containsString("input must not have duplicates"));
+        }
+        try (
+            EsqlQueryResponse response = run(
+                promqlQuery(index, "tx * on(cluster) group_left(optional) sum by (cluster, optional) (tx)")
+                    + " | KEEP result, optional | SORT result"
+            )
+        ) {
+            assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(List.of(4.0, "east"), List.of(12.0, "east"))));
+        }
+    }
+
     private void createOptionalLabelMetricsIndex(String index) {
         assertAcked(
             indicesAdmin().prepareCreate(index)

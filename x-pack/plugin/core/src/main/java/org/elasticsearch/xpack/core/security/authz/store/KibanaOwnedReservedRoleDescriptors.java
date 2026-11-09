@@ -919,6 +919,10 @@ class KibanaOwnedReservedRoleDescriptors {
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".internal.alerts-security.alerts-*")
                 .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("ai-index-idx-security-triage-decisions")
+                .privileges("read", "view_index_metadata", "index", "auto_configure")
                 .build()
         );
     }

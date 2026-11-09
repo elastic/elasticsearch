@@ -46,6 +46,9 @@ public class EsqlSpillFormatsIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
 
+    /** Whether {@link #enableSpilling} got past its assumptions, so that {@link #disableSpilling} has something to undo. */
+    private boolean spilling;
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
@@ -54,6 +57,9 @@ public class EsqlSpillFormatsIT extends ESRestTestCase {
     @Before
     public void enableSpilling() throws IOException {
         assumeTrue("the spill settings and pragmas exist in snapshot builds", Build.current().isSnapshot());
+        // This suite also runs against stateless clusters, where the disk store's plugin is not loaded: nothing spills.
+        assumeFalse("the disk spill store is stateful only", FederationNodeSettings.isStateless(client()));
+        spilling = true;
         Request settings = new Request("PUT", "/_cluster/settings");
         settings.setJsonEntity("""
             {"persistent": {"esql.spill.enabled": true}}""");
@@ -77,7 +83,7 @@ public class EsqlSpillFormatsIT extends ESRestTestCase {
 
     @After
     public void disableSpilling() throws Exception {
-        if (Build.current().isSnapshot() == false) {
+        if (spilling == false) {
             return;
         }
         assertStoreEmpty();

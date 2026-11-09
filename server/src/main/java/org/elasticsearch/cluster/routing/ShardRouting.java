@@ -36,96 +36,6 @@ import java.util.Objects;
  */
 public final class ShardRouting implements Writeable, ToXContentObject {
 
-    /// Describes the priority of a recovery. The [#ordinal()] is significant, with lower values indicating higher priorities.
-    public enum RecoveryPriority implements Writeable {
-
-        /// A primary shard which is unassigned because it is newly created.
-        ///
-        /// This is considered high priority because recovery should be fast, so we can get this out of the way and unblock writes to the
-        /// new index (including allowing bulk operations which auto-create an index to complete).
-        UNASSIGNED_NEW_PRIMARY(false, true),
-
-        /// A shard which is unassigned because of an unexpected condition, i.e. some kind of failure.
-        ///
-        /// Recovering this shard may be necessary to prevent the index being unavailable.
-        UNASSIGNED_UNEXPECTED(false, true),
-
-        /// A shard which is unassigned for an expected condition, i.e. because of a user operation such as opening or restoring an index,
-        /// but which is not an [#UNASSIGNED_NEW_PRIMARY].
-        UNASSIGNED_EXPECTED(false, true),
-
-        /// A shard which is assigned, and is being relocated because
-        /// [org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders#canRemain] returned
-        /// [org.elasticsearch.cluster.routing.allocation.decider.Decision#NO].
-        RELOCATION_CAN_REMAIN_NO(true, false),
-
-        /// A shard which is assigned, and is being relocated because
-        /// [org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders#canRemain] returned
-        /// [org.elasticsearch.cluster.routing.allocation.decider.Decision#NOT_PREFERRED].
-        RELOCATION_CAN_REMAIN_NOT_PREFERRED(true, false),
-
-        /// A shard which is assigned, and is being relocated for rebalancing.
-        RELOCATE_REBALANCING(true, false),
-
-        /// Placeholder value for unknown priorities. This can be used in a short-lived `ShardRouting` (for example, for use in a balancing
-        /// calculation) but it must _not_ be used in a `ShardRouting` which will be added to the `ClusterState`. It can also appear in a
-        /// [org.elasticsearch.indices.recovery.RecoveryState] received from an older node.
-        UNKNOWN(true, true);
-
-        private final boolean isValidForRelocation;
-        private final boolean isValidForUnassigned;
-
-        RecoveryPriority(boolean isValidForRelocation, boolean isValidForUnassigned) {
-            this.isValidForRelocation = isValidForRelocation;
-            this.isValidForUnassigned = isValidForUnassigned;
-        }
-
-        public static RecoveryPriority readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
-                return in.readEnum(RecoveryPriority.class);
-            } else {
-                // Deserialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values:
-                int legacyOrdinal = in.readVInt();
-                return switch (legacyOrdinal) {
-                    case 0 -> UNASSIGNED_UNEXPECTED;
-                    case 1 -> UNASSIGNED_EXPECTED;
-                    case 2 -> RELOCATION_CAN_REMAIN_NO;
-                    case 3 -> RELOCATION_CAN_REMAIN_NOT_PREFERRED;
-                    case 4 -> RELOCATE_REBALANCING;
-                    default -> throw new IllegalArgumentException("Unexpected value for legacy RecoveryPriority ordinal: " + legacyOrdinal);
-                };
-            }
-        }
-
-        // visible for testing
-        boolean isValidForRelocation() {
-            return isValidForRelocation;
-        }
-
-        // visible for testing
-        public boolean isValidForUnassigned() {
-            return isValidForUnassigned;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
-                out.writeEnum(this);
-            } else {
-                // Serialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values,
-                // or the nearest fallbacks:
-                int legacyOrdinal = switch (this) {
-                    case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED -> 0;
-                    case UNASSIGNED_EXPECTED -> 1;
-                    case RELOCATION_CAN_REMAIN_NO -> 2;
-                    case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 3;
-                    case RELOCATE_REBALANCING, UNKNOWN -> 4;
-                };
-                out.writeVInt(legacyOrdinal);
-            }
-        }
-    }
-
     /**
      * Used if shard size is not available
      */
@@ -133,10 +43,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     // visible for testing
     static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName("recovery_priority_in_shard_routing");
-
-    /// Introduced along with [RecoveryPriority#UNKNOWN] and [RecoveryPriority#UNASSIGNED_NEW_PRIMARY]
-    private static final TransportVersion RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION = TransportVersion
-        .fromName("recovery_priority_unknown_and_unassigned_new_primary");
 
     private final ShardId shardId;
     private final String currentNodeId;

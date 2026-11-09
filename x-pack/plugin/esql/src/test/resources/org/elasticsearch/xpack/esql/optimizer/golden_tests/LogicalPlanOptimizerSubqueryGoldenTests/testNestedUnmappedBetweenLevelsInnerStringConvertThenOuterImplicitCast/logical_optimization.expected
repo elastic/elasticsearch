@@ -1,7 +1,7 @@
 Project[[@timestamp{r}#0, msg{r}#1]]
 \_TopN[[Order[@timestamp{r}#0,ASC,LAST]],1000[INTEGER],false]
   \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
-    |_Project[[@timestamp{r}#2, client_ip{f}#3, event_duration{f}#4, message{f}#5, msg{r}#6, missing_outer{f(MissingEsField)}#7, $$message$converted_to$keyword{r}#8]]
+    |_Project[[@timestamp{r}#2, client_ip{f}#3, event_duration{f}#4, message{f}#5, msg{r}#6, missing_outer{f(MissingEsField)}#7, $$message$converted_to$keyword{r$}#8]]
     | \_Filter[ISNOTNULL(@timestamp{r}#2) OR ISNOTNULL(missing_outer{f(MissingEsField)}#7)]
     |   \_Eval[[null[KEYWORD] AS msg#6, TODATENANOS(@timestamp{f}#9) AS @timestamp#2, null[KEYWORD] AS $$message$converted_to$keyword#8]]
     |     \_EsRelation[sample_data][@timestamp{f}#9, client_ip{f}#3, event_duration{f}#4, message{f}#5, missing_outer{f(MissingEsField)}#7]

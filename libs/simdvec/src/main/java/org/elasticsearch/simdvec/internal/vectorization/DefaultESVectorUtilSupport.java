@@ -21,6 +21,8 @@ import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -810,24 +812,48 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
-        Arrays.fill(result, 0);
-        multiplyAccumulate(a, k, b, result, m, k, n, false, executor);
+    public void matrixMultiply(
+        float[] a,
+        int aOffset,
+        float[] b,
+        int bOffset,
+        int m,
+        int k,
+        int n,
+        float[] result,
+        int resultOffset,
+        TaskExecutor executor
+    ) {
+        Arrays.fill(result, resultOffset, resultOffset + m * n, 0);
+        multiplyAccumulate(a, aOffset, k, b, bOffset, result, resultOffset, m, k, n, false, executor);
     }
 
     @Override
-    public void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
-        Arrays.fill(result, 0);
-        multiplyAccumulate(a, k, b, result, n, k, n, true, executor);
+    public void matrixMultiplySymmetric(
+        float[] a,
+        int aOffset,
+        float[] b,
+        int bOffset,
+        int n,
+        int k,
+        float[] result,
+        int resultOffset,
+        TaskExecutor executor
+    ) {
+        Arrays.fill(result, resultOffset, resultOffset + n * n, 0);
+        multiplyAccumulate(a, aOffset, k, b, bOffset, result, resultOffset, n, k, n, true, executor);
     }
 
     private static final int MIN_PARALLEL_TASKS = 16;
 
     /**
      * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
-     * {@code a[i * aRowStride + l]}.
+     * {@code a[aOff + i * aRowStride + l]}.
      *
+     * @param aOff       offset in {@code a} of the first element of the left operand
      * @param aRowStride distance in {@code a} between consecutive rows of the left operand
+     * @param bOff       offset in {@code b} of the first element of B
+     * @param cOff       offset in {@code c} of the first element of C
      * @param cRows      rows of C, and of the left operand
      * @param inner      inner dimension of the multiplication
      * @param n          columns of C, and of B
@@ -836,9 +862,12 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      */
     private void multiplyAccumulate(
         float[] a,
+        int aOff,
         int aRowStride,
         float[] b,
+        int bOff,
         float[] c,
+        int cOff,
         int cRows,
         int inner,
         int n,
@@ -852,7 +881,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
         if (executor == null || taskNum < MIN_PARALLEL_TASKS) {
             for (int r = 0; r < cRows; r++) {
-                multiplyRow(a, aRowStride, b, c, inner, n, r, upperOnly, innerLimit);
+                multiplyRow(a, aOff, aRowStride, b, bOff, c, cOff, inner, n, r, upperOnly, innerLimit);
             }
         } else {
             List<Callable<Void>> ops = new ArrayList<>(taskNum);
@@ -861,7 +890,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
                 int rowEnd = Math.min(r + 4, cRows);
                 ops.add(() -> {
                     for (int i = rowStart; i < rowEnd; i++) {
-                        multiplyRow(a, aRowStride, b, c, inner, n, i, upperOnly, innerLimit);
+                        multiplyRow(a, aOff, aRowStride, b, bOff, c, cOff, inner, n, i, upperOnly, innerLimit);
                     }
                     return null;
                 });
@@ -881,14 +910,27 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * complete copies it into column {@code i} below the diagonal. Only the task for row {@code i} writes that column, so
      * tasks for different rows do not write the same entries.
      */
-    private void multiplyRow(float[] a, int aRowStride, float[] b, float[] c, int inner, int n, int i, boolean upperOnly, int innerLimit) {
+    private void multiplyRow(
+        float[] a,
+        int aOff,
+        int aRowStride,
+        float[] b,
+        int bOff,
+        float[] c,
+        int cOff,
+        int inner,
+        int n,
+        int i,
+        boolean upperOnly,
+        int innerLimit
+    ) {
         int firstColumn = upperOnly ? i : 0;
-        int aBase = i * aRowStride;
-        int cBase = i * n;
+        int aBase = aOff + i * aRowStride;
+        int cBase = cOff + i * n;
         int l = 0;
         for (; l < innerLimit; l += 4) {
             int aOffset = aBase + l;
-            int b0 = l * n;
+            int b0 = bOff + l * n;
             int b1 = b0 + n;
             int b2 = b0 + n * 2;
             int b3 = b0 + n * 3;
@@ -903,13 +945,108 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
         // tail
         for (; l < inner; l++) {
-            linearCombination(a[aBase + l], b, l * n + firstColumn, c, cBase + firstColumn, n - firstColumn);
+            linearCombination(a[aBase + l], b, bOff + l * n + firstColumn, c, cBase + firstColumn, n - firstColumn);
         }
         if (upperOnly) {
             for (int j = i + 1; j < n; j++) {
-                c[j * n + i] = c[cBase + j];
+                c[cOff + j * n + i] = c[cBase + j];
             }
         }
+    }
+
+    @Override
+    public void matrixMultiplyI8(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result, TaskExecutor executor) {
+        multiplyAccumulate(a, k, b, result, m, k, n, executor);
+    }
+
+    /**
+     * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
+     * {@code a[i * aRowStride + l]}.
+     *
+     * @param aRowStride distance in {@code a} between consecutive rows of the left operand
+     * @param cRows      rows of C, and of the left operand
+     * @param inner      inner dimension of the multiplication
+     * @param n          columns of C, and of B
+     */
+    private void multiplyAccumulate(
+        MemorySegment a,
+        int aRowStride,
+        MemorySegment b,
+        MemorySegment c,
+        int cRows,
+        int inner,
+        int n,
+        TaskExecutor executor
+    ) {
+        // unroll 4x, so 4 values are accumulated into each c cell at once
+        int innerLimit = inner - inner % 4;
+        int taskNum = cRows / 4;
+
+        if (executor == null || taskNum < MIN_PARALLEL_TASKS) {
+            for (int r = 0; r < cRows; r++) {
+                multiplyRow(a, aRowStride, b, c, inner, n, r, innerLimit);
+            }
+        } else {
+            List<Callable<Void>> ops = new ArrayList<>(taskNum);
+            for (int r = 0; r < cRows; r += 4) {
+                int rowStart = r;
+                int rowEnd = Math.min(r + 4, cRows);
+                ops.add(() -> {
+                    for (int i = rowStart; i < rowEnd; i++) {
+                        multiplyRow(a, aRowStride, b, c, inner, n, i, innerLimit);
+                    }
+                    return null;
+                });
+            }
+
+            try {
+                executor.invokeAll(ops);
+            } catch (IOException e) {
+                // can't happen
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    private void multiplyRow(MemorySegment a, int aRowStride, MemorySegment b, MemorySegment c, int inner, int n, int i, int innerLimit) {
+        int aBase = i * aRowStride;
+        int l = 0;
+        byte[][] bs = new byte[4][n];
+        int[] accs = new int[n];
+        for (; l < innerLimit; l += 4) {
+            int av = a.get(ValueLayout.JAVA_INT_UNALIGNED, aBase + l);
+            // bytes are signed here, so the sign needs to be maintained. Conversion from byte to int does that
+            byte aV0 = (byte) av;
+            byte aV1 = (byte) (av >> 8);
+            byte aV2 = (byte) (av >> 16);
+            byte aV3 = (byte) (av >> 24);
+
+            int b0 = l * n;
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0, bs[0], 0, n);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0 + n, bs[1], 0, n);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0 + n * 2L, bs[2], 0, n);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0 + n * 3L, bs[3], 0, n);
+
+            for (int j = 0; j < n; j++) {
+                int acc = accs[j];
+                acc += aV0 * bs[0][j];
+                acc += aV1 * bs[1][j];
+                acc += aV2 * bs[2][j];
+                acc += aV3 * bs[3][j];
+                accs[j] = acc;
+            }
+        }
+
+        // tail
+        for (; l < inner; l++) {
+            int aVal = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, (long) l * n, bs[0], 0, n);
+            for (int d = 0; d < n; d++) {
+                accs[d] += aVal * bs[0][d];
+            }
+        }
+
+        MemorySegment.copy(accs, 0, c, ValueLayout.JAVA_INT, (long) i * n * Integer.BYTES, n);
     }
 
     @Override

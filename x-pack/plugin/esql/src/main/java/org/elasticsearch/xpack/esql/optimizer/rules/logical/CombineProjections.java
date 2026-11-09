@@ -83,10 +83,13 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                     throw new EsqlIllegalArgumentException("Expected an attribute or grouping function, got {}", grouping);
                 }
             }
-            assert groupings.size() <= 1
-                || groupings.stream()
-                    .anyMatch(group -> group.anyMatch(expr -> expr instanceof GroupingFunction.NonEvaluatableGroupingFunction)) == false
-                : "CombineProjections only tested with a single CATEGORIZE with no additional groups";
+            // Combining CATEGORIZE with additional groups through a projection is not a tested shape;
+            // leave the plan as is rather than rewriting through an untested path (#165176).
+            if (groupings.size() > 1
+                && groupings.stream()
+                    .anyMatch(group -> group.anyMatch(expr -> expr instanceof GroupingFunction.NonEvaluatableGroupingFunction))) {
+                return plan;
+            }
 
             // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
             AttributeMap.Builder<Attribute> aliasesBuilder = AttributeMap.builder();

@@ -1,8 +1,6 @@
 # Schedule and pipeline registration live in catalog-info.yaml.
+# Shared release/runtime defaults: .buildkite/scripts/promcheck-common.sh.
 env:
-  PROMCHECK_VER: "0.11.0+prometheus-3.13.1"
-  PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
-  PROMCHECK_CORPUS: grafanalabs-top100
   PROMCHECK_RESULTS_URL: https://overview-elastic-cloud-com.es.us-east-1.aws.found.io
   PROMCHECK_RESULTS_NAMESPACE: experimental
   PROMCHECK_RESULTS_SECRET: secret/ci/elastic-elasticsearch/promcheck-results

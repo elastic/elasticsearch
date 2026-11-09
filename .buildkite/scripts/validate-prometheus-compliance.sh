@@ -7,11 +7,10 @@
 # The grafanalabs-top100.tar.gz release asset supplies the dataset and queries.
 #
 # Required environment:
-#   PROMCHECK_VER                    promcheck release version without the v prefix.
-#   PROMCHECK_TEST_INSTANCE_TIMEOUT  Elasticsearch startup timeout in seconds.
 #   GITHUB_PR_TARGET_BRANCH          PR target branch used to find the merge base.
 #   GH_TOKEN or GITHUB_TOKEN         GitHub token for release asset downloads.
 #   GRADLEW                          CI Gradle command from the pre-command hook; its options are reused.
+# Shared release, corpus, and startup timeout defaults live in promcheck-common.sh.
 # Optional environment:
 #   PROMCHECK_CONCURRENCY            Cases and seeding writes promcheck keeps in flight (default: the CPU count).
 #   PROMETHEUS_COMPLIANCE_TMPDIR     Scratch/artifact parent directory (default /tmp).
@@ -20,11 +19,13 @@
 # When buildkite-agent is available, the report is annotated and saved as PR-comment
 # metadata for the build bot (the pipeline enables ELASTIC_PR_COMMENTS_ENABLED).
 # With the argument notify, it only posts the running note as an early PR comment and exits;
-# that needs PROMCHECK_VER alone.
+# that needs only the shared release configuration.
 
 # Requires Bash 4.4+ (the Buildkite agent runs Linux).
 set -euo pipefail
 shopt -s inherit_errexit lastpipe
+
+source "$(dirname "${BASH_SOURCE[0]}")/promcheck-common.sh"
 
 log() {
   printf '%s\n' "$*" >&2
@@ -52,46 +53,16 @@ configure_report() {
 
 configure() {
   configure_report true
-  declare -gr CORPUS=grafanalabs-top100
-
-  local var cmd
-  for var in PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH GRADLEW; do
-    [[ -n "${!var:-}" ]] || die "$var must be set"
-  done
-  for cmd in curl getconf git jq tee sort mkfifo; do
+  declare -gr CORPUS="$PROMCHECK_CORPUS"
+  [[ -n "${GITHUB_PR_TARGET_BRANCH:-}" ]] || die "GITHUB_PR_TARGET_BRANCH must be set"
+  promcheck_configure || return
+  local cmd
+  for cmd in git sort; do
     command -v "$cmd" >/dev/null 2>&1 || die "$cmd must be on the PATH"
   done
-  if [[ ! "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
-    die "PROMCHECK_TEST_INSTANCE_TIMEOUT must be a positive integer: $PROMCHECK_TEST_INSTANCE_TIMEOUT"
-  fi
-
-  if [[ -z "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]]; then
-    die "GH_TOKEN or GITHUB_TOKEN must be set"
-  fi
-
-  declare -gr GITHUB_API_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
   # Changed queries listed per section; the full list is the changes artifact.
   declare -gr MAX_ROWS=50
   declare -gr MAX_QUERY_CHARS=200
-  # Size the node for the agent: every CPU (test clusters default to node.processors=2, which also caps the JVM at
-  # two) and a quarter of the memory as heap; the rest is for the Gradle daemon, promcheck's in-process Prometheus,
-  # the page cache, and the checkouts on the ramdisk. promcheck keeps one case or seeding write in flight per CPU by
-  # default, which gives the same results as a sequential run, only sooner; 100 was no faster on n1-standard-8, since
-  # the node is CPU-bound.
-  local cpus pages page_size
-  cpus=$(getconf _NPROCESSORS_ONLN)
-  pages=$(getconf _PHYS_PAGES)
-  page_size=$(getconf PAGESIZE)
-  declare -gr AGENT_CPUS="$cpus"
-  declare -gr ES_HEAP="$(( pages * page_size / 4 / 1024 / 1024 ))m"
-  declare -gr PROMCHECK_CONCURRENCY="${PROMCHECK_CONCURRENCY:-$cpus}"
-  if [[ ! "$PROMCHECK_CONCURRENCY" =~ ^[1-9][0-9]*$ ]]; then
-    die "PROMCHECK_CONCURRENCY must be a positive integer: $PROMCHECK_CONCURRENCY"
-  fi
-  # The options of the Gradle command every CI job uses (build cache, its URL, build scans), without ./gradlew itself.
-  local -a gradlew_words
-  read -ra gradlew_words <<< "$GRADLEW"
-  declare -gra GRADLEW_OPTIONS=("${gradlew_words[@]:1}")
 
   # The pipeline uploads OUTPUT_DIR as artifacts. Tests point TMP_ROOT at a scratch directory.
   declare -gr TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
@@ -166,65 +137,6 @@ cleanup() {
     rm -rf -- "$control_dir"
   fi
   git worktree prune || log "Failed to prune worktrees"
-}
-
-# Keep the authorization header out of curl's process arguments.
-github_curl() {
-  printf 'Authorization: Bearer %s\n' "$GITHUB_API_TOKEN" |
-    curl -fsSL --retry 3 --retry-delay 2 -H @- "$@"
-}
-
-# Downloads a promcheck release asset by name.
-download_asset() {
-  local release="$1"
-  local name="$2"
-  local target="$3"
-  local url
-  url=$(jq -er --arg name "$name" '.assets[] | select(.name == $name) | .url' <<< "$release") \
-    || not_compared "The promcheck v$PROMCHECK_VER release has no $name"
-  github_curl -H "Accept: application/octet-stream" -o "$target" -- "$url" \
-    || not_compared "Could not download $name"
-}
-
-# Runs promcheck against Elasticsearch built from the given checkout. promcheck exits 1 when queries fail, which
-# is a result; any other exit code means the run itself failed.
-# Arguments after -- go to promcheck's ./gradlew run: the CI Gradle options from GRADLEW, which pull task outputs from
-# the remote build cache that main CI pushes to and publish a build scan for each run, and .ci/init.gradle, which
-# configures that cache. promcheck fixes only what every run needs; the node's size and settings are this job's.
-run_promcheck() {
-  local workspace="$1" log_file="$2"
-  local stderr_log="${2%.log}.stderr.log" fifo="$WORK_DIR/promcheck-stderr.fifo"
-  local stderr_pid stderr_status=0
-  local -a statuses gradle_args=(
-    "${GRADLEW_OPTIONS[@]}"
-    --configuration-cache
-    -I "$workspace/.ci/init.gradle"
-    "-Dtests.es.node.processors=$AGENT_CPUS"
-    "-Dtests.heap.size=$ES_HEAP"
-    -Drun.license_type=trial
-    -Dtests.es.xpack.ml.enabled=false
-  )
-  mkfifo -- "$fifo" || return
-  tee -- "$stderr_log" < "$fifo" >&2 &
-  stderr_pid=$!
-  NO_COLOR=1 "$PROMCHECK_BIN" \
-    --elasticsearch "$workspace" \
-    --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
-    --output json \
-    --concurrency "$PROMCHECK_CONCURRENCY" \
-    -- "${gradle_args[@]}" \
-    < "$BUNDLE" 2> "$fifo" | tee -- "$log_file"
-  statuses=("${PIPESTATUS[@]}")
-  wait "$stderr_pid" || stderr_status=$?
-  rm -f -- "$fifo"
-  # The node log times the build, startup, and seeding of each run; the merge-base worktree is gone after the job.
-  cp -- "$workspace/build/testclusters/runTask-0/logs/runTask.log" "${log_file%.log}.elasticsearch.log" 2>/dev/null || true
-  (( (statuses[0] == 0 || statuses[0] == 1) && statuses[1] == 0 && stderr_status == 0 ))
-}
-
-# Trust promcheck's summary; combine the error buckets for the console output.
-summary() {
-  jq -ec 'select(.type == "summary") | . + {errors: (.es_4xx + .es_5xx + .error)}' -- "$1"
 }
 
 # NUL-delimited fields preserve tabs, newlines, and backslashes in query text.
@@ -420,12 +332,12 @@ on_exit() {
 
 # A subshell keeps main's locals available to the EXIT trap on errexit as well as explicit exit.
 main() (
-  local control_dir="" release arch base revision control_summary test_summary regressions
+  local control_dir="" base revision control_summary test_summary regressions
   local style=success status=0 final_report=false
   # Populated and consumed through namerefs in the helpers.
   # shellcheck disable=SC2034
   local -a changes=()
-  configure
+  configure || exit $?
   trap 'on_exit "$?" "$control_dir" "$final_report"' EXIT
 
   rm -rf -- "$WORK_DIR" "$OUTPUT_DIR"
@@ -435,18 +347,7 @@ main() (
   announce_running
 
   log "--- Downloading promcheck v$PROMCHECK_VER"
-  release=$(
-    github_curl -H "Accept: application/vnd.github+json" \
-      -- "https://api.github.com/repos/elastic/promcheck/releases/tags/v$PROMCHECK_VER"
-  ) || not_compared "Could not fetch the promcheck v$PROMCHECK_VER release"
-  case "$(uname -m)" in
-    x86_64) arch=amd64 ;;
-    aarch64 | arm64) arch=arm64 ;;
-    *) not_compared "Unsupported architecture $(uname -m)" ;;
-  esac
-  download_asset "$release" "promcheck-linux-$arch" "$PROMCHECK_BIN"
-  download_asset "$release" "$CORPUS.tar.gz" "$BUNDLE"
-  chmod -- +x "$PROMCHECK_BIN"
+  promcheck_download "$PROMCHECK_BIN" "$BUNDLE" || not_compared "Could not prepare promcheck"
 
   log "--- Checking out the merge base with $GITHUB_PR_TARGET_BRANCH"
   git fetch --no-tags -- origin "+refs/heads/$GITHUB_PR_TARGET_BRANCH:refs/remotes/origin/$GITHUB_PR_TARGET_BRANCH" \
@@ -460,12 +361,12 @@ main() (
   git worktree add --detach -- "$control_dir" "$base" || not_compared "Could not check out the merge base $base"
 
   log "--- Running promcheck on the merge base $base"
-  run_promcheck "$control_dir" "$CONTROL_LOG" || not_compared "The control run failed"
-  control_summary=$(summary "$CONTROL_LOG") || not_compared "The control run printed no promcheck summary"
+  promcheck_run "$control_dir" "$PROMCHECK_BIN" "$BUNDLE" "$CONTROL_LOG" || not_compared "The control run failed"
+  control_summary=$(promcheck_summary "$CONTROL_LOG") || not_compared "The control run printed no promcheck summary"
 
   log "--- Running promcheck on the PR $revision"
-  run_promcheck "$PWD" "$TEST_LOG" || not_compared "The test run failed"
-  test_summary=$(summary "$TEST_LOG") || not_compared "The test run printed no promcheck summary"
+  promcheck_run "$PWD" "$PROMCHECK_BIN" "$BUNDLE" "$TEST_LOG" || not_compared "The test run failed"
+  test_summary=$(promcheck_summary "$TEST_LOG") || not_compared "The test run printed no promcheck summary"
 
   log "--- Reporting"
   compare_results "$CONTROL_LOG" "$TEST_LOG" changes || not_compared "Could not compare promcheck results"

@@ -40,6 +40,23 @@ You should always make changes to the template files, and run the above command 
 
 Node (technically `bun`), TypeScript, and related files are currently used to generate pipelines for pull request CI. See [scripts/pull-request](scripts/pull-request) for details.
 
+## Shared promcheck runner
+
+The PR comparison and nightly pipelines source
+[`scripts/promcheck-common.sh`](scripts/promcheck-common.sh), following the shared
+shell-helper pattern used by other Buildkite scripts. It is the single source for
+the pinned release (`PROMCHECK_VER`), startup timeout
+(`PROMCHECK_TEST_INSTANCE_TIMEOUT`), and corpus (`PROMCHECK_CORPUS`). Environment
+overrides are supported; neither YAML pipeline repeats those defaults.
+
+The module downloads the binary and corpus together, reuses the agent's `GRADLEW`
+cache/scan options, sizes Elasticsearch and query concurrency for the agent, and
+runs promcheck with `--output json`. JSONL stdout and diagnostics have separate
+artifacts. A shared summary reader validates complete, consistent counts before
+reporting. The two entry points retain their own behavior: the PR compares the
+merge base and PR and publishes a regression report; nightly records one run in
+Overview. Their YAML files describe the steps, agents, and artifact destinations.
+
 ## Prometheus nightly
 
 [`prometheus-nightly.yml`](pipelines/prometheus-nightly.yml) runs the pinned promcheck
@@ -77,9 +94,9 @@ Each completed run follows the existing Overview document schema: `@timestamp`,
 `status`, `dataset`, `git`, `promcheck`, `buildkite`, `data_stream`, and
 `compliance`. Compliance contains `input_total`, `executed_total`, `executed_success`, `executed_failure`,
 `executed_error`, `executed_skip`, and `success_pct` (matches divided by input
-queries, rounded to one decimal). The current unfiltered run has equal input and
-executed totals. HTTP errors count as executed errors; flaky and response-filtered
-queries count as skips. `status: ok` means the run completed, including runs with
+queries, rounded to one decimal). Input and inspected totals come directly from
+the JSON summary, including request-filtered queries when present. HTTP errors
+count as executed errors; flaky and response-filtered queries count as skips. `status: ok` means the run completed, including runs with
 query failures. The `counts.json` artifact retains the detailed verdict breakdown.
 Uploaded documents use the existing mapped fields.
 
@@ -106,12 +123,14 @@ Uploads use `PUT /<data-stream>/_create/<build-and-corpus-id>`, as required for
 writing to a data stream. A version conflict on retry means that result was
 already created. Query failures (exit code 1) are indexed normally; an incomplete
 run, missing or inconsistent verdict, or failed upload fails the step. Full query
-diagnostics remain in the `promcheck.log` artifact alongside `counts.json`, `result.json`, and
-`index-response.json`.
+results in JSONL remain in `promcheck.log`; diagnostics are saved separately in
+`promcheck.stderr.log`. The artifacts also include `counts.json`, `result.json`,
+`index-response.json`, and the Elasticsearch node log when available.
 
-To verify the runner without building Elasticsearch or contacting remote services:
+To verify both entry points without building Elasticsearch or contacting remote
+services, use a Linux host with Bash 4.4+ (the PR reporter uses Bash namerefs):
 
 ```bash
 cd .buildkite
-node node_modules/vitest/vitest.mjs run scripts/prometheus-nightly.test.ts
+node node_modules/vitest/vitest.mjs run scripts/prometheus-nightly.test.ts scripts/validate-prometheus-compliance.test.ts
 ```

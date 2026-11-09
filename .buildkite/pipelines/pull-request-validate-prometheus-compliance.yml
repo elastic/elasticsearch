@@ -1,9 +1,7 @@
 # Detects mismatches between Prometheus and Elasticsearch on a pull request and its merge base. Runs standalone:
 # a 'buildkite run promcheck' PR comment triggers it (see .buildkite/pull-requests.json), and the build
 # bot posts the report as a PR comment when this build ends.
-env:
-  PROMCHECK_VER: "0.11.0+prometheus-3.13.1"
-  PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
+# Shared release/runtime defaults: .buildkite/scripts/promcheck-common.sh.
 steps:
   # Comments on the PR as soon as the build starts; the report replaces the comment when the build ends.
   - label: notify

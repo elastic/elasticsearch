@@ -449,6 +449,16 @@ esac
     expect(r.report).toBe("");
   });
 
+  test.each([
+    (log: string) => log + log,
+    (log: string) => log.replace('"total":2', '"total":3'),
+  ])("invalid summaries are rejected before comparing queries", (invalidate) => {
+    const r = run(STABLE, STABLE, { controlLog: invalidate(promcheckLog(STABLE)) });
+    expect(r.status).toBe(0);
+    expect(r.agent).toContain("**Not compared**");
+    expect(r.report).toBe("");
+  });
+
   test("a failed JSON field extraction produces Not compared", () => {
     writeFileSync(join(dir, "bin", "jq"), `#!/bin/bash
 [[ $1 == -jn ]] && exit 5

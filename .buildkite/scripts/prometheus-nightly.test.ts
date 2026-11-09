@@ -5,7 +5,8 @@ import { join, resolve } from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const SCRIPT = resolve(import.meta.dirname, "prometheus-nightly.sh");
-const VERDICT = "6 inspected: 1 match, 1 mismatch, 1 4xx, 1 5xx, 1 error, 1 flaky";
+const COUNTS = { type: "summary", total: 6, inspected: 6, match: 1, mismatch: 1, es_4xx: 1, es_5xx: 1, error: 1, request_filtered: 0, response_filtered: 0, flaky: 1 };
+const VERDICT = JSON.stringify(COUNTS);
 
 describe("prometheus-nightly.sh", () => {
   let dir: string;
@@ -14,12 +15,15 @@ describe("prometheus-nightly.sh", () => {
     mkdirSync(join(dir, "bin"));
     // Only external services and the downloaded executable are replaced. Real jq parses the verdict
     // and builds the indexed document; no Elasticsearch build or remote writes occur in these tests.
-    writeFileSync(join(dir, "promcheck"), '#!/bin/bash\nprintf "%s\\n" "$TEST_LOG"\nexit "$TEST_RC"\n', { mode: 0o755 });
+    writeFileSync(join(dir, "promcheck"), '#!/bin/bash\nprintf "%s\\n" "$*" > "$TEST_DIR/args.log"\nprintf "nightly diagnostics\\n" >&2\nprintf "%s\\n" "$TEST_LOG"\nexit "$TEST_RC"\n', { mode: 0o755 });
+    // The runner sizes Linux CI nodes via getconf; these tests run on developer machines too.
+    writeFileSync(join(dir, "bin", "getconf"), '#!/bin/bash\ncase "$1" in _NPROCESSORS_ONLN) echo 8;; _PHYS_PAGES) echo 2097152;; PAGESIZE) echo 4096;; *) exit 1;; esac\n', { mode: 0o755 });
     writeFileSync(join(dir, "bin", "vault"), `#!/bin/bash\nprintf '%s' '{"data":{"url":"https://vault-results.example","api_key":"vault-key"}}'\n`, { mode: 0o755 });
     writeFileSync(join(dir, "bin", "curl"), `#!/bin/bash
 out= url=
 while (($#)); do
   case "$1" in
+    -H) [[ $2 == @- ]] && cat >/dev/null; shift ;;
     -o) out=$2; shift ;;
     --data-binary) cp "\${2#@}" "$TEST_DIR/upload.json"; shift ;;
     https://*) url=$1 ;;
@@ -44,9 +48,7 @@ esac
         ...process.env,
         PATH: `${join(dir, "bin")}:${process.env.PATH}`,
         GH_TOKEN: "fake-github-token",
-        PROMCHECK_VER: "0.11.0+prometheus-3.13.1",
-        PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
-        PROMCHECK_CORPUS: "grafanalabs-top100",
+        GRADLEW: "./gradlew --build-cache --scan",
         PROMCHECK_RESULTS_NAMESPACE: "experimental",
         PROMCHECK_RESULTS_URL: "https://results.example/",
         PROMCHECK_RESULTS_API_KEY: "fake-results-key",
@@ -71,7 +73,7 @@ esac
     const r = run();
     expect(r.status, r.stdout + r.stderr).toBe(0);
     const result = JSON.parse(readFileSync(join(dir, "upload.json"), "utf8"));
-    expect(JSON.parse(readFileSync(join(dir, "output", "counts.json"), "utf8"))).toEqual({ total: 6, match: 1, mismatch: 1, http4xx: 1, http5xx: 1, error: 1, response_filtered: 0, flaky: 1 });
+    expect(JSON.parse(readFileSync(join(dir, "output", "counts.json"), "utf8"))).toEqual({ ...COUNTS, errors: 3 });
     expect(result).toMatchObject({
       status: "ok", dataset: "grafanalabs-top100",
       data_stream: { type: "synthetics", dataset: "promql.support", namespace: "experimental" },
@@ -82,6 +84,24 @@ esac
     expect(result.git.commit).toMatch(/^[a-f0-9]{40}$/);
     expect(readFileSync(join(dir, "upload.url"), "utf8")).toBe("https://results.example/synthetics-promql.support-experimental/_create/build-123-grafanalabs-top100");
     expect(r.stdout + r.stderr).not.toContain("fake-results-key");
+  });
+
+  test("uses the shared JSON runner, agent sizing, and CI Gradle options", () => {
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    const args = readFileSync(join(dir, "args.log"), "utf8");
+    expect(args).toContain("--output json --concurrency 8 -- --build-cache --scan --configuration-cache");
+    expect(args).toContain("-Dtests.es.node.processors=8 -Dtests.heap.size=2048m");
+    expect(readFileSync(join(dir, "output", "promcheck.stderr.log"), "utf8")).toBe("nightly diagnostics\n");
+    expect(readFileSync(join(dir, "output", "promcheck.log"), "utf8")).not.toContain("diagnostics");
+  });
+
+  test("uses input totals for coverage when queries were request-filtered", () => {
+    const r = run({ TEST_LOG: JSON.stringify({ ...COUNTS, total: 8, request_filtered: 2 }) });
+    expect(r.status, r.stderr).toBe(0);
+    expect(JSON.parse(readFileSync(join(dir, "upload.json"), "utf8")).compliance).toMatchObject({
+      input_total: 8, executed_total: 6, success_pct: 12.5,
+    });
   });
 
   test("keeps the destination and namespace tag consistent when changed", () => {
@@ -108,8 +128,8 @@ esac
     expect(existsSync(join(dir, "upload.json"))).toBe(false);
   });
 
-  test("supports successful runs, bias memos, and response filters", () => {
-    const r = run({ TEST_RC: "0", TEST_LOG: "4 inspected: 2 match (1 bias-forgiven), 0 mismatch, 0 4xx, 0 5xx, 1 response-filtered, 1 flaky" });
+  test("supports successful JSON runs and response filters", () => {
+    const r = run({ TEST_RC: "0", TEST_LOG: JSON.stringify({ ...COUNTS, total: 4, inspected: 4, match: 2, mismatch: 0, es_4xx: 0, es_5xx: 0, error: 0, response_filtered: 1 }) });
     expect(r.status, r.stderr).toBe(0);
     expect(JSON.parse(readFileSync(join(dir, "output", "counts.json"), "utf8")).response_filtered).toBe(1);
   });
@@ -117,7 +137,9 @@ esac
   test.each([
     { TEST_RC: "2" },
     { TEST_LOG: "starting..." },
-    { TEST_LOG: "7 inspected: 1 match, 1 mismatch, 1 4xx, 1 5xx, 1 error, 1 flaky" },
+    { TEST_LOG: JSON.stringify({ ...COUNTS, total: 7 }) },
+    { TEST_LOG: VERDICT + "\n" + VERDICT },
+    { TEST_LOG: VERDICT + "\n{broken" },
     { TEST_UPLOAD_RC: "22" },
     { TEST_RESPONSE: '{"error":"rejected"}' },
     { TEST_HTTP_STATUS: "403" },

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.migrate.task;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -32,7 +31,6 @@ public class ReindexDataStreamTaskTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         ReindexDataStreamTask task = new ReindexDataStreamTask(
-            ProjectId.DEFAULT,
             clusterService,
             System.currentTimeMillis(),
             0,

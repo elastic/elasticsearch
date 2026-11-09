@@ -72,7 +72,9 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
             .custom(PersistentTasksCustomMetadata.TYPE);
         int totalIndices = initialTotalIndices;
         int totalIndicesToBeUpgraded = initialTotalIndicesToBeUpgraded;
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(getPersistentTaskId());
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata == null
+            ? null
+            : persistentTasksCustomMetadata.getTask(getPersistentTaskId());
         if (persistentTask != null) {
             ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTask.getState();
             if (state != null && state.totalIndices() != null && state.totalIndicesToBeUpgraded() != null) {

@@ -294,7 +294,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         for (var e : List.of(
-          executeWithMissingShard(restoring, null), 
+          executeWithMissingShard(restoring, null),
           executeWithMissingShard(notReporting, notReporting.state()),
           executeWithMissingShard(notReporting, notReporting.state())) {
             assertThat(

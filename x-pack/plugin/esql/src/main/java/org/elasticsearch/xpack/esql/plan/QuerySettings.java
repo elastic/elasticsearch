@@ -204,7 +204,6 @@ public final class QuerySettings {
         description = "When enabled, a wildcard in `FROM` also matches registered datasets."
             + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_datasets` cluster setting supplies it. If that cluster setting is not "
             + "configured either, the value is `false`."
@@ -223,7 +222,7 @@ public final class QuerySettings {
         description = "When enabled, a wildcard in `FROM` also matches registered views."
             + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
+            + "{applies_to}`{\"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not "
             + "configured either, the value is `false`."
@@ -284,6 +283,17 @@ public final class QuerySettings {
         .build();
 
     @Param(
+        name = "time_series_reduce_per_index",
+        type = { "boolean" },
+        description = "When enabled, time-series aggregates are reduced separately in each index before results are combined. This uses "
+            + "less memory and can improve query performance, but results may be approximate for time buckets that overlap index rollover "
+            + "boundaries and for windowed aggregates whose windows reach across those boundaries. Defaults to `false`."
+    )
+    public static final QuerySettingDef<Boolean> TIME_SERIES_REDUCE_PER_INDEX = QuerySettingDef.bool("time_series_reduce_per_index")
+        .withTelemetryLabels(List.of("false", "true"), value -> Boolean.toString(Boolean.TRUE.equals(value)))
+        .build();
+
+    @Param(
         name = "exemplars",
         type = { "boolean", "map_param" },
         description = "When enabled, the provided `TS ... | STATS` or `PROMQL` query is not executed. Instead, exemplars considered"
@@ -328,6 +338,7 @@ public final class QuerySettings {
         WILDCARDS_MATCH_VIEWS,
         PROJECT_ROUTING,
         TIME_ZONE,
+        TIME_SERIES_REDUCE_PER_INDEX,
         UNMAPPED_FIELDS
     );
 

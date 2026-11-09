@@ -746,7 +746,7 @@ final class PageColumnReader implements Releasable {
     // --- Boolean ---
 
     private Block readBooleanBatch(int maxRows, BlockFactory blockFactory) {
-        boolean[] values = UninitializedArrays.newBooleanArray(maxRows);
+        boolean[] values = ValueArrays.booleans(maxRows, maxDefLevel > 0);
         if (maxDefLevel == 0) {
             int produced = readNonNullBooleans(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantBoolean(values, produced, blockFactory);
@@ -808,7 +808,7 @@ final class PageColumnReader implements Releasable {
     // --- Int ---
 
     private Block readIntBatch(int maxRows, BlockFactory blockFactory) {
-        int[] values = UninitializedArrays.newIntArray(maxRows);
+        int[] values = ValueArrays.ints(maxRows, maxDefLevel > 0);
         if (maxDefLevel == 0) {
             int produced = readNonNullInts(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantInt(values, produced, blockFactory);
@@ -880,7 +880,7 @@ final class PageColumnReader implements Releasable {
      *                       detection keeps a constant {@code unsigned_long} column correctly encoded.
      */
     private Block readLongBatch(int maxRows, BlockFactory blockFactory, boolean encodeUnsigned) {
-        long[] values = UninitializedArrays.newLongArray(maxRows);
+        long[] values = ValueArrays.longs(maxRows, maxDefLevel > 0);
         if (maxDefLevel == 0) {
             int produced = readNonNullLongs(values, 0, maxRows);
             if (encodeUnsigned) {
@@ -956,7 +956,7 @@ final class PageColumnReader implements Releasable {
     // --- Int32 widened to Long ---
 
     private Block readInt32AsLongBatch(int maxRows, BlockFactory blockFactory, boolean signed) {
-        long[] values = UninitializedArrays.newLongArray(maxRows);
+        long[] values = ValueArrays.longs(maxRows, maxDefLevel > 0);
         if (maxDefLevel == 0) {
             int produced = readNonNullInt32AsLong(values, 0, maxRows, signed);
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
@@ -1038,7 +1038,7 @@ final class PageColumnReader implements Releasable {
             return readFloat16Batch(maxRows, blockFactory);
         }
         boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
-        double[] values = UninitializedArrays.newDoubleArray(maxRows);
+        double[] values = ValueArrays.doubles(maxRows, maxDefLevel > 0);
         if (maxDefLevel == 0) {
             int produced = readNonNullDoubles(values, 0, maxRows, isFloat);
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
@@ -1110,7 +1110,7 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block readDecimalAsDoubleBatch(int maxRows, int scale, BlockFactory blockFactory) {
-        double[] values = UninitializedArrays.newDoubleArray(maxRows);
+        double[] values = ValueArrays.doubles(maxRows, maxDefLevel > 0);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -1184,7 +1184,7 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block readFloat16Batch(int maxRows, BlockFactory blockFactory) {
-        double[] values = UninitializedArrays.newDoubleArray(maxRows);
+        double[] values = ValueArrays.doubles(maxRows, maxDefLevel > 0);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -1438,7 +1438,7 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block readBytesBatchAsOrdinals(int maxRows, BlockFactory blockFactory) {
-        int[] ordinals = UninitializedArrays.newIntArray(maxRows);
+        int[] ordinals = ValueArrays.ints(maxRows, maxDefLevel > 0);
         WordMask nulls = maxDefLevel > 0 ? buffers.nullsMask(maxRows) : null;
         int produced = 0;
         int remaining = maxRows;
@@ -1717,7 +1717,7 @@ final class PageColumnReader implements Releasable {
                 bytes.close();
             }
         }
-        long[] values = UninitializedArrays.newLongArray(maxRows);
+        long[] values = ValueArrays.longs(maxRows, maxDefLevel > 0);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -1808,7 +1808,7 @@ final class PageColumnReader implements Releasable {
      */
     private Block readDateNanosBatch(int maxRows, BlockFactory blockFactory) {
         boolean micros = ParquetColumnDecoding.isMicrosTemporal(info.logicalType());
-        long[] values = UninitializedArrays.newLongArray(maxRows);
+        long[] values = ValueArrays.longs(maxRows, maxDefLevel > 0);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -1923,7 +1923,7 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block readInt96Batch(int maxRows, BlockFactory blockFactory) {
-        long[] values = UninitializedArrays.newLongArray(maxRows);
+        long[] values = ValueArrays.longs(maxRows, maxDefLevel > 0);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;

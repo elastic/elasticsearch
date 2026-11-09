@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.checks;
 
+import org.codehaus.groovy.control.CompilationFailedException;
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -250,6 +251,69 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                     )
                 );
             }
+        }
+        validateExecutionClosures(scriptFile, content, relativePath, ignoreEntriesByKey, matchedIgnoredViolations, problems, violations);
+    }
+
+    private void validateExecutionClosures(
+        File scriptFile,
+        String content,
+        String relativePath,
+        Map<IgnoreKey, IgnoreEntry> ignoreEntriesByKey,
+        Map<IgnoreEntry, Integer> matchedIgnoredViolations,
+        List<Problem> problems,
+        List<String> violations
+    ) {
+        final List<ExecutionClosureScanner.Finding> findings;
+        try {
+            findings = ExecutionClosureScanner.scan(relativePath, content);
+        } catch (CompilationFailedException e) {
+            String label = "[build-script-parse-failure] " + relativePath;
+            violations.add("- " + label + System.lineSeparator() + "  " + e.getMessage());
+            problems.add(
+                problemReporter.create(
+                    ProblemId.create(
+                        "build-script-parse-failure",
+                        "Cannot parse build.gradle for execution-closure validation",
+                        ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS
+                    ),
+                    spec -> spec.contextualLabel(label)
+                        .details(e.getMessage())
+                        .fileLocation(scriptFile.getAbsolutePath())
+                        .solution(
+                            "Fix the Groovy syntax in this build.gradle; execution-closure validation cannot safely skip an unparsed script."
+                        )
+                )
+            );
+            return;
+        }
+        for (ExecutionClosureScanner.Finding finding : findings) {
+            IgnoreEntry ignoreEntry = ignoreEntriesByKey.get(new IgnoreKey(ExecutionClosureScanner.RULE_ID, relativePath));
+            if (ignoreEntry != null && ignoreEntry.matchesConsumed(matchedIgnoredViolations.getOrDefault(ignoreEntry, 0)) == false) {
+                matchedIgnoredViolations.merge(ignoreEntry, 1, Integer::sum);
+                continue;
+            }
+            String label = "[" + ExecutionClosureScanner.RULE_ID + "] " + relativePath + ":" + finding.line();
+            violations.add("- " + label + " (" + finding.reference() + ")");
+            problems.add(
+                problemReporter.create(
+                    ProblemId.create(
+                        ExecutionClosureScanner.RULE_ID,
+                        "Project-model reference in task execution closure",
+                        ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS
+                    ),
+                    spec -> spec.contextualLabel(label)
+                        .details(
+                            "Direct "
+                                + finding.reference()
+                                + " access in doFirst/doLast/onlyIf is unsafe at execution time with the configuration cache."
+                        )
+                        .lineInFileLocation(scriptFile.getAbsolutePath(), finding.line(), finding.column())
+                        .solution(
+                            "Capture the required value at configuration time, or use a typed task with declared inputs and injected services."
+                        )
+                )
+            );
         }
     }
 

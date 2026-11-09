@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 164599
+pr: 164602
+summary: Keep implicit @timestamp off STATS groupings
+type: bug

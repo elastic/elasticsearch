@@ -1992,8 +1992,8 @@ public class PromqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class OffsetContext extends ParserRuleContext {
     public TerminalNode OFFSET() { return getToken(PromqlBaseParser.OFFSET, 0); }
-    public ConstantContext constant() {
-      return getRuleContext(ConstantContext.class,0);
+    public TimeValueContext timeValue() {
+      return getRuleContext(TimeValueContext.class,0);
     }
     public TerminalNode LP() { return getToken(PromqlBaseParser.LP, 0); }
     public DurationContext duration() {
@@ -2052,7 +2052,6 @@ public class PromqlBaseParser extends ParserConfig {
       setState(262);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
-      case STRING:
       case INTEGER_VALUE:
       case DECIMAL_VALUE:
       case HEXADECIMAL:
@@ -2061,7 +2060,7 @@ public class PromqlBaseParser extends ParserConfig {
       case NAMED_OR_POSITIONAL_PARAM:
         {
         setState(257);
-        constant();
+        timeValue();
         }
         break;
       case LP:
@@ -2800,7 +2799,7 @@ public class PromqlBaseParser extends ParserConfig {
     "#\u0001\u0000\u0000\u0000\u00fd\u00ff\u0005\u001a\u0000\u0000\u00fe\u0100"+
     "\u0007\u0000\u0000\u0000\u00ff\u00fe\u0001\u0000\u0000\u0000\u00ff\u0100"+
     "\u0001\u0000\u0000\u0000\u0100\u0106\u0001\u0000\u0000\u0000\u0101\u0107"+
-    "\u0003*\u0015\u0000\u0102\u0103\u0005\"\u0000\u0000\u0103\u0104\u0003"+
+    "\u00030\u0018\u0000\u0102\u0103\u0005\"\u0000\u0000\u0103\u0104\u0003"+
     "&\u0013\u0000\u0104\u0105\u0005#\u0000\u0000\u0105\u0107\u0001\u0000\u0000"+
     "\u0000\u0106\u0101\u0001\u0000\u0000\u0000\u0106\u0102\u0001\u0000\u0000"+
     "\u0000\u0107%\u0001\u0000\u0000\u0000\u0108\u0109\u0003\u0002\u0001\u0000"+

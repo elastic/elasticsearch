@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PromqlParserTests extends ESTestCase {
@@ -603,6 +604,10 @@ public class PromqlParserTests extends ESTestCase {
             equalTo(Duration.ofMillis(-1000))
         );
         assertThat(
+            as(parse("PROMQL index=test step=5m foo offset 0.0016").promqlPlan(), InstantSelector.class).evaluation().offset().value(),
+            equalTo(Duration.ofMillis(1))
+        );
+        assertThat(
             as(parse("PROMQL index=test step=5m foo[0.0009]").promqlPlan(), RangeSelector.class).range().fold(null),
             equalTo(Duration.ofMillis(1))
         );
@@ -738,6 +743,12 @@ public class PromqlParserTests extends ESTestCase {
                 assertModifiers(comparison.left(), Duration.ofMinutes(5), 100_000L);
             }
         }
+    }
+
+    /** Prometheus: an offset is a number or a duration, never a string; the grammar rejects one before the builder sees it. */
+    public void testStringOffsetIsSyntaxError() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo offset \"5m\""));
+        assertThat(e.getMessage(), not(containsString("Expected a duration")));
     }
 
     private static void assertModifiers(LogicalPlan plan, Duration offset, Long at) {

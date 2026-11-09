@@ -11,20 +11,32 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportMessageListener;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -35,17 +47,20 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
  * Compares end-to-end latency of simple "search" queries that Lucene can answer directly when issued through the
  * {@code _search} API versus ES|QL. The goal is to measure the dispatch and planning overhead ES|QL adds on top of
  * Lucene for queries that do not need the compute engine, so the cluster is pinned to a single data node, three
- * shards and no replicas, and pragmas are not randomized.
+ * shards and no replicas, and pragmas are not randomized. {@link EsqlVsSearchLatencyMultiNodeIT} runs the same
+ * comparison with the shards spread over several nodes.
  * <p>
  * The test logs a table with the median and minimum client-side latency per query shape and only asserts that
- * both engines return the same number of hits.
+ * both engines return the same number of hits. It also logs, per engine, the transport requests the coordinator sends
+ * during a query with their send offset and round trip, which is what separates the two engines once the shards are
+ * on other nodes.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
 
     private static final String INDEX = "docs";
     private static final int NUM_DOCS = Integer.parseInt(System.getProperty("tests.latency.docs", "10000"));
-    private static final int NUM_SHARDS = Integer.parseInt(System.getProperty("tests.latency.shards", "3"));
+    protected static final int NUM_SHARDS = Integer.parseInt(System.getProperty("tests.latency.shards", "3"));
     /** Overridable with {@code -Dtests.latency.warmup} and {@code -Dtests.latency.iterations}, e.g. for profiling runs. */
     private static final int WARMUP = Integer.parseInt(System.getProperty("tests.latency.warmup", "50"));
     private static final int ITERATIONS = Integer.parseInt(System.getProperty("tests.latency.iterations", "200"));
@@ -75,22 +90,72 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
         return new QueryPragmas(Settings.EMPTY);
     }
 
+    private final HopTracer hopTracer = new HopTracer();
+    private MockTransportService tracedTransportService;
+
+    /** The hop tracer needs the mock transport service on the coordinator; it is otherwise only added at random. */
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        var plugins = new ArrayList<>(super.getMockPlugins());
+        if (plugins.contains(MockTransportService.TestPlugin.class) == false) {
+            plugins.add(MockTransportService.TestPlugin.class);
+        }
+        return plugins;
+    }
+
+    /** The node both engines are queried through, and whose outbound transport requests are traced. */
+    protected String coordinatorNodeName() {
+        return internalCluster().getNodeNames()[0];
+    }
+
+    /** The client both engines are measured through, pinned to {@link #coordinatorNodeName()}. */
+    protected Client queryClient() {
+        return client(coordinatorNodeName());
+    }
+
+    /** Hook for subclasses to add allocation settings to the measured index. */
+    protected Settings.Builder indexSettings(Settings.Builder settings) {
+        return settings;
+    }
+
+    /**
+     * Number of segments each shard ends up with, unless {@code -Dtests.latency.segments} is set. One keeps the
+     * Lucene side out of the comparison; more segments show what the per-segment slicing costs.
+     */
+    protected int defaultSegments() {
+        return 1;
+    }
+
     @Before
     public void setupIndex() {
+        // Segments per shard, overridable with -Dtests.latency.segments.
+        int segments = Integer.parseInt(System.getProperty("tests.latency.segments", Integer.toString(defaultSegments())));
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(INDEX)
                 .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", NUM_SHARDS)
-                        .put("index.number_of_replicas", 0)
-                        .put("index.refresh_interval", -1)
+                    indexSettings(
+                        Settings.builder()
+                            .put("index.number_of_shards", NUM_SHARDS)
+                            .put("index.number_of_replicas", 0)
+                            .put("index.refresh_interval", -1)
+                    )
                 )
                 .setMapping(mapping())
         );
+        ensureGreen(INDEX);
+        // Each batch is refreshed on its own so that every shard gets one segment per batch, then the force merge below
+        // caps the segment count without collapsing them into one.
+        int batchSize = Math.max(1, NUM_DOCS / segments);
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
         for (int i = 0; i < NUM_DOCS; i++) {
+            if (i > 0 && i % batchSize == 0) {
+                var batchResponse = bulk.get();
+                assertFalse(batchResponse.buildFailureMessage(), batchResponse.hasFailures());
+                refresh(INDEX);
+                bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+            }
             StringBuilder body = new StringBuilder();
             for (int w = 0; w < 20; w++) {
                 body.append(WORDS[(i * 7 + w * 3) % WORDS.length]).append(' ');
@@ -119,9 +184,54 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
         }
         var bulkResponse = bulk.get();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-        client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get();
+        client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(segments).get();
         refresh(INDEX);
         assertHitCount(client().prepareSearch(INDEX).setSize(0).setTrackTotalHits(true), NUM_DOCS);
+        logSetup();
+        tracedTransportService = MockTransportService.getInstance(coordinatorNodeName());
+        tracedTransportService.addMessageListener(hopTracer);
+        for (String node : internalCluster().getNodeNames()) {
+            if (node.equals(coordinatorNodeName()) == false) {
+                MockTransportService.getInstance(node).addMessageListener(hopTracer.serverSide);
+            }
+        }
+    }
+
+    @After
+    public void removeHopTracer() {
+        if (tracedTransportService != null) {
+            tracedTransportService.removeMessageListener(hopTracer);
+            for (String node : internalCluster().getNodeNames()) {
+                if (node.equals(coordinatorNodeName()) == false) {
+                    MockTransportService.getInstance(node).removeMessageListener(hopTracer.serverSide);
+                }
+            }
+            tracedTransportService = null;
+        }
+    }
+
+    /** Logs where the shards ended up and how many segments they have, so the numbers can be read in context. */
+    private void logSetup() {
+        StringBuilder sb = new StringBuilder("SETUP docs [").append(NUM_DOCS)
+            .append("] shards [")
+            .append(NUM_SHARDS)
+            .append("] coordinator [")
+            .append(coordinatorNodeName())
+            .append("]\n");
+        var nodes = internalCluster().clusterService().state().nodes();
+        var segmentsResponse = client().admin().indices().prepareSegments(INDEX).get();
+        for (var shard : segmentsResponse.getIndices().get(INDEX).getShards().values()) {
+            for (var copy : shard.shards()) {
+                sb.append("  shard ")
+                    .append(shard.shardId().id())
+                    .append(" on ")
+                    .append(nodes.get(copy.getShardRouting().currentNodeId()).getName())
+                    .append(" segments [")
+                    .append(copy.getSegments().size())
+                    .append("]\n");
+            }
+        }
+        logger.info("\n{}", sb);
     }
 
     private static String mapping() {
@@ -143,18 +253,21 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
     public void testLatency() {
         compare(
             "match limit 10",
-            () -> client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("body", "lucene")).setSize(10).setFetchSource(false),
+            () -> queryClient().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("body", "lucene")).setSize(10).setFetchSource(false),
             "FROM docs | WHERE match(body, \"lucene\") | KEEP id | LIMIT 10"
         );
         String phrase = WORDS[0] + " " + WORDS[3 % WORDS.length]; // the first two words of every body built from offset 0
         compare(
             "match_phrase limit 10",
-            () -> client().prepareSearch(INDEX).setQuery(QueryBuilders.matchPhraseQuery("body", phrase)).setSize(10).setFetchSource(false),
+            () -> queryClient().prepareSearch(INDEX)
+                .setQuery(QueryBuilders.matchPhraseQuery("body", phrase))
+                .setSize(10)
+                .setFetchSource(false),
             "FROM docs | WHERE match_phrase(body, \"" + phrase + "\") | KEEP id | LIMIT 10"
         );
         compare(
             "term keep 3 fields",
-            () -> client().prepareSearch(INDEX)
+            () -> queryClient().prepareSearch(INDEX)
                 .setQuery(QueryBuilders.termQuery("category", "cat3"))
                 .setSize(10)
                 .setFetchSource(new String[] { "id", "category", "title" }, null),
@@ -162,17 +275,20 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
         );
         compare(
             "match count",
-            () -> client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("body", "lucene")).setSize(0).setTrackTotalHits(true),
+            () -> queryClient().prepareSearch(INDEX)
+                .setQuery(QueryBuilders.matchQuery("body", "lucene"))
+                .setSize(0)
+                .setTrackTotalHits(true),
             "FROM docs | WHERE match(body, \"lucene\") | STATS c = COUNT(*)"
         );
         compare(
             "match_all limit 10",
-            () -> client().prepareSearch(INDEX).setQuery(QueryBuilders.matchAllQuery()).setSize(10).setFetchSource(false),
+            () -> queryClient().prepareSearch(INDEX).setQuery(QueryBuilders.matchAllQuery()).setSize(10).setFetchSource(false),
             "FROM docs | KEEP id | LIMIT 10"
         );
         compare(
             "term sort id top 10",
-            () -> client().prepareSearch(INDEX)
+            () -> queryClient().prepareSearch(INDEX)
                 .setQuery(QueryBuilders.termQuery("category", "cat3"))
                 .addSort("id", org.elasticsearch.search.sort.SortOrder.DESC)
                 .setSize(10)
@@ -181,7 +297,7 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
         );
         compare(
             "search style: 3 matches + date range, sort desc, top 500 _source",
-            () -> client().prepareSearch(INDEX)
+            () -> queryClient().prepareSearch(INDEX)
                 .setQuery(
                     QueryBuilders.boolQuery()
                         .must(QueryBuilders.matchQuery("category", "cat3"))
@@ -199,7 +315,7 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
         // The wikipedia rally track shape: scored full text search over two text fields, returning id, score and source.
         compare(
             "wikipedia style: match OR match, sort _score desc, top 20 _id _score _source",
-            () -> client().prepareSearch(INDEX)
+            () -> queryClient().prepareSearch(INDEX)
                 .setQuery(
                     QueryBuilders.boolQuery()
                         .should(QueryBuilders.matchQuery("title", "lucene"))
@@ -212,7 +328,7 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
         );
         compare(
             "wikipedia style ids-only: match OR match, sort _score desc, top 20 _id _score",
-            () -> client().prepareSearch(INDEX)
+            () -> queryClient().prepareSearch(INDEX)
                 .setQuery(
                     QueryBuilders.boolQuery()
                         .should(QueryBuilders.matchQuery("title", "lucene"))
@@ -227,7 +343,7 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
         // pipelines. "*lucene*" selects the same documents as a match on the token, which is what the DSL side runs.
         compare(
             "log style: term + LIKE on text + date range, sort desc, top 500 _source",
-            () -> client().prepareSearch(INDEX)
+            () -> queryClient().prepareSearch(INDEX)
                 .setQuery(
                     QueryBuilders.boolQuery()
                         .must(QueryBuilders.termQuery("category", "cat3"))
@@ -298,6 +414,150 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
             )
         );
         profileEsql(name, esql);
+        traceHops(name, "dsl", () -> {
+            SearchResponse resp = dsl.get().get();
+            resp.decRef();
+        });
+        traceHops(name, "esql", () -> {
+            try (EsqlQueryResponse resp = runDirect(syncEsqlQueryRequest(esql).pragmas(getPragmas()))) {
+                assertFalse(resp.isPartial());
+            }
+        });
+    }
+
+    /**
+     * Records the transport requests the coordinator sends while running the query and logs, per action, how many are
+     * sent per query, when the first one goes out, how long each takes and when the last response is back, all relative
+     * to the start of the query. Requests to the coordinator itself are marked {@code (local)}.
+     */
+    private void traceHops(String name, String engine, Runnable query) {
+        for (int i = 0; i < WARMUP; i++) {
+            query.run();
+        }
+        Map<String, List<Long>> perQueryCount = new TreeMap<>();
+        Map<String, List<Long>> firstSend = new TreeMap<>();
+        Map<String, List<Long>> duration = new TreeMap<>();
+        Map<String, List<Long>> lastDone = new TreeMap<>();
+        long[] totals = new long[ITERATIONS];
+        for (int i = 0; i < ITERATIONS; i++) {
+            hopTracer.reset();
+            long start = System.nanoTime();
+            query.run();
+            totals[i] = System.nanoTime() - start;
+            Map<String, List<Hop>> byAction = new TreeMap<>();
+            for (Hop hop : hopTracer.completed()) {
+                byAction.computeIfAbsent(hop.action(), k -> new ArrayList<>()).add(hop);
+            }
+            for (Map.Entry<String, List<Hop>> e : byAction.entrySet()) {
+                List<Hop> hops = e.getValue();
+                sample(perQueryCount, e.getKey(), hops.size());
+                sample(firstSend, e.getKey(), hops.stream().mapToLong(h -> h.sentNanos() - start).min().orElseThrow());
+                sample(lastDone, e.getKey(), hops.stream().mapToLong(h -> h.doneNanos() - start).max().orElseThrow());
+                for (Hop hop : hops) {
+                    sample(duration, e.getKey(), hop.doneNanos() - hop.sentNanos());
+                }
+            }
+        }
+        StringBuilder sb = new StringBuilder("HOPS [").append(name)
+            .append("] ")
+            .append(engine)
+            .append(String.format(Locale.ROOT, " (median query %.3f ms)%n", ms(percentile(totals, 50))));
+        sb.append(
+            String.format(
+                Locale.ROOT,
+                "  %-60s %8s %14s %14s %14s%n",
+                "action",
+                "per query",
+                "first send ms",
+                "round trip ms",
+                "last done ms"
+            )
+        );
+        List<String> actions = new ArrayList<>(perQueryCount.keySet());
+        actions.sort((a, b) -> Long.compare(percentile(toArray(firstSend.get(a)), 50), percentile(toArray(firstSend.get(b)), 50)));
+        for (String action : actions) {
+            sb.append(
+                String.format(
+                    Locale.ROOT,
+                    "  %-60s %8d %14.3f %14.3f %14.3f%n",
+                    action,
+                    percentile(toArray(perQueryCount.get(action)), 50),
+                    ms(percentile(toArray(firstSend.get(action)), 50)),
+                    ms(percentile(toArray(duration.get(action)), 50)),
+                    ms(percentile(toArray(lastDone.get(action)), 50))
+                )
+            );
+        }
+        logger.info("\n{}", sb);
+    }
+
+    private static long[] toArray(List<Long> values) {
+        return values.stream().mapToLong(Long::longValue).toArray();
+    }
+
+    private record Hop(String action, long sentNanos, long doneNanos) {}
+
+    private record Pending(String action, long sentNanos) {}
+
+    /**
+     * Pairs every request the coordinator sends with its response, by request id. {@link #serverSide} does the same on
+     * the other nodes for the requests they receive, reported as {@code action [server]} spans.
+     */
+    private static class HopTracer implements TransportMessageListener {
+        private final ConcurrentHashMap<Long, Pending> pending = new ConcurrentHashMap<>();
+        private final ConcurrentLinkedQueue<Hop> completed = new ConcurrentLinkedQueue<>();
+        private final ConcurrentHashMap<Long, Pending> serverPending = new ConcurrentHashMap<>();
+
+        final TransportMessageListener serverSide = new TransportMessageListener() {
+            @Override
+            public void onRequestReceived(long requestId, String action, int networkMessageSize) {
+                serverPending.put(requestId, new Pending(action + " [server]", System.nanoTime()));
+            }
+
+            @Override
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
+                Pending p = serverPending.remove(requestId);
+                if (p != null) {
+                    completed.add(new Hop(p.action(), p.sentNanos(), System.nanoTime()));
+                }
+            }
+
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
+                onResponseSent(requestId, action, networkMessageSize);
+            }
+        };
+
+        @Override
+        public void onRequestSent(
+            DiscoveryNode node,
+            long requestId,
+            String action,
+            TransportRequest request,
+            TransportRequestOptions finalOptions,
+            int networkMessageSize
+        ) {
+            pending.put(requestId, new Pending(networkMessageSize < 0 ? action + " (local)" : action, System.nanoTime()));
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes") // the interface declares the raw type
+        public void onResponseReceived(long requestId, Transport.ResponseContext context, int networkMessageSize) {
+            Pending p = pending.remove(requestId);
+            if (p != null) {
+                completed.add(new Hop(p.action(), p.sentNanos(), System.nanoTime()));
+            }
+        }
+
+        void reset() {
+            pending.clear();
+            serverPending.clear();
+            completed.clear();
+        }
+
+        List<Hop> completed() {
+            return new ArrayList<>(completed);
+        }
     }
 
     /**
@@ -350,7 +610,7 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
                     }
                 }
                 for (DriverProfile driver : resp.profile().drivers()) {
-                    String prefix = "4.driver." + driver.description();
+                    String prefix = "4.driver." + driver.description() + "@" + driver.nodeName();
                     sample(samples, prefix + ".took", driver.tookNanos());
                     sample(samples, prefix + ".cpu", driver.cpuNanos());
                     sample(samples, prefix + ".iterations", driver.iterations());
@@ -394,7 +654,7 @@ public class EsqlVsSearchLatencyIT extends AbstractEsqlIntegTestCase {
      * client side with a freshly built function registry and would skew the client-side timings.
      */
     private EsqlQueryResponse runDirect(EsqlQueryRequest request) {
-        return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(DEFAULT_REQUEST_TIMEOUT);
+        return queryClient().execute(EsqlQueryAction.INSTANCE, request).actionGet(DEFAULT_REQUEST_TIMEOUT);
     }
 
     private static void sample(Map<String, List<Long>> samples, String key, long value) {

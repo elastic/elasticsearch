@@ -139,7 +139,7 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY;
-import static org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_MILLIS;
+import static org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_SECONDS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -1583,8 +1583,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             "source sends the handoff after the prewarm reply (due to the long `PREWARM_WAIT_TIMEOUT_SETTING`)",
             prewarmRepliedAtHandoff.get()
         );
-        final long recordedWaitInMillis = assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.COMPLETED);
-        assertThat("recorded wait covers the time the prewarm was held", recordedWaitInMillis, greaterThanOrEqualTo(minWaitInMillis));
+        final double recordedWaitInSeconds = assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.COMPLETED);
+        assertThat(
+            "recorded wait covers the time the prewarm was held",
+            recordedWaitInSeconds,
+            greaterThanOrEqualTo(minWaitInMillis / 1000.0)
+        );
     }
 
     // verify that the source stops waiting for the prewarm reply once the prewarm wait timeout expires and proceeds with the handoff
@@ -1702,13 +1706,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         ensureGreen(indexName);
     }
 
-    private static long assertPrewarmWaitOutcome(String node, PrewarmWaitOutcome expectedOutcome) {
+    private static double assertPrewarmWaitOutcome(String node, PrewarmWaitOutcome expectedOutcome) {
         final var telemetry = getTelemetryPlugin(node);
         telemetry.collect();
-        final var measurements = telemetry.getLongHistogramMeasurement(RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_MILLIS);
+        final var measurements = telemetry.getDoubleHistogramMeasurement(RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_SECONDS);
         assertThat(measurements, hasSize(1));
         assertThat(measurements.get(0).attributes(), equalTo(Map.of(PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY, expectedOutcome.attributeValue())));
-        return measurements.get(0).getLong();
+        return measurements.get(0).getDouble();
     }
 
     /**

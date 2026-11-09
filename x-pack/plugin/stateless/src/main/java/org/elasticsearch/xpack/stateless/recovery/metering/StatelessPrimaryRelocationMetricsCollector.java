@@ -36,7 +36,7 @@ public class StatelessPrimaryRelocationMetricsCollector {
         "es.recovery.shard.primary.relocation.target.read_indexing_shard_state.time";
     public static final String RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS =
         "es.recovery.shard.primary.relocation.target.open_engine.time";
-    public static final String RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_MILLIS =
+    public static final String RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_SECONDS =
         "es.recovery.shard.primary.relocation.source.prewarm_wait.time";
     public static final String PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY = "prewarm_wait_outcome";
 
@@ -117,7 +117,7 @@ public class StatelessPrimaryRelocationMetricsCollector {
             "seconds"
         );
         relocationPrewarmWaitDurationMetric = meterRegistry.registerDoubleHistogram(
-            RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_MILLIS,
+            RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_SECONDS,
             "Time spent waiting for the target's response, broken down by [" + PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY + "]",
             "seconds"
         );

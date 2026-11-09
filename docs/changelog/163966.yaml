@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 163966
+summary: Fix NPE when draining metrics buffer on shutdown
+type: bug

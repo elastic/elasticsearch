@@ -28,6 +28,11 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public class EscfBatchBuilderTests extends ESTestCase {
@@ -204,6 +209,178 @@ public class EscfBatchBuilderTests extends ESTestCase {
         }
     }
 
+    /** Rows of one shape, so every field after the first row is predicted correctly. */
+    public void testRepeatedShapeRoundTrips() throws IOException {
+        assertRoundTrip("""
+            {"a":1, "obj":{"x":2, "y":3.5}, "b":"s1", "d":0.1}""", """
+            {"a":4, "obj":{"x":5, "y":6.5}, "b":"s2", "d":0.2}""", """
+            {"a":7, "obj":{"x":8, "y":9.5}, "b":"s3", "d":0.3}""", """
+            {"a":10, "obj":{"x":11, "y":12.5}, "b":"s4", "d":0.4}""");
+    }
+
+    /** Fields written in a different order than the schema lists them, so the predicted field is wrong every time. */
+    public void testReorderedFieldsRoundTrip() throws IOException {
+        assertRoundTrip("""
+            {"a":1, "b":2, "c":3}""", """
+            {"b":4, "a":5, "c":6}""", """
+            {"c":7, "b":8, "a":9}""", """
+            {"a":10, "b":11, "c":12}""");
+    }
+
+    /**
+     * A leaf name shared by the root and a nested object. After the root {@code name} the next prediction is
+     * {@code obj.name}, which has the right name but the wrong parent, and must not be taken.
+     */
+    public void testSameLeafNameUnderDifferentParents() throws IOException {
+        assertRoundTrip("""
+            {"name":"top1", "obj":{"name":"inner1"}}""", """
+            {"obj":{"name":"inner2"}, "name":"top2"}""", """
+            {"name":"top3"}""", """
+            {"obj":{"name":"inner4"}}""", """
+            {"name":"top5", "obj":{"name":"inner5"}}""");
+    }
+
+    /**
+     * The schema lists {@code a, obj.x, b}. A row without {@code obj} predicts {@code obj.x} for {@code b}, which has
+     * the wrong name and parent.
+     */
+    public void testOmittedNestedObjectBetweenFields() throws IOException {
+        assertRoundTrip("""
+            {"a":1, "obj":{"x":2}, "b":3}""", """
+            {"a":4, "b":5}""", """
+            {"b":6, "a":7}""", """
+            {"a":8, "obj":{"x":9}, "b":10}""");
+    }
+
+    /**
+     * Rows that start at different fields than the schema's first one, after rows that ended deep in the schema.
+     * Predictions start over at every row, so no row may be affected by where the previous one stopped.
+     */
+    public void testRowsStartAtDifferentFields() throws IOException {
+        assertRoundTrip("""
+            {"a":1, "b":2, "c":3, "obj":{"x":4}}""", """
+            {"obj":{"x":5}}""", """
+            {"c":6}""", """
+            {"c":7, "a":8}""", """
+            {"b":9, "obj":{"x":10}, "a":11}""");
+    }
+
+    /** Nested objects reordered, repeated under two parents, and empty, so the predicted non-leaf is wrong or has another parent. */
+    public void testNestedObjectPredictions() throws IOException {
+        assertRoundTrip("""
+            {"o1":{"a":1}, "o2":{"a":2}}""", """
+            {"o2":{"a":3}, "o1":{"a":4}}""", """
+            {"p":{"inner":{"v":5}}, "q":{"inner":{"v":6}}}""", """
+            {"q":{"inner":{"v":7}}, "p":{"inner":{"v":8}}}""", """
+            {"q":{"inner":{"v":9}}}""", """
+            {"e":{}, "x":10}""", """
+            {"x":11, "e":{}}""");
+    }
+
+    /**
+     * New fields appear after the schema has been established: in the middle of a known shape, where the predicted
+     * index holds another field, and at the end of the schema, where the predicted index is past it.
+     */
+    public void testSchemaGrowsMidBatch() throws IOException {
+        assertRoundTrip("""
+            {"a":1, "b":2, "c":3}""", """
+            {"a":4, "new":5, "b":6, "c":7}""", """
+            {"a":8, "b":9, "c":10, "new":11}""", """
+            {"a":12, "new":13, "b":14, "c":15}""", """
+            {"a":16, "b":17, "c":18, "last":19}""");
+    }
+
+    /** A field written twice in a row is rejected, however the prediction for it turns out. */
+    public void testDuplicateFieldIsRejected() throws IOException {
+        // Empty schema: the field is added by the first write and found by the second.
+        try (EscfBatchBuilder builder = newBuilder()) {
+            EscfRowBuffer row = builder.beginRow();
+            row.longField("a", 1L);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> row.longField("a", 2L));
+            assertEquals("Duplicate field [a]", e.getMessage());
+        }
+        // Known schema: after "a" the predicted field is "b", so the duplicate is found by the lookup.
+        // Likewise for a duplicate that is not adjacent.
+        for (boolean adjacent : new boolean[] { true, false }) {
+            try (EscfBatchBuilder builder = newBuilder()) {
+                EscfRowBuffer first = builder.beginRow();
+                first.longField("a", 1L);
+                first.longField("b", 2L);
+                first.finishRow();
+                builder.commit(0);
+
+                EscfRowBuffer row = builder.beginRow();
+                row.longField("a", 3L);
+                if (adjacent == false) {
+                    row.longField("b", 4L);
+                }
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> row.longField("a", 5L));
+                assertEquals("Duplicate field [a]", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Rows that repeat a shape, drop fields, reorder fields, or reuse a field name under another parent must all come
+     * back as written: the row buffer's guess at which schema field comes next may be wrong, but never changes the result.
+     * The cases above pin the interesting shapes; this one mixes them at random.
+     */
+    public void testRowsWithChangingShapesRoundTrip() throws IOException {
+        String[] top = { "a", "b", "c", "d", "name", "id" };
+        String[] nested = { "name", "id", "x" };
+        int rows = randomIntBetween(50, 200);
+        List<Map<String, Object>> expected = new ArrayList<>();
+        try (EscfBatchBuilder builder = newBuilder()) {
+            for (int r = 0; r < rows; r++) {
+                // Per row: whether to keep the usual order, drop some fields, or shuffle.
+                int mode = randomIntBetween(0, 3);
+                List<String> topNames = new ArrayList<>(Arrays.asList(top));
+                List<String> nestedNames = new ArrayList<>(Arrays.asList(nested));
+                if (mode == 1) {
+                    topNames.removeIf(n -> randomBoolean());
+                    nestedNames.removeIf(n -> randomBoolean());
+                } else if (mode == 2) {
+                    Collections.shuffle(topNames, random());
+                    Collections.shuffle(nestedNames, random());
+                } else if (mode == 3) {
+                    Collections.reverse(topNames);
+                }
+                boolean withNested = mode != 1 || randomBoolean();
+                Map<String, Object> doc = new LinkedHashMap<>();
+                EscfRowBuffer row = builder.beginRow();
+                int insertNestedAt = randomIntBetween(0, topNames.size());
+                for (int i = 0; i <= topNames.size(); i++) {
+                    if (i == insertNestedAt && withNested && nestedNames.isEmpty() == false) {
+                        Map<String, Object> inner = new LinkedHashMap<>();
+                        row.startObject("obj");
+                        for (String n : nestedNames) {
+                            long v = randomLong();
+                            row.longField(n, v);
+                            inner.put(n, v);
+                        }
+                        row.endObject();
+                        doc.put("obj", inner);
+                    }
+                    if (i < topNames.size()) {
+                        String n = topNames.get(i);
+                        long v = randomLong();
+                        row.longField(n, v);
+                        doc.put(n, v);
+                    }
+                }
+                row.finishRow();
+                builder.commit(0);
+                expected.add(normalize(doc));
+            }
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertEquals(rows, batch.docCount());
+                for (int r = 0; r < rows; r++) {
+                    assertEquals("row " + r, expected.get(r), reconstruct(batch, r));
+                }
+            }
+        }
+    }
+
     private static EscfBatchBuilder newBuilder() {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         return new EscfBatchBuilder(recycler);
@@ -214,6 +391,69 @@ public class EscfBatchBuilderTests extends ESTestCase {
             SourceRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
             return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
         }
+    }
+
+    /**
+     * Writes each JSON document as a row, in the order its fields appear, to one partition and checks that every row
+     * reconstructs to the same document.
+     */
+    private static void assertRoundTrip(String... docs) throws IOException {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            for (String doc : docs) {
+                EscfRowBuffer row = builder.beginRow();
+                writeFields(row, asOrderedMap(doc));
+                row.finishRow();
+                builder.commit(0);
+            }
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertEquals(docs.length, batch.docCount());
+                for (int r = 0; r < docs.length; r++) {
+                    assertEquals("row " + r, asMap(docs[r]), reconstruct(batch, r));
+                }
+            }
+        }
+    }
+
+    /**
+     * Writes the entries of a parsed document: integers as longs, doubles, strings, and maps as nested (or empty)
+     * objects. Any other value type fails the test rather than being written as something else.
+     */
+    private static void writeFields(EscfRowBuffer row, Map<?, ?> fields) {
+        for (Map.Entry<?, ?> entry : fields.entrySet()) {
+            String name = (String) entry.getKey();
+            Object value = entry.getValue();
+            if (value instanceof Map<?, ?> nested) {
+                if (nested.isEmpty()) {
+                    row.emptyObject(name);
+                } else {
+                    row.startObject(name);
+                    writeFields(row, nested);
+                    row.endObject();
+                }
+            } else if (value instanceof Double number) {
+                row.doubleField(name, number);
+            } else if (value instanceof Integer || value instanceof Long) {
+                row.longField(name, ((Number) value).longValue());
+            } else if (value instanceof String string) {
+                row.stringField(name, utf8(string));
+            } else {
+                throw new AssertionError("unsupported test value [" + value + "] for [" + name + "]");
+            }
+        }
+    }
+
+    /**
+     * Round-trips an expected document through JSON so its numbers get the same {@code Integer}/{@code Long} typing the
+     * parser gives {@link #reconstruct}: a {@code Long} within the int range would otherwise never equal the {@code Integer}.
+     */
+    private static Map<String, Object> normalize(Map<String, Object> doc) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder().map(doc)) {
+            return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
+        }
+    }
+
+    private static Map<String, Object> asOrderedMap(String json) {
+        return XContentHelper.convertToMap(new BytesArray(json), true, XContentType.JSON).v2();
     }
 
     private static Map<String, Object> asMap(String json) {

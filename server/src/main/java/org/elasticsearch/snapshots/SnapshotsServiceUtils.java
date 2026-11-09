@@ -798,12 +798,12 @@ public class SnapshotsServiceUtils {
             for (int i = indexOfEntry + 1; i < entryList.size(); i++) {
                 updatedEntries.add(entryList.get(i));
             }
-            result = ClusterState.builder(state)
-                .putCustom(
-                    SnapshotsInProgress.TYPE,
-                    inProgressSnapshots.createCopyWithUpdatedEntriesForRepo(projectId, repository, updatedEntries)
-                )
-                .build();
+            final SnapshotsInProgress updatedSnapshots = inProgressSnapshots.createCopyWithUpdatedEntriesForRepo(
+                projectId,
+                repository,
+                updatedEntries
+            );
+            result = updateWithSnapshots(state, updatedSnapshots, null);
         }
         return readyDeletions(result, projectId).v1();
     }
@@ -935,7 +935,7 @@ public class SnapshotsServiceUtils {
 
     /**
      * Shortcut to build new {@link ClusterState} from the current state and updated values of {@link SnapshotsInProgress} and
-     * {@link SnapshotDeletionsInProgress}.
+     * {@link SnapshotDeletionsInProgress}. Also drops the {@link SnapshotsInProgressEncryptedData} of snapshots no longer in progress.
      *
      * @param state                       current cluster state
      * @param snapshotsInProgress         new value for {@link SnapshotsInProgress} or {@code null} if it's unchanged
@@ -953,6 +953,11 @@ public class SnapshotsServiceUtils {
         ClusterState.Builder builder = ClusterState.builder(state);
         if (snapshotsInProgress != null) {
             builder.putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress);
+            final SnapshotsInProgressEncryptedData encryptedData = SnapshotsInProgressEncryptedData.get(state);
+            final SnapshotsInProgressEncryptedData retained = encryptedData.retainRunning(snapshotsInProgress);
+            if (retained != encryptedData) {
+                builder.putCustom(SnapshotsInProgressEncryptedData.TYPE, retained);
+            }
         }
         if (snapshotDeletionsInProgress != null) {
             builder.putCustom(SnapshotDeletionsInProgress.TYPE, snapshotDeletionsInProgress);

@@ -314,7 +314,11 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     ) {
         assert localNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) : "This should only ever be called for indexing nodes";
         final long nowNanos = relativeTimeInNanos();
-        final ShardHeapEstimator estimator = createShardHeapEstimator();
+        final long nodeBaseHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes(totalIndices);
+        final ShardHeapEstimator estimator = createShardHeapEstimator(
+            SelfReportedShardOverhead.DEFAULT,
+            getAdaptiveShardMemoryEstimationMinThreshold(nodeBaseHeapEstimateInBytes)
+        );
         final Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsages = new HashMap<>();
         shardMappingSizes.forEach(
             (shardId, size) -> shardHeapUsages.put(
@@ -323,7 +327,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             )
         );
         final long nonShardHeapUsage = Math.addExact(
-            Math.addExact(getNodeBaseHeapEstimateInBytes(totalIndices), largeIndexingOpsHeapBytes),
+            Math.addExact(nodeBaseHeapEstimateInBytes, largeIndexingOpsHeapBytes),
             Math.addExact(mergeMemoryEstimateBytes, ingestModelHeapBytes)
         );
         return NodeHeapUsageCalculator.calculateForShardEstimates(
@@ -966,6 +970,13 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     // visible for testing
     ShardHeapEstimator createShardHeapEstimator(SelfReportedShardOverhead selfReportedShardOverhead) {
+        return createShardHeapEstimator(selfReportedShardOverhead, getAdaptiveShardMemoryEstimationMinThreshold());
+    }
+
+    private ShardHeapEstimator createShardHeapEstimator(
+        SelfReportedShardOverhead selfReportedShardOverhead,
+        long adaptiveShardMemoryEstimationMinThreshold
+    ) {
         final boolean useSelfReportedShardOverhead = switch (selfReportedShardOverhead) {
             case ENABLE -> true;
             case DISABLE -> false;
@@ -974,7 +985,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return new ShardHeapEstimator(
             fixedShardMemoryOverhead,
             adaptiveExtraOverheadRatio,
-            adaptiveShardMemoryEstimationMinThresholdEnabled ? getAdaptiveShardMemoryEstimationMinThreshold() : 0,
+            adaptiveShardMemoryEstimationMinThresholdEnabled ? adaptiveShardMemoryEstimationMinThreshold : 0,
             useSelfReportedShardOverhead
         );
     }

@@ -47,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -91,7 +92,8 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+        // retirement only happens on ticks between rotations, so leave room for slow publications
+        builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(10))
             .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         SecuritySettingsSource.addSecureSettings(builder, secure -> {
             secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v1");
@@ -155,8 +157,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         final TestControlState state = new TestControlState();
         for (String nodeName : internalCluster().getNodeNames()) {
             KeyRotationCoordinator coordinator = internalCluster().getInstance(KeyRotationCoordinator.class, nodeName);
-            EncryptionService service = internalCluster().getInstance(EncryptionService.class, nodeName);
-            coordinator.register(new TestHandler<>(customName, factory, service, state));
+            coordinator.register(new TestHandler<>(customName, factory, state));
         }
         return state;
     }
@@ -199,7 +200,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     public void testEachInstallOrRotationAddsExactlyOneNewKey() throws Exception {
         // Wait for two install or rotation events
-        assertBusy(() -> assertThat(keyAddEvents, hasSize(greaterThanOrEqualTo(2))), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(keyAddEvents, hasSize(greaterThanOrEqualTo(2))), 60, TimeUnit.SECONDS);
         for (int count : keyAddEvents) {
             assertThat("each install or rotation must add exactly one key", count, equalTo(1));
         }
@@ -424,24 +425,21 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     /**
      * Re-encrypts a {@link TestBlobBase}-shaped custom under the active key.
      */
-    private record TestHandler<T extends TestBlobBase>(
-        String customName,
-        Function<EncryptedData, T> factory,
-        EncryptionService encryptionService,
-        TestControlState state
-    ) implements EncryptedDataHandler<T> {
+    private record TestHandler<T extends TestBlobBase>(String customName, Function<EncryptedData, T> factory, TestControlState state)
+        implements
+            EncryptedDataHandler<T> {
 
         @Override
-        public T reEncrypt(T current, EncryptionService service, String activeKeyId) {
+        public T reEncrypt(T current, UnaryOperator<EncryptedData> rewrapper) {
             state.callCount.incrementAndGet();
             if (current == null) {
                 return null;
             }
-            if (current.blob.keyId().equals(activeKeyId)) {
-                return current;
+            EncryptedData rewrapped = rewrapper.apply(current.blob);
+            if (rewrapped == null) {
+                return null;
             }
-            byte[] plaintext = encryptionService.decrypt(current.blob);
-            return factory.apply(encryptionService.encrypt(plaintext));
+            return rewrapped == current.blob ? current : factory.apply(rewrapped);
         }
     }
 }

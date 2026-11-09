@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -1140,7 +1141,7 @@ public class TestAnalyzer {
             new EsIndex(
                 indexName,
                 EsqlTestUtils.loadMapping(resource),
-                Map.of(indexName, new IndexProperties(indexMode, 0)),
+                Map.of(indexName, new IndexProperties(indexMode, 1, IndexVersion.current().id())),
                 grouped,
                 grouped
             )

@@ -3585,8 +3585,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Map<String, IndexFieldCapabilities> stdFields = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
         return new FieldCapabilitiesResponse(
             List.of(
-                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES, 0, 0, 0),
-                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD, 0, 0, 0)
+                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES, 0, 0, 0, 0),
+                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD, 0, 0, 0, 0)
             ),
             List.of()
         );
@@ -3805,6 +3805,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
         esRelation = as(filter.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
+    }
+
+    /**
+     * A FORK over a wide index aligns every branch to all of its columns. The alignment used to be quadratic in the number of
+     * columns (#163560); this checks the wide case still aligns the branches correctly.
+     */
+    public void testForkAlignmentOverWideIndex() {
+        int width = 10_000;
+        Map<String, EsField> mapping = new LinkedHashMap<>();
+        for (int i = 0; i < width; i++) {
+            String name = String.format(Locale.ROOT, "f%05d", i);
+            mapping.put(name, new EsField(name, KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        }
+        TestAnalyzer analyzer = analyzer().addIndex(EsIndexGenerator.esIndex("wide", mapping));
+
+        LogicalPlan plan = analyzer.query("""
+            FROM wide
+            | FORK ( EVAL a = 1 )
+                   ( EVAL b = 2 )
+            """);
+        plan = aligned(plan);
+
+        Fork fork = as(as(plan, Limit.class).child(), Fork.class);
+        List<String> expected = new ArrayList<>(mapping.keySet());
+        expected.addAll(List.of("a", "_fork", "b"));
+        assertThat(Expressions.names(fork.output()), equalTo(expected));
+        for (LogicalPlan branch : fork.children()) {
+            assertThat(Expressions.names(as(branch, Project.class).projections()), equalTo(expected));
+        }
     }
 
     public void testForkError() {
@@ -4073,7 +4102,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     private LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
-            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD, 0, 0, 0)
+            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD, 0, 0, 0, 0)
         );
         IndexResolution resolution = mergedResolution("test*", new FieldCapabilitiesResponse(idxResponses, List.of()));
         return analyzer().addIndex(resolution).query(query);

@@ -704,7 +704,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         String expected = """
             {"field":{"type":"keyword","normalizer":"lowercase","normalizer_skip_store_original_value":false}}""";
-        assertThat(keywordMapper.toString(), equalTo(expected));
+        assertThat(fieldMappingToString(mapper, "field"), equalTo(expected));
     }
 
     public void testNormalizerSyntheticSourceSkipStoreOriginalValue() throws IOException {
@@ -723,7 +723,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         // (See default serializerCheck in Parameter.java)
         String expected = """
             {"field":{"type":"keyword","normalizer":"lowercase"}}""";
-        assertThat(keywordMapper.toString(), equalTo(expected));
+        assertThat(fieldMappingToString(mapper, "field"), equalTo(expected));
     }
 
     public void testSkipStoreOriginalValueForLowercaseNormalizer() throws IOException {
@@ -738,7 +738,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
         String expected = """
             {"field":{"type":"keyword","normalizer":"lowercase"}}""";
-        assertThat(keywordMapper.toString(), equalTo(expected));
+        assertThat(fieldMappingToString(mapper, "field"), equalTo(expected));
     }
 
     public void testSkipStoreOriginalValueForCustomNormalizer() throws IOException {
@@ -753,7 +753,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
         String expected = """
             {"field":{"type":"keyword","normalizer":"other_lowercase"}}""";
-        assertThat(keywordMapper.toString(), equalTo(expected));
+        assertThat(fieldMappingToString(mapper, "field"), equalTo(expected));
     }
 
     public void testSkipStoreOriginalValueForCustomNormalizerOverwriteSkipStoreOriginalValue() throws IOException {
@@ -770,7 +770,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
         String expected = """
             {"field":{"type":"keyword","normalizer":"other_lowercase","normalizer_skip_store_original_value":true}}""";
-        assertThat(keywordMapper.toString(), equalTo(expected));
+        assertThat(fieldMappingToString(mapper, "field"), equalTo(expected));
     }
 
     /**

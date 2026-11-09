@@ -58,7 +58,7 @@ public final class MergeBranchAlignment {
      * {@code branch} null-filling the columns of {@code merge}'s output that it does not produce, and projected to the merge's
      * columns in the merge's order. Returns {@code branch} itself when it already lines up.
      */
-    public static LogicalPlan alignBranch(MergePlan merge, LogicalPlan branch) {
+    private static LogicalPlan alignBranch(MergePlan merge, LogicalPlan branch) {
         List<Alias> fills = nullFills(merge.output(), branch);
         LogicalPlan filled = fills.isEmpty() ? branch : new Eval(branch.source(), branch, fills);
         return projectToColumns(filled, Expressions.names(merge.output()));
@@ -87,12 +87,10 @@ public final class MergeBranchAlignment {
      * This is the branch as {@link #alignBranch} aligns it, for callers that need to see it that way before it is materialized.
      */
     public static List<Attribute> alignedColumns(List<Attribute> mergeOutput, LogicalPlan branch, List<Alias> nullFills) {
-        Map<String, Attribute> byName = new HashMap<>();
-        for (Attribute attr : branch.output()) {
-            byName.putIfAbsent(attr.name(), attr);
-        }
+        Map<String, Attribute> byName = attributesByName(branch.output());
         for (Alias fill : nullFills) {
-            byName.put(fill.name(), fill.toAttribute());
+            Attribute previous = byName.put(fill.name(), fill.toAttribute());
+            assert previous == null : "null fill [" + fill.name() + "] for a column the merge branch already outputs " + branch.output();
         }
         List<Attribute> columns = new ArrayList<>(mergeOutput.size());
         for (Attribute column : mergeOutput) {
@@ -113,7 +111,7 @@ public final class MergeBranchAlignment {
      * Preserves {@link Attribute#synthetic()}, so a fill of a synthetic merge column (e.g. a union-type
      * {@code $$field$converted_to$type} cast) stays invisible to the removal of synthetic attributes from the query's output.
      */
-    public static Alias nullFill(Source source, Attribute column) {
+    private static Alias nullFill(Source source, Attribute column) {
         return new Alias(source, column.name(), new Literal(source, null, nullFillType(column)), null, column.synthetic());
     }
 
@@ -122,7 +120,7 @@ public final class MergeBranchAlignment {
      * types that an {@code EVAL} cannot return. {@code UNSUPPORTED} is filled as {@code KEYWORD} and a counter type as its
      * non-counter counterpart.
      */
-    public static DataType nullFillType(Attribute column) {
+    private static DataType nullFillType(Attribute column) {
         DataType type = alignmentDataType(column);
         type = type == UNSUPPORTED ? KEYWORD : type;
         return type.isCounter() ? type.noCounter() : type;
@@ -157,14 +155,36 @@ public final class MergeBranchAlignment {
             // doesn't leak into the branch output.
             return new Project(branch.source(), branch, List.of());
         }
-        List<Attribute> projections = new ArrayList<>(mergeColumns.size());
-        for (String column : mergeColumns) {
-            for (Attribute attr : branch.output()) {
-                if (column.equals(attr.name())) {
-                    projections.add(attr);
-                }
+        return new Project(branch.source(), branch, alignToMergeColumns(mergeColumns, branch.output()));
+    }
+
+    /**
+     * Picks the attributes of a merge branch's output in {@code mergeColumns} order. The branch output is indexed by name once
+     * so the cost is linear in the schema width: a merge over thousands of columns would otherwise rescan the branch output for
+     * every merge column, saturating the threads that plan queries (#163560).
+     */
+    static List<Attribute> alignToMergeColumns(List<String> mergeColumns, List<Attribute> branchOutput) {
+        Map<String, Attribute> branchAttributesByName = attributesByName(branchOutput);
+        List<Attribute> aligned = new ArrayList<>(mergeColumns.size());
+        for (String name : mergeColumns) {
+            Attribute match = branchAttributesByName.get(name);
+            if (match != null) {
+                aligned.add(match);
             }
         }
-        return new Project(branch.source(), branch, projections);
+        return aligned;
+    }
+
+    /**
+     * A merge branch's output indexed by name, so that looking up every merge column is linear in the schema width. A plan's output
+     * never repeats a name, so each merge column matches at most one branch attribute.
+     */
+    private static Map<String, Attribute> attributesByName(List<Attribute> branchOutput) {
+        Map<String, Attribute> byName = HashMap.newHashMap(branchOutput.size());
+        for (Attribute attr : branchOutput) {
+            Attribute previous = byName.put(attr.name(), attr);
+            assert previous == null : "duplicate attribute name [" + attr.name() + "] in merge branch output " + branchOutput;
+        }
+        return byName;
     }
 }

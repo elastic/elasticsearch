@@ -160,12 +160,12 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     public void testColumnarModeMappingSerialization() throws IOException {
         // Columnar
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()));
-        String mapping = mapperService.documentMapper().mapping().toString();
+        String mapping = mapperService.documentMapper().mappingSource().string();
         assertThat(mapping, containsString("\"mode\":\"columnar\""));
 
         // Document
         mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "document").endObject()));
-        mapping = mapperService.documentMapper().mapping().toString();
+        mapping = mapperService.documentMapper().mappingSource().string();
         // empty because document is the default:
         assertThat(mapping, containsString("{\"_doc\":{}"));
 
@@ -174,7 +174,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
             Settings.builder().put("index.mapping.use_columnar_id_mode_by_default", true).build(),
             topMapping(b -> b.startObject("_id").field("mode", "document").endObject())
         );
-        mapping = mapperService.documentMapper().mapping().toString();
+        mapping = mapperService.documentMapper().mappingSource().string();
         assertThat(mapping, containsString("\"mode\":\"document\""));
     }
 
@@ -213,7 +213,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
 
     public void testDefaultModeNotSerialized() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
-        String mapping = mapperService.documentMapper().mapping().toString();
+        String mapping = mapperService.documentMapper().mappingSource().string();
         assertFalse("default mode should not be serialized", mapping.contains("\"mode\""));
     }
 

@@ -53,9 +53,7 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         new Column("origin", DataType.KEYWORD),
         new Column("metric_type", DataType.KEYWORD),
         new Column("unit", DataType.KEYWORD),
-        new Column("description", DataType.KEYWORD),
-        new Column("searchable", DataType.BOOLEAN),
-        new Column("aggregatable", DataType.BOOLEAN)
+        new Column("description", DataType.KEYWORD)
     );
 
     private record Column(String name, DataType type) {}
@@ -125,9 +123,7 @@ public class Describe extends UnaryPlan implements TelemetryAware {
                     origin(column, field, datasetColumn),
                     metricType,
                     units.get(column.id()),
-                    field == null ? null : field.description(),
-                    field == null ? null : field.searchable(),
-                    field == null ? null : field.aggregatable() };
+                    field == null ? null : field.description() };
                 for (int i = 0; i < row.length; i++) {
                     Object value = row[i] instanceof String s ? new BytesRef(s) : row[i];
                     BlockUtils.appendValue(builders[i], value, elementTypes[i]);

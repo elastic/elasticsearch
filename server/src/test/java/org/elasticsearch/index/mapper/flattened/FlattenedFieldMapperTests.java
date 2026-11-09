@@ -2246,6 +2246,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        return false;
+    }
+
+    @Override
     protected boolean supportsCopyTo() {
         return false;
     }

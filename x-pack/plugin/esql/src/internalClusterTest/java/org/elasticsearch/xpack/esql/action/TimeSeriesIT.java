@@ -1802,6 +1802,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** (... or ...) * scalar must pin UnionAll layout before the composed Eval (#158164). */
     public void testPromqlOrUnderArithmetic() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         String index = "promql-or-under-arithmetic";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);
@@ -1812,6 +1813,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** (agg or agg) under arithmetic / join must keep a pin-safe UnionAll layout. */
     public void testPromqlOrUnderArithmeticJoin() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         String index = "promql-or-under-arithmetic-join";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);
@@ -1837,6 +1839,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** Empty right of or (disjoint label_replace/and) must keep left fingerprints. */
     public void testPromqlOrWithLabelReplaceRightKeepsTierWhenDisjoint() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         String index = "promql-or-with-label-replace-right-keeps-tier-when-disjoint";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
@@ -1877,6 +1880,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** or with name-dropping label_replace right keeps both limbs; listener finds _timeseries. */
     public void testPromqlOrWithLabelReplaceIncreaseKeepsBothLimbs() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         String index = "promql-or-with-label-replace-increase-keeps-both-limbs";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSampleAt(index, "2024-05-10T00:00:00Z", "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
@@ -1899,6 +1903,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
      * no left series matches on the listed labels, as in Prometheus.
      */
     public void testPromqlOrWithMatching() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         String index = "promql-or-with-matching";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "region", "east", "tx", 1.0);
@@ -1949,6 +1954,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** unless with empty right keeps left. */
     public void testPromqlUnlessEmptyRightKeepsLeft() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         String index = "promql-unless-empty-right-keeps-left";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "rx", "rx", 60.0);
@@ -1966,6 +1972,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** or ignores __name__: name-keeping left preferred over name-dropping right of the same labels. */
     public void testPromqlOrNameKeepingVsNameDroppingRest() {
+        assumeTrue("requires a typed label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         String index = "promql-or-name-keeping-vs-name-dropping-rest";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);

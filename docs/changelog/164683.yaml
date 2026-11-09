@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 164683
+summary: Fix NPE in GetMappings when a search_as_you_type field is defined
+type: bug

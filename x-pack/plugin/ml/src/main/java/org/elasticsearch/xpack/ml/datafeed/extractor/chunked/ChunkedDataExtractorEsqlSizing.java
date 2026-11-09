@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /** ES|QL chunk shrink, regrow, and incomplete-interval state; touched only from the consuming thread. */
 final class ChunkedDataExtractorEsqlSizing {
@@ -53,12 +54,24 @@ final class ChunkedDataExtractorEsqlSizing {
         return injectsEsqlRowLimit && rowCount >= EsqlDataExtractor.INJECTED_ROW_LIMIT;
     }
 
-    boolean canShrink(long currentStart, long currentEnd) {
+    /** Returns the shrunk end to retry the chunk with, or empty after recording {@code interval} as incomplete. */
+    OptionalLong onTruncated(long currentStart, long currentEnd, long rowCount, boolean cancelled, SearchInterval interval) {
+        // A cancelled extractor must not start new queries, so a truncated result is accepted as read.
+        if (cancelled || canShrink(currentStart, currentEnd) == false) {
+            recordIncomplete(interval);
+            return OptionalLong.empty();
+        }
+        long newEnd = shrunkEnd(currentStart, currentEnd, rowCount);
+        shrinkAttempts++;
+        return OptionalLong.of(newEnd);
+    }
+
+    private boolean canShrink(long currentStart, long currentEnd) {
         long intervalLength = currentEnd - currentStart;
         return shrinkAttempts < MAX_ESQL_SHRINK_ATTEMPTS && intervalLength > minChunkLength();
     }
 
-    long shrunkEnd(long currentStart, long currentEnd, long rowCount) {
+    private long shrunkEnd(long currentStart, long currentEnd, long rowCount) {
         assert rowCount >= EsqlDataExtractor.INJECTED_ROW_LIMIT;
         assert shrinkAttempts < MAX_ESQL_SHRINK_ATTEMPTS;
         long intervalLength = currentEnd - currentStart;
@@ -92,7 +105,7 @@ final class ChunkedDataExtractorEsqlSizing {
         return timeAligner.alignToCeil(Math.min(initialChunkSpan, chunkSpan * CHUNK_HEADROOM_FACTOR));
     }
 
-    void recordIncomplete(SearchInterval interval) {
+    private void recordIncomplete(SearchInterval interval) {
         if (incompleteSearchInterval == null) {
             incompleteSearchInterval = interval;
             return;
@@ -105,10 +118,6 @@ final class ChunkedDataExtractorEsqlSizing {
 
     Optional<SearchInterval> incompleteInterval() {
         return Optional.ofNullable(incompleteSearchInterval);
-    }
-
-    void onShrunk() {
-        shrinkAttempts++;
     }
 
     void onNewChunk() {

@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * A wrapper {@link DataExtractor} that can be used with other extractors in order to perform
@@ -227,26 +228,32 @@ public class ChunkedDataExtractor implements DataExtractor {
         if (esqlSizing.isTruncated(result.rowCount()) == false) {
             return false;
         }
-        // A cancelled extractor must not start new queries, so a truncated result is returned as read.
-        if (isCancelled() == false && esqlSizing.canShrink(currentStart, currentEnd)) {
-            if (result.data().isPresent()) {
-                result.data().get().close();
-            }
-            shrinkCurrentEsqlChunk(result.rowCount());
-            return true;
+        OptionalLong shrunkEnd = esqlSizing.onTruncated(
+            currentStart,
+            currentEnd,
+            result.rowCount(),
+            isCancelled(),
+            result.searchInterval()
+        );
+        if (shrunkEnd.isEmpty()) {
+            return false;
         }
-        esqlSizing.recordIncomplete(result.searchInterval());
-        return false;
-    }
-
-    private void shrinkCurrentEsqlChunk(long rowCount) {
+        if (result.data().isPresent()) {
+            result.data().get().close();
+        }
         assert currentExtractor != null;
         currentExtractor.destroy();
-        currentEnd = esqlSizing.shrunkEnd(currentStart, currentEnd, rowCount);
+        currentEnd = shrunkEnd.getAsLong();
         chunkSpan = esqlSizing.alignChunkSpanAfterShrink(chunkSpan, currentStart, currentEnd);
         installExtractor(dataExtractorFactory.newExtractor(currentStart, currentEnd));
-        esqlSizing.onShrunk();
-        LOGGER.debug("[{}] shrinks ES|QL chunk to [{}, {}) after receiving [{}] rows", context.jobId(), currentStart, currentEnd, rowCount);
+        LOGGER.debug(
+            "[{}] shrinks ES|QL chunk to [{}, {}) after receiving [{}] rows",
+            context.jobId(),
+            currentStart,
+            currentEnd,
+            result.rowCount()
+        );
+        return true;
     }
 
     /** Installs a new delegate extractor for the current chunk window. */

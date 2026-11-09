@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 
 import java.util.Optional;
+import java.util.OptionalLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -21,32 +22,58 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
 
     public void testTruncatedChunkShouldShrinkToOneFifthAlignedDown() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
-        sizing.captureInitialChunkSpan(60_000L);
-        long shrunkEnd = sizing.shrunkEnd(0L, 60_000L, EsqlDataExtractor.INJECTED_ROW_LIMIT);
-        assertThat(shrunkEnd, equalTo(12_000L));
+        OptionalLong shrunkEnd = truncated(sizing, 0L, 60_000L);
+        assertThat(shrunkEnd, equalTo(OptionalLong.of(12_000L)));
     }
 
     public void testShrinkBelowGroupingIntervalShouldClampToOneInterval() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
-        long shrunkEnd = sizing.shrunkEnd(0L, 2_000L, EsqlDataExtractor.INJECTED_ROW_LIMIT);
-        assertThat(shrunkEnd, equalTo(1_000L));
+        OptionalLong shrunkEnd = truncated(sizing, 0L, 2_000L);
+        assertThat(shrunkEnd, equalTo(OptionalLong.of(1_000L)));
     }
 
-    public void testShrinkAfterMaxAttemptsShouldNotBeAllowed() {
+    public void testTruncatedChunkAtOneGroupingIntervalShouldBeRecordedIncomplete() {
+        ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
+        assertThat(truncated(sizing, 0L, 1_000L), equalTo(OptionalLong.empty()));
+        assertThat(sizing.incompleteInterval(), equalTo(Optional.of(new SearchInterval(0L, 1_000L))));
+    }
+
+    public void testShrinkAfterMaxAttemptsShouldBeRecordedIncomplete() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
         for (int i = 0; i < 5; i++) {
-            assertThat(sizing.canShrink(0L, 10_000L), is(true));
-            sizing.onShrunk();
+            assertThat(truncated(sizing, 0L, 10_000L).isPresent(), is(true));
         }
-        assertThat(sizing.canShrink(0L, 10_000L), is(false));
-        sizing.onShrunk();
-        assertThat(sizing.canShrink(0L, 10_000L), is(false));
+        assertThat(sizing.incompleteInterval(), equalTo(Optional.empty()));
+        assertThat(truncated(sizing, 0L, 10_000L), equalTo(OptionalLong.empty()));
+        assertThat(sizing.incompleteInterval(), equalTo(Optional.of(new SearchInterval(0L, 10_000L))));
+    }
+
+    public void testNewChunkShouldResetShrinkAttempts() {
+        ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
+        for (int i = 0; i < 5; i++) {
+            truncated(sizing, 0L, 10_000L);
+        }
+        sizing.onNewChunk();
+        assertThat(truncated(sizing, 0L, 10_000L).isPresent(), is(true));
+    }
+
+    public void testCancelledTruncatedChunkShouldNotShrinkAndBeRecordedIncomplete() {
+        ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
+        OptionalLong shrunkEnd = sizing.onTruncated(
+            0L,
+            60_000L,
+            EsqlDataExtractor.INJECTED_ROW_LIMIT,
+            true,
+            new SearchInterval(0L, 60_000L)
+        );
+        assertThat(shrunkEnd, equalTo(OptionalLong.empty()));
+        assertThat(sizing.incompleteInterval(), equalTo(Optional.of(new SearchInterval(0L, 60_000L))));
     }
 
     public void testSparseChunkAfterShrinkShouldKeepSpan() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
         sizing.captureInitialChunkSpan(60_000L);
-        sizing.onShrunk();
+        truncated(sizing, 0L, 60_000L);
         assertThat(sizing.regrownSpan(12_000L, 500L), equalTo(12_000L));
     }
 
@@ -58,26 +85,27 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
 
     public void testTwoTruncatedIntervalsShouldMergeIntoCoveringSpan() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
-        sizing.recordIncomplete(new SearchInterval(1_000L, 2_000L));
-        sizing.recordIncomplete(new SearchInterval(0L, 3_000L));
+        truncated(sizing, 1_000L, 2_000L);
+        truncated(sizing, 0L, 1_000L);
+        truncated(sizing, 2_000L, 3_000L);
         assertThat(sizing.incompleteInterval(), equalTo(Optional.of(new SearchInterval(0L, 3_000L))));
     }
 
     public void testLargeIntervalScalingShouldNotOverflow() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
-        long start = 0L;
         long intervalLength = Long.MAX_VALUE / 4L;
-        long end = start + intervalLength;
-        long rowCount = EsqlDataExtractor.INJECTED_ROW_LIMIT;
-        long targetLength = intervalLength / rowCount * ChunkedDataExtractorEsqlSizing.DEFAULT_ESQL_CHUNK_DOCS + intervalLength % rowCount
-            * ChunkedDataExtractorEsqlSizing.DEFAULT_ESQL_CHUNK_DOCS / rowCount;
-        long expectedEnd = ChunkedDataExtractorFactory.newIntervalTimeAligner(GROUPING_INTERVAL_MILLIS).alignToFloor(start + targetLength);
-        assertThat(sizing.shrunkEnd(start, end, rowCount), equalTo(expectedEnd));
+        // 10_000 rows against a 2_000 row target is one fifth of the interval; intervalLength * 2_000 would overflow a long.
+        long expectedEnd = intervalLength / 5L - (intervalLength / 5L) % GROUPING_INTERVAL_MILLIS;
+        assertThat(truncated(sizing, 0L, intervalLength), equalTo(OptionalLong.of(expectedEnd)));
     }
 
     public void testUserLimitShouldNotCountAsTruncated() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(false);
         assertThat(sizing.isTruncated(EsqlDataExtractor.INJECTED_ROW_LIMIT), is(false));
+    }
+
+    private static OptionalLong truncated(ChunkedDataExtractorEsqlSizing sizing, long start, long end) {
+        return sizing.onTruncated(start, end, EsqlDataExtractor.INJECTED_ROW_LIMIT, false, new SearchInterval(start, end));
     }
 
     private static ChunkedDataExtractorEsqlSizing esqlSizing(boolean injectsRowLimit) {

@@ -571,11 +571,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testFinalChunkingMatchesUnchunked
   issue: https://github.com/elastic/elasticsearch/issues/164892
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
-  issue: https://github.com/elastic/elasticsearch/issues/164894
 - class: org.elasticsearch.telemetry.apm.internal.APMAgentSettingsTests
   tasks:
   - :modules:apm:test

@@ -6,19 +6,19 @@ required_capability: describe_command
 FROM k8s
 | DESCRIBE
 | WHERE name IN ("@timestamp", "cluster", "event", "event_log", "client.ip", "network.bytes_in", "network.total_bytes_in", "network.eth0.rx")
-| KEEP name, type, role, origin, metric_type, unit, searchable, aggregatable
+| KEEP name, type, role, origin, metric_type, unit
 | SORT name
 ;
 
-name:keyword           | type:keyword  | role:keyword | origin:keyword | metric_type:keyword | unit:keyword | searchable:boolean | aggregatable:boolean
-@timestamp             | date          | time         | mapped         | null                | null         | true               | true
-client.ip              | ip            | attribute    | mapped         | null                | null         | true               | true
-cluster                | keyword       | dimension    | mapped         | null                | null         | true               | true
-event                  | keyword       | attribute    | mapped         | null                | null         | true               | true
-event_log              | text          | text         | mapped         | null                | null         | true               | false
-network.bytes_in       | long          | numeric      | mapped         | null                | null         | true               | true
-network.eth0.rx        | integer       | metric       | mapped         | gauge               | packets      | true               | true
-network.total_bytes_in | counter_long  | metric       | mapped         | counter             | bytes        | true               | true
+name:keyword           | type:keyword  | role:keyword | origin:keyword | metric_type:keyword | unit:keyword
+@timestamp             | date          | time         | mapped         | null                | null
+client.ip              | ip            | attribute    | mapped         | null                | null
+cluster                | keyword       | dimension    | mapped         | null                | null
+event                  | keyword       | attribute    | mapped         | null                | null
+event_log              | text          | text         | mapped         | null                | null
+network.bytes_in       | long          | numeric      | mapped         | null                | null
+network.eth0.rx        | integer       | metric       | mapped         | gauge               | packets
+network.total_bytes_in | counter_long  | metric       | mapped         | counter             | bytes
 ;
 
 describeMetricsUnderTs

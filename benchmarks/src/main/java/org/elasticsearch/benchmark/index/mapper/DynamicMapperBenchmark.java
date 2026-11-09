@@ -192,7 +192,7 @@ public class DynamicMapperBenchmark {
                 doc.addDynamicMappingsUpdate(Mapping.emptyCompressed());
             }
             if (doc.dynamicMappingsUpdate() != null) {
-                mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MapperService.MergeReason.MAPPING_UPDATE);
+                mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MapperService.MergeReason.MAPPING_AUTO_UPDATE);
             }
         }
         return mapperService.documentMapper().parse(randomFrom(sources)).docs();

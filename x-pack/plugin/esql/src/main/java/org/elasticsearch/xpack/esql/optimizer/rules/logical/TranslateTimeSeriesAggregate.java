@@ -349,7 +349,8 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             mergeExpressions(firstPassAggs, firstPassGroupings),
             userBucket,
             aggregate.timestamp(),
-            aggregate.origin()
+            aggregate.origin(),
+            false
         );
         checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {

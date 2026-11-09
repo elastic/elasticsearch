@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.generator;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
@@ -472,7 +473,13 @@ public class EsqlQueryGenerator {
                     result.append(" + ");
                 }
                 name = randomNameOrNullOrConst(name);
-                String agg = switch (randomIntBetween(0, 11)) {
+                int choice = randomIntBetween(0, 12);
+                // WINDOW_FUNNEL is not supported in a TS pipeline, see TimeSeriesAggregate::verify
+                String funnel = choice == 12 && isTimeSeries == false ? windowFunnel(previousOutput, allowUnmapped) : null;
+                if (choice == 12 && funnel == null) {
+                    choice = randomIntBetween(0, 11);
+                }
+                String agg = switch (choice) {
                     case 0 -> "max(" + name + ")";
                     case 1 -> "min(" + name + ")";
                     case 2 -> "avg(" + name + ")";
@@ -490,6 +497,7 @@ public class EsqlQueryGenerator {
                         if (weightField == null || randomBoolean()) weightField = "1.234";
                         yield "weighted_avg(" + name + ", " + weightField + ")";
                     }
+                    case 12 -> funnel;
                     default -> throw new IllegalStateException("unexpected random expression");
                 };
                 result.append(agg);
@@ -567,6 +575,43 @@ public class EsqlQueryGenerator {
             }
             default -> throw new IllegalStateException("unexpected random expression");
         };
+    }
+
+    public static String windowFunnel(List<Column> previousOutput, boolean allowUnmapped) {
+        if (Build.current().isSnapshot() == false) {
+            return null;
+        }
+        String timestamp = randomName(previousOutput, Set.of("date", "datetime", "date_nanos"));
+        if (timestamp == null) {
+            return null;
+        }
+        List<Column> conditionColumns = previousOutput.stream()
+            .filter(c -> c.type().equals("unsupported") == false && isUnmappedFieldsColumn(c) == false)
+            .toList();
+        StringBuilder funnel = new StringBuilder("window_funnel(");
+        funnel.append(randomIntBetween(0, 1000)).append(' ').append(randomFrom("milliseconds", "seconds", "minutes", "hours"));
+        funnel.append(", ").append(timestamp);
+        int conditions = randomIntBetween(0, 9) == 0 ? randomIntBetween(5, 32) : randomIntBetween(1, 4);
+        for (int i = 0; i < conditions; i++) {
+            funnel.append(", ").append(funnelCondition(conditionColumns, allowUnmapped));
+        }
+        return funnel.append(')').toString();
+    }
+
+    private static String funnelCondition(List<Column> previousOutput, boolean allowUnmapped) {
+        String condition = switch (randomIntBetween(0, 6)) {
+            case 0, 1 -> {
+                String field = randomNumericField(previousOutput);
+                yield field == null ? null : field + " " + mathCompareOperator() + " " + randomIntBetween(-100, 100);
+            }
+            case 2 -> isNullExpression(previousOutput, allowUnmapped);
+            case 3 -> stringToBoolFunction(previousOutput, allowUnmapped);
+            case 4 -> inExpression(previousOutput, allowUnmapped);
+            case 5 -> likeExpression(previousOutput, allowUnmapped);
+            case 6 -> rlikeExpression(previousOutput, allowUnmapped);
+            default -> throw new IllegalStateException("unexpected random condition");
+        };
+        return condition == null ? randomFrom("true", "false") : condition;
     }
 
     public static String randomNameOrNullOrConst(String name) {

@@ -37,6 +37,7 @@ class ShardSyncState {
     private volatile Translog.Location processedLocation = new Translog.Location(0, 0, 0);
     private volatile Translog.Location syncedLocation = new Translog.Location(0, 0, 0);
     private volatile boolean isClosed = false;
+    private volatile boolean primaryTermIsStale = false;
 
     ShardSyncState(
         ShardId shardId,
@@ -64,6 +65,10 @@ class ShardSyncState {
         return new AlreadyClosedException("The translog for shard [" + shardId + "] is already closed.");
     }
 
+    static AlreadyClosedException stalePrimaryTermException(ShardId shardId) {
+        return new AlreadyClosedException("The translog for shard [" + shardId + "] need not be synced because its primary term is stale");
+    }
+
     boolean syncNeeded() {
         return processedLocation.compareTo(syncedLocation) > 0;
     }
@@ -85,31 +90,33 @@ class ShardSyncState {
 
     boolean ensureSynced(Translog.Location location, ActionListener<Void> listener) {
         assert location.compareTo(processedLocation) <= 0;
-        boolean completeListener = true;
-        boolean alreadyClosed = false;
-        if (location.compareTo(syncedLocation) > 0) {
+
+        final Exception exception;
+        if (location.compareTo(syncedLocation) <= 0) {
+            exception = null;
+        } else {
             synchronized (listeners) {
                 if (isClosed) {
-                    alreadyClosed = true;
-                } else if (location.compareTo(syncedLocation) > 0) {
+                    exception = alreadyClosedException(shardId);
+                } else if (primaryTermIsStale) {
+                    exception = stalePrimaryTermException(shardId);
+                } else if (location.compareTo(syncedLocation) <= 0) {
+                    exception = null;
+                } else {
                     ContextPreservingActionListener<Void> contextPreservingActionListener = ContextPreservingActionListener
                         .wrapPreservingContext(listener, threadContext);
                     listeners.add(new SyncListener(location, contextPreservingActionListener));
-                    completeListener = false;
+                    return false;
                 }
             }
         }
 
-        if (completeListener) {
-            if (alreadyClosed) {
-                listener.onFailure(alreadyClosedException(shardId));
-            } else {
-                listener.onResponse(null);
-            }
-            return true;
+        if (exception == null) {
+            listener.onResponse(null);
         } else {
-            return false;
+            listener.onFailure(exception);
         }
+        return true;
     }
 
     public void markSyncStarting(long primaryTerm, TranslogReplicator.BlobTranslogFile translogFile) {
@@ -144,9 +151,8 @@ class ShardSyncState {
     }
 
     public boolean markSyncFinished(SyncMarker syncMarker) {
-        // If the primary term changed this shard will eventually be closed and the listeners will be failed at that point, so we can
-        // ignore them here.
-        if (syncMarker.primaryTerm() == currentPrimaryTerm()) {
+        final long currentTerm = currentPrimaryTerm();
+        if (syncMarker.primaryTerm() == currentTerm) {
             assert syncMarker.location().compareTo(syncedLocation) > 0;
             // We mark the seqNos of persisted before exposing the synced location. This matches what we do in the TranlogWriter.
             // Some assertions in TransportVerifyShardBeforeCloseAction depend on the seqNos marked as persisted before the sync is exposed.
@@ -155,8 +161,16 @@ class ShardSyncState {
             syncedLocation = syncMarker.location();
             return true;
         } else {
+            if (startingPrimaryTerm < currentTerm) {
+                // This state's own term is no longer current. The caller fails pending listeners after releasing a lock.
+                primaryTermIsStale = true;
+            } // else syncMarker relates to an earlier incarnation of this shard with an older term, so there are no listeners to fail.
             return false;
         }
+    }
+
+    boolean isPrimaryTermStale() {
+        return primaryTermIsStale;
     }
 
     public void markCommitUploaded(long translogReleaseEndFile) {

@@ -101,6 +101,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -626,10 +627,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testMinimalSerializesToItself() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(createMapperService(fieldMapping(this::minimalMapping)), orig, ToXContent.EMPTY_PARAMS);
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
-        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(createMapperService(orig), parsedFromOrig, ToXContent.EMPTY_PARAMS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
         assertParseMinimalWarnings();
@@ -637,10 +638,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testMinimalToMaximal() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        mappingToXContent(createMapperService(fieldMapping(this::minimalMapping)), orig, INCLUDE_DEFAULTS);
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
-        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, INCLUDE_DEFAULTS);
+        mappingToXContent(createMapperService(orig), parsedFromOrig, INCLUDE_DEFAULTS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
         assertParseMaximalWarnings();
@@ -862,7 +863,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         final String paramName;
         final XContentBuilder init;
         final XContentBuilder update;
-        final Consumer<FieldMapper> check;
+        final BiConsumer<MapperService, FieldMapper> check;
 
         private UpdateCheck(String paramName, CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check)
             throws IOException {
@@ -872,14 +873,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 minimalMapping(b);
                 update.accept(b);
             });
-            this.check = check;
+            this.check = (mapperService, mapper) -> check.accept(mapper);
         }
 
         private UpdateCheck(
             String paramName,
             CheckedConsumer<XContentBuilder, IOException> init,
             CheckedConsumer<XContentBuilder, IOException> update,
-            Consumer<FieldMapper> check
+            BiConsumer<MapperService, FieldMapper> check
         ) throws IOException {
             this.paramName = paramName;
             this.init = fieldMapping(init);
@@ -922,6 +923,24 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             CheckedConsumer<XContentBuilder, IOException> init,
             CheckedConsumer<XContentBuilder, IOException> update,
             Consumer<FieldMapper> check
+        ) throws IOException {
+            registerUpdateCheck(param, init, update, (mapperService, mapper) -> check.accept(mapper));
+        }
+
+        /**
+         * Register a check that a parameter can be updated, for a check that needs the {@link MapperService}, such as one on the
+         * mapping the updated field serializes to
+         *
+         * @param param  the parameter name
+         * @param init   the initial mapping
+         * @param update the updated mapping
+         * @param check  a check that the updated parameter has been applied, given the mapper service and the updated FieldMapper
+         */
+        public void registerUpdateCheck(
+            String param,
+            CheckedConsumer<XContentBuilder, IOException> init,
+            CheckedConsumer<XContentBuilder, IOException> update,
+            BiConsumer<MapperService, FieldMapper> check
         ) throws IOException {
             checkedParameters.add(param);
             updateChecks.add(new UpdateCheck(param, init, update, check));
@@ -1020,11 +1039,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             MapperService mapperService = createMapperService(updateCheck.init);
             merge(mapperService, updateCheck.update);
             FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-            updateCheck.check.accept(mapper);
+            updateCheck.check.accept(mapperService, mapper);
             // do it again to ensure that we don't get conflicts the second time
             merge(mapperService, updateCheck.update);
             mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-            updateCheck.check.accept(mapper);
+            updateCheck.check.accept(mapperService, mapper);
         }
         for (ConflictCheck conflictCheck : checker.conflictChecks) {
             String param = conflictCheck.param();
@@ -1089,7 +1108,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private static String serializeMapping(MapperService mapperService) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        mapperService.documentMapper().mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(mapperService, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         return Strings.toString(builder);
     }

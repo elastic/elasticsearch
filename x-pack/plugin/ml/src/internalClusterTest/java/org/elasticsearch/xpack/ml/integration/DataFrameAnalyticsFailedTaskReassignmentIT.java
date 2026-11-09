@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -66,11 +67,18 @@ public class DataFrameAnalyticsFailedTaskReassignmentIT extends BaseMlIntegTestC
             .setAnalysis(new OutlierDetection.Builder().build())
             .build();
         client().execute(PutDataFrameAnalyticsAction.INSTANCE, new PutDataFrameAnalyticsAction.Request(config)).actionGet();
+
+        // The config is validated when it is created, so it can only be made to fail by removing the source index afterwards. The job then
+        // fails because it cannot find its source, which gets the task into the failed state without relying on anything else.
+        indicesAdmin().prepareDelete(sourceIndex).get();
         startPersistentTask(id);
 
-        // The job fails on its own in this test environment (the painless script used when reindexing cannot be compiled), which is
-        // enough to get the task into the failed state
         DiscoveryNode firstNode = awaitStateAndGetNode(id, DataFrameAnalyticsState.FAILED, null);
+        assertThat(
+            "the job must have failed because of the missing source index",
+            getStats(id).getFailureReason(),
+            containsString(sourceIndex)
+        );
 
         try (var mockLog = MockLog.capture(DataFrameAnalyticsTask.class, TransportStartDataFrameAnalyticsAction.class)) {
             mockLog.addExpectation(

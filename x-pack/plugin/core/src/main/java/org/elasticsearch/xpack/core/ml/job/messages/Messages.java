@@ -135,7 +135,8 @@ public final class Messages {
     public static final String DATAFEED_ESQL_INCOMPLETE_CHUNK =
         "Within [{0}, {1}) at least one ES|QL datafeed chunk reached its row limit. "
             + "Rows beyond the limit were not retrieved and will not be extracted again. "
-            + "Pre-aggregate the data or add a lower LIMIT to esql_query.";
+            + "Use a smaller grouping interval in esql_query. "
+            + "Aggregate the data or add a filter to reduce the number of rows per chunk.";
     public static final String DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED =
         "ES|QL datafeeds require chunking to remain enabled; grouping-interval alignment and truncation detection "
             + "depend on it; do not set chunking_config.mode to off";

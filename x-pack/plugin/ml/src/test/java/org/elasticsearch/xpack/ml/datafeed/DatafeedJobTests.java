@@ -738,7 +738,8 @@ public class DatafeedJobTests extends ESTestCase {
         String expectedMessage =
             "Within [1970-01-01T00:00:00.100Z, 1970-01-01T00:00:00.200Z) at least one ES|QL datafeed chunk reached its row limit. "
                 + "Rows beyond the limit were not retrieved and will not be extracted again. "
-                + "Pre-aggregate the data or add a lower LIMIT to esql_query.";
+                + "Use a smaller grouping interval in esql_query. "
+                + "Aggregate the data or add a filter to reduce the number of rows per chunk.";
         verify(auditor).warning(jobId, expectedMessage);
         assertThat(datafeedJob.lastEndTimeMs(), equalTo(999L));
     }
@@ -791,6 +792,29 @@ public class DatafeedJobTests extends ESTestCase {
         runRealtimeCycleAt(datafeedJob, 9000L);
         verify(auditor, times(2)).warning(any(), any());
         verify(dataExtractor, times(4)).getIncompleteSearchInterval();
+    }
+
+    public void testEsqlIncompleteChunkShouldNotAuditAgainWithinOneDay() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(2000L).thenReturn(4000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        runRealtimeCycleAt(datafeedJob, 3_600_000L);
+        runRealtimeCycleAt(datafeedJob, 3_600_000L + TimeValue.timeValueHours(23).millis());
+
+        verify(auditor, times(1)).warning(any(), any());
+    }
+
+    public void testEsqlIncompleteChunkShouldAuditAgainAfterOneDay() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(2000L).thenReturn(4000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        long start = 10_000_000L;
+        runRealtimeCycleAt(datafeedJob, start);
+        runRealtimeCycleAt(datafeedJob, start + TimeValue.timeValueHours(25).millis());
+
+        verify(auditor, times(2)).warning(any(), any());
     }
 
     public void testEsqlTruncatedChunkWithIsolateDuringExtractionShouldNotAudit() throws Exception {

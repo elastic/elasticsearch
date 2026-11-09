@@ -66,6 +66,8 @@ class DatafeedJob {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
+    private static final long INCOMPLETE_CHUNK_AUDIT_INTERVAL_MS = TimeValue.timeValueHours(24).millis();
+    private static final long NO_INCOMPLETE_CHUNK_AUDIT = -1L;
 
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
@@ -97,9 +99,8 @@ class DatafeedJob {
     private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
-    // Audit once per episode of consecutive truncated cycles so a persistent truncation does not flood the audit log
-    // every realtime cycle. Accepted blind spot: later distinct truncated intervals in the same episode are not audited.
-    private volatile boolean auditedIncompleteChunk;
+    // Re-audit persistent truncation at most once per day so operators are reminded without flooding the audit log.
+    private volatile long lastIncompleteChunkAuditMs = NO_INCOMPLETE_CHUNK_AUDIT;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile SearchInterval searchInterval;
     @Nullable
@@ -584,12 +585,15 @@ class DatafeedJob {
                 // truncated cycle may WARN again. Resetting on a non-claim cycle would duplicate WARNs.
                 if (dataExtractor.isCancelled() == false) {
                     if (incompleteSearchInterval.isPresent() == false) {
-                        auditedIncompleteChunk = false;
-                    } else if (auditedIncompleteChunk == false) {
-                        auditedIncompleteChunk = true;
-                        notifyIncompleteEsqlChunk(incompleteSearchInterval.get());
+                        lastIncompleteChunkAuditMs = NO_INCOMPLETE_CHUNK_AUDIT;
                     } else {
-                        LOGGER.debug("[{}] ES|QL chunk still incomplete for {}", jobId, incompleteSearchInterval.get());
+                        long now = currentTimeSupplier.get();
+                        if (lastIncompleteChunkAuditMs < 0 || now - lastIncompleteChunkAuditMs >= INCOMPLETE_CHUNK_AUDIT_INTERVAL_MS) {
+                            lastIncompleteChunkAuditMs = now;
+                            notifyIncompleteEsqlChunk(incompleteSearchInterval.get());
+                        } else {
+                            LOGGER.debug("[{}] ES|QL chunk still incomplete for {}", jobId, incompleteSearchInterval.get());
+                        }
                     }
                 }
             }

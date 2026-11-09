@@ -39,3 +39,43 @@ You should always make changes to the template files, and run the above command 
 ## Node / TypeScript
 
 Node (technically `bun`), TypeScript, and related files are currently used to generate pipelines for pull request CI. See [scripts/pull-request](scripts/pull-request) for details.
+
+## Periodic promcheck
+
+[`periodic-promcheck.yml`](pipelines/periodic-promcheck.yml) runs the pinned promcheck
+release against the checked-out Elasticsearch revision using the `grafanalabs-top100`
+release corpus. The pipeline and its daily `main` schedule are declared in
+[`catalog-info.yaml`](../catalog-info.yaml); the schedule becomes active when the
+CI pipeline configuration is reconciled from that catalog.
+
+Before enabling the pipeline, provision the Vault secret
+`secret/ci/elastic-elasticsearch/promcheck-results` with `url` (the remote cluster's
+HTTPS base URL) and `api_key` (an encoded Elasticsearch API key), and grant the
+pipeline access to it. The destination index defaults to `promcheck-results`.
+Grant the key `index` and `auto_configure` privileges on that index, or pre-create
+the index and its mappings and grant only `index`. No cluster administration
+privileges are needed.
+
+The step accepts `PROMCHECK_RESULTS_SECRET` to select another Vault secret, or
+`PROMCHECK_RESULTS_URL` and `PROMCHECK_RESULTS_API_KEY` to supply the connection
+through the CI secret environment. Keep credentials out of committed YAML.
+`PROMCHECK_RESULTS_INDEX`, `PROMCHECK_VER`, `PROMCHECK_CORPUS`, and
+`PROMCHECK_TEST_INSTANCE_TIMEOUT` configure the index, release, corpus asset name,
+and Elasticsearch startup timeout in seconds. GitHub release access uses the
+existing `GH_TOKEN` supplied by the agent hook.
+
+Each completed run writes one document containing `@timestamp`, `commit`, `branch`,
+`promcheck_version`, `corpus`, Buildkite build/job identifiers and build URL,
+`duration_seconds`, `exit_code`, and numeric `counts` (`total`, `match`, `mismatch`,
+`http4xx`, `http5xx`, `error`, `response_filtered`, `flaky`). A stable build/corpus
+document ID prevents duplicate documents if an upload is retried. Query failures
+(exit code 1) are indexed normally; an incomplete run, missing or inconsistent
+verdict, or failed upload fails the step. Full query diagnostics remain in the
+`promcheck.log` artifact alongside `result.json` and `index-response.json`.
+
+To verify the runner without building Elasticsearch or contacting remote services:
+
+```bash
+cd .buildkite
+node node_modules/vitest/vitest.mjs run scripts/periodic-promcheck.test.ts
+```

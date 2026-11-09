@@ -1,0 +1,21 @@
+# Schedule and pipeline registration live in catalog-info.yaml.
+env:
+  PROMCHECK_VER: "0.9.5+prometheus-3.13.1"
+  PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
+  PROMCHECK_CORPUS: grafanalabs-top100
+  PROMCHECK_RESULTS_INDEX: promcheck-results
+  PROMCHECK_RESULTS_SECRET: secret/ci/elastic-elasticsearch/promcheck-results
+steps:
+  - label: periodic-promcheck
+    key: periodic-promcheck
+    command: .buildkite/scripts/periodic-promcheck.sh
+    timeout_in_minutes: 120
+    artifact_paths:
+      - "/tmp/periodic-promcheck-output/*"
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n1-standard-8
+      docker: "true"
+      diskType: pd-ssd
+      buildDirectory: /dev/shm/bk

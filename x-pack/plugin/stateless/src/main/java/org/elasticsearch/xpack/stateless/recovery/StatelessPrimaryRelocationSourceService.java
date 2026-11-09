@@ -99,13 +99,15 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Setting.Property.NodeScope
     );
 
-    <<<<<<<HEAD
     /// how long the source waits for the prewarm to finish before acquiring permits
     public static final Setting<TimeValue> PREWARM_WAIT_TIMEOUT_SETTING = Setting.timeSetting(
         "stateless.cluster.primary_relocation.prewarm_wait_timeout",
         TimeValue.timeValueSeconds(5),
         TimeValue.ZERO,
-=======
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     /**
      * Whether relocating a hollow shard transfers its hollow commit metadata to the target, so the target does not read the commit from
      * the object store. When disabled, the target is asked to prewarm and reads the commit from the object store.
@@ -113,7 +115,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     public static final Setting<Boolean> TRANSFER_HOLLOW_COMMIT_METADATA_SETTING = Setting.boolSetting(
         "stateless.cluster.primary_relocation.transfer_hollow_commit_metadata",
         false,
->>>>>>> upstream/main
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

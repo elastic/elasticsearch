@@ -106,6 +106,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(first == null ? second : first)
             );
         }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.TSMD_DATA_TYPE, DataType.TSMD_DATA_TYPE), () -> {
+            var first = randomBoolean() ? null : (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSMD_DATA_TYPE).value();
+            var second = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSMD_DATA_TYPE).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.TSMD_DATA_TYPE, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.TSMD_DATA_TYPE, "second")
+                ),
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.TSMD_DATA_TYPE,
+                equalTo(first == null ? second : first)
+            );
+        }));
         noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.DATETIME), () -> {
             Long firstDate = randomBoolean() ? null : ZonedDateTime.parse("2023-12-04T10:15:30Z").toInstant().toEpochMilli();
             Long secondDate = ZonedDateTime.parse("2023-12-05T10:45:00Z").toInstant().toEpochMilli();

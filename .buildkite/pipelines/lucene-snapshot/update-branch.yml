@@ -1,9 +1,34 @@
+# Two daily schedules share this pipeline_file.
+# TARGET_BRANCH unset (lucene_snapshot): the existing merge script + tests.
+# TARGET_BRANCH set (main → lucene_snapshot_11): Archimedes.
+#
+# Surface TARGET_BRANCH so step `if` conditions see it on scheduled builds.
+env:
+  TARGET_BRANCH: "${TARGET_BRANCH:-}"
+
 steps:
   - label: Update lucene-snapshot branch
+    if: build.env("TARGET_BRANCH") == null || build.env("TARGET_BRANCH") == ""
     command: .buildkite/scripts/lucene-snapshot/update-branch.sh
     timeout_in_minutes: 15
-  - wait
+  - wait: ~
+    if: build.env("TARGET_BRANCH") == null || build.env("TARGET_BRANCH") == ""
   - trigger: "elasticsearch-lucene-snapshot-tests"
+    if: build.env("TARGET_BRANCH") == null || build.env("TARGET_BRANCH") == ""
     build:
       branch: "${BUILDKITE_BRANCH}"
     async: true
+
+  - trigger: "elasticsearch-agentic-workflow"
+    if: build.env("TARGET_BRANCH") != null && build.env("TARGET_BRANCH") != ""
+    label: ":robot_face: lucene-merge-conflicts"
+    async: false
+    build:
+      message: "lucene-merge-conflicts: main → ${TARGET_BRANCH}"
+      branch: "main"
+      env:
+        WORKFLOW: "lucene-merge-conflicts"
+        TARGET_BRANCH: "${TARGET_BRANCH}"
+        # compileJava / compileTestJava / spotless run on this agent, not a
+        # forked n4-standard-64 reproduction job.
+        ARCHIMEDES_AGENT_MACHINE_TYPE: "n4-standard-16"

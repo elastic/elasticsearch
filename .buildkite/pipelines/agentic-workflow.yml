@@ -18,9 +18,9 @@
 #   pull-request-fix        — self-heal a failing pull request    (needs PR_URL)
 #   pull-request-creation   — implement a task and open a PR      (needs ISSUE_URL)
 #   lucene-merge-conflicts  — merge main → lucene_snapshot_*      (needs TARGET_BRANCH)
-#                             Daily schedule on this pipeline (main,
-#                             TARGET_BRANCH=lucene_snapshot_11).
-#                             lucene_snapshot still uses lucene-snapshot/update-branch.yml.
+#                             Daily lucene-snapshot/update-branch.yml (on main,
+#                             TARGET_BRANCH=lucene_snapshot_11) triggers this.
+#                             The lucene_snapshot schedule still uses the old merge.
 #                             Clean + compile-green: push to the snapshot branch.
 #                             Agent edits: open a PR.
 #
@@ -91,8 +91,8 @@ steps:
   # lucene-merge-conflicts compiles in-process (unlike analysis, which fans out
   # reproduction). Worst case is resolve 20 + compile 50 + compile-fix 50 plus
   # prepare/finish/checkout; 150 covers that. Agent image / machine / disk come
-# from ARCHIMEDES_AGENT_*; the lucene-merge schedule sets
-# ARCHIMEDES_AGENT_MACHINE_TYPE to n4-standard-16.
+  # from ARCHIMEDES_AGENT_*; update-branch.yml sets
+  # ARCHIMEDES_AGENT_MACHINE_TYPE to n4-standard-16.
   - label: ":robot_face: Archimedes — lucene-merge-conflicts"
     key: archimedes-lucene-merge
     if: build.env("WORKFLOW") == "lucene-merge-conflicts"

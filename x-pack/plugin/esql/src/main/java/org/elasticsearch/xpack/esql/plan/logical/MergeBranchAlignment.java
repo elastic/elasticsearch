@@ -58,7 +58,7 @@ public final class MergeBranchAlignment {
      * {@code branch} null-filling the columns of {@code merge}'s output that it does not produce, and projected to the merge's
      * columns in the merge's order. Returns {@code branch} itself when it already lines up.
      */
-    public static LogicalPlan alignBranch(MergePlan merge, LogicalPlan branch) {
+    private static LogicalPlan alignBranch(MergePlan merge, LogicalPlan branch) {
         List<Alias> fills = nullFills(merge.output(), branch);
         LogicalPlan filled = fills.isEmpty() ? branch : new Eval(branch.source(), branch, fills);
         return projectToColumns(filled, Expressions.names(merge.output()));
@@ -113,7 +113,7 @@ public final class MergeBranchAlignment {
      * Preserves {@link Attribute#synthetic()}, so a fill of a synthetic merge column (e.g. a union-type
      * {@code $$field$converted_to$type} cast) stays invisible to the removal of synthetic attributes from the query's output.
      */
-    public static Alias nullFill(Source source, Attribute column) {
+    private static Alias nullFill(Source source, Attribute column) {
         return new Alias(source, column.name(), new Literal(source, null, nullFillType(column)), null, column.synthetic());
     }
 
@@ -122,7 +122,7 @@ public final class MergeBranchAlignment {
      * types that an {@code EVAL} cannot return. {@code UNSUPPORTED} is filled as {@code KEYWORD} and a counter type as its
      * non-counter counterpart.
      */
-    public static DataType nullFillType(Attribute column) {
+    private static DataType nullFillType(Attribute column) {
         DataType type = alignmentDataType(column);
         type = type == UNSUPPORTED ? KEYWORD : type;
         return type.isCounter() ? type.noCounter() : type;

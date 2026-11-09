@@ -1,5 +1,6 @@
 area: Snapshot/Restore
-issues: []
+issues:
+ - 164565
 pr: 164634
-summary: Add S3 setting to omit optional checksums
+summary: Add S3 setting to omit request body checksums, overriding any AWS_REQUEST_CHECKSUM_CALCULATION value
 type: enhancement

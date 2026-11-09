@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
@@ -27,19 +28,19 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * For S3 repositories only {@code unsafely_omit_request_body_checksums} decides whether uploads carry a checksum. When it's
  * unset we tell the SDK {@code WHEN_SUPPORTED}, so an operator who set {@code AWS_REQUEST_CHECKSUM_CALCULATION=when_required} on the node
- * doesn't get what they asked for, because a value set on the client builder beats the env var.
+ * doesn't get what they asked for, because a value set on the client builder beats the env var. The value of the env var doesn't matter to
+ * the code, so the test picks one at random. Only {@code when_required} would show a regression, because {@code when_supported} is the
+ * SDK default and sends checksums either way.
  * <p>
  * The test checks a single-part {@code PutObject}, which is what registering a repository sends. The setting applies to the whole client,
  * so one operation the SDK would otherwise checksum is enough. The system property and the profile file go through the same SDK resolver
@@ -55,15 +56,12 @@ public class RepositoryS3RequestChecksumEnvVarIgnoredRestIT extends ESRestTestCa
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "env_var_ignored_client";
 
-    private static final Supplier<String> regionSupplier = () -> "us-east-1";
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
     private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     /** How many uploads the fixture has seen, so the test can tell that it checked something. */
     private static final AtomicInteger putObjectCount = new AtomicInteger();
-
-    /** A description of each upload the fixture saw that carried no checksum. */
-    private static final List<String> uploadsWithoutChecksum = new CopyOnWriteArrayList<>();
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
@@ -87,7 +85,7 @@ public class RepositoryS3RequestChecksumEnvVarIgnoredRestIT extends ESRestTestCa
                     putObjectCount.incrementAndGet();
                     final var headerNames = exchange.getRequestHeaders().keySet();
                     if (headerNames.stream().noneMatch(AbstractRepositoryS3RestTestCase::isChecksumRequestHeader)) {
-                        uploadsWithoutChecksum.add("PutObject with headers " + headerNames);
+                        throw new AssertionError("expected a checksum on the PutObject, but its headers were " + headerNames);
                     }
                 }
                 delegate.handle(exchange);
@@ -98,7 +96,7 @@ public class RepositoryS3RequestChecksumEnvVarIgnoredRestIT extends ESRestTestCa
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .systemProperty("aws.region", regionSupplier)
-        .environment("AWS_REQUEST_CHECKSUM_CALCULATION", "when_required")
+        .environment("AWS_REQUEST_CHECKSUM_CALCULATION", () -> randomFrom("when_required", "when_supported"))
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
@@ -115,7 +113,6 @@ public class RepositoryS3RequestChecksumEnvVarIgnoredRestIT extends ESRestTestCa
     @Before
     public void forgetUploadsSeenEarlier() {
         putObjectCount.set(0);
-        uploadsWithoutChecksum.clear();
     }
 
     public void testEnvVarIsIgnoredWhenTheSettingIsUnset() throws Exception {
@@ -130,7 +127,6 @@ public class RepositoryS3RequestChecksumEnvVarIgnoredRestIT extends ESRestTestCa
         // small blob to check that it works, which is a single PutObject.
         try (var ignored = repository.register(s -> Settings.builder().put(s).putNull("unsafely_omit_request_body_checksums").build())) {
             assertThat("expected registering the repository to send a PutObject", putObjectCount.get(), greaterThan(0));
-            assertThat("uploads must carry a checksum even though the env var asks for when_required", uploadsWithoutChecksum, empty());
         }
     }
 }

@@ -300,7 +300,8 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         /// in one, which is for chunked bodies unless the optional checksums are omitted.
         String getExpectedUploadContentSha256Header() {
             final boolean sendsChecksumTrailer = chunkedEncoding && unsafelyOmitRequestBodyChecksums == false;
-            return (https && alwaysSignRequests == false)
+            final boolean isUnsignedPayload = https && alwaysSignRequests == false;
+            return isUnsignedPayload
                 ? (sendsChecksumTrailer ? "STREAMING-UNSIGNED-PAYLOAD-TRAILER" : "UNSIGNED-PAYLOAD")
                 : (sendsChecksumTrailer ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
         }

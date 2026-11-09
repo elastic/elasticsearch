@@ -253,8 +253,7 @@ spec:
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"
         SLACK_NOTIFICATIONS_CHANNEL: "#lucene-ci"
         SLACK_NOTIFICATIONS_ALL_BRANCHES: "true"
-      # Wrapper YAML lives on main. TARGET_BRANCH is the snapshot branch to merge into.
-      default_branch: main
+      default_branch: lucene_snapshot
       teams:
         elasticsearch-team: {}
         ml-core: {}
@@ -266,6 +265,10 @@ spec:
         publish_commit_status: false
         trigger_mode: none
       schedules:
+        Periodically on lucene_snapshot:
+          branch: lucene_snapshot
+          cronline: "0 6 * * * America/New_York"
+          message: "Merges main into lucene_snapshot branch 1x per day"
         Daily lucene_snapshot_11 merge:
           branch: main
           cronline: "0 6 * * * America/New_York"

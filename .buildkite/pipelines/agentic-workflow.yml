@@ -19,7 +19,8 @@
 #   pull-request-creation   — implement a task and open a PR      (needs ISSUE_URL)
 #   lucene-merge-conflicts  — merge main → lucene_snapshot_*      (needs TARGET_BRANCH)
 #                             Daily lucene-snapshot/update-branch.yml (on main,
-#                             TARGET_BRANCH=lucene_snapshot_11) always triggers this.
+#                             TARGET_BRANCH=lucene_snapshot_11) triggers this.
+#                             The lucene_snapshot schedule still uses the old merge.
 #                             Clean + compile-green: push to the snapshot branch.
 #                             Agent edits: open a PR.
 #

@@ -1,26 +1,45 @@
+# Two daily schedules share this file. Buildkite loads it from the scheduled
+# branch, and the old lucene_snapshot merge will eventually copy this YAML
+# (and the script) onto that branch — so both paths must stay here.
+#
+# TARGET_BRANCH unset (lucene_snapshot schedule): the existing merge script.
+# TARGET_BRANCH set (lucene_snapshot_11 schedule on main): Archimedes.
+
 steps:
-  # Scheduled on main so this file is the one from catalog-info (not the old
-  # merge script still on lucene_snapshot_*). TARGET_BRANCH is the snapshot
-  # branch to merge into; the daily schedule sets lucene_snapshot_11.
+  - label: Update lucene-snapshot branch
+    if: build.env("TARGET_BRANCH") == null || build.env("TARGET_BRANCH") == ""
+    command: .buildkite/scripts/lucene-snapshot/update-branch.sh
+    timeout_in_minutes: 15
+  - wait:
+      if: build.env("TARGET_BRANCH") == null || build.env("TARGET_BRANCH") == ""
+  - trigger: "elasticsearch-lucene-snapshot-tests"
+    if: build.env("TARGET_BRANCH") == null || build.env("TARGET_BRANCH") == ""
+    build:
+      branch: "${BUILDKITE_BRANCH}"
+    async: true
+
   - label: Require lucene_snapshot target
+    if: build.env("TARGET_BRANCH") != null && build.env("TARGET_BRANCH") != ""
     command: |
-      TARGET="${TARGET_BRANCH:-${BUILDKITE_BRANCH}}"
+      TARGET="${TARGET_BRANCH}"
       if [[ "${TARGET}" != lucene_snapshot* ]]; then
         echo "This pipeline merges main into lucene_snapshot* (got TARGET_BRANCH=${TARGET})"
         exit 1
       fi
       echo "lucene-merge-conflicts: main → ${TARGET}"
     timeout_in_minutes: 5
-  - wait
+  - wait:
+      if: build.env("TARGET_BRANCH") != null && build.env("TARGET_BRANCH") != ""
   - trigger: "elasticsearch-agentic-workflow"
+    if: build.env("TARGET_BRANCH") != null && build.env("TARGET_BRANCH") != ""
     label: ":robot_face: lucene-merge-conflicts"
     async: false
     build:
-      message: "lucene-merge-conflicts: main → ${TARGET_BRANCH:-${BUILDKITE_BRANCH}}"
+      message: "lucene-merge-conflicts: main → ${TARGET_BRANCH}"
       branch: "main"
       env:
         WORKFLOW: "lucene-merge-conflicts"
-        TARGET_BRANCH: "${TARGET_BRANCH:-${BUILDKITE_BRANCH}}"
+        TARGET_BRANCH: "${TARGET_BRANCH}"
         # compileJava / compileTestJava / spotless run on this agent, not a
         # forked n4-standard-64 reproduction job.
         ARCHIMEDES_AGENT_MACHINE_TYPE: "n4-standard-16"

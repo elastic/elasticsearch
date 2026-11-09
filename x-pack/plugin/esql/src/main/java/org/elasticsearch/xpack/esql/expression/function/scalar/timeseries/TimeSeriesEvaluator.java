@@ -28,17 +28,21 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper.ToEvaluator
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Evaluates reads and removals of labels in a typed label container. The label container is the canonical JSON object
- * {@link ToTimeSeries} writes, so both stream over it: a read stops at its label, and a removal copies the other labels
- * in their order, which keeps the result canonical. Labels are folded once.
+ * Evaluates reads and rewrites of labels in a typed label container. The label container is the canonical JSON object
+ * {@link ToTimeSeries} writes - labels sorted by name - so every operation streams over it: a read stops at its label,
+ * and a rewrite copies the labels it keeps in their order, writing a set label at its sorted position, which keeps the
+ * result canonical. Label names are folded once.
  */
 public final class TimeSeriesEvaluator implements ExpressionEvaluator {
     enum Operation {
         GET,
-        UNSET
+        UNSET,
+        KEEP,
+        SET
     }
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(TimeSeriesEvaluator.class);
@@ -46,31 +50,43 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
     private final Operation operation;
     private final ExpressionEvaluator labelContainer;
     private final List<String> names;
+    /** The value {@link Operation#SET} writes, null for the other operations. */
+    private final @Nullable ExpressionEvaluator value;
     private final DriverContext context;
 
-    private TimeSeriesEvaluator(Operation operation, ExpressionEvaluator labelContainer, List<String> names, DriverContext context) {
+    private TimeSeriesEvaluator(
+        Operation operation,
+        ExpressionEvaluator labelContainer,
+        List<String> names,
+        @Nullable ExpressionEvaluator value,
+        DriverContext context
+    ) {
         this.operation = operation;
         this.labelContainer = labelContainer;
         this.names = names;
+        this.value = value;
         this.context = context;
     }
 
+    /** {@code arguments} are the label container then the label names, and for {@link Operation#SET} the value last. */
     static Factory factory(Operation operation, List<Expression> arguments, ToEvaluator toEvaluator) {
-        String[] names = new String[arguments.size() - 1];
+        int labels = operation == Operation.SET ? 1 : arguments.size() - 1;
+        String[] names = new String[labels];
         for (int i = 0; i < names.length; i++) {
             names[i] = ((BytesRef) arguments.get(i + 1).fold(toEvaluator.foldCtx())).utf8ToString();
         }
-        return new Factory(operation, toEvaluator.apply(arguments.getFirst()), List.of(names));
+        ExpressionEvaluator.Factory value = operation == Operation.SET ? toEvaluator.apply(arguments.getLast()) : null;
+        return new Factory(operation, toEvaluator.apply(arguments.getFirst()), List.of(names), value);
     }
 
     @Override
     public Block eval(Page page) {
-        try (Block block = labelContainer.eval(page)) {
-            return eval(page.getPositionCount(), block);
+        try (Block block = labelContainer.eval(page); Block values = value == null ? null : value.eval(page)) {
+            return eval(page.getPositionCount(), block, (BytesRefBlock) values);
         }
     }
 
-    private Block eval(int positions, Block block) {
+    private Block eval(int positions, Block block, @Nullable BytesRefBlock values) {
         BytesRef scratch = new BytesRef();
         try (
             BytesRefBlock.Builder result = context.blockFactory().newBytesRefBlockBuilder(positions);
@@ -87,7 +103,9 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
                 try {
                     switch (operation) {
                         case GET -> read(encoded, names.getFirst(), result);
-                        case UNSET -> result.appendBytesRef(remove(encoded, names, buffer));
+                        case UNSET -> result.appendBytesRef(copy(encoded, names, false, buffer));
+                        case KEEP -> result.appendBytesRef(copy(encoded, names, true, buffer));
+                        case SET -> result.appendBytesRef(set(encoded, names.getFirst(), written(values, p), buffer));
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException("Invalid label container", e);
@@ -123,8 +141,9 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
         result.appendNull();
     }
 
-    /** Copies every label but {@code names}, in their order, so a canonical label container stays canonical. */
-    private static BytesRef remove(@Nullable BytesRef encoded, List<String> names, BreakingBytesRefBuilder buffer) throws IOException {
+    /** Copies the labels in {@code names} when {@code keep}, every other label otherwise, in their order. */
+    private static BytesRef copy(@Nullable BytesRef encoded, List<String> names, boolean keep, BreakingBytesRefBuilder buffer)
+        throws IOException {
         buffer.clear();
         try (XContentBuilder builder = jsonBuilder(buffer)) {
             builder.startObject();
@@ -133,21 +152,85 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
                     while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                         String label = parser.currentName();
                         parser.nextToken();
-                        if (names.contains(label)) {
+                        if (names.contains(label) == keep) {
+                            builder.field(label);
+                            builder.copyCurrentStructure(parser);
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                    end(parser);
+                }
+            }
+            builder.endObject();
+        }
+        return buffer.bytesRefView();
+    }
+
+    /** The non-empty values at {@code position}: PromQL has no empty label, so an empty or missing value writes none. */
+    private static List<String> written(BytesRefBlock values, int position) {
+        if (values.isNull(position)) {
+            return List.of();
+        }
+        BytesRef scratch = new BytesRef();
+        int first = values.getFirstValueIndex(position);
+        var written = new ArrayList<String>(values.getValueCount(position));
+        for (int i = first; i < first + values.getValueCount(position); i++) {
+            BytesRef value = values.getBytesRef(i, scratch);
+            if (value.length > 0) {
+                written.add(value.utf8ToString());
+            }
+        }
+        return written;
+    }
+
+    /** Copies every label but {@code name}, writing {@code values} as {@code name} at its sorted position; none removes it. */
+    private static BytesRef set(@Nullable BytesRef encoded, String name, List<String> values, BreakingBytesRefBuilder buffer)
+        throws IOException {
+        buffer.clear();
+        try (XContentBuilder builder = jsonBuilder(buffer)) {
+            builder.startObject();
+            boolean written = values.isEmpty();
+            if (encoded != null) {
+                try (XContentParser parser = parser(encoded)) {
+                    while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                        String label = parser.currentName();
+                        parser.nextToken();
+                        if (written == false && label.compareTo(name) >= 0) {
+                            write(builder, name, values);
+                            written = true;
+                        }
+                        if (label.equals(name)) {
                             parser.skipChildren();
                         } else {
                             builder.field(label);
                             builder.copyCurrentStructure(parser);
                         }
                     }
-                    if (parser.nextToken() != null) {
-                        throw new IllegalArgumentException("Unexpected content after the label container");
-                    }
+                    end(parser);
                 }
+            }
+            if (written == false) {
+                write(builder, name, values);
             }
             builder.endObject();
         }
         return buffer.bytesRefView();
+    }
+
+    /** One value is written as a string, several as an array, as {@link ToTimeSeries} does. */
+    private static void write(XContentBuilder builder, String name, List<String> values) throws IOException {
+        if (values.size() == 1) {
+            builder.field(name, values.getFirst());
+        } else {
+            builder.array(name, values.toArray(String[]::new));
+        }
+    }
+
+    private static void end(XContentParser parser) throws IOException {
+        if (parser.nextToken() != null) {
+            throw new IllegalArgumentException("Unexpected content after the label container");
+        }
     }
 
     /** Opens {@code encoded}, positioned on its object. */
@@ -192,6 +275,9 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
     @Override
     public long baseRamBytesUsed() {
         long bytes = BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(names) + labelContainer.baseRamBytesUsed();
+        if (value != null) {
+            bytes += value.baseRamBytesUsed();
+        }
         for (String name : names) {
             bytes += RamUsageEstimator.sizeOf(name);
         }
@@ -200,25 +286,45 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(labelContainer);
+        Releasables.closeExpectNoException(labelContainer, value);
     }
 
     @Override
     public String toString() {
-        return "TimeSeriesEvaluator[operation=" + operation + ", names=" + names + ", labelContainer=" + labelContainer + "]";
+        return describe(operation, names, labelContainer, value);
     }
 
-    record Factory(Operation operation, ExpressionEvaluator.Factory labelContainer, List<String> names)
-        implements
-            ExpressionEvaluator.Factory {
+    private static String describe(Operation operation, List<String> names, Object labelContainer, @Nullable Object value) {
+        return "TimeSeriesEvaluator[operation="
+            + operation
+            + ", names="
+            + names
+            + ", labelContainer="
+            + labelContainer
+            + (value == null ? "" : ", value=" + value)
+            + "]";
+    }
+
+    record Factory(
+        Operation operation,
+        ExpressionEvaluator.Factory labelContainer,
+        List<String> names,
+        @Nullable ExpressionEvaluator.Factory value
+    ) implements ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new TimeSeriesEvaluator(operation, labelContainer.get(context), names, context);
+            return new TimeSeriesEvaluator(
+                operation,
+                labelContainer.get(context),
+                names,
+                value == null ? null : value.get(context),
+                context
+            );
         }
 
         @Override
         public String toString() {
-            return "TimeSeriesEvaluator[operation=" + operation + ", names=" + names + ", labelContainer=" + labelContainer + "]";
+            return describe(operation, names, labelContainer, value);
         }
     }
 }

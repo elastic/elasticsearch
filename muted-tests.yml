@@ -242,10 +242,6 @@ tests:
   - :server:internalClusterTest
   method: testDynamicUpdates
   issue: https://github.com/elastic/elasticsearch/issues/161200
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  issue: https://github.com/elastic/elasticsearch/issues/165053
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
   tasks:
   - :x-pack:plugin:esql:compute:test

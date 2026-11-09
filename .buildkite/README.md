@@ -48,30 +48,49 @@ release corpus. The pipeline and its daily `main` schedule are declared in
 [`catalog-info.yaml`](../catalog-info.yaml); the schedule becomes active when the
 CI pipeline configuration is reconciled from that catalog.
 
+The destination is the existing Overview Elasticsearch cluster at
+`https://overview-elastic-cloud-com.es.us-east-1.aws.found.io`, data stream
+`synthetics-promql.support-default`. This is separate from the performance-test
+cluster configured as `ES_URL` in the local shell profile. The runner uses only
+`PROMCHECK_RESULTS_*` settings for uploads.
+
 Before enabling the pipeline, provision the Vault secret
-`secret/ci/elastic-elasticsearch/promcheck-results` with `url` (the remote cluster's
-HTTPS base URL) and `api_key` (an encoded Elasticsearch API key), and grant the
-pipeline access to it. The destination index defaults to `promcheck-results`.
-Grant the key `index` and `auto_configure` privileges on that index, or pre-create
-the index and its mappings and grant only `index`. No cluster administration
-privileges are needed.
+`secret/ci/elastic-elasticsearch/promcheck-results` with `api_key` (an encoded
+Elasticsearch API key for Overview), and grant the pipeline access to it. The key
+needs `create_doc` on the existing data stream. Use a CI credential; keep local
+credentials such as `~/.config/elastic-benchmarks/overview-api-key` out of the repo.
+No cluster administration privileges are needed.
 
 The step accepts `PROMCHECK_RESULTS_SECRET` to select another Vault secret, or
-`PROMCHECK_RESULTS_URL` and `PROMCHECK_RESULTS_API_KEY` to supply the connection
-through the CI secret environment. Keep credentials out of committed YAML.
-`PROMCHECK_RESULTS_INDEX`, `PROMCHECK_VER`, `PROMCHECK_CORPUS`, and
-`PROMCHECK_TEST_INSTANCE_TIMEOUT` configure the index, release, corpus asset name,
-and Elasticsearch startup timeout in seconds. GitHub release access uses the
-existing `GH_TOKEN` supplied by the agent hook.
+`PROMCHECK_RESULTS_API_KEY` to supply the key through the CI secret environment.
+`PROMCHECK_RESULTS_URL` overrides the Overview base URL; if it is unset, the secret
+must also contain `url`. `PROMCHECK_RESULTS_INDEX`, `PROMCHECK_VER`,
+`PROMCHECK_CORPUS`, and `PROMCHECK_TEST_INSTANCE_TIMEOUT` configure the data stream,
+release, corpus asset name, and Elasticsearch startup timeout in seconds. GitHub
+release access uses the existing `GH_TOKEN` supplied by the agent hook.
 
-Each completed run writes one document containing `@timestamp`, `commit`, `branch`,
-`promcheck_version`, `corpus`, Buildkite build/job identifiers and build URL,
-`duration_seconds`, `exit_code`, and numeric `counts` (`total`, `match`, `mismatch`,
-`http4xx`, `http5xx`, `error`, `response_filtered`, `flaky`). A stable build/corpus
-document ID prevents duplicate documents if an upload is retried. Query failures
-(exit code 1) are indexed normally; an incomplete run, missing or inconsistent
-verdict, or failed upload fails the step. Full query diagnostics remain in the
-`promcheck.log` artifact alongside `result.json` and `index-response.json`.
+Each completed run follows the existing Overview document schema: `@timestamp`,
+`status`, `dataset`, `git`, `promcheck`, `buildkite`, and `compliance`. Compliance
+contains `input_total`, `executed_total`, `executed_success`, `executed_failure`,
+`executed_error`, `executed_skip`, and `success_pct` (matches divided by input
+queries, rounded to one decimal). The current unfiltered run has equal input and
+executed totals. HTTP errors count as executed errors; flaky and response-filtered
+queries count as skips. `status: ok` means the run completed, including runs with
+query failures. The `counts.json` artifact retains the detailed verdict breakdown.
+Uploaded documents use the existing mapped fields.
+
+This reuses the schema and create semantics of the earlier Overview submission
+helper. That temporary backfill helper generated synthetic datapoints; this job
+reports only the actual promcheck verdict. `dataset` is the release corpus name
+(`grafanalabs-top100`), so it can be distinguished from the older
+`promql_test_queries-grafana` series when comparing coverage.
+
+Uploads use `PUT /<data-stream>/_create/<build-and-corpus-id>`, as required for
+writing to a data stream. A version conflict on retry means that result was
+already created. Query failures (exit code 1) are indexed normally; an incomplete
+run, missing or inconsistent verdict, or failed upload fails the step. Full query
+diagnostics remain in the `promcheck.log` artifact alongside `counts.json`, `result.json`, and
+`index-response.json`.
 
 To verify the runner without building Elasticsearch or contacting remote services:
 

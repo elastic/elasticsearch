@@ -47,7 +47,6 @@ chmod +x "$work_dir/promcheck-linux-$arch"
 
 revision=$(git rev-parse HEAD)
 started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-start_seconds=$SECONDS
 echo "--- Running promcheck"
 set +e
 NO_COLOR=1 "$work_dir/promcheck-linux-$arch" --elasticsearch "$PWD" \
@@ -55,7 +54,6 @@ NO_COLOR=1 "$work_dir/promcheck-linux-$arch" --elasticsearch "$PWD" \
   < "$work_dir/$PROMCHECK_CORPUS.tar.gz" 2>&1 | tee "$OUTPUT_DIR/promcheck.log"
 run_status=("${PIPESTATUS[@]}")
 set -e
-duration=$((SECONDS - start_seconds))
 rc=${run_status[0]}
 # Exit 1 represents query failures; other codes represent an incomplete run.
 (( rc == 0 || rc == 1 )) || { echo "promcheck failed to complete (exit $rc)" >&2; exit 1; }
@@ -69,22 +67,34 @@ jq -Rn '
   | with_entries(.value |= ((. // "0") | tonumber))
   | if .total > 0 and .total == (.match + .mismatch + .http4xx + .http5xx + .error + .response_filtered + .flaky)
     then . else error("Invalid promcheck counts") end
-' < "$OUTPUT_DIR/promcheck.log" > "$work_dir/counts.json"
-jq -n --slurpfile counts "$work_dir/counts.json" \
+' < "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/counts.json"
+jq -n --slurpfile counts "$OUTPUT_DIR/counts.json" \
   --arg timestamp "$started_at" --arg commit "$revision" --arg branch "${BUILDKITE_BRANCH:-}" \
   --arg version "$PROMCHECK_VER" --arg corpus "$PROMCHECK_CORPUS" \
   --arg build_id "$BUILDKITE_BUILD_ID" --arg build_url "${BUILDKITE_BUILD_URL:-}" \
-  --arg job_id "${BUILDKITE_JOB_ID:-}" --argjson duration "$duration" --argjson exit_code "$rc" \
-  '{"@timestamp": $timestamp, commit: $commit, branch: $branch, promcheck_version: $version,
-    corpus: $corpus, build_id: $build_id, build_url: $build_url, job_id: $job_id,
-    duration_seconds: $duration, exit_code: $exit_code, counts: $counts[0]}' > "$OUTPUT_DIR/result.json"
+  --arg pipeline "${BUILDKITE_PIPELINE_SLUG:-elastic-prometheus-nightly}" \
+  --argjson build_number "${BUILDKITE_BUILD_NUMBER:-0}" \
+  '$counts[0] as $c | {
+    "@timestamp": $timestamp, status: "ok", dataset: $corpus,
+    git: {commit: $commit, branch: $branch}, promcheck: {version: $version},
+    buildkite: {build_id: $build_id, build_number: $build_number, build_url: $build_url, pipeline: $pipeline},
+    compliance: {
+      input_total: $c.total, executed_total: $c.total, executed_success: $c.match,
+      executed_failure: $c.mismatch, executed_error: ($c.http4xx + $c.http5xx + $c.error),
+      executed_skip: ($c.response_filtered + $c.flaky), success_pct: ((1000 * $c.match / $c.total | round) / 10)
+    }}' > "$OUTPUT_DIR/result.json"
 
 echo "--- Indexing promcheck results"
-# A build/corpus ID makes retries of this upload replace the document rather than duplicate it.
+# Overview stores compliance history in a data stream, which requires create operations.
+# A stable build/corpus ID lets an upload retry recognize an already-created result.
 doc_id=$(jq -rn --arg id "$BUILDKITE_BUILD_ID-$PROMCHECK_CORPUS" '$id | @uri')
-curl -fsS --retry 3 --connect-timeout 30 --max-time 120 -X PUT \
+http_status=$(curl -sS --retry 3 --connect-timeout 30 --max-time 120 -X PUT \
   -H "Authorization: ApiKey $PROMCHECK_RESULTS_API_KEY" -H 'Content-Type: application/json' \
-  --data-binary "@$OUTPUT_DIR/result.json" \
-  "${PROMCHECK_RESULTS_URL%/}/$PROMCHECK_RESULTS_INDEX/_doc/$doc_id" > "$OUTPUT_DIR/index-response.json"
-jq -e '.result == "created" or .result == "updated"' "$OUTPUT_DIR/index-response.json" >/dev/null
+  --data-binary "@$OUTPUT_DIR/result.json" -o "$OUTPUT_DIR/index-response.json" --write-out '%{http_code}' \
+  "${PROMCHECK_RESULTS_URL%/}/$PROMCHECK_RESULTS_INDEX/_create/$doc_id")
+case "$http_status" in
+  201) jq -e '.result == "created"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
+  409) jq -e '.error.type == "version_conflict_engine_exception"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
+  *) echo "Results upload failed (HTTP $http_status); see index-response.json" >&2; exit 1 ;;
+esac
 echo "Indexed $PROMCHECK_CORPUS results for $revision"

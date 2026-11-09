@@ -30,7 +30,7 @@ case "$url" in
   */releases/tags/*) printf '{"assets":[{"name":"promcheck-linux-amd64","url":"https://assets/binary"},{"name":"promcheck-linux-arm64","url":"https://assets/binary"},{"name":"grafanalabs-top100.tar.gz","url":"https://assets/corpus"}]}' ;;
   https://assets/binary) cp "$TEST_DIR/promcheck" "$out" ;;
   https://assets/corpus) touch "$out" ;;
-  */_doc/*) printf '%s' "$url" > "$TEST_DIR/upload.url"; printf '%s' "$TEST_RESPONSE"; exit "$TEST_UPLOAD_RC" ;;
+  */_create/*) printf '%s' "$url" > "$TEST_DIR/upload.url"; printf '%s' "$TEST_RESPONSE" > "$out"; printf '%s' "$TEST_HTTP_STATUS"; exit "$TEST_UPLOAD_RC" ;;
   *) exit 99 ;;
 esac
 `, { mode: 0o755 });
@@ -47,7 +47,7 @@ esac
         PROMCHECK_VER: "0.9.5+prometheus-3.13.1",
         PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
         PROMCHECK_CORPUS: "grafanalabs-top100",
-        PROMCHECK_RESULTS_INDEX: "promcheck-results",
+        PROMCHECK_RESULTS_INDEX: "synthetics-promql.support-default",
         PROMCHECK_RESULTS_URL: "https://results.example/",
         PROMCHECK_RESULTS_API_KEY: "fake-results-key",
         PROMCHECK_OUTPUT_DIR: join(dir, "output"),
@@ -59,6 +59,9 @@ esac
         TEST_RC: "1",
         TEST_RESPONSE: '{"result":"created"}',
         TEST_UPLOAD_RC: "0",
+        TEST_HTTP_STATUS: "201",
+        BUILDKITE_BUILD_NUMBER: "123",
+        BUILDKITE_PIPELINE_SLUG: "elastic-prometheus-nightly",
         ...overrides,
       },
     });
@@ -68,11 +71,21 @@ esac
     const r = run();
     expect(r.status, r.stdout + r.stderr).toBe(0);
     const result = JSON.parse(readFileSync(join(dir, "upload.json"), "utf8"));
-    expect(result.counts).toEqual({ total: 6, match: 1, mismatch: 1, http4xx: 1, http5xx: 1, error: 1, response_filtered: 0, flaky: 1 });
-    expect(result).toMatchObject({ branch: "main", exit_code: 1, build_id: "build-123", corpus: "grafanalabs-top100" });
-    expect(result.commit).toMatch(/^[a-f0-9]{40}$/);
-    expect(readFileSync(join(dir, "upload.url"), "utf8")).toBe("https://results.example/promcheck-results/_doc/build-123-grafanalabs-top100");
+    expect(JSON.parse(readFileSync(join(dir, "output", "counts.json"), "utf8"))).toEqual({ total: 6, match: 1, mismatch: 1, http4xx: 1, http5xx: 1, error: 1, response_filtered: 0, flaky: 1 });
+    expect(result).toMatchObject({
+      status: "ok", dataset: "grafanalabs-top100",
+      git: { branch: "main" }, promcheck: { version: "0.9.5+prometheus-3.13.1" },
+      buildkite: { build_id: "build-123", build_number: 123, pipeline: "elastic-prometheus-nightly" },
+      compliance: { input_total: 6, executed_total: 6, executed_success: 1, executed_failure: 1, executed_error: 3, executed_skip: 1, success_pct: 16.7 },
+    });
+    expect(result.git.commit).toMatch(/^[a-f0-9]{40}$/);
+    expect(readFileSync(join(dir, "upload.url"), "utf8")).toBe("https://results.example/synthetics-promql.support-default/_create/build-123-grafanalabs-top100");
     expect(r.stdout + r.stderr).not.toContain("fake-results-key");
+  });
+
+  test("accepts an already-created document on upload retry", () => {
+    const r = run({ TEST_HTTP_STATUS: "409", TEST_RESPONSE: '{"error":{"type":"version_conflict_engine_exception"}}' });
+    expect(r.status, r.stderr).toBe(0);
   });
 
   test("loads the destination from Vault", () => {
@@ -90,7 +103,7 @@ esac
   test("supports successful runs, bias memos, and response filters", () => {
     const r = run({ TEST_RC: "0", TEST_LOG: "4 inspected: 2 match (1 bias-forgiven), 0 mismatch, 0 4xx, 0 5xx, 1 response-filtered, 1 flaky" });
     expect(r.status, r.stderr).toBe(0);
-    expect(JSON.parse(readFileSync(join(dir, "upload.json"), "utf8")).counts.response_filtered).toBe(1);
+    expect(JSON.parse(readFileSync(join(dir, "output", "counts.json"), "utf8")).response_filtered).toBe(1);
   });
 
   test.each([
@@ -99,6 +112,8 @@ esac
     { TEST_LOG: "7 inspected: 1 match, 1 mismatch, 1 4xx, 1 5xx, 1 error, 1 flaky" },
     { TEST_UPLOAD_RC: "22" },
     { TEST_RESPONSE: '{"error":"rejected"}' },
+    { TEST_HTTP_STATUS: "403" },
+    { TEST_HTTP_STATUS: "409", TEST_RESPONSE: '{"error":{"type":"security_exception"}}' },
     { PROMCHECK_TEST_INSTANCE_TIMEOUT: "soon" },
   ])("fails on incomplete runs, invalid counts, configuration, or upload errors: %j", (env) => {
     expect(run(env).status).not.toBe(0);

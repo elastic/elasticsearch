@@ -3,7 +3,8 @@ env:
   PROMCHECK_VER: "0.9.5+prometheus-3.13.1"
   PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
   PROMCHECK_CORPUS: grafanalabs-top100
-  PROMCHECK_RESULTS_INDEX: promcheck-results
+  PROMCHECK_RESULTS_URL: https://overview-elastic-cloud-com.es.us-east-1.aws.found.io
+  PROMCHECK_RESULTS_INDEX: synthetics-promql.support-default
   PROMCHECK_RESULTS_SECRET: secret/ci/elastic-elasticsearch/promcheck-results
 steps:
   - label: prometheus-nightly

@@ -1,6 +1,6 @@
 # Schedule and pipeline registration live in catalog-info.yaml.
 env:
-  PROMCHECK_VER: "0.9.5+prometheus-3.13.1"
+  PROMCHECK_VER: "0.11.0+prometheus-3.13.1"
   PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
   PROMCHECK_CORPUS: grafanalabs-top100
   PROMCHECK_RESULTS_URL: https://overview-elastic-cloud-com.es.us-east-1.aws.found.io

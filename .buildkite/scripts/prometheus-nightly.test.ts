@@ -44,7 +44,7 @@ esac
         ...process.env,
         PATH: `${join(dir, "bin")}:${process.env.PATH}`,
         GH_TOKEN: "fake-github-token",
-        PROMCHECK_VER: "0.9.5+prometheus-3.13.1",
+        PROMCHECK_VER: "0.11.0+prometheus-3.13.1",
         PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
         PROMCHECK_CORPUS: "grafanalabs-top100",
         PROMCHECK_RESULTS_NAMESPACE: "experimental",
@@ -75,7 +75,7 @@ esac
     expect(result).toMatchObject({
       status: "ok", dataset: "grafanalabs-top100",
       data_stream: { type: "synthetics", dataset: "promql.support", namespace: "experimental" },
-      git: { branch: "main" }, promcheck: { version: "0.9.5+prometheus-3.13.1" },
+      git: { branch: "main" }, promcheck: { version: "0.11.0+prometheus-3.13.1" },
       buildkite: { build_id: "build-123", build_number: 123, pipeline: "elastic-prometheus-nightly" },
       compliance: { input_total: 6, executed_total: 6, executed_success: 1, executed_failure: 1, executed_error: 3, executed_skip: 1, success_pct: 16.7 },
     });

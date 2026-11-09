@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -308,7 +309,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
             targetPrimaryUnassignedInfo,
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            RecoveryPriority.UNASSIGNED_EXPECTED
         );
         var targetShardReplica = newUnassigned(
             targetShardId,
@@ -316,7 +317,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             RecoverySource.PeerRecoverySource.INSTANCE,
             unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            RecoveryPriority.UNASSIGNED_EXPECTED
         );
         if (randomBoolean()) {
             targetShardPrimary = targetShardPrimary.initialize(nodeB, null, 0);
@@ -503,7 +504,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             recoverySource,
             info,
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED // may not correspond to other parameters, but that shouldn't matter
+            RecoveryPriority.UNASSIGNED_EXPECTED // may not correspond to other parameters, but that shouldn't matter
         );
         if (state == ShardRoutingState.UNASSIGNED) {
             return routing;

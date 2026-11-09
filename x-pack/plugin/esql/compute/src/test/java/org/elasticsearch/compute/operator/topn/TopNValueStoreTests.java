@@ -18,6 +18,7 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.spill.MemorySpillStore;
 import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -109,6 +110,76 @@ public class TopNValueStoreTests extends ComputeTestCase {
             closeSpillingScopes();
             shutdown(store);
         }
+    }
+
+    /**
+     * A row evicted while its append is still on the codec's thread is reused and appended to the next segment; the
+     * earlier append's completion lands after the later one's and must leave the row's offset alone, since the row
+     * points into the later segment. The codec's drains are queued and run by hand, in that order.
+     */
+    public void testACompletionLandingAfterTheRowWasReusedAcrossARollIsIgnored() throws Exception {
+        MemorySpillStore store = newStore();
+        try {
+            ArrayDeque<Runnable> codec = new ArrayDeque<>();
+            DriverContext ctx = spillingDriverContext(ByteSizeValue.ofBytes(1), 0, store, codec::add);
+            TopNValueStore values = new TopNValueStore(ctx, ctx.queryScope(), "test-values", 1024L);
+            TopNValueStore.Lane lane = values.newLane();
+            TopNRow row = new TopNRow(ctx.breaker(), 0, 600);
+            TopNRow firstFiller = new TopNRow(ctx.breaker(), 0, 600);
+            TopNRow secondFiller = new TopNRow(ctx.breaker(), 0, 600);
+            try {
+                lane.acquire();
+                assertTrue("the writer lands inline", lane.ready());
+                append(lane, row, randomByteArrayOfLength(600));
+                append(lane, firstFiller, randomByteArrayOfLength(600));
+                assertThat("one drain is queued for the first segment", codec.size(), equalTo(1));
+                Runnable firstDrain = codec.removeFirst();
+                assertTrue("the first segment is full", lane.needsRoll());
+                lane.roll();
+                assertTrue("the next writer lands inline", lane.ready());
+                // the row is evicted while its append is in flight and reused for a row of the next segment
+                row.clear();
+                row.ensureValues(600);
+                byte[] expected = randomByteArrayOfLength(600);
+                append(lane, secondFiller, randomByteArrayOfLength(600));
+                append(lane, row, expected);
+                assertThat("one drain is queued for the second segment", codec.size(), equalTo(1));
+                int segment = row.valueSegment;
+                // the second segment's drain lands first, then the first segment's, with the row's stale completion
+                codec.removeFirst().run();
+                long offset = row.valueOffset;
+                firstDrain.run();
+                assertThat(row.valueSegment, equalTo(segment));
+                assertThat("the stale completion left the offset alone", row.valueOffset, equalTo(offset));
+                lane.sealForGood();
+                while (codec.isEmpty() == false) {
+                    codec.removeFirst().run();
+                }
+                assertTrue(lane.settled());
+                DriverSpillOperation<ReleasableBytesReference[]> gather = values.gather(List.of(row), 0, 1);
+                assertTrue("the gather completes inline", gather.isDone());
+                assertThat(gather.failure(), nullValue());
+                ReleasableBytesReference[] got = gather.result();
+                try {
+                    assertArrayEquals(expected, BytesReference.toBytes(got[0]));
+                } finally {
+                    Releasables.close(got);
+                }
+            } finally {
+                Releasables.close(row, firstFiller, secondFiller);
+                Releasables.close(lane, values);
+            }
+        } finally {
+            closeSpillingScopes();
+            shutdown(store);
+        }
+    }
+
+    private static void append(TopNValueStore.Lane lane, TopNRow row, byte[] bytes) {
+        row.values.append(bytes, 0, bytes.length);
+        lane.append(row, row.values);
+        assertThat(row.values, nullValue());
+        assertThat(row.valueLength, equalTo(bytes.length));
     }
 
     private static void append(DriverContext ctx, TopNValueStore.Lane lane, List<TopNRow> rows, List<byte[]> expected, int count) {

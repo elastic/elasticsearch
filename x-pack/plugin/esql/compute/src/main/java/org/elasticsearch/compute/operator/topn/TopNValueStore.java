@@ -234,7 +234,7 @@ final class TopNValueStore implements Releasable {
         private List<TopNRow> compactingRows;
         @Nullable
         private Segment compactingInto;
-        /** Guards the lane's in-flight count, which the codec's completions update. */
+        /** Guards the lane's in-flight count and the rows' append generations, which the codec's completions read. */
         private final Object lock = new Object();
         private long bytesInFlight;
         @Nullable
@@ -323,9 +323,10 @@ final class TopNValueStore implements Releasable {
          * Queues the row's values, held in {@code source}, whose charge moves to the query's root view here and goes
          * back from the codec's thread once the bytes are in the stream; the builder's accounting ends now, its array
          * living on until then. The row's segment and length are set now, its offset once the codec reports it, before
-         * the append counts as done, and the row holds no builder from here on. The driver holds an action while appends
-         * are in flight, so that it never completes with a record still on the codec's thread. Fails, with the row
-         * untouched, when the root view refuses the charge or the driver has finished.
+         * the append counts as done, and the row holds no builder from here on; a row evicted and appended again
+         * meanwhile keeps the later append's pointer, the earlier completion landing on nothing. The driver holds an
+         * action while appends are in flight, so that it never completes with a record still on the codec's thread.
+         * Fails, with the row untouched, when the root view refuses the charge or the driver has finished.
          */
         void append(TopNRow row, BreakingBytesRefBuilder source) {
             assert writer != null : "lane is not ready";
@@ -333,6 +334,7 @@ final class TopNValueStore implements Releasable {
             BytesRef bytes = source.bytesRefView();
             int length = bytes.length;
             long charge = source.ramBytesUsed();
+            int generation;
             synchronized (lock) {
                 if (bytesInFlight == 0) {
                     // refused once the driver finished: nothing below has happened yet
@@ -347,6 +349,7 @@ final class TopNValueStore implements Releasable {
                     throw e;
                 }
                 bytesInFlight += length;
+                generation = ++row.appendGeneration;
             }
             synchronized (queueLock) {
                 queuedBytes += length;
@@ -365,7 +368,13 @@ final class TopNValueStore implements Releasable {
                 new ActionListener<>() {
                     @Override
                     public void onResponse(Long written) {
-                        row.valueOffset = written;
+                        synchronized (lock) {
+                            // the row was evicted and appended again, to the next segment, while this append was on the
+                            // codec's thread: its pointer is the later append's, and the bytes written here go unreferenced
+                            if (row.appendGeneration == generation) {
+                                row.valueOffset = written;
+                            }
+                        }
                         bytesWritten.addAndGet(length);
                         appendDone(length);
                     }
@@ -829,8 +838,8 @@ final class TopNValueStore implements Releasable {
 
     /**
      * Reads the values of {@code rows[from, to)} in physical order and hands them back in the rows' order, one read in
-     * flight at a time, so the memory held is the page's values. Each buffer is the caller's to close; a row whose values
-     * never went to a segment gets null.
+     * flight at a time; every value read is held until the caller closes it, so the caller sizes the range by what it may
+     * hold at once. Each buffer is the caller's to close; a row whose values never went to a segment gets null.
      */
     DriverSpillOperation<ReleasableBytesReference[]> gather(List<TopNRow> rows, int from, int to) {
         int count = to - from;

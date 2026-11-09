@@ -50,6 +50,14 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
     int valueLength;
 
     /**
+     * Counts the row's appends to a value segment, so that an append's completion can tell whether it is the latest: a
+     * row evicted while its append is still on the codec's thread is reused and may be appended again, to another
+     * segment, and the earlier completion must not land its offset on the later pointer. Never reset, not even by
+     * {@link #clear()}, so that no two appends of one row share a number.
+     */
+    int appendGeneration;
+
+    /**
      * Reference counter for the shard this row belongs to, used for rows containing a
      * DocVector to ensure the shard context lives until we build the final result.
      */

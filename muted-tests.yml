@@ -476,8 +476,3 @@ tests:
   - :server:internalClusterTest
   method: testKnnRetriever
   issue: https://github.com/elastic/elasticsearch/issues/165103
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
-  issue: https://github.com/elastic/elasticsearch/issues/165110

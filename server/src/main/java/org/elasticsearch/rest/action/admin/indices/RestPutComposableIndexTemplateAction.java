@@ -12,8 +12,10 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -34,6 +36,9 @@ import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTempla
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "create", "cause");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "name");
 
     private static final String INDEX_TEMPLATE_TRACKING_INFO = "index_template_tracking_info";
     static final String INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD = "index_template_registry_installed_field";
@@ -88,4 +93,15 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return CAPABILITIES;
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

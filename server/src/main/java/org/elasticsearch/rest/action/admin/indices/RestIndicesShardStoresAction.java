@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStores
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -21,6 +22,7 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -28,6 +30,16 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Rest action for {@link TransportIndicesShardStoresAction}
  */
 public class RestIndicesShardStoresAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+        "status",
+        "max_concurrent_shard_requests"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
 
     @Override
     public List<Route> routes() {
@@ -49,8 +61,9 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
         IndicesShardStoresRequest indicesShardStoresRequest = new IndicesShardStoresRequest(
             Strings.splitStringByCommaToArray(request.param("index"))
         );
-        if (request.hasParam("status")) {
-            indicesShardStoresRequest.shardStatuses(Strings.splitStringByCommaToArray(request.param("status")));
+        String status = request.param("status");
+        if (status != null) {
+            indicesShardStoresRequest.shardStatuses(Strings.splitStringByCommaToArray(status));
         }
         indicesShardStoresRequest.maxConcurrentShardRequests(
             request.paramAsInt("max_concurrent_shard_requests", indicesShardStoresRequest.maxConcurrentShardRequests())
@@ -62,4 +75,15 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
             new RestRefCountedChunkedToXContentListener<>(channel)
         );
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -28,6 +29,15 @@ import java.util.Set;
 
 @ServerlessScope(value = Scope.INTERNAL)
 public class RestFieldUsageStatsAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+        "fields"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
 
     private static final String DOC_VALUES_SKIPPER_CAPABILITY = "doc_values_skipper";
 
@@ -57,4 +67,15 @@ public class RestFieldUsageStatsAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return Set.of(DOC_VALUES_SKIPPER_CAPABILITY);
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

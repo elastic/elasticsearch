@@ -46,6 +46,8 @@ Multivalued fields come back as a JSON array:
 
 The relative order of values in a multivalued field is undefined. They’ll frequently be in ascending order but don’t rely on that.
 
+In [columnar index mode](/reference/elasticsearch/columnar/index.md) {applies_to}`stack: preview 9.5+`, multivalued fields keep the original order of the values in the source document. The {{esql}} contract is unchanged — the order is still undefined and can differ between index modes — so queries that need a specific order should produce it explicitly, for example with [multivalue functions](/reference/query-languages/esql/functions-operators/mv-functions.md) like `MV_SORT`.
+
 
 ## Duplicate values [esql-multivalued-fields-dups]
 
@@ -92,6 +94,8 @@ And {{esql}} sees that removal:
 }
 ```
 % TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
+
+This removal does not happen in [columnar index mode](/reference/elasticsearch/columnar/index.md) {applies_to}`stack: preview 9.5+`, where no field type removes duplicates on write and {{esql}} returns each multivalued field as it was indexed.
 
 But other types, like `long` don’t remove duplicates.
 

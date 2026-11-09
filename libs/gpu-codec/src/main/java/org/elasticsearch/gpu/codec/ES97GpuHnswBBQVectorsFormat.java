@@ -94,8 +94,9 @@ public class ES97GpuHnswBBQVectorsFormat extends KnnVectorsFormat {
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
         this.hnswGraphThreshold = hnswGraphThreshold >= 0 ? hnswGraphThreshold : BBQ_HNSW_GRAPH_THRESHOLD;
-        // merges write the raw vectors through the page cache even with on_disk_merge: the writer reads the merged
-        // raw vectors straight back (mmapped) to build the graph on GPU, and a direct write would make that read cold
+        // TODO: revisit with the directory deciding direct I/O (#161495): with on_disk_merge, a merge now writes the raw
+        // vectors with direct I/O, but the writer reads the merged raw vectors straight back (mmapped) to build the graph
+        // on GPU, so that read is cold. Main wrote them through the page cache instead, see #163642.
         this.flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
     }
 

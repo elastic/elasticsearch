@@ -739,8 +739,9 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
         );
 
         // bbq_hnsw's on_disk_rescore and on_disk_merge don't rule out the fast path: flatVectorsReader is opened with the
-        // merge context, for which the raw format never uses direct I/O, so the merged raw vectors are mmapped. They were
-        // also written through the page cache (the raw format declines direct writes), so this read is warm
+        // merge context and reads at random, for which the directory never uses direct I/O, so the merged raw vectors are
+        // mmapped. With on_disk_merge they were written with direct I/O, so this read is cold, see the TODO in
+        // ES97GpuHnswBBQVectorsFormat
         IndexInput slice = floatVectorValues instanceof HasIndexSlice hasIndexSlice ? hasIndexSlice.getSlice() : null;
         var input = slice == null ? null : FilterIndexInput.unwrap(slice);
         if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {

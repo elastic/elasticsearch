@@ -97,8 +97,6 @@ class DatafeedJob {
     private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
-    // Audit once per episode of consecutive truncated cycles so a persistent truncation does not flood the audit log
-    // every realtime cycle. Accepted blind spot: later distinct truncated intervals in the same episode are not audited.
     private volatile boolean auditedIncompleteChunk;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile SearchInterval searchInterval;

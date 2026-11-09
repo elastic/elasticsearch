@@ -515,7 +515,9 @@ public class CsvIT extends ESTestCase {
                 actualResults.values(),
                 testCase.ignoreOrder || (spilling && spillChangesOrder(transformed.query())),
                 differentialTestStrategy.ignoreValueOrder(),
-                false,
+                // a spilled run sums doubles in another order, so they are compared to seven significant digits, as the
+                // multi-node REST suites do
+                spilling,
                 assertionLogger
             );
             var warnings = listener.warnings.stream()

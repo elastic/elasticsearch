@@ -401,6 +401,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             no,
             no,
             no,
+            no,
             false,
             ++iota,
             no,

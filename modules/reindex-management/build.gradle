@@ -46,7 +46,3 @@ configurations {
 artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
-
-testClusters.configureEach {
-  module ':modules:rest-root'
-}

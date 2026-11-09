@@ -20,8 +20,10 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -44,6 +46,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -55,6 +58,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SourceFieldMapperTests extends MetadataMapperTestCase {
@@ -230,6 +234,15 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
     }
 
+    public void testSerializingDoesNotHideInvalidSourceParameters() throws IOException {
+        MappingBuilder mappingBuilder = createMapperService(mapping(b -> {})).parseMappings(new CompressedXContent("""
+            { "_doc": { "_source": { "enabled": false, "mode": "synthetic" } } }
+            """));
+        mappingBuilder.toCompressedXContent();
+        Exception e = expectThrows(MapperParsingException.class, () -> mappingBuilder.build(MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
+    }
+
     public void testSyntheticUpdates() throws Exception {
         MapperService mapperService = createMapperService("""
             { "_doc" : { "_source" : { "mode" : "synthetic" } } }
@@ -292,28 +305,28 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         });
         DocumentMapper mapper = createTimeSeriesModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSyntheticSourceWithLogsIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createLogsModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSyntheticSourceWithColumnarIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createColumnarModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSyntheticSourceWithColumnarLogsdbIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createColumnarLogsdbModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSupportsNonDefaultParameterValues() throws IOException {
@@ -865,6 +878,91 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     }
 
     /**
+     * Verifies that, in columnar_stored mode, nothing of one document leaks into the source blob of the next one. The source of every
+     * document is rebuilt with a source loader that is reused for all the documents a thread indexes, so this indexes documents with
+     * random subsets of the fields (single values, arrays, fields of an object, and values that end up in {@code _ignored_source} because
+     * of {@code ignore_above}) one after the other, and checks that each one reads back exactly as it was indexed.
+     */
+    public void testColumnarStoredSourceDoesNotLeakStateBetweenDocuments() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("kwd").field("type", "keyword").endObject();
+            b.startObject("ignored").field("type", "keyword").field("ignore_above", 3).endObject();
+            b.startObject("num").field("type", "long").endObject();
+            b.startObject("z_id").field("type", "keyword").endObject();
+            b.startObject("obj");
+            {
+                b.startObject("properties");
+                b.startObject("inner").field("type", "keyword").endObject();
+                b.startObject("inner_num").field("type", "long").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        int numDocs = between(20, 50);
+        List<Map<String, Object>> expectedSources = new ArrayList<>();
+        List<ParsedDocument> parsedDocs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            // The index may end up in several segments, and in any order, so every document says which one it is.
+            Map<String, Object> doc = new LinkedHashMap<>();
+            doc.put("z_id", Integer.toString(i));
+            if (randomBoolean()) {
+                doc.put("kwd", randomKeywords(1, 6));
+            }
+            if (randomBoolean()) {
+                doc.put("ignored", randomKeywords(1, 6));
+            }
+            if (randomBoolean()) {
+                doc.put("num", randomIntBetween(0, 1000));
+            }
+            // The source of a columnar index reads back with the dotted names of the fields, so that is how they are indexed too.
+            if (randomBoolean()) {
+                doc.put("obj.inner", randomKeywords(1, 6));
+            }
+            if (randomBoolean()) {
+                doc.put("obj.inner_num", randomIntBetween(0, 1000));
+            }
+            expectedSources.add(doc);
+            parsedDocs.add(mapperService.documentMapper().parse(source(b -> b.mapContents(doc))));
+        }
+
+        withLuceneIndex(mapperService, iw -> {
+            for (ParsedDocument parsed : parsedDocs) {
+                iw.addDocument(parsed.rootDoc());
+            }
+        }, reader -> {
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+            int checked = 0;
+            for (LeafReaderContext leaf : reader.leaves()) {
+                int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
+                LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+                for (int docId : docIds) {
+                    sfLoader.advanceTo(docId);
+                    Map<String, Object> source = sourceLeaf.source(sfLoader, docId).source();
+                    int id = Integer.parseInt((String) source.get("z_id"));
+                    assertThat("doc " + id, source, equalTo(expectedSources.get(id)));
+                    checked++;
+                }
+            }
+            assertThat(checked, equalTo(numDocs));
+        });
+    }
+
+    /** One keyword, or an array of two or three (a single value reads back as a scalar, so there are no one-element arrays). */
+    private static Object randomKeywords(int minLength, int maxLength) {
+        if (randomBoolean()) {
+            return randomAlphaOfLengthBetween(minLength, maxLength);
+        }
+        return IntStream.range(0, between(2, 3)).mapToObj(i -> randomAlphaOfLengthBetween(minLength, maxLength)).toList();
+    }
+
+    /**
      * Verifies that in columnar_stored mode a nested field round-trips: the source blob is materialized at index time
      * from the in-memory document tree (children reconstructed by parent-pointer match), and read back from the blob.
      */
@@ -954,6 +1052,69 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             Source source = sourceLeaf.source(sfLoader, rootDocId);
             assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"comments\":[{\"stars\":[50,10,30]},{\"stars\":[20,40]}]}"));
         });
+    }
+
+    /**
+     * Verifies that a document whose columnar_stored blob fails half way, while a nested child is being written, leaves nothing
+     * behind for the next document. The thread reuses the source loader, and the nested field reuses the leaf of its children, so
+     * the reset after a failure has to reach the loaders of the fields inside the nested object as well.
+     */
+    public void testColumnarStoredSourceResetsNestedLoadersAfterFailedWrite() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("comments");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("message").field("type", "keyword").endObject();
+                    b.startObject("votes").field("type", "long").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Enough values that the JSON generator flushes its buffer, and so hits the failing stream, while the first child is written.
+        List<String> manyValues = IntStream.range(0, 4000).mapToObj(i -> "v" + i).toList();
+        ParsedDocument failing = mapperService.documentMapper().parse(source(b -> {
+            b.startArray("comments");
+            b.startObject().field("message", manyValues).field("votes", 1).endObject();
+            b.startObject().field("message", "second").field("votes", 2).endObject();
+            b.endArray();
+        }));
+        ParsedDocument next = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("comments").field("message", "ok").field("votes", 3).endObject();
+        }));
+        // The writer runs before postParse attaches the whole-document blob, so the documents it gets do not carry one yet.
+        for (ParsedDocument parsed : List.of(failing, next)) {
+            parsed.rootDoc().getFields().removeIf(f -> f.name().equals(IgnoredSourceFieldMapper.NAME));
+        }
+
+        ColumnarSourceWriter writer = new ColumnarSourceWriter(null);
+        MappingLookup mappingLookup = mapperService.mappingLookup();
+        OutputStream failingStream = new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                throw new IOException("boom");
+            }
+        };
+        // Not closed: closing flushes, which would throw again.
+        XContentBuilder failingBuilder = new XContentBuilder(JsonXContent.jsonXContent, failingStream);
+        IOException e = expectThrows(
+            IOException.class,
+            () -> writer.write(mappingLookup, failing.docs(), failing.rootDoc(), failingBuilder)
+        );
+        assertThat(e.getMessage(), equalTo("boom"));
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            writer.write(mappingLookup, next.docs(), next.rootDoc(), builder);
+            assertThat(Strings.toString(builder), equalTo("{\"comments\":{\"message\":\"ok\",\"votes\":3}}"));
+        }
     }
 
     /**

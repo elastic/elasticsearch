@@ -111,8 +111,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING,
                 DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
                 SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
                 SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
@@ -420,15 +422,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     public void testSearchRecoveryWarmingListenerRecordsTimedOutOutcome() throws Exception {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         long waitMillis = randomLongBetween(1, 10);
-        long delayMillis = randomLongBetween(20, 100);
-        Settings threadPoolSettings = Settings.builder().put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0).build();
-        try (
-            var threadPool = new TestThreadPool(
-                getTestName(),
-                threadPoolSettings,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
+        // only fire the timeout when the the test runs the captured command, so win the race against warming
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
             CountDownLatch startWarmLatch = new CountDownLatch(1);
             CountDownLatch blockWarmLatch = new CountDownLatch(1);
             Settings settings = Settings.builder()
@@ -451,21 +446,24 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
                 resume
             );
-            // Note: must not assert that `resume` is still incomplete here; the timeout is 1-10ms and races with an assertion.
-
             // make sure warming started running
             safeAwait(startWarmLatch);
-            // warming still runs
-            assertBusy(() -> assertThat(((EsThreadPoolExecutor) threadPool.generic()).getActiveCount(), equalTo(1)));
-            Thread.sleep(delayMillis);
+            // warming is blocked and the timeout cannot fire on its own
+            assertFalse(resume.isDone());
+
+            // the timeout fires while warming is still blocked
+            Runnable timeoutCommand = threadPool.scheduledCommand.get();
+            assertNotNull(timeoutCommand);
+            timeoutCommand.run();
+            safeGet(resume);
+
             // warming is unblocked
             blockWarmLatch.countDown();
-            safeGet(resume);
         }
         assertSingleDurationMeasurementAtLeast(
             meterRegistry,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARM_DURATION_METRIC,
-            delayMillis
+            waitMillis
         );
         Measurement wait = assertSingleDurationMeasurementAtLeast(
             meterRegistry,

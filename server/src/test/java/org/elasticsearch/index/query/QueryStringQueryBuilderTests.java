@@ -1588,4 +1588,20 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         });
         return found;
     }
+
+    /**
+     * A long term on a date field fails in the date parser, which cuts it in the error.
+     */
+    public void testToQueryLongIllegalDateIsTruncatedInShardFailure() {
+        // Much longer than the stack trace the reason holds
+        String value = "x".repeat(100_000);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> context.toQuery(queryStringQuery(value).defaultField(DATE_FIELD_NAME))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse date field [xxx"));
+        // Without the truncation the reason holds the value five times
+        assertThat(new ShardSearchFailure(e).reason().length(), lessThan(value.length()));
+    }
 }

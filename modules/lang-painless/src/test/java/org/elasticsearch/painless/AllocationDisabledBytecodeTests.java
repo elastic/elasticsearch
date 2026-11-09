@@ -153,14 +153,16 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
     }
 
     public void testNoDefForEachIteratorChargeBytecodeWhenDisabled() {
+        // The iterator call site takes the receiver alone, so the bootstrap has no script to charge.
         String asm = bytecode("long n = 0; def l = new ArrayList(); for (def e : l) { n++; } return 1;", -1L);
         assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, containsString("INVOKEDYNAMIC iterator(Ljava/lang/Object;)"));
     }
 
     public void testDefForEachIteratorChargeBytecodePresentWhenEnabled() {
-        // Charged inline, so there is no estimator call to look for.
+        // The iterator call site passes the script after the receiver, and the bootstrap charges from it.
         String asm = bytecode("long n = 0; def l = new ArrayList(); for (def e : l) { n++; } return 1;", 1024 * 1024L);
-        assertThat(asm, containsString("$checkAllocBytes"));
+        assertThat(asm, containsString("INVOKEDYNAMIC iterator(Ljava/lang/Object;L"));
     }
 
     public void testNoDefConcatChargeBytecodeWhenDisabled() {

@@ -59,7 +59,9 @@ public class StatelessRestoringShardQueryApisIT extends AbstractStatelessRestori
     private static List<ReindexRequest> reindexRequests() {
         return List.of(
             new ReindexRequest().setSourceIndices(RESTORED_INDEX).setDestIndex("dest"),
-            new ReindexRequest().setSourceIndices(RESTORED_INDEX).setDestIndex("dest").setSourceQuery(QueryBuilders.matchAllQuery())
+            new ReindexRequest().setSourceIndices(RESTORED_INDEX)
+                .setDestIndex("dest")
+                .setSourceQuery(QueryBuilders.termQuery("field", "value"))
         );
     }
 

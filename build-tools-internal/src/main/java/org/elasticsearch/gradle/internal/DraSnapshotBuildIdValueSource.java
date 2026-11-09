@@ -35,8 +35,8 @@ import java.time.Duration;
  * <ul>
  *   <li>{@code gradle} (the default) — returns {@code ""} immediately with no network activity,
  *       so the caller falls back to a nested Gradle source build.</li>
- *   <li>{@code dra} — resolves the <em>latest</em> DRA snapshot build ID for the branch without
- *       comparing commit hashes.  Returns the build ID when the latest endpoint responds
+ *   <li>{@code prebuilt} — resolves the <em>latest</em> DRA snapshot build ID for the branch without
+ *       comparing commit hashes. Returns the build ID when the latest endpoint responds
  *       successfully, or {@code ""} on any error (the caller should treat {@code ""} as a fatal
  *       condition for this mode).</li>
  *   <li>{@code auto} — resolves the latest DRA snapshot build ID <em>and</em> verifies
@@ -45,7 +45,9 @@ import java.time.Duration;
  *       endpoint is unreachable (the caller will then fall back to a source build).</li>
  * </ul>
  *
- * <p>In both DRA modes an optional commit-hash override can be supplied via
+ * <p>For backwards compatibility, {@code dra} is accepted as an alias for {@code prebuilt}.
+ *
+ * <p>In both prebuilt modes an optional commit-hash override can be supplied via
  * {@code -Dtests.bwc.dra.hash.{branch}}.  When set, the build ID is constructed directly as
  * {@code {version}-{hash}} and its existence is verified against the manifest endpoint — the
  * "latest" lookup and remote-tracking ref comparison are both skipped.  This lets you pin to a
@@ -69,10 +71,11 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
         Property<String> getRemote();
 
         /**
-         * BWC mode that controls how DRA snapshots are resolved.  Accepted values:
+         * BWC mode that controls how pre-built snapshot artifacts are resolved. Accepted values:
          * {@code "gradle"} (default — always build from source),
-         * {@code "dra"} (always download latest DRA snapshot, no hash check), or
-         * {@code "auto"} (download from DRA if commit hash matches, otherwise build from source).
+         * {@code "prebuilt"} (always download the latest pre-built snapshot artifacts, no hash check), or
+         * {@code "auto"} (download pre-built snapshot artifacts if the commit hash matches, otherwise build from source).
+         * The legacy value {@code "dra"} is also accepted as an alias for {@code "prebuilt"}.
          *
          * <p>Set via the {@code tests.bwc.mode} system property.
          */
@@ -115,13 +118,14 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
                 return resolveByHash(client, baseUrl, version, hashOverride);
             }
 
-            if (mode.equals("dra")) {
-                // Always use DRA: return the latest build ID without checking the commit hash.
+            if (mode.equals("prebuilt") || mode.equals("dra")) {
+                // Always use the latest pre-built snapshot artifacts: return the latest build ID
+                // without checking the commit hash.
                 return resolveLatestBuildId(client, mapper, baseUrl, version, branch);
             }
 
-            // mode is "auto": only use DRA when the latest snapshot commit matches the
-            // local remote-tracking ref.
+            // mode is "auto": only use pre-built snapshot artifacts when the latest snapshot
+            // commit matches the local remote-tracking ref.
             return resolveByLatest(
                 client,
                 mapper,
@@ -149,7 +153,7 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
 
     /**
      * Fetches the latest DRA snapshot build ID for {@code branch} without comparing commit hashes.
-     * Used for {@code dra} mode where the caller always wants the newest pre-built snapshot.
+     * Used for {@code prebuilt} mode where the caller always wants the newest pre-built snapshot.
      */
     static String resolveLatestBuildId(HttpClient client, ObjectMapper mapper, String baseUrl, String version, String branch)
         throws Exception {

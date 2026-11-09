@@ -230,7 +230,8 @@ public class StatelessRestoringShardSearchIT extends AbstractStatelessRestoringS
         request.keepAlive(TimeValue.timeValueMinutes(1));
         request.allowPartialSearchResults(false);
         if (withIndexFilter) {
-            request.indexFilter(QueryBuilders.matchAllQuery());
+            // Not match_all: SearchService#canRewriteToMatchNone is false for it, which would skip the can-match phase.
+            request.indexFilter(QueryBuilders.termQuery("field", "value"));
         }
         return request;
     }

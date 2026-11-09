@@ -61,6 +61,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -94,6 +96,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -904,7 +907,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             calibratedSpec,
             false,
             calibratedSpec.getQueries(),
-            new KnnEvalRescore(3.0f, true)
+            new KnnEvalFieldType(VectorIndexType.BBQ_DISK, 3.0f, true),
+            Map.of()
         ).buildResponse();
         assertFalse(calibratedResponse.getBaseline().rescoreWindowCapped());
         assertFalse(calibratedResponse.getResults().get(0).knnSettings().rescoreWindowCapped());
@@ -921,9 +925,24 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             explicitSpec,
             false,
             explicitSpec.getQueries(),
-            new KnnEvalRescore(3.0f, true)
+            new KnnEvalFieldType(VectorIndexType.BBQ_DISK, 3.0f, true),
+            Map.of()
         ).buildResponse().getResults().get(0).knnSettings();
         assertTrue(explicit.rescoreWindowCapped());
+    }
+
+    public void testBaselineVectorOpsKindFollowsIndexType() {
+        KnnEvalSpec spec = specWithBaseline(new KnnEvalSettings(null, 100, null, false));
+        for (VectorIndexType type : KnnEvalFieldType.SUPPORTED) {
+            String kind = new KnnEvalState(spec, false, spec.getQueries(), new KnnEvalFieldType(type, null, false), Map.of())
+                .buildResponse()
+                .getBaselineVectorOpsKind();
+            assertEquals(
+                type.name(),
+                type == VectorIndexType.HNSW ? KnnEvalResponse.FULL_PRECISION_VISIT : KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
+                kind
+            );
+        }
     }
 
     /** The caller never invoked the mapping action, so the refusal must name this endpoint and the privilege. */
@@ -1350,5 +1369,34 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         for (SearchHit hit : scratchHits) {
             hit.decRef();
         }
+    }
+
+    public void testIndexInfoReportsEachGraphIndexEarlyTermination() {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
+        Map<String, KnnEvalResponse.IndexInfo> expected = new HashMap<>();
+        int indices = randomIntBetween(1, 5);
+        for (int i = 0; i < indices; i++) {
+            String name = "index-" + i;
+            // an unset setting reads as its default, which can depend on the index version
+            Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0);
+            if (randomBoolean()) {
+                settings.put(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.getKey(), randomBoolean());
+            }
+            Settings indexSettings = settings.build();
+            project.put(IndexMetadata.builder(name).settings(indexSettings).build(), false);
+            expected.put(name, new KnnEvalResponse.IndexInfo(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.get(indexSettings)));
+        }
+        ProjectMetadata built = project.build();
+        Set<String> requested = new HashSet<>(expected.keySet());
+        requested.add("not-in-project");
+        KnnEvalFieldType graph = new KnnEvalFieldType(
+            randomFrom(VectorIndexType.HNSW, VectorIndexType.INT8_HNSW, VectorIndexType.INT4_HNSW, VectorIndexType.BBQ_HNSW),
+            null,
+            false
+        );
+        assertEquals(expected, TransportKnnEvalAction.indexInfo(graph, built, requested));
+
+        KnnEvalFieldType disk = new KnnEvalFieldType(VectorIndexType.BBQ_DISK, null, false);
+        assertEquals(Map.of(), TransportKnnEvalAction.indexInfo(disk, built, requested));
     }
 }

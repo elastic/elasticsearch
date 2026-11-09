@@ -31,12 +31,12 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class StatelessRestoringShardIT extends AbstractStatelessRestoringShardIT {
 
-    private static final String PAINLESS_EXECUTE = """
+    private static final String PAINLESS_EXECUTE = Strings.format("""
         {
           "script": { "source": "true" },
           "context": "filter",
           "context_setup": { "index": "%s", "document": { "field": "value" } }
-        }""".formatted(RESTORED_INDEX);
+        }""", RESTORED_INDEX);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -21,12 +21,15 @@ hires_per_month:long | total_salary:long | month:date
 Empty buckets for date range
 required_capability: bucket_include_empty_buckets
 
+// tag::docsBucketIncludeEmptyBuckets[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS hires_per_month = COUNT(*), total_salary = SUM(salary)
   BY month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
+// end::docsBucketIncludeEmptyBuckets[]
 ;
 
+// tag::docsBucketIncludeEmptyBuckets-result[]
 hires_per_month:long | total_salary:long | month:date
 0                    | null              | 1985-01-01T00:00:00.000Z
 2                    | 92610             | 1985-02-01T00:00:00.000Z
@@ -40,6 +43,7 @@ hires_per_month:long | total_salary:long | month:date
 2                    | 103064            | 1985-10-01T00:00:00.000Z
 4                    | 218159            | 1985-11-01T00:00:00.000Z
 0                    | null              | 1985-12-01T00:00:00.000Z
+// end::docsBucketIncludeEmptyBuckets-result[]
 ;
 
 
@@ -803,11 +807,14 @@ null                     | null                     | 2023-10-23T13:40:00.000Z
 Empty buckets with TS
 required_capability: bucket_include_empty_buckets
 
+// tag::docsTBucketIncludeEmptyBuckets[]
 TS k8s
 | STATS max_cost = MAX(MAX_OVER_TIME(network.cost))
   BY time_bucket = TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true})
+// end::docsTBucketIncludeEmptyBuckets[]
 ;
 
+// tag::docsTBucketIncludeEmptyBuckets-result[]
 max_cost:double | time_bucket:datetime
 12.375          | 2024-05-10T00:00:00.000Z
 12.5            | 2024-05-10T00:05:00.000Z
@@ -815,6 +822,7 @@ max_cost:double | time_bucket:datetime
 12.375          | 2024-05-10T00:15:00.000Z
 11.875          | 2024-05-10T00:20:00.000Z
 null            | 2024-05-10T00:25:00.000Z
+// end::docsTBucketIncludeEmptyBuckets-result[]
 ;
 
 

@@ -87,6 +87,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
@@ -97,11 +98,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -627,10 +630,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testMinimalSerializesToItself() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(createMapperService(fieldMapping(this::minimalMapping)), orig, ToXContent.EMPTY_PARAMS);
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
-        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(createMapperService(orig), parsedFromOrig, ToXContent.EMPTY_PARAMS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
         assertParseMinimalWarnings();
@@ -638,10 +641,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testMinimalToMaximal() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        mappingToXContent(createMapperService(fieldMapping(this::minimalMapping)), orig, INCLUDE_DEFAULTS);
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
-        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, INCLUDE_DEFAULTS);
+        mappingToXContent(createMapperService(orig), parsedFromOrig, INCLUDE_DEFAULTS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
         assertParseMaximalWarnings();
@@ -693,6 +696,27 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return IndexOptions.NONE;
     }
 
+    /**
+     * For field types whose doc values are disabled by default, an explicit {@code "doc_values": false} must be equivalent to omitting
+     * it: the mapping serializes without {@code doc_values} (as older versions do) and the two forms can be merged in either direction.
+     */
+    protected final void assertExplicitDocValuesFalseMatchesDisabledDefault() throws IOException {
+        XContentBuilder omitted = fieldMapping(this::minimalMapping);
+        XContentBuilder explicit = fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        });
+
+        MapperService mapperService = createMapperService(omitted);
+        merge(mapperService, explicit);
+        assertEquals(Strings.toString(omitted), mapperService.documentMapper().mappingSource().toString());
+
+        mapperService = createMapperService(explicit);
+        merge(mapperService, explicit);
+        merge(mapperService, omitted);
+        assertEquals(Strings.toString(omitted), mapperService.documentMapper().mappingSource().toString());
+    }
+
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {
@@ -733,6 +757,57 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected boolean supportsCopyTo() {
         return true;
+    }
+
+    /**
+     * Override to disable testing that a multi-field can be added to the mapped field by a dynamic update, in fields that
+     * don't support multi-fields.
+     */
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        return true;
+    }
+
+    /**
+     * A multi-field discovered while parsing a document is added to a field that is already mapped. The update that results has to
+     * restate the field as it is mapped, so that merging it adds the sub-field and leaves everything else about the field as it was.
+     */
+    public final void testDynamicMultiField() throws IOException {
+        assumeTrue("Field doesn't support dynamically added multi-fields", supportsDynamicallyAddedMultiFields());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertParseMinimalWarnings();
+        Map<String, Object> expected = XContentHelper.convertToMap(
+            mapperService.documentMapper().mappingSource().uncompressed(),
+            true,
+            XContentType.JSON
+        ).v2();
+
+        MappingParserContext parserContext = mapperService.parserContext();
+        FieldMapper.Builder multiField = (FieldMapper.Builder) parserContext.typeParser("keyword")
+            .parse("dynamic_sub", new HashMap<>(), parserContext);
+        DocumentParserContext context = new TestDocumentParserContext(parserContext, mapperService.mappingLookup());
+        context.updateMapping("field", builder -> ((FieldMapper.Builder) builder).addMultiField(multiField));
+        List<Mapper.Builder> added = context.getDynamicMappers("field");
+        assertThat(added, hasSize(1));
+
+        merge(
+            mapperService,
+            MapperService.MergeReason.MAPPING_AUTO_UPDATE,
+            "{\"_doc\":{\"properties\":" + Strings.toString(added.get(0)) + "}}"
+        );
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) ((Map<String, Object>) expected.get("_doc")).get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> field = (Map<String, Object>) properties.get("field");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fields = (Map<String, Object>) field.computeIfAbsent("fields", k -> new LinkedHashMap<String, Object>());
+        fields.put("dynamic_sub", Map.of("type", "keyword"));
+        assertEquals(
+            expected,
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), true, XContentType.JSON).v2()
+        );
+        // parsing the stored mapping again to merge into it warns as creating it did
+        assertParseMinimalWarnings();
     }
 
     protected void metaMapping(XContentBuilder b) throws IOException {
@@ -842,7 +917,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         final String paramName;
         final XContentBuilder init;
         final XContentBuilder update;
-        final Consumer<FieldMapper> check;
+        final BiConsumer<MapperService, FieldMapper> check;
 
         private UpdateCheck(String paramName, CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check)
             throws IOException {
@@ -852,14 +927,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 minimalMapping(b);
                 update.accept(b);
             });
-            this.check = check;
+            this.check = (mapperService, mapper) -> check.accept(mapper);
         }
 
         private UpdateCheck(
             String paramName,
             CheckedConsumer<XContentBuilder, IOException> init,
             CheckedConsumer<XContentBuilder, IOException> update,
-            Consumer<FieldMapper> check
+            BiConsumer<MapperService, FieldMapper> check
         ) throws IOException {
             this.paramName = paramName;
             this.init = fieldMapping(init);
@@ -868,12 +943,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    private record ConflictCheck(XContentBuilder init, XContentBuilder update) {}
+    private record ConflictCheck(String param, XContentBuilder init, XContentBuilder update) {}
 
     public class ParameterChecker {
 
         List<UpdateCheck> updateChecks = new ArrayList<>();
-        Map<String, ConflictCheck> conflictChecks = new HashMap<>();
+        List<ConflictCheck> conflictChecks = new ArrayList<>();
         Set<String> checkedParameters = new HashSet<>();
 
         /**
@@ -903,6 +978,24 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             CheckedConsumer<XContentBuilder, IOException> update,
             Consumer<FieldMapper> check
         ) throws IOException {
+            registerUpdateCheck(param, init, update, (mapperService, mapper) -> check.accept(mapper));
+        }
+
+        /**
+         * Register a check that a parameter can be updated, for a check that needs the {@link MapperService}, such as one on the
+         * mapping the updated field serializes to
+         *
+         * @param param  the parameter name
+         * @param init   the initial mapping
+         * @param update the updated mapping
+         * @param check  a check that the updated parameter has been applied, given the mapper service and the updated FieldMapper
+         */
+        public void registerUpdateCheck(
+            String param,
+            CheckedConsumer<XContentBuilder, IOException> init,
+            CheckedConsumer<XContentBuilder, IOException> update,
+            BiConsumer<MapperService, FieldMapper> check
+        ) throws IOException {
             checkedParameters.add(param);
             updateChecks.add(new UpdateCheck(param, init, update, check));
         }
@@ -915,7 +1008,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          */
         public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) throws IOException {
             checkedParameters.add(param);
-            conflictChecks.put(param, new ConflictCheck(fieldMapping(MapperTestCase.this::minimalMapping), fieldMapping(b -> {
+            conflictChecks.add(new ConflictCheck(param, fieldMapping(MapperTestCase.this::minimalMapping), fieldMapping(b -> {
                 minimalMapping(b);
                 update.accept(b);
             })));
@@ -930,7 +1023,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          */
         public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update) {
             checkedParameters.add(param);
-            conflictChecks.put(param, new ConflictCheck(init, update));
+            conflictChecks.add(new ConflictCheck(param, init, update));
         }
 
         /**
@@ -1000,21 +1093,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             MapperService mapperService = createMapperService(updateCheck.init);
             merge(mapperService, updateCheck.update);
             FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-            updateCheck.check.accept(mapper);
+            updateCheck.check.accept(mapperService, mapper);
             // do it again to ensure that we don't get conflicts the second time
             merge(mapperService, updateCheck.update);
             mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-            updateCheck.check.accept(mapper);
+            updateCheck.check.accept(mapperService, mapper);
         }
-        for (String param : checker.conflictChecks.keySet()) {
-            MapperService mapperService = createMapperService(checker.conflictChecks.get(param).init);
+        for (ConflictCheck conflictCheck : checker.conflictChecks) {
+            String param = conflictCheck.param();
+            MapperService mapperService = createMapperService(conflictCheck.init());
             // merging the same change is fine
-            merge(mapperService, checker.conflictChecks.get(param).init);
+            merge(mapperService, conflictCheck.init());
             // merging the conflicting update should throw an exception
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 "No conflict when updating parameter [" + param + "]",
-                () -> merge(mapperService, checker.conflictChecks.get(param).update)
+                () -> merge(mapperService, conflictCheck.update())
             );
             assertThat(
                 e.getMessage(),
@@ -1047,9 +1141,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             );
         }
 
-        for (Map.Entry<String, ConflictCheck> entry : checker.conflictChecks.entrySet()) {
-            String param = entry.getKey();
-            ConflictCheck conflictCheck = entry.getValue();
+        for (ConflictCheck conflictCheck : checker.conflictChecks) {
+            String param = conflictCheck.param();
             String initSerialized = serializeMapping(createMapperService(conflictCheck.init));
             String updateSerialized = serializeMapping(createMapperService(conflictCheck.update));
             assertTrue(
@@ -1069,7 +1162,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private static String serializeMapping(MapperService mapperService) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        mapperService.documentMapper().mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(mapperService, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         return Strings.toString(builder);
     }
@@ -1167,7 +1260,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected void registerDimensionChecks(ParameterChecker checker) throws IOException {
         // dimension cannot be updated
         checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", true));
-        checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", false));
         checker.registerConflictCheck("time_series_dimension", fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", false);

@@ -157,7 +157,7 @@ class org.elasticsearch.script.field.vectors.DenseVector {
     double l2Norm(Object)
     double cosineSimilarity(Object)
 
-    float[] getVector()
+    float[] getVector() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="denseVectorCopyBytes"]
     boolean isEmpty()
     int getDims()
     int size()

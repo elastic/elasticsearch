@@ -18,6 +18,10 @@ import java.io.IOException;
  * <p>
  * cuVS reports all native errors as plain {@link RuntimeException}s with the error text as message, and doesn't tell an
  * out-of-memory error from any other, so any cuVS failure to build the graph is wrapped in this exception.
+ * <p>
+ * The cuVS steps covered are copying the vectors, building the graph, getting it and copying it to host memory. A large graph
+ * isn't copied to host memory, but read from device memory while it's written; a cuVS failure there isn't covered, as part
+ * of the graph may already be written, so it fails the flush or merge.
  */
 class GPUGraphBuildException extends IOException {
 

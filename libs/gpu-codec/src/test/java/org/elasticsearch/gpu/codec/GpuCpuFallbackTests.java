@@ -136,7 +136,7 @@ public class GpuCpuFallbackTests extends ESTestCase {
                         "flush fallback",
                         ES92GpuHnswVectorsWriter.class.getCanonicalName(),
                         Level.WARN,
-                        "Failed to do flush on GPU for field [v] with [500] vectors because of [*"
+                        "GPU graph build failed during [flush] for field [v] with [500] vectors: [*"
                     )
                 );
 
@@ -153,7 +153,7 @@ public class GpuCpuFallbackTests extends ESTestCase {
                         "merge fallback",
                         ES92GpuHnswVectorsWriter.class.getCanonicalName(),
                         Level.WARN,
-                        "Failed to do merge on GPU for field [v] with [" + numDocs + "] vectors because of [*"
+                        "GPU graph build failed during [merge] for field [v] with [" + numDocs + "] vectors: [*"
                     )
                 );
                 writer.commit();

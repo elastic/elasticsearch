@@ -272,8 +272,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/139398
 - class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
   issue: https://github.com/elastic/elasticsearch/issues/162575
-- class: org.elasticsearch.search.heappressure.LargeTermsFilterHeapPressureIT
-  issue: https://github.com/elastic/elasticsearch/issues/162788
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162319

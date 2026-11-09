@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,6 +34,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class TimeSeriesTransformTests extends AbstractScalarFunctionTestCase {
     public TimeSeriesTransformTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    @BeforeClass
+    public static void requireTimeSeriesType() {
+        // Every case takes a _timeseries container, which release builds can't serialize while it is under construction.
+        assumeTrue("_timeseries is under construction", DataType.TSMD_DATA_TYPE.supportedVersion().supportedLocally());
     }
 
     @ParametersFactory

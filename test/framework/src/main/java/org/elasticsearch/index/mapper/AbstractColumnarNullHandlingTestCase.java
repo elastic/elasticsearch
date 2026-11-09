@@ -518,17 +518,16 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     }
 
     private static IndexWriterConfig batchIndexWriterConfig(MapperService mapperService) {
-        return new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics()))
-            .setCodec(
-                new PerFieldMapperCodec(
-                    Lucene104Codec.Mode.BEST_SPEED,
-                    ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                    ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                    mapperService,
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null
-                )
-            );
+        return new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
+            new PerFieldMapperCodec(
+                Lucene104Codec.Mode.BEST_SPEED,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                mapperService,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
+            )
+        );
     }
 
     private void assertBatchesIndex(IndexMode indexMode, boolean withCodec, List<List<String>> batches) throws IOException {

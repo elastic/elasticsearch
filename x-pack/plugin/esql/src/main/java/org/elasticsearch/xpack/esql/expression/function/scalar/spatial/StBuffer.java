@@ -382,7 +382,6 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         BufferParameters bp = bufferParameters();
         Object input = geometry.fold(foldCtx);
         return switch (input) {
-            case null -> null;
             case List<?> list -> {
                 Geometry jts = processor.asJtsGeometry(list);
                 yield UNSPECIFIED.jtsGeometryToWkb(bufferOp(jts, inputDistance, bp));

@@ -172,9 +172,6 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        if (isNull(leftDataType) || isNull(rightDataType)) {
-            return null;
-        }
         return super.doFold(source, ctx);
     }
 

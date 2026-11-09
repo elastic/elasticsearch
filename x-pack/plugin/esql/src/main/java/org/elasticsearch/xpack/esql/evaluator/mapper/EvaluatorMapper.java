@@ -89,6 +89,8 @@ public interface EvaluatorMapper {
      * argument folds to {@code null}, so {@link #doFold} doesn't have to handle them.
      * <p>
      * To customize folding, override {@link #doFold} instead of this method or {@link Expression#fold}.
+     * If a class must override {@link Expression#fold}, it should only delegate to
+     * {@code EvaluatorMapper.super.fold(source(), ctx)}.
      * </p>
      */
     default Object fold(Source source, FoldContext ctx) {

@@ -23,6 +23,7 @@ import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -484,17 +485,20 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         Expression expression = buildFoldableLiteralExpression();
         Row row = new Row(Source.EMPTY, List.of(new Alias(Source.EMPTY, "unused_name", expression)));
         Row folded = (Row) new FoldNull().apply(row, unboundLogicalOptimizerContext());
-        Expression nullFolded = folded.fields().getFirst().child();
-        assertFold(nullFolded);
-        if (nullFolded != expression && expression instanceof AnyNullIsNull) {
-            /*
-             * FoldNull doesn't always replace an expression with null arguments before it's folded: it may not see
-             * them as null (a CASE without a match, 1/0...), and optimizer rules may fold an expression directly
-             * once its references are replaced by literals. So AnyNullIsNull expressions must fold to null by
-             * themselves too. Other expressions may evaluate, and warn about, arguments FoldNull removed.
-             */
-            assertFold(expression);
-        }
+        assertFold(folded.fields().getFirst().child());
+    }
+
+    /**
+     * {@code FoldNull} doesn't always replace an expression with null arguments before it's folded: it may not see
+     * them as null (a {@code CASE} without a match, {@code 1/0}...), and optimizer rules may fold an expression
+     * directly once its references are replaced by literals. So {@link AnyNullIsNull} expressions must fold to
+     * {@code null} by themselves too. Other expressions may evaluate, and warn about, arguments {@code FoldNull} removed.
+     */
+    public void testFoldAnyNullIsNullWithoutFoldNull() {
+        Expression expression = buildFoldableLiteralExpression();
+        assumeTrue("Function is not marked " + AnyNullIsNull.class.getSimpleName(), expression instanceof AnyNullIsNull);
+        assumeTrue("No null argument", expression.children().stream().anyMatch(Expressions::isGuaranteedNull));
+        assertFold(expression);
     }
 
     private Expression buildFoldableLiteralExpression() {

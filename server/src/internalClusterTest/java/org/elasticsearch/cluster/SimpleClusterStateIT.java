@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -112,15 +113,15 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metadata().getProject().indices().size(), is(0));
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/164246",
+        value = "org.elasticsearch.cluster.service.MasterService:TRACE,org.elasticsearch.cluster.service.ClusterApplierService:TRACE"
+    )
     public void testMetadataVersion() {
         createIndex("index-1");
         createIndex("index-2");
         long baselineVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().version();
         assertThat(baselineVersion, greaterThan(0L));
-        // Make sure all nodes have applied the latest CS update (shard STARTED)
-        for (String node : internalCluster().getNodeNames()) {
-            awaitClusterState(node, state -> state.metadata().version() >= baselineVersion);
-        }
         assertThat(
             clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("index-1").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)

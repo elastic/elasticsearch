@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -370,6 +372,12 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         ClusterState currentState = ClusterState.builder(previousState)
             .nodes(DiscoveryNodes.builder(previousNodes).masterNodeId(localNode.getId()))
             .build();
+        if (randomBoolean()) {
+            previousState = ClusterState.builder(currentState.getClusterName())
+                .nodes(currentState.nodes())
+                .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+                .build();
+        }
 
         try (var mockLog = MockLog.capture(SystemIndexMetadataUpgradeService.class)) {
             mockLog.addExpectation(

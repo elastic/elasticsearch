@@ -22,6 +22,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
@@ -68,6 +69,8 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         ProjectMetadata currentMetadata = event.state().metadata().getProject();
         ProjectMetadata previousMetadata = event.previousState().metadata().getProject();
         final boolean localNodeNewlyElectedMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+        final boolean reportHybridDataStreams = localNodeNewlyElectedMaster
+            || event.previousState().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
         if (event.localNodeMaster()
             && (localNodeNewlyElectedMaster
                 || currentMetadata.indices() != previousMetadata.indices()
@@ -85,7 +88,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                     Set<Index> dataStreamIndices = new HashSet<>();
                     for (Map.Entry<String, DataStream> cursor : dataStreams.entrySet()) {
                         DataStream dataStream = cursor.getValue();
-                        if (localNodeNewlyElectedMaster) {
+                        if (reportHybridDataStreams) {
                             warnIfMatchesSystemIndexPattern(dataStream);
                         }
                         if (localNodeNewlyElectedMaster || dataStream != previousDataStreams.get(cursor.getKey())) {

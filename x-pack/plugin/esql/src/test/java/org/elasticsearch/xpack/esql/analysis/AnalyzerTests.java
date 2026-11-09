@@ -122,6 +122,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
@@ -1403,6 +1404,56 @@ public class AnalyzerTests extends AnalyzerTestCase {
             """);
         var limit = as(plan, Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+    }
+
+    /**
+     * Without a maximum a limit below a command that adds rows bounds that command's input, not the query: the default
+     * limit goes on top.
+     */
+    public void testNoMaximumIgnoresALimitBelowAnMvExpand() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | limit 1 | mv_expand languages");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        var expand = as(limit.child(), MvExpand.class);
+        limit = as(expand.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(1));
+    }
+
+    /**
+     * Without a maximum a limit above an expansion is the query's own.
+     */
+    public void testNoMaximumKeepsALimitAboveAnMvExpand() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | mv_expand languages | limit 1");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(1));
+        limit = as(limit.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(1));
+        as(limit.child(), MvExpand.class);
+    }
+
+    /**
+     * An aggregation without groups answers one row to none, so a limit below it does not bound the query either.
+     */
+    public void testNoMaximumIgnoresALimitBelowAnUngroupedStats() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | limit 0 | stats c = count(*)");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        as(limit.child(), Aggregate.class);
+    }
+
+    /**
+     * A grouped aggregation puts a row in every group of a multivalued key, so a limit below it does not bound the
+     * query: the analyzer cannot tell a key's values apart, and every aggregation stops the walk.
+     */
+    public void testNoMaximumIgnoresALimitBelowAGroupedStats() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | limit 1 | stats c = count(*) by languages");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        as(limit.child(), Aggregate.class);
     }
 
     /**

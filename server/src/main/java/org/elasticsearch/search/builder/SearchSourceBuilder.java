@@ -2071,6 +2071,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         );
                     }
                 }
+                if (script == null) {
+                    throw new ParsingException(parser.getTokenLocation(), "script_fields [" + scriptFieldName + "] requires a [script]");
+                }
                 this.ignoreFailure = ignoreFailure;
                 this.fieldName = scriptFieldName;
                 this.script = script;

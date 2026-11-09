@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -196,6 +197,45 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
             );
             assertEquals("[multi_match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", e.getMessage());
+        }
+    }
+
+    public void testScriptFieldWithoutScriptIsRejected() throws IOException {
+        for (String restContent : new String[] {
+            "{ \"script_fields\": { \"foo\": {} } }",
+            "{ \"script_fields\": { \"foo\": { \"ignore_failure\": true } } }" }) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                ParsingException e = expectThrows(
+                    ParsingException.class,
+                    () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
+                );
+                assertEquals("script_fields [foo] requires a [script]", e.getMessage());
+                assertEquals(RestStatus.BAD_REQUEST, e.status());
+            }
+        }
+    }
+
+    public void testTopHitsScriptFieldWithoutScriptIsRejected() throws IOException {
+        String restContent = """
+            {
+              "aggs": {
+                "top": {
+                  "top_hits": {
+                    "script_fields": {
+                      "foo": {}
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            ParsingException e = expectThrows(
+                ParsingException.class,
+                () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
+            );
+            assertEquals("script_fields [foo] requires a [script]", e.getMessage());
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
         }
     }
 

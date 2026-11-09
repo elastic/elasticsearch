@@ -316,6 +316,17 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
     }
 
+    /**
+     * A malformed field is reported even when there turns out to be nothing to write (an empty value, with ignore_empty_value). The path
+     * used to only be parsed once something was written to it, which meant that a malformed one in that situation was silently ignored.
+     */
+    public void testMalformedConstantFieldFailsEvenIfThereIsNothingToWrite() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("a..b", "", null, true, true);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
     public void testEmptyConstantFieldFailsAtExecutionTime() {
         IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Processor processor = createSetProcessorWithCompiledField("", "value", null, true, false);

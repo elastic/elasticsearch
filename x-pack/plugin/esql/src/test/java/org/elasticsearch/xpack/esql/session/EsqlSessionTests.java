@@ -475,28 +475,50 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /**
-     * Two data sources holding the <i>same</i> secret are the same read, and the raw map cannot see it: encryption
-     * draws a fresh IV per write, so each source's stored ciphertext is different bytes and {@code EncryptedData}
-     * compares payloads. The folded {@code _definition_version} is the engine's canonical identity for a
-     * definition and folds the key id rather than the payload, which is why it decides this.
+     * Two data sources whose stored secrets differ only as ciphertext are refused, and this pins the direction of
+     * the trade rather than an accident. The same secret written twice compares unequal because encryption draws a
+     * fresh IV per write; nothing in the stored form distinguishes that from two different secrets, the folded
+     * {@code _definition_version} included, since it reduces an {@code EncryptedData} to its key id. Accepting
+     * would read one dataset's resource under the other data source's credentials, so the refusal is the safe way
+     * to be wrong and the user is told which two datasets to choose between.
      */
-    public void testExtractExternalConfigsAcceptsTwinsWhoseSecretsEncryptedDifferently() {
+    public void testExtractExternalConfigsRefusesTwinsWhoseSecretsEncryptedDifferently() {
         String path = "s3://bucket/table";
         Map<String, Object> first = configWith("format", "csv");
         first.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of("secret_key", new EncryptedData("key-1", new byte[] { 1, 2, 3 })));
         first.put(DefinitionVersion.CONFIG_KEY, "v1");
         Map<String, Object> second = configWith("format", "csv");
         second.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of("secret_key", new EncryptedData("key-1", new byte[] { 9, 9, 9 })));
+        // The same folded version on both, so this fails if anything ever short-circuits on it again.
         second.put(DefinitionVersion.CONFIG_KEY, "v1");
-        assertThat("the two configs must be unequal as maps, or this test proves nothing", first, not(equalTo(second)));
 
-        Map<String, Map<String, Object>> result = EsqlSession.extractExternalConfigs(twoRelationsOnOnePath(path, first, second));
-
-        assertThat(result.keySet(), equalTo(Set.of(path)));
-        assertThat(result.get(path), equalTo(first));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EsqlSession.extractExternalConfigs(twoRelationsOnOnePath(path, first, second))
+        );
+        assertThat(e.getMessage(), containsString("different configurations in one query"));
     }
 
-    /** And a genuine divergence is still refused, so the version is not simply believed over everything. */
+    /**
+     * The refusal names both datasets, which is the half of the message no test reached: every other refusal case
+     * builds its configs without a {@code _dataset_context}, so {@code datasetName} returns null for both and the
+     * naming clause is empty in all of them.
+     */
+    public void testTheRefusalNamesBothDatasets() {
+        String path = "s3://bucket/table";
+        Map<String, Object> first = configWith("format", "csv");
+        first.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "a", "datasource", "src_a", "type", "s3"));
+        Map<String, Object> second = configWith("format", "ndjson");
+        second.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "b", "datasource", "src_b", "type", "s3"));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EsqlSession.extractExternalConfigs(twoRelationsOnOnePath(path, first, second))
+        );
+        assertThat(e.getMessage(), containsString("in one query - [a] and [b]"));
+    }
+
+    /** A plain divergence in a setting that decides the read, with no credentials involved either way. */
     public void testExtractExternalConfigsStillRefusesDifferentVersionsOnOnePath() {
         String path = "s3://bucket/table";
         Map<String, Object> first = configWith("format", "csv");

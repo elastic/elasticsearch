@@ -88,7 +88,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetReference;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
-import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
@@ -2478,23 +2477,23 @@ public class EsqlSession {
     }
 
     /**
-     * Whether two configurations over one path are the same read.
+     * Whether two configurations over one path are the same read: everything that decides what gets read must be
+     * equal, which is the whole map but for {@code _dataset_context} — the dataset's own name, carried for
+     * diagnostics, which differs between two registered datasets that are otherwise twins.
      * <p>
-     * The folded {@code _definition_version} decides it when both carry one, because it is the engine's own
-     * canonical identity for a definition and the raw map is not: the map holds the parent's credentials under
-     * {@code _datasource} as the stored {@code EncryptedData}, whose equality is byte-wise over the ciphertext,
-     * and encryption draws a fresh IV per write — so two data sources registered with the <i>same</i> secret hold
-     * different payloads and compare unequal. {@code DefinitionVersion.renderSettingValue} folds the key id rather
-     * than the payload for exactly this reason, and its own javadoc says why.
-     * <p>
-     * The map comparison stays as the fallback for a config with no version behind it, a snapshot-only source
-     * being the case that has none. It can only accept fewer reads than the version does, never more.
+     * <b>Two data sources holding the same secret are refused here, and that is the safe direction rather than an
+     * oversight.</b> The map holds each parent's credentials under {@code _datasource} as the stored
+     * {@code EncryptedData}, whose equality is byte-wise over the ciphertext, and encryption draws a fresh IV per
+     * write — so the same secret stored twice compares unequal. Nothing in the stored form can tell that apart
+     * from two <i>different</i> secrets: both are one key id with different payloads, and the folded
+     * {@code _definition_version} cannot separate them either, because
+     * {@code DefinitionVersion.renderSettingValue} reduces an {@code EncryptedData} to its key id and that class's
+     * own javadoc disclaims this use. So the choice is which way to be wrong. Refusing costs a user a 400 naming
+     * both datasets, which they can act on by querying one of them; accepting would resolve one dataset's
+     * resource under the other data source's credentials, and the listing and inferred schema this feeds would be
+     * built from whichever relation was visited first.
      */
     private static boolean sameRead(Map<String, Object> left, Map<String, Object> right) {
-        Object version = left.get(DefinitionVersion.CONFIG_KEY);
-        if (version != null && version.equals(right.get(DefinitionVersion.CONFIG_KEY))) {
-            return true;
-        }
         return withoutDatasetContext(left).equals(withoutDatasetContext(right));
     }
 

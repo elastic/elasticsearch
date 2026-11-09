@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,20 +29,68 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Query logger related context — common items for query loggers.
+ * Captured context for {@link QueryInterceptor}: the information captured about a completed query,
+ * extended by specific contexts for each search action.
  */
-public abstract class QueryLoggerContext extends ActivityLoggerContext {
+public abstract class QueryCaptureContext {
+    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+
+    private final long tookInNanos;
+    private final String type;
+    private final @Nullable Exception error;
+    private final Task task;
     // Cached "isSystem" flag
     private Boolean isSystemSearch = null;
 
-    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
-
-    protected QueryLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
-        super(task, type, tookInNanos, error);
+    protected QueryCaptureContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
+        this.type = type;
+        this.error = error;
+        this.tookInNanos = tookInNanos;
+        this.task = task;
     }
 
-    protected QueryLoggerContext(Task task, String type, long tookInNanos) {
-        super(task, type, tookInNanos);
+    protected QueryCaptureContext(Task task, String type, long tookInNanos) {
+        this(task, type, tookInNanos, null);
+    }
+
+    public long getTookInNanos() {
+        return tookInNanos;
+    }
+
+    public boolean isSuccess() {
+        return error == null;
+    }
+
+    public boolean isTimedOut() {
+        return false;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public String getErrorMessage() {
+        return error == null ? "" : error.getMessage();
+    }
+
+    public String getErrorType() {
+        return error == null ? "" : error.getClass().getName();
+    }
+
+    public String getOpaqueId() {
+        return task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
+    }
+
+    public String getTraceId() {
+        return task.getHeader(Task.TRACE_ID);
+    }
+
+    public long getTaskId() {
+        return task.getId();
+    }
+
+    public Optional<TaskId> getParentTaskId() {
+        return task.getParentTaskId().isSet() ? Optional.of(task.getParentTaskId()) : Optional.empty();
     }
 
     /**
@@ -49,6 +98,15 @@ public abstract class QueryLoggerContext extends ActivityLoggerContext {
      */
     public Map<String, String> getClusters() {
         return Map.of();
+    }
+
+    /**
+     * Shard stats information. All fields are nullable.
+     */
+    public record ShardInfo(Integer successfulShards, Integer skippedShards, Integer failedShards) {}
+
+    public Optional<ShardInfo> shardInfo() {
+        return Optional.empty();
     }
 
     /**

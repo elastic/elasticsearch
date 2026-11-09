@@ -169,20 +169,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
         // per-segment using the Two-Signal model with segment-size awareness.
         final float visitRatio = providedVisitRatio;
-        final SharedMinCompetitiveScore sharedScore = indexSearcher.getIndexReader().leaves().size() > 1
-            ? new SharedMinCompetitiveScore()
-            : null;
-
         IvfSegmentConfig[] resolvedPerLeaf = new IvfSegmentConfig[leafReaderContexts.size()];
         float maxRescoreOversampleAcrossLeaves = 1f;
+        int leavesWithField = 0;
         for (int i = 0; i < leafReaderContexts.size(); i++) {
             LeafReader leafReader = leafReaderContexts.get(i).reader();
             FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
             if (fieldInfo != null) {
                 resolvedPerLeaf[i] = ivfQueryConfigResolver.resolve(fieldInfo, leafReader);
                 maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, resolvedPerLeaf[i].rescoreOversample());
+                leavesWithField++;
             }
         }
+
+        // Sharing a cutoff only helps when more than one leaf can search.
+        final SharedMinCompetitiveScore sharedScore = leavesWithField > 1 ? new SharedMinCompetitiveScore() : null;
         final int maxLeafBudget = IvfSegmentConfig.leafCollectorBudget(k, maxRescoreOversampleAcrossLeaves);
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
@@ -190,14 +191,17 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             LeafReaderContext context = leafReaderContexts.get(i);
             IvfSegmentConfig resolved = resolvedPerLeaf[i];
 
-            // resolved is null only when the segment has no FieldInfo for the field, so it has no vectors and returns no hits.
-            // The smallest budget avoids allocating a collector queue that is never filled.
-            float segmentOversample = resolved != null ? resolved.rescoreOversample() : 1f;
-            int leafBudget = IvfSegmentConfig.leafCollectorBudget(k, segmentOversample);
+            if (resolved == null) {
+                // No FieldInfo for the field, so the segment has no vectors and cannot return hits.
+                // A task is still queued so perLeafResults stays aligned with leaf ordinals.
+                tasks.add(() -> NO_RESULTS);
+                continue;
+            }
 
             // A leaf's cutoff is only safe to share if at least mergeK unique docs score above it. Overspill duplicates can fill
             // half a queue, so only leaves with the largest budget guarantee that. A smaller leaf's cutoff would make other leaves
             // drop docs that belong in the merged top mergeK, so those leaves only read the shared cutoff.
+            int leafBudget = IvfSegmentConfig.leafCollectorBudget(k, resolved.rescoreOversample());
             SharedMinCompetitiveScore leafSharedScore = sharedScore == null || leafBudget >= maxLeafBudget
                 ? sharedScore
                 : sharedScore.readOnly();
@@ -208,9 +212,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             // getLeafResults against that segment's own preconditioner, producing a segment-local
             // query. The shared query field is never mutated, so segments that disagree on
             // preconditioning (and the exact-rescore query) each see the correct vector.
-            final boolean usePrecondition = resolved != null && resolved.usePrecondition();
+            final boolean usePrecondition = resolved.usePrecondition();
             tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio, usePrecondition));
         }
+
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
         if (postFilterDelegate) {
             this.rawPerLeafResults = perLeafResults;

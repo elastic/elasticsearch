@@ -98,7 +98,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.Dynamic,
         Property.NodeScope
     );
-    // Operator-only; registered by StatelessPlugin. Temporary until restore no longer needs disk capacity checks.
+    // Temporary until restore no longer needs disk capacity checks.
+    // Operator-only and registered in StatelessPlugin to allow removal without deprecation.
     public static final Setting<Boolean> CLUSTER_INFO_UPDATE_DISK_ENABLED = Setting.boolSetting(
         "cluster.info.update.disk.enabled",
         false,

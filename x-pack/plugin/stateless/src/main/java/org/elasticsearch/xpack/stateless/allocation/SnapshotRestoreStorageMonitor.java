@@ -34,7 +34,6 @@ public class SnapshotRestoreStorageMonitor {
     private static final Logger logger = LogManager.getLogger(SnapshotRestoreStorageMonitor.class);
 
     /**
-     * Operator-only; registered by StatelessPlugin. Temporary with restore disk capacity checks.
      * Rate-limits retries while snapshot restores remain unassigned; structural storage changes always
      * reroute immediately and are never subject to this interval.
      */

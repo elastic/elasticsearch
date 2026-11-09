@@ -62,7 +62,9 @@ With `LOAD`, {{esql}} reads the unmapped fields that your query names from [`_so
 
 `message` is mapped and `unmapped_message` isn't, but both are returned as regular columns.
 
-For a partially mapped field, one that is mapped in some queried indices but not others, `LOAD` reads values from `_source` in the indices where it's unmapped, even if the query doesn't name the field. For example, in `FROM idx1, idx2`, a field mapped only in `idx1` is loaded from `idx2`. {applies_to}`stack: ga 9.5+` If the field's mapped type isn't `keyword`, `LOAD` converts the loaded values to that type where possible.
+For a partially mapped field, one that is mapped in some queried indices but not others, `LOAD` reads values from `_source` in the indices where it's unmapped, even if the query doesn't name the field. For example, in `FROM idx1, idx2`, a field mapped only in `idx1` is loaded from `idx2`.
+
+{applies_to}`stack: ga 9.5+` If the field's mapped type isn't `keyword`, `LOAD` converts the loaded values to that type where possible.
 
 ## Load all unmapped fields [esql-unmapped-fields-load-all]
 

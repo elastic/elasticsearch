@@ -58,6 +58,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SourceFieldMapperTests extends MetadataMapperTestCase {
@@ -304,28 +305,28 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         });
         DocumentMapper mapper = createTimeSeriesModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSyntheticSourceWithLogsIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createLogsModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSyntheticSourceWithColumnarIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createColumnarModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSyntheticSourceWithColumnarLogsdbIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createColumnarLogsdbModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSupportsNonDefaultParameterValues() throws IOException {

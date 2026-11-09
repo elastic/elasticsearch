@@ -60,6 +60,14 @@ public class FastDateTimeParserTests extends ESTestCase {
         return transformedMatch(ParseResult::errorIndex, equalTo(parseError));
     }
 
+    public void testEmptyInput() {
+        FastDateTimeParser parser = defaultParser();
+        assertThat(parser.tryParse(""), hasError(0));
+
+        DateTimeParseException exception = expectThrows(DateTimeParseException.class, () -> parser.parse(""));
+        assertThat(exception.getErrorIndex(), equalTo(0));
+    }
+
     public void testStrangeParses() {
         assertThat(defaultParser().tryParse("-9999-01-01"), hasResult(new DateTime(-9999, 1, 1, null, null, null, null, null, null)));
         assertThat(defaultParser().tryParse("1000"), hasResult(new DateTime(1000, null, null, null, null, null, null, null, null)));

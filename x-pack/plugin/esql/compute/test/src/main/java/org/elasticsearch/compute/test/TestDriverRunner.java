@@ -33,6 +33,8 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -211,14 +213,14 @@ public class TestDriverRunner {
                 report.append("\n  driver: status unavailable: ").append(e);
             }
         }
-        Thread.getAllStackTraces().forEach((thread, stack) -> {
-            if (thread.getName().contains("[esql")) {
-                report.append("\n  thread [").append(thread.getName()).append("] ").append(thread.getState());
-                for (StackTraceElement frame : stack) {
+        for (ThreadInfo thread : ManagementFactory.getThreadMXBean().dumpAllThreads(false, false)) {
+            if (thread.getThreadName().contains("[esql")) {
+                report.append("\n  thread [").append(thread.getThreadName()).append("] ").append(thread.getThreadState());
+                for (StackTraceElement frame : thread.getStackTrace()) {
                     report.append("\n    at ").append(frame);
                 }
             }
-        });
+        }
         return report.toString();
     }
 

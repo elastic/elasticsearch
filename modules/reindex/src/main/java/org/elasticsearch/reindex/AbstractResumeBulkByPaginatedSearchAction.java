@@ -66,17 +66,16 @@ public abstract class AbstractResumeBulkByPaginatedSearchAction<Request extends 
         // ResumeBulkByPaginatedSearchRequest.validate() rejects requests with no ResumeInfo
         assert request.getDelegate().getResumeInfo().isPresent();
         final ResumeInfo resumeInfo = request.getDelegate().getResumeInfo().get();
+        final var originalTaskId = resumeInfo.relocationOrigin().originalTaskId();
+        if (clusterService.state().metadata().nodeShutdowns().contains(clusterService.localNode().getId())) {
+            logger.info("received relocated reindex task [{}] when I'm marked for shutdown in cluster state", originalTaskId);
+        }
 
         var responseListener = new SubscribableListener<BulkByPaginatedSearchResponse>();
         Task delegateTask = nodeClient.executeAndReturnTask(delegateAction, request.getDelegate(), responseListener);
         responseListener.addListener(new LoggingReindexTaskListener(delegateTask));
         TaskId taskId = new TaskId(clusterService.localNode().getId(), delegateTask.getId());
-        logger.info(
-            "resumed relocation for [{}]: original task [{}] continues as task [{}]",
-            actionName,
-            resumeInfo.relocationOrigin().originalTaskId(),
-            taskId
-        );
+        logger.info("resumed relocation for [{}]: original task [{}] continues as task [{}]", actionName, originalTaskId, taskId);
 
         listener.onResponse(new ResumeBulkByPaginatedSearchResponse(taskId));
     }

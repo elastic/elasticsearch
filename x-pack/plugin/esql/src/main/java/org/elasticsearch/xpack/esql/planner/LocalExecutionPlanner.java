@@ -35,6 +35,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.FieldPresenceOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
@@ -387,6 +388,21 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         boolean singleNodeOptimizations
     ) {
+        return plan(description, foldCtx, plannerSettings, localPhysicalPlan, shardContexts, singleNodeOptimizations, null);
+    }
+
+    /**
+     * @param sortBound the sort bound shared by the computes of a data-node request, or {@code null}
+     */
+    public LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PlannerSettings plannerSettings,
+        PhysicalPlan localPhysicalPlan,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        boolean singleNodeOptimizations,
+        @Nullable SharedSortBound sortBound
+    ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
         var context = new LocalExecutionPlannerContext(
             description,
@@ -403,7 +419,8 @@ public class LocalExecutionPlanner {
             physicalOperationProviders.analysisRegistry(),
             new Holder<>(),
             new Holder<>(),
-            singleNodeOptimizations
+            singleNodeOptimizations,
+            sortBound
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -993,7 +1010,7 @@ public class LocalExecutionPlanner {
         context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
         LuceneMinCompetitiveTimestampTopN luceneMinCompetitivePilot = context.plannerSettings().minCompetitiveTimestampOptimizationEnabled()
-            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory, context.foldCtx())
+            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory, context.foldCtx(), context.sortBound())
             : null;
         if (luceneMinCompetitivePilot != null) {
             context.luceneMinCompetitivePilot.set(luceneMinCompetitivePilot);
@@ -1257,19 +1274,20 @@ public class LocalExecutionPlanner {
     /**
      * Path B pilot: wire {@link SharedMinCompetitive} between engine {@code TopNOperator} and
      * {@code LuceneSourceOperator} for {@code TopN → (Project|Filter|FieldExtract)* → EsQuery}
-     * with a single {@code @timestamp}-like sort key.
+     * with a {@code @timestamp}-like first sort key. The other keys only order the rows that tie on it.
      */
     @Nullable
     private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(
         TopNExec topNExec,
         BlockFactory blockFactory,
-        FoldContext foldCtx
+        FoldContext foldCtx,
+        @Nullable SharedSortBound sortBound
     ) {
         List<Order> orders = topNExec.order();
-        if (orders.size() != 1) {
+        if (orders.isEmpty()) {
             return null;
         }
-        Order order = orders.get(0);
+        Order order = orders.getFirst();
         if (order.child() instanceof FieldAttribute fa == false) {
             return null;
         }
@@ -1290,15 +1308,18 @@ public class LocalExecutionPlanner {
         if (esQuery.queryBuilderAndTags().size() != 1) {
             return null;
         }
-        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
-            blockFactory.breaker(),
-            topNExec.minCompetitiveKeyConfig()
-        );
+        // The bound of the request carries over to the batches of shards that run later
+        SharedMinCompetitive.Supplier supplier = sortBound == null || sortBound.sharedWith(orders.size()) == false
+            ? null
+            : sortBound.minCompetitive(sortField.name(), blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
+        if (supplier == null) {
+            supplier = new SharedMinCompetitive.Supplier(blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
+        }
         int topCount = ((Number) topNExec.limit().fold(foldCtx)).intValue();
         SharedGlobalTopK.Supplier globalTopKSupplier = topCount > 0
             ? new SharedGlobalTopK.Supplier(blockFactory.breaker(), topCount, supplier)
             : null;
-        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName(), globalTopKSupplier);
+        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName(), sortField.dataType(), globalTopKSupplier);
     }
 
     @Nullable
@@ -2167,7 +2188,13 @@ public class LocalExecutionPlanner {
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
 
         return sourceWithMetadata.with(
-            new TsInfoOperator.Factory(fieldLookup, createDataStreamLookup(context.shardContexts), metadataSourceChannel, indexChannel),
+            new TsInfoOperator.Factory(
+                fieldLookup,
+                createDataStreamLookup(context.shardContexts),
+                metadataSourceChannel,
+                indexChannel,
+                context.plannerSettings().tsInfoPartialEmitThreshold()
+            ),
             layoutBuilder.build()
         );
     }
@@ -3018,7 +3045,8 @@ public class LocalExecutionPlanner {
         @Nullable AnalysisRegistry analysisRegistry,
         Holder<TopNExec> lastVisitedTopN,
         Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot,
-        boolean singleNodeOptimizations
+        boolean singleNodeOptimizations,
+        @Nullable SharedSortBound sortBound
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

@@ -232,40 +232,6 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
     }
 
     /**
-     * A worker that declines its splits hands them to the next resolved worker, wrapping around, so that a walk visits every
-     * other worker once and concurrent leaves whose placement the strategy offset do not all fall back onto the same node;
-     * a lone worker has nowhere to go and waits.
-     */
-    public void testWalkVisitsEveryOtherWorkerOnceInRingOrder() {
-        ResolvedExternalNode node0 = new ResolvedExternalNode(node("node-0"), connection(), splits(1));
-        ResolvedExternalNode node1 = new ResolvedExternalNode(node("node-1"), connection(), splits(1));
-        ResolvedExternalNode node2 = new ResolvedExternalNode(node("node-2"), connection(), splits(1));
-        List<ResolvedExternalNode> resolved = List.of(node0, node1, node2);
-
-        assertThat(DataNodeComputeHandler.nextWorker(resolved, 0, 1), sameInstance(node1));
-        assertThat(DataNodeComputeHandler.nextWorker(resolved, 0, 2), sameInstance(node2));
-        assertNull(DataNodeComputeHandler.nextWorker(resolved, 0, 3));
-        assertThat(DataNodeComputeHandler.nextWorker(resolved, 1, 1), sameInstance(node2));
-        assertThat(DataNodeComputeHandler.nextWorker(resolved, 1, 2), sameInstance(node0));
-        assertThat(DataNodeComputeHandler.nextWorker(resolved, 2, 1), sameInstance(node0));
-        assertThat(DataNodeComputeHandler.nextWorker(resolved, 2, 2), sameInstance(node1));
-        assertNull(DataNodeComputeHandler.nextWorker(resolved, 2, 0));
-        assertThat(DataNodeComputeHandler.nextWorker(List.of(node0, node1), 1, 1), sameInstance(node0));
-        assertNull(DataNodeComputeHandler.nextWorker(List.of(node0, node1), 1, 2));
-        assertNull(DataNodeComputeHandler.nextWorker(List.of(node0), 0, 1));
-    }
-
-    /** Every attempt of a walk but its last asks the worker to decline when not ready; the last, or a lone worker, waits. */
-    public void testOnlyTheLastAttemptOfAWalkWaits() {
-        assertFalse(DataNodeComputeHandler.declineIfNotReady(0, 1));
-        assertTrue(DataNodeComputeHandler.declineIfNotReady(0, 2));
-        assertFalse(DataNodeComputeHandler.declineIfNotReady(1, 2));
-        assertTrue(DataNodeComputeHandler.declineIfNotReady(0, 3));
-        assertTrue(DataNodeComputeHandler.declineIfNotReady(1, 3));
-        assertFalse(DataNodeComputeHandler.declineIfNotReady(2, 3));
-    }
-
-    /**
      * A dataset refusal is lag only when the worker's applied state is older than the one the coordinator planned from;
      * a refusal on a state at or above it is a real miss, an old coordinator (no version) is never second-guessed, and
      * nothing but a 400 status exception counts as a refusal.
@@ -310,7 +276,6 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
             false,
             false,
             splits(1),
-            randomBoolean(),
             requiredClusterStateVersion
         );
     }

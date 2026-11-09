@@ -304,10 +304,15 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
             // public void $checkAllocBytes(long bytes) {
             // long total = this.$allocBytes += bytes;
-            // if (total > <limit>) AllocationGuard.allocationLimitExceeded(bytes, total, <limit>); // only when enforcing
+            // if (total > <limit>) { // only when enforcing
+            // $allocMetrics.recordLimitExceeded(); // only when metrics are on
+            // AllocationGuard.allocationLimitExceeded(<context>, bytes, total, <limit>);
             // }
-            // The limit is a baked-in constant; the breach path delegates to AllocationGuard to keep this method compact.
-            // Metrics-only omits the comparison and just charges the total.
+            // }
+            // The limit and the context name are baked-in constants; the breach path delegates to AllocationGuard to keep this
+            // method compact.
+            // Metrics-only omits the comparison and just charges the total. With metrics on, the breach counts itself first,
+            // since the throw skips the return path that records finished executions.
             MethodWriter checkAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.CHECK_ALLOC_BYTES);
             checkAllocBytes.visitCode();
             checkAllocBytes.loadThis();
@@ -325,6 +330,15 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 checkAllocBytes.loadLocal(totalSlot);
                 checkAllocBytes.push(maxAllocationBytes);
                 checkAllocBytes.ifCmp(Type.LONG_TYPE, MethodWriter.LE, withinLimit);
+                if (scriptScope.getCompilerSettings().isAllocationMetricsEnabled()) {
+                    checkAllocBytes.getStatic(
+                        WriterConstants.CLASS_TYPE,
+                        WriterConstants.ALLOC_METRICS_FIELD,
+                        WriterConstants.ALLOC_METRICS_TYPE
+                    );
+                    checkAllocBytes.invokeVirtual(WriterConstants.ALLOC_METRICS_TYPE, WriterConstants.RECORD_LIMIT_EXCEEDED);
+                }
+                checkAllocBytes.push(scriptScope.getCompilerSettings().getScriptContextName());
                 checkAllocBytes.loadArg(0);
                 checkAllocBytes.loadLocal(totalSlot);
                 checkAllocBytes.push(maxAllocationBytes);

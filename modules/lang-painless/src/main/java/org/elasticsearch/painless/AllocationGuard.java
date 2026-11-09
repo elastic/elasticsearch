@@ -66,21 +66,27 @@ public final class AllocationGuard {
      * Logs a {@code WARN} and throws a {@link PainlessError} describing an allocation that pushed a script over its limit.
      * {@link PainlessError} is an {@link Error}, so it cannot be caught from Painless source. Never returns normally. The
      * specific allocation that crossed the limit is not reported: it is whichever happened to tip the running total, not
-     * necessarily the dominant cost, so naming it would mislead more than help.
+     * necessarily the dominant cost, so naming it would mislead more than help. When metrics are on, the generated caller
+     * counts the trip on its {@link AllocationMetrics.ContextRecorder} before calling this.
      *
+     * @param scriptContextName the context the script was compiled for, so the log line can be counted per context
      * @param attemptedBytes the size of the allocation that tripped the limit
      * @param totalBytes the running total after charging the allocation
      * @param limitBytes the per-context limit
      */
-    public static void allocationLimitExceeded(long attemptedBytes, long totalBytes, long limitBytes) {
+    public static void allocationLimitExceeded(String scriptContextName, long attemptedBytes, long totalBytes, long limitBytes) {
         logger.warn(
-            "Painless script allocation limit exceeded: allocation of [{}] bytes brings running total to [{}] bytes (limit [{}] bytes)",
+            "Painless script allocation limit exceeded in context [{}]: allocation of [{}] bytes brings running total to [{}] bytes "
+                + "(limit [{}] bytes)",
+            scriptContextName,
             attemptedBytes,
             totalBytes,
             limitBytes
         );
         throw new PainlessError(
-            "script allocation limit exceeded: allocation of ["
+            "script allocation limit exceeded in context ["
+                + scriptContextName
+                + "]: allocation of ["
                 + attemptedBytes
                 + "] bytes brings the running total to ["
                 + totalBytes

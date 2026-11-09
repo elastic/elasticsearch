@@ -154,6 +154,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
@@ -171,6 +172,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -355,6 +357,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
+                new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
                 new ResolvedProjects(),
@@ -436,6 +439,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             throw new VerificationException(failures);
         }
         return plan;
+    }
+
+    /**
+     * Replaces {@code DESCRIBE} with a table describing its resolved child. Runs once resolution is done,
+     * so the child's columns, renames and computed fields are final.
+     */
+    private static class ResolveDescribe extends ParameterizedAnalyzerRule<Describe, AnalyzerContext> {
+        @Override
+        protected LogicalPlan rule(Describe describe, AnalyzerContext context) {
+            if (describe.child().resolved() == false) {
+                return describe;
+            }
+            List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
+            resolutions.addAll(context.lookupResolution().values());
+            Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
+            return describe.describe(semantics, ColumnSemantics.datasetColumns(describe.child()));
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
     }
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
@@ -2249,14 +2274,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     || (subPlanColumns.equals(mergeColumns) == false
                         && subqueryReferencingIndexWithEmptyMapping(mergePlan, logicalPlan, mergeColumns) == false)) {
                     changed = true;
-                    List<Attribute> newOutput = new ArrayList<>();
-                    for (String attrName : mergeColumns) {
-                        for (Attribute subAttr : logicalPlan.output()) {
-                            if (attrName.equals(subAttr.name())) {
-                                newOutput.add(subAttr);
-                            }
-                        }
-                    }
+                    List<Attribute> newOutput = alignToMergeColumns(mergeColumns, logicalPlan.output());
                     if (mergeColumns.isEmpty()) {
                         // When mergeColumns is empty (all branches only have no-fields), resolveKeep with empty
                         // projections would resolve to all child output including no-fields. Create a Project with
@@ -2297,6 +2315,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     )
                     : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
             );
+        }
+
+        /**
+         * Picks the attributes of a merge branch's output in {@code mergeColumns} order. The branch output is indexed by name once
+         * so the cost is linear in the schema width: a merge over thousands of columns would otherwise rescan the branch output for
+         * every merge column, saturating the analysis thread pool (#163560). A plan's output never repeats a name, so each merge
+         * column matches at most one branch attribute.
+         */
+        static List<Attribute> alignToMergeColumns(List<String> mergeColumns, List<Attribute> branchOutput) {
+            Map<String, Attribute> branchAttributesByName = HashMap.newHashMap(branchOutput.size());
+            for (Attribute attr : branchOutput) {
+                Attribute previous = branchAttributesByName.put(attr.name(), attr);
+                assert previous == null : "duplicate attribute name [" + attr.name() + "] in merge branch output " + branchOutput;
+            }
+            List<Attribute> aligned = new ArrayList<>(mergeColumns.size());
+            for (String name : mergeColumns) {
+                Attribute match = branchAttributesByName.get(name);
+                if (match != null) {
+                    aligned.add(match);
+                }
+            }
+            return aligned;
         }
 
         /*

@@ -13,6 +13,7 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -157,6 +158,38 @@ public class FieldPathTests extends ESTestCase {
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> rendersAsNull.resolve(documentNamed("irrelevant")));
         assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
+    }
+
+    public void testResolveUnlessEmpty() {
+        // a path that is fine
+        assertThat(FieldPath.of("foo.bar").resolveUnlessEmpty(documentNamed("one")), hasToString("foo.bar"));
+        assertThat(FieldPath.of(NAME_TEMPLATE).resolveUnlessEmpty(documentNamed("foo.bar")), hasToString("foo.bar"));
+        // and one that is parsed ahead of time is the same one every time
+        FieldPath constant = FieldPath.of("foo.bar");
+        assertThat(constant.resolveUnlessEmpty(documentNamed("one")), sameInstance(constant.resolve(documentNamed("two"))));
+
+        // empty is the thing that is different
+        assertNull(FieldPath.of("").resolveUnlessEmpty(documentNamed("one")));
+        assertNull(FieldPath.of(NAME_TEMPLATE).resolveUnlessEmpty(documentNamed("")));
+        TemplateScript.Factory constantEmpty = ConfigurationUtils.compileTemplate(
+            "test",
+            "tag",
+            "field",
+            "",
+            TestTemplateService.instance()
+        );
+        assertNull(FieldPath.of(constantEmpty).resolveUnlessEmpty(documentNamed("one")));
+        // while resolve still throws for it
+        expectThrows(IllegalArgumentException.class, () -> FieldPath.of("").resolve(documentNamed("one")));
+
+        // anything else that is malformed still throws
+        for (FieldPath malformed : new FieldPath[] { FieldPath.of("a..b"), FieldPath.of(NAME_TEMPLATE) }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> malformed.resolveUnlessEmpty(documentNamed("a..b"))
+            );
+            assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+        }
     }
 
     public void testNullTemplateIsRejected() {

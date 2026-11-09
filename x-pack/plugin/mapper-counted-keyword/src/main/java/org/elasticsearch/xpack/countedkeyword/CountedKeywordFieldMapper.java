@@ -267,10 +267,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private static CountedKeywordFieldMapper toType(FieldMapper in) {
-        return (CountedKeywordFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -279,7 +275,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
         protected Builder(String name, SourceKeepMode indexSourceKeepMode, boolean indexDisabledByDefault) {
             super(name);
-            this.indexed = Parameter.indexParam(m -> toType(m).fieldType == FIELD_TYPE_INDEXED, indexDisabledByDefault == false);
+            this.indexed = Parameter.indexParam(indexDisabledByDefault == false);
             this.indexSourceKeepMode = indexSourceKeepMode;
             this.indexDisabledByDefault = indexDisabledByDefault;
         }
@@ -316,8 +312,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 ),
                 builderParams(this, context),
                 countFieldMapper,
-                indexSourceKeepMode,
-                indexDisabledByDefault
+                indexSourceKeepMode
             );
         }
     }
@@ -408,7 +403,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final BinaryFieldMapper countFieldMapper;
     private final SourceKeepMode indexSourceKeepMode;
-    private final boolean indexDisabledByDefault;
 
     protected CountedKeywordFieldMapper(
         String simpleName,
@@ -416,14 +410,12 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
         BinaryFieldMapper countFieldMapper,
-        SourceKeepMode indexSourceKeepMode,
-        boolean indexDisabledByDefault
+        SourceKeepMode indexSourceKeepMode
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.fieldType = fieldType;
         this.countFieldMapper = countFieldMapper;
         this.indexSourceKeepMode = indexSourceKeepMode;
-        this.indexDisabledByDefault = indexDisabledByDefault;
     }
 
     @Override
@@ -503,11 +495,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
         mappers.add(countFieldMapper);
         return mappers.iterator();
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSourceKeepMode, indexDisabledByDefault).init(this);
     }
 
     @Override

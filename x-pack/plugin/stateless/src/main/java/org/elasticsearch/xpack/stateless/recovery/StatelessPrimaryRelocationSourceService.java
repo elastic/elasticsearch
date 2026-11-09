@@ -370,20 +370,20 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
             // send the "prewarm" after the "preflush" so the prewarmed shard on the target is closer to the one we flush,
             // and hence handoff completes sooner, and we hold the permits for less time
-            final long beforePrewarm = threadPool.relativeTimeInMillis();
+            final long beforePrewarm = threadPool.rawRelativeTimeInMillis();
             final var prewarmStep = new SubscribableListener<Void>();
             prewarmStep.addTimeout(prewarmWaitTimeout, threadPool, recoveryExecutor);
             initiatePrewarm(parentClient, request, indexShard, prewarmStep);
             // prewarming is best-effort, in case of failures we continue
             prewarmStep.addListener(ActionListener.wrap(ignored -> {
                 relocationMetricsCollectorProvider.get()
-                    .recordRelocationSourcePrewarmWait(threadPool.relativeTimeInMillis() - beforePrewarm, PrewarmWaitOutcome.COMPLETED);
+                    .recordRelocationSourcePrewarmWait(threadPool.rawRelativeTimeInMillis() - beforePrewarm, PrewarmWaitOutcome.COMPLETED);
                 l.onResponse(initialFlushDuration);
             }, e -> {
                 logger.debug(format("%s ignoring prewarm failure or timeout", request.shardId()), e);
                 relocationMetricsCollectorProvider.get()
                     .recordRelocationSourcePrewarmWait(
-                        threadPool.relativeTimeInMillis() - beforePrewarm,
+                        threadPool.rawRelativeTimeInMillis() - beforePrewarm,
                         e instanceof ElasticsearchTimeoutException ? PrewarmWaitOutcome.TIMED_OUT : PrewarmWaitOutcome.FAILED
                     );
                 l.onResponse(initialFlushDuration);

@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.search.vectors;
 
-import java.util.concurrent.atomic.LongAccumulator;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
 
@@ -17,32 +17,32 @@ import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAS
  * another leaf has already outscored.
  */
 public final class SharedMinCompetitiveScore {
-    private final LongAccumulator accumulator;
+    private final AtomicLong value;
     private final boolean canPublish;
 
     SharedMinCompetitiveScore() {
-        this(new LongAccumulator(Long::max, LEAST_COMPETITIVE), true);
+        this(new AtomicLong(LEAST_COMPETITIVE), true);
     }
 
-    private SharedMinCompetitiveScore(LongAccumulator accumulator, boolean canPublish) {
-        this.accumulator = accumulator;
+    private SharedMinCompetitiveScore(AtomicLong value, boolean canPublish) {
+        this.value = value;
         this.canPublish = canPublish;
     }
 
     long get() {
-        return accumulator.get();
+        return value.get();
     }
 
     /** Raises the shared score to {@code score} if it is more competitive; a no-op on a {@link #readOnly()} view. */
     void publish(long score) {
-        if (canPublish) {
-            accumulator.accumulate(score);
+        if (canPublish && score > value.get()) {
+            value.accumulateAndGet(score, Math::max);
         }
     }
 
     /** View over the same score that reads it but ignores {@link #publish}. */
     SharedMinCompetitiveScore readOnly() {
-        return canPublish ? new SharedMinCompetitiveScore(accumulator, false) : this;
+        return canPublish ? new SharedMinCompetitiveScore(value, false) : this;
     }
 
     boolean canPublish() {

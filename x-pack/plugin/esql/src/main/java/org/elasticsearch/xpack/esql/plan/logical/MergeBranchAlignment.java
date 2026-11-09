@@ -157,14 +157,28 @@ public final class MergeBranchAlignment {
             // doesn't leak into the branch output.
             return new Project(branch.source(), branch, List.of());
         }
-        List<Attribute> projections = new ArrayList<>(mergeColumns.size());
-        for (String column : mergeColumns) {
-            for (Attribute attr : branch.output()) {
-                if (column.equals(attr.name())) {
-                    projections.add(attr);
-                }
+        return new Project(branch.source(), branch, alignToMergeColumns(mergeColumns, branch.output()));
+    }
+
+    /**
+     * Picks the attributes of a merge branch's output in {@code mergeColumns} order. The branch output is indexed by name once
+     * so the cost is linear in the schema width: a merge over thousands of columns would otherwise rescan the branch output for
+     * every merge column, saturating the threads that plan queries (#163560). A plan's output never repeats a name, so each merge
+     * column matches at most one branch attribute.
+     */
+    static List<Attribute> alignToMergeColumns(List<String> mergeColumns, List<Attribute> branchOutput) {
+        Map<String, Attribute> branchAttributesByName = HashMap.newHashMap(branchOutput.size());
+        for (Attribute attr : branchOutput) {
+            Attribute previous = branchAttributesByName.put(attr.name(), attr);
+            assert previous == null : "duplicate attribute name [" + attr.name() + "] in merge branch output " + branchOutput;
+        }
+        List<Attribute> aligned = new ArrayList<>(mergeColumns.size());
+        for (String name : mergeColumns) {
+            Attribute match = branchAttributesByName.get(name);
+            if (match != null) {
+                aligned.add(match);
             }
         }
-        return new Project(branch.source(), branch, projections);
+        return aligned;
     }
 }

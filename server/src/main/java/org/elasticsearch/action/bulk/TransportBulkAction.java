@@ -785,9 +785,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         // so we allow writes with an explicit document ID directly to backing indices.
         if (writeRequest.id() != null) {
             IndexMetadata targetMetadata = indexMetadataProvider.apply(indexAbstraction.getWriteIndex());
-            // The node settings are needed because the default of the setting depends on whether the node is stateless. The flag that
-            // IndexMetadata holds is derived from the explicit setting only, so it is not used here.
-            if (targetMetadata != null && IndexSettings.sequenceNumbersDisabled(targetMetadata.getSettings(), nodeSettings)) {
+            // The node settings are needed because the default of the setting depends on whether the node is stateless.
+            if (targetMetadata != null && targetMetadata.sequenceNumbersDisabled(nodeSettings)) {
                 return;
             }
         }

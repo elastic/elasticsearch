@@ -554,3 +554,13 @@ tests:
   - :x-pack:plugin:ml:internalClusterTest
   method: testForceStopOfFailedTaskThatWasReassigned
   issue: https://github.com/elastic/elasticsearch/issues/165184
+- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testTranslateMetricsGroupedByTwoDimension {default}
+  issue: https://github.com/elastic/elasticsearch/issues/165196
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
+  method: test {yaml=esql/40_tsdb/PromQL time range params as range selector duration}
+  issue: https://github.com/elastic/elasticsearch/issues/165214

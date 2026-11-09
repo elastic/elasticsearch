@@ -1,3 +1,10 @@
+# TARGET_BRANCH unset (lucene_snapshot): upload + push version bump + tests.
+# TARGET_BRANCH set (main → lucene_snapshot_11): S3 upload only, then Archimedes
+# compiles and either pushes or opens a PR.
+env:
+  TARGET_BRANCH: "${TARGET_BRANCH:-}"
+  LUCENE_BRANCH: "${LUCENE_BRANCH:-branch_10_6}"
+
 steps:
   - trigger: apache-lucene-build-snapshot
     label: Trigger pipeline to build lucene snapshot
@@ -13,7 +20,7 @@ steps:
     timeout_in_minutes: 15
     env:
       USE_LUCENE_SNAPSHOT_CREDS: "true"
-      UPDATE_ES_LUCENE_SNAPSHOT: "true"
+      UPDATE_ES_LUCENE_SNAPSHOT: "${UPDATE_ES_LUCENE_SNAPSHOT:-true}"
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
@@ -21,6 +28,12 @@ steps:
       buildDirectory: /dev/shm/bk
   - wait
   - trigger: "elasticsearch-lucene-snapshot-tests"
+    if: build.env("TARGET_BRANCH") == null || build.env("TARGET_BRANCH") == ""
     build:
       branch: "${BUILDKITE_BRANCH}"
     async: true
+
+  - label: ":robot_face: trigger lucene-snapshot-update"
+    if: build.env("TARGET_BRANCH") != null && build.env("TARGET_BRANCH") != ""
+    command: .buildkite/scripts/lucene-snapshot/trigger-snapshot-update.sh
+    timeout_in_minutes: 5

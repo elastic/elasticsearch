@@ -377,6 +377,20 @@ public class PlannerUtils {
         SearchStats searchStats,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlanWithLogical(plannerSettings, flags, configuration, foldCtx, plan, searchStats, planTimeProfile, true);
+    }
+
+    /** See {@link #localPlanWithLogical(PhysicalPlan, LocalLogicalPlanOptimizer, LocalPhysicalPlanOptimizer, PlanTimeProfile, boolean)}. */
+    public static LocalPlanResult localPlanWithLogical(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        PlanTimeProfile planTimeProfile,
+        boolean captureLogicalPlan
+    ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
         );
@@ -384,7 +398,7 @@ public class PlannerUtils {
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
 
-        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, captureLogicalPlan);
     }
 
     public static LocalPlanResult localPlanWithLogical(
@@ -393,10 +407,28 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, true);
+    }
+
+    /**
+     * @param captureLogicalPlan whether to render the optimized logical plan into {@link LocalPlanResult#logicalPlanString()};
+     *                           it is only read by the profile, and rendering it costs a few microseconds per data node request
+     */
+    public static LocalPlanResult localPlanWithLogical(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile,
+        boolean captureLogicalPlan
+    ) {
         var logicalPlanString = new Holder<String>(null);
-        PhysicalPlan resultPlan = localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, optimizedFragment -> {
-            logicalPlanString.set(optimizedFragment.toString());
-        });
+        PhysicalPlan resultPlan = localPlan(
+            plan,
+            logicalOptimizer,
+            physicalOptimizer,
+            planTimeProfile,
+            captureLogicalPlan ? optimizedFragment -> logicalPlanString.set(optimizedFragment.toString()) : null
+        );
         return new LocalPlanResult(resultPlan, logicalPlanString.get(), physicalOptimizer.approximationApplied());
     }
 

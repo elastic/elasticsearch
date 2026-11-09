@@ -172,8 +172,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
     }
 
+    /**
+     * Makes sure the sink for {@code childSessionId} will exist on the target node before the data node request runs: created
+     * right here when the target is this node, by the data node request itself when the target supports that (the fetches
+     * then wait for it, see {@link ExchangeService#SINK_CREATED_BY_DATA_REQUEST}), and through a round trip otherwise.
+     */
     private void openExchange(
         boolean targetIsLocalNode,
+        boolean sinkCreatedByCompute,
         Transport.Connection connection,
         String childSessionId,
         int exchangeBuffer,
@@ -186,7 +192,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             });
             return;
         }
+        if (sinkCreatedByCompute) {
+            listener.onResponse(null);
+            return;
+        }
         ExchangeService.openExchange(transportService, connection, childSessionId, exchangeBuffer, searchExecutor, listener);
+    }
+
+    private static boolean sinkCreatedByCompute(Transport.Connection connection) {
+        return connection.getTransportVersion().supports(ExchangeService.SINK_CREATED_BY_DATA_REQUEST);
     }
 
     void startComputeOnDataNodes(
@@ -247,8 +261,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 // single-node optimizations are turned off by pragma.
                 final boolean inProcessExchange = queryPragmas.singleNodeOptimizations()
                     && transportService.getLocalNode().getId().equals(connection.getNode().getId());
+                final boolean sinkCreatedByCompute = inProcessExchange == false && sinkCreatedByCompute(connection);
                 openExchange(
                     inProcessExchange,
+                    sinkCreatedByCompute,
                     connection,
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
@@ -295,6 +311,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                            final var remoteSink = exchangeService.newRemoteSink(
+                                groupTask,
+                                childSessionId,
+                                transportService,
+                                connection,
+                                queryPragmas.singleNodeOptimizations(),
+                                sinkCreatedByCompute
+                            );
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
@@ -303,15 +327,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
+                                    if (r.pagesSent() >= 0) {
+                                        // The data node has sent everything: the sink can finish once those pages are here,
+                                        // without the extra fetch that would otherwise report it finished.
+                                        remoteSink.allPagesSent(r.pagesSent());
+                                    }
                                     return r.completionInfo();
                                 }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
-                            );
-                            final var remoteSink = exchangeService.newRemoteSink(
-                                groupTask,
-                                childSessionId,
-                                transportService,
-                                connection,
-                                queryPragmas.singleNodeOptimizations()
                             );
                             exchangeSource.addRemoteSink(
                                 remoteSink,
@@ -1244,14 +1266,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
         // Resolve before the compute listener. A sources-finished exchange completes this request with an empty
         // result; opening the listener first would also complete it when that early return skips every acquire.
-        final ExchangeSinkHandler externalSink = sinkToRun(externalId, listener);
+        final ExchangeSinkHandler externalSink = sinkToRun(externalId, request.pragmas().exchangeBufferSize(), listener);
         if (externalSink == null) {
             return;
         }
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
-                listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures))
+                // The sink is drained by the time this fires (see the completion listeners below), so the count is final.
+                listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures, externalSink.pagesAdded()))
             )
         ) {
             var parentListener = computeListener.acquireAvoid();
@@ -1520,14 +1543,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     /**
-     * Resolves the sink the coordinator opened before this request. When the coordinator has since finished
-     * that exchange, completes {@code listener} with an empty result so a {@link ResourceNotFoundException}
-     * cannot replace the query's own error. Returns {@code null} when {@code listener} has already been completed.
+     * Resolves the sink of this request: the one the coordinator opened before the request, or one created here when
+     * the coordinator left that to the request (see {@link ExchangeService#SINK_CREATED_BY_DATA_REQUEST}). When the
+     * coordinator has since finished that exchange, completes {@code listener} with an empty result so a
+     * {@link ResourceNotFoundException} cannot replace the query's own error. Returns {@code null} when {@code listener}
+     * has already been completed.
      */
-    private ExchangeSinkHandler sinkToRun(String sessionId, ActionListener<DataNodeComputeResponse> listener) {
+    private ExchangeSinkHandler sinkToRun(String sessionId, int exchangeBuffer, ActionListener<DataNodeComputeResponse> listener) {
         final ExchangeSinkHandler sink;
         try {
-            sink = exchangeService.getSinkHandlerIfOpen(sessionId);
+            sink = exchangeService.createSinkHandlerIfNotFinished(sessionId, exchangeBuffer);
         } catch (ResourceNotFoundException e) {
             listener.onFailure(e);
             return null;
@@ -1581,7 +1606,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             return;
         }
         if (request.declineIfNotReady()) {
-            final ExchangeSinkHandler sink = sinkToRun(request.sessionId(), listener);
+            final ExchangeSinkHandler sink = sinkToRun(request.sessionId(), request.pragmas().exchangeBufferSize(), listener);
             if (sink != null) {
                 decline(request, sink, listener, why);
             }
@@ -1799,7 +1824,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             return;
         }
         final String sessionId = request.sessionId();
-        final ExchangeSinkHandler externalSink = sinkToRun(sessionId, listener);
+        final ExchangeSinkHandler externalSink = sinkToRun(sessionId, request.pragmas().exchangeBufferSize(), listener);
         if (externalSink == null) {
             return;
         }

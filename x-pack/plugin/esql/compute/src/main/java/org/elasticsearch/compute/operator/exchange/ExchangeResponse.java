@@ -64,6 +64,11 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
         return page;
     }
 
+    /** Whether this response carries a page, without taking it. */
+    public boolean hasPage() {
+        return page != null;
+    }
+
     public long ramBytesUsedByPage() {
         if (page != null) {
             return page.ramBytesUsedByBlocks();

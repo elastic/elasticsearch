@@ -21,16 +21,27 @@ import java.util.Objects;
 public final class ExchangeRequest extends AbstractTransportRequest {
     private final String exchangeId;
     private final boolean sourcesFinished;
+    private final boolean waitForSink;
 
     public ExchangeRequest(String exchangeId, boolean sourcesFinished) {
+        this(exchangeId, sourcesFinished, false);
+    }
+
+    /**
+     * @param waitForSink whether the sink is created by the compute request the coordinator sent alongside, so that a
+     *                    fetch arriving before that request must wait for the sink rather than treat it as finished
+     */
+    public ExchangeRequest(String exchangeId, boolean sourcesFinished, boolean waitForSink) {
         this.exchangeId = exchangeId;
         this.sourcesFinished = sourcesFinished;
+        this.waitForSink = waitForSink;
     }
 
     public ExchangeRequest(StreamInput in) throws IOException {
         super(in);
         this.exchangeId = in.readString();
         this.sourcesFinished = in.readBoolean();
+        this.waitForSink = in.getTransportVersion().supports(ExchangeService.SINK_CREATED_BY_DATA_REQUEST) && in.readBoolean();
     }
 
     @Override
@@ -38,6 +49,14 @@ public final class ExchangeRequest extends AbstractTransportRequest {
         super.writeTo(out);
         out.writeString(exchangeId);
         out.writeBoolean(sourcesFinished);
+        if (out.getTransportVersion().supports(ExchangeService.SINK_CREATED_BY_DATA_REQUEST)) {
+            out.writeBoolean(waitForSink);
+        }
+    }
+
+    /** See {@link #ExchangeRequest(String, boolean, boolean)}. */
+    public boolean waitForSink() {
+        return waitForSink;
     }
 
     @Override
@@ -71,12 +90,12 @@ public final class ExchangeRequest extends AbstractTransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExchangeRequest that = (ExchangeRequest) o;
-        return sourcesFinished == that.sourcesFinished && exchangeId.equals(that.exchangeId);
+        return sourcesFinished == that.sourcesFinished && waitForSink == that.waitForSink && exchangeId.equals(that.exchangeId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(exchangeId, sourcesFinished);
+        return Objects.hash(exchangeId, sourcesFinished, waitForSink);
     }
 
     @Override

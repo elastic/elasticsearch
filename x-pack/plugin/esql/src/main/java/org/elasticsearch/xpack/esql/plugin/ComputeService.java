@@ -2026,14 +2026,16 @@ public class ComputeService {
                     logicalPlanString = null;
                     approximationApplied = false;
                 } else {
+                    // The logical plan string only ends up in the profile, so skip rendering it otherwise.
                     var localPlanResult = PlannerUtils.localPlanWithLogical(
                         plannerSettings,
                         context.flags(),
-                        localContexts,
                         context.configuration(),
                         context.foldCtx(),
                         plan,
-                        planTimeProfile
+                        SearchContextStats.from(localContexts),
+                        planTimeProfile,
+                        context.configuration().profile()
                     );
                     localPlan = localPlanResult.physicalPlan();
                     logicalPlanString = localPlanResult.logicalPlanString();

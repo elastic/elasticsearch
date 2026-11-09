@@ -34,6 +34,7 @@ public final class ExchangeSinkHandler {
     private final ExchangeBuffer buffer;
     private final Queue<ActionListener<ExchangeResponse>> listeners = new ConcurrentLinkedQueue<>();
     private final AtomicInteger outstandingSinks = new AtomicInteger();
+    private final AtomicLong pagesAdded = new AtomicLong();
     // listeners are notified by only one thread.
     private final Semaphore promised = new Semaphore(1);
 
@@ -65,6 +66,7 @@ public final class ExchangeSinkHandler {
         @Override
         public void addPage(Page page) {
             onPageFetched.run();
+            pagesAdded.incrementAndGet();
             buffer.addPage(page);
             notifyListeners();
         }
@@ -121,6 +123,14 @@ public final class ExchangeSinkHandler {
      */
     public void addCompletionListener(ActionListener<Void> listener) {
         completionFuture.addListener(listener);
+    }
+
+    /**
+     * The number of pages the sinks have added so far. Once the handler is finished, this is the number of pages a
+     * remote source has to receive before it has seen everything; see {@link RemoteSink#allPagesSent}.
+     */
+    public long pagesAdded() {
+        return pagesAdded.get();
     }
 
     /**

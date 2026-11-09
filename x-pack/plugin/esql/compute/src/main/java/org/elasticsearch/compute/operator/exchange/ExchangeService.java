@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -44,6 +45,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -92,6 +96,25 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      */
     private final Map<String, Long> sourcesFinishedSinks = ConcurrentCollections.newConcurrentMap();
     private static final long SOURCES_FINISHED_REMEMBER_NANOS = TimeUnit.MINUTES.toNanos(5);
+    /**
+     * From this version on, a coordinator does not open the exchange sink on a data node ahead of its compute request:
+     * the data node creates the sink when the compute request arrives ({@link #createSinkHandlerIfNotFinished}), and a
+     * fetch flagged {@link ExchangeRequest#waitForSink()} that gets there first waits for it ({@link #parkFetch}).
+     */
+    public static final TransportVersion SINK_CREATED_BY_DATA_REQUEST = TransportVersion.fromName("esql_data_node_exchange_protocol");
+    /**
+     * Exchange ids whose sink finished and was removed, kept for a while so that a {@link ExchangeRequest#waitForSink()}
+     * fetch that arrives after the removal, typically the one sent right after the last page, is told the sink is finished
+     * rather than parked for a sink that will never be created again. Entries expire; see {@link #FINISHED_REMEMBER_NANOS}.
+     */
+    private final Map<String, Long> finishedSinks = ConcurrentCollections.newConcurrentMap();
+    private static final long FINISHED_REMEMBER_NANOS = TimeUnit.MINUTES.toNanos(1);
+    /** Fetches waiting for their sink to be created by the compute request; guarded by {@link #pendingFetchesLock}. */
+    private final Map<String, List<PendingFetch>> pendingFetches = new HashMap<>();
+    private final Object pendingFetchesLock = new Object();
+
+    private record PendingFetch(ActionListener<ExchangeResponse> listener, long receivedNanos) {}
+
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
     private final Map<String, LocalExchange> localExchanges = ConcurrentCollections.newConcurrentMap();
     // Registry for bidirectional batch exchange servers, keyed by serverToClientId
@@ -184,7 +207,132 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         if (sinks.putIfAbsent(exchangeId, sinkHandler) != null) {
             throw new IllegalStateException("sink exchanger for id [" + exchangeId + "] already exists");
         }
+        attachPendingFetches(exchangeId, sinkHandler);
         return sinkHandler;
+    }
+
+    /**
+     * The sink for a compute request that creates its own sink (see {@link #SINK_CREATED_BY_DATA_REQUEST}): the sink
+     * already open for {@code exchangeId} when the coordinator opened it ahead of the request, a new one otherwise, or
+     * {@code null} when the coordinator has already finished this exchange, in which case the caller completes its
+     * request empty and starts no driver, as with {@link #getSinkHandlerIfOpen}.
+     */
+    @Nullable
+    public ExchangeSinkHandler createSinkHandlerIfNotFinished(String exchangeId, int maxBufferSize) {
+        ExchangeSinkHandler existing = sinks.get(exchangeId);
+        if (existing != null) {
+            return existing;
+        }
+        if (sourcesFinishedSinks.containsKey(exchangeId)) {
+            finishPendingFetches(exchangeId);
+            return null;
+        }
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier());
+        ExchangeSinkHandler raced = sinks.putIfAbsent(exchangeId, sinkHandler);
+        if (raced != null) {
+            return raced;
+        }
+        attachPendingFetches(exchangeId, sinkHandler);
+        return sinkHandler;
+    }
+
+    /** Hands the fetches that arrived before the sink to the sink that now exists. */
+    private void attachPendingFetches(String exchangeId, ExchangeSinkHandler sinkHandler) {
+        final List<PendingFetch> waiting;
+        synchronized (pendingFetchesLock) {
+            waiting = pendingFetches.remove(exchangeId);
+        }
+        if (waiting != null) {
+            for (PendingFetch fetch : waiting) {
+                sinkHandler.fetchPageAsync(false, fetch.listener());
+            }
+        }
+    }
+
+    /**
+     * Holds a fetch for a sink that the compute request of the same exchange has not created yet. The fetch is served
+     * as soon as the sink is created, fails when the fetch's task is cancelled, and times out with the inactive sink
+     * interval otherwise, so a compute request that never arrives cannot pin it forever.
+     */
+    private void parkFetch(String exchangeId, ActionListener<ExchangeResponse> listener, CancellableTask task) {
+        final ActionListener<ExchangeResponse> once = ActionListener.notifyOnce(listener);
+        final PendingFetch fetch = new PendingFetch(once, System.nanoTime());
+        synchronized (pendingFetchesLock) {
+            // Re-check under the lock: a sink created, or finished, between the caller's lookup and here drains the parked
+            // fetches under this lock, so a fetch parked after that would never be answered.
+            ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
+            if (sinkHandler != null) {
+                sinkHandler.fetchPageAsync(false, once);
+                return;
+            }
+            if (mustWaitForSink(exchangeId) == false) {
+                once.onResponse(new ExchangeResponse(blockFactory, null, true));
+                return;
+            }
+            pendingFetches.computeIfAbsent(exchangeId, k -> new ArrayList<>()).add(fetch);
+        }
+        task.addListener(() -> {
+            if (removePendingFetch(exchangeId, fetch)) {
+                once.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled()));
+            }
+        });
+    }
+
+    /** Answers the fetches parked for an exchange that will not get a sink anymore. */
+    private void finishPendingFetches(String exchangeId) {
+        final List<PendingFetch> waiting;
+        synchronized (pendingFetchesLock) {
+            waiting = pendingFetches.remove(exchangeId);
+        }
+        if (waiting != null) {
+            for (PendingFetch fetch : waiting) {
+                fetch.listener().onResponse(new ExchangeResponse(blockFactory, null, true));
+            }
+        }
+    }
+
+    private boolean removePendingFetch(String exchangeId, PendingFetch fetch) {
+        synchronized (pendingFetchesLock) {
+            List<PendingFetch> waiting = pendingFetches.get(exchangeId);
+            if (waiting == null || waiting.remove(fetch) == false) {
+                return false;
+            }
+            if (waiting.isEmpty()) {
+                pendingFetches.remove(exchangeId);
+            }
+            return true;
+        }
+    }
+
+    private void expirePendingFetches(long keepAliveNanos) {
+        final long now = System.nanoTime();
+        final List<PendingFetch> expired = new ArrayList<>();
+        synchronized (pendingFetchesLock) {
+            for (var it = pendingFetches.entrySet().iterator(); it.hasNext();) {
+                var entry = it.next();
+                entry.getValue().removeIf(fetch -> {
+                    if (now - fetch.receivedNanos() > keepAliveNanos) {
+                        expired.add(fetch);
+                        return true;
+                    }
+                    return false;
+                });
+                if (entry.getValue().isEmpty()) {
+                    it.remove();
+                }
+            }
+        }
+        for (PendingFetch fetch : expired) {
+            fetch.listener().onFailure(new ElasticsearchTimeoutException("Exchange sink was not created in time for a waiting fetch"));
+        }
+    }
+
+    /**
+     * Whether a fetch flagged {@link ExchangeRequest#waitForSink()} for an exchange with no sink must wait for the sink:
+     * yes unless the sink has already finished, or the coordinator finished the exchange before the sink was created.
+     */
+    private boolean mustWaitForSink(String exchangeId) {
+        return finishedSinks.containsKey(exchangeId) == false && sourcesFinishedSinks.containsKey(exchangeId) == false;
     }
 
     /**
@@ -235,7 +383,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * W will abort the sink handler if the given failure is not null.
      */
     public void finishSinkHandler(String exchangeId, @Nullable Exception failure) {
+        // Recorded before the removal so that a fetch which no longer finds the sink always finds this record (see
+        // mustWaitForSink), then any fetch parked in between is finished as well.
+        finishedSinks.put(exchangeId, System.nanoTime() + FINISHED_REMEMBER_NANOS);
         final ExchangeSinkHandler sinkHandler = sinks.remove(exchangeId);
+        finishPendingFetches(exchangeId);
         if (sinkHandler != null) {
             if (failure != null) {
                 sinkHandler.onFailure(failure);
@@ -349,7 +501,17 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler == null) {
-                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+                if (request.waitForSink() && request.sourcesFinished()) {
+                    // The coordinator is done before the compute request created the sink: the request must not create it
+                    // (createSinkHandlerIfNotFinished), and fetches parked for it are finished right here.
+                    rememberSourcesFinished(exchangeId);
+                    finishPendingFetches(exchangeId);
+                    listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+                } else if (request.waitForSink() && mustWaitForSink(exchangeId)) {
+                    parkFetch(exchangeId, listener, (CancellableTask) exchangeTask);
+                } else {
+                    listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+                }
             } else {
                 final CancellableTask task = (CancellableTask) exchangeTask;
                 task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
@@ -378,6 +540,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private void expireSourcesFinishedSinks() {
         long now = System.nanoTime();
         sourcesFinishedSinks.entrySet().removeIf(entry -> entry.getValue() <= now);
+        finishedSinks.entrySet().removeIf(entry -> entry.getValue() <= now);
     }
 
     private final class InactiveSinksReaper extends AbstractRunnable {
@@ -432,6 +595,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 }
             }
             expireSourcesFinishedSinks();
+            expirePendingFetches(keepAlive.nanos());
         }
     }
 
@@ -460,10 +624,35 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         Transport.Connection conn,
         boolean inProcessIfLocal
     ) {
+        return newRemoteSink(parentTask, exchangeId, transportService, conn, inProcessIfLocal, false);
+    }
+
+    /**
+     * Same as {@link #newRemoteSink(Task, String, TransportService, Transport.Connection, boolean)}; {@code sinkCreatedByCompute}
+     * flags the fetches with {@link ExchangeRequest#waitForSink()} because the remote sink is created by the compute request
+     * rather than opened ahead of it (see {@link #SINK_CREATED_BY_DATA_REQUEST}).
+     */
+    public RemoteSink newRemoteSink(
+        Task parentTask,
+        String exchangeId,
+        TransportService transportService,
+        Transport.Connection conn,
+        boolean inProcessIfLocal,
+        boolean sinkCreatedByCompute
+    ) {
         boolean local = inProcessIfLocal
             && transportService.getLocalNode() != null
             && transportService.getLocalNode().equals(conn.getNode());
-        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor, local ? this : null);
+        return new TransportRemoteSink(
+            transportService,
+            blockFactory,
+            conn,
+            parentTask,
+            exchangeId,
+            executor,
+            local ? this : null,
+            sinkCreatedByCompute
+        );
     }
 
     /**
@@ -499,9 +688,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         /** Non-null when the sink lives on this node: pages are then fetched in-process instead of over the transport. */
         @Nullable
         final ExchangeService localService;
+        final boolean waitForSink;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
         final AtomicReference<SubscribableListener<Void>> completionListenerRef = new AtomicReference<>(null);
+        // Guarded by `this`: the fetches whose response is still outstanding, the pages received so far, and the total
+        // the remote side announced through allPagesSent (-1 until it does).
+        private final Map<Long, ActionListener<ExchangeResponse>> inFlight = new HashMap<>();
+        private long nextFetchId = 0;
+        private long pagesReceived = 0;
+        private long expectedPages = -1;
 
         TransportRemoteSink(
             TransportService transportService,
@@ -510,8 +706,10 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             Task parentTask,
             String exchangeId,
             Executor responseExecutor,
-            @Nullable ExchangeService localService
+            @Nullable ExchangeService localService,
+            boolean waitForSink
         ) {
+            this.waitForSink = waitForSink;
             this.transportService = transportService;
             this.blockFactory = blockFactory;
             this.connection = connection;
@@ -519,6 +717,66 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             this.exchangeId = exchangeId;
             this.responseExecutor = responseExecutor;
             this.localService = localService;
+        }
+
+        @Override
+        public void allPagesSent(long pages) {
+            final List<ActionListener<ExchangeResponse>> toFinish;
+            synchronized (this) {
+                expectedPages = pages;
+                if (pagesReceived < pages) {
+                    return;
+                }
+                toFinish = new ArrayList<>(inFlight.values());
+                inFlight.clear();
+            }
+            // Every page has arrived: the fetches still in flight can only bring back the finished flag, so answer them here
+            // and let their eventual responses go.
+            completionListenerRef.compareAndSet(null, SubscribableListener.nullSuccess());
+            for (ActionListener<ExchangeResponse> l : toFinish) {
+                l.onResponse(new ExchangeResponse(blockFactory, null, true));
+            }
+        }
+
+        /**
+         * Tracks the fetch so that {@link #allPagesSent} can answer it early, and marks the response finished when it
+         * brings the last announced page. Returns null when the fetch was answered early, in which case the response
+         * carries no page.
+         */
+        private ActionListener<ExchangeResponse> trackFetch(ActionListener<ExchangeResponse> listener) {
+            final long id;
+            synchronized (this) {
+                id = nextFetchId++;
+                inFlight.put(id, listener);
+            }
+            return ActionListener.wrap(r -> {
+                final ActionListener<ExchangeResponse> target;
+                final boolean lastPage;
+                synchronized (this) {
+                    target = inFlight.remove(id);
+                    if (r.hasPage()) {
+                        pagesReceived++;
+                    }
+                    lastPage = expectedPages >= 0 && pagesReceived >= expectedPages;
+                }
+                if (target == null) {
+                    assert r.hasPage() == false : "page arrived after the remote sink announced all its pages were received";
+                    return;
+                }
+                if (lastPage && r.finished() == false) {
+                    target.onResponse(new ExchangeResponse(blockFactory, r.takePage(), true));
+                } else {
+                    target.onResponse(r);
+                }
+            }, e -> {
+                final ActionListener<ExchangeResponse> target;
+                synchronized (this) {
+                    target = inFlight.remove(id);
+                }
+                if (target != null) {
+                    target.onFailure(e);
+                }
+            });
         }
 
         @Override
@@ -533,12 +791,12 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 completionListener.addListener(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
                 return;
             }
-            doFetchPageAsync(false, ActionListener.wrap(r -> {
+            doFetchPageAsync(false, trackFetch(ActionListener.wrap(r -> {
                 if (r.finished()) {
                     completionListenerRef.compareAndSet(null, SubscribableListener.nullSuccess());
                 }
                 listener.onResponse(r);
-            }, e -> close(ActionListener.running(() -> listener.onFailure(e)))));
+            }, e -> close(ActionListener.running(() -> listener.onFailure(e))))));
         }
 
         private void doFetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
@@ -580,7 +838,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             transportService.sendChildRequest(
                 connection,
                 EXCHANGE_ACTION_NAME,
-                new ExchangeRequest(exchangeId, allSourcesFinished),
+                new ExchangeRequest(exchangeId, allSourcesFinished, waitForSink),
                 parentTask,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(listener, in -> {

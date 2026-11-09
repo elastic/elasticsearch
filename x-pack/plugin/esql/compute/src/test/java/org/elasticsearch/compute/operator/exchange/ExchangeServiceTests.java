@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -779,6 +780,252 @@ public class ExchangeServiceTests extends ESTestCase {
             bareClosed.actionGet(10, TimeUnit.SECONDS);
             assertTrue("sink with no completion listener must be unregistered", exchange1.isEmpty());
             assertNull(exchange1.getSinkHandlerIfOpen(bareId));
+        }
+    }
+
+    /**
+     * A fetch flagged wait-for-sink that reaches the data node before the compute request created the sink is held, and
+     * served once the sink exists; one that arrives after the sink finished is told so right away.
+     */
+    public void testFetchWaitsForSinkCreatedByCompute() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Task task = new Task(1, "", "", "", null, Collections.emptyMap());
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            RemoteSink remoteSink = exchange0.newRemoteSink(task, exchangeId, node0, connection, false, true);
+
+            PlainActionFuture<ExchangeResponse> early = new PlainActionFuture<>();
+            remoteSink.fetchPageAsync(false, early);
+            assertFalse("fetch must wait for the sink", early.isDone());
+
+            ExchangeSinkHandler sinkHandler = exchange1.createSinkHandlerIfNotFinished(exchangeId, randomExchangeBuffer());
+            assertNotNull(sinkHandler);
+            assertSame("the open sink is reused", sinkHandler, exchange1.createSinkHandlerIfNotFinished(exchangeId, 1));
+            ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+            BlockFactory blockFactory = blockFactory();
+            sink.addPage(new Page(blockFactory.newConstantIntBlockWith(7, 1)));
+            ExchangeResponse response = early.actionGet(10, TimeUnit.SECONDS);
+            Page page = response.takePage();
+            assertNotNull(page);
+            assertThat(page.getPositionCount(), equalTo(1));
+            page.releaseBlocks();
+            sink.finish();
+            assertBusy(() -> assertTrue(sinkHandler.isFinished()));
+            exchange1.finishSinkHandler(exchangeId, null);
+            assertTrue(exchange1.isEmpty());
+
+            // The sink is gone: a late fetch is finished, not parked.
+            PlainActionFuture<ExchangeResponse> late = new PlainActionFuture<>();
+            exchange0.newRemoteSink(task, exchangeId, node0, connection, false, true).fetchPageAsync(false, late);
+            ExchangeResponse lateResponse = late.actionGet(10, TimeUnit.SECONDS);
+            assertTrue(lateResponse.finished());
+            assertNull(lateResponse.takePage());
+        }
+    }
+
+    /**
+     * The coordinator finishes the exchange before the compute request got to the data node: the parked fetch is
+     * finished along with the close, and the request must not create a sink afterwards.
+     */
+    public void testParkedFetchFinishedWhenSourcesFinishBeforeSink() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Task task = new Task(1, "", "", "", null, Collections.emptyMap());
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            RemoteSink remoteSink = exchange0.newRemoteSink(task, exchangeId, node0, connection, false, true);
+            PlainActionFuture<ExchangeResponse> parked = new PlainActionFuture<>();
+            remoteSink.fetchPageAsync(false, parked);
+            assertFalse(parked.isDone());
+
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            remoteSink.close(closed);
+            closed.actionGet(10, TimeUnit.SECONDS);
+            ExchangeResponse response = parked.actionGet(10, TimeUnit.SECONDS);
+            assertTrue(response.finished());
+            assertNull(response.takePage());
+            assertNull("a finished exchange gets no sink", exchange1.createSinkHandlerIfNotFinished(exchangeId, randomExchangeBuffer()));
+            assertTrue(exchange1.isEmpty());
+        }
+    }
+
+    /** A fetch parked for a compute request that never arrives fails once the inactive sink interval has passed. */
+    public void testParkedFetchTimesOut() throws Exception {
+        Settings settings = Settings.builder().put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(200)).build();
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Task task = new Task(1, "", "", "", null, Collections.emptyMap());
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            RemoteSink remoteSink = exchange0.newRemoteSink(task, exchangeId, node0, connection, false, true);
+            PlainActionFuture<ExchangeResponse> parked = new PlainActionFuture<>();
+            remoteSink.fetchPageAsync(false, parked);
+            Exception e = expectThrows(Exception.class, () -> parked.actionGet(30, TimeUnit.SECONDS));
+            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ElasticsearchTimeoutException.class));
+        }
+    }
+
+    /**
+     * Once the remote side announced how many pages it sent, the remote sink finishes as soon as it has them: a fetch
+     * in flight is answered locally and its eventual response dropped, and a fetch bringing the last page is marked
+     * finished, so no further fetch is needed.
+     */
+    public void testAllPagesSentFinishesRemoteSink() throws Exception {
+        MockTransportService node0 = newTransportService();
+        BlockFactory coordinatorBlockFactory = blockFactory();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, coordinatorBlockFactory);
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Task task = new Task(1, "", "", "", null, Collections.emptyMap());
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, 10);
+            ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+            BlockFactory blockFactory = blockFactory();
+            RemoteSink remoteSink = exchange0.newRemoteSink(task, exchangeId, node0, connection);
+
+            sink.addPage(new Page(blockFactory.newConstantIntBlockWith(1, 1)));
+            PlainActionFuture<ExchangeResponse> first = new PlainActionFuture<>();
+            remoteSink.fetchPageAsync(false, first);
+            ExchangeResponse firstResponse = first.actionGet(10, TimeUnit.SECONDS);
+            assertFalse(firstResponse.finished());
+            firstResponse.takePage().releaseBlocks();
+
+            boolean announceBeforeLastPage = randomBoolean();
+            if (announceBeforeLastPage) {
+                remoteSink.allPagesSent(2);
+            }
+            PlainActionFuture<ExchangeResponse> second = new PlainActionFuture<>();
+            remoteSink.fetchPageAsync(false, second);
+            assertFalse("no page yet", second.isDone());
+            sink.addPage(new Page(blockFactory.newConstantIntBlockWith(2, 1)));
+            ExchangeResponse secondResponse = second.actionGet(10, TimeUnit.SECONDS);
+            secondResponse.takePage().releaseBlocks();
+            if (announceBeforeLastPage) {
+                assertTrue("the last announced page carries the finished flag", secondResponse.finished());
+            } else {
+                assertFalse(secondResponse.finished());
+                PlainActionFuture<ExchangeResponse> inFlight = new PlainActionFuture<>();
+                remoteSink.fetchPageAsync(false, inFlight);
+                assertFalse(inFlight.isDone());
+                remoteSink.allPagesSent(2);
+                ExchangeResponse early = inFlight.actionGet(10, TimeUnit.SECONDS);
+                assertTrue(early.finished());
+                assertNull(early.takePage());
+            }
+            // The remote sink is done without asking the sink again.
+            PlainActionFuture<ExchangeResponse> after = new PlainActionFuture<>();
+            remoteSink.fetchPageAsync(false, after);
+            assertTrue(after.actionGet(10, TimeUnit.SECONDS).finished());
+
+            // The data node side finishes on its own, releasing whatever fetch was still waiting there; its response is
+            // dropped by the remote sink, which also gives back the bytes it had reserved for that fetch.
+            sink.finish();
+            assertBusy(() -> assertTrue(sinkHandler.isFinished()));
+            exchange1.finishSinkHandler(exchangeId, null);
+            assertBusy(() -> assertTrue(exchange1.isEmpty()));
+            assertBusy(() -> assertThat(coordinatorBlockFactory.breaker().getUsed(), equalTo(0L)));
+        }
+    }
+
+    /**
+     * Races fetches that wait for their sink against the sink's creation, its pages, its finish and the announcement of the
+     * page count, in random orders: every page must arrive exactly once and every fetch must be answered.
+     */
+    public void testConcurrentFetchesRaceSinkLifecycle() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        BlockFactory blockFactory = blockFactory();
+        try (exchange0; exchange1; node0; node1) {
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            int rounds = between(50, 200);
+            for (int round = 0; round < rounds; round++) {
+                String exchangeId = "exchange-" + round + "-" + randomAlphaOfLength(4);
+                Task task = new Task(round, "", "", "", null, Collections.emptyMap());
+                RemoteSink remoteSink = exchange0.newRemoteSink(task, exchangeId, node0, connection, false, true);
+                int pages = between(0, 5);
+                int fetchers = between(1, 3);
+                AtomicInteger received = new AtomicInteger();
+                AtomicInteger finishedResponses = new AtomicInteger();
+                List<Thread> threads = new ArrayList<>();
+                for (int f = 0; f < fetchers; f++) {
+                    threads.add(new Thread(() -> {
+                        while (true) {
+                            PlainActionFuture<ExchangeResponse> future = new PlainActionFuture<>();
+                            remoteSink.fetchPageAsync(false, future);
+                            ExchangeResponse response = future.actionGet(30, TimeUnit.SECONDS);
+                            Page page = response.takePage();
+                            if (page != null) {
+                                received.incrementAndGet();
+                                page.releaseBlocks();
+                            }
+                            if (response.finished()) {
+                                finishedResponses.incrementAndGet();
+                                return;
+                            }
+                        }
+                    }));
+                }
+                threads.add(new Thread(() -> {
+                    if (randomBoolean()) {
+                        Thread.yield();
+                    }
+                    ExchangeSinkHandler sinkHandler = exchange1.createSinkHandlerIfNotFinished(exchangeId, between(1, 10));
+                    assertNotNull(sinkHandler);
+                    ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+                    for (int i = 0; i < pages; i++) {
+                        sink.addPage(new Page(blockFactory.newConstantIntBlockWith(i, 1)));
+                        if (randomBoolean()) {
+                            Thread.yield();
+                        }
+                    }
+                    sink.finish();
+                    // Like a data node: announce once everything was fetched, then drop the sink.
+                    sinkHandler.addCompletionListener(ActionListener.running(() -> {
+                        exchange1.finishSinkHandler(exchangeId, null);
+                        if (randomBoolean()) {
+                            remoteSink.allPagesSent(pages);
+                        }
+                    }));
+                }));
+                Collections.shuffle(threads, random());
+                threads.forEach(Thread::start);
+                for (Thread thread : threads) {
+                    thread.join(TimeUnit.SECONDS.toMillis(60));
+                    assertFalse("thread still running in round " + round, thread.isAlive());
+                }
+                assertThat("round " + round, received.get(), equalTo(pages));
+                assertThat("round " + round, finishedResponses.get(), equalTo(fetchers));
+                assertBusy(() -> assertTrue(exchange1.isEmpty()));
+            }
         }
     }
 

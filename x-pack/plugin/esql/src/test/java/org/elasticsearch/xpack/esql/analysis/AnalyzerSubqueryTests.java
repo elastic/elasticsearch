@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -773,6 +774,71 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         });
         assertThat(converted, hasSize(2));
         assertEquals(converted.get(0).id(), converted.get(1).id());
+    }
+
+    private static final String NESTED_CONFLICT_NEXT_TO_KEYWORD_SIBLING = """
+        SET unmapped_fields="nullify";
+        FROM (FROM (FROM keyword_index), (FROM union_index*) | EVAL x = 1), (FROM keyword_index)
+        """;
+
+    /**
+     * A column whose types conflict in a nested union is {@code unsupported} in the outer union, also next to a sibling branch that
+     * produces it as {@code keyword} ({@code first_name}), and also under {@code unmapped_fields}. Before {@code UNSUPPORTED} columns
+     * were null-filled as {@code UNSUPPORTED}, this combination reported the column as {@code keyword} and returned the sibling's values.
+     */
+    public void testNestedUnionTypeConflictNextToKeywordSiblingIsUnsupported() {
+        requireNullifySupport();
+        LogicalPlan plan = nestedConflictAnalyzer().statement(NESTED_CONFLICT_NEXT_TO_KEYWORD_SIBLING + "| KEEP name, does_not_exist");
+
+        Attribute name = plan.output().getFirst();
+        assertEquals("name", name.name());
+        assertEquals(UNSUPPORTED, name.dataType());
+    }
+
+    /**
+     * The flip side of {@link #testNestedUnionTypeConflictNextToKeywordSiblingIsUnsupported}: a query that used the column as a
+     * {@code keyword}, which worked while the conflict was reported as {@code keyword}, is rejected now, as it is without
+     * {@code unmapped_fields}.
+     */
+    public void testNestedUnionTypeConflictNextToKeywordSiblingRejectsKeywordFunctions() {
+        requireNullifySupport();
+        String expected = "Column [name] has conflicting data types in subqueries: [unsupported, keyword]";
+        String query = "FROM (FROM (FROM keyword_index), (FROM union_index*) | EVAL x = 1), (FROM keyword_index)\n"
+            + "| EVAL upper = TO_UPPER(name) | KEEP upper, does_not_exist";
+
+        nestedConflictAnalyzer().statementError("SET unmapped_fields=\"nullify\";\n" + query, containsString(expected));
+        nestedConflictAnalyzer().error(query.replace(", does_not_exist", ""), containsString(expected));
+    }
+
+    /**
+     * {@code keyword_index} has {@code name} as {@code keyword}. {@code union_index*} has it as {@code keyword} in one index and as
+     * {@code integer} in the other, so {@code name} conflicts.
+     */
+    private TestAnalyzer nestedConflictAnalyzer() {
+        EsField keywordName = new EsField("name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        EsIndex keywordIndex = new EsIndex(
+            "keyword_index",
+            Map.of("name", keywordName),
+            Map.of("keyword_index", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("union_index_1"));
+        typesToIndices.put("integer", Set.of("union_index_2"));
+        EsIndex unionIndex = new EsIndex(
+            "union_index*",
+            Map.of("name", new InvalidMappedField("name", typesToIndices)),
+            Map.of(
+                "union_index_1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_index_2",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
+            Map.of(),
+            Map.of()
+        );
+        return analyzer().addIndex(keywordIndex).addIndex(unionIndex);
     }
 
     /*

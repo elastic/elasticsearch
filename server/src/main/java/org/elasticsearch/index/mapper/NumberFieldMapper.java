@@ -3214,10 +3214,11 @@ public class NumberFieldMapper extends FieldMapper {
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (fieldType.diskFormat == DocValuesDiskFormat.COLUMNAR) {
                 // The payload keeps the values in document order, so the offsets only need to say where the nulls go.
+                var offsets = context.getOffSetContext().docOrderOffsets(offsetsFieldName);
                 if (value != null) {
-                    context.getOffSetContext().recordOffsetInDocOrder(offsetsFieldName);
+                    offsets.recordValue();
                 } else {
-                    context.getOffSetContext().recordNullInDocOrder(offsetsFieldName);
+                    offsets.recordNull();
                 }
             } else if (value != null) {
                 // We cannot simply cast value to Comparable<> because we need to also capture the potential loss of precision that occurs

@@ -69,12 +69,13 @@ public class FieldArrayContextTests extends ESTestCase {
      */
     public void testOffsetsInDocOrder() throws IOException {
         var context = new FieldArrayContext();
-        context.recordNullInDocOrder("field");
-        context.recordOffsetInDocOrder("field");
-        context.recordOffsetInDocOrder("field");
-        context.recordNullInDocOrder("field");
-        context.recordOffsetInDocOrder("field");
-        context.recordNullInDocOrder("field");
+        var offsets = context.docOrderOffsets("field");
+        offsets.recordNull();
+        offsets.recordValue();
+        offsets.recordValue();
+        offsets.recordNull();
+        offsets.recordValue();
+        offsets.recordNull();
 
         var parserContext = randomBoolean() ? new TestDocumentParserContext() : strictColumnarParserContext();
         context.addToLuceneDocument(parserContext);
@@ -89,7 +90,7 @@ public class FieldArrayContextTests extends ESTestCase {
         var context = new FieldArrayContext();
         int count = between(1, 5);
         for (int i = 0; i < count; i++) {
-            context.recordOffsetInDocOrder("field");
+            context.docOrderOffsets("field").recordValue();
         }
 
         var parserContext = randomBoolean() ? new TestDocumentParserContext() : strictColumnarParserContext();
@@ -100,7 +101,7 @@ public class FieldArrayContextTests extends ESTestCase {
 
     public void testOnlyNullsInDocOrder() throws IOException {
         var context = new FieldArrayContext();
-        context.recordNullInDocOrder("field");
+        context.docOrderOffsets("field").recordNull();
 
         var parserContext = strictColumnarParserContext();
         context.addToLuceneDocument(parserContext);

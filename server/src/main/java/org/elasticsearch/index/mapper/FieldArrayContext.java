@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -65,8 +66,21 @@ public class FieldArrayContext {
         this.currentDoc = doc;
     }
 
-    private Offsets offsetsFor(String field) {
-        return offsetsPerDoc.computeIfAbsent(currentDoc, d -> new HashMap<>()).computeIfAbsent(field, k -> new Offsets());
+    private SortedOffsets offsetsFor(String field) {
+        Offsets offsets = offsetsPerDoc.computeIfAbsent(currentDoc, d -> new HashMap<>()).computeIfAbsent(field, k -> new SortedOffsets());
+        assert offsets instanceof SortedOffsets : "field [" + field + "] records its offsets in document order";
+        return (SortedOffsets) offsets;
+    }
+
+    /**
+     * The offsets of a field whose doc values keep a document's values in the order they were written, duplicates included,
+     * rather than sorted; see {@link DocOrderOffsets}. A field records its offsets one way or the other, never both.
+     */
+    public DocOrderOffsets docOrderOffsets(String field) {
+        Offsets offsets = offsetsPerDoc.computeIfAbsent(currentDoc, d -> new HashMap<>())
+            .computeIfAbsent(field, k -> new DocOrderOffsets());
+        assert offsets instanceof DocOrderOffsets : "field [" + field + "] records its offsets sorted by value";
+        return (DocOrderOffsets) offsets;
     }
 
     public void recordOffset(String field, Comparable<?> value) {
@@ -95,26 +109,6 @@ public class FieldArrayContext {
 
     public void recordNull(String field) {
         offsetsFor(field).recordNull();
-    }
-
-    /**
-     * Records a value of a field whose doc values keep a document's values in the order they were written, duplicates
-     * included, rather than sorted. Its slot is given the ordinal of the value among the document's non-null values,
-     * which is where the value sits in the field's doc values. The encoded offsets then keep their usual meaning, an
-     * ordinal into the document's values per slot, and are only written when they say something the doc values don't:
-     * where the nulls are. See {@link #recordNullInDocOrder}.
-     */
-    public void recordOffsetInDocOrder(String field) {
-        var offsets = offsetsFor(field);
-        offsets.markDocOrder();
-        offsets.recordOffset(offsets.currentOffset() - offsets.nullCount());
-    }
-
-    /** Records a null slot of a field whose values are recorded with {@link #recordOffsetInDocOrder}. */
-    public void recordNullInDocOrder(String field) {
-        var offsets = offsetsFor(field);
-        offsets.markDocOrder();
-        offsets.recordNull();
     }
 
     /**
@@ -161,14 +155,7 @@ public class FieldArrayContext {
                 if (offsets.hasRecordedSlots() == false) {
                     continue;
                 }
-                // Values in document order already carry their order and duplicates, so only the nulls need offsets.
-                if (offsets.docOrder && offsets.hasNulls() == false) {
-                    continue;
-                }
-                // In strict columnar a single non-null value carries no ordering or shape information beyond what the sorted-set doc
-                // values already encode, so the offsets entry is redundant. This means that single-valued arrays are rebuilt as
-                // single valued; ex. ["a"] -> "a".
-                if (strictlyColumnar && offsets.currentOffset() <= 1 && offsets.hasNulls() == false) {
+                if (offsets.isRedundant(strictlyColumnar)) {
                     continue;
                 }
                 BytesRef encoded = encodeOffsetArray(offsets);
@@ -202,17 +189,21 @@ public class FieldArrayContext {
         Offsets offsets,
         int encodedSize
     ) throws IOException {
-        CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter = offsets.fallbackWriter;
-        if (fallbackWriter == null || context.canAddIgnoredField() == false) {
+        // Only offsets sorted by value keep the values themselves, which the array is rebuilt from.
+        if (offsets instanceof SortedOffsets == false
+            || ((SortedOffsets) offsets).fallbackWriter == null
+            || context.canAddIgnoredField() == false) {
             // Either the recording mapper registered no way to rebuild the recorded values, or _ignored_source is unavailable
             // (strict columnar mode or ignored source writes disabled).
             throw new IllegalArgumentException(
                 oversizedOffsetsMessage(offsetsFieldName, encodedSize) + " and the array cannot be preserved in [_ignored_source]"
             );
         }
+        SortedOffsets sorted = (SortedOffsets) offsets;
+        CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> fallbackWriter = sorted.fallbackWriter;
         assert offsetsFieldName.endsWith(OFFSETS_FIELD_NAME_SUFFIX) : offsetsFieldName;
         String fieldName = offsetsFieldName.substring(0, offsetsFieldName.length() - OFFSETS_FIELD_NAME_SUFFIX.length());
-        List<Offsets.IgnoredValue> ignoredValues = offsets.ignoredValues();
+        List<SortedOffsets.IgnoredValue> ignoredValues = sorted.ignoredValues();
         if (ignoredValues.isEmpty() && context.isFieldIgnored(fieldName)) {
             // Some values of this field were not indexed (e.g. ignore_above or ignore_malformed), but the mapper did not record
             // them here. They live in field-specific fallback storage that the _ignored_source entry would suppress at load
@@ -226,9 +217,9 @@ public class FieldArrayContext {
         }
         // Force inline single-value state to materialize, mirroring encodeOffsetArray. In practice an array large enough to get
         // here is always recording already.
-        offsets.startRecording();
-        Comparable<?>[] slotValues = new Comparable<?>[offsets.currentOffset()];
-        for (var valueEntry : offsets.valueToOffsets.entrySet()) {
+        sorted.startRecording();
+        Comparable<?>[] slotValues = new Comparable<?>[sorted.currentOffset()];
+        for (var valueEntry : sorted.valueToOffsets.entrySet()) {
             for (int slot : valueEntry.getValue()) {
                 slotValues[slot] = valueEntry.getKey();
             }
@@ -297,24 +288,10 @@ public class FieldArrayContext {
      * <p>
      * The array takes the form {@code [slot count][ordinal 0][ordinal 1]...}, where {@code slot count} is the number of leaf positions
      * (one per indexed array element, including {@code null}s) and each following ordinal is either a non-negative index into the
-     * per-document sorted set of array values, or {@code -1} when that slot is {@code null}. Decoding uses {@link #parseOffsetArray}.
+     * per-document values, or {@code -1} when that slot is {@code null}. Decoding uses {@link #parseOffsetArray}.
      */
     protected static BytesRef encodeOffsetArray(Offsets offsets) throws IOException {
-        // Force inline single-value state to materialize so the table below has a populated valueToOffsets to iterate.
-        offsets.startRecording();
-        int currentOrd = 0;
-        // This array allows to retain the original ordering of elements in leaf arrays and retain duplicates.
-        int[] offsetToOrd = new int[offsets.currentOffset()];
-        for (var offsetEntry : offsets.valueToOffsets.entrySet()) {
-            for (var offsetAndLevel : offsetEntry.getValue()) {
-                offsetToOrd[offsetAndLevel] = currentOrd;
-            }
-            currentOrd++;
-        }
-        for (var nullOffset : offsets.nullValueOffsets) {
-            offsetToOrd[nullOffset] = NULL_ORD;
-        }
-
+        int[] offsetToOrd = offsets.offsetToOrd();
         int expectedSize = offsetToOrd.length + 1; // Initialize buffer to avoid unnecessary resizing, assume 1 byte per offset + size.
         try (var streamOutput = new BytesStreamOutput(expectedSize)) {
             // Could just use vint for array length, but this allows for decoding my_field: null as -1
@@ -432,12 +409,38 @@ public class FieldArrayContext {
     }
 
     /**
-     * Per-field offsets accumulator. Lazily allocates its backing collections: the first non-null value is stashed in
+     * Per-field offsets accumulator: which of the document's values each array slot holds, or that it is null. How a slot
+     * names its value depends on the order the field's doc values keep the document's values in, so each order has its own
+     * accumulator.
+     */
+    protected abstract static class Offsets {
+
+        /** The number of slots recorded, nulls included. */
+        public abstract int currentOffset();
+
+        public abstract boolean hasNulls();
+
+        /**
+         * Whether a value, a null or an empty-array marker was recorded. False when only ignored values were recorded, in which
+         * case there is nothing to encode.
+         */
+        public abstract boolean hasRecordedSlots();
+
+        /** Each slot's ordinal into the document's values, or {@link #NULL_ORD} for a null slot. */
+        abstract int[] offsetToOrd();
+
+        /** Whether the field's doc values already say everything these offsets would, so they needn't be written. */
+        abstract boolean isRedundant(boolean strictlyColumnar);
+    }
+
+    /**
+     * Offsets of a field whose doc values keep a document's values sorted, so each slot names its value by its ordinal among the
+     * document's distinct values. Lazily allocates its backing collections: the first non-null value is stashed in
      * {@link #pendingValue}, and the collections are populated only once a second value, a null, or an empty-array marker arrives.
      * This avoids the {@link TreeMap}/{@link ArrayList} allocation cost for the common case of a field with a single scalar value
      * per document.
      */
-    protected static class Offsets {
+    protected static final class SortedOffsets extends Offsets {
 
         // Registered via the fallback-aware record overloads. Used to rebuild the array for _ignored_source when the
         // encoded offsets are too large for a sorted doc value.
@@ -452,9 +455,6 @@ public class FieldArrayContext {
          * slot count when the ignored value came after the last slot.
          */
         record IgnoredValue(int slot, BytesRef encodedValue) {}
-
-        // Whether the values are recorded in document order, keyed by their ordinal, rather than by value.
-        private boolean docOrder;
 
         // Inline single-value state — non-null while no second value/null/empty-array marker has been recorded yet
         private Comparable<?> pendingValue;
@@ -501,6 +501,7 @@ public class FieldArrayContext {
             return ignoredValues == null ? List.of() : ignoredValues;
         }
 
+        @Override
         public int currentOffset() {
             if (valueToOffsets == null) {
                 return pendingValue == null ? 0 : 1;
@@ -508,29 +509,43 @@ public class FieldArrayContext {
             return currentOffset;
         }
 
+        @Override
         public boolean hasNulls() {
             return nullValueOffsets != null && nullValueOffsets.isEmpty() == false;
         }
 
-        int nullCount() {
-            return nullValueOffsets == null ? 0 : nullValueOffsets.size();
-        }
-
-        /**
-         * Marks the field's values as recorded in document order, see {@link FieldArrayContext#recordOffsetInDocOrder}. A field
-         * records its values one way or the other, never both.
-         */
-        void markDocOrder() {
-            assert docOrder || hasRecordedSlots() == false : "a field's values were recorded sorted before ones in document order";
-            docOrder = true;
-        }
-
-        /**
-         * Whether a value, a null or an empty-array marker was recorded. False when only ignored values were recorded via
-         * {@link #recordIgnored(BytesRef)}, in which case there is nothing to encode.
-         */
+        @Override
         public boolean hasRecordedSlots() {
             return valueToOffsets != null || pendingValue != null;
+        }
+
+        @Override
+        int[] offsetToOrd() {
+            // Force inline single-value state to materialize so the table below has a populated valueToOffsets to iterate.
+            startRecording();
+            int currentOrd = 0;
+            // This array allows to retain the original ordering of elements in leaf arrays and retain duplicates.
+            int[] offsetToOrd = new int[currentOffset];
+            for (var offsetEntry : valueToOffsets.entrySet()) {
+                for (var offsetAndLevel : offsetEntry.getValue()) {
+                    offsetToOrd[offsetAndLevel] = currentOrd;
+                }
+                currentOrd++;
+            }
+            for (var nullOffset : nullValueOffsets) {
+                offsetToOrd[nullOffset] = NULL_ORD;
+            }
+            return offsetToOrd;
+        }
+
+        /**
+         * In strict columnar a single non-null value carries no ordering or shape information beyond what the sorted-set doc values
+         * already encode, so the offsets entry is redundant. This means that single-valued arrays are rebuilt as single valued;
+         * ex. ["a"] -> "a".
+         */
+        @Override
+        boolean isRedundant(boolean strictlyColumnar) {
+            return strictlyColumnar && currentOffset() <= 1 && hasNulls() == false;
         }
 
         private void startRecording() {
@@ -552,6 +567,65 @@ public class FieldArrayContext {
 
         private void appendValue(Comparable<?> value) {
             valueToOffsets.computeIfAbsent(value, k -> new ArrayList<>(2)).add(currentOffset++);
+        }
+    }
+
+    /**
+     * Offsets of a field whose doc values keep a document's values in the order they were written, duplicates included. A slot
+     * names its value by its position among the document's non-null values, which is where the value sits in the doc values,
+     * so the values need no recording here, only where the nulls go. Without a null the doc values say it all, so the offsets
+     * are only written for a document with one.
+     */
+    public static final class DocOrderOffsets extends Offsets {
+        private int slotCount;
+        private int[] nullSlots = new int[0];
+        private int nullCount;
+
+        /** Records the next value's slot. */
+        public void recordValue() {
+            slotCount++;
+        }
+
+        /** Records a null slot. */
+        public void recordNull() {
+            nullSlots = ArrayUtil.grow(nullSlots, nullCount + 1);
+            nullSlots[nullCount++] = slotCount++;
+        }
+
+        @Override
+        public int currentOffset() {
+            return slotCount;
+        }
+
+        @Override
+        public boolean hasNulls() {
+            return nullCount > 0;
+        }
+
+        @Override
+        public boolean hasRecordedSlots() {
+            return slotCount > 0;
+        }
+
+        @Override
+        int[] offsetToOrd() {
+            int[] offsetToOrd = new int[slotCount];
+            int ord = 0;
+            int nextNull = 0;
+            for (int slot = 0; slot < slotCount; slot++) {
+                if (nextNull < nullCount && nullSlots[nextNull] == slot) {
+                    offsetToOrd[slot] = NULL_ORD;
+                    nextNull++;
+                } else {
+                    offsetToOrd[slot] = ord++;
+                }
+            }
+            return offsetToOrd;
+        }
+
+        @Override
+        boolean isRedundant(boolean strictlyColumnar) {
+            return hasNulls() == false;
         }
     }
 

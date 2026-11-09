@@ -26,7 +26,7 @@ import java.util.Objects;
  * Loads {@code _source} for a numeric field whose doc values are a {@link ColumnarNumericDocValuesField} payload.
  * The payload keeps the document's non-null values in the order they were written, so a document without nulls needs
  * nothing else. One with nulls also has an {@code .offsets} companion, whose slots point at the payload's values in
- * order, or are null (see {@link FieldArrayContext#recordOffsetInDocOrder}).
+ * order, or are null (see {@link FieldArrayContext.DocOrderOffsets}).
  */
 public class ColumnarNumericPayloadSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
     private final String name;

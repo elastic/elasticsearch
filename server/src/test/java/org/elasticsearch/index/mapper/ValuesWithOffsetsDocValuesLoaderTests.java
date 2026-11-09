@@ -40,7 +40,7 @@ public class ValuesWithOffsetsDocValuesLoaderTests extends ESTestCase {
      * XContentGenerationException ("Can not write a field name, expecting a value").
      */
     public void testEmptyOffsetsWithValuesFallsBackToSequential() throws IOException {
-        BytesRef emptyOffsets = FieldArrayContext.encodeOffsetArray(new FieldArrayContext.Offsets());
+        BytesRef emptyOffsets = FieldArrayContext.encodeOffsetArray(new FieldArrayContext.SortedOffsets());
 
         try (Directory directory = newDirectory()) {
             Document doc = new Document();

@@ -12,6 +12,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -249,6 +250,22 @@ public class AnalysisTests extends ESTestCase {
         Settings commonWords = Settings.builder().put("common_words", "_thai_").build();
         assertEquals(legacySet, Analysis.parseCommonWords(legacy, null, commonWords, null, false));
         assertEquals(currentSet, Analysis.parseCommonWords(current, null, commonWords, null, false));
+    }
+
+    /** Lucene versions, rather than index version ordering, select the Thai stopword generation. */
+    public void testThaiNamedStopWordsFollowLuceneVersion() {
+        Settings stopwords = Settings.builder().put("stopwords", "_thai_").build();
+        IndexVersion backportWithCurrentLucene = new IndexVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0.id() - 1, Version.LUCENE_10_6_0);
+        IndexVersion laterIndexWithLegacyLucene = new IndexVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0.id() + 1, Version.LUCENE_10_5_2);
+
+        assertEquals(
+            ThaiAnalyzer.getDefaultStopSet(),
+            Analysis.parseStopWords(backportWithCurrentLucene, null, stopwords, CharArraySet.EMPTY_SET)
+        );
+        assertEquals(
+            LegacyThaiStopWords.DEFAULT_STOP_SET,
+            Analysis.parseStopWords(laterIndexWithLegacyLucene, null, stopwords, CharArraySet.EMPTY_SET)
+        );
     }
 
     /** Only {@code _thai_} is gated; every other named set and any explicit word resolves the same on both sides. */

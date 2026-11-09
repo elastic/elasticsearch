@@ -11,15 +11,15 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
 /**
- * Factory for {@link ThaiTokenizer}. Indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} get
- * {@link LegacyThaiTokenizer} so that their tokenization does not change after an upgrade.
+ * Factory for {@link ThaiTokenizer}. Indices whose creation version records a Lucene version before
+ * {@link Version#LUCENE_10_6_0} get {@link LegacyThaiTokenizer} so that their tokenization does not change after an upgrade.
  */
 public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
 
@@ -27,7 +27,7 @@ public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
 
     ThaiTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
-        this.generation = ThaiAnalysis.generation(indexSettings.getIndexVersionCreated().luceneVersion());
+        this.generation = ThaiAnalysis.generation(indexSettings.getIndexVersionCreated());
     }
 
     @Override
@@ -36,8 +36,8 @@ public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     /**
-     * Includes the side of the {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} gate so that indices on either side never share
-     * an analyzer built from this factory.
+     * Includes the side of the {@link Version#LUCENE_10_6_0} gate so that indices on either side never share an analyzer built from
+     * this factory.
      */
     @Override
     public Object sharingKey() {

@@ -11,6 +11,7 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -182,6 +183,15 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
             preconfigured.get(indexSettings(at), env(), "thai", Settings.EMPTY).create(),
             not(instanceOf(LegacyThaiTokenizer.class))
         );
+    }
+
+    /** Lucene versions, rather than index version ordering, select the Thai analysis generation. */
+    public void testGenerationFollowsLuceneVersion() {
+        IndexVersion backportWithCurrentLucene = new IndexVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0.id() - 1, Version.LUCENE_10_6_0);
+        IndexVersion laterIndexWithLegacyLucene = new IndexVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0.id() + 1, Version.LUCENE_10_5_2);
+
+        assertEquals(ThaiAnalysis.Generation.CURRENT, ThaiAnalysis.generation(backportWithCurrentLucene));
+        assertEquals(ThaiAnalysis.Generation.LEGACY, ThaiAnalysis.generation(laterIndexWithLegacyLucene));
     }
 
     /**

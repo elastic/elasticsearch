@@ -12,17 +12,18 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.Analysis;
 
 /**
- * Provider for the {@code thai} analyzer type. Indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} get
- * {@link LegacyThaiAnalyzer} (the Lucene 10.5 chain and default stopwords); newer indices get Lucene's {@link ThaiAnalyzer}.
+ * Provider for the {@code thai} analyzer type. Indices whose creation version records a Lucene version before
+ * {@link Version#LUCENE_10_6_0} get {@link LegacyThaiAnalyzer} (the Lucene 10.5 chain and default stopwords); newer indices get
+ * Lucene's {@link ThaiAnalyzer}.
  */
 public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
@@ -32,7 +33,7 @@ public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer
     ThaiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         IndexVersion created = indexSettings.getIndexVersionCreated();
-        ThaiAnalysis.Generation generation = ThaiAnalysis.generation(created.luceneVersion());
+        ThaiAnalysis.Generation generation = ThaiAnalysis.generation(created);
         CharArraySet defaults = generation.defaultStopSet();
         CharArraySet stopWords = Analysis.parseStopWords(created, env, settings, defaults);
         analyzer = generation.newAnalyzer(stopWords);

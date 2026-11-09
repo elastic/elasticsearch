@@ -15,6 +15,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 
@@ -54,21 +55,17 @@ final class ThaiAnalysis {
         }
     }
 
-    static Generation generation(Version luceneVersion) {
+    static Generation generation(IndexVersion indexVersion) {
         // Keep this gate aligned with the _thai_ stopword gate in Analysis.namedStopWords.
-        return luceneVersion.onOrAfter(Version.LUCENE_10_6_0) ? Generation.CURRENT : Generation.LEGACY;
+        return indexVersion.luceneVersion().onOrAfter(Version.LUCENE_10_6_0) ? Generation.CURRENT : Generation.LEGACY;
     }
 
     static PreBuiltAnalyzerProviderFactory preBuiltAnalyzerFactory() {
-        return PreBuiltAnalyzerProviderFactory.versioned(
-            "thai",
-            indexVersion -> generation(indexVersion.luceneVersion()),
-            Generation::newAnalyzer
-        );
+        return PreBuiltAnalyzerProviderFactory.versioned("thai", ThaiAnalysis::generation, Generation::newAnalyzer);
     }
 
     static PreConfiguredTokenizer preConfiguredTokenizer() {
-        return PreConfiguredTokenizer.versioned("thai", indexVersion -> generation(indexVersion.luceneVersion()), Generation::newTokenizer);
+        return PreConfiguredTokenizer.versioned("thai", ThaiAnalysis::generation, Generation::newTokenizer);
     }
 
     private ThaiAnalysis() {}

@@ -11,11 +11,11 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.apache.lucene.util.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -29,11 +29,12 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Lucene 10.6 changed the output of Thai analysis; indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} must keep
- * the old output. In a mixed cluster every copy of a shard analyzes documents and queries itself, so old and new nodes must agree on
- * how an old index analyzes Thai text or the copies diverge. The old index has a copy on every node, and each phase indexes a document
- * and then queries each node's copy separately ({@code preference=_only_nodes}) to check that every copy indexed every document,
- * whichever node analyzed it, with the same terms, and that query analysis on every node matches them.
+ * Lucene 10.6 changed the output of Thai analysis; indices whose creation version records a Lucene version before
+ * {@link Version#LUCENE_10_6_0} must keep the old output. In a mixed cluster every copy of a shard analyzes documents and queries
+ * itself, so old and new nodes must agree on how an old index analyzes Thai text or the copies diverge. The old index has a copy on
+ * every node, and each phase indexes a document and then queries each node's copy separately ({@code preference=_only_nodes}) to check
+ * that every copy indexed every document, whichever node analyzed it, with the same terms, and that query analysis on every node
+ * matches them.
  * <p>
  * The legacy expectations only apply when the old cluster created the index below the gate; otherwise the old index is a
  * current-behaviour index throughout.
@@ -98,7 +99,7 @@ public class ThaiAnalysisRollingUpgradeIT extends AbstractRollingUpgradeTestCase
     private static boolean isLegacy(String index) throws IOException {
         Response response = client().performRequest(new Request("GET", "/" + index + "/_settings"));
         String created = ObjectPath.createFromResponse(response).evaluate(index + ".settings.index.version.created");
-        return IndexVersion.fromId(Integer.parseInt(created)).before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        return IndexVersion.fromId(Integer.parseInt(created)).luceneVersion().onOrAfter(Version.LUCENE_10_6_0) == false;
     }
 
     private static int count(String index) throws IOException {

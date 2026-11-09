@@ -11,11 +11,11 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.apache.lucene.util.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -33,11 +33,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Lucene 10.6 changed the output of Thai analysis. Indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} must keep
- * analyzing exactly as they did before the upgrade, at both index and query time and for documents indexed after the upgrade, while
- * indices created on the upgraded cluster get Lucene's current output. Covers every Thai entry point: the prebuilt {@code thai}
- * analyzer, a {@code type: thai} analyzer, the preconfigured {@code thai} tokenizer, a {@code type: thai} tokenizer and
- * {@code stopwords: _thai_}.
+ * Lucene 10.6 changed the output of Thai analysis. Indices whose creation version records a Lucene version before
+ * {@link Version#LUCENE_10_6_0} must keep analyzing exactly as they did before the upgrade, at both index and query time and for
+ * documents indexed after the upgrade, while indices created on the upgraded cluster get Lucene's current output. Covers every Thai
+ * entry point: the prebuilt {@code thai} analyzer, a {@code type: thai} analyzer, the preconfigured {@code thai} tokenizer, a
+ * {@code type: thai} tokenizer and {@code stopwords: _thai_}.
  * <p>
  * The legacy expectations only apply when the old cluster created the index below the gate; if it did not (for example when the
  * "old" cluster is itself a build that already has the gate), the old index is a current-behaviour index on both sides. Either way
@@ -145,7 +145,7 @@ public class ThaiAnalysisFullClusterRestartIT extends ParameterizedFullClusterRe
     private static boolean isLegacy(String index) throws IOException {
         Response response = client().performRequest(new Request("GET", "/" + index + "/_settings"));
         String created = ObjectPath.createFromResponse(response).evaluate(index + ".settings.index.version.created");
-        return IndexVersion.fromId(Integer.parseInt(created)).before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        return IndexVersion.fromId(Integer.parseInt(created)).luceneVersion().onOrAfter(Version.LUCENE_10_6_0) == false;
     }
 
     private static void createThaiIndex(String index) throws IOException {

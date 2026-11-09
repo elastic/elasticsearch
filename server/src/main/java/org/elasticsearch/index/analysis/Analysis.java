@@ -48,6 +48,7 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -55,7 +56,6 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
@@ -139,9 +139,9 @@ public class Analysis {
     );
 
     /**
-     * {@link #NAMED_STOP_WORDS} as seen by indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0}: identical except
-     * that {@code _thai_} resolves to the Lucene 10.5 list. Held in a nested class so the legacy resource is only read once an old
-     * index actually resolves named stopwords.
+     * {@link #NAMED_STOP_WORDS} as seen by indices whose creation version records a Lucene version before
+     * {@link Version#LUCENE_10_6_0}: identical except that {@code _thai_} resolves to the Lucene 10.5 list. Held in a nested class so
+     * the legacy resource is only read once an old index actually resolves named stopwords.
      */
     private static final class LegacyNamedStopWords {
         private static final Map<String, Set<?>> MAP;
@@ -160,7 +160,7 @@ public class Analysis {
      */
     private static Map<String, Set<?>> namedStopWords(IndexVersion indexCreatedVersion) {
         // Keep this gate aligned with ThaiAnalysis.generation in analysis-common.
-        return indexCreatedVersion.before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0) ? LegacyNamedStopWords.MAP : NAMED_STOP_WORDS;
+        return indexCreatedVersion.luceneVersion().onOrAfter(Version.LUCENE_10_6_0) ? NAMED_STOP_WORDS : LegacyNamedStopWords.MAP;
     }
 
     public static CharArraySet parseWords(

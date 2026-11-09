@@ -11,7 +11,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.WordlistLoader;
-import org.elasticsearch.index.IndexVersions;
+import org.apache.lucene.util.Version;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,9 +19,9 @@ import java.io.UncheckedIOException;
 
 /**
  * The Lucene 10.5 default Thai stopword set (115 entries). Lucene 10.6 (apache/lucene#16718) curated the list down to 87.
- * Indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} must keep resolving {@code _thai_} and the
- * {@code thai} analyzer default to this set, otherwise terms that were indexed on the old set would no longer be
- * removed at query time (and vice versa for documents indexed after an upgrade).
+ * Indices whose creation version records a Lucene version before {@link Version#LUCENE_10_6_0} must keep resolving
+ * {@code _thai_} and the {@code thai} analyzer default to this set, otherwise terms that were indexed on the old set would no longer
+ * be removed at query time (and vice versa for documents indexed after an upgrade).
  * <p>
  * The set lives in {@code server} rather than {@code analysis-common} so that {@link Analysis} can resolve
  * {@code _thai_} for old indices without a cross-module hook. It is loaded on first access of this class; the

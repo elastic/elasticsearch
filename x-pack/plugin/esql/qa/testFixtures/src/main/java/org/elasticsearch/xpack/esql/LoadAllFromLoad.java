@@ -38,7 +38,10 @@ public final class LoadAllFromLoad {
         "unmapped-type-conflicts.csv-spec",
         "views.csv-spec" };
 
-    /** Tests with {@code TS}, which {@code LOAD_ALL} does not support. */
+    /**
+     * Tests with {@code TS}, which {@code LOAD_ALL} does not support.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/157190">#157190</a>.
+     */
     private static final Set<String> NEEDS_TS = Set.of(
         "unmapped-load.evalOnMaxOverTime",
         "unmapped-load.explicitLastOverTimeUnmappedTsIndex",

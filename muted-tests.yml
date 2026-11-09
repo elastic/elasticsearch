@@ -476,3 +476,8 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  tasks:
+  - :server:internalClusterTest
+  method: testKnnRetriever
+  issue: https://github.com/elastic/elasticsearch/issues/165103

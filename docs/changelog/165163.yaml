@@ -1,0 +1,10 @@
+pr: 165163
+summary: Cap ValuesSourceReader test page count so the driver wait is not exceeded
+area: ES|QL
+type: bug
+issues:
+ - 164793
+ - 164825
+ - 164827
+ - 164936
+ - 164938

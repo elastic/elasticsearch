@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
@@ -60,6 +61,54 @@ public class ParseIpTests extends ESTestCase {
                 false,
                 false
             ),
+            new TestCase(new Supplier<>() {
+                @Override
+                public String get() {
+                    return "1".repeat(Strings.MAX_INPUT_LENGTH_IN_ERROR + 1);
+                }
+
+                @Override
+                public String toString() {
+                    return "long v4-shaped";
+                }
+            }, false, false, false),
+            new TestCase(new Supplier<>() {
+                @Override
+                public String get() {
+                    return ":".repeat(Strings.MAX_INPUT_LENGTH_IN_ERROR + 1);
+                }
+
+                @Override
+                public String toString() {
+                    return "long v6-shaped";
+                }
+            }, false, false, false),
+            /*
+             * Longer in UTF-8 than the bytes ParseIp decodes for its error message, so the decode cuts a
+             * code point in half. The message must still match truncating the fully decoded string.
+             */
+            new TestCase(new Supplier<>() {
+                @Override
+                public String get() {
+                    return "€".repeat(2 * Strings.MAX_INPUT_LENGTH_IN_ERROR);
+                }
+
+                @Override
+                public String toString() {
+                    return "long 3 byte chars";
+                }
+            }, false, false, false),
+            new TestCase(new Supplier<>() {
+                @Override
+                public String get() {
+                    return "😀".repeat(2 * Strings.MAX_INPUT_LENGTH_IN_ERROR);
+                }
+
+                @Override
+                public String toString() {
+                    return "long surrogate pairs";
+                }
+            }, false, false, false),
             new TestCase(new Supplier<>() {
                 @Override
                 public String get() {
@@ -154,7 +203,7 @@ public class ParseIpTests extends ESTestCase {
     private void failure(BiFunction<BytesRef, BreakingBytesRefBuilder, BytesRef> fn) {
         try (BreakingBytesRefBuilder scratch = ParseIp.buildScratch(NoopCircuitBreaker.INSTANCE)) {
             Exception thrown = expectThrows(IllegalArgumentException.class, () -> fn.apply(new BytesRef(str), scratch));
-            assertThat(thrown.getMessage(), equalTo("'" + str + "' is not an IP string literal."));
+            assertThat(thrown.getMessage(), equalTo("'" + Strings.truncateForError(str) + "' is not an IP string literal."));
         }
     }
 

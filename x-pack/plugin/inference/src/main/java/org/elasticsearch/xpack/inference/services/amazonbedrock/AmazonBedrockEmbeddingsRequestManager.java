@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockEmbeddingsEntityFactory;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockEmbeddingsRequest;
@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.response.embeddi
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
@@ -52,8 +51,7 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
     public void execute(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         EmbeddingsInput input = inferenceInputs.castTo(EmbeddingsInput.class);
         List<String> docsInput = input.getTextInputs();
@@ -65,14 +63,14 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
         var responseHandler = new AmazonBedrockEmbeddingsResponseHandler();
         var request = new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, embeddingsModel, requestEntity, timeout);
         try {
-            requestSender.send(logger, request, hasRequestCompletedFunction, responseHandler, listener);
+            requestSender.send(logger, request, responseHandler, timedListener);
         } catch (Exception e) {
             var errorMessage = Strings.format(
                 "Failed to send [text_embedding] request from inference entity id [%s]",
                 request.getInferenceEntityId()
             );
             logger.warn(errorMessage, e);
-            listener.onFailure(AmazonBedrockExceptions.wrap(errorMessage, e));
+            timedListener.getListener().onFailure(AmazonBedrockExceptions.wrap(errorMessage, e));
         }
     }
 }

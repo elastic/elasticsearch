@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -125,6 +126,12 @@ public class FieldNameUtils {
         if (projectAll.get() == false) {
             parsed.forEachDown(Dedup.class, d -> {
                 if (d.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
+                    projectAll.set(true);
+                }
+            });
+            // DESCRIBE reports every column of its child, so the same rule applies.
+            parsed.forEachDown(Describe.class, d -> {
+                if (d.child().anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
                     projectAll.set(true);
                 }
             });

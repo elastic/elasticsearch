@@ -1623,10 +1623,10 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    /// With no shard pending on the source nobody waits for a slice behind the relocating shards, which wait concurrently, so a
-    /// re-evaluation extends by all the remaining grace even when nothing was saved. With a pending shard, nothing saved means no
-    /// extension: 10s grace, 4 shards on the source gives each 2500ms; 2000ms later the fresh share is 2000ms, below what was budgeted.
-    public void testReevaluationExtendsByRemainingGraceOnlyWhenNoShardIsPending() {
+    /// With no shard pending on the source and a target slot for every relocating shard, nobody waits behind them, so a re-evaluation
+    /// extends by all the remaining grace even when nothing was saved. With a pending shard, nothing saved means no extension: 10s grace,
+    /// 4 shards on the source gives each 2500ms; 2000ms later the fresh share is 2000ms, below what was budgeted.
+    public void testReevaluationExtendsByRemainingGraceOnlyWhenNoShardIsQueued() {
         try (
             var threadPool = new FakeTimeThreadPool(
                 getTestName(),
@@ -1675,6 +1675,84 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 assertThat(plan.perShardShareMs(), equalTo(2000.0));
                 assertThat("pending shards: " + pendingShards, plan.timeout().millis(), equalTo(pendingShards == 0 ? 8000L : 0L));
             });
+        }
+    }
+
+    /// With fewer target slots than relocating shards, some are queued behind the running ones even with nothing pending, so a
+    /// re-evaluation extends only by the saved time: 10s grace, 4 shards, 2000ms later the fresh share is 2000ms against 1500ms budgeted,
+    /// so 500ms per slot. With a slot for every shard, all the remaining grace is handed out.
+    public void testReevaluationHandsOutSavedTimeOnlyWhenRelocationsQueueForSlots() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final int relocationsToTarget = 4;
+            final Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+                .build();
+            final var clusterSettings = newClusterSettings(settings);
+            final var service = newCalculationService(threadPool, clusterSettings, 0L);
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final var index = new Index("idx", randomUUID());
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                relocationsToTarget,
+                relocationsToTarget,
+                index,
+                "source-node",
+                "target-node",
+                threadPool.absoluteTimeInMillis()
+            );
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, randomIntBetween(0, relocationsToTarget - 1)))
+                .shardsWithState(RELOCATING)
+                .getFirst()
+                .getTargetRelocatingShard();
+
+            final long previousShareMs = 1500;
+            final var previous = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(previousShareMs),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                previousShareMs
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+            final long remainingMs = 8000;
+            final long freshShareMs = remainingMs / relocationsToTarget;
+            final long savedPerShardMs = freshShareMs - previousShareMs;
+
+            // fewer slots than relocations: the shards that do not fit are queued behind this one
+            final int throttledSlots = randomIntBetween(1, relocationsToTarget - 1);
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(
+                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                        throttledSlots
+                    )
+                    .build()
+            );
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, previous);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+            assertThat(plan.perShardShareMs(), equalTo((double) freshShareMs));
+            assertThat("slots: " + throttledSlots, plan.timeout().millis(), equalTo(savedPerShardMs * throttledSlots));
+
+            // a slot for every relocation: nobody is queued, so all the remaining grace is handed out
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(
+                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                        randomIntBetween(relocationsToTarget, relocationsToTarget * 2)
+                    )
+                    .build()
+            );
+            plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, previous);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
+            assertThat(plan.perShardShareMs(), equalTo((double) freshShareMs));
+            assertThat(plan.timeout().millis(), equalTo(remainingMs));
         }
     }
 

@@ -97,7 +97,7 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
             assertEquals(expected, nativeSimilarity(indexSlice, querySlice, indexVectorBytes), 0f);
 
             var queryHeapSegment = MemorySegment.ofArray(queryVectors[queryIndex]);
-            assertEquals(expected, nativeSimilarity(indexSlice, queryHeapSegment, indexVectorBytes), 0f);
+            assertRejectsHeapSegments(() -> nativeSimilarity(indexSlice, queryHeapSegment, indexVectorBytes));
 
             // trivial bulk with a single vector
             float[] bulkScore = new float[1];
@@ -229,27 +229,25 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         assertScoresEquals(expectedScores, bulkScoresSeg);
     }
 
-    public void testBulkMaskedHeapSegments() {
+    public void testBulkMaskedRejectsHeapSegments() {
         assumeTrue(notSupportedMsg(), supported());
 
         final int count = randomIntBetween(1, Integer.SIZE);
         final int mask = randomBulkMask(count);
         final TestData testData = createTestData(count, size, type);
 
-        float[] expectedScores = unselectedScores(count);
-        ScalarOperations.bulkMasked(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, mask, expectedScores);
-
         float[] bulkScores = unselectedScores(count);
-        nativeSimilarityBulkMasked(
-            testData.indexSegment,
-            MemorySegment.ofArray(testData.queryVector),
-            testData.indexVectorBytes,
-            testData.indexVectorBytes,
-            mask,
-            count,
-            MemorySegment.ofArray(bulkScores)
+        assertRejectsHeapSegments(
+            () -> nativeSimilarityBulkMasked(
+                testData.indexSegment,
+                MemorySegment.ofArray(testData.queryVector),
+                testData.indexVectorBytes,
+                testData.indexVectorBytes,
+                mask,
+                count,
+                MemorySegment.ofArray(bulkScores)
+            )
         );
-        assertArrayEquals(expectedScores, bulkScores, 0f);
     }
 
     public void testBulkSparse() {

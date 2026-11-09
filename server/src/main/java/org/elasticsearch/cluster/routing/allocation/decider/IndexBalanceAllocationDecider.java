@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -118,13 +119,21 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         }
 
         // Moving a split source cancels its in-flight splits and makes its targets fail and retry until the move completes,
-        // so we don't move split sources for balance reasons until the split completes. Split targets can still be moved
-        // once started.
-        // TODO: This is a temporary workaround. The long term fix, tracked in elastic/elasticsearch-team#5680 is to make
+        // so we don't move split sources for balance reasons until all their targets reach HANDOFF. The targets no longer
+        // depend on their source after HANDOFF, and their shard-started notification triggers the reroute that rebalances
+        // the index. Split targets can still individually be moved once started.
+        // TODO: This is a temporary workaround. The long term fix, tracked in elastic/elasticsearch-team#5680, is to make
         // split targets resilient to their source relocating. Remove this filter once that is in place.
         if (shardRouting.primary()
-            && IndexReshardingMetadata.isSplitSource(shardRouting.shardId(), indexMetadata.getReshardingMetadata())) {
-            return allocation.decision(Decision.YES, NAME, "Decider is disabled for split sources of indices that are being resharded.");
+            && IndexReshardingMetadata.isSplitSource(shardRouting.shardId(), indexMetadata.getReshardingMetadata())
+            && indexMetadata.getReshardingMetadata()
+                .getSplit()
+                .allTargetStatesAtLeast(shardRouting.id(), IndexReshardingState.Split.TargetShardState.HANDOFF) == false) {
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "Decider is disabled for split sources whose targets have not reached HANDOFF yet."
+            );
         }
 
         Index index = shardRouting.index();

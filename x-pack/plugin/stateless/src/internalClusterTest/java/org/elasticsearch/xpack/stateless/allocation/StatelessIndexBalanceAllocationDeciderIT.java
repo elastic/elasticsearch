@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.allocation;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -426,17 +427,19 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
                 });
         }
 
-        // Record any split source that starts relocating while the index is being resharded
+        // Record any split source that starts relocating before all its targets have reached HANDOFF
         final Set<ShardId> movedSplitSources = ConcurrentCollections.newConcurrentSet();
         final ClusterStateListener splitSourceMovesRecorder = event -> {
             final var indexMetadata = event.state().metadata().getProject(ProjectId.DEFAULT).index(indexName);
             if (indexMetadata == null || indexMetadata.getReshardingMetadata() == null) {
                 return;
             }
+            final var split = indexMetadata.getReshardingMetadata().getSplit();
             final var indexRoutingTable = event.state().routingTable(ProjectId.DEFAULT).index(indexName);
             for (int shard = 0; shard < sourceShards; shard++) {
                 final var primary = indexRoutingTable.shard(shard).primaryShard();
-                if (primary.relocating()) {
+                if (primary.relocating()
+                    && split.allTargetStatesAtLeast(shard, IndexReshardingState.Split.TargetShardState.HANDOFF) == false) {
                     movedSplitSources.add(primary.shardId());
                 }
             }
@@ -465,7 +468,7 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
                             .numberOfOwningShardsForIndex(index) > expandedThreshold
                     )
             );
-            assertThat("split sources must not be moved while the split is in progress", movedSplitSources, empty());
+            assertThat("split sources must not be moved before their targets reach HANDOFF", movedSplitSources, empty());
 
             // Release the splits and let the reshard complete
             synchronized (stalledSplits) {
@@ -475,9 +478,9 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
             awaitClusterState(state -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
             ensureGreen(indexName);
 
-            assertThat("split sources must not be moved while the split is in progress", movedSplitSources, empty());
+            assertThat("split sources must not be moved before their targets reach HANDOFF", movedSplitSources, empty());
 
-            // Completing the reshard triggers a reroute, after which the index is balanced across the expanded index tier
+            // The reroute that follows the targets' shard-started balances the index across the expanded index tier
             assertIndexBalanceIsRestored(2 * sourceShards, expandedIndexNodes, indexName);
         } finally {
             masterClusterService.removeListener(splitSourceMovesRecorder);

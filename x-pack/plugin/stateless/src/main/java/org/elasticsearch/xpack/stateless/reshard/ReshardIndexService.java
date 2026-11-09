@@ -116,7 +116,7 @@ public class ReshardIndexService {
         this.transitionSourceStateQueue = clusterService.createTaskQueue(
             "transition-split-source-state",
             Priority.NORMAL,
-            new TransitionSourceStateExecutor(rerouteService)
+            new TransitionSourceStateExecutor()
         );
     }
 
@@ -850,17 +850,9 @@ public class ReshardIndexService {
         }
     }
 
-    /// Transitions the state of a split source shard. The result of each task is whether it removed the resharding metadata of the
-    /// index, which the last split source to reach `DONE` does.
-    static class TransitionSourceStateExecutor extends SimpleBatchedExecutor<TransitionSourceStateTask, Boolean> {
-        private final RerouteService rerouteService;
-
-        TransitionSourceStateExecutor(RerouteService rerouteService) {
-            this.rerouteService = rerouteService;
-        }
-
+    static class TransitionSourceStateExecutor extends SimpleBatchedExecutor<TransitionSourceStateTask, Void> {
         @Override
-        public Tuple<ClusterState, Boolean> executeTask(TransitionSourceStateTask task, ClusterState clusterState) throws Exception {
+        public Tuple<ClusterState, Void> executeTask(TransitionSourceStateTask task, ClusterState clusterState) throws Exception {
             final ShardId shardId = task.shardId();
             final Index index = shardId.getIndex();
             IndexReshardingState.Split.SourceShardState targetState = task.state;
@@ -889,7 +881,7 @@ public class ReshardIndexService {
             var currentState = reshardingMetadata.getSplit().getSourceShardState(shardId.id());
             if (currentState == targetState) {
                 // Allowed in order to allow retries.
-                return new Tuple<>(clusterState, false);
+                return new Tuple<>(clusterState, null);
             }
 
             if (currentState.ordinal() > targetState.ordinal()) {
@@ -908,7 +900,7 @@ public class ReshardIndexService {
                     assert currentState == IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP;
                     assert split.targetsDone(shardId.id()) : "can only move source shard to DONE when all targets are DONE";
                     var projectMetadata = metadataRemoveReshardingState(projectState, index);
-                    return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build(), true);
+                    return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build(), null);
                 }
             }
 
@@ -919,23 +911,13 @@ public class ReshardIndexService {
                     .reshardingMetadata(reshardingMetadata.transitionSplitSourceToNewState(shardId, task.state()))
             );
 
-            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata.build()).build(), false);
+            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata.build()).build(), null);
         }
 
         @Override
-        public void taskSucceeded(TransitionSourceStateTask task, Boolean reshardingMetadataRemoved) {
+        public void taskSucceeded(TransitionSourceStateTask task, Void unused) {
             task.listener.onResponse(null);
-            if (reshardingMetadataRemoved) {
-                // IndexBalanceAllocationDecider lets split sources remain on nodes over the index balance threshold while
-                // the index has resharding metadata. After removing it, reroute to rebalance the index.
-                rerouteService.reroute("reroute after completing a resharding operation", Priority.NORMAL, rerouteListener);
-            }
         }
-
-        private static final ActionListener<Void> rerouteListener = ActionListener.wrap(
-            r -> logger.debug("reroute after completing a resharding operation succeeded"),
-            e -> logger.warn("reroute after completing a resharding operation failed", e)
-        );
     }
 
     // Perhaps this should be closeable to fail tasks at shutdown time. Currently I'm assuming

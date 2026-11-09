@@ -108,11 +108,13 @@ public class DownsampleResilienceIT extends DownsamplingIntegTestCase {
         final ActionFuture<AcknowledgedResponse> first = startDownsample(coordinator, TARGET);
         awaitParked(shards);
 
+        DownsampleDisruptionPlugin.parkAll(DownsampleDisruptionPlugin.persistentTaskStart());
         final ActionFuture<AcknowledgedResponse> second = startDownsample(
             randomFrom(internalCluster().getNodeNames()),
             TARGET,
             WAIT_TIMEOUT
         );
+        awaitParked(2 * shards);
         DownsampleDisruptionPlugin.release();
         assertDownsampleSucceeds(first);
         try {

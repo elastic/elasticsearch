@@ -124,17 +124,13 @@ public class IpFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> indexed;
         private final DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
 
         private final Parameter<Boolean> ignoreMalformed;
-        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
-            .acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
-            m -> toType(m).builderParams.onScriptError(),
-            script
-        );
+        private final Parameter<Script> script = Parameter.scriptParam();
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(script);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Boolean> dimension;
@@ -148,12 +144,7 @@ public class IpFieldMapper extends FieldMapper {
             super(name);
             this.indexSettings = indexSettings;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
-            this.ignoreMalformed = Parameter.boolParam(
-                "ignore_malformed",
-                true,
-                m -> toType(m).ignoreMalformed,
-                IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
-            );
+            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings()));
             this.script.precludesParameters(nullValue, ignoreMalformed);
 
             this.docValuesParameters = DocValuesParameter.of(
@@ -162,12 +153,11 @@ public class IpFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
 
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.dimension = TimeSeriesParams.dimensionParam(() -> docValuesParameters.get().enabled());
+            this.indexed = Parameter.indexParam(indexSettings, dimension);
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
         }
 
@@ -797,9 +787,7 @@ public class IpFieldMapper extends FieldMapper {
     private final String nullValueAsString;
 
     private final IndexSettings indexSettings;
-    private final Script script;
     private final FieldValues<InetAddress> scriptValues;
-    private final ScriptCompiler scriptCompiler;
 
     private final String offsetsFieldName;
 
@@ -823,9 +811,7 @@ public class IpFieldMapper extends FieldMapper {
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();
         this.nullValueAsString = builder.nullValue.getValue();
-        this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
-        this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
         this.writeDimensionRouting = this.dimension
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
@@ -1208,11 +1194,6 @@ public class IpFieldMapper extends FieldMapper {
             doc,
             value -> indexValue(documentParserContext, new ESInetAddressPoint(fieldType().name(), value))
         );
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, indexSettings).dimension(dimension).init(this);
     }
 
     @Override

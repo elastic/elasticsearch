@@ -74,7 +74,7 @@ public class Increase extends TimeSeriesAggregateFunction
         .extendedDescription(PromqlFunctionDefinition.COUNTER_RATE_BEHAVIOR)
         .example("increase(http_requests_total[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.RATE_INCREASE_NOTE)
+        .stdDivergence(PromqlFunctionDefinition.RATE_INCREASE_NOTE)
         .name("increase");
 
     private final Expression timestamp;

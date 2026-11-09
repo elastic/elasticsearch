@@ -16,7 +16,9 @@ import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAct
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -28,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -37,6 +40,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -143,6 +147,37 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
             FailureStoreMetrics.ErrorLocation.PIPELINE
         );
         assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
+    }
+
+    /**
+     * Capacity failures in a pipeline are never redirected to the failure store, so that the client sees and retries them. Whether or not
+     * the failure store is enabled, they are counted as rejected.
+     */
+    public void testCapacityFailingPipeline() throws IOException {
+        final boolean failureStore = randomBoolean();
+        putComposableIndexTemplate(failureStore);
+        createDataStream();
+        createBasicPipeline("reject");
+
+        int nrOfSuccessfulDocs = randomIntBetween(5, 10);
+        indexDocs(dataStream, nrOfSuccessfulDocs, null);
+        int nrOfFailingDocs = randomIntBetween(5, 10);
+        BulkResponse response = indexDocs(dataStream, nrOfFailingDocs, "1", pipeline);
+        for (BulkItemResponse item : response.getItems()) {
+            assertTrue(item.isFailed());
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, item.status());
+        }
+
+        var measurements = collectTelemetry();
+        assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), nrOfSuccessfulDocs + nrOfFailingDocs, dataStream);
+        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
+        assertMeasurements(
+            measurements.get(FailureStoreMetrics.METRIC_REJECTED),
+            nrOfFailingDocs,
+            dataStream,
+            FailureStoreMetrics.ErrorLocation.PIPELINE,
+            false
+        );
     }
 
     public void testShardFailureNoFailureStore() throws IOException {
@@ -324,7 +359,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         indexDocs(dataStream, numDocs, "1", pipeline);
     }
 
-    private void indexDocs(String dataStream, int numDocs, String value, String pipeline) {
+    private BulkResponse indexDocs(String dataStream, int numDocs, String value, String pipeline) {
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numDocs; i++) {
             String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
@@ -334,7 +369,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
                     .setPipeline(pipeline)
             );
         }
-        client().bulk(bulkRequest).actionGet();
+        return client().bulk(bulkRequest).actionGet();
     }
 
     private static Map<String, List<Measurement>> collectTelemetry() {
@@ -421,6 +456,15 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
                     "fail",
                     description,
                     new RuntimeException()
+                )
+            );
+            processors.put(
+                "reject",
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(
+                    tag,
+                    "reject",
+                    description,
+                    new EsRejectedExecutionException("rejected for testing", false)
                 )
             );
             return processors;

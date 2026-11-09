@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -25,6 +26,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class DateProcessorFactoryTests extends ESTestCase {
 
@@ -43,8 +45,8 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         DateProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo(sourceField));
-        assertThat(processor.getTargetField(), equalTo(DateProcessor.DEFAULT_TARGET_FIELD));
+        assertThat(processor.getField(), hasToString(sourceField));
+        assertThat(processor.getTargetField(), hasToString(DateProcessor.DEFAULT_TARGET_FIELD));
         assertThat(processor.getFormats(), equalTo(List.of("dd/MM/yyyyy")));
         assertThat(processor.getTimezone(null), equalTo(ZoneOffset.UTC));
         assertThat(processor.getLocale(null), equalTo(Locale.ENGLISH));
@@ -138,7 +140,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("formats", List.of("dd/MM/yyyy", "dd-MM-yyyy"));
 
         DateProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getTargetField(), equalTo(targetField));
+        assertThat(processor.getTargetField(), hasToString(targetField));
     }
 
     public void testParseOutputFormat() throws Exception {
@@ -177,5 +179,36 @@ public class DateProcessorFactoryTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> factory.create(null, null, null, config, null));
         assertThat(e.getMessage(), containsString("invalid output format [" + outputFormat + "]"));
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testCreateWithMalformedField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "a..b");
+        config.put("formats", List.of("ISO8601"));
+        DateProcessor processor = factory.create(null, randomAlphaOfLength(10), null, config, null);
+        assertThat(processor.getField(), hasToString("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    public void testCreateWithMalformedTargetField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "source");
+        config.put("target_field", "a..b");
+        config.put("formats", List.of("ISO8601"));
+        DateProcessor processor = factory.create(null, randomAlphaOfLength(10), null, config, null);
+        assertThat(processor.getTargetField(), hasToString("a..b"));
+
+        // the source is fine, so it is the target that causes the failure
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("source", "2010-01-01T00:00:00.000Z");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

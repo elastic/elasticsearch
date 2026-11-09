@@ -13,6 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -107,7 +108,7 @@ public class IndexResolverSingleValuedTests extends ESTestCase {
     private static FieldCapabilitiesIndexResponse index(String name, IndexFieldCapabilities... fields) {
         Map<String, IndexFieldCapabilities> byName = new HashMap<>();
         Arrays.stream(fields).forEach(f -> byName.put(f.name(), f));
-        return new FieldCapabilitiesIndexResponse(name, name, byName, true, IndexMode.STANDARD, 1, 1L, 1L);
+        return new FieldCapabilitiesIndexResponse(name, name, byName, true, IndexMode.STANDARD, 1, IndexVersion.current().id(), 1L, 1L);
     }
 
     private static EsIndex resolve(boolean trackUnmappedFieldIndices, FieldCapabilitiesIndexResponse... indices) {

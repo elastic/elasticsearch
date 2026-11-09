@@ -31,8 +31,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * One query's directory. Operations count themselves as pending while they run on the I/O pool; cancellation makes
  * every later cancellable operation fail at its start, and the close waits for the pending ones, then deletes the
  * directory and returns the bytes of its files, those it could not delete going into the store's cleanup debt. A close
- * whose task the pool refused leaves the scope registered, so that the next close, the shutdown's at the latest, tries
- * again.
+ * the pool refuses runs on the closer's thread, since nothing of the scope is pending by then; one whose listing of
+ * the directory failed leaves the scope registered, so that the next close, the shutdown's at the latest, tries again.
  */
 final class DiskSpillScope implements SpillScope {
 
@@ -90,7 +90,7 @@ final class DiskSpillScope implements SpillScope {
             listener.onFailure(new IllegalStateException("spill scope [" + queryId + "] is closed"));
             return;
         }
-        run(listener, () -> {
+        store.onIo(counted(listener), () -> {
             if (cancelled) {
                 throw new TaskCancelledException("spill scope [" + queryId + "] cancelled");
             }
@@ -99,19 +99,23 @@ final class DiskSpillScope implements SpillScope {
     }
 
     /**
-     * Runs a cleanup operation on the I/O pool, counted as pending so that the close waits for it, never refused and
-     * never cancelled: abort, delete and the closing of a reader's channel.
+     * Runs a cleanup operation on the I/O pool, or on the caller's thread when the pool refuses it, counted as pending
+     * so that the close waits for it, never refused and never cancelled: abort, delete and the closing of a reader's
+     * channel.
      */
     <T> void ioUncancellable(ActionListener<T> listener, CheckedSupplier<T, Exception> work) {
-        run(listener, work);
+        store.onIoOrInline(counted(listener), work);
     }
 
-    private <T> void run(ActionListener<T> listener, CheckedSupplier<T, Exception> work) {
+    /**
+     * Counts an operation as pending until its listener has completed, when a waiting close may start.
+     */
+    private <T> ActionListener<T> counted(ActionListener<T> listener) {
         pending.incrementAndGet();
-        store.onIo(ActionListener.runAfter(listener, () -> {
+        return ActionListener.runAfter(listener, () -> {
             pending.decrementAndGet();
             maybeStartClose();
-        }), work);
+        });
     }
 
     @Override
@@ -172,7 +176,8 @@ final class DiskSpillScope implements SpillScope {
             closeStarted = true;
             outcome = closeOutcome;
         }
-        store.onIo(new ActionListener<Void>() {
+        // inline when the pool refuses it: nothing is pending, so the discards and the delete are all bounded work
+        store.onIoOrInline(new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
                 // the store drops the scope and retries its cleanup debt before the close is reported, so a caller that
@@ -183,9 +188,9 @@ final class DiskSpillScope implements SpillScope {
 
             @Override
             public void onFailure(Exception e) {
-                // the pool refused the task, or listing the directory failed: the files and their bytes stay, and the
-                // scope stays registered so that a later close, the shutdown's at the latest, tries again with a fresh
-                // outcome; the discards it repeats are idempotent
+                // listing the directory failed: the files and their bytes stay, and the scope stays registered so that
+                // a later close, the shutdown's at the latest, tries again with a fresh outcome; the discards it
+                // repeats are idempotent
                 synchronized (DiskSpillScope.this) {
                     closeStarted = false;
                     closeOutcome = null;

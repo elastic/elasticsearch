@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -73,7 +72,7 @@ public final class MemorySpillStore implements SpillStore {
 
     private final Object heldLock = new Object();
     private final Deque<Runnable> held = new ArrayDeque<>();
-    private final Map<String, MemoryScope> scopes = new ConcurrentHashMap<>();
+    private final Set<MemoryScope> scopes = ConcurrentHashMap.newKeySet();
     private final AtomicLong bytesInUse = new AtomicLong();
     private final AtomicInteger pending = new AtomicInteger();
     private final AtomicInteger liveReaders = new AtomicInteger();
@@ -213,9 +212,7 @@ public final class MemorySpillStore implements SpillStore {
             throw new IllegalStateException("store is shut down");
         }
         MemoryScope scope = new MemoryScope(queryId, breaker);
-        if (scopes.putIfAbsent(queryId, scope) != null) {
-            throw new IllegalArgumentException("scope [" + queryId + "] exists");
-        }
+        scopes.add(scope);
         return scope;
     }
 
@@ -232,7 +229,7 @@ public final class MemorySpillStore implements SpillStore {
     @Override
     public void shutdown(ActionListener<Void> listener) {
         shutdown = true;
-        List<MemoryScope> open = new ArrayList<>(scopes.values());
+        List<MemoryScope> open = new ArrayList<>(scopes);
         if (open.isEmpty()) {
             deliver(null, "shutdown", Outcome.success(null), null, null, listener);
             return;
@@ -434,7 +431,7 @@ public final class MemorySpillStore implements SpillStore {
             for (MemoryObject object : toDelete) {
                 object.discard();
             }
-            scopes.remove(id);
+            scopes.remove(this);
             deliver(null, "close", Outcome.success(null), null, null, outcome);
         }
 

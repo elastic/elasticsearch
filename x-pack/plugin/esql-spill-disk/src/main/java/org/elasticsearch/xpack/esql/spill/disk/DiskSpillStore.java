@@ -31,7 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -40,12 +40,13 @@ import java.util.function.Consumer;
 
 /**
  * Runs as files under {@code <path>/<node id>}, one directory per query scope, swept clean when the store starts
- * since no query survives a restart. Admission is a cap on bytes held, reserved ones counted the moment an append is
- * accepted and committed ones once it is written, with a free-space margin checked on the file store every few
- * megabytes, so a full volume fails the query rather than the node. Deletion never returns quota for a file that
- * remains: a failed delete goes into a cleanup debt that the next scope close and the shutdown retry. Every filesystem
- * operation, data and metadata alike, runs on the spill I/O pool; the one exception is the sizing of the file store at
- * start, done once before the store exists.
+ * since no query survives a restart. Admission is a cap on bytes held, counted from the moment an append is accepted
+ * until the file it went to is gone, with a free-space margin checked on the file store every few megabytes, so a full
+ * volume fails the query rather than the node. Deletion never returns quota for a file that remains: a failed delete
+ * goes into a cleanup debt that the next scope close and the shutdown retry. Every filesystem operation, data and
+ * metadata alike, runs on the spill I/O pool, with two exceptions: the sizing of the file store at start, done once
+ * before the store exists, and a cleanup a stopped pool refused, which runs on the caller's thread since it is the one
+ * small thing left; a full pool queues a cleanup past its limit instead.
  * <p>
  * Orphans: the sweep covers this node id's directory only. Under a configured path shared by several nodes, or after a
  * node id changed, the directories of other ids are left alone, since they may belong to a node that is running; an
@@ -60,11 +61,11 @@ public final class DiskSpillStore implements SpillStore {
     private final Path root;
     private final String capSettingName;
     private final Executor io;
-    private final AtomicLong reserved = new AtomicLong();
-    private final AtomicLong committed = new AtomicLong();
+    private final AtomicLong inUse = new AtomicLong();
     private final AtomicLong admittedSinceCheck = new AtomicLong();
     private final AtomicLong scopeCounter = new AtomicLong();
-    private final Map<String, DiskSpillScope> scopes = new ConcurrentHashMap<>();
+    // by instance: a closing scope may be succeeded by one with the same query id; the directory names carry a counter
+    private final Set<DiskSpillScope> scopes = ConcurrentHashMap.newKeySet();
     private final List<Debt> debts = new ArrayList<>();
     private volatile long capBytes;
     private volatile long freeSpaceMarginBytes;
@@ -184,9 +185,7 @@ public final class DiskSpillStore implements SpillStore {
             if (shutdown) {
                 throw new IllegalStateException("spill store is shut down");
             }
-            if (scopes.putIfAbsent(queryId, scope) != null) {
-                throw new IllegalArgumentException("spill scope [" + queryId + "] exists");
-            }
+            scopes.add(scope);
         }
         return scope;
     }
@@ -201,13 +200,13 @@ public final class DiskSpillStore implements SpillStore {
     }
 
     void scopeClosed(DiskSpillScope scope) {
-        scopes.remove(scope.queryId(), scope);
+        scopes.remove(scope);
         retryDebts();
     }
 
     @Override
     public long bytesInUse() {
-        return reserved.get() + committed.get();
+        return inUse.get();
     }
 
     @Override
@@ -232,18 +231,19 @@ public final class DiskSpillStore implements SpillStore {
     // ---- admission
 
     /**
-     * Admits {@code bytes} against the cap; they are reserved until {@link #commit} or {@link #unreserve}. Atomics only,
-     * since this runs on the caller's thread.
+     * Admits {@code bytes} against the cap; they stay counted until {@link #unreserve}, or once written, until their
+     * file is {@link #deleted}. One counter for the reserved and the written alike, so that the check and the admission
+     * are a single compare-and-set: a counter per state let a stale read of one admit past the cap. Atomics only, since
+     * this runs on the caller's thread.
      */
     void reserve(long bytes) throws SpillLimitExceededException {
         long cap = capBytes;
         while (true) {
-            long current = reserved.get();
-            long inUse = current + committed.get();
-            if (inUse + bytes > cap) {
-                throw new SpillLimitExceededException(capSettingName, cap, inUse, bytes);
+            long current = inUse.get();
+            if (current + bytes > cap) {
+                throw new SpillLimitExceededException(capSettingName, cap, current, bytes);
             }
-            if (reserved.compareAndSet(current, current + bytes)) {
+            if (inUse.compareAndSet(current, current + bytes)) {
                 return;
             }
         }
@@ -277,23 +277,17 @@ public final class DiskSpillStore implements SpillStore {
         }
     }
 
-    void commit(long bytes) {
-        // committed first: a concurrent reader of the two counters then over-reports, never under-reports
-        committed.addAndGet(bytes);
-        reserved.addAndGet(-bytes);
-    }
-
     void unreserve(long bytes) {
-        reserved.addAndGet(-bytes);
+        inUse.addAndGet(-bytes);
     }
 
     /**
-     * Returns committed bytes once their file is gone; a file that remains, {@code failure} saying why, keeps its bytes
-     * counted and goes into the debt.
+     * Returns a file's bytes once it is gone; a file that remains, {@code failure} saying why, keeps its bytes counted
+     * and goes into the debt.
      */
     void deleted(Path path, long bytes, @Nullable IOException failure) {
         if (failure == null) {
-            committed.addAndGet(-bytes);
+            inUse.addAndGet(-bytes);
             return;
         }
         synchronized (debts) {
@@ -319,7 +313,7 @@ public final class DiskSpillStore implements SpillStore {
         for (Debt debt : retry) {
             try {
                 Files.deleteIfExists(debt.path);
-                committed.addAndGet(-debt.bytes);
+                inUse.addAndGet(-debt.bytes);
             } catch (IOException e) {
                 synchronized (debts) {
                     debts.add(debt);
@@ -343,14 +337,50 @@ public final class DiskSpillStore implements SpillStore {
         }
     }
 
+    /**
+     * Like {@link #onIo}, for a bounded cleanup, which the pool must not drop: a full pool queues it past its limit,
+     * since the task asks for forced execution, and a stopped pool, the one that still refuses it, has it run on the
+     * caller's thread instead of failing, since nothing else would ever run it and what it leaves behind, a channel or
+     * the files of a scope, nobody tracks any more.
+     */
+    <T> void onIoOrInline(ActionListener<T> listener, CheckedSupplier<T, Exception> work) {
+        ActionRunnable<T> task = new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() throws Exception {
+                listener.onResponse(work.get());
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                // a full pool queues the task past its limit rather than rejecting it; only a stopped pool refuses it
+                return true;
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // run rather than doRun: a failure of the work itself still reaches the listener. An Elasticsearch pool
+                // calls onRejection and then onAfter, and run calls onAfter once more, which is harmless since neither
+                // ActionRunnable nor this task overrides it
+                run();
+            }
+        };
+        try {
+            io.execute(task);
+        } catch (RejectedExecutionException e) {
+            // an Elasticsearch pool routes a rejection to onRejection itself; a plain executor throws it here
+            task.onRejection(e);
+        }
+    }
+
     @Override
     public void shutdown(ActionListener<Void> listener) {
         List<DiskSpillScope> open;
         synchronized (scopes) {
             shutdown = true;
-            open = new ArrayList<>(scopes.values());
+            open = new ArrayList<>(scopes);
         }
-        Consumer<ActionListener<Void>> finish = l -> onIo(l, () -> {
+        // inline when the pool refuses it: after the shutdown nothing else retries the debt
+        Consumer<ActionListener<Void>> finish = l -> onIoOrInline(l, () -> {
             retryDebts();
             return null;
         });

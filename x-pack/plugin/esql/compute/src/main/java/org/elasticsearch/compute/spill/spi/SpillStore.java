@@ -16,9 +16,11 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 public interface SpillStore {
 
     /**
-     * A new scope for one query on this node. Synchronous; throws for a duplicate id and after shutdown.
+     * A new scope for one query on this node. Synchronous; throws after shutdown.
      *
-     * @param queryId for diagnostics and naming; unique on the node while the scope lives
+     * @param queryId names the scope and its files, for diagnostics; not a key: a scope that is closing may be
+     *                succeeded by one with the same id, since a query's next request on this node does not wait for
+     *                the last one's files to be gone, so a backend tells its scopes apart by instance
      * @param breaker where the backend charges its own buffers, so that they are visible to the breaker; the bytes it
      *                stores are its own numbers, read through {@link #bytesInUse()}, never the breaker's
      */

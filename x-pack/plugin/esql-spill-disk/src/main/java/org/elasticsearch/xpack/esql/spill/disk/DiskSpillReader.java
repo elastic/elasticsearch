@@ -44,6 +44,13 @@ final class DiskSpillReader implements SpillReader {
         this.breaker = breaker;
     }
 
+    /**
+     * The channel, for tests that check a close let go of it.
+     */
+    FileChannel channel() {
+        return channel;
+    }
+
     @Override
     public void read(int maxBytes, ActionListener<SpillRead> listener) {
         final int length;

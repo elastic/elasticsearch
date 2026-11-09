@@ -26,10 +26,10 @@ import java.nio.file.Path;
 /**
  * One file, written sequentially with one append outstanding. The chunk is admitted against the cap before the I/O is
  * scheduled, the free-space margin is checked on the pool right before the write, the chunk is written page by page
- * from the engine's buffers without a copy, and its bytes move from reserved to committed when the write is done; the
- * backend's reference to the chunk goes before the callback. A failure poisons the writer; abort deletes the file and
- * returns everything, and when it finds an append in flight it leaves the file to that append's completion, which
- * removes it, so that no byte is committed to a file nobody tracks.
+ * from the engine's buffers without a copy, and its bytes stay counted until the file is gone; the backend's reference
+ * to the chunk goes before the callback. A failure poisons the writer; abort deletes the file and returns everything,
+ * and when it finds an append in flight it leaves the file to that append's completion, which removes it, so that no
+ * byte stays counted for a file nobody tracks.
  */
 final class DiskSpillWriter implements SpillWriter {
 
@@ -104,7 +104,6 @@ final class DiskSpillWriter implements SpillWriter {
                         size = 0;
                     }
                 }
-                scope.store().commit(length);
                 scope.addBytes(length);
                 if (aborted) {
                     // the abort found this append in flight and left the file to it; this runs on the I/O pool
@@ -134,7 +133,7 @@ final class DiskSpillWriter implements SpillWriter {
                     }
                 }
                 if (aborted) {
-                    // the chunk's bytes were never committed; the file goes with whatever the failed write left in it.
+                    // the chunk's bytes are returned above; the file goes with whatever the failed write left in it.
                     // This runs on the I/O pool, except after a rejection, when the cleanup is the one small thing left
                     removeFile(size);
                 }

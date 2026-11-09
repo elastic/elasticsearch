@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.Maps;
@@ -47,17 +48,16 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
@@ -65,9 +65,9 @@ import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 /**
  * Looks after batching-up the start of a collection of snapshot deletions in a single repository.
  * <p>
- * Cannot just use a {@link MasterServiceTaskQueue} directly because it needs the latest {@link RepositoryData} to compute the cluster state
- * update, so this value must be included in the {@link ClusterStateTaskExecutor.BatchExecutionContext}, and the tasks must all be retried
- * if the {@link RepositoryData} changes before the batch executes.
+ * Each submission first loads {@link RepositoryData} asynchronously, then joins a {@link MasterServiceTaskQueue}. Queued tasks share the
+ * latest available data rather than retaining a separate instance per submission. Tasks must be retried if the repository metadata changes
+ * before they execute.
  */
 final class SnapshotDeletionStartBatcher {
 
@@ -82,7 +82,7 @@ final class SnapshotDeletionStartBatcher {
     private final ItemCompletionHandler subscribeToPendingDelete;
     private final DeleteTaskSubmitter deleteTaskSubmitter;
     private final String queueName;
-    private final MasterServiceTaskQueue<Batch> snapshotDeletionBatchTaskQueue;
+    private final MasterServiceTaskQueue<SnapshotDeletionsItem> snapshotDeletionBatchTaskQueue;
     private final ExecutorService snapshotExecutor;
     private final RestoreSourceProtection restoreSourceProtection;
 
@@ -143,7 +143,7 @@ final class SnapshotDeletionStartBatcher {
     /**
      * A single snapshot deletion request, to be added to the cluster state's {@link SnapshotDeletionsInProgress}.
      */
-    private static final class SnapshotDeletionsItem {
+    private final class SnapshotDeletionsItem implements ClusterStateTaskListener {
 
         /**
          * Snapshot names and patterns from the original request.
@@ -185,18 +185,13 @@ final class SnapshotDeletionStartBatcher {
             this.timeoutRefs = timeoutRefs;
             this.listener = listener;
         }
+
+        @Override
+        public void onFailure(Exception e) {
+            releaseRepositoryData(1);
+            listener.onFailure(e);
+        }
     }
-
-    /**
-     * Queue of deletions waiting to be added to the cluster state.
-     */
-    private final ArrayDeque<SnapshotDeletionsItem> snapshotDeletionsItems = new ArrayDeque<>();
-
-    /**
-     * Number of entries in {@link #snapshotDeletionsItems} ready to be processed. Includes timed-out entries and entries waiting
-     * to retry.
-     */
-    private final AtomicInteger snapshotDeletionForBatchingCount = new AtomicInteger();
 
     /**
      * Adjust the cluster state to (effectively) enqueue some snapshot deletions and then (if possible) process them.
@@ -225,33 +220,12 @@ final class SnapshotDeletionStartBatcher {
             wrappedListener.addListener(ActionListener.running(cancellable::cancel));
         }
 
-        synchronized (snapshotDeletionsItems) {
-            snapshotDeletionsItems.addLast(new SnapshotDeletionsItem(snapshots, waitForCompletion, timeoutRefs, wrappedListener));
-        }
-        if (snapshotDeletionForBatchingCount.getAndIncrement() == 0) {
-            runQueueProcessor();
-        }
+        submitBatch(Iterators.single(new SnapshotDeletionsItem(snapshots, waitForCompletion, timeoutRefs, wrappedListener)));
     }
 
-    private void runQueueProcessor() {
-        final var batch = new SnapshotDeletionsItem[snapshotDeletionForBatchingCount.get()];
-        logger.trace("runQueueProcessor: processing batch of size [{}]", batch.length);
-        assert batch.length > 0; // implies that this is single-threaded
-        synchronized (snapshotDeletionsItems) {
-            int i = 0;
-            for (var snapshotDeletionForBatching : snapshotDeletionsItems) {
-                // do not pull items from queue yet, we may need to retry if the RepositoryData changes
-                batch[i++] = snapshotDeletionForBatching;
-                if (i == batch.length) {
-                    break;
-                }
-            }
-            assert i == batch.length;
-        }
-
+    private void submitBatch(Iterator<SnapshotDeletionsItem> batch) {
         final Repository repository;
         final RepositoryMetadata repositoryMetadata;
-
         try {
             repository = repositoriesService.repository(projectId, repositoryName);
             repositoryMetadata = repository.getMetadata();
@@ -263,11 +237,10 @@ final class SnapshotDeletionStartBatcher {
         repository.getRepositoryData(snapshotExecutor, new ActionListener<>() {
             @Override
             public void onResponse(RepositoryData repositoryData) {
-                snapshotDeletionBatchTaskQueue.submitTask(
-                    queueName + "[" + batch.length + "]",
-                    new Batch(batch, repositoryMetadata, repositoryData),
-                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
-                );
+                while (batch.hasNext()) {
+                    acquireRepositoryData(repositoryData, repositoryMetadata);
+                    snapshotDeletionBatchTaskQueue.submitTask(queueName, batch.next(), MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT);
+                }
             }
 
             @Override
@@ -277,33 +250,9 @@ final class SnapshotDeletionStartBatcher {
         });
     }
 
-    private void completeBatch(int batchSize) {
-        synchronized (snapshotDeletionsItems) {
-            for (int i = 0; i < batchSize; i++) {
-                final var item = snapshotDeletionsItems.pollFirst();
-                assert item != null;
-                assert item.timeoutRefs.hasReferences() == false || item.listener.isDone() || item.waitForCompletion;
-            }
-        }
-        if (snapshotDeletionForBatchingCount.addAndGet(-batchSize) > 0) {
-            snapshotExecutor.execute(this::runQueueProcessor);
-        }
-    }
-
-    private void failBatch(SnapshotDeletionsItem[] batch, Exception e) {
-        synchronized (snapshotDeletionsItems) {
-            for (var item : batch) {
-                final var fromQueue = snapshotDeletionsItems.removeFirst();
-                assert fromQueue == item;
-            }
-        }
-
-        for (var item : batch) {
-            item.listener.onFailure(e); // NB outside mutex
-        }
-
-        if (snapshotDeletionForBatchingCount.addAndGet(-batch.length) > 0) {
-            snapshotExecutor.execute(this::runQueueProcessor);
+    private void failBatch(Iterator<SnapshotDeletionsItem> batch, Exception e) {
+        while (batch.hasNext()) {
+            batch.next().listener.onFailure(e);
         }
     }
 
@@ -313,7 +262,7 @@ final class SnapshotDeletionStartBatcher {
      * on which the item eventually needs to wait.
      */
     private Set<SnapshotId> resolveSnapshotIdsAndItemCompletionHandlers(
-        SnapshotDeletionsItem[] batch,
+        List<? extends ClusterStateTaskExecutor.TaskContext<SnapshotDeletionsItem>> snapshotDeletionsItems,
         ClusterState initialState,
         List<SnapshotsInProgress.Entry> repoSnapshotsInProgress,
         RepositoryData repositoryData,
@@ -489,61 +438,98 @@ final class SnapshotDeletionStartBatcher {
                 }
                 return null;
             }
+
+            void resolveAndSetItemCompletionHandler(SnapshotDeletionsItem item) {
+                item.itemCompletionHandler = resolveItemAndAddSnapshotIds(item);
+            }
         }
 
         final var itemCompletionHandlerResolver = new ItemCompletionHandlerResolver();
-        for (final var item : batch) {
-            item.itemCompletionHandler = itemCompletionHandlerResolver.resolveItemAndAddSnapshotIds(item);
+        for (var taskContext : snapshotDeletionsItems) {
+            itemCompletionHandlerResolver.resolveAndSetItemCompletionHandler(taskContext.getTask());
         }
         return snapshotIds;
     }
 
-    /**
-     * A cluster-state update task for a batch of snapshot deletions. Executed by {@link Executor}.
-     */
-    private final class Batch implements ClusterStateTaskListener {
-        final SnapshotDeletionsItem[] batch;
-        final RepositoryMetadata repositoryMetadata;
-        final RepositoryData repositoryData;
-        // TODO could we discard the repositoryData eagerly if repositoryMetadata changes to release that memory sooner?
+    // Batcher maintains a cache of the latest `RepositoryData`, captured and refreshed when tasks are submitted, as long as there is at
+    // least one task in flight.
 
-        Batch(SnapshotDeletionsItem[] batch, RepositoryMetadata repositoryMetadata, RepositoryData repositoryData) {
-            this.batch = batch;
-            this.repositoryMetadata = repositoryMetadata;
-            this.repositoryData = repositoryData;
+    /// Protects access to [#cachedRepositoryData], [#cachedRepositoryMetadata] and [#repositoryDataCacheReaders]
+    private final Object repositoryDataCacheMutex = new Object();
+
+    /// Counts items that have a current interest in [#cachedRepositoryData].
+    private int repositoryDataCacheReaders;
+
+    /// Repository data shared by all queued items. Replacing this value releases the previous data even while older items remain queued.
+    /// Access is guarded by [#repositoryDataCacheMutex]; cleared as soon as the last item completes publication or fails.
+    @Nullable // if no items in flight
+    private RepositoryData cachedRepositoryData;
+
+    /// Metadata under which [#cachedRepositoryData] was loaded, guarded by [#repositoryDataCacheMutex].
+    @Nullable // if no items in flight
+    private RepositoryMetadata cachedRepositoryMetadata;
+
+    /// Acquires an item's interest in the shared cache, replacing its contents if the supplied data is newer or the metadata has changed.
+    private void acquireRepositoryData(RepositoryData repositoryData, RepositoryMetadata repositoryMetadata) {
+        synchronized (repositoryDataCacheMutex) {
+            if (cachedRepositoryData == null
+                || cachedRepositoryMetadata.equals(repositoryMetadata) == false
+                || cachedRepositoryData.getGenId() <= repositoryData.getGenId()) {
+                cachedRepositoryData = repositoryData;
+                cachedRepositoryMetadata = repositoryMetadata;
+            }
+            repositoryDataCacheReaders++;
         }
+    }
 
-        @Override
-        public void onFailure(Exception e) {
-            failBatch(batch, e);
+    /// Release items' interest in the shared cache, clearing the cache if no other items have an interest in its contents.
+    private void releaseRepositoryData(int itemCount) {
+        synchronized (repositoryDataCacheMutex) {
+            assert itemCount > 0 && repositoryDataCacheReaders >= itemCount;
+            repositoryDataCacheReaders -= itemCount;
+            if (repositoryDataCacheReaders == 0) {
+                cachedRepositoryData = null;
+                cachedRepositoryMetadata = null;
+            }
         }
     }
 
     /**
      * Computes the cluster state update that adds a batch of deletions to the queue and possibly aborts some of the running snapshots.
      */
-    private class Executor implements ClusterStateTaskExecutor<Batch> {
+    private class Executor implements ClusterStateTaskExecutor<SnapshotDeletionsItem> {
         @Override
-        public ClusterState execute(BatchExecutionContext<Batch> batchExecutionContext) {
+        public ClusterState execute(BatchExecutionContext<SnapshotDeletionsItem> batchExecutionContext) {
             final var initialState = batchExecutionContext.initialState();
 
             final var projectMetadata = initialState.metadata().getProject(projectId);
             SnapshotsServiceUtils.ensureRepositoryExists(repositoryName, projectMetadata);
 
-            assert batchExecutionContext.taskContexts().size() == 1;
-            final var taskContext = batchExecutionContext.taskContexts().getFirst();
-            final var task = taskContext.getTask();
+            final var taskContexts = batchExecutionContext.taskContexts();
 
-            final var repositoryMetadata = RepositoriesMetadata.get(projectMetadata).repository(repositoryName);
+            final RepositoryData repositoryData;
+            final RepositoryMetadata expectedRepositoryMetadata;
+            synchronized (repositoryDataCacheMutex) {
+                repositoryData = Objects.requireNonNull(cachedRepositoryData);
+                expectedRepositoryMetadata = Objects.requireNonNull(cachedRepositoryMetadata);
+            }
+
+            final var actualRepositoryMetadata = RepositoriesMetadata.get(projectMetadata).repository(repositoryName);
             // Similar to SnapshotsService#executeConsistentStateUpdate: check RepositoryMetadata equality.
-            if (task.repositoryMetadata.equals(repositoryMetadata) == false) {
+            if (expectedRepositoryMetadata.equals(actualRepositoryMetadata) == false) {
+                logger.trace(
+                    "repo metadata changed: expected {} but got {}, retrying",
+                    expectedRepositoryMetadata,
+                    actualRepositoryMetadata
+                );
                 // RepositoryMetadata changed out from under us, so the RepositoryData we captured may be stale. Retry from start.
                 // NB this retry-from-start is copied from the old unbatched mechanism but seems a little drastic. It would be neater to
                 // allow updating of task.repositoryData while the task is in the queue, ideally by subscribing to repositoryData updates
-                // from the repository itself, but that kind of subscription mechanism does not exist today. If we had that, we could just
-                // use a regular master task queue to do this batching work for us.
-                logger.trace("repo metadata changed: expected {} but got {}, retrying", task.repositoryMetadata, repositoryMetadata);
-                taskContext.success(SnapshotDeletionStartBatcher.this::runQueueProcessor);
+                // from the repository itself, but that kind of subscription mechanism does not exist today.
+                batchSuccess(batchExecutionContext, () -> {
+                    releaseRepositoryData(taskContexts.size());
+                    submitBatch(Iterators.map(taskContexts.iterator(), TaskContext::getTask));
+                });
                 return initialState;
             }
 
@@ -555,17 +541,24 @@ final class SnapshotDeletionStartBatcher {
             // added to the cluster state (see SnapshotDeletionsItem#startedDeletionUuid).
             // TODO does this mean that here it's enough to check the safe generation?
 
-            final var batchCompletionHandler = new BatchCompletionHandler(initialState, task.repositoryData, task.batch);
-            taskContext.success(batchCompletionHandler);
+            final var batchCompletionHandler = new BatchCompletionHandler(
+                initialState,
+                repositoryData,
+                Iterators.map(taskContexts.iterator(), TaskContext::getTask)
+            );
+            batchSuccess(batchExecutionContext, () -> {
+                releaseRepositoryData(taskContexts.size());
+                batchCompletionHandler.onBatchCompletion();
+            });
 
             final var snapshotsInProgress = SnapshotsInProgress.get(initialState);
             final var repoSnapshotsInProgress = snapshotsInProgress.forRepo(projectId, repositoryName);
 
             final var snapshotIds = resolveSnapshotIdsAndItemCompletionHandlers(
-                task.batch,
+                taskContexts,
                 initialState,
                 repoSnapshotsInProgress,
-                task.repositoryData,
+                repositoryData,
                 batchCompletionHandler
             );
             if (snapshotIds.isEmpty()) {
@@ -647,7 +640,7 @@ final class SnapshotDeletionStartBatcher {
                 repositoryName,
                 List.copyOf(snapshotIdsRequiringCleanup),
                 threadPool.absoluteTimeInMillis(),
-                task.repositoryData.getGenId(),
+                repositoryData.getGenId(),
                 newEntryState
             );
             batchCompletionHandler.deletionUuid = newEntry.uuid();
@@ -660,6 +653,14 @@ final class SnapshotDeletionStartBatcher {
             }
 
             return SnapshotsServiceUtils.updateWithSnapshots(initialState, updatedSnapshots, deletionsInProgress.withAddedEntry(newEntry));
+        }
+
+        private void batchSuccess(BatchExecutionContext<SnapshotDeletionsItem> batchExecutionContext, Runnable onSuccess) {
+            boolean first = true;
+            for (var taskContext : batchExecutionContext.taskContexts()) {
+                taskContext.success(first ? onSuccess : () -> {});
+                first = false;
+            }
         }
 
         /**
@@ -700,14 +701,12 @@ final class SnapshotDeletionStartBatcher {
         }
 
         @Override
-        public String describeTasks(List<Batch> tasks) {
+        public String describeTasks(List<SnapshotDeletionsItem> tasks) {
             final var output = new StringBuilder();
             final var collector = new Strings.BoundedDelimitedStringCollector(output, ", ", 1024);
-            for (var task : tasks) {
-                for (var item : task.batch) {
-                    for (var snapshot : item.snapshots) {
-                        collector.appendItem("[" + snapshot + "]");
-                    }
+            for (var item : tasks) {
+                for (var snapshot : item.snapshots) {
+                    collector.appendItem("[" + snapshot + "]");
                 }
             }
             collector.finish();
@@ -718,13 +717,13 @@ final class SnapshotDeletionStartBatcher {
     /**
      * Collects up the tasks (completing listeners and triggering follow-ups) to execute when/if the add-deletions update succeeds.
      */
-    private class BatchCompletionHandler implements Runnable {
+    private class BatchCompletionHandler {
 
         private final Metadata metadata;
 
         private final RepositoryData repositoryData;
 
-        private final SnapshotDeletionsItem[] batch;
+        private final Iterator<SnapshotDeletionsItem> batch;
 
         private final IndexVersion maxDataNodeCompatibleIndexVersion;
 
@@ -756,15 +755,14 @@ final class SnapshotDeletionStartBatcher {
         @Nullable
         String deletionUuid;
 
-        BatchCompletionHandler(ClusterState clusterState, RepositoryData repositoryData, SnapshotDeletionsItem[] batch) {
+        BatchCompletionHandler(ClusterState clusterState, RepositoryData repositoryData, Iterator<SnapshotDeletionsItem> batch) {
             this.metadata = clusterState.metadata();
             this.maxDataNodeCompatibleIndexVersion = clusterState.nodes().getMaxDataNodeCompatibleIndexVersion();
             this.repositoryData = repositoryData;
             this.batch = batch;
         }
 
-        @Override
-        public void run() {
+        public void onBatchCompletion() {
             if (finalLogBuilderStarted) {
                 finalLogCollector.finish();
                 finalLogBuilder.append("] from repository ").append(projectRepoString(projectId, repositoryName));
@@ -792,15 +790,14 @@ final class SnapshotDeletionStartBatcher {
                 );
             }
 
-            for (var item : batch) {
+            while (batch.hasNext()) {
+                final var item = batch.next();
                 assert item.itemCompletionHandler != null;
                 item.itemCompletionHandler.onCompletion(
                     item.startedDeletionUuid != null ? item.startedDeletionUuid : deletionUuid,
                     item.listener
                 );
             }
-
-            completeBatch(batch.length);
         }
 
         void appendToFinalLog(String[] snapshots) {

@@ -10,7 +10,6 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
@@ -81,10 +80,12 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -109,6 +110,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SnapshotDeletionStartBatcherTests extends ESTestCase {
@@ -832,15 +834,12 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
         assertThat(startedDeletions, hasSize(1));
 
         final var deletionsInProgress = SnapshotDeletionsInProgress.get(clusterService.state());
-        assertThat(deletionsInProgress.getEntries(), hasSize(2));
+        assertThat(deletionsInProgress.getEntries(), hasSize(1));
         final var startedDeletionEntry = deletionsInProgress.getEntries().getFirst();
         assertEquals(STARTED, startedDeletionEntry.state());
-        final var waitingDeletionEntry = deletionsInProgress.getEntries().getLast();
-        assertEquals(WAITING, waitingDeletionEntry.state());
-        assertThat(startedDeletionEntry.snapshots(), contains(snapshots[0].getSnapshotId()));
-        assertThat(waitingDeletionEntry.snapshots(), containsInAnyOrder(snapshots[1].getSnapshotId(), snapshots[2].getSnapshotId()));
+        assertThat(startedDeletionEntry.snapshots(), containsInAnyOrder(Arrays.stream(snapshots).map(Snapshot::getSnapshotId).toArray()));
 
-        final var deletionUuids = Set.of(startedDeletionEntry.uuid(), waitingDeletionEntry.uuid());
+        final var deletionUuids = Set.of(startedDeletionEntry.uuid());
         assertThat(completionHandlers.keySet(), equalTo(deletionUuids));
 
         final var listeners = deletionUuids.stream()
@@ -851,6 +850,84 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
         listeners.forEach(l -> l.onResponse(null));
         futures.forEach(l -> assertTrue(l.isDone()));
         futures.forEach(ESTestCase::safeAwait);
+    }
+
+    public void testUsesLatestRepositoryDataForAllBatches() {
+        final var repository = asInstanceOf(TestRepository.class, repositoriesService.repository(ProjectId.DEFAULT, repoName));
+        repository.repositoryDataListener = SubscribableListener.newSucceeded(RepositoryData.EMPTY.withGenId(0));
+        final var reachabilityChecker = new ReachabilityChecker();
+        reachabilityChecker.register(safeAwait(repository.repositoryDataListener));
+
+        final var snapshot = randomSnapshot();
+        // This request cannot resolve its target using the data available at submission time.
+        final var first = startDeletionNoWait(snapshot.getSnapshotId().getName());
+        addCompleteSnapshot(snapshot);
+        final var second = startDeletionNoWait(snapshot.getSnapshotId().getName());
+
+        assertThat(clusterService.getMasterService().pendingTasks(), hasSize(2));
+        reachabilityChecker.ensureUnreachable();
+        reachabilityChecker.register(safeAwait(repository.repositoryDataListener));
+        repository.repositoryDataListener = SubscribableListener.newSucceeded(RepositoryData.EMPTY);
+        reachabilityChecker.checkReachable();
+
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertTrue(first.isSuccess());
+        assertTrue(second.isSuccess());
+        assertThat(startedDeletions, hasSize(1));
+        assertThat(startedDeletions.getFirst().snapshots(), contains(snapshot.getSnapshotId()));
+        reachabilityChecker.ensureUnreachable();
+    }
+
+    public void testOlderResponseDoesNotReplaceLatestRepositoryData() {
+        final var snapshot = randomSnapshot();
+        addCompleteSnapshot(snapshot);
+        final var repository = asInstanceOf(TestRepository.class, repositoriesService.repository(ProjectId.DEFAULT, repoName));
+        final var latestData = safeAwait(repository.repositoryDataListener).withGenId(2);
+        final var olderResponse = new SubscribableListener<RepositoryData>();
+        repository.repositoryDataListener = olderResponse;
+        final var first = startDeletionNoWait(snapshot.getSnapshotId().getName());
+        final var newerResponse = new SubscribableListener<RepositoryData>();
+        repository.repositoryDataListener = newerResponse;
+        final var second = startDeletionNoWait(snapshot.getSnapshotId().getName());
+        newerResponse.onResponse(latestData);
+        olderResponse.onResponse(RepositoryData.EMPTY.withGenId(1));
+
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertTrue(first.isSuccess());
+        assertTrue(second.isSuccess());
+        assertThat(startedDeletions, hasSize(1));
+        assertThat(startedDeletions.getFirst().snapshots(), contains(snapshot.getSnapshotId()));
+        assertEquals(2L, startedDeletions.getFirst().repositoryStateId());
+    }
+
+    public void testReleasesRepositoryDataOnFailure() {
+        final var repository = asInstanceOf(TestRepository.class, repositoriesService.repository(ProjectId.DEFAULT, repoName));
+        final var snapshot = randomSnapshot();
+        addCompleteSnapshot(snapshot);
+        final var reachabilityChecker = new ReachabilityChecker();
+        reachabilityChecker.register(safeAwait(repository.repositoryDataListener));
+        final var first = startDeletionNoWait(snapshot.getSnapshotId().getName());
+        final var second = startDeletionNoWait(snapshot.getSnapshotId().getName());
+        repository.repositoryDataListener = SubscribableListener.newSucceeded(RepositoryData.EMPTY);
+        if (randomBoolean()) {
+            clusterService.getMasterService().setClusterStatePublisher((event, listener, ackListener) -> {
+                listener.onFailure(new NotMasterException("simulated publication failure"));
+            });
+        } else {
+            // Failure before the executor takes the shared repository data must release it too.
+            clusterService.getMasterService()
+                .setClusterStateSupplier(
+                    () -> ClusterState.builder(clusterService.state())
+                        .nodes(DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null))
+                        .build()
+                );
+        }
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertTrue(first.isDone());
+        assertTrue(second.isDone());
+        assertThat(safeAwaitFailure(first), instanceOf(NotMasterException.class));
+        assertThat(safeAwaitFailure(second), instanceOf(NotMasterException.class));
+        reachabilityChecker.ensureUnreachable();
     }
 
     public void testRepositoryDataFailure() {
@@ -897,7 +974,6 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
                         allOf(
                             startsWith("snapshot-deletion-start[default/"),
                             containsString(repoName),
-                            containsString("[1]"),
                             containsString(snapshots[0].getSnapshotId().getName())
                         )
                     );
@@ -909,6 +985,9 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
         final var futures = new ArrayList<SubscribableListener<Void>>();
         for (final Snapshot snapshot : snapshots) {
             futures.add(startDeletion(snapshot.getSnapshotId().getName()));
+            if (futures.size() == 1) {
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+            }
         }
         deterministicTaskQueue.runAllTasksInTimeOrder();
         final var firstFuture = futures.removeFirst();
@@ -1307,88 +1386,14 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
             addCompleteSnapshot(snapshots[i]);
         }
 
-        final var snapshot0Deletion1 = startDeletion(snapshots[0].getSnapshotId().getName()); // singleton batch
+        final var snapshot0Deletion1 = startDeletion(snapshots[0].getSnapshotId().getName());
+        deterministicTaskQueue.runAllTasksInTimeOrder();
         final var snapshot0Deletion2 = startDeletion(snapshots[0].getSnapshotId().getName());
         final var snapshot0Deletion3NoWait = startDeletionNoWait(snapshots[0].getSnapshotId().getName());
         final var snapshot1Deletion1 = deleteBothRunningAndWaiting
             ? startDeletion(snapshots[0].getSnapshotId().getName(), snapshots[1].getSnapshotId().getName())
             : startDeletion(snapshots[1].getSnapshotId().getName()); // batched with snapshot0Deletion2
-        final var completedAssertions = new AtomicBoolean(false);
-
-        // the first singleton batch is already enqueued with the master service, but the next batch is not; check the intermediate state:
-        submitClusterStateUpdateTask("assert-singleton-batch", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                final var deletionsInProgress = SnapshotDeletionsInProgress.get(clusterService.state());
-                assertThat(deletionsInProgress.getEntries(), hasSize(1));
-                final var deletionEntry = deletionsInProgress.getEntries().getFirst();
-                assertEquals(STARTED, deletionEntry.state());
-                assertThat(deletionEntry.snapshots(), contains(snapshots[0].getSnapshotId()));
-                assertThat(completionHandlers.keySet(), equalTo(Set.of(deletionEntry.uuid())));
-                assertThat(completionHandlers.get(deletionEntry.uuid()), hasSize(1));
-                return currentState;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                final var finalCheckTask = new ClusterStateUpdateTask() {
-                    private static final ElasticsearchException NOT_READY_EXCEPTION = new ElasticsearchException("not ready yet, retry");
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        if (newState == currentState) {
-                            throw NOT_READY_EXCEPTION;
-                        }
-
-                        // verifying that the second batch is applied atomically, there are no more intermediate states
-
-                        final var deletionsInProgress = SnapshotDeletionsInProgress.get(clusterService.state());
-                        assertThat(deletionsInProgress.getEntries(), hasSize(2));
-
-                        final var startedDeletionEntry = deletionsInProgress.getEntries().getFirst();
-                        assertEquals(STARTED, startedDeletionEntry.state());
-                        assertThat(startedDeletionEntry.snapshots(), contains(snapshots[0].getSnapshotId()));
-
-                        final var waitingDeletionEntry = deletionsInProgress.getEntries().getLast();
-                        assertEquals(WAITING, waitingDeletionEntry.state());
-                        assertThat(
-                            waitingDeletionEntry.snapshots(),
-                            deleteBothRunningAndWaiting
-                                ? containsInAnyOrder(snapshots[0].getSnapshotId(), snapshots[1].getSnapshotId())
-                                : contains(snapshots[1].getSnapshotId())
-                        );
-
-                        assertThat(completionHandlers.keySet(), equalTo(Set.of(startedDeletionEntry.uuid(), waitingDeletionEntry.uuid())));
-                        assertThat(completionHandlers.get(startedDeletionEntry.uuid()), hasSize(2));
-                        assertThat(completionHandlers.get(waitingDeletionEntry.uuid()), hasSize(1));
-                        return currentState;
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (e == NOT_READY_EXCEPTION) {
-                            submitClusterStateUpdateTask("assert-second-batch", this);
-                        } else {
-                            fail(e);
-                        }
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                        assertTrue(completedAssertions.compareAndSet(false, true));
-                    }
-                };
-                submitClusterStateUpdateTask("assert-second-batch", finalCheckTask);
-            }
-        });
-
         deterministicTaskQueue.runAllTasksInTimeOrder();
-        assertTrue(completedAssertions.get());
         assertTrue(snapshot0Deletion3NoWait.isSuccess());
 
         final var deletionsInProgress = SnapshotDeletionsInProgress.get(clusterService.state());
@@ -1562,11 +1567,24 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
         });
 
         final var deletionFuture = startDeletion(snapshot.getSnapshotId().getName());
+        final var otherDeletionFuture = startDeletion(snapshot.getSnapshotId().getName());
 
         submitClusterStateUpdateTask("ensure first attempt was no-op", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 assertFalse(SnapshotDeletionsInProgress.get(currentState).hasDeletionsInProgress());
+                // Retry all stale tasks individually using one repository-data load.
+                assertThat(
+                    clusterService.getMasterService()
+                        .pendingTasks()
+                        .stream()
+                        .map(PendingClusterTask::source)
+                        .filter(source -> source.startsWith("snapshot-deletion-start"))
+                        .toList(),
+                    equalTo(
+                        List.of("snapshot-deletion-start[default/" + repoName + "]", "snapshot-deletion-start[default/" + repoName + "]")
+                    )
+                );
                 return currentState;
             }
 
@@ -1578,7 +1596,12 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
 
         assertEquals(
             clusterService.getMasterService().pendingTasks().stream().map(PendingClusterTask::source).toList(),
-            List.of("update repository metadata", "snapshot-deletion-start[default/" + repoName + "][1]", "ensure first attempt was no-op")
+            List.of(
+                "update repository metadata",
+                "snapshot-deletion-start[default/" + repoName + "]",
+                "snapshot-deletion-start[default/" + repoName + "]",
+                "ensure first attempt was no-op"
+            )
         );
 
         deterministicTaskQueue.runAllTasksInTimeOrder();
@@ -1598,12 +1621,13 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
 
         assertThat(completionHandlers.keySet(), equalTo(Set.of(deletionEntry.uuid())));
         final var listeners = Objects.requireNonNull(completionHandlers.get(deletionEntry.uuid()));
-        assertThat(listeners, hasSize(1));
+        assertThat(listeners, hasSize(2));
         assertFalse(deletionFuture.isDone());
-        listeners.getFirst().onResponse(null);
+        assertFalse(otherDeletionFuture.isDone());
+        ActionListener.onResponse(listeners, null);
 
-        assertTrue(deletionFuture.isDone());
-        safeAwait(deletionFuture);
+        assertTrue(deletionFuture.isSuccess());
+        assertTrue(otherDeletionFuture.isSuccess());
     }
 
     public void testLogging() {
@@ -1621,12 +1645,15 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
                 // an item to omit
                 + 1;
 
-        for (int i = 0; i < iterations; i++) {
-            startDeletion(snapshotName);
-        }
-
-        MockLog.assertThatLogger(
-            deterministicTaskQueue::runAllTasksInTimeOrder,
+        MockLog.assertThatLogger(() -> {
+            for (int i = 0; i < iterations; i++) {
+                startDeletion(snapshotName);
+                if (i == 0) {
+                    deterministicTaskQueue.runAllTasksInTimeOrder();
+                }
+            }
+            deterministicTaskQueue.runAllTasksInTimeOrder();
+        },
             SnapshotDeletionStartBatcher.class,
             new MockLog.SeenEventExpectation(
                 "singleton message",

@@ -24,6 +24,10 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
     def setup() {
         // required for JarHell to work
         subProject(":libs:core") << "apply plugin:'java'"
+        // Provide these stub projects so this fixture exercises the internal-build path that
+        // swaps PluginBuildPlugin's default external coordinates for local project dependencies.
+        subProject(":server") << "apply plugin:'java'"
+        subProject(":test:framework") << "apply plugin:'java'"
     }
 
     def "project with plugin applied is considered for maven central publication"() {
@@ -60,6 +64,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
         buildFile << """
             plugins {
+                id 'elasticsearch.global-build-info'
                 id 'com.gradleup.nmcp.aggregation'
             }
 
@@ -253,6 +258,7 @@ def "dra snapshot aggregation renames timestamped snapshot filenames and generat
 
     buildFile << """
         plugins {
+            id 'elasticsearch.global-build-info'
             id 'com.gradleup.nmcp.aggregation'
             id 'elasticsearch.dra-maven-aggregation'
         }
@@ -319,6 +325,7 @@ def "dra release aggregation is a plain sync without maven-metadata"() {
 
     buildFile << """
         plugins {
+            id 'elasticsearch.global-build-info'
             id 'com.gradleup.nmcp.aggregation'
             id 'elasticsearch.dra-maven-aggregation'
         }

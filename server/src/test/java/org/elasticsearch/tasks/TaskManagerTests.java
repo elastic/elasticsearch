@@ -282,6 +282,34 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     /**
+     * Listeners hear about every child cancellation, also when no child task is running any more.
+     */
+    public void testCancelChildLocalNotifiesCancelledChildRequestListeners() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final List<String> cancelled = new ArrayList<>();
+        final CancelledChildRequestListener listener = (parentTaskId, childRequestId) -> cancelled.add(parentTaskId + "/" + childRequestId);
+        taskManager.registerCancelledChildRequestListener(listener);
+        final TaskId parentTaskId = new TaskId("parent_node", 1);
+
+        final CancellableRequest runningRequest = new CancellableRequest("running");
+        runningRequest.setParentTask(parentTaskId);
+        runningRequest.setRequestId(2);
+        final CancellableTask runningChild = (CancellableTask) taskManager.register("transport", "test", runningRequest);
+        taskManager.cancelChildLocal(parentTaskId, 2, "test");
+        assertTrue(runningChild.isCancelled());
+        // No child task runs for this request any more.
+        taskManager.cancelChildLocal(parentTaskId, 3, "test");
+        // Not a child request.
+        taskManager.cancelChildLocal(parentTaskId, -1, "test");
+        assertThat(cancelled, equalTo(List.of("parent_node:1/2", "parent_node:1/3")));
+
+        taskManager.unregisterCancelledChildRequestListener(listener);
+        taskManager.cancelChildLocal(parentTaskId, 4, "test");
+        assertThat(cancelled, equalTo(List.of("parent_node:1/2", "parent_node:1/3")));
+        taskManager.unregister(runningChild);
+    }
+
+    /**
      * Check that registering a task also causes tracing to be started on that task.
      */
     public void testRegisterTaskStartsTracingIfTraceParentExists() {
@@ -742,6 +770,79 @@ public class TaskManagerTests extends ESTestCase {
         } finally {
             taskManager.unregister(parentTask);
         }
+    }
+
+    public void testAddedTaskListenerFiredForCancellableTask() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        List<Task> received = new ArrayList<>();
+        taskManager.registerAddedTaskListener(received::add);
+
+        Task task = taskManager.register("transport", "action", new CancellableRequest("1"));
+        try {
+            assertThat(received.size(), equalTo(1));
+            assertThat(received.get(0), equalTo(task));
+        } finally {
+            taskManager.unregister(task);
+        }
+    }
+
+    public void testAddedTaskListenerFiredForPlainTask() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        List<Task> received = new ArrayList<>();
+        taskManager.registerAddedTaskListener(received::add);
+
+        Task task = taskManager.register("transport", "action", makeTaskRequest(false, 1));
+        try {
+            assertThat(received.size(), equalTo(1));
+            assertThat(received.get(0), equalTo(task));
+        } finally {
+            taskManager.unregister(task);
+        }
+    }
+
+    public void testAddedTaskListenerFiredBeforeHandlerRuns() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of("X-Test-Header"));
+        List<String> capturedHeaders = new ArrayList<>();
+        taskManager.registerAddedTaskListener(t -> {
+            String header = threadPool.getThreadContext().getHeader("X-Test-Header");
+            capturedHeaders.add(header);
+        });
+
+        threadPool.getThreadContext().putHeader("X-Test-Header", "test-value");
+        Task task = taskManager.register("transport", "action", makeTaskRequest(false, 1));
+        try {
+            assertThat(capturedHeaders.size(), equalTo(1));
+            assertThat(capturedHeaders.get(0), equalTo("test-value"));
+        } finally {
+            taskManager.unregister(task);
+        }
+    }
+
+    public void testUnregisterAddedTaskListenerStopsDelivery() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        List<Task> received = new ArrayList<>();
+        AddedTaskListener listener = received::add;
+        taskManager.registerAddedTaskListener(listener);
+        taskManager.unregisterAddedTaskListener(listener);
+
+        Task task = taskManager.register("transport", "action", makeTaskRequest(false, 1));
+        try {
+            assertThat(received, empty());
+        } finally {
+            taskManager.unregister(task);
+        }
+    }
+
+    public void testRemovedTaskListenerStillFiresOnceRegression() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        List<Task> removed = new ArrayList<>();
+        taskManager.registerRemovedTaskListener(removed::add);
+
+        Task task = taskManager.register("transport", "action", makeTaskRequest(false, 1));
+        taskManager.unregister(task);
+
+        assertThat(removed.size(), equalTo(1));
+        assertThat(removed.get(0), equalTo(task));
     }
 
 }

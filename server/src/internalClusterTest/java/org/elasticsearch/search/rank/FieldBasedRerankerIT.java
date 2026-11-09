@@ -59,11 +59,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
     }
 
     @Override
-    protected RankBuilder getThrowingRankBuilder(
-        int rankWindowSize,
-        String rankFeatureField,
-        AbstractRerankerIT.ThrowingRankBuilderType type
-    ) {
+    protected RankBuilder getThrowingRankBuilder(int rankWindowSize, String rankFeatureField, ThrowingRankBuilderType type) {
         return new ThrowingRankBuilder(rankWindowSize, rankFeatureField, type.name());
     }
 
@@ -238,14 +234,6 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
     }
 
     public static class ThrowingRankBuilder extends FieldBasedRankBuilder {
-
-        public enum ThrowingRankBuilderType {
-            THROWING_QUERY_PHASE_SHARD_CONTEXT,
-            THROWING_QUERY_PHASE_COORDINATOR_CONTEXT,
-            THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT,
-            THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT;
-        }
-
         protected final ThrowingRankBuilderType throwingRankBuilderType;
 
         public static final ParseField FIELD_FIELD = new ParseField("field");

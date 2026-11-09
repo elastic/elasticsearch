@@ -17,6 +17,7 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
+import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.util.BigArrays;
@@ -127,17 +128,16 @@ public class ParquetFilterPushdownBenchmark {
             "timeAndExists",
             "timeAndNumericRange",
             "timeAndGreater",
-            "timeAndAtMost",
             "timeAndGreaterSelective",
-            "timeAndAtMostSelective",
             "serviceEquals",
             "serviceIn",
-            "bytesGreater",
-            "bytesAtMost" }
+            "bytesGreater" }
     )
+    @ExtraParam({ "timeAndAtMost", "timeAndAtMostSelective", "bytesAtMost" })
     public String filterMode;
 
-    @Param({ "1pct", "10pct" })
+    @Param({ "10pct" })
+    @ExtraParam({ "1pct" })
     public String selectivity;
 
     @Param({ "clustered", "shuffled" })
@@ -156,7 +156,8 @@ public class ParquetFilterPushdownBenchmark {
      * {@code date_nanos} is a {@code TIMESTAMP(MICROS)} column read as {@code DATE_NANOS} — the unit most Parquet
      * writers emit, and the one where the statistics path rescales each bound onto the column's unit.
      */
-    @Param({ "datetime", "date_nanos" })
+    @Param({ "datetime" })
+    @ExtraParam({ "date_nanos" })
     public String timeType;
 
     private BlockFactory blockFactory;

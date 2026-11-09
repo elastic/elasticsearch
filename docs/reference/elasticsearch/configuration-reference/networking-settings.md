@@ -682,4 +682,7 @@ If the node leaves the cluster, or the [Shutdown API](https://www.elastic.co/doc
 
 A successful connection to the readiness TCP port signals that the {{es}} node is ready. When a client connects to the readiness port, the server simply terminates the socket connection. No data is sent back to the client. If a client cannot connect to the readiness port, the node is not ready.
 
+`readiness.port`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The TCP port to open when this node is ready to handle requests. Set to a specific port number such as `9399` to listen on that port, or `0` to let the OS assign an available port. Defaults to `-1`, which disables the readiness port.
+
 

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -234,6 +235,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             task,
             results,
+            NoopCircuitBreaker.INSTANCE,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             searchResponseMetrics,

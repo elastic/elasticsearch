@@ -25,6 +25,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -32,7 +33,6 @@ import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -243,7 +243,7 @@ public final class DocumentParser {
     }
 
     private static Mapper.SourceKeepMode getSourceKeepMode(DocumentParserContext context, Optional<Mapper.SourceKeepMode> mapperMode) {
-        return mapperMode.isPresent() ? mapperMode.get() : context.sourceKeepModeFromIndexSettings();
+        return FallbackPostMapper.effectiveKeepMode(mapperMode, context.indexSettings());
     }
 
     private static void throwNotAtEnd(XContentParser.Token token) {
@@ -291,7 +291,9 @@ public final class DocumentParser {
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
-        return new MappingBuilder(rootBuilder, Map.of(), null).build(MapperService.MergeReason.MAPPING_UPDATE).toCompressedXContent();
+        MappingBuilder mappingBuilder = new MappingBuilder(rootBuilder, Map.of(), null);
+        mappingBuilder.normalize(MapperService.MergeReason.MAPPING_AUTO_UPDATE);
+        return mappingBuilder.toCompressedXContent();
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
@@ -324,7 +326,8 @@ public final class DocumentParser {
         }
 
         var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
-        if (sourceKeepMode == Mapper.SourceKeepMode.ALL || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())) {
+        if (FallbackPostMapper.capturesWholeObject(sourceKeepMode)
+            || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())) {
             context = FallbackPostMapper.captureScope(context, context.parent());
             token = context.parser().currentToken();
             parser = context.parser();
@@ -643,9 +646,14 @@ public final class DocumentParser {
             } else {
                 parseArrayElements(context, mapper, lastFieldName, lastFieldName);
             }
-        } else {
-            parseArrayDynamic(context, lastFieldName);
-        }
+        } else if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+            && context.parent().hasMappedFieldsWithPrefix(lastFieldName)) {
+                // With subobjects disabled there is no object mapper for the prefix, but the array elements may hold mapped dotted leaves.
+                // Parse each element so parseObject flattens it, instead of treating the array as unmapped.
+                parseArrayElements(context, null, lastFieldName, lastFieldName);
+            } else {
+                parseArrayDynamic(context, lastFieldName);
+            }
         // Reset previous immediate parent
         context.setImmediateXContentParent(prev);
     }
@@ -697,6 +705,7 @@ public final class DocumentParser {
             parseArrayElements(context, null, currentFieldName, currentFieldName);
         } else {
             MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
+            builderFromTemplate.normalize(builderContext);
             Mapper objectMapperFromTemplate = builderFromTemplate.build(builderContext);
             if (parsesArrayValue(objectMapperFromTemplate)) {
                 Mapper mapper = context.getDynamicMapper(builderFromTemplate, objectMapperFromTemplate, builderContext);
@@ -814,8 +823,7 @@ public final class DocumentParser {
             IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
             context.getVectorFormatProviders(),
-            context.indexSettings().isIndexDisabledByDefault(),
-            context.indexSettings().getPostFilterSelectivityThreshold()
+            context.indexSettings().isIndexDisabledByDefault()
         );
         builder.dimensions(arraySize);
         context.updateDynamicMappers(fullFieldName, List.of(builder));
@@ -867,9 +875,7 @@ public final class DocumentParser {
             ensureNotStrict(dynamic, context, lastFieldName);
             if (dynamic == ObjectMapper.Dynamic.FLATTENED) {
                 // Absorb the null slot so columnar array order (e.g. [1, null, 3]) is preserved for the unmapped field.
-                FlattenedFieldMapper sink = (FlattenedFieldMapper) context.mappingLookup()
-                    .getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-                sink.indexValueAtPath(context, context.path().pathAsText(lastFieldName));
+                UnmappedSinkFieldMapper.absorb(context, lastFieldName);
             }
         }
     }
@@ -1026,17 +1032,7 @@ public final class DocumentParser {
             }
 
             @Override
-            protected void checkIncomingMergeType(FieldMapper mergeWith) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             public Builder getMergeBuilder() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
                 throw new UnsupportedOperationException();
             }
 
@@ -1142,7 +1138,13 @@ public final class DocumentParser {
 
         @Override
         public final Mapper getMapper(String name) {
-            return mappingLookup().getMapping().findMetadataOrRootMapper(name);
+            Mapper mapper = mappingLookup().getMapping().findMetadataOrRootMapper(name);
+            if (mapper == null && name.startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME + ".")) {
+                // The sink reserves its name as a prefix: a root key like _unmapped.a resolves to the sink itself (null when there is
+                // none), so that every form of it is rejected by parseCreateField exactly like the key _unmapped.
+                return getMetadataMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+            }
+            return mapper;
         }
 
         @Override

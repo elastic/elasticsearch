@@ -11,8 +11,16 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 public final class VersionScriptDocValues extends ScriptDocValues<String> {
 
-    public VersionScriptDocValues(Supplier<String> supplier) {
-        super(supplier);
+    private final VersionStringDocValuesField field;
+
+    public VersionScriptDocValues(VersionStringDocValuesField field) {
+        super(field);
+        this.field = field;
+    }
+
+    /** The field these values read from. For the allocation estimators. */
+    VersionStringDocValuesField field() {
+        return field;
     }
 
     public String getValue() {

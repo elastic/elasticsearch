@@ -369,20 +369,20 @@ Global index templates that match all indices are not applied to hidden indices.
 
 ### System indices [system-indices]
 
-{{es}} modules and plugins can store configuration and state information in internal *system indices*. You should not directly access or modify system indices as they contain data essential to the operation of the system.
+{{es}} stores some configuration and state information in internal *system indices*. Do not directly access or modify system indices as they contain data essential to the operation of the system. Do not copy the contents of system indices between clusters. Modifying the contents of a system index can irreparably damage your cluster.
 
 ::::{important}
-Direct access to system indices is deprecated and will no longer be allowed in a future major version.
+Direct access to system indices is deprecated and will be forbidden in a future version.
 ::::
 
-To view system indices within cluster:
+To view system indices within your cluster:
 
 ```console
 GET _cluster/state/metadata?filter_path=metadata.indices.*.system
 ```
 
 ::::{warning}
-When overwriting current cluster state, system indices should be restored as part of their [feature state](docs-content://deploy-manage/tools/snapshot-and-restore.md#feature-state).
+If restoring your cluster from a snapshot, restore the contents of system indices using the corresponding [feature state](docs-content://deploy-manage/tools/snapshot-and-restore.md#feature-state). Do not directly restore any system indices from a snapshot.
 ::::
 
 ### Node specification [cluster-nodes]

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -70,6 +71,11 @@ public final class ApplicationPrivilege extends Privilege {
      */
     public String[] getPatterns() {
         return patterns.clone();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return super.ramBytesUsed() + RamUsageEstimator.sizeOf(application) + RamUsageEstimator.sizeOf(patterns);
     }
 
     /**

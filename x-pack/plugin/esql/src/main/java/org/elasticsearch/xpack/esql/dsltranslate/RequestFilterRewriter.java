@@ -11,14 +11,18 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -49,10 +53,8 @@ import java.util.Set;
  * transport version below.
  *
  * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: below that version the rewrite is skipped (unfiltered
- * + warning). That pin does not cover everything the translator emits. It was allocated before {@code mv_greater} and
- * {@code mv_less} existed, so of the functions a translated filter can carry it covers {@code mv_in_range} alone, and
- * a node whose build sits between the two passes the gate and cannot read the other two. Tracked as
- * elastic/elasticsearch#159672; do not read this gate as a guarantee about the emitted set.
+ * relation, with a warning naming the datasets). It guards the rewrite's existence only; the functions a translated
+ * filter contains are gated individually by {@code QueryDslTranslator.gated}.
  */
 public final class RequestFilterRewriter {
 
@@ -86,11 +88,17 @@ public final class RequestFilterRewriter {
             return analyzed;
         }
         // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
+        // A dataset read inside a view's body is not a target either: the filter belongs on the view's output, where
+        // ViewRequestFilterRewriter installs it (same version gate, so exactly one of the two applies). Binding it to
+        // the dataset's own schema instead would resolve a field the view computes (via EVAL/STATS/RENAME) to NULL
+        // and silently drop every row before the view's own processing runs.
+        Set<LogicalPlan> datasetsInsideViews = datasetsInsideViews(analyzed);
         FilterRewriter.RewriteResult result = FilterRewriter.rewrite(
             analyzed,
-            ExternalRelation.class::isInstance,
+            node -> node instanceof ExternalRelation && datasetsInsideViews.contains(node) == false,
             requestFilter,
-            configuration
+            configuration,
+            minimumVersion
         );
         if (result.isComplete() == false) {
             if (dropUntranslatableWithWarning) {
@@ -98,8 +106,20 @@ public final class RequestFilterRewriter {
             } else {
                 List<String> messages = new ArrayList<>(result.failures().size());
                 for (FilterRewriter.NodeFailure nf : result.failures()) {
+                    // Same distinction the warning draws: "unsupported" is wrong for a version-gated clause.
                     messages.add(
-                        "request filter clause uses [" + nf.clause().construct() + "], unsupported on dataset [" + name(nf.node()) + "]"
+                        nf.clause().reason() == null
+                            ? "request filter clause uses ["
+                                + nf.clause().construct()
+                                + "], unsupported on dataset ["
+                                + name(nf.node())
+                                + "]"
+                            : "request filter clause uses ["
+                                + nf.clause().construct()
+                                + "] on dataset ["
+                                + name(nf.node())
+                                + "], not applied because "
+                                + nf.clause().reason()
                     );
                 }
                 throw new VerificationException(String.join("\n", messages));
@@ -108,18 +128,54 @@ public final class RequestFilterRewriter {
         return result.plan();
     }
 
+    /**
+     * The {@link ExternalRelation} leaves of {@code plan} that sit under a view branch of <em>any</em> {@link BranchPlan},
+     * by identity. This is exactly the set {@link ViewRequestFilterRewriter} covers: a view nested inside another view's
+     * body is wholly contained in the outer view's branch, and a view nested inside a non-view branch (a user-written
+     * subquery) is reached by that rewriter's walk and filtered at its own output. Bare-index and literal-subquery
+     * branches are not view branches, so a dataset read directly in a user-written subquery remains a target here.
+     * Identity matters: the same dataset read both inside a view and outside it yields two {@code equals()} nodes, of
+     * which only the inner one is excluded.
+     */
+    private static Set<LogicalPlan> datasetsInsideViews(LogicalPlan plan) {
+        Set<LogicalPlan> inside = Collections.newSetFromMap(new IdentityHashMap<>());
+        plan.forEachDown(BranchPlan.class, vua -> {
+            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+                if (vua.isViewBranch(entry.getKey())) {
+                    inside.addAll(entry.getValue().collect(ExternalRelation.class::isInstance));
+                }
+            }
+        });
+        return inside;
+    }
+
     /** Warns about unsupported clauses dropped in partial mode, naming each construct and its dataset. */
     private static void warnUnsupportedClauses(List<FilterRewriter.NodeFailure> failures) {
         // Deduplicate: the same construct can fail several times on the same dataset (e.g. two wildcard clauses),
         // and repeating the pair only inflates the header. LinkedHashSet keeps the first-seen order.
         Set<String> skipped = new LinkedHashSet<>();
+        Set<String> gated = new LinkedHashSet<>();
         for (FilterRewriter.NodeFailure nf : failures) {
-            skipped.add("[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]");
+            String where = "[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]";
+            // A clause skipped for a version reason is not an unsupported construct; it gets its own sentence, and
+            // carries the clause's own reason rather than a constant, which would misreport a second reason.
+            if (nf.clause().reason() != null) {
+                gated.add(where + " because " + nf.clause().reason());
+            } else {
+                skipped.add(where);
+            }
         }
         // "not fully applied" is accurate whether some conjuncts were installed or none were.
-        HeaderWarning.addWarning(
-            "Request filter not fully applied to external datasets; unsupported: " + String.join(", ", skipped) + "; use WHERE instead"
-        );
+        StringBuilder message = new StringBuilder("Request filter not fully applied to external datasets");
+        if (skipped.isEmpty() == false) {
+            message.append("; unsupported: ").append(String.join(", ", skipped));
+        }
+        if (gated.isEmpty() == false) {
+            // Distinguished from the unsupported list above, so the operator can tell a transient version constraint
+            // from a permanent limitation.
+            message.append("; not applied, ").append(String.join(", ", gated));
+        }
+        HeaderWarning.addWarning(message.append("; use WHERE instead").toString());
     }
 
     /**

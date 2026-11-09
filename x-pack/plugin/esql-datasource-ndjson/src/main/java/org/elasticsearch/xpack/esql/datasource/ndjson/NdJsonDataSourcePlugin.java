@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.List;
@@ -32,7 +34,7 @@ public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * Must stay in sync with {@code NdJsonFormatReader.RECOGNIZED_KEYS}; verified
      * by {@code NdJsonFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
      */
-    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("schema_sample_size", "segment_size", "datetime_format");
+    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("schema_sample_size", "segment_size", "datetime_format", "schema_max_fields");
 
     @Override
     public Set<FormatSpec> formatSpecs() {
@@ -48,6 +50,13 @@ public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(NdJsonReaderStatus.ENTRY);
+        return formatReaderProfileVariants().stream().map(ProfileSchema.Variant::namedWriteableEntry).toList();
+    }
+
+    @Override
+    public List<ProfileSchema.Variant<FormatReaderStatus>> formatReaderProfileVariants() {
+        return List.of(
+            ProfileSchema.Variant.fromEntry(FormatReaderStatus.class, NdJsonReaderStatus.ENTRY, NdJsonReaderStatus.PROFILE_SCHEMA)
+        );
     }
 }

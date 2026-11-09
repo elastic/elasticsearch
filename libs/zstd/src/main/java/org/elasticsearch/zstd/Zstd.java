@@ -72,11 +72,7 @@ public final class Zstd {
     }
 
     private static Zstd load() {
-        ZstdLibrary lib = LibraryProvider.lookupLibrary(ZstdLibrary.class);
-        if (lib == null) {
-            throw new IllegalStateException("no ZstdLibrary provider found");
-        }
-        return new Zstd(lib);
+        return new Zstd(LibraryProvider.lookupLibrary(ZstdLibrary.class));
     }
 
     private final ZstdLibrary zstdLib;

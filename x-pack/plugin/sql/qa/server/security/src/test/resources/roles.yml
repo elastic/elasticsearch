@@ -115,3 +115,16 @@ user2:
 manage_user:
   cluster:
     - manage
+
+sql_constant_reader:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: sql-constant-visible
+      privileges: [read, "indices:admin/get"]
+      field_security:
+        grant: [marker, constant_value]
+    - names: sql-constant-hidden
+      privileges: [read, "indices:admin/get"]
+      field_security:
+        grant: [marker]

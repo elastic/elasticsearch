@@ -11,23 +11,49 @@ import org.elasticsearch.rest.RestStatus;
 
 /**
  * The object being read was replaced with a different generation while the query was in flight.
- * Maps to {@code 503 Service Unavailable}: the caller's data was valid at query start, and a retry
- * of the query may land on a consistent generation. Distinct from
+ * Maps to {@code 503 Service Unavailable}: the caller's data was valid at query start. The client should
+ * retry the request. The failure drops the listing that query read, so the next attempt lists the object
+ * again and reads its new generation. The server does not retry the query itself. Distinct from
  * {@link ExternalUnavailableException} so the storage retry/resume layer does not loop the same
  * generation pin (If-Match / generationMatch) until the budget is exhausted.
  */
 public final class ExternalObjectChangedException extends ExternalException {
 
-    public ExternalObjectChangedException(String message, Throwable cause) {
+    ExternalObjectChangedException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public ExternalObjectChangedException(Throwable cause, String message, Object... args) {
+    ExternalObjectChangedException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    public ExternalObjectChangedException(String message, Object... args) {
+    ExternalObjectChangedException(String message, Object... args) {
         super(message, args);
+    }
+
+    /**
+     * Structured constructor for the mid-query object-replacement case. The message is built from
+     * {@link Condition#OBJECT_CHANGED} using the object name from {@code path}.
+     */
+    public ExternalObjectChangedException(StoragePath path, Throwable cause) {
+        super(Condition.OBJECT_CHANGED, path, "", "", cause);
+    }
+
+    /**
+     * Structured constructor without a cause.
+     * See {@link #ExternalObjectChangedException(StoragePath, Throwable)}.
+     */
+    public ExternalObjectChangedException(StoragePath path) {
+        super(Condition.OBJECT_CHANGED, path, "", "");
+    }
+
+    private ExternalObjectChangedException(ExternalObjectChangedException source) {
+        super(source);
+    }
+
+    @Override
+    protected ExternalObjectChangedException copyWithoutCause() {
+        return new ExternalObjectChangedException(this);
     }
 
     @Override

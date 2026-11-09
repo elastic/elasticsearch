@@ -43,7 +43,6 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     public static final int DEFAULT_MAX_CONN = (2 + Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN * 2 / 3); // graph degree
     public static final int DEFAULT_BEAM_WIDTH = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN + Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN
         * Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH / 256; // intermediate graph degree
-    static final int MIN_NUM_VECTORS_FOR_GPU_BUILD = 2;
 
     private static final FlatVectorsFormat flatVectorsFormat = new Lucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()

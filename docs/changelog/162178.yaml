@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160804
+pr: 162178
+summary: Fix filters on `_score` in runtime searches
+type: bug

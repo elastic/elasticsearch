@@ -33,9 +33,15 @@ x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaAlertsIm
 x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaAlertsImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/response-ops
 x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/kibana-cases
 x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/kibana-cases
+x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaWorkflowsImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/workflows-eng
+x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaWorkflowsImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/workflows-eng
+x-pack/plugin/kibana/src/javaRestTest/java/org/elasticsearch/xpack/kibana/KibanaWorkflowsImplicitPrivilegesIT.java @elastic/kibana-security @elastic/workflows-eng
 x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/context-eng
 x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/context-eng
 x-pack/plugin/kibana/src/javaRestTest/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesIT.java @elastic/kibana-security @elastic/context-eng
+x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaNightshiftImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/nightshift-sre-agent-team @elastic/nightshift-context-and-research-team
+x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaNightshiftImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/nightshift-sre-agent-team @elastic/nightshift-context-and-research-team
+x-pack/plugin/kibana/src/javaRestTest/java/org/elasticsearch/xpack/kibana/KibanaNightshiftImplicitPrivilegesIT.java @elastic/kibana-security @elastic/nightshift-sre-agent-team @elastic/nightshift-context-and-research-team
 
 # Context Engine
 x-pack/plugin/core/template-resources/src/main/resources/ai-index @elastic/context-eng
@@ -68,6 +74,7 @@ build-tools-internal/version.properties
 .buildkite @elastic/es-core-infra
 .ci @elastic/es-core-infra
 .idea @elastic/es-core-infra
+.libra @elastic/es-core-infra
 distribution/src @elastic/es-core-infra
 distribution/packages/src @elastic/es-core-infra
 distribution/docker/src @elastic/es-core-infra

@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 162077
+summary: Expose `OpenTelemetry` log export health metrics
+type: enhancement

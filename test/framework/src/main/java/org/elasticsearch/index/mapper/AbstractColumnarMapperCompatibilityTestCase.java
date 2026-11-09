@@ -82,15 +82,62 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     protected record Batch(String name, long primaryTerm, List<Doc> docs) {}
 
     /**
+     * Which ESCF encode path produces the source columns for a scenario. The two encoders assign
+     * element types independently, so the same JSON can yield different column kinds; tests that
+     * care about the mapper's reaction to a column kind pick the encoder explicitly instead of
+     * inheriting whatever the ambient feature flag selects.
+     */
+    protected enum SourceEncoder {
+        JACKSON(false),
+        SIMD(true);
+
+        private final boolean allowSimd;
+
+        SourceEncoder(boolean allowSimd) {
+            this.allowSimd = allowSimd;
+        }
+
+        /** Whether this encoder runs in the current build: simdjson needs its native library and feature flag. */
+        public boolean isAvailable() {
+            return this == JACKSON || EscfEncoder.isSimdEnabled();
+        }
+
+        /** The encoders a differential test can run in this build, in declaration order. */
+        public static List<SourceEncoder> available() {
+            return Arrays.stream(values()).filter(SourceEncoder::isAvailable).toList();
+        }
+    }
+
+    /**
      * Runs the parity check for the given mapping, index settings, and scenarios. Builds a
      * {@link MapperService} from the supplied mapping and settings, then calls
      * {@link #assertScenario} for each scenario.
      */
     protected final void assertColumnarMatchesXContent(XContentBuilder mapping, Settings indexSettings, Batch... scenarios)
         throws IOException {
+        assertColumnarMatchesXContent(mapping, indexSettings, SourceEncoder.SIMD, scenarios);
+    }
+
+    /**
+     * Runs the parity check with {@code encoder} producing the source columns, for tests that must
+     * pin the encode path rather than inherit the ambient one.
+     */
+    protected final void assertColumnarMatchesXContent(
+        XContentBuilder mapping,
+        Settings indexSettings,
+        SourceEncoder encoder,
+        Batch... scenarios
+    ) throws IOException {
         final MapperService mapperService = createMapperService(indexSettings, mapping);
         for (Batch scenario : scenarios) {
-            assertScenario(mapperService, scenario);
+            assertScenario(mapperService, scenario, encoder);
+        }
+        final Settings columnarStored = withColumnarStoredSource(indexSettings);
+        if (columnarStored != null) {
+            final MapperService columnarStoredService = createMapperService(columnarStored, mapping);
+            for (Batch scenario : scenarios) {
+                assertScenario(columnarStoredService, scenario, encoder);
+            }
         }
     }
 
@@ -106,8 +153,40 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     ) throws IOException {
         final MapperService mapperService = createMapperService(indexVersion, indexSettings, mapping);
         for (Batch scenario : scenarios) {
-            assertScenario(mapperService, scenario);
+            assertScenario(mapperService, scenario, SourceEncoder.SIMD);
         }
+        final Settings columnarStored = withColumnarStoredSource(indexSettings);
+        if (columnarStored != null) {
+            final MapperService columnarStoredService = createMapperService(indexVersion, columnarStored, mapping);
+            for (Batch scenario : scenarios) {
+                assertScenario(columnarStoredService, scenario, SourceEncoder.SIMD);
+            }
+        }
+    }
+
+    /**
+     * Whether every scenario also runs on an index that uses {@code columnar_stored} source. That mode builds {@code _source} from the
+     * mapped fields, so it turns each mapper's parity test into a check that its fields round-trip through the whole-document blob as
+     * well. Override to {@code false} only for a mapper that cannot take part, and say why.
+     */
+    protected boolean alsoRunWithColumnarStoredSource() {
+        return true;
+    }
+
+    /**
+     * Returns {@code indexSettings} with {@code columnar_stored} source, or {@code null} when the scenarios should not run that way: the
+     * subclass opted out, the index mode does not support the mode, or the test already picks a source mode of its own.
+     */
+    private Settings withColumnarStoredSource(Settings indexSettings) {
+        if (alsoRunWithColumnarStoredSource() == false
+            || IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(indexSettings)
+            || IndexSettings.MODE.get(indexSettings).supportedSourceModes().contains(SourceFieldMapper.Mode.COLUMNAR_STORED) == false) {
+            return null;
+        }
+        return Settings.builder()
+            .put(indexSettings)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .build();
     }
 
     /**
@@ -121,6 +200,18 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * parity with the x-content parse path.
      */
     protected final void mapColumnarLeaf(MapperService mapperService, String field, String... sources) throws IOException {
+        mapColumnarLeaf(mapperService, field, SourceEncoder.SIMD, sources);
+    }
+
+    /**
+     * Runs a bail-out check with {@code encoder} producing the source column. A column kind the
+     * mapper refuses depends on the encode path, so a test asserting the refusal must pin it.
+     *
+     * <p>Unlike {@link #assertColumnarMatchesXContent}, this deliberately bypasses {@code ShardBatchMapper.resolveMappers} and calls
+     * the named field's mapper directly: it checks the mapper's own refusal, which resolution would otherwise pre-empt or hide.
+     */
+    protected final void mapColumnarLeaf(MapperService mapperService, String field, SourceEncoder encoder, String... sources)
+        throws IOException {
         final int docCount = sources.length;
         final BytesReference[] sourceBytesArray = new BytesReference[docCount];
         final IndexRequest[] requests = new IndexRequest[docCount];
@@ -137,7 +228,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 indexSettings,
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
             );
-            EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)
+            EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)
         ) {
             final SourceSchema schema = escfBatch.schema();
             for (int c = 0; c < schema.leafCount(); c++) {
@@ -185,7 +276,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * {@code (seqNo, primaryTerm, version)} values to both paths after parsing, exactly as
      * {@code InternalEngine} does at indexing time.
      */
-    private void assertScenario(MapperService mapperService, Batch scenario) throws IOException {
+    private void assertScenario(MapperService mapperService, Batch scenario, SourceEncoder encoder) throws IOException {
         final List<Doc> docs = scenario.docs();
         final int docCount = docs.size();
 
@@ -206,42 +297,36 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
             )
         ) {
-            // Drive all supported metadata mappers through their columnar hooks, mirroring the
-            // preParse-all / postParse-all ordering of the row-major path.
-            final MetadataFieldMapper[] allMetadata = mappingLookup.getMapping().getSortedMetadataMappers();
-            final List<MetadataFieldMapper> supportedMappers = Arrays.stream(allMetadata)
-                .filter(m -> m.supportsColumnarParse(mapperService.getIndexSettings()))
-                .toList();
-            for (MetadataFieldMapper m : supportedMappers) {
-                m.preColumnarParse(ctx);
-            }
-
-            try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
-                final SourceSchema schema = escfBatch.schema();
-
-                // Accumulate leaves owned by a group mapper (e.g. flattened). Groups are ordered by first-seen
-                // leaf, making the output column order deterministic.
-                final ColumnGroupResolver.Builder groupBuilder = new ColumnGroupResolver.Builder();
-                for (int c = 0; c < schema.leafCount(); c++) {
-                    final String path = schema.getFullPath(c);
-                    final Mapper mapper = mappingLookup.getMapper(path);
-                    if (mapper instanceof FieldMapper fm) {
-                        assertSupportsColumnarParse(fm, path, indexSettings);
-                        fm.mapColumnBatch(ctx, escfBatch.column(c));
-                    } else if (mapper == null) {
-                        // No mapper at this path: it may still belong to a mapper that owns a whole group of descendant leaves, such as
-                        // a flattened field, whose object value the encoder explodes into one dotted leaf per key.
-                        if (ColumnGroupResolver.findColumnGroup(
-                            path,
-                            mappingLookup
-                        ) instanceof ColumnGroupResolver.ColumnGroupLookup.Owned owned) {
-                            assertSupportsColumnarParse(owned.mapper(), owned.ownerPath(), indexSettings);
-                            groupBuilder.add(owned, c);
-                        }
+            try (EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)) {
+                // Resolve the schema leaves exactly as production does, so the harness exercises every fallback decision that
+                // ShardBatchMapper makes before it calls a mapper, not just the mapper's own behaviour.
+                final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
+                    escfBatch,
+                    mappingLookup,
+                    indexSettings
+                );
+                if (resolution == null) {
+                    throw new AssertionError(
+                        "Batch ["
+                            + scenario.name()
+                            + "]: ShardBatchMapper.resolveMappers refused this mapping and schema, so production would fall back to the "
+                            + "row path for it; test data must only include batches the batch path accepts. "
+                            + describeRefusal(mappingLookup, indexSettings, escfBatch.schema())
+                    );
+                }
+                // Drive every metadata mapper through its columnar hooks, mirroring the preParse-all / postParse-all ordering of the
+                // row-major path. resolveMappers has already refused the batch if any of them cannot take part.
+                final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
+                for (MetadataFieldMapper m : metadataMappers) {
+                    m.preColumnarParse(ctx);
+                }
+                final FieldMapper[] columnMappers = resolution.columnMappers();
+                for (int c = 0; c < columnMappers.length; c++) {
+                    if (columnMappers[c] != null) {
+                        columnMappers[c].mapColumnBatch(ctx, escfBatch.column(c));
                     }
                 }
-
-                for (ColumnGroupResolver.ColumnGroupResolution group : groupBuilder.build()) {
+                for (ColumnGroupResolver.ColumnGroupResolution group : resolution.columnGroups()) {
                     final int[] leafIndexes = group.leafIndexes();
                     final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
                     for (int i = 0; i < leafIndexes.length; i++) {
@@ -250,7 +335,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     group.mapper().mapColumnGroupBatch(ctx, groupColumns, group.relativeKeys());
                 }
 
-                for (MetadataFieldMapper m : supportedMappers) {
+                for (MetadataFieldMapper m : metadataMappers) {
                     m.postColumnarParse(ctx);
                 }
 
@@ -330,17 +415,54 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
-    private static void assertSupportsColumnarParse(FieldMapper mapper, String path, IndexSettings indexSettings) {
-        if (mapper.supportsColumnarParse(indexSettings) == false) {
-            throw new AssertionError(
-                "field ["
-                    + path
-                    + "] has mapper ["
-                    + mapper.typeName()
-                    + "] that does not support columnar parse; "
-                    + "test data must only include fields whose mappers support columnar"
-            );
+    private static EscfBatch encode(List<BytesReference> sources, SourceEncoder encoder) throws IOException {
+        try (EscfEncoder escfEncoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, encoder.allowSimd)) {
+            for (BytesReference source : sources) {
+                escfEncoder.addDocument(source, XContentType.JSON, 0);
+            }
+            return escfEncoder.buildPartition(0);
         }
+    }
+
+    /**
+     * Best-effort explanation of why {@code resolveMappers} refused a batch, which it reports only at DEBUG level: names the metadata
+     * mappers, field mappers and unresolved leaves that block the batch path. Empty-handed, it points at the debug log instead.
+     */
+    private static String describeRefusal(MappingLookup mappingLookup, IndexSettings indexSettings, SourceSchema schema) {
+        final List<String> causes = new ArrayList<>();
+        for (MetadataFieldMapper m : mappingLookup.getMapping().getSortedMetadataMappers()) {
+            if (m.supportsColumnarMetadataParse(indexSettings) == false) {
+                causes.add("metadata mapper [" + m.typeName() + "] does not support columnar parse");
+            }
+        }
+        for (int c = 0; c < schema.leafCount(); c++) {
+            final String path = schema.getFullPath(c);
+            final Mapper mapper = mappingLookup.getMapper(path);
+            if (mapper instanceof FieldMapper fm) {
+                if (fm.supportsColumnarParse(indexSettings) == false) {
+                    causes.add("field [" + path + "] has mapper [" + fm.typeName() + "] that does not support columnar parse");
+                }
+            } else if (mapper == null) {
+                if (ColumnGroupResolver.findColumnGroup(path, mappingLookup) instanceof ColumnGroupResolver.ColumnGroupLookup.Owned owned) {
+                    if (owned.mapper().supportsColumnarParse(indexSettings) == false) {
+                        causes.add(
+                            "field ["
+                                + owned.ownerPath()
+                                + "] has mapper ["
+                                + owned.mapper().typeName()
+                                + "] that does not support columnar parse"
+                        );
+                    }
+                } else {
+                    causes.add("leaf [" + path + "] has no mapper");
+                }
+            } else {
+                causes.add("leaf [" + path + "] resolves to a non-field mapper");
+            }
+        }
+        return causes.isEmpty()
+            ? "No single leaf or mapper explains it; enable DEBUG logging for ShardBatchMapper to see the reason."
+            : "Candidate causes: " + String.join("; ", causes) + ".";
     }
 
     /**

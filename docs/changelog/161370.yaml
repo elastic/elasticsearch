@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161370
+summary: Park Parquet byte waiters on tickets
+type: enhancement

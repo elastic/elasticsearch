@@ -15,6 +15,7 @@ import com.sun.net.httpserver.HttpServer
 
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.function.IntPredicate
 
 class HttpUtilsSpec extends Specification {
 
@@ -78,6 +79,75 @@ class HttpUtilsSpec extends Specification {
 
         cleanup:
         server?.stop(0)
+    }
+
+    def "sendWithRetry returns a status the predicate excludes, without retrying"() {
+        given:
+        AtomicInteger requests = new AtomicInteger()
+        HttpServer server = startServer { exchange ->
+            requests.incrementAndGet()
+            exchange.sendResponseHeaders(404, -1)
+            exchange.close()
+        }
+        List<Long> backoffs = []
+
+        when:
+        def response = HttpUtils.sendWithRetry(
+                HttpUtils.Request.get(url(server)), 3, 10, { backoffs << it }, { it >= 500 } as IntPredicate)
+
+        then:
+        response.status() == 404
+        requests.get() == 1
+        backoffs.isEmpty()
+
+        cleanup:
+        server?.stop(0)
+    }
+
+    def "readHttpBytesWithRetry retries every status that is not 200"() {
+        given:
+        AtomicInteger requests = new AtomicInteger()
+        HttpServer server = startServer { exchange ->
+            requests.incrementAndGet()
+            exchange.sendResponseHeaders(404, -1)
+            exchange.close()
+        }
+
+        when:
+        HttpUtils.readHttpBytesWithRetry(url(server), 3, 10, { })
+
+        then:
+        thrown(IOException)
+        requests.get() == 3
+
+        cleanup:
+        server?.stop(0)
+    }
+
+    def "the body of a failure is captured, so the server can explain itself"() {
+        given:
+        byte[] explanation = "no deploy permission".getBytes(StandardCharsets.UTF_8)
+        HttpServer server = startServer { exchange ->
+            exchange.sendResponseHeaders(403, explanation.length)
+            exchange.getResponseBody().withStream { it.write(explanation) }
+            exchange.close()
+        }
+
+        when:
+        def response = HttpUtils.sendWithRetry(
+                HttpUtils.Request.get(url(server)), 3, 10, { }, { false } as IntPredicate)
+
+        then:
+        response.status() == 403
+        response.body() == explanation
+
+        cleanup:
+        server?.stop(0)
+    }
+
+    private static String url(HttpServer server) {
+        String host = server.getAddress().getAddress().getHostAddress()
+        return new URI("http", null, host, server.getAddress().getPort(), "/branches.json", null, null).toString()
     }
 
     private static HttpServer startServer(HttpHandler handler) throws IOException {

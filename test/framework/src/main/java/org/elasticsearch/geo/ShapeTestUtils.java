@@ -210,6 +210,11 @@ public class ShapeTestUtils {
         return randomGeometryWithoutCircle(0, hasAlt);
     }
 
+    public static Geometry randomGeometryWithoutCircle(boolean hasAlt, int maxPoints) {
+        var pointCounter = new GeometryPointCountVisitor();
+        return randomValueOtherThanMany(g -> g.visit(pointCounter) > maxPoints, () -> randomGeometryWithoutCircle(0, hasAlt));
+    }
+
     public static Geometry randomGeometryWithoutCircle(int level, boolean hasAlt) {
         @SuppressWarnings("unchecked")
         Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(

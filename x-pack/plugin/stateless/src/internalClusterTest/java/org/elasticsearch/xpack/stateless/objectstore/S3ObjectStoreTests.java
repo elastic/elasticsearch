@@ -44,6 +44,7 @@ import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -81,6 +82,7 @@ import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.everyItem;
@@ -633,8 +635,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final String masterNode = startMasterAndIndexNode();
-        final String indexNode1 = startIndexNode();
+        // transferring the hollow commit metadata skips the object store reads on the target
+        final var indexNodeSettings = Settings.builder().put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false).build();
+        final String masterNode = startMasterAndIndexNode(indexNodeSettings);
+        final String indexNode1 = startIndexNode(indexNodeSettings);
         final String searchNode = startSearchNode();
         ensureStableCluster(3);
 
@@ -668,7 +672,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                 requestsErroredFor403.clear();
             }
 
-            indexNode2 = startIndexNode();
+            indexNode2 = startIndexNode(indexNodeSettings);
             ensureStableCluster(4);
 
             updateIndexSettings(
@@ -741,6 +745,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         final var settings = Settings.builder()
             .put("s3.client.test.max_retries", 0) // disable sdk client retries
             .put("s3.client.test.tenacious_retries.enabled", true)
+            // transferring the hollow commit metadata skips the object store reads on the target
+            .put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false)
             .build();
 
         final String masterNode = startMasterAndIndexNode(settings);
@@ -879,9 +885,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver);
+            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
     }
 
@@ -892,9 +899,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            super(settings, repositoriesService, threadPool, clusterService, projectResolver);
+            super(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
 
         @Override

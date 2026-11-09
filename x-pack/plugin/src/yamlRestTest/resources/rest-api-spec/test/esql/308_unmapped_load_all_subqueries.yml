@@ -6,14 +6,12 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2, optional_fields_load_with_fork_subqueries_and_views ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2, optional_fields_load_with_fork_subqueries_and_views ]
       reason: >
-        LOAD and LOAD_ALL diverge on sub-queries. For a field named explicitly they are the same code:
-        UnmappedKeywordValues is "shared by the per-document UnmappedKeywordBlockLoader and the
-        coordinator-side ExpandUnmappedFieldsPostProcessor so an explicitly referenced unmapped field and its
-        LOAD_ALL auto-expanded twin render identically", and DetermineUnmappedFieldsToKeep excludes every
-        plan-output name from the discovery set precisely so the named field is served once, by the LOAD
-        path. What is NOT shared is discovery, and discovery has to decide which relations to stamp.
+        LOAD and LOAD_ALL diverge on sub-queries. For a field named explicitly they are the same code: both load
+        it through UnmappedKeywordBlockLoader, and DetermineUnmappedFieldsToKeep excludes every plan-output
+        name from the discovery set precisely so the named field is served once, by the LOAD path. What is
+        NOT shared is discovery, and discovery has to decide which relations to stamp.
 
   - do:
       indices.create:
@@ -51,7 +49,7 @@ setup:
 teardown:
   - do:
       indices.delete:
-        index: la_sub_a,la_sub_b
+        index: la_sub_a,la_sub_b,la_sub_ip
         ignore_unavailable: true
 
 ---
@@ -78,7 +76,43 @@ teardown:
   - length: { columns: 3 }
   - match: { columns.0.name: color }
   - match: { columns.1.name: id }
-  - match: { columns.2.name: note }
-  - match: { columns.2.type: keyword }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
   - match: { values.0: [ "red", "a1", null ] }
-  - match: { values.1: [ null, "b1", "from_source" ] }
+  - match: { values.1: [ null, "b1", { note: from_source } ] }
+
+---
+'LOAD_ALL runs a sub-query union whose conversion resolves on a later analyzer pass':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ subquery_in_from_command_conversion_resolved_on_later_pass, optional_fields_load_all_subqueries ]
+      reason: "analysis of a conversion over a sub-query union that resolves on a later pass terminates"
+  # does_not_exist delays the EVAL by one analyzer pass. The union is allowed, so the query has to finish.
+  - do:
+      indices.create:
+        index: la_sub_ip
+        body:
+          mappings:
+            properties:
+              ip:
+                type: ip
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_sub_ip", "_id": "1" } }
+          - { "ip": "172.21.3.15" }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM la_sub_ip), (FROM la_sub_ip) | WHERE TO_STRING(ip) == "172.21.3.15" OR does_not_exist IS NOT NULL | EVAL x = TO_STRING(ip) | KEEP ip, x | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: ip }
+  - match: { columns.0.type: ip }
+  - match: { columns.1.name: x }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "172.21.3.15", "172.21.3.15" ] }
+  - match: { values.1: [ "172.21.3.15", "172.21.3.15" ] }

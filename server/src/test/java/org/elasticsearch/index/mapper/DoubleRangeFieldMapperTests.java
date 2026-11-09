@@ -9,10 +9,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleRangeFieldMapperTests extends RangeFieldMapperTests {
     @Override
@@ -55,6 +61,25 @@ public class DoubleRangeFieldMapperTests extends RangeFieldMapperTests {
         }
 
         return new TestRange<>(rangeType(), from, to, includeFrom, includeTo);
+    }
+
+    @Override
+    protected Tuple<Object, Object> randomInclusiveBounds() {
+        double from = randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true);
+        double to = randomDoubleBetween(from, Double.MAX_VALUE, true);
+        return Tuple.tuple(from, to);
+    }
+
+    /**
+     * Doc values only keep inclusive bounds, so an exclusive bound comes back as the adjacent inclusive value, and an open side
+     * comes back as {@code null}. This matches synthetic source.
+     */
+    public void testFetchExclusiveAndOpenBoundsFromDocValues() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("gte", Math.nextUp(1.0));
+        expected.put("lte", null);
+        assertThat(docValueFields(mapperService, Map.of("gt", 1.0), null), equalTo(List.of(expected)));
     }
 
     @Override

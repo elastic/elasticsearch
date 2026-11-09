@@ -99,6 +99,8 @@ class DatafeedJob {
     private volatile boolean haveEverSeenData;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile SearchInterval searchInterval;
+    @Nullable
+    private volatile DataExtractor activeDataExtractor;
 
     DatafeedJob(
         String datafeedId,
@@ -152,6 +154,7 @@ class DatafeedJob {
     void isolate() {
         isIsolated = true;
         timingStatsReporter.disallowPersisting();
+        cancelActiveExtractor();
     }
 
     boolean isIsolated() {
@@ -177,8 +180,10 @@ class DatafeedJob {
     /**
      * Resolves the effective threshold of consecutive extraction failures after which the datafeed stops itself.
      * When the datafeed config leaves this unset, the default is roughly one day's worth of searches (at least one),
-     * so a persistently broken datafeed surfaces within a day rather than retrying indefinitely. A configured value
-     * is used verbatim; {@code -1} disables the behaviour so the datafeed retries indefinitely.
+     * so a persistently broken datafeed surfaces within a day rather than retrying indefinitely. A configured
+     * positive value is used verbatim. The config builder maps {@code -1} to the default (null), so a built config
+     * never holds a non-positive threshold; {@link DatafeedRunner} additionally treats any non-positive threshold as
+     * "never stop", which keeps us safe against a legacy {@code -1} arriving over the wire from an older node.
      */
     public long effectiveMaxConsecutiveExtractionFailures() {
         if (maxConsecutiveExtractionFailures != null) {
@@ -390,7 +395,11 @@ class DatafeedJob {
      *         otherwise <code>false</code> is returned
      */
     public boolean stop() {
-        return running.compareAndSet(true, false);
+        boolean stopped = running.compareAndSet(true, false);
+        if (stopped) {
+            cancelActiveExtractor();
+        }
+        return stopped;
     }
 
     public boolean isRunning() {
@@ -410,6 +419,7 @@ class DatafeedJob {
         long recordCount = 0;
         List<LinkedClusterState> linkedClusterStates = List.of();
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
+        activeDataExtractor = dataExtractor;
         try {
             while (dataExtractor.hasNext()) {
                 if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
@@ -431,6 +441,20 @@ class DatafeedJob {
                         );
                     }
                 } catch (Exception e) {
+                    // stop() and isolate() flip state before cancel(); unrelated task cancellation is an extraction failure.
+                    if (dataExtractor.isCancelled() || isRunning() == false || isIsolated) {
+                        LOGGER.debug(
+                            () -> format(
+                                "[%s] extraction aborted (running=%s, isolated=%s, cancelled=%s)",
+                                jobId,
+                                isRunning(),
+                                isIsolated,
+                                dataExtractor.isCancelled()
+                            ),
+                            e
+                        );
+                        return;
+                    }
                     LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
                     // When extraction problems are encountered, we do not want to advance time.
                     // Instead, it is preferable to retry the given interval next time an extraction
@@ -515,7 +539,9 @@ class DatafeedJob {
                 }
             }
 
-            lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            if (isRunning() && isIsolated == false && dataExtractor.isCancelled() == false) {
+                lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            }
             LOGGER.debug(
                 "[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]",
                 jobId,
@@ -554,6 +580,15 @@ class DatafeedJob {
         } finally {
             // Ensure the extractor is always destroyed to clean up scroll contexts
             dataExtractor.destroy();
+            activeDataExtractor = null;
+        }
+    }
+
+    private void cancelActiveExtractor() {
+        // Single read: run()'s finally nulls this field from the datafeed thread while stop()/isolate() call in.
+        DataExtractor extractor = activeDataExtractor;
+        if (extractor != null) {
+            extractor.cancel();
         }
     }
 

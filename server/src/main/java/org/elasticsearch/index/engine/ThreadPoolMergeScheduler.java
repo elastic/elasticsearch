@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.merge.MergeStats;
@@ -72,6 +73,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     protected final Logger logger;
     private final MergeTracking mergeTracking;
     private final MergeMetrics mergeMetrics;
+    private final IndexMode indexMode;
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(
         16,
@@ -116,6 +118,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.mergeMetrics = mergeMetrics;
+        this.indexMode = indexSettings.getMode();
         this.mergeTracking = new MergeTracking(
             logger,
             () -> this.config.isAutoThrottle()
@@ -490,12 +493,19 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         } catch (Throwable t) {
             // OK to ignore MergeAbortedException. This is what Lucene's ConcurrentMergeScheduler does.
             if (t instanceof MergePolicy.MergeAbortedException == false) {
+                mergeMetrics.onFailure(indexMode, t);
                 // A merge thread that thrown a tragic exception that closed the IndexWriter causes other merge threads to be aborted, but
                 // it is not itself aborted: instead the current merge is just completed and the thrown exception is set in the package
                 // private OneMerge#error field. Here we set such merge as aborted too so that it is not considered as successful later.
                 oneMerge.setAborted();
                 handleMergeException(t);
+                // engine subclasses swallow the exception and return here, so do not count the abort set above as a second failure
+                return;
             }
+        }
+        if (oneMerge.isAborted()) {
+            // IndexWriter swallows its MergeAbortedException, so an aborted merge returns normally with isAborted() set.
+            mergeMetrics.onAborted(indexMode);
         }
     }
 
@@ -719,18 +729,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         private static long getNewSegmentSize(MergePolicy.OneMerge currentMerge) {
-            try {
-                return currentMerge.getMergeInfo() != null ? currentMerge.getMergeInfo().sizeInBytes() : currentMerge.estimatedMergeBytes;
-            } catch (IOException e) {
-                // For stateless only: It is (rarely) possible that the merged segment could be merged away by the IndexWriter prior to
-                // reaching this point. Once the IW creates the new segment, it could be exposed to be included in a new merge. That
-                // merge can be executed concurrently if more than 1 merge threads are configured. That new merge allows this IW to
-                // delete segment created by this merge. Although the files may still be available in the object store for executing
-                // searches, the IndexDirectory will no longer have references to the underlying segment files and will throw file not
-                // found if we try to read them. In this case, we will ignore that exception (which would otherwise fail the shard) and
-                // use the originally estimated merge size for metrics.
-                return currentMerge.estimatedMergeBytes;
+            // The merged segment's size is captured by SizeTrackingOneMerge when the merge commits, while the IndexWriter lock is held.
+            // It must not be read here: by now the segment is visible to the IndexWriter, which may be updating it concurrently, and (for
+            // stateless) it may even have been merged away so that its files are gone. If no size was captured (e.g. the size of the
+            // committed segment could not be read), use the originally estimated merge size for metrics.
+            if (currentMerge instanceof SizeTrackingOneMerge sizeTrackingMerge) {
+                final var maybeMergedSize = sizeTrackingMerge.mergedSegmentSizeInBytes();
+                assert maybeMergedSize.isPresent() : "We expect merged segment size to be present";
+                return maybeMergedSize.orElse(currentMerge.estimatedMergeBytes);
+            } else {
+                assert false
+                    : "merges must be wrapped in a SizeTrackingOneMerge (see InternalEngine#wrapMergePolicy) but got "
+                        + currentMerge.getClass();
             }
+            return currentMerge.estimatedMergeBytes;
         }
 
         @Override

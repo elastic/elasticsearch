@@ -18,6 +18,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
@@ -79,8 +80,8 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherMetrics;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.cache.StatelessCacheEvictionPolicyType;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
@@ -493,6 +494,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_METRICS_ENABLED_SETTING,
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
@@ -511,7 +513,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
             newReaderHeapBreaker(),
             StatelessReaderHeapMetrics.NOOP,
-            reshardSearchFilters
+            reshardSearchFilters,
+            SearchCommitPrefetcherMetrics.NOOP
         ) {
             @Override
             public void close() throws IOException {
@@ -558,12 +561,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             cacheClusterService.getClusterSettings(),
             threadPool,
             BlobCacheMetrics.NOOP,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(
-                indexSettings.getSettings(),
-                cacheClusterService,
-                TestUtils.mockIndicesService(cacheClusterService),
-                threadPool
-            ),
+            new DefaultEvictionPolicy<>(),
             System::nanoTime,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
@@ -658,6 +656,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_METRICS_ENABLED_SETTING,
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
@@ -690,7 +689,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
             newReaderHeapBreaker(),
             StatelessReaderHeapMetrics.NOOP,
-            reshardSearchFilters
+            reshardSearchFilters,
+            SearchCommitPrefetcherMetrics.NOOP
         ) {
             @Override
             public void close() throws IOException {

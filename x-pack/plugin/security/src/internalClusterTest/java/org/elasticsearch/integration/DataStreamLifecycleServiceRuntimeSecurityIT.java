@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
+import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -59,12 +60,12 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.dataStreamIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -149,30 +150,6 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         });
     }
 
-    public void testUnauthorized() throws Exception {
-        // This system data stream is registered via SystemDataStreamTestPlugin but the DSL internal user does not have
-        // allowRestrictedIndices access for it, so lifecycle operations will fail with an authz exception
-        String dataStreamName = SystemDataStreamTestPlugin.UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME;
-        indexDoc(dataStreamName);
-        indexFailedDoc(dataStreamName);
-
-        assertBusy(() -> {
-            Map<Index, String> indicesAndErrors = collectErrorsFromStoreAsMap();
-            // Both the backing and failures indices should have errors
-            assertThat(indicesAndErrors.size(), is(2));
-            for (Index index : indicesAndErrors.keySet()) {
-                assertThat(
-                    index.getName(),
-                    anyOf(containsString(DataStream.BACKING_INDEX_PREFIX), containsString(DataStream.FAILURE_STORE_PREFIX))
-                );
-            }
-            assertThat(
-                indicesAndErrors.values(),
-                hasItem(allOf(containsString("security_exception"), containsString("unauthorized for user [_data_stream_lifecycle]")))
-            );
-        });
-    }
-
     public void testRolloverAndRetentionWithSystemDataStreamAuthorized() throws Exception {
         String dataStreamName = SystemDataStreamTestPlugin.SYSTEM_DATA_STREAM_NAME;
         indexDoc(dataStreamName);
@@ -198,6 +175,48 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
             String writeIndex = failureIndices.get(0);
             assertThat(writeIndex, dataStreamIndexEqualTo(dataStreamName, 4, true));
         });
+    }
+
+    public void testUnauthorizedWhenLifecycleAddedToSystemDataStreamAtRuntime() throws Exception {
+        String dataStreamName = SystemDataStreamTestPlugin.UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME;
+        indexDoc(dataStreamName);
+        assertThat(getDataStream(dataStreamName).getDataLifecycle(), nullValue());
+
+        // The startup assertion in Security only covers lifecycles declared in system data stream templates,
+        // so the lifecycle must be added at runtime for this stream to stay registered.
+        assertAcked(
+            client().execute(
+                PutDataStreamLifecycleAction.INSTANCE,
+                new PutDataStreamLifecycleAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new String[] { dataStreamName },
+                    DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
+                )
+            )
+        );
+        indexDoc(dataStreamName);
+
+        assertBusy(() -> {
+            Map<Index, String> indicesAndErrors = collectErrorsFromStoreAsMap();
+            assertThat(
+                indicesAndErrors.keySet().stream().map(Index::getName).toList(),
+                hasItem(startsWith(DataStream.BACKING_INDEX_PREFIX + dataStreamName))
+            );
+            assertThat(
+                indicesAndErrors.values(),
+                hasItem(allOf(containsString("security_exception"), containsString("unauthorized for user [_data_stream_lifecycle]")))
+            );
+        });
+    }
+
+    private static DataStream getDataStream(String dataStreamName) {
+        GetDataStreamAction.Response response = client().execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+        ).actionGet();
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        return response.getDataStreams().get(0).getDataStream();
     }
 
     private static String randomDataStreamName() {
@@ -393,29 +412,14 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                         SystemDataStreamDescriptor.Type.EXTERNAL,
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME))
-                            .template(
-                                Template.builder()
-                                    .mappings(new CompressedXContent("""
-                                        {
-                                            "properties": {
-                                              "@timestamp" : {
-                                                "type": "date"
-                                              },
-                                              "count": {
-                                                "type": "long"
-                                              }
-                                            }
-                                        }"""))
-                                    .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO))
-                                    .dataStreamOptions(
-                                        new DataStreamOptions.Template(
-                                            new DataStreamFailureStore.Template(
-                                                true,
-                                                DataStreamLifecycle.failuresLifecycleBuilder().dataRetention(TimeValue.ZERO).buildTemplate()
-                                            )
-                                        )
-                                    )
-                            )
+                            .template(Template.builder().mappings(new CompressedXContent("""
+                                {
+                                    "properties": {
+                                      "@timestamp" : {
+                                        "type": "date"
+                                      }
+                                    }
+                                }""")))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),
                         Map.of(),

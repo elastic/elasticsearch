@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
-import org.apache.http.HttpStatus;
+import org.apache.hc.core5.http.HttpStatus;
 import org.elasticsearch.xpack.esql.datasources.KnownLengthBodyFill;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -93,7 +93,7 @@ final class DirectByteBufferBodyHandlers {
             }
             this.expectedLength = expectedLength;
             this.factory = factory;
-            this.fill = new KnownLengthBodyFill("HTTP", HttpUrls.redact(path), expectedLength);
+            this.fill = new KnownLengthBodyFill("HTTP", path.objectName(), expectedLength);
             body.whenComplete((ignored, error) -> {
                 if (body.isCancelled()) {
                     releaseOnFailure();
@@ -268,7 +268,7 @@ final class DirectByteBufferBodyHandlers {
             this.length = length;
             this.skipRemaining = skip;
             this.factory = factory;
-            this.fill = new KnownLengthBodyFill("HTTP", HttpUrls.redact(path), length);
+            this.fill = new KnownLengthBodyFill("HTTP", path.objectName(), length);
             body.whenComplete((ignored, error) -> {
                 if (body.isCancelled()) {
                     releaseOnFailure();

@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -169,7 +170,8 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             clusterInfoService,
             snapshotsInfoService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            ClusterSettings.createBuiltInClusterSettings()
         );
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
     }

@@ -60,6 +60,8 @@ public class NestedLookupTests extends MapperServiceTestCase {
 
         NestedLookup lookup = mapperService.mappingLookup().nestedLookup();
         assertEquals("SWufZ.NnUDX.dljyS", lookup.getNestedParent("SWufZ.NnUDX.dljyS.EvbGO"));
+        assertTrue(lookup.hasNestedParent("SWufZ.NnUDX.dljyS.EvbGO"));
+        assertFalse(lookup.hasNestedParent("SWufZ"));
         assertThat(lookup.getNestedParentFilters().keySet(), hasSize(2));
 
     }

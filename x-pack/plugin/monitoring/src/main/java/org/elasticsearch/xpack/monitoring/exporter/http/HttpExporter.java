@@ -750,19 +750,18 @@ public class HttpExporter extends Exporter {
         final Setting<Settings> concreteSetting,
         final SSLService sslService
     ) {
-        final SSLIOSessionStrategy sslStrategy;
+        final SslProfile profile;
         if (SSLConfigurationSettings.withoutPrefix(true).getSecureSettingsInUse(sslSettings).isEmpty()) {
             // This configuration does not use secure settings, so it is possible that is has been dynamically updated.
             // We need to load a new SSL strategy in case these settings differ from the ones that the SSL service was configured with.
-            sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
+            profile = sslService.profileForSettings(sslSettings);
         } else {
             // This configuration uses secure settings. We cannot load a new SSL strategy, as the secure settings have already been closed.
             // Due to #registerSettingValidators we know that the settings not been dynamically updated, and the pre-configured strategy
             // is still the correct configuration for use in this exporter.
-            final SslProfile profile = sslService.profile(concreteSetting.getKey());
-            sslStrategy = profile.ioSessionStrategy();
+            profile = sslService.profile(concreteSetting.getKey());
         }
-        return sslStrategy;
+        return SSLIOSessionStrategyBuilder.INSTANCE.build(profile.configuration(), profile.sslContext());
     }
 
     /**

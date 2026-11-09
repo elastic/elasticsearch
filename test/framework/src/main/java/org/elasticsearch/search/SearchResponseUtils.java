@@ -621,6 +621,7 @@ public enum SearchResponseUtils {
         SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = null;
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
+        List<ProfileResult> rescoreResults = new ArrayList<>();
         ProfileResult fetchResult = null;
         String id = null;
         String currentFieldName = null;
@@ -640,6 +641,10 @@ public enum SearchResponseUtils {
                     }
                 } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
                     aggProfileShardResult = readAggregationProfileShardResult(parser);
+                } else if (SearchProfileShardResult.RESCORE.equals(currentFieldName)) {
+                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        rescoreResults.add(parseProfileResult(parser));
+                    }
                 } else {
                     parser.skipChildren();
                 }
@@ -656,7 +661,7 @@ public enum SearchResponseUtils {
             }
         }
         SearchProfileShardResult result = new SearchProfileShardResult(
-            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
+            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult, rescoreResults),
             fetchResult
         );
         result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);

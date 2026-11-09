@@ -236,6 +236,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
+        public void deleteShardsOutsideIndexRange(IndexMetadata metadata, ActionListener<Void> listener) {
+            // The mock has no on-disk shard stores to delete
+            listener.onResponse(null);
+        }
+
+        @Override
         public synchronized void removeIndex(
             Index index,
             IndexRemovalReason reason,
@@ -269,10 +275,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final DiscoveryNode targetNode,
             final DiscoveryNode sourceNode,
-            long clusterStateVersion
+            long clusterStateVersion,
+            int localRecoveryRetries
         ) throws IOException {
             failRandomly();
-            RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
+            RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode, localRecoveryRetries);
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);
             indexShard.recoveryState = recoveryState;

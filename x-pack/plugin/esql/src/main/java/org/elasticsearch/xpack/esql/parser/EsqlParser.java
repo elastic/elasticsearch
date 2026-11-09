@@ -27,6 +27,9 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.BitSet;
 import java.util.EmptyStackException;
@@ -114,7 +117,16 @@ public class EsqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, inferenceSettings, null, EsqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(
+            query,
+            params,
+            inferenceSettings,
+            null,
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS,
+            EsqlBaseParser::singleStatement,
+            AstBuilder::plan
+        );
     }
 
     // testing utility
@@ -124,7 +136,7 @@ public class EsqlParser {
 
     // testing utility
     public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
-        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null);
+        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     // testing utility
@@ -140,7 +152,22 @@ public class EsqlParser {
      * performing any necessary validation before using them.
      */
     public EsqlStatement parse(String query, QueryParams params, InferenceSettings inferenceSettings) {
-        var parsed = createStatement(query, params, inferenceSettings, null);
+        return parse(query, params, inferenceSettings, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
+    }
+
+    /**
+     * Like {@link #parse(String, QueryParams, InferenceSettings)}, with the pragmas of the query and the cluster flags, which supply
+     * the limits the statement is checked against while it is built: the commands it may have, counting the main query and all its
+     * subqueries together, and the leaf branches it may have, checked at every FORK.
+     */
+    public EsqlStatement parse(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        var parsed = createStatement(query, params, inferenceSettings, null, pragmas, flags);
         if (log.isDebugEnabled()) {
             log.debug("Parsed logical plan:\n{}", parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -151,25 +178,41 @@ public class EsqlParser {
     /**
      * Parse a view query with the given view name. The view name is used to tag all Source objects
      * so they can be correctly deserialized when the view positions exceed the outer query's length.
-     * SET statements are not allowed in view bodies and are rejected with a {@link ParsingException}.
+     * A view definition may {@code SET} only the settings that are scoped at view boundaries for callers
+     * ({@code unmapped_fields}, {@code wildcards_match_views}, {@code wildcards_match_datasets}); any other
+     * setting is rejected with a {@link ParsingException} — see {@link ViewQuerySettings#validate}. A setting the
+     * definition does not {@code SET} takes its cluster default, such as {@code esql.query.settings.unmapped_fields}, as it
+     * would in a query run on its own; see {@link ViewQuerySettings}.
      */
-    public EsqlStatement parseView(String query, QueryParams params, InferenceSettings inferenceSettings, String viewName) {
-        var parsed = createStatement(query, params, inferenceSettings, viewName);
+    public EsqlStatement parseView(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        var parsed = createStatement(query, params, inferenceSettings, viewName, pragmas, flags);
         if (log.isDebugEnabled()) {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
-        if (parsed.settings() != null && parsed.settings().isEmpty() == false) {
-            throw new ParsingException(parsed.settings().getFirst().source(), "SET statements are not allowed in views");
-        }
+        ViewQuerySettings.validate(parsed.settings(), parsed);
         return parsed;
     }
 
-    private EsqlStatement createStatement(String query, QueryParams params, InferenceSettings inferenceSettings, String viewName) {
+    private EsqlStatement createStatement(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, inferenceSettings, viewName, EsqlBaseParser::statements, AstBuilder::statement);
+        return invokeParser(query, params, inferenceSettings, viewName, pragmas, flags, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
     private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}
@@ -196,6 +239,8 @@ public class EsqlParser {
         QueryParams params,
         InferenceSettings inferenceSettings,
         String viewName,
+        QueryPragmas pragmas,
+        EsqlFlags flags,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -240,7 +285,10 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName)), tree);
+            return result.apply(
+                new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName, pragmas, flags)),
+                tree
+            );
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
             // likely thrown by an invalid popMode (such as extra closing parenthesis)

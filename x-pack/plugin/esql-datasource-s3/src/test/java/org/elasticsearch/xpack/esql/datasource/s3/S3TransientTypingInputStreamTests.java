@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.test.ESTestCase;
@@ -16,11 +17,15 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredEx
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Mid-body S3 faults must be typed before the resume loop sees them. Session-token error codes are
@@ -38,7 +43,6 @@ public class S3TransientTypingInputStreamTests extends ESTestCase {
         assertSame(expired, e.getCause());
         assertThat(e.getMessage(), containsString("expired or invalid"));
         assertThat(e.getMessage(), containsString("HTTP 403 ExpiredToken"));
-        assertThat(e.getMessage(), containsString("reading [" + PATH + "]"));
     }
 
     public void testMidReadExpiredTokenViaBulkReadIsCredentialsExpired() {
@@ -175,5 +179,139 @@ public class S3TransientTypingInputStreamTests extends ESTestCase {
             .message(errorCode)
             .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build())
             .build();
+    }
+
+    public void testCloseAbortsWhenLeftoverExceedsTrailingDrainBytes() throws IOException {
+        CountingAbortable inner = new CountingAbortable(filled(TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES + 2));
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, inner.length);
+        assertEquals(1, wrapped.read());
+        wrapped.close();
+        assertEquals(1, inner.abortCount.get());
+        assertEquals(0, inner.closeCount.get());
+    }
+
+    public void testCloseDrainsWhenLeftoverIsZero() throws IOException {
+        byte[] body = new byte[] { 1, 2, 3 };
+        CountingAbortable inner = new CountingAbortable(body);
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, body.length);
+        assertEquals(body.length, wrapped.read(new byte[body.length]));
+        wrapped.close();
+        assertEquals(0, inner.abortCount.get());
+        assertEquals(1, inner.closeCount.get());
+    }
+
+    public void testCloseDrainsWhenLeftoverAtMostTrailingDrainBytes() throws IOException {
+        CountingAbortable inner = new CountingAbortable(filled(TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES));
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, inner.length);
+        assertEquals(1, wrapped.read());
+        wrapped.close();
+        assertEquals(0, inner.abortCount.get());
+        assertEquals(1, inner.closeCount.get());
+    }
+
+    public void testCloseAbortsWhenLengthUnknown() throws IOException {
+        CountingAbortable inner = new CountingAbortable(filled(8));
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH);
+        assertEquals(1, wrapped.read());
+        wrapped.close();
+        assertEquals(1, inner.abortCount.get());
+        assertEquals(0, inner.closeCount.get());
+    }
+
+    public void testAbortThenCloseIsOneAction() throws IOException {
+        CountingAbortable inner = new CountingAbortable(new byte[TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES + 8]);
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, inner.length);
+        wrapped.abort();
+        wrapped.close();
+        assertEquals(1, inner.abortCount.get());
+        assertEquals(0, inner.closeCount.get());
+    }
+
+    public void testCloseThenAbortIsOneAction() throws IOException {
+        CountingAbortable inner = new CountingAbortable(new byte[8]);
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, inner.length);
+        wrapped.close();
+        wrapped.abort();
+        assertEquals(0, inner.abortCount.get());
+        assertEquals(1, inner.closeCount.get());
+    }
+
+    public void testSkipBytesAreCounted() throws IOException {
+        int length = TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES + 100;
+        CountingAbortable inner = new CountingAbortable(new byte[length]);
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, length);
+        assertEquals(200, wrapped.skip(200));
+        wrapped.close();
+        assertEquals("skip must count so leftover falls into the drain band", 0, inner.abortCount.get());
+        assertEquals(1, inner.closeCount.get());
+    }
+
+    public void testCloseVersusAbortRaceAbortsAtMostOnce() throws Exception {
+        // Leftover above the drain band: close() routes to abort(), so this is abort vs abort.
+        assertCloseVersusAbortRaceIsOneAction(TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES + 8, true);
+    }
+
+    public void testCloseVersusAbortRaceDrainBandIsOneAction() throws Exception {
+        // Leftover in the drain band: close() drains, abort() drops. First of close/abort wins.
+        assertCloseVersusAbortRaceIsOneAction(8, false);
+    }
+
+    private static void assertCloseVersusAbortRaceIsOneAction(int length, boolean bothPathsAbort) throws Exception {
+        for (int i = 0; i < 200; i++) {
+            CountingAbortable inner = new CountingAbortable(new byte[length]);
+            TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, inner.length);
+            Thread abortThread = new Thread(wrapped::abort);
+            Thread closeThread = new Thread(() -> {
+                try {
+                    wrapped.close();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            abortThread.start();
+            closeThread.start();
+            abortThread.join();
+            closeThread.join();
+            assertEquals("exactly one of abort or close must win", 1, inner.abortCount.get() + inner.closeCount.get());
+            assertThat(inner.abortCount.get(), lessThanOrEqualTo(1));
+            assertThat(inner.closeCount.get(), lessThanOrEqualTo(1));
+            if (bothPathsAbort) {
+                assertEquals(1, inner.abortCount.get());
+                assertEquals(0, inner.closeCount.get());
+            }
+        }
+    }
+
+    public void testReturnValueIsAbortable() {
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(new ByteArrayInputStream(new byte[1]), PATH, 1);
+        assertThat(wrapped, instanceOf(Abortable.class));
+    }
+
+    private static byte[] filled(int length) {
+        byte[] body = new byte[length];
+        java.util.Arrays.fill(body, (byte) 1);
+        return body;
+    }
+
+    private static final class CountingAbortable extends FilterInputStream implements Abortable {
+        final int length;
+        final AtomicInteger abortCount = new AtomicInteger();
+        final AtomicInteger closeCount = new AtomicInteger();
+
+        CountingAbortable(byte[] body) {
+            super(new ByteArrayInputStream(body));
+            this.length = body.length;
+        }
+
+        @Override
+        public void abort() {
+            abortCount.incrementAndGet();
+        }
+
+        @Override
+        public void close() throws IOException {
+            closeCount.incrementAndGet();
+            super.close();
+        }
     }
 }

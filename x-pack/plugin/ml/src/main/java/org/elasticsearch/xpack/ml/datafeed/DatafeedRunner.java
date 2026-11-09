@@ -23,7 +23,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -101,7 +99,7 @@ public class DatafeedRunner {
             "es.ml.datafeeds.cps.with_unavailable_projects.current",
             "Count of datafeeds running on this node whose last search cycle saw at least one skipped or unavailable linked project.",
             "datafeeds",
-            () -> new LongWithAttributes(countDatafeedsWithUnavailableProjects(), Map.of())
+            this::countDatafeedsWithUnavailableProjects
         );
         clusterService.addListener(taskRunner);
     }
@@ -395,11 +393,13 @@ public class DatafeedRunner {
                             );
                             logger.warn("[{}] {}", jobId, extractionFailureMessage);
                             // Clean stop of the datafeed, leaving the job open so it can be restarted once the
-                            // underlying extraction problem is resolved.
+                            // underlying extraction problem is resolved. The error is passed as null so the persistent
+                            // task completes normally rather than being marked as failed - the reason is already captured
+                            // in the audit message above.
                             holder.stop(
                                 "consecutive_extraction_failures",
                                 TimeValue.timeValueSeconds(20),
-                                e,
+                                null,
                                 false,
                                 extractionFailureMessage
                             );

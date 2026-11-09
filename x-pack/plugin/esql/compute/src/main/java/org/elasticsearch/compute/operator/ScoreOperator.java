@@ -47,8 +47,15 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     @Override
     protected Page process(Page page) {
         assert page.getBlockCount() > scoreBlockPosition : "Expected to get a score block in position " + scoreBlockPosition;
-        assert page.getBlock(scoreBlockPosition).asVector() instanceof DoubleVector
-            : "Expected a DoubleVector as a score block, got " + page.getBlock(scoreBlockPosition).asVector();
+        if (page.getBlock(scoreBlockPosition).asVector() == null) {
+            // A federated relation's _score can arrive without a real per-row baseline (null, or a mix of null
+            // and real values merged by an upstream TopN) from a cluster node that predates runtime scoring
+            // support for that relation. There's nothing sound to add a per-row score onto in that case.
+            throw new IllegalStateException(
+                "runtime score computation received a score baseline containing null values, "
+                    + "likely from a cluster node that predates federated runtime scoring support"
+            );
+        }
 
         Block[] blocks = new Block[page.getBlockCount()];
         for (int i = 0; i < page.getBlockCount(); i++) {

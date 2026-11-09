@@ -26,6 +26,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,20 +34,28 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -120,6 +129,32 @@ public class DatasetRewriterTests extends ESTestCase {
             assertFalse(out.config().containsKey(key));
         }
         assertThat(paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION), equalTo("union_by_name"));
+    }
+
+    /**
+     * The executing node rebuilds a dataset's config from its own cluster state through {@link DatasetRewriter#datasetConfig}
+     * instead of trusting the plan's copy, so that builder must produce exactly what the rewrite put on the relation.
+     */
+    public void testDatasetConfigIsWhatTheRewritePutsOnTheRelation() {
+        DataSource parent = dataSource(
+            "s3_parent",
+            Map.of("access_key", new DataSourceSetting("AKIA", true), "endpoint", new DataSourceSetting("https://s3.example", false))
+        );
+        Dataset dataset = new Dataset(
+            "logs",
+            new DataSourceReference("s3_parent"),
+            "s3://logs/*.parquet",
+            null,
+            Map.of("format", "parquet")
+        );
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewrite(relationOf("logs"), project);
+
+        assertThat(DatasetRewriter.datasetConfig(parent, dataset), equalTo(out.config()));
+        assertThat(out.config(), hasKey(DefinitionVersion.CONFIG_KEY));
+        assertThat(out.config(), hasKey(ExternalSourceResolver.DATASOURCE_CONFIG_KEY));
+        assertThat(out.config(), hasKey(ExternalSourceResolver.DATASET_CONTEXT_KEY));
     }
 
     public void testStoredFirstFileWinsIsNotHydratedToUnionByName() {
@@ -488,6 +523,95 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, rewriteWildcardsDisabled(relation, project));
     }
 
+    public void testWildcardsMatchDatasetsStopsAtViewBranches() {
+        // The caller's wildcard reaches the dataset, the same wildcard in a view body does not: the caller's SET stops at the
+        // view boundary. The two relations are equal; only the view branch they sit in tells them apart.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        UnresolvedRelation callers = relationOf("logs_*");
+        UnresolvedRelation inView = relationOf("logs_*");
+        assertEquals(callers, inView);
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("main", callers);
+        branches.put("logs_view", inView);
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
+
+        LogicalPlan rewritten = rewrite(plan, project);
+        assertThat(rewritten.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertSame(inView, rewritten.children().get(1));
+    }
+
+    public void testWildcardsMatchDatasetsAppliesToUserSubqueryBranches() {
+        // A subquery the user wrote is not a view: its wildcard keeps the caller's setting, like the branch beside it.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("main", relationOf("logs_*"));
+        branches.put("unnamed_view_1", relationOf("logs_*"));
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("unnamed_view_1", BranchIdentity.SUBQUERY), List.of());
+
+        LogicalPlan rewritten = rewrite(plan, project);
+        assertThat(rewritten.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(rewritten.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testWildcardsMatchDatasetsStaysOffInsideNestedBranchesOfAViewBranch() {
+        // Everything beneath a view branch belongs to the view, including the branches of a union nested in its body.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        UnresolvedRelation first = relationOf("logs_*");
+        UnresolvedRelation second = relationOf("logs_*");
+        LinkedHashMap<String, LogicalPlan> nested = new LinkedHashMap<>();
+        nested.put("first", first);
+        nested.put("second", second);
+        BranchPlan body = new BranchPlan(Source.EMPTY, nested, Map.of(), List.of());
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("logs_view", body);
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
+
+        LogicalPlan rewritten = rewrite(plan, project);
+        assertSame(first, rewritten.children().get(0).children().get(0));
+        assertSame(second, rewritten.children().get(0).children().get(1));
+    }
+
+    public void testViewDefinitionEnablesWildcardsMatchDatasetsForItsOwnBodyOnly() {
+        // The caller's setting is off. outer_view SET wildcards_match_datasets, so its own wildcard resolves the dataset.
+        // nested_view did not, so the same wildcard inside it does not — a view's SET does not leak into a nested view,
+        // and a nested view's SET is what turns the flag on for that body alone.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        UnresolvedRelation caller = relationOf("logs_*");
+        UnresolvedRelation inOuter = relationOf("logs_*");
+        UnresolvedRelation inNested = relationOf("logs_*");
+        LinkedHashMap<String, LogicalPlan> outerBody = new LinkedHashMap<>();
+        outerBody.put("own", inOuter);
+        outerBody.put("nested_view", inNested);
+        BranchPlan outer = new BranchPlan(Source.EMPTY, outerBody, Map.of("nested_view", BranchIdentity.view("nested_view")), List.of());
+        LinkedHashMap<String, LogicalPlan> rootBranches = new LinkedHashMap<>();
+        rootBranches.put("main", caller);
+        rootBranches.put("outer_view", outer);
+        BranchPlan plan = new BranchPlan(Source.EMPTY, rootBranches, Map.of("outer_view", BranchIdentity.view("outer_view")), List.of());
+
+        ViewQuerySettings datasetsOn = new ViewQuerySettings(UnmappedResolution.DEFAULT, false, true, Set.of("wildcards_match_datasets"));
+        LogicalPlan outerOn = rewriteDatasetsUnsecured(plan, project, RESOLVER, false, Map.of("outer_view", datasetsOn));
+        assertSame(caller, outerOn.children().get(0));
+        assertThat(outerOn.children().get(1).children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertSame(inNested, outerOn.children().get(1).children().get(1));
+
+        LogicalPlan nestedOn = rewriteDatasetsUnsecured(plan, project, RESOLVER, false, Map.of("nested_view", datasetsOn));
+        assertSame(caller, nestedOn.children().get(0));
+        assertSame(inOuter, nestedOn.children().get(1).children().get(0));
+        assertThat(nestedOn.children().get(1).children().get(1), instanceOf(UnresolvedExternalRelation.class));
+    }
+
     public void testAliasAlongsideExactDatasetUnionsWhenWildcardsMatchDatasetsOff() {
         // An alias is index-like: FROM logs_ds, my_alias unions the exact dataset with the alias, wildcards_match_datasets off.
         LogicalPlan rewritten = rewriteWildcardsDisabled(relationOf("logs_ds,my_alias"), projectWithDatasetAliasAndDataStream());
@@ -816,13 +940,11 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(tablePathString(out), equalTo("s3://a/"));
     }
 
-    public void testWildcardAtUnionAllCapSucceeds() {
-        // UnionAll extends MergePlan which caps at 8 branches — the upper bound the rewriter can hand off.
-        // A wildcard expanding to exactly the cap proves the bucketing + UnionAll construction path
-        // is bounded-time at the platform's largest supported shape.
+    public void testWildcardAtMaxBranchCountSucceeds() {
+        int cap = 5;
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < cap; i++) {
             datasets.put(
                 "logs_" + i,
                 new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
@@ -830,21 +952,29 @@ public class DatasetRewriterTests extends ESTestCase {
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+        EsqlFlags flags = EsqlFlags.withMaxBranchCountPerMerge(cap);
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+            relationOf("logs_*"),
+            project,
+            RESOLVER,
+            true,
+            Map.of(),
+            QueryPragmas.EMPTY,
+            flags
+        );
 
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
-        assertThat(union.children(), hasSize(8));
+        assertThat(union.children(), hasSize(cap));
     }
 
-    public void testWildcardOverUnionAllCapRejectsWithUserFacingMessage() {
-        // A wildcard matching more than 8 datasets crosses MergePlan's 8-branch cap. The rewriter
-        // intercepts before constructing the UnionAll and throws a VerificationException with
-        // user-facing framing — the user typed FROM <pattern>, not FORK, so the error references
-        // the pattern + the cap, not the internal union type name.
+    public void testWildcardOverMaxBranchCountRejectsWithUserFacingMessage() {
+        // A wildcard matching more datasets than the cap is rejected before the UnionAll is built. Uses a small constant
+        // so the test stays cheap regardless of what the production default is.
+        int cap = 5;
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < cap + 1; i++) {
             datasets.put(
                 "logs_" + i,
                 new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
@@ -852,11 +982,45 @@ public class DatasetRewriterTests extends ESTestCase {
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*"), project));
+        EsqlFlags flags = EsqlFlags.withMaxBranchCountPerMerge(cap);
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> DatasetRewriter.rewriteUnsecured(relationOf("logs_*"), project, RESOLVER, true, Map.of(), QueryPragmas.EMPTY, flags)
+        );
         assertThat(ex.getMessage(), containsString("FROM [logs_*]"));
-        assertThat(ex.getMessage(), containsString("resolved to 9 branches"));
-        assertThat(ex.getMessage(), containsString("the current limit of 8"));
+        assertThat(ex.getMessage(), containsString("resolved to " + (cap + 1) + " branches"));
+        assertThat(ex.getMessage(), containsString("the limit of " + cap));
+        assertThat(ex.getMessage(), containsString("[" + EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey() + "] cluster setting"));
         assertThat(ex.getMessage(), containsString("Narrow the pattern"));
+    }
+
+    public void testWildcardOverMaxBranchCountPragmaRejectsWithPragmaMessage() {
+        int cap = 2;
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i < cap + 1; i++) {
+            datasets.put(
+                "logs_" + i,
+                new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
+            );
+        }
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> DatasetRewriter.rewriteUnsecured(
+                relationOf("logs_*"),
+                project,
+                RESOLVER,
+                true,
+                Map.of(),
+                new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE.getKey(), cap).build()),
+                EsqlFlags.DEFAULTS
+            )
+        );
+        assertThat(ex.getMessage(), containsString("resolved to 3 branches"));
+        assertThat(ex.getMessage(), containsString("the limit of 2"));
+        assertThat(ex.getMessage(), containsString("[max_branch_count_per_merge] query pragma"));
     }
 
     public void testDateMathPatternReachesSlowPath() {
@@ -1187,12 +1351,12 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     private static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata project) {
-        return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER, true);
+        return rewriteDatasetsUnsecured(parsed, project, RESOLVER, true);
     }
 
     /** As {@link #rewrite}, but with wildcard-dataset matching off (the default: datasets by exact name). */
     private static LogicalPlan rewriteWildcardsDisabled(LogicalPlan parsed, ProjectMetadata project) {
-        return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER, false);
+        return rewriteDatasetsUnsecured(parsed, project, RESOLVER, false);
     }
 
     /**
@@ -1202,13 +1366,13 @@ public class DatasetRewriterTests extends ESTestCase {
      */
     private static LogicalPlan rewriteWithAuthorized(UnresolvedRelation relation, ProjectMetadata project, Set<String> authorized) {
         DatasetRewriter.DatasetResolution resolution = resolve(relation.indexPattern().indexPattern(), project, authorized);
-        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), false);
+        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), false, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     /** As {@link #rewriteWithAuthorized}, but with cross-project search (CPS) enabled. */
     private static LogicalPlan rewriteWithAuthorizedCps(UnresolvedRelation relation, ProjectMetadata project, Set<String> authorized) {
         DatasetRewriter.DatasetResolution resolution = resolve(relation.indexPattern().indexPattern(), project, authorized);
-        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), true);
+        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), true, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     /** Engine-side resolve of {@code rawPattern} with {@code authorized} as the (filter-narrowed) request indices. */

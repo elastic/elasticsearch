@@ -63,7 +63,17 @@ public class SourceToParse {
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
-        this(id, new BytesSource(source, xContentType, true), routing, Map.of(), Map.of(), XContentMeteringParserDecorator.NOOP, null);
+        this(id, source, xContentType, routing, XContentMeteringParserDecorator.NOOP);
+    }
+
+    public SourceToParse(
+        String id,
+        BytesReference source,
+        XContentType xContentType,
+        @Nullable String routing,
+        XContentMeteringParserDecorator meteringParserDecorator
+    ) {
+        this(id, new BytesSource(source, xContentType, true), routing, Map.of(), Map.of(), meteringParserDecorator, null);
     }
 
     public DocumentSource source() {

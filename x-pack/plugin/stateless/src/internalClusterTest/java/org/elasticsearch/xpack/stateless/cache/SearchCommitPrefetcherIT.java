@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.BCCPreFetchedOffset;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -1096,16 +1095,23 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             // no-op the warming on shard recovery so we do not introduce noise in the testing
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+            return new SharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                searchRecoveryTimeoutCalculationService
+            ) {
                 @Override
                 protected void warmCache(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener

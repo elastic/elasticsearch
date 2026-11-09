@@ -13,8 +13,11 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.SliceIndexing;
@@ -44,6 +47,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
@@ -214,7 +219,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest request = parseMultiSearchRequestFromStringAndParams("""
             {}
             {"query":{"match_all":{}}}
-            """, Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
+            """, Map.of(SliceIndexing.FIELD_NAME, "s1,s2"));
         assertThat(request.requests().size(), equalTo(1));
         SearchRequest searchRequest = request.requests().getFirst();
         assertThat(searchRequest.routing(), equalTo("s1,s2"));
@@ -225,19 +230,19 @@ public class MultiSearchRequestTests extends ESTestCase {
     public void testParseRequestRejectsRoutingAndSliceInSameMetadata() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromString("""
-            {"routing":"r1","slice":"s1"}
+            {"routing":"r1","_slice":"s1"}
             {"query":{"match_all":{}}}
             """));
-        assertEquals("[routing] and [slice] cannot be combined in the same _msearch request", ex.getMessage());
+        assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
     }
 
     public void testParseRequestRejectsTopLevelRoutingWithMetadataSlice() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
-            {"slice":"s1"}
+            {"_slice":"s1"}
             {"query":{"match_all":{}}}
             """, Map.of("routing", "r1")));
-        assertEquals("[routing] and [slice] cannot be combined in the same _msearch request", ex.getMessage());
+        assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
     }
 
     public void testParseRequestRejectsTopLevelSliceWithMetadataRouting() throws IOException {
@@ -245,17 +250,17 @@ public class MultiSearchRequestTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
             {"routing":"r1"}
             {"query":{"match_all":{}}}
-            """, Map.of(SliceIndexing.PARAM_NAME, "s1")));
-        assertEquals("[routing] and [slice] cannot be combined in the same _msearch request", ex.getMessage());
+            """, Map.of(SliceIndexing.FIELD_NAME, "s1")));
+        assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
     }
 
     public void testParseRequestRejectsMetadataSliceWhenFeatureDisabled() throws IOException {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromString("""
-            {"slice":"s1"}
+            {"_slice":"s1"}
             {"query":{"match_all":{}}}
             """));
-        assertEquals("request does not support [slice]", ex.getMessage());
+        assertEquals("request does not support [_slice]", ex.getMessage());
     }
 
     public void testParseRequestAllowsDifferentRoutingModesPerSubRequestWithoutTopLevel() throws IOException {
@@ -263,7 +268,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest request = parseMultiSearchRequestFromString("""
             {"routing":"r1"}
             {"query":{"match_all":{}}}
-            {"slice":"s1"}
+            {"_slice":"s1"}
             {"query":{"match_all":{}}}
             """);
         assertThat(request.requests().size(), equalTo(2));
@@ -315,7 +320,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                 BytesReference.bytes(builder).streamInput(),
                 false
             );
-            assertThat(map.get(SliceIndexing.PARAM_NAME), equalTo("s1"));
+            assertThat(map.get(SliceIndexing.FIELD_NAME), equalTo("s1"));
             assertNull(map.get("routing"));
         }
     }
@@ -530,6 +535,51 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertNull(parsedAll.routing());
         assertTrue(parsedAll.isRoutingFromSlice());
         assertThat(parsedAll.searchSlice(), equalTo(SliceIndexing.SLICE_ALL));
+    }
+
+    public void testEveryLineIsChargedToTheRequest() throws IOException {
+        // A header with many indices, so that it is charged more than its body.
+        String header = "{\"index\":["
+            + IntStream.range(0, 100).mapToObj(i -> "\"index-" + i + "\"").collect(Collectors.joining(","))
+            + "],\"preference\":\"_local\"}";
+        String body = "{\"query\":{\"match_all\":{}}}";
+        int searches = 3;
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> readBody = (request, parser) -> {
+            while (parser.nextToken() != null) {
+                // Read every token, so that the body is charged the same as on its own.
+            }
+        };
+        try (ParsedContentReservation reservation = new ParsedContentReservation(new NoopCircuitBreaker(CircuitBreaker.REQUEST), true)) {
+            MultiSearchRequest.readMultiLineFormat(
+                XContentType.JSON.xContent(),
+                parserConfig(),
+                reservation::track,
+                new BytesArray((header + "\n" + body + "\n").repeat(searches)),
+                readBody,
+                null,
+                null,
+                null,
+                null,
+                null,
+                true,
+                (name, value, request) -> false,
+                Optional.empty(),
+                null
+            );
+            assertThat(reservation.reservedBytes(), equalTo(searches * (lineCharge(header) + lineCharge(body))));
+        }
+    }
+
+    /** What a line is charged when it is read on its own. */
+    private long lineCharge(String line) throws IOException {
+        try (ParsedContentReservation reservation = new ParsedContentReservation(new NoopCircuitBreaker(CircuitBreaker.REQUEST), true)) {
+            try (XContentParser parser = reservation.track(createParser(JsonXContent.jsonXContent, line))) {
+                while (parser.nextToken() != null) {
+                    // Read every token.
+                }
+            }
+            return reservation.reservedBytes();
+        }
     }
 
     public void testWritingExpandWildcards() throws IOException {

@@ -35,14 +35,16 @@ public final class NumberColumnTransform {
     private NumberColumnTransform() {}
 
     /**
-     * Converts a LONG {@link EscfColumn} whose values are
+     * Converts a LONG or ARRAY {@link EscfColumn} whose values are
      * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a BINARY
      * {@link EscfColumnData} containing the 2-byte {@link HalfFloatPoint} BKD point encoding for
      * each value. Use the result with a {@link org.elasticsearch.escf.LuceneBinaryColumn} to emit
-     * the points column for an indexed {@code half_float} field.
+     * the points column for an indexed {@code half_float} field. An ARRAY source yields an ARRAY of
+     * BINARY, one element per source element.
      */
     public static EscfColumnData toHalfFloatPointBinaryColumn(EscfColumn source, Recycler<BytesRef> recycler) {
-        assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
+        assert source.kind() == EscfColumnKind.LONG || source.kind() == EscfColumnKind.ARRAY
+            : "expected LONG or ARRAY, got " + EscfColumnKind.name(source.kind());
         try (EscfColumnBuilder builder = newBytesBuilder(recycler)) {
             final byte[] buf = new byte[Short.BYTES];
             final BytesRef ref = new BytesRef(buf);
@@ -61,17 +63,7 @@ public final class NumberColumnTransform {
         boolean coerce,
         Recycler<BytesRef> recycler
     ) {
-        return toSortableLongColumn(source, type, coerce, recycler, null);
-    }
-
-    public static EscfColumnData toSortableLongColumn(
-        EscfColumn source,
-        NumberFieldMapper.NumberType type,
-        boolean coerce,
-        Recycler<BytesRef> recycler,
-        Long nullReplacement
-    ) {
-        return toSortableLongColumn(source, type, coerce, recycler, nullReplacement, data -> {});
+        return toSortableLongColumn(source, type, coerce, recycler, null, false);
     }
 
     public static EscfColumnData toSortableLongColumn(
@@ -80,6 +72,23 @@ public final class NumberColumnTransform {
         boolean coerce,
         Recycler<BytesRef> recycler,
         Long nullReplacement,
+        boolean rejectDroppedValues
+    ) {
+        return toSortableLongColumn(source, type, coerce, recycler, nullReplacement, rejectDroppedValues, data -> {});
+    }
+
+    /**
+     * @param rejectDroppedValues whether to throw rather than let a source slot produce no output value. The
+     *     row path records such a slot in the offsets sidecar as a null ordinal, which {@link ColumnarOffsetsBuilder}
+     *     does not emit. Callers that record a sidecar pass {@code true} to fall the chunk back to the row path instead.
+     */
+    public static EscfColumnData toSortableLongColumn(
+        EscfColumn source,
+        NumberFieldMapper.NumberType type,
+        boolean coerce,
+        Recycler<BytesRef> recycler,
+        Long nullReplacement,
+        boolean rejectDroppedValues,
         Consumer<EscfColumnData> ownedSink
     ) {
         return switch (source.kind()) {
@@ -90,11 +99,11 @@ public final class NumberColumnTransform {
                 yield result;
             }
             case EscfColumnKind.STRING -> {
-                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement);
+                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement, rejectDroppedValues);
                 ownedSink.accept(result);
                 yield result;
             }
-            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler, nullReplacement, ownedSink);
+            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler, nullReplacement, rejectDroppedValues, ownedSink);
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: unsupported ESCF column kind ["
                     + EscfColumnKind.name(source.kind())
@@ -109,6 +118,7 @@ public final class NumberColumnTransform {
         boolean coerce,
         Recycler<BytesRef> recycler,
         Long nullReplacement,
+        boolean rejectDroppedValues,
         Consumer<EscfColumnData> ownedSink
     ) {
         // Materialize the array structure: offsets + child data. The child is always dense (all
@@ -118,7 +128,7 @@ public final class NumberColumnTransform {
         EscfColumn child = EscfColumn.from(childData);
         return switch (child.kind()) {
             case EscfColumnKind.STRING -> {
-                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement);
+                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement, rejectDroppedValues);
                 ownedSink.accept(result);
                 yield result;
             }
@@ -147,7 +157,8 @@ public final class NumberColumnTransform {
         NumberFieldMapper.NumberType type,
         boolean coerce,
         Recycler<BytesRef> recycler,
-        Long nullReplacement
+        Long nullReplacement,
+        boolean rejectDroppedValues
     ) {
         AbstractXContentParser.checkCoerceString(coerce, classForType(type));
         try (EscfColumnBuilder builder = newLongBuilder(recycler)) {
@@ -161,6 +172,11 @@ public final class NumberColumnTransform {
                 if (coerce && value.length == 0) {
                     if (nullReplacement != null) {
                         builder.setLong(doc, nullReplacement);
+                    } else if (rejectDroppedValues) {
+                        throw new UnsupportedOperationException(
+                            "toSortableLongColumn: an empty string with no null_value records a null offsets slot, which the columnar "
+                                + "offsets sidecar does not emit"
+                        );
                     }
                     continue;
                 }

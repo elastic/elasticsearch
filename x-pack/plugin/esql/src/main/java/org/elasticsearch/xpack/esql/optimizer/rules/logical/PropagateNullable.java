@@ -75,6 +75,24 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
         // miscompilation and is a small perf win. The guards inside rule() and replace() below are kept
         // as a safety net in case the bug surfaces in a different shape.
         boolean modified = false;
+        if (nullExpressions == null) {
+            // Same JVM miscompilation as the notNullExpressions guard below, hitting the other local:
+            // https://github.com/elastic/elasticsearch/issues/160378
+            logger.warn(
+                "PropagateNullable [#141579]: nullExpressions local was nullified by the JVM; "
+                    + "rebuilding from splits. notNullExpressions={}, others={}, splits={}, and={}",
+                notNullExpressions,
+                others,
+                splits,
+                and
+            );
+            nullExpressions = new LinkedHashSet<>();
+            for (Expression ex : splits) {
+                if (ex instanceof IsNull isn) {
+                    nullExpressions.add(isn.field());
+                }
+            }
+        }
         if (nullExpressions.isEmpty() == false) {
             modified = replace(nullExpressions, others, splits, this::nullify);
         }

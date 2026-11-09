@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.StreamsMetadata;
+import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocatorMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
@@ -98,6 +100,7 @@ import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
+import org.elasticsearch.snapshots.SnapshotsInProgressEncryptedData;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
@@ -146,6 +149,7 @@ public class ClusterModule extends AbstractModule {
     private final TelemetryProvider telemetryProvider;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
     private final AllocationBalancingRoundMetrics balancingRoundMetrics;
+    private final BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics;
 
     public ClusterModule(
         Settings settings,
@@ -175,6 +179,7 @@ public class ClusterModule extends AbstractModule {
         );
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.balancingRoundMetrics = new AllocationBalancingRoundMetrics(telemetryProvider.getMeterRegistry());
+        this.balancedShardsAllocatorMetrics = new BalancedShardsAllocatorMetrics(telemetryProvider.getMeterRegistry());
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
@@ -189,6 +194,7 @@ public class ClusterModule extends AbstractModule {
             this::explainShardAllocation,
             desiredBalanceMetrics,
             balancingRoundMetrics,
+            balancedShardsAllocatorMetrics,
             shardRelocationOrder
         );
         this.clusterService = clusterService;
@@ -200,7 +206,8 @@ public class ClusterModule extends AbstractModule {
             clusterInfoService,
             snapshotsInfoService,
             shardRoutingRoleStrategy,
-            telemetryProvider.getMeterRegistry()
+            telemetryProvider.getMeterRegistry(),
+            clusterService.getClusterSettings()
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
@@ -276,6 +283,12 @@ public class ClusterModule extends AbstractModule {
         List<Entry> entries = new ArrayList<>();
         // Cluster State
         registerClusterCustom(entries, SnapshotsInProgress.TYPE, SnapshotsInProgress::new, SnapshotsInProgress::readDiffFrom);
+        registerClusterCustom(
+            entries,
+            SnapshotsInProgressEncryptedData.TYPE,
+            SnapshotsInProgressEncryptedData::new,
+            SnapshotsInProgressEncryptedData::readDiffFrom
+        );
         registerClusterCustom(entries, RestoreInProgress.TYPE, RestoreInProgress::new, RestoreInProgress::readDiffFrom);
         registerClusterCustom(
             entries,
@@ -407,6 +420,9 @@ public class ClusterModule extends AbstractModule {
                 new ParseField(DataStreamMetadata.TYPE),
                 DataStreamMetadata::fromXContent
             )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent)
         );
         entries.add(
             new NamedXContentRegistry.Entry(
@@ -541,18 +557,24 @@ public class ClusterModule extends AbstractModule {
         ShardAllocationExplainer shardAllocationExplainer,
         DesiredBalanceMetrics desiredBalanceMetrics,
         AllocationBalancingRoundMetrics balancingRoundMetrics,
+        BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics,
         ShardRelocationOrder shardRelocationOrder
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(
             BALANCED_ALLOCATOR,
-            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory)
+            () -> new BalancedShardsAllocator(
+                balancerSettings,
+                writeLoadForecaster,
+                balancingWeightsFactory,
+                balancedShardsAllocatorMetrics
+            )
         );
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
                 clusterSettings,
-                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory),
+                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory, balancedShardsAllocatorMetrics),
                 threadPool,
                 clusterService,
                 reconciler,

@@ -27,8 +27,10 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -84,7 +87,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -346,6 +349,19 @@ public class DataSourceModuleTests extends ESTestCase {
                 throw new IllegalArgumentException("Length mismatch for path [" + path + "]: " + length + " vs " + payload.length);
             }
             return new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public String version() {
+                    return "v1";
+                }
+
+                @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
                 @Override
                 public InputStream newStream() {
                     return new ByteArrayInputStream(payload);
@@ -853,7 +869,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * On release builds the text-format codec surface is gated to {uncompressed, gzip, zstd}: bzip2, snappy,
      * lz4, and brotli must be rejected at extension-resolution time on every text format (CSV/TSV/NDJSON) with
-     * a message that names the supported set, while gzip and zstd still resolve. See elastic/esql-planning#938.
+    * a message that names the supported set, while gzip and zstd still resolve.
      */
     public void testTextCodecsRejectedOnReleaseBuilds() {
         assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
@@ -895,7 +911,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
     /**
      * On snapshot builds the codec gate is bypassed: every registered codec — including bzip2, snappy, lz4, and
-     * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats. See elastic/esql-planning#938.
+    * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats.
      */
     public void testTextCodecsAllowedOnSnapshotBuilds() {
         assumeTrue("release builds gate the text-format codec surface", Build.current().isSnapshot());
@@ -1094,7 +1110,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * On release builds, an explicit {@code format} over a codec outside the GA text-format surface
      * (bzip2, snappy, lz4, brotli) must be rejected the same way the extension-inferred path already is —
-     * not silently accepted while misreading the compressed bytes. See elastic/esql-planning#938.
+    * not silently accepted while misreading the compressed bytes.
      */
     public void testExplicitFormatRejectsNonGaCodecsOnReleaseBuilds() {
         assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());

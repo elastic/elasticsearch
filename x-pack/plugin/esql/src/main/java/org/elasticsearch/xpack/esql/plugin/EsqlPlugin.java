@@ -23,11 +23,13 @@ import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.AsyncOperator;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -44,6 +46,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
@@ -87,6 +90,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
@@ -102,9 +106,12 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryMetrics;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.DatasetListingService;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
@@ -159,6 +166,7 @@ import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
+import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.RestDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.RestGetViewAction;
@@ -166,6 +174,8 @@ import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.TransportGetViewAction;
 import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
+import org.elasticsearch.xpack.esql.view.TransportValidateViewAction;
+import org.elasticsearch.xpack.esql.view.ValidateViewAction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
@@ -478,6 +488,33 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.clusterService().getSettings()
         );
 
+        ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
+        AtomicInteger maxDiscoveredFiles = new AtomicInteger();
+        AtomicInteger maxGlobExpansion = new AtomicInteger();
+        AtomicInteger maxListedObjects = new AtomicInteger();
+        var clusterSettings = services.clusterService().getClusterSettings();
+        // initializeAndWatchIfRegistered seeds from node settings when federation is unregistered (the keys
+        // are not in ClusterSettings then) and watches cluster state when they are. Resolution and split discovery
+        // read these at expand time; clusterService.getSettings() is the yml snapshot and would ignore persistent
+        // updates.
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
+        if (federationRegistered) {
+            clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+        }
+        // Built before the module because split discovery lists too: a query whose schema came from a prefix of the
+        // dataset lists the rest there, and must do so on the same caps and through the same cache as resolution.
+        // That is what orders this block: the caps above feed this, this feeds the module, and the setting watches
+        // that configure the module's own registry come after it.
+        DatasetListingService listingService = new DatasetListingService(
+            settings,
+            cacheService,
+            maxDiscoveredFiles::get,
+            maxGlobExpansion::get,
+            maxListedObjects::get
+        );
+
         // Create DataSourceModule with all discovered plugins.
         // The GENERIC executor backs SPI coordination, decompression, and async-I/O plugin callbacks
         // (e.g. the HTTP client) — NOT object-store GETs. File-read and Phase-2 split discovery
@@ -492,12 +529,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC),
             dataSourceCredentials,
             managedIdentityEnabled::get,
+            federatedIdentityEnabled::get,
             services.threadPool(),
             services.environment(),
             services.resourceWatcherService(),
             services.telemetryProvider().getMeterRegistry(),
             localFileAccess,
-            services.threadPool().executor(externalBlobStorePool())
+            services.threadPool().executor(externalBlobStorePool()),
+            listingService
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -513,20 +552,21 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 )
             );
 
-        ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
-        AtomicInteger maxDiscoveredFiles = new AtomicInteger();
-        AtomicInteger maxGlobExpansion = new AtomicInteger();
-        AtomicInteger maxListedObjects = new AtomicInteger();
-        var clusterSettings = services.clusterService().getClusterSettings();
-        // initializeAndWatchIfRegistered seeds from node settings when federation is unregistered (the keys
-        // are not in ClusterSettings then) and watches cluster state when they are. Resolver reads these
-        // at expand time; clusterService.getSettings() is the yml snapshot and would ignore persistent updates.
-        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
-        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
-        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
-        if (federationRegistered) {
-            clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
-        }
+        // The rest of main's external-source setting watches. They stay below the module because they configure
+        // its format registry, while the listing caps above it are read by the listing service the module is given.
+        FormatReaderRegistry formatReaderRegistry = dataSourceModule.formatReaderRegistry();
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO,
+            formatReaderRegistry::setMaxDecompressionRatio
+        );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD,
+            formatReaderRegistry::setMaxDecompressionRatioZstd
+        );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.ADMISSION_RESCUE_ENABLED,
+            dataSourceModule::setAdmissionRescueEnabled
+        );
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader
@@ -592,7 +632,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
-
+        ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
+            var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
+            services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
+        });
         DataSourceService dataSourceService = new DataSourceService(
             services.clusterService(),
             crudValidators,
@@ -631,6 +674,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ThreadPool.Names.SEARCH,
                 blockFactoryProvider.blockFactory()
             ),
+            new ComputeExecutor(services.threadPool().executor(ESQL_WORKER_THREAD_POOL_NAME), services.threadPool().getThreadContext()),
             blockFactoryProvider,
             dataSourceModule,
             dataSourceCredentials,
@@ -641,12 +685,21 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.client(),
                 services.crossProjectModeDecider()
             ),
-            new ViewService(services.clusterService(), parser),
+            viewService,
+            new MlAnomaliesView(viewService),
+            new FederationLicense(this::getLicenseState),
             dataSourceService,
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             inventoryCounters,
             inventoryMetrics,
-            new PluginComponentBinding<>(QueryMetricsListener.class, collector)
+            new PluginComponentBinding<>(QueryMetricsListener.class, collector),
+            // Without federation no external split is ever dispatched, so there is nothing to hold a joining node back from.
+            new ExternalWorkerReadiness(
+                services.clusterService(),
+                services.client(),
+                services.threadPool(),
+                Federation.isAvailable(settings)
+            )
         );
     }
 
@@ -693,8 +746,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ESQL_WORKER_THREAD_POOL_SIZE,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
-                EsqlFlags.ESQL_REMOTE_FETCH_TOPN,
-                RemoteFetchService.MAX_WORKERS_SETTING,
+                EsqlFlags.ESQL_MAX_BRANCH_COUNT,
+                EsqlFlags.ESQL_MAX_COMMAND_COUNT,
+                EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
+                EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
+                EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
+                EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
+                EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -735,6 +793,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
             new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
             new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+            new ActionHandler(ValidateViewAction.INSTANCE, TransportValidateViewAction.class),
             new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
@@ -765,6 +824,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new RestEsqlStopAsyncAction(),
                 new RestEsqlDeleteAsyncResultAction(),
                 new RestEsqlListQueriesAction(),
+                new RestEsqlStatsAction(),
                 new RestPutViewAction(),
                 new RestDeleteViewAction(),
                 new RestGetViewAction()
@@ -773,12 +833,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
+        // The _test connectivity probe is additionally gated by its own FeatureFlag (snapshot-on, release-off).
         if (Federation.isAvailable(restHandlersServices.settings())) {
             handlers.add(new RestPutDataSourceAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
-            handlers.add(new RestTestDataSourceConnectionAction(dataSourceSecretSettingNames));
-            handlers.add(new RestPutDatasetAction());
+            if (RestTestDataSourceConnectionAction.ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
+                handlers.add(new RestTestDataSourceConnectionAction(dataSourceSecretSettingNames));
+            }
+            handlers.add(new RestPutDatasetAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
         }
@@ -790,6 +853,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(DriverStatus.ENTRY);
         entries.add(AbstractPageMappingOperator.Status.ENTRY);
+        entries.add(FetchDocsSourceOperator.Status.ENTRY);
         entries.add(AbstractPageMappingToIteratorOperator.Status.ENTRY);
         entries.add(AggregationOperator.Status.ENTRY);
         entries.add(EsqlQueryStatus.ENTRY);
@@ -810,10 +874,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichQuerySourceOperator.Status.ENTRY);
+        entries.add(LookupQueryOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
-        entries.add(RemoteFetchOperator.Status.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(MetricsInfoOperator.Status.ENTRY);
         entries.add(TsInfoOperator.Status.ENTRY);
@@ -839,7 +903,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent),
             new NamedXContentRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 new ParseField(DataSourceMetadata.TYPE),

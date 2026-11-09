@@ -28,4 +28,8 @@ public class UpperCaseTokenFilterFactory extends AbstractTokenFilterFactory impl
         return new UpperCaseFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

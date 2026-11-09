@@ -14,6 +14,8 @@ import junit.framework.TestCase;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.foreign.LibraryProvider;
 
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -319,5 +321,18 @@ abstract class ProcessorTestCase extends TestCase {
         } catch (Exception e) {
             throw new RuntimeException("Compilation setup failed", e);
         }
+    }
+
+    /** Fills the whole segment with ascending byte values and returns it. */
+    protected static MemorySegment fill(MemorySegment segment) {
+        return fill(segment, (int) segment.byteSize());
+    }
+
+    /** Fills the first {@code count} bytes of the segment with ascending byte values and returns it. */
+    protected static MemorySegment fill(MemorySegment segment, int count) {
+        for (int i = 0; i < count; i++) {
+            segment.set(ValueLayout.JAVA_BYTE, i, (byte) i);
+        }
+        return segment;
     }
 }

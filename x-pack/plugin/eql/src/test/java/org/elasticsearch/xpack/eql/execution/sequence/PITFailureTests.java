@@ -107,7 +107,7 @@ public class PITFailureTests extends ESTestCase {
                 )
             );
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
-            CircuitBreaker cb = new NoopCircuitBreaker("testcb");
+            CircuitBreaker cb = NoopCircuitBreaker.INSTANCE;
             EqlSession eqlSession = new EqlSession(
                 esClient,
                 eqlConfiguration,
@@ -166,7 +166,7 @@ public class PITFailureTests extends ESTestCase {
      * must not be propagated back to the outer listener, which has already been invoked.
      */
     public void testCloseFailureDoesNotInvokeListenerTwice() {
-        CircuitBreaker cb = new NoopCircuitBreaker("testcb");
+        CircuitBreaker cb = NoopCircuitBreaker.INSTANCE;
         QueryClient client = new QueryClient() {
             @Override
             public void query(QueryRequest r, ActionListener<SearchResponse> l) {
@@ -226,7 +226,7 @@ public class PITFailureTests extends ESTestCase {
      * must be swallowed/logged rather than re-delivered.
      */
     public void testQueryAndCloseFailureDoesNotInvokeListenerTwice() {
-        CircuitBreaker cb = new NoopCircuitBreaker("testcb");
+        CircuitBreaker cb = NoopCircuitBreaker.INSTANCE;
         QueryClient client = new QueryClient() {
             @Override
             public void query(QueryRequest r, ActionListener<SearchResponse> l) {

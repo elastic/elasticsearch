@@ -30,9 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.FORMAT_FIELD;
+import static org.elasticsearch.inference.InferenceString.HTML_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.TYPE_FIELD;
 import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.VALUE_FIELD;
@@ -51,6 +51,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         assertThat(new InferenceString(DataType.AUDIO, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
         assertThat(new InferenceString(DataType.VIDEO, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
         assertThat(new InferenceString(DataType.PDF, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
+        assertThat(new InferenceString(DataType.HTML, "https://example.com/page.html").dataFormat(), is(DataFormat.URL));
     }
 
     public void testSupportedFormatsForType() {
@@ -59,6 +60,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         assertThat(DataType.AUDIO.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.URL)));
         assertThat(DataType.VIDEO.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.URL)));
         assertThat(DataType.PDF.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.URL)));
+        assertThat(DataType.HTML.getSupportedFormats(), is(EnumSet.of(DataFormat.URL)));
     }
 
     public void testConstructorWithInvalidDataURI_throws() {
@@ -296,7 +298,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
             assertThat(exception.getMessage(), containsString("[InferenceString] failed to parse field [type]"));
             assertThat(
                 exception.getCause().getMessage(),
-                is(Strings.format("Unrecognized type [%s], must be one of [text, image, audio, video, pdf]", invalidType))
+                is(Strings.format("Unrecognized type [%s], must be one of [text, image, audio, video, pdf, html]", invalidType))
             );
         }
     }
@@ -316,10 +318,9 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
                 () -> InferenceString.PARSER.apply(parser, null)
             );
             assertThat(exception.getMessage(), containsString("[InferenceString] failed to parse field [format]"));
-            var expectedFormats = URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled() ? "[text, base64, url]" : "[text, base64]";
             assertThat(
                 exception.getCause().getMessage(),
-                is(Strings.format("Unrecognized format [%s], must be one of %s", invalidFormat, expectedFormats))
+                is(Strings.format("Unrecognized format [%s], must be one of [text, base64, url]", invalidFormat))
             );
         }
     }
@@ -344,10 +345,6 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
             assertThat(exception.getMessage(), containsString("[InferenceString] failed to parse field [value]"));
             Throwable cause = exception.getCause();
             assertThat(cause.getMessage(), is("Failed to build [InferenceString] after last required field arrived"));
-            var displayedSupportedFormats = type.getSupportedFormats()
-                .stream()
-                .filter(f -> f != DataFormat.URL || URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled())
-                .toList();
             assertThat(
                 cause.getCause().getMessage(),
                 is(
@@ -355,7 +352,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
                         "Data type [%s] does not support data format [%s], supported formats are %s",
                         type,
                         invalidFormat,
-                        displayedSupportedFormats
+                        type.getSupportedFormats()
                     )
                 )
             );
@@ -419,13 +416,15 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
      * video or pdf content, and versions before {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} throw an exception when
      * serializing URL-format inputs, so we filter those out of the bwc versions to avoid test failures.
      * The logic is tested directly by {@link #testAudioVideoPdfAreNotBackwardsCompatible} and
-     * {@link #testUrlFormatIsNotBackwardsCompatible}
+     * {@link #testUrlFormatIsNotBackwardsCompatible}. Versions before {@link InferenceString#HTML_INPUT_SUPPORT_ADDED} throw an
+     * exception when serializing html inputs, which is tested directly by {@link #testHtmlIsNotBackwardsCompatible}
      */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
         return super.bwcVersions().stream()
             .filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED))
             .filter(version -> version.supports(URL_INPUT_FORMAT_SUPPORT_ADDED))
+            .filter(version -> version.supports(HTML_INPUT_SUPPORT_ADDED))
             .toList();
     }
 
@@ -472,7 +471,6 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
      * trigger it, ensuring we always get the URL-specific error on any old node.
      */
     public void testUrlFormatIsNotBackwardsCompatible() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         var urlInstance = new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png");
         var preUrlVersions = super.bwcVersions().stream().filter(v -> v.supports(URL_INPUT_FORMAT_SUPPORT_ADDED) == false).toList();
         for (var version : preUrlVersions) {
@@ -492,21 +490,31 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     }
 
     /**
-     * Verifies that URL format is rejected when the feature flag is disabled. This test only runs in release builds (or when
-     * the flag is explicitly disabled), since the flag is auto-enabled in snapshots.
+     * Verifies that html inputs cannot be sent to nodes that do not support {@link InferenceString#HTML_INPUT_SUPPORT_ADDED}. The html
+     * guard is checked before the URL-format guard, so the html-specific error is raised on any pre-html node even though html inputs
+     * always use the URL format.
      */
-    public void testConstructorWithUrlFormat_rejectedWhenFeatureFlagDisabled() {
-        assumeFalse("URL input format feature flag is enabled; skipping disabled-flag test", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
-        var exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png")
-        );
-        assertThat(exception.getMessage(), is("url format is not supported"));
+    public void testHtmlIsNotBackwardsCompatible() throws IOException {
+        var htmlInstance = new InferenceString(DataType.HTML, DataFormat.URL, "https://example.com/page.html");
+        var preHtmlVersions = super.bwcVersions().stream().filter(v -> v.supports(HTML_INPUT_SUPPORT_ADDED) == false).toList();
+        for (var version : preHtmlVersions) {
+            var ex = assertThrows(
+                ElasticsearchStatusException.class,
+                () -> copyWriteable(htmlInstance, getNamedWriteableRegistry(), instanceReader(), version)
+            );
+            assertThat(ex.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(
+                ex.getMessage(),
+                is(
+                    "Cannot send an inference request with html inputs to an older node. "
+                        + "Please wait until all nodes are upgraded before using html inputs"
+                )
+            );
+        }
     }
 
     public void testConstructorWithUrlFormat() {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
-        var nonTextTypes = new DataType[] { DataType.IMAGE, DataType.AUDIO, DataType.VIDEO, DataType.PDF };
+        var nonTextTypes = new DataType[] { DataType.IMAGE, DataType.AUDIO, DataType.VIDEO, DataType.PDF, DataType.HTML };
         for (DataType type : nonTextTypes) {
             var inferenceString = new InferenceString(type, DataFormat.URL, "https://example.com/resource");
             assertThat(inferenceString.dataType(), is(type));
@@ -516,7 +524,6 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     }
 
     public void testConstructorWithUrlFormat_acceptsVariousSchemes() {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         var urls = List.of(
             "https://example.com/image.png",
             "http://example.com/audio.mp3",
@@ -528,7 +535,6 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     }
 
     public void testConstructorWithUrlFormat_rejectsDataUri() {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         var exception = assertThrows(
             IllegalArgumentException.class,
             () -> new InferenceString(DataType.IMAGE, DataFormat.URL, "data:image/png;base64,abcd")
@@ -537,7 +543,6 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     }
 
     public void testConstructorWithUrlFormat_rejectsInvalidUri() {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         var invalidUris = List.of("not a uri with spaces", "://missing-scheme");
         invalidUris.forEach(uri -> {
             var exception = assertThrows(IllegalArgumentException.class, () -> new InferenceString(DataType.IMAGE, DataFormat.URL, uri));
@@ -546,23 +551,23 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     }
 
     public void testParserWithUrlImage() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         testParserWithUrlFormat(DataType.IMAGE);
     }
 
     public void testParserWithUrlAudio() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         testParserWithUrlFormat(DataType.AUDIO);
     }
 
     public void testParserWithUrlVideo() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         testParserWithUrlFormat(DataType.VIDEO);
     }
 
     public void testParserWithUrlPdf() throws IOException {
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         testParserWithUrlFormat(DataType.PDF);
+    }
+
+    public void testParserWithUrlHtml() throws IOException {
+        testParserWithUrlFormat(DataType.HTML);
     }
 
     private void testParserWithUrlFormat(DataType type) throws IOException {
@@ -596,15 +601,27 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         return createRandomUsingDataTypes(EnumSet.allOf(DataType.class));
     }
 
+    /**
+     * Creates a random {@link InferenceString} with a {@link DataType} that is valid as an embedding input, see
+     * {@link InferenceStringGroup#SUPPORTED_EMBEDDING_DATA_TYPES}
+     */
+    public static InferenceString createRandomEmbeddingInput() {
+        return createRandomUsingDataTypes(EnumSet.copyOf(InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES));
+    }
+
+    /**
+     * Creates a random {@link InferenceString} with a non-text {@link DataType} that is valid as an embedding input, see
+     * {@link InferenceStringGroup#SUPPORTED_EMBEDDING_DATA_TYPES}
+     */
+    public static InferenceString createRandomNonTextEmbeddingInput() {
+        var nonTextDataTypes = EnumSet.copyOf(InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES);
+        nonTextDataTypes.remove(DataType.TEXT);
+        return createRandomUsingDataTypes(nonTextDataTypes);
+    }
+
     public static InferenceString createRandomUsingDataTypes(EnumSet<DataType> dataTypes) {
         DataType dataType = randomFrom(dataTypes);
-        // Exclude URL format when the feature flag is disabled so that random generation does not attempt to
-        // construct URL-format instances that would be rejected by the flag guard in InferenceString.
-        var availableFormats = dataType.getSupportedFormats()
-            .stream()
-            .filter(f -> f != DataFormat.URL || URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled())
-            .collect(Collectors.toCollection(() -> EnumSet.noneOf(DataFormat.class)));
-        DataFormat format = randomBoolean() ? randomFrom(availableFormats) : null;
+        DataFormat format = randomBoolean() ? randomFrom(dataType.getSupportedFormats()) : null;
         var value = convertToDataURIIfNeeded(dataType, format, randomAlphanumericOfLength(10));
         return new InferenceString(dataType, format, value);
     }
@@ -624,11 +641,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     protected InferenceString mutateInstance(InferenceString instance) throws IOException {
         if (randomBoolean()) {
             DataType newDataType = randomValueOtherThan(instance.dataType(), () -> randomFrom(DataType.values()));
-            var availableFormats = newDataType.getSupportedFormats()
-                .stream()
-                .filter(f -> f != DataFormat.URL || URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled())
-                .collect(Collectors.toCollection(() -> EnumSet.noneOf(DataFormat.class)));
-            DataFormat format = randomFrom(availableFormats);
+            DataFormat format = randomFrom(newDataType.getSupportedFormats());
             return new InferenceString(newDataType, format, convertToDataURIIfNeeded(newDataType, format, instance.value()));
         } else {
             String value = instance.value();

@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -93,7 +97,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
             randomBoolean()
         );
 
-        List.of(true, false).forEach((unattended) -> { assertClusterBlockHandled(bulkIndexingException, unattended); });
+        List.of(true, false).forEach((unattended) -> { assertUncountedRetry(bulkIndexingException, unattended, true); });
     }
 
     public void testHandleIndexerFailure_IrrecoverableBulkIndexException() {
@@ -157,6 +161,22 @@ public class TransformFailureHandlerTests extends ESTestCase {
         assertRetryIfUnattendedOtherwiseFail(e);
     }
 
+    public void testHandleIndexerFailure_TransientAuthorizationFailure() {
+        // A 403 (or 401) ElasticsearchSecurityException can be transient in serverless: during cluster-membership
+        // churn the .security index is briefly unresolvable on the transform node, so role resolution returns empty
+        // and the bulk write is denied. This is retried (bounded by num_failure_retries) rather than failing the
+        // transform immediately; in unattended mode it retries indefinitely.
+        List.of(true, false).forEach((unattended) -> {
+            assertRetry(
+                new ElasticsearchSecurityException(
+                    "action [indices:data/write/bulk] is unauthorized for cloud API key [key] with effective roles []",
+                    RestStatus.FORBIDDEN
+                ),
+                unattended
+            );
+        });
+    }
+
     public void testHandleIndexerFailure_IllegalArgumentException() {
         var e = new IllegalArgumentException(randomAlphaOfLength(10));
         assertRetryIfUnattendedOtherwiseFail(e);
@@ -164,6 +184,58 @@ public class TransformFailureHandlerTests extends ESTestCase {
 
     public void testHandleIndexerFailure_UnexpectedException() {
         List.of(true, false).forEach((unattended) -> { assertRetry(new Exception(), unattended); });
+    }
+
+    /**
+     * A bulk write that fails with a 503 because a destination shard is unavailable is a counted retry: the transform fails once
+     * {@code num_failure_retries} is used up, unless it is unattended.
+     */
+    public void testHandleIndexerFailure_BulkIndexExceptionWrappingUnavailableShardsException() {
+        final BulkIndexingException bulkIndexingException = new BulkIndexingException(
+            randomAlphaOfLength(10),
+            new UnavailableShardsException(new ShardId("dest_index", "uuid", 0), "primary shard is not active"),
+            false
+        );
+
+        List.of(true, false).forEach((unattended) -> { assertRetry(bulkIndexingException, unattended); });
+    }
+
+    /**
+     * A shard that is being restored is handled like a {@link ClusterBlockException}: on the search path it is a counted retry, so the
+     * transform fails once {@code num_failure_retries} is used up, unless it is unattended, in which case it retries indefinitely.
+     */
+    public void testHandleIndexerFailure_ShardRestoringException() {
+        List.of(true, false).forEach((unattended) -> {
+            assertRetry(new ShardRestoringException(randomAlphaOfLength(10), randomUUID()), unattended);
+        });
+    }
+
+    public void testHandleIndexerFailure_ShardRestoringExceptionWrappedInSearchPhaseExecutionException() {
+        List.of(true, false).forEach((unattended) -> {
+            assertRetry(
+                new SearchPhaseExecutionException(
+                    randomAlphaOfLength(10),
+                    randomAlphaOfLength(10),
+                    new ShardSearchFailure[] { new ShardSearchFailure(new ShardRestoringException(randomAlphaOfLength(10), randomUUID())) }
+                ),
+                unattended
+            );
+        });
+    }
+
+    /**
+     * On the bulk path it is an uncounted retry, so the transform keeps retrying through the restore instead of failing. Unlike a
+     * {@link ClusterBlockException}, a restore sets no cluster block on the destination index, so the transform must not be marked as
+     * waiting for an index block to be removed.
+     */
+    public void testHandleIndexerFailure_BulkIndexExceptionWrappingShardRestoringException() {
+        final BulkIndexingException bulkIndexingException = new BulkIndexingException(
+            randomAlphaOfLength(10),
+            new ShardRestoringException(randomAlphaOfLength(10), randomUUID()),
+            randomBoolean()
+        );
+
+        List.of(true, false).forEach((unattended) -> { assertUncountedRetry(bulkIndexingException, unattended, false); });
     }
 
     private void assertRetryIfUnattendedOtherwiseFail(Exception e) {
@@ -197,7 +269,11 @@ public class TransformFailureHandlerTests extends ESTestCase {
         }
     }
 
-    private void assertClusterBlockHandled(Exception e, boolean unattended) {
+    /**
+     * Asserts that the failure is retried without counting against {@code num_failure_retries}, so the transform never fails, and
+     * that the transform is (or is not) marked as waiting for an index block to be removed.
+     */
+    private void assertUncountedRetry(Exception e, boolean unattended, boolean expectWaitingForIndexToUnblock) {
         String transformId = randomAlphaOfLength(10);
         SettingsConfig settings = new SettingsConfig.Builder().setNumFailureRetries(2).setUnattended(unattended).build();
 
@@ -211,7 +287,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
         assertNoFailure(handler, e, contextListener, settings, false);
         assertNoFailure(handler, e, contextListener, settings, false);
         assertNoFailure(handler, e, contextListener, settings, false);
-        assertTrue(context.isWaitingForIndexToUnblock());
+        assertEquals(expectWaitingForIndexToUnblock, context.isWaitingForIndexToUnblock());
     }
 
     private void assertFailure(Exception e) {

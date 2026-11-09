@@ -18,6 +18,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -26,6 +27,9 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Round-trips a chunked byte stream through a real {@link Directory} for every codec, several chunk targets
@@ -306,7 +310,9 @@ public class ChunkedBytesTests extends ESTestCase {
         }
         try (Directory dir = newDirectory()) {
             writeStream(dir, ChunkCodec.ZSTD, 1024, values, new long[values.size() + 1]);
-            assertArrayEquals(new String[] { "chunks.bin", "chunks.nav" }, dir.listAll());
+            // newDirectory() may return a MockDirectoryWrapper that adds a synthetic "extra0" file, which is not ours
+            final String[] files = Arrays.stream(dir.listAll()).filter(name -> name.startsWith("extra") == false).toArray(String[]::new);
+            assertArrayEquals(new String[] { "chunks.bin", "chunks.nav" }, files);
         }
     }
 
@@ -503,6 +509,63 @@ public class ChunkedBytesTests extends ESTestCase {
                             Arrays.copyOfRange(span.bytes, span.offset, span.offset + span.length)
                         );
                     }
+                }
+            }
+        }
+    }
+
+    /** {@code transfer} hands a range of any size over in pieces no larger than a chunk, or a bounded read under identity. */
+    public void testTransferHandsOverBoundedPieces() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < between(20, 200); i++) {
+            values.add(randomByteArrayOfLength(rarely() ? between(40_000, 200_000) : between(0, 3000)));
+        }
+        for (ChunkCodec codec : codecs()) {
+            final int target = randomFrom(64, 1024, 16 * 1024);
+            try (Directory dir = newDirectory()) {
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(dir, codec, target, values, offsets);
+                try (
+                    IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                    IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+                ) {
+                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
+                    final int maxPiece = codec.isIdentity() ? 32 * 1024 : target;
+                    for (int probe = 0; probe < 2 * values.size(); probe++) {
+                        final int i = probe < values.size() ? probe : between(0, values.size() - 1);
+                        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+                        reader.transfer(offsets[i], offsets[i + 1] - offsets[i], (bytes, offset, length) -> {
+                            assertThat(length, lessThanOrEqualTo(maxPiece));
+                            out.write(bytes, offset, length);
+                        });
+                        assertArrayEquals("codec=" + codec + " value " + i, values.get(i), out.toByteArray());
+                    }
+                }
+            }
+        }
+    }
+
+    /** A span over a megabyte gets a buffer of its own, so the reader does not keep one that size for the next span. */
+    public void testALargeSpanIsNotKept() throws IOException {
+        final List<byte[]> values = List.of(randomByteArrayOfLength((1 << 20) + between(1, 100_000)), randomByteArrayOfLength(3000));
+        for (ChunkCodec codec : codecs()) {
+            try (Directory dir = newDirectory()) {
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(dir, codec, 1024, values, offsets);
+                try (
+                    IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                    IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+                ) {
+                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, null, nav));
+                    final BytesRef span = new BytesRef();
+                    reader.span(offsets[0], (int) (offsets[1] - offsets[0]), span);
+                    assertArrayEquals(values.get(0), Arrays.copyOfRange(span.bytes, span.offset, span.offset + span.length));
+                    final byte[] large = span.bytes;
+                    // Crosses chunks, so it is put back together in the buffer the reader keeps.
+                    reader.span(offsets[1], (int) (offsets[2] - offsets[1]), span);
+                    assertArrayEquals(values.get(1), Arrays.copyOfRange(span.bytes, span.offset, span.offset + span.length));
+                    assertNotSame(large, span.bytes);
+                    assertThat("codec=" + codec, span.bytes.length, lessThan(1 << 20));
                 }
             }
         }

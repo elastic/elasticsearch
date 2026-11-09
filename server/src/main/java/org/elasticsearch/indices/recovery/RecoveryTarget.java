@@ -260,7 +260,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             try {
                 logger.debug("recovery canceled (reason: [{}])", reason);
                 cancellableThreads.cancel(reason);
-                listener.onRecoveryFailure(new RecoveryFailedException(state(), "recovery canceled", null), ABORT);
+                listener.onRecoveryFailure(state(), new RecoveryFailedException(state(), "recovery canceled", null), ABORT);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();
@@ -277,7 +277,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void fail(RecoveryFailedException e, FailureStrategy failureStrategy) {
         if (finished.compareAndSet(false, true)) {
             try {
-                listener.onRecoveryFailure(e, failureStrategy);
+                listener.onRecoveryFailure(state(), e, failureStrategy);
             } finally {
                 try {
                     cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
@@ -302,7 +302,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("recovery failed after being marked as done", e);
-                    listener.onRecoveryFailure(new RecoveryFailedException(state(), "Recovery failed on post recovery step", e), FAIL_SEND);
+                    listener.onRecoveryFailure(
+                        state(),
+                        new RecoveryFailedException(state(), "Recovery failed on post recovery step", e),
+                        FAIL_SEND
+                    );
                 }
             }, this::decRef));
         }

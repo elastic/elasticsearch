@@ -31,6 +31,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -186,6 +187,45 @@ public final class AttachmentProcessor extends AbstractProcessor {
         return maxFieldSizeFromNode;
     }
 
+    /**
+     * Returns the raw in-memory size in bytes of a field value that {@link #asBytes} accepts, before any decoding.
+     *
+     * @param fieldValue the field value, which must not be null (the caller deals with a missing value)
+     * @return size in bytes, an integer (because the underlying format can be a byte array or a string)
+     * @throws IllegalArgumentException if the field value is not a string or a byte array
+     */
+    private static int rawBytesLength(String field, Object fieldValue) {
+        if (fieldValue instanceof byte[] bytes) {
+            return bytes.length;
+        } else if (fieldValue instanceof String string) {
+            return string.length(); // one base64 character is assumed to be one byte
+        } else {
+            throw notStringOrByteArray(field, fieldValue);
+        }
+    }
+
+    /**
+     * Returns a field value as a byte array: a string is base64 decoded, and a byte array is just returned.
+     *
+     * @param fieldValue the field value, which must not be null (the caller deals with a missing value)
+     * @throws IllegalArgumentException if the field value is not a string or a byte array
+     */
+    private static byte[] asBytes(String field, Object fieldValue) {
+        if (fieldValue instanceof byte[] bytes) {
+            return bytes;
+        } else if (fieldValue instanceof String string) {
+            return Base64.getDecoder().decode(string);
+        } else {
+            throw notStringOrByteArray(field, fieldValue);
+        }
+    }
+
+    private static IllegalArgumentException notStringOrByteArray(String field, Object fieldValue) {
+        return new IllegalArgumentException(
+            "Content field [" + field + "] of unknown type [" + fieldValue.getClass().getName() + "], must be string or byte array"
+        );
+    }
+
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) {
         Map<String, Object> additionalFields = new HashMap<>();
@@ -200,12 +240,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
         } else if (fieldValue == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
         }
-        final int rawBytes = ingestDocument.getFieldValueRawBytesLength(field, fieldValue);
+        final int rawBytes = rawBytesLength(field, fieldValue);
         if (attachmentMetrics.get() != null) {
             attachmentMetrics.get().recordRawBytesReceived(rawBytes);
         }
         checkMaxAttachmentFieldSize(rawBytes);
-        byte[] input = ingestDocument.getFieldValueAsBytes(field, fieldValue);
+        byte[] input = asBytes(field, fieldValue);
 
         Integer indexedCharsValue = this.indexedChars;
 

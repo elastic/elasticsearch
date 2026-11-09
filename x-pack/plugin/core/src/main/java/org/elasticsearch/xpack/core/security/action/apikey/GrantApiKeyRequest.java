@@ -12,6 +12,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.core.security.action.GrantRequest;
 
 import java.util.Objects;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.core.security.action.Grant.ACCESS_TOKEN_GRANT_TYPE;
+import static org.elasticsearch.xpack.core.security.action.Grant.PASSWORD_GRANT_TYPE;
+import static org.elasticsearch.xpack.core.security.action.Grant.USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE;
 
 /**
  * Request class used for the creation of an API key on behalf of another user.
@@ -23,7 +28,7 @@ public final class GrantApiKeyRequest extends GrantRequest {
     private CreateApiKeyRequest apiKey;
 
     public GrantApiKeyRequest() {
-        super();
+        super(Set.of(PASSWORD_GRANT_TYPE, ACCESS_TOKEN_GRANT_TYPE, USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE));
         this.apiKey = new CreateApiKeyRequest();
     }
 
@@ -45,7 +50,6 @@ public final class GrantApiKeyRequest extends GrantRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = apiKey.validate();
-        return grant.validate(validationException);
+        return super.validate(apiKey.validate());
     }
 }

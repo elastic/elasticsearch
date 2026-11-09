@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -51,6 +52,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -171,6 +173,7 @@ public class IndexModuleTests extends ESTestCase {
     private BigArrays bigArrays;
     private ScriptService scriptService;
     private ClusterService clusterService;
+    private FeatureService featureService;
     private IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Before
@@ -208,6 +211,7 @@ public class IndexModuleTests extends ESTestCase {
             TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         clusterService = ClusterServiceUtils.createClusterService(threadPool, ClusterSettings.createBuiltInClusterSettings(settings));
+        featureService = new FeatureService(List.of());
         nodeEnvironment = new NodeEnvironment(settings, environment);
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
@@ -242,6 +246,7 @@ public class IndexModuleTests extends ESTestCase {
             threadPoolMergeExecutorService,
             scriptService,
             clusterService,
+            featureService,
             null,
             indicesQueryCache,
             mapperRegistry,
@@ -698,7 +703,7 @@ public class IndexModuleTests extends ESTestCase {
         RecoveryState recoveryState = mock(RecoveryState.class);
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = singletonMap(
             "test_recovery",
-            (shardRouting, targetNode, sourceNode) -> recoveryState
+            (shardRouting, targetNode, sourceNode, localRetries) -> recoveryState
         );
 
         final IndexModule module = new IndexModule(
@@ -723,7 +728,7 @@ public class IndexModuleTests extends ESTestCase {
         ShardRouting shard = createInitializedShardRouting();
 
         assertThat(
-            indexService.getRecoveryStateFactory().newRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)),
+            indexService.getRecoveryStateFactory().newRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class), 0),
             is(recoveryState)
         );
 
@@ -780,7 +785,7 @@ public class IndexModuleTests extends ESTestCase {
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             ).initialize("_node_id", null, -1);
 
             IndexService indexService = newIndexService(module);
@@ -791,7 +796,8 @@ public class IndexModuleTests extends ESTestCase {
                 DiscoveryNodeUtils.create("_node_id", "_node_id"),
                 null,
                 IndexShardTestCase.NOOP_GCP_SYNCER,
-                RetentionLeaseSyncer.EMPTY
+                RetentionLeaseSyncer.EMPTY,
+                0
             );
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
             indexShard.markAsRecovering("test");
@@ -828,6 +834,34 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
+    public void testCreateShardThreadsLocalRecoveryRetriesIntoRecoveryState() throws IOException {
+        final IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
+        final IndexService indexService = newIndexService(module);
+        try {
+            final ShardRouting shardRouting = ShardRouting.newUnassigned(
+                new ShardId("index", UUIDs.randomBase64UUID(random()), 0),
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                ShardRouting.Role.DEFAULT,
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            ).initialize("_node_id", null, -1);
+
+            final IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                DiscoveryNodeUtils.create("_node_id", "_node_id"),
+                null,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY,
+                7
+            );
+
+            assertThat(indexShard.recoveryState().getLocalRetries(), equalTo(7));
+        } finally {
+            closeIndexService(indexService);
+        }
+    }
+
     private ShardRouting createInitializedShardRouting() {
         ShardRouting shard = ShardRouting.newUnassigned(
             new ShardId("test", "_na_", 0),
@@ -835,7 +869,7 @@ public class IndexModuleTests extends ESTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         shard = shard.initialize("node1", null, -1);
         return shard;

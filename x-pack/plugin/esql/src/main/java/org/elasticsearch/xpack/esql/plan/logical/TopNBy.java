@@ -25,7 +25,7 @@ import java.util.Objects;
  * Logical plan node for {@code SORT order1, order2 | LIMIT N BY grouping1, grouping2, ...}.
  * Sorts the input rows retaining at most N rows per group defined by the grouping expressions.
  */
-public class TopNBy extends UnaryPlan implements PipelineBreaker {
+public class TopNBy extends UnaryPlan implements PipelineBreaker, DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "TopNBy", TopNBy::new);
 
     private final List<Order> order;

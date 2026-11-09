@@ -44,6 +44,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     public static final TransportVersion URL_INPUT_FORMAT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_url_input_format_support"
     );
+    public static final TransportVersion HTML_INPUT_SUPPORT_ADDED = TransportVersion.fromName("inference_api_html_input_support");
 
     // Caps regex cost regardless of total input size; real MIME types are well under this.
     static final int MAX_DATA_URI_PREFIX_LENGTH = 256;
@@ -111,16 +112,12 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     private void validateTypeAndFormat() {
         if (dataType.getSupportedFormats().contains(dataFormat) == false) {
-            var displayedFormats = dataType.getSupportedFormats()
-                .stream()
-                .filter(f -> f != DataFormat.URL || DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled())
-                .toList();
             throw new IllegalArgumentException(
                 Strings.format(
                     "Data type [%s] does not support data format [%s], supported formats are %s",
                     dataType,
                     dataFormat,
-                    displayedFormats
+                    dataType.getSupportedFormats()
                 )
             );
         }
@@ -137,9 +134,6 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     private void validateURLFormat() {
-        if (DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("url format is not supported");
-        }
         try {
             var uri = new URI(value);
             if (DATA_SCHEME.equalsIgnoreCase(uri.getScheme())) {
@@ -270,6 +264,13 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
             throw new ElasticsearchStatusException(
                 "Cannot send an inference request with audio, video or pdf inputs to an older node. "
                     + "Please wait until all nodes are upgraded before using audio, video or pdf inputs",
+                RestStatus.BAD_REQUEST
+            );
+        }
+        if (out.getTransportVersion().supports(HTML_INPUT_SUPPORT_ADDED) == false && dataType.equals(DataType.HTML)) {
+            throw new ElasticsearchStatusException(
+                "Cannot send an inference request with html inputs to an older node. "
+                    + "Please wait until all nodes are upgraded before using html inputs",
                 RestStatus.BAD_REQUEST
             );
         }

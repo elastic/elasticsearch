@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -59,7 +60,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class ExternalSourceParallelismTests extends ESTestCase {
 
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testMultipleDriversReadAllSplits() throws Exception {
@@ -422,7 +423,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubStorageObject implements StorageObject {
+    private static class StubStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         StubStorageObject(StoragePath path) {

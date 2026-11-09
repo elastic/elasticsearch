@@ -1,0 +1,5 @@
+TS k8s
+| TS_INFO
+| WHERE metric_name LIKE "metrics.*"
+| WHERE metric_type == "counter"
+| STATS dims = VALUES(dimension_fields) BY metric_name

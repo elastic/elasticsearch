@@ -101,10 +101,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     private ThreadPool threadPool;
     private ClusterStateChanges cluster;
 
-    /// Set by {@link #createIndicesClusterStateService} to the mock created for the most recently created service,
-    /// for tests that need to verify interactions with it.
-    private ShardStateAction lastShardStateAction;
-
     @Before
     public void startCluster() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
@@ -459,6 +455,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     /// No local recovery retry mechanism exists yet, so handleRecoveryFailure must still notify master for a
     /// RETRY classification -- unlike FAIL_SILENT (see testRecoveryFailures), which must not.
     public void testRecoveryFailureRetryIsDowngradedToFailSend() {
+        ShardStateAction shardStateAction = mock(ShardStateAction.class);
         disableRandomFailures();
         String index = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         ClusterState state = ClusterStateCreationUtils.state(
@@ -478,7 +475,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         ClusterState localState = adaptClusterStateToLocalNode(state, node);
         ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
-        IndicesClusterStateService indicesCSSvc = createIndicesClusterStateService(node, RecordingIndicesService::new);
+        IndicesClusterStateService indicesCSSvc = createIndicesClusterStateService(node, RecordingIndicesService::new, shardStateAction);
         indicesCSSvc.start();
         indicesCSSvc.applyClusterState(new ClusterChangedEvent("cluster state change that adds the index", localState, previousLocalState));
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
@@ -487,7 +484,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         indicesCSSvc.handleRecoveryFailure(shardRouting, RETRY, primaryTerm, new Exception("dummy"));
 
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
-        verify(lastShardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
     }
 
     public ClusterState randomInitialClusterState(
@@ -708,6 +705,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         DiscoveryNode discoveryNode,
         final Supplier<MockIndicesService> indicesServiceSupplier
     ) {
+        return createIndicesClusterStateService(discoveryNode, indicesServiceSupplier, mock(ShardStateAction.class));
+    }
+
+    private IndicesClusterStateService createIndicesClusterStateService(
+        DiscoveryNode discoveryNode,
+        final Supplier<MockIndicesService> indicesServiceSupplier,
+        ShardStateAction shardStateAction
+    ) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         final MockIndicesService indicesService = indicesServiceSupplier.get();
@@ -746,8 +751,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             clusterService,
             mock(SnapshotFilesProvider.class)
         );
-        final ShardStateAction shardStateAction = mock(ShardStateAction.class);
-        lastShardStateAction = shardStateAction;
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
         return new IndicesClusterStateService(
             settings,

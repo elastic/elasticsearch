@@ -4042,6 +4042,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } else if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
                     failureStrategy = FAIL_SEND;
                 } else {
+                    // Note! Doesn't guarantee local retry, see IndicesClusterStateService#handleRecoveryFailure
                     failureStrategy = RETRY;
                 }
                 recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), failureStrategy);

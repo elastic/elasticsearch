@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 136302
+pr: 156238
+summary: Fix source filtering for fields containing backslashes
+type: bug

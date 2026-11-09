@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -503,6 +504,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         if (projectOutput.equals(childOutput) == false) {
             List<Attribute> delta = new ArrayList<>(childOutput);
             delta.removeAll(projectOutput);
+            // MarkJoin marks sit under the alignment Project but are not merge columns (MergePlan.outputUnion skips them). Letting them
+            // through here makes ResolveRefs drop them on the next pass and this rule add them back — a Resolution-batch loop that hits
+            // the 100-rule limit. Cast synthetics stay.
+            delta.removeIf(InSubqueryResolver::isInSubquerySynthetic);
             if (delta.isEmpty() == false) {
                 project = project.withProjections(mergeOutputAttributes(delta, projectOutput));
             }

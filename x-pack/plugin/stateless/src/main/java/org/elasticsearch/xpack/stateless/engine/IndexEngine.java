@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -53,6 +52,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.SizeTrackingOneMerge;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -641,7 +641,11 @@ public class IndexEngine extends InternalEngine {
     }
 
     public static boolean isLastCommitHollow(SegmentInfos segmentInfos) {
-        String translogRecoveryStartFile = segmentInfos.getUserData().get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
+        return isLastCommitHollow(segmentInfos.getUserData());
+    }
+
+    public static boolean isLastCommitHollow(Map<String, String> commitUserData) {
+        String translogRecoveryStartFile = commitUserData.get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
         return translogRecoveryStartFile != null ? Long.parseLong(translogRecoveryStartFile) == HOLLOW_TRANSLOG_RECOVERY_START_FILE : false;
     }
 
@@ -1077,13 +1081,8 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
-        return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new MergePolicy.OneMerge(oneMerge) {
+        return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new SizeTrackingOneMerge(oneMerge) {
             private volatile boolean isComplete = false;
-
-            @Override
-            public CodecReader wrapForMerge(CodecReader reader) throws IOException {
-                return oneMerge.wrapForMerge(reader);
-            }
 
             @Override
             public boolean isAborted() {

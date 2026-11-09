@@ -516,7 +516,8 @@ public final class CredentialTransitions {
             headers,
             effectiveConfig.getEsqlQuery(),
             effectiveConfig.getProjectRouting(),
-            listener.delegateResponse((l, e) -> l.onFailure(enrichProbeFailure(effectiveConfig, e)))
+            listener.delegateResponse((l, e) -> l.onFailure(enrichProbeFailure(effectiveConfig, e))),
+            effectiveConfig.getId()
         );
     }
 

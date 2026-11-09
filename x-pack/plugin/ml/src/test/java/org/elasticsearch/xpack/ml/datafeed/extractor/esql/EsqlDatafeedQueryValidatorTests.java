@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
@@ -51,7 +53,6 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
@@ -263,7 +264,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             "_alias:_origin",
             ActionListener.wrap(ignored -> succeeded.set(true), e -> {
                 throw new AssertionError(e);
-            })
+            }),
+            null
         );
 
         assertThat(succeeded.get(), is(true));
@@ -281,7 +283,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null,
             ActionListener.wrap(ignored -> {}, e -> {
                 throw new AssertionError(e);
-            })
+            }),
+            null
         );
 
         assertThat(harness.capturedQuery, equalTo("FROM logs | WHERE a > 1 // filter\n | LIMIT 0"));
@@ -298,27 +301,30 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             "_alias:*",
             ActionListener.wrap(ignored -> succeeded.set(true), e -> {
                 throw new AssertionError("expected deferral", e);
-            })
+            }),
+            null
         );
 
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testMintAccessSuccessShouldCloseResponse() {
-        EsqlQueryResponse response = mock(EsqlQueryResponse.class);
+    public void testMintAccessSuccessShouldNotReleaseBorrowedResponse() {
+        RefCountedMintProbeResponse response = refCountedEmptyMintProbeResponse();
         ValidatorHarness harness = new ValidatorHarness(response);
 
+        assertThat(response.hasReferences(), is(true));
         AtomicBoolean succeeded = new AtomicBoolean(false);
         harness.validator.validateAccessForMint(
             null,
             Collections.emptyMap(),
             ESQL_QUERY,
             null,
-            ActionTestUtils.assertNoFailureListener(ignored -> succeeded.set(true))
+            ActionTestUtils.assertNoFailureListener(ignored -> succeeded.set(true)),
+            null
         );
 
         assertThat(succeeded.get(), is(true));
-        verify(response).close();
+        assertThat(response.hasReferences(), is(false));
     }
 
     public void testMintAccessWithQualifiedSourceAndNoMatchingProjectShouldFail() {
@@ -331,7 +337,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             Collections.emptyMap(),
             "FROM project-a:logs | LIMIT 10",
             "_alias:*",
-            ActionListener.wrap(ignored -> fail("a qualified project must not be deferred"), failure::set)
+            ActionListener.wrap(ignored -> fail("a qualified project must not be deferred"), failure::set),
+            null
         );
 
         assertThat(failure.get(), equalTo(noMatchingProject));
@@ -423,7 +430,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             Collections.emptyMap(),
             query,
             "_alias:*",
-            ActionListener.wrap(ignored -> deferred.set(true), e -> {})
+            ActionListener.wrap(ignored -> deferred.set(true), e -> {}),
+            null
         );
         return deferred.get();
     }
@@ -439,7 +447,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null,
             ActionListener.wrap(ignored -> succeeded.set(true), e -> {
                 throw new AssertionError("expected deferral", e);
-            })
+            }),
+            null
         );
 
         assertThat(succeeded.get(), is(true));
@@ -456,7 +465,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null,
             ActionListener.wrap(ignored -> succeeded.set(true), e -> {
                 throw new AssertionError("expected deferral", e);
-            })
+            }),
+            null
         );
 
         assertThat(succeeded.get(), is(true));
@@ -472,7 +482,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             Collections.emptyMap(),
             ESQL_QUERY,
             null,
-            ActionListener.wrap(ignored -> fail("expected failure"), failure::set)
+            ActionListener.wrap(ignored -> fail("expected failure"), failure::set),
+            null
         );
 
         assertThat(failure.get(), equalTo(securityFailure));
@@ -1157,10 +1168,65 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 capturedParams = params;
                 if (failure != null) {
                     listener.onFailure(failure);
+                } else if (response instanceof RefCounted refCounted) {
+                    @SuppressWarnings("unchecked")
+                    ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
+                    ActionListener.respondAndRelease(refCountedListener, refCounted);
                 } else {
                     listener.onResponse(response);
                 }
             });
+        }
+    }
+
+    private static RefCountedMintProbeResponse refCountedEmptyMintProbeResponse() {
+        return new RefCountedMintProbeResponse();
+    }
+
+    private static final class RefCountedMintProbeResponse extends EsqlQueryResponse implements RefCounted {
+
+        private final AbstractRefCounted counted = AbstractRefCounted.of(() -> {});
+        private final EsqlResponse esqlResponse = mock(EsqlResponse.class);
+
+        @Override
+        protected EsqlResponse responseInternal() {
+            return esqlResponse;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            throw new UnsupportedOperationException("not needed in tests");
+        }
+
+        @Override
+        public void incRef() {
+            counted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return counted.tryIncRef();
+        }
+
+        @Override
+        public void mustIncRef() {
+            counted.mustIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return counted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return counted.hasReferences();
+        }
+
+        @Override
+        public void close() {
+            super.close();
+            decRef();
         }
     }
 

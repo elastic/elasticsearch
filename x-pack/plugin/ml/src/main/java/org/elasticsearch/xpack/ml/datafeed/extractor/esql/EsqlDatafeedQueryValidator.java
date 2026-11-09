@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -40,6 +42,8 @@ import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.E
  */
 public class EsqlDatafeedQueryValidator {
 
+    private static final Logger logger = LogManager.getLogger(EsqlDatafeedQueryValidator.class);
+
     private final EsqlQueryRunner queryRunner;
 
     public EsqlDatafeedQueryValidator() {
@@ -70,8 +74,10 @@ public class EsqlDatafeedQueryValidator {
         Pattern.CASE_INSENSITIVE
     );
 
-    /** After the leading command: subquery FROM/TS, JOIN/LOOKUP/ENRICH/PROMQL/EXTERNAL, or a single ':'. */
-    // A string literal containing these words or a colon is over-rejected on purpose (fails the probe, never defers).
+    /**
+     * After the leading command: subquery FROM/TS, JOIN/LOOKUP/ENRICH/PROMQL/EXTERNAL, or a single ':'. A string literal containing
+     * these words or a colon is over-rejected on purpose and fails the probe.
+     */
     private static final Pattern SOURCE_INTRODUCING_TOKEN = Pattern.compile(
         "\\(\\s*(?:(?://[^\\n]*\\n|/\\*.*?\\*/)\\s*)*(?:FROM|TS)\\b|\\b(?:JOIN|LOOKUP|ENRICH|PROMQL|EXTERNAL)\\b|(?<!:):(?!:)|:::",
         Pattern.CASE_INSENSITIVE | Pattern.DOTALL
@@ -349,30 +355,28 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * {@code LIMIT 0} access probe before CPS credential mint; column checks are {@link #validateQuery}. An unmatched project fails the
-     * probe when the query may name a project-qualified source; other missing-source failures defer to runtime.
+     * {@code LIMIT 0} access probe before CPS credential mint. Fails on an unmatched project when the query may name a qualified source;
+     * defers unknown-index existence failures to runtime; all other failures fail the probe.
      */
     public void validateAccessForMint(
         Client client,
         Map<String, String> headers,
         String esqlQuery,
         @Nullable String projectRouting,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        @Nullable String datafeedId
     ) {
         String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
         boolean mayHaveQualifiedSource = mayHaveQualifiedSource(esqlQuery);
 
-        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
-            try {
-                listener.onResponse(null);
-            } finally {
-                response.close();
-            }
-        }, e -> {
+        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             boolean unmatchedQualifiedProject = mayHaveQualifiedSource && cause instanceof NoMatchingProjectException;
             if (unmatchedQualifiedProject == false && isDeferredExistenceFailure(cause)) {
-                // Source may not exist yet; defer to runtime (classic SearchRequest probe behaviour).
+                // ES|QL reports a missing, empty-wildcard or unreadable source as unknown index; none can be told apart here.
+                logger.debug(
+                    () -> "[" + datafeedId + "] ES|QL validate-before-mint probe failed with [" + cause + "]. Deferring to runtime."
+                );
                 listener.onResponse(null);
             } else {
                 listener.onFailure(e);

@@ -287,9 +287,9 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
     }
 
     /**
-     * The first read of each region fails with a {@link ResourceAlreadyUploadedException}, as if the VBCC had been uploaded after the reader
-     * was created. Prewarming retries each region once, so it must succeed, read each region exactly twice, and release the store ref
-     * it took for every region.
+     * The first read of each region fails with a {@link ResourceAlreadyUploadedException}, as if the VBCC had been uploaded after the
+     * reader was created. Prewarming retries each region once, so it must succeed, read each region exactly twice, and release the
+     * store ref it took for every region.
      */
     public void testPrewarmingRetriesRegionsOnceAndReleasesStoreWhenAlreadyUploaded() throws Exception {
         final var failures = new ScriptedReadFailures(1);

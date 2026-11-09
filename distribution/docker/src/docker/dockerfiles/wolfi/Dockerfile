@@ -85,6 +85,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} + && \\
     prev= && \\
+    set -o pipefail && \\
     find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do \\
         if [ "\$sum" = "\$prev" ]; then ln -f "\$first" "\$path" || exit 1; else prev="\$sum"; first="\$path"; fi; \\
     done && \\

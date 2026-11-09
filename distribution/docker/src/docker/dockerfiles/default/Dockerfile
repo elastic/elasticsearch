@@ -78,6 +78,7 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # that each one is stored only once in the image layer. This has to happen before the layers are split off, and
 # the jdk is not touched since it is copied in a layer of its own.
     prev= && \\
+    set -o pipefail && \\
     find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do \\
         if [ "\$sum" = "\$prev" ]; then ln -f "\$first" "\$path" || exit 1; else prev="\$sum"; first="\$path"; fi; \\
     done && \\

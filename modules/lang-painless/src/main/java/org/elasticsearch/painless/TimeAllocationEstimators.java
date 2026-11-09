@@ -11,14 +11,33 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.core.Nullable;
 
+import java.text.ParsePosition;
+import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Month;
+import java.time.MonthDay;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.Period;
+import java.time.Year;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.chrono.ChronoLocalDate;
+import java.time.chrono.Chronology;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DecimalStyle;
+import java.time.format.FormatStyle;
+import java.time.format.ResolverStyle;
+import java.time.format.SignStyle;
+import java.time.format.TextStyle;
+import java.time.temporal.Temporal;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjuster;
 import java.time.temporal.TemporalAmount;
@@ -26,6 +45,8 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQuery;
 import java.time.temporal.TemporalUnit;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * {@code @allocates} estimators for the {@code java.time} allowlists. They live in their own class because there are a lot
@@ -68,6 +89,22 @@ public final class TimeAllocationEstimators {
      * cached. 120 bytes.
      */
     public static final long ZONED_DATE_TIME_BYTES = shellBytes(3) + LOCAL_DATE_TIME_BYTES;
+
+    /** An {@link OffsetTime}: its own object with two references, plus a new {@code LocalTime}. Offsets are cached. 48 bytes. */
+    public static final long OFFSET_TIME_BYTES = shellBytes(2) + FLAT_VALUE_BYTES;
+
+    /** A {@link java.time.temporal.ValueRange}: four longs. 48 bytes. */
+    public static final long VALUE_RANGE_BYTES = AllocSizes.pad8(AllocSizes.OBJECT_HEADER + 4L * Long.BYTES);
+
+    /** A {@link DateTimeFormatter} copy from a {@code with} method: eight references. 80 bytes. */
+    public static final long FORMATTER_BYTES = shellBytes(8);
+
+    /** A new {@link java.time.format.DateTimeFormatterBuilder}: the builder and its element list. */
+    private static final long BUILDER_BYTES = 128;
+
+    /** Characters allowed for a display name or a localized pattern string. */
+    private static final long DISPLAY_NAME_CHARACTERS = 32;
+    private static final long PATTERN_TEXT_CHARACTERS = 64;
 
     /**
      * Characters allowed for one {@code DateTimeFormatter.format} result. A formatter does not expose its pattern length, so
@@ -297,5 +334,919 @@ public final class TimeAllocationEstimators {
     /** {@code DateTimeFormatter.ofPattern(String, Locale)}. */
     public static long ofPatternBytes(String pattern, Locale locale) {
         return ofPatternBytes(pattern);
+    }
+
+    // ---- Flat values, 24 bytes. ----
+
+    /** {@code Clock.fixed}. */
+    public static long flatValueBytes(Instant instant, ZoneId zoneId) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Duration.abs}, {@code Duration.negated}. */
+    public static long flatValueBytes(Duration receiver) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Duration.between}. */
+    public static long flatValueBytes(Temporal temporal, Temporal temporal2) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /**
+     * {@code Duration.dividedBy}, {@code Duration.minusDays}, {@code Duration.minusHours}, {@code Duration.minusMinutes}, {@code
+     * Duration.minusSeconds}, {@code Duration.minusMillis} and 9 more.
+     */
+    public static long flatValueBytes(Duration receiver, long value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Duration.from}, {@code Period.from}. */
+    public static long flatValueBytes(TemporalAmount temporalAmount) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Duration.minus}, {@code Duration.plus}. */
+    public static long flatValueBytes(Duration receiver, Duration duration) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Duration.minus}, {@code Duration.plus}. */
+    public static long flatValueBytes(Duration receiver, long value, TemporalUnit temporalUnit) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Duration.of}. */
+    public static long flatValueBytes(long value, TemporalUnit temporalUnit) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Duration.withNanos}. */
+    public static long flatValueBytes(Duration receiver, int value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalDate.minus}, {@code LocalDate.plus}. */
+    public static long flatValueBytes(LocalDate receiver, TemporalAmount temporalAmount) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalDate.minus}, {@code LocalDate.plus}. */
+    public static long flatValueBytes(LocalDate receiver, long value, TemporalUnit temporalUnit) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /**
+     * {@code LocalDate.minusYears}, {@code LocalDate.minusMonths}, {@code LocalDate.minusWeeks}, {@code LocalDate.minusDays}, {@code
+     * LocalDate.plusYears}, {@code LocalDate.plusMonths} and 2 more.
+     */
+    public static long flatValueBytes(LocalDate receiver, long value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalDate.of}, {@code LocalTime.of}, {@code Period.of}, {@code ZoneOffset.ofHoursMinutesSeconds}. */
+    public static long flatValueBytes(int value, int value2, int value3) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /**
+     * {@code LocalDate.ofYearDay}, {@code LocalTime.of}, {@code MonthDay.of}, {@code YearMonth.of}, {@code
+     * ZoneOffset.ofHoursMinutes}.
+     */
+    public static long flatValueBytes(int value, int value2) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalDate.until}. */
+    public static long flatValueBytes(LocalDate receiver, ChronoLocalDate chronoLocalDate) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalDate.with}. */
+    public static long flatValueBytes(LocalDate receiver, TemporalAdjuster temporalAdjuster) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalDate.with}. */
+    public static long flatValueBytes(LocalDate receiver, TemporalField temporalField, long value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalDate.withDayOfMonth}, {@code LocalDate.withDayOfYear}, {@code LocalDate.withMonth}, {@code LocalDate.withYear}. */
+    public static long flatValueBytes(LocalDate receiver, int value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalTime.minus}, {@code LocalTime.plus}. */
+    public static long flatValueBytes(LocalTime receiver, TemporalAmount temporalAmount) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalTime.minus}, {@code LocalTime.plus}. */
+    public static long flatValueBytes(LocalTime receiver, long value, TemporalUnit temporalUnit) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /**
+     * {@code LocalTime.minusHours}, {@code LocalTime.minusMinutes}, {@code LocalTime.minusNanos}, {@code LocalTime.minusSeconds},
+     * {@code LocalTime.plusHours}, {@code LocalTime.plusMinutes} and 2 more.
+     */
+    public static long flatValueBytes(LocalTime receiver, long value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalTime.of}. */
+    public static long flatValueBytes(int value, int value2, int value3, int value4) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalTime.truncatedTo}. */
+    public static long flatValueBytes(LocalTime receiver, TemporalUnit temporalUnit) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalTime.with}. */
+    public static long flatValueBytes(LocalTime receiver, TemporalAdjuster temporalAdjuster) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalTime.with}. */
+    public static long flatValueBytes(LocalTime receiver, TemporalField temporalField, long value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code LocalTime.withHour}, {@code LocalTime.withMinute}, {@code LocalTime.withNano}, {@code LocalTime.withSecond}. */
+    public static long flatValueBytes(LocalTime receiver, int value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code MonthDay.atYear}, {@code MonthDay.withDayOfMonth}, {@code MonthDay.withMonth}. */
+    public static long flatValueBytes(MonthDay receiver, int value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code MonthDay.with}. */
+    public static long flatValueBytes(MonthDay receiver, Month month) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code OffsetDateTime.toInstant}. */
+    public static long flatValueBytes(OffsetDateTime receiver) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Period.between}. */
+    public static long flatValueBytes(LocalDate localDate, LocalDate localDate2) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /**
+     * {@code Period.ofYears}, {@code Period.ofMonths}, {@code Period.ofWeeks}, {@code Period.ofDays}, {@code Year.of}, {@code
+     * ZoneOffset.ofHours} and 1 more.
+     */
+    public static long flatValueBytes(int value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Period.plus}, {@code Period.minus}. */
+    public static long flatValueBytes(Period receiver, TemporalAmount temporalAmount) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /**
+     * {@code Period.plusYears}, {@code Period.plusMonths}, {@code Period.plusDays}, {@code Period.minusYears}, {@code
+     * Period.minusMonths}, {@code Period.minusDays}.
+     */
+    public static long flatValueBytes(Period receiver, long value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Period.multipliedBy}, {@code Period.withDays}, {@code Period.withMonths}, {@code Period.withYears}. */
+    public static long flatValueBytes(Period receiver, int value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Period.negated}, {@code Period.normalized}. */
+    public static long flatValueBytes(Period receiver) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Year.atDay}, {@code Year.atMonth}. */
+    public static long flatValueBytes(Year receiver, int value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Year.atMonthDay}. */
+    public static long flatValueBytes(Year receiver, MonthDay monthDay) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Year.minus}, {@code Year.plus}. */
+    public static long flatValueBytes(Year receiver, TemporalAmount temporalAmount) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Year.minus}, {@code Year.plus}. */
+    public static long flatValueBytes(Year receiver, long value, TemporalUnit temporalUnit) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Year.minusYears}, {@code Year.plusYears}. */
+    public static long flatValueBytes(Year receiver, long value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Year.with}. */
+    public static long flatValueBytes(Year receiver, TemporalAdjuster temporalAdjuster) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code Year.with}. */
+    public static long flatValueBytes(Year receiver, TemporalField temporalField, long value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code YearMonth.atDay}, {@code YearMonth.withYear}, {@code YearMonth.withMonth}. */
+    public static long flatValueBytes(YearMonth receiver, int value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code YearMonth.atEndOfMonth}. */
+    public static long flatValueBytes(YearMonth receiver) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code YearMonth.minus}, {@code YearMonth.plus}. */
+    public static long flatValueBytes(YearMonth receiver, TemporalAmount temporalAmount) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code YearMonth.minus}, {@code YearMonth.plus}. */
+    public static long flatValueBytes(YearMonth receiver, long value, TemporalUnit temporalUnit) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code YearMonth.minusYears}, {@code YearMonth.minusMonths}, {@code YearMonth.plusYears}, {@code YearMonth.plusMonths}. */
+    public static long flatValueBytes(YearMonth receiver, long value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code YearMonth.with}. */
+    public static long flatValueBytes(YearMonth receiver, TemporalAdjuster temporalAdjuster) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code YearMonth.with}. */
+    public static long flatValueBytes(YearMonth receiver, TemporalField temporalField, long value) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ZoneId.of}, {@code ZoneOffset.of}. */
+    public static long flatValueBytes(String text) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ZoneId.of}. */
+    public static long flatValueBytes(String text, Map<?, ?> aliases) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ZoneId.ofOffset}. */
+    public static long flatValueBytes(String text, ZoneOffset zoneOffset) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code ZoneId.normalized}. */
+    public static long flatValueBytes(ZoneId receiver) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /**
+     * {@code DecimalStyle.withDecimalSeparator}, {@code DecimalStyle.withNegativeSign}, {@code DecimalStyle.withPositiveSign},
+     * {@code DecimalStyle.withZeroDigit}.
+     */
+    public static long flatValueBytes(DecimalStyle receiver, char character) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    // ---- LocalDateTime chains, 80 bytes. ----
+
+    /** {@code LocalDate.atStartOfDay}. */
+    public static long localDateTimeBytes(LocalDate receiver) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDate.atTime}, {@code LocalDateTime.of}. */
+    public static long localDateTimeBytes(LocalDate receiver, LocalTime localTime) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDate.atTime}. */
+    public static long localDateTimeBytes(LocalDate receiver, int value, int value2) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDate.atTime}. */
+    public static long localDateTimeBytes(LocalDate receiver, int value, int value2, int value3) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDate.atTime}. */
+    public static long localDateTimeBytes(LocalDate receiver, int value, int value2, int value3, int value4) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.from}. */
+    public static long localDateTimeBytes(TemporalAccessor temporalAccessor) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.minus}, {@code LocalDateTime.plus}. */
+    public static long localDateTimeBytes(LocalDateTime receiver, TemporalAmount temporalAmount) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.minus}, {@code LocalDateTime.plus}. */
+    public static long localDateTimeBytes(LocalDateTime receiver, long value, TemporalUnit temporalUnit) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /**
+     * {@code LocalDateTime.minusDays}, {@code LocalDateTime.minusHours}, {@code LocalDateTime.minusMinutes}, {@code
+     * LocalDateTime.minusMonths}, {@code LocalDateTime.minusNanos}, {@code LocalDateTime.minusSeconds} and 10 more.
+     */
+    public static long localDateTimeBytes(LocalDateTime receiver, long value) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.of}. */
+    public static long localDateTimeBytes(int value, int value2, int value3, int value4, int value5) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.of}. */
+    public static long localDateTimeBytes(int value, int value2, int value3, int value4, int value5, int value6) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.of}. */
+    public static long localDateTimeBytes(int value, int value2, int value3, int value4, int value5, int value6, int value7) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.ofInstant}. */
+    public static long localDateTimeBytes(Instant instant, ZoneId zoneId) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.ofEpochSecond}. */
+    public static long localDateTimeBytes(long value, int value2, ZoneOffset zoneOffset) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.truncatedTo}. */
+    public static long localDateTimeBytes(LocalDateTime receiver, TemporalUnit temporalUnit) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.with}. */
+    public static long localDateTimeBytes(LocalDateTime receiver, TemporalAdjuster temporalAdjuster) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalDateTime.with}. */
+    public static long localDateTimeBytes(LocalDateTime receiver, TemporalField temporalField, long value) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /**
+     * {@code LocalDateTime.withDayOfMonth}, {@code LocalDateTime.withDayOfYear}, {@code LocalDateTime.withHour}, {@code
+     * LocalDateTime.withMinute}, {@code LocalDateTime.withMonth}, {@code LocalDateTime.withSecond} and 1 more.
+     */
+    public static long localDateTimeBytes(LocalDateTime receiver, int value) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    /** {@code LocalTime.atDate}. */
+    public static long localDateTimeBytes(LocalTime receiver, LocalDate localDate) {
+        return LOCAL_DATE_TIME_BYTES;
+    }
+
+    // ---- OffsetDateTime chains, 112 bytes. ----
+
+    /** {@code LocalDateTime.atOffset}, {@code OffsetDateTime.of}. */
+    public static long offsetDateTimeBytes(LocalDateTime receiver, ZoneOffset zoneOffset) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.from}. */
+    public static long offsetDateTimeBytes(TemporalAccessor temporalAccessor) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.minus}, {@code OffsetDateTime.plus}. */
+    public static long offsetDateTimeBytes(OffsetDateTime receiver, TemporalAmount temporalAmount) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.minus}, {@code OffsetDateTime.plus}. */
+    public static long offsetDateTimeBytes(OffsetDateTime receiver, long value, TemporalUnit temporalUnit) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /**
+     * {@code OffsetDateTime.minusYears}, {@code OffsetDateTime.minusMonths}, {@code OffsetDateTime.minusWeeks}, {@code
+     * OffsetDateTime.minusDays}, {@code OffsetDateTime.minusHours}, {@code OffsetDateTime.minusMinutes} and 10 more.
+     */
+    public static long offsetDateTimeBytes(OffsetDateTime receiver, long value) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.of}. */
+    public static long offsetDateTimeBytes(LocalDate localDate, LocalTime localTime, ZoneOffset zoneOffset) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.of}. */
+    public static long offsetDateTimeBytes(
+        int value,
+        int value2,
+        int value3,
+        int value4,
+        int value5,
+        int value6,
+        int value7,
+        ZoneOffset zoneOffset
+    ) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.ofInstant}. */
+    public static long offsetDateTimeBytes(Instant instant, ZoneId zoneId) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.truncatedTo}. */
+    public static long offsetDateTimeBytes(OffsetDateTime receiver, TemporalUnit temporalUnit) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.with}. */
+    public static long offsetDateTimeBytes(OffsetDateTime receiver, TemporalAdjuster temporalAdjuster) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.with}. */
+    public static long offsetDateTimeBytes(OffsetDateTime receiver, TemporalField temporalField, long value) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /**
+     * {@code OffsetDateTime.withDayOfMonth}, {@code OffsetDateTime.withDayOfYear}, {@code OffsetDateTime.withHour}, {@code
+     * OffsetDateTime.withMinute}, {@code OffsetDateTime.withMonth}, {@code OffsetDateTime.withNano} and 2 more.
+     */
+    public static long offsetDateTimeBytes(OffsetDateTime receiver, int value) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.withOffsetSameLocal}, {@code OffsetDateTime.withOffsetSameInstant}. */
+    public static long offsetDateTimeBytes(OffsetDateTime receiver, ZoneOffset zoneOffset) {
+        return OFFSET_DATE_TIME_BYTES;
+    }
+
+    // ---- OffsetTime chains, 48 bytes. ----
+
+    /** {@code LocalTime.atOffset}, {@code OffsetTime.of}. */
+    public static long offsetTimeBytes(LocalTime receiver, ZoneOffset zoneOffset) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.toOffsetTime}. */
+    public static long offsetTimeBytes(OffsetDateTime receiver) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetTime.from}. */
+    public static long offsetTimeBytes(TemporalAccessor temporalAccessor) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetTime.of}. */
+    public static long offsetTimeBytes(int value, int value2, int value3, int value4, ZoneOffset zoneOffset) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetTime.ofInstant}. */
+    public static long offsetTimeBytes(Instant instant, ZoneId zoneId) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetTime.plus}, {@code OffsetTime.minus}. */
+    public static long offsetTimeBytes(OffsetTime receiver, TemporalAmount temporalAmount) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetTime.plus}, {@code OffsetTime.minus}. */
+    public static long offsetTimeBytes(OffsetTime receiver, long value, TemporalUnit temporalUnit) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /**
+     * {@code OffsetTime.plusHours}, {@code OffsetTime.plusMinutes}, {@code OffsetTime.plusSeconds}, {@code OffsetTime.plusNanos},
+     * {@code OffsetTime.minusHours}, {@code OffsetTime.minusMinutes} and 2 more.
+     */
+    public static long offsetTimeBytes(OffsetTime receiver, long value) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetTime.truncatedTo}. */
+    public static long offsetTimeBytes(OffsetTime receiver, TemporalUnit temporalUnit) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetTime.with}. */
+    public static long offsetTimeBytes(OffsetTime receiver, TemporalAdjuster temporalAdjuster) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetTime.with}. */
+    public static long offsetTimeBytes(OffsetTime receiver, TemporalField temporalField, long value) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetTime.withHour}, {@code OffsetTime.withMinute}, {@code OffsetTime.withNano}, {@code OffsetTime.withSecond}. */
+    public static long offsetTimeBytes(OffsetTime receiver, int value) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    /** {@code OffsetTime.withOffsetSameLocal}, {@code OffsetTime.withOffsetSameInstant}. */
+    public static long offsetTimeBytes(OffsetTime receiver, ZoneOffset zoneOffset) {
+        return OFFSET_TIME_BYTES;
+    }
+
+    // ---- ZonedDateTime chains, 120 bytes. ----
+
+    /** {@code LocalDate.atStartOfDay}. */
+    public static long zonedDateTimeBytes(LocalDate receiver, ZoneId zoneId) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.atZoneSameInstant}, {@code OffsetDateTime.atZoneSimilarLocal}. */
+    public static long zonedDateTimeBytes(OffsetDateTime receiver, ZoneId zoneId) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code OffsetDateTime.toZonedDateTime}. */
+    public static long zonedDateTimeBytes(OffsetDateTime receiver) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    // ---- Interface calls: the result type is unknown, so the biggest chain is charged. ----
+
+    /** {@code Temporal.minus}, {@code Temporal.plus}. */
+    public static long temporalBytes(Temporal receiver, long value, TemporalUnit temporalUnit) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code Temporal.minus}, {@code Temporal.plus}. */
+    public static long temporalBytes(Temporal receiver, TemporalAmount temporalAmount) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code Temporal.with}. */
+    public static long temporalBytes(Temporal receiver, TemporalAdjuster temporalAdjuster) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code Temporal.with}. */
+    public static long temporalBytes(Temporal receiver, TemporalField temporalField, long value) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code TemporalAdjuster.adjustInto}. */
+    public static long temporalBytes(TemporalAdjuster receiver, Temporal temporal) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code TemporalAmount.addTo}, {@code TemporalAmount.subtractFrom}. */
+    public static long temporalBytes(TemporalAmount receiver, Temporal temporal) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code TemporalField.adjustInto}. */
+    public static long temporalBytes(TemporalField receiver, Temporal temporal, long value) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    /** {@code TemporalUnit.addTo}. */
+    public static long temporalBytes(TemporalUnit receiver, Temporal temporal, long value) {
+        return ZONED_DATE_TIME_BYTES;
+    }
+
+    // ---- ValueRange, 48 bytes. ----
+
+    /** {@code ValueRange.of}. */
+    public static long valueRangeBytes(long value, long value2) {
+        return VALUE_RANGE_BYTES;
+    }
+
+    /** {@code ValueRange.of}. */
+    public static long valueRangeBytes(long value, long value2, long value3) {
+        return VALUE_RANGE_BYTES;
+    }
+
+    /** {@code ValueRange.of}. */
+    public static long valueRangeBytes(long value, long value2, long value3, long value4) {
+        return VALUE_RANGE_BYTES;
+    }
+
+    // ---- Parse: the parse state plus the result. ----
+
+    /** {@code LocalDate.parse}, {@code LocalTime.parse}, {@code MonthDay.parse}, {@code Year.parse}, {@code YearMonth.parse}. */
+    public static long parseFlatValueBytes(CharSequence text, DateTimeFormatter dateTimeFormatter) {
+        return AllocSizes.addSat(parseTextBytes(text), FLAT_VALUE_BYTES);
+    }
+
+    /** {@code LocalDateTime.parse}. */
+    public static long parseLocalDateTimeBytes(CharSequence text) {
+        return AllocSizes.addSat(parseTextBytes(text), LOCAL_DATE_TIME_BYTES);
+    }
+
+    /** {@code LocalDateTime.parse}. */
+    public static long parseLocalDateTimeBytes(CharSequence text, DateTimeFormatter dateTimeFormatter) {
+        return AllocSizes.addSat(parseTextBytes(text), LOCAL_DATE_TIME_BYTES);
+    }
+
+    /** {@code OffsetDateTime.parse}. */
+    public static long parseOffsetDateTimeBytes(CharSequence text) {
+        return AllocSizes.addSat(parseTextBytes(text), OFFSET_DATE_TIME_BYTES);
+    }
+
+    /** {@code OffsetDateTime.parse}. */
+    public static long parseOffsetDateTimeBytes(CharSequence text, DateTimeFormatter dateTimeFormatter) {
+        return AllocSizes.addSat(parseTextBytes(text), OFFSET_DATE_TIME_BYTES);
+    }
+
+    /** {@code OffsetTime.parse}. */
+    public static long parseOffsetTimeBytes(CharSequence text) {
+        return AllocSizes.addSat(parseTextBytes(text), OFFSET_TIME_BYTES);
+    }
+
+    /** {@code OffsetTime.parse}. */
+    public static long parseOffsetTimeBytes(CharSequence text, DateTimeFormatter dateTimeFormatter) {
+        return AllocSizes.addSat(parseTextBytes(text), OFFSET_TIME_BYTES);
+    }
+
+    // ---- Format: a bounded new string. ----
+
+    /** {@code LocalTime.format}. */
+    public static long formatBytes(LocalTime receiver, DateTimeFormatter dateTimeFormatter) {
+        return newStringBytes(FORMAT_CHARACTERS);
+    }
+
+    /** {@code MonthDay.format}. */
+    public static long formatBytes(MonthDay receiver, DateTimeFormatter dateTimeFormatter) {
+        return newStringBytes(FORMAT_CHARACTERS);
+    }
+
+    /** {@code OffsetDateTime.format}. */
+    public static long formatBytes(OffsetDateTime receiver, DateTimeFormatter dateTimeFormatter) {
+        return newStringBytes(FORMAT_CHARACTERS);
+    }
+
+    /** {@code OffsetTime.format}. */
+    public static long formatBytes(OffsetTime receiver, DateTimeFormatter dateTimeFormatter) {
+        return newStringBytes(FORMAT_CHARACTERS);
+    }
+
+    /** {@code Year.format}. */
+    public static long formatBytes(Year receiver, DateTimeFormatter dateTimeFormatter) {
+        return newStringBytes(FORMAT_CHARACTERS);
+    }
+
+    /** {@code YearMonth.format}. */
+    public static long formatBytes(YearMonth receiver, DateTimeFormatter dateTimeFormatter) {
+        return newStringBytes(FORMAT_CHARACTERS);
+    }
+
+    /** {@code DateTimeFormatter.formatTo}. */
+    public static long formatBytes(DateTimeFormatter receiver, TemporalAccessor temporalAccessor, Appendable appendable) {
+        return newStringBytes(FORMAT_CHARACTERS);
+    }
+
+    // ---- Formatter parse state. ----
+
+    /** {@code DateTimeFormatter.parseBest}. */
+    public static long formatterParseBytes(DateTimeFormatter receiver, CharSequence text, TemporalQuery<?>[] temporalQuery) {
+        return parseTextBytes(text);
+    }
+
+    /** {@code DateTimeFormatter.parseUnresolved}. */
+    public static long formatterParseBytes(DateTimeFormatter receiver, CharSequence text, ParsePosition position) {
+        return parseTextBytes(text);
+    }
+
+    // ---- Formatter copies. ----
+
+    /** {@code DateTimeFormatter.withChronology}. */
+    public static long formatterCopyBytes(DateTimeFormatter receiver, Chronology chronology) {
+        return FORMATTER_BYTES;
+    }
+
+    /** {@code DateTimeFormatter.withDecimalStyle}. */
+    public static long formatterCopyBytes(DateTimeFormatter receiver, DecimalStyle decimalStyle) {
+        return FORMATTER_BYTES;
+    }
+
+    /** {@code DateTimeFormatter.withLocale}. */
+    public static long formatterCopyBytes(DateTimeFormatter receiver, Locale locale) {
+        return FORMATTER_BYTES;
+    }
+
+    /** {@code DateTimeFormatter.withResolverFields}. */
+    public static long formatterCopyBytes(DateTimeFormatter receiver, Set<?> set) {
+        return FORMATTER_BYTES;
+    }
+
+    /** {@code DateTimeFormatter.withResolverStyle}. */
+    public static long formatterCopyBytes(DateTimeFormatter receiver, ResolverStyle resolverStyle) {
+        return FORMATTER_BYTES;
+    }
+
+    /** {@code DateTimeFormatter.withZone}. */
+    public static long formatterCopyBytes(DateTimeFormatter receiver, ZoneId zoneId) {
+        return FORMATTER_BYTES;
+    }
+
+    // ---- Localized formatters are built from a pattern each call. ----
+
+    /**
+     * {@code DateTimeFormatter.ofLocalizedDate}, {@code DateTimeFormatter.ofLocalizedDateTime}, {@code
+     * DateTimeFormatter.ofLocalizedTime}.
+     */
+    public static long localizedFormatterBytes(FormatStyle formatStyle) {
+        return PATTERN_BASE_BYTES;
+    }
+
+    /** {@code DateTimeFormatter.ofLocalizedDateTime}. */
+    public static long localizedFormatterBytes(FormatStyle formatStyle, FormatStyle formatStyle2) {
+        return PATTERN_BASE_BYTES;
+    }
+
+    // ---- Format adapters. ----
+
+    /** {@code DateTimeFormatter.toFormat}. */
+    public static long toFormatBytes(DateTimeFormatter receiver) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    /** {@code DateTimeFormatter.toFormat}. */
+    public static long toFormatBytes(DateTimeFormatter receiver, TemporalQuery<?> temporalQuery) {
+        return FLAT_VALUE_BYTES;
+    }
+
+    // ---- Pattern text. ----
+
+    /** {@code DateTimeFormatterBuilder.getLocalizedDateTimePattern}. */
+    public static long patternTextBytes(FormatStyle formatStyle, FormatStyle formatStyle2, Chronology chronology, Locale locale) {
+        return newStringBytes(PATTERN_TEXT_CHARACTERS);
+    }
+
+    // ---- Formatter builder: the builder, one step per appended element, and the built formatter. ----
+
+    /** {@code new DateTimeFormatterBuilder}. */
+    public static long formatterBuilderBytes() {
+        return BUILDER_BYTES;
+    }
+
+    /** {@code DateTimeFormatterBuilder.append}, {@code DateTimeFormatterBuilder.appendOptional}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, DateTimeFormatter dateTimeFormatter) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /**
+     * {@code DateTimeFormatterBuilder.appendChronologyId}, {@code DateTimeFormatterBuilder.appendInstant}, {@code
+     * DateTimeFormatterBuilder.appendOffsetId}, {@code DateTimeFormatterBuilder.appendZoneId}, {@code
+     * DateTimeFormatterBuilder.appendZoneOrOffsetId}, {@code DateTimeFormatterBuilder.appendZoneRegionId} and 6 more.
+     */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /**
+     * {@code DateTimeFormatterBuilder.appendChronologyText}, {@code DateTimeFormatterBuilder.appendLocalizedOffset}, {@code
+     * DateTimeFormatterBuilder.appendZoneText}.
+     */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, TextStyle textStyle) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendFraction}. */
+    public static long builderStepBytes(
+        DateTimeFormatterBuilder receiver,
+        TemporalField temporalField,
+        int value,
+        int value2,
+        boolean flag
+    ) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendInstant}, {@code DateTimeFormatterBuilder.padNext}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, int value) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendLiteral}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, String text) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendLocalized}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, FormatStyle formatStyle, FormatStyle formatStyle2) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendOffset}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, String text, String text2) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendText}, {@code DateTimeFormatterBuilder.appendValue}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, TemporalField temporalField) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendText}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, TemporalField temporalField, TextStyle textStyle) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendValue}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, TemporalField temporalField, int value) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendValue}. */
+    public static long builderStepBytes(
+        DateTimeFormatterBuilder receiver,
+        TemporalField temporalField,
+        int value,
+        int value2,
+        SignStyle signStyle
+    ) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendValueReduced}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, TemporalField temporalField, int value, int value2, int value3) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendZoneText}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, TextStyle textStyle, Set<?> set) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.padNext}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, int value, char character) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.parseDefaulting}. */
+    public static long builderStepBytes(DateTimeFormatterBuilder receiver, TemporalField temporalField, long value) {
+        return PATTERN_BYTES_PER_CHARACTER;
+    }
+
+    /** {@code DateTimeFormatterBuilder.appendPattern}. */
+    public static long patternStepBytes(DateTimeFormatterBuilder receiver, String pattern) {
+        return AllocSizes.addSat(PATTERN_BYTES_PER_CHARACTER, AllocSizes.mulSat(PATTERN_BYTES_PER_CHARACTER, textLength(pattern)));
+    }
+
+    /** {@code DateTimeFormatterBuilder.toFormatter}. */
+    public static long toFormatterBytes(DateTimeFormatterBuilder receiver) {
+        return PATTERN_BASE_BYTES;
+    }
+
+    /** {@code DateTimeFormatterBuilder.toFormatter}. */
+    public static long toFormatterBytes(DateTimeFormatterBuilder receiver, Locale locale) {
+        return PATTERN_BASE_BYTES;
+    }
+
+    // ---- Display names: a short new string. ----
+
+    /** {@code ZoneId.getDisplayName}. */
+    public static long displayNameBytes(ZoneId receiver, TextStyle textStyle, Locale locale) {
+        return newStringBytes(DISPLAY_NAME_CHARACTERS);
+    }
+
+    /** {@code DayOfWeek.getDisplayName}. */
+    public static long displayNameBytes(DayOfWeek receiver, TextStyle textStyle, Locale locale) {
+        return newStringBytes(DISPLAY_NAME_CHARACTERS);
+    }
+
+    /** {@code Month.getDisplayName}. */
+    public static long displayNameBytes(Month receiver, TextStyle textStyle, Locale locale) {
+        return newStringBytes(DISPLAY_NAME_CHARACTERS);
     }
 }

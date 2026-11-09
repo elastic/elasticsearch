@@ -19,6 +19,8 @@ import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.script.field.HalfFloatDocValuesField;
 import org.elasticsearch.script.field.IPAddress;
 import org.elasticsearch.script.field.IpDocValuesField;
+import org.elasticsearch.script.field.SourceMapField;
+import org.elasticsearch.script.field.WriteField;
 import org.elasticsearch.script.field.vectors.BinaryDenseVector;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.RankVectors;
@@ -53,6 +55,7 @@ import java.util.function.Predicate;
 import java.util.function.ToDoubleFunction;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
+import java.util.stream.BaseStream;
 
 /**
  * Built-in {@code @allocates} estimators: {@code public static long} methods matching the annotated target's full Java
@@ -128,6 +131,29 @@ public final class AllocationEstimators {
     /** Cost of {@code Collection.stream()}: the spliterator, sized as an iterator, plus every decode up front for doc values. */
     public static long streamBytes(Collection<?> receiver) {
         return AllocSizes.addSat(AllocSizes.ITERATOR_BYTES, decodeBytes(receiver));
+    }
+
+    /** Cost of {@code WriteField.iterator()}: one iterator over the field's values. */
+    public static long iteratorBytes(WriteField receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** Cost of {@code SourceMapField.iterator()}: one iterator over the field's values. */
+    public static long iteratorBytes(SourceMapField receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** Cost of {@code BaseStream.iterator()}: the adapter over the stream's spliterator. */
+    public static long iteratorBytes(BaseStream<?, ?> receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
+    /** A map view object from {@code entrySet()}, {@code keySet()} or {@code values()}: one object holding the map. */
+    private static final long MAP_VIEW_BYTES = AllocSizes.pad8(AllocSizes.OBJECT_HEADER + AllocSizes.REFERENCE_SIZE);
+
+    /** Cost of a {@code Map} view. Most maps cache the view after the first call, but that cannot be known before it. */
+    public static long mapViewBytes(Map<?, ?> receiver) {
+        return MAP_VIEW_BYTES;
     }
 
     /**

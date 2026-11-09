@@ -135,13 +135,13 @@ class java.util.Map {
   def computeIfPresent(def,BiFunction)
   boolean containsKey(def)
   boolean containsValue(def)
-  Set entrySet()
+  Set entrySet() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapViewBytes"]
   boolean equals(Object)
   void org.elasticsearch.painless.api.Augmentation forEach(BiConsumer) @script_aware
   def get(def)
   def getOrDefault(def,def)
   boolean isEmpty()
-  Set keySet()
+  Set keySet() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapViewBytes"]
   def merge(def,def,BiFunction) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapMergeBytes"]
   def put(def,def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapPutBytes"]
   void putAll(Map) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapPutAllBytes"]
@@ -152,7 +152,7 @@ class java.util.Map {
   boolean replace(def,def,def)
   void org.elasticsearch.painless.api.Augmentation replaceAll(BiFunction) @script_aware
   int size()
-  Collection values()
+  Collection values() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapViewBytes"]
   Object org.elasticsearch.painless.api.Augmentation getByPath(String)
   Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 

@@ -17,7 +17,7 @@
 class java.util.stream.BaseStream {
   void close()
   boolean isParallel()
-  Iterator iterator()
+  Iterator iterator() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iteratorBytes"]
   BaseStream sequential()
   Spliterator spliterator()
   BaseStream unordered()

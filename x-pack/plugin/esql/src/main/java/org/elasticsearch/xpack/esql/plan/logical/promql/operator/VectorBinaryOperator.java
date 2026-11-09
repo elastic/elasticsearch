@@ -387,9 +387,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     /**
      * Whether the operands must translate as independent pipelines before anything is known about their plans - the
-     * properties that pick the translation context rather than describe the result: explicit vector matching and a
-     * source-backed scalar (which broadcasts on {@code step}). Pure scalars may share the other side's frame. Set
-     * operators override for force-fold.
+     * properties that pick the translation context rather than describe the result: explicit vector matching, a
+     * source-backed scalar (which broadcasts on {@code step}), and selectors disagreeing on {@code offset} (one shared
+     * TimeSeriesAggregate carries a single evaluation timestamp; each independent pipeline shifts {@code @timestamp}
+     * for its own selectors). Pure scalars may share the other side's frame. Set operators override for force-fold.
      */
     protected boolean requiresIndependentPipelines() {
         if (match().filter() != VectorMatch.Filter.NONE || match().grouping() != Joining.NONE) {
@@ -403,7 +404,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                 || isPureScalar(right()) && leftScalar == false;
             return shared == false;
         }
-        return false;
+        return hasHeterogeneousOffsets();
     }
 
     /**
@@ -422,6 +423,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         return plan.anyMatch(
             p -> p instanceof AcrossSeriesAggregate || p instanceof AcrossSeriesReduction || p instanceof ScalarConversionFunction
         );
+    }
+
+    /**
+     * Whether the two operands' source-backed selectors disagree on {@code offset}. Literal selectors contribute none.
+     * Used to refuse fold (one shared timestamp) while still admitting the shape via join.
+     */
+    public boolean hasHeterogeneousOffsets() {
+        return PromqlCommand.distinctOffsets(left()).equals(PromqlCommand.distinctOffsets(right())) == false;
     }
 
     /**

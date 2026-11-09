@@ -68,7 +68,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -705,7 +704,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             failures.add(fail(p, "range vector results are not supported at this time [{}]", p.sourceText()));
         }
         var warnings = new ArrayList<String>();
-        verifyTree(p, failures, warnings, analyzer.maxBranchCountPerMerge(), analyzer.maxBranchCountPerMergeLimitSource());
+        verifyTree(
+            p,
+            failures,
+            warnings,
+            analyzer.maxBranchCountPerMerge(),
+            analyzer.maxBranchCountPerMergeLimitSource(),
+            usesLabelContainer(analyzer)
+        );
         if (failures.hasFailures() == false) {
             warnings.forEach(HeaderWarning::addWarning);
         }
@@ -732,7 +738,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
     }
 
-    private void verifyTree(LogicalPlan p, Failures failures, List<String> warnings, int maxBranches, String limitSource) {
+    private void verifyTree(
+        LogicalPlan p,
+        Failures failures,
+        List<String> warnings,
+        int maxBranches,
+        String limitSource,
+        boolean typedLabelContainer
+    ) {
         // Validate entire plan. Each contiguous `or` chain (top-level or nested) flattens to one UnionAll; reject
         // chains that exceed the UnionAll branch limit here rather than during translation.
         Set<VectorBinarySet> topLevelUnions = collectTopLevelUnionChain(p);
@@ -894,21 +907,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
                     }
                     if (hasSourceBackedExpression(binaryOperator.left()) && hasSourceBackedExpression(binaryOperator.right())) {
-                        verifySourceBackedOperands(failures, binaryOperator);
-                    }
-                    // Arithmetic/comparison binary operators merge both source-backed operands into a single
-                    // TimeSeriesAggregate (one shared time bucket and timestamp), which cannot represent two
-                    // different offsets. `or` (UNION) translates to independent branches, so per-branch offsets
-                    // are fine and excluded here.
-                    if (binaryOperator instanceof VectorBinarySet == false
-                        && hasSourceBackedExpression(binaryOperator.left())
-                        && hasSourceBackedExpression(binaryOperator.right())
-                        && distinctOffsets(binaryOperator).size() > 1) {
-                        // TODO: Support different offsets in binary operator operands.
-                        // https://github.com/elastic/elasticsearch/issues/158184
-                        failures.add(
-                            fail(lp, "binary expressions with different offsets are not supported at this time [{}]", lp.sourceText())
-                        );
+                        verifySourceBackedOperands(failures, binaryOperator, typedLabelContainer);
                     }
                 }
                 case PlaceholderRelation placeholderRelation -> {
@@ -1211,46 +1210,47 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     /**
      * Verifies the operands of a binary operator whose both sides read source data.
      * <p>
-     * An arithmetic or comparison operator without {@code on}/{@code ignoring} is fused: both operands are computed in one
-     * shared aggregation, which only works for operands aggregated alike - both per series, or both one level across series,
-     * where {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio} and {@code scalar()} count as a level too. Any other
-     * operator computes each operand on its own; there, only a {@code sum}-like aggregate nested inside another is unsupported.
+     * Nested across-series, aggregated x raw, different offsets, and {@code scalar()} x labeled join or
+     * step-broadcast ({@link EsqlCapabilities.Cap#PROMQL_BINARY_INDEPENDENT_JOIN}). Opaque
+     * {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio} join under typed {@code _timeseries};
+     * a keyword label container keeps the pre-typed rejection (cannot regroup those results). Concrete named-label
+     * reductions always join.
      */
-    private static void verifySourceBackedOperands(Failures failures, VectorBinaryOperator binaryOperator) {
+    private static void verifySourceBackedOperands(Failures failures, VectorBinaryOperator binaryOperator, boolean typedLabelContainer) {
+        if (binaryOperator instanceof VectorBinarySet || binaryOperator.match() != VectorMatch.NONE) {
+            return;
+        }
+        if (typedLabelContainer) {
+            return;
+        }
         LogicalPlan left = binaryOperator.left();
         LogicalPlan right = binaryOperator.right();
-        String text = binaryOperator.sourceText();
-        boolean fused = binaryOperator instanceof VectorBinarySet == false && binaryOperator.match() == VectorMatch.NONE;
-        Predicate<LogicalPlan> isAggregation = fused ? PromqlCommand::isAcrossSeries : AcrossSeriesAggregate.class::isInstance;
-        if (fused && (scalarOfVector(left) && hasLabels(right) || scalarOfVector(right) && hasLabels(left))) {
-            failures.add(
-                fail(
-                    binaryOperator,
-                    "binary operations between scalar() of a vector and a vector with labels are not supported at this time [{}]",
-                    text
-                )
-            );
-        } else if (usesNestedAggregation(left, isAggregation) || usesNestedAggregation(right, isAggregation)) {
-            // TODO: Support nested aggregations in binary operator operands.
-            // https://github.com/elastic/elasticsearch/issues/158183
-            failures.add(fail(binaryOperator, "binary expressions with nested aggregations are not supported at this time [{}]", text));
-        } else if (fused && (usesReduction(left) || usesReduction(right))) {
+        if ((usesReduction(left) && joinableConcreteReduction(left) == false)
+            || (usesReduction(right) && joinableConcreteReduction(right) == false)) {
             failures.add(
                 fail(
                     binaryOperator,
                     "binary operations over topk, bottomk, limitk or limit_ratio are not supported at this time [{}]",
-                    text
+                    binaryOperator.sourceText()
                 )
-            );
-        } else if (fused && aggregatesAcrossSeries(left) != aggregatesAcrossSeries(right)) {
-            failures.add(
-                fail(binaryOperator, "binary operations between an aggregated and a raw vector are not supported at this time [{}]", text)
             );
         }
     }
 
     private static boolean usesReduction(LogicalPlan plan) {
         return plan.anyMatch(AcrossSeriesReduction.class::isInstance);
+    }
+
+    /**
+     * A {@code topk}/{@code bottomk}/... whose output names at least one label (no label container). Those join on the named labels;
+     * an unlabeled or opaque reduction cannot under a keyword label container (bind regrouping).
+     */
+    private static boolean joinableConcreteReduction(LogicalPlan plan) {
+        return usesReduction(plan) && hasConcreteLabels(plan) && namedLabels(plan).isEmpty() == false;
+    }
+
+    private static List<String> namedLabels(LogicalPlan plan) {
+        return PromqlLabels.labelNames(plan.output().stream().filter(a -> PromqlLabels.isTagsLabel(a) == false).toList());
     }
 
     private static boolean hasConcreteLabels(LogicalPlan plan) {
@@ -1272,10 +1272,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
-     * The signed offset shared by the source-backed selectors in {@code branch}, as a constant time shift to add to
-     * {@code @timestamp}. The verifier guarantees a merged branch is offset-uniform (heterogeneous offsets in a binary
-     * expression are rejected), so the first source-backed selector's offset is representative. {@link Duration#ZERO}
-     * when there is none.
+     * The signed offset for source-backed selectors in {@code branch}, as a constant time shift to add to
+     * {@code @timestamp}. When a joined operand is translated on its own, every selector under it shares that branch's
+     * shift; a fold frame only forms when both sides agree ({@link VectorBinaryOperator#hasHeterogeneousOffsets()}).
+     * Returns {@link Duration#ZERO} when there is no offset.
      */
     public Duration collectFirstOffsetForBranch(LogicalPlan branch) {
         for (Selector selector : branch.collect(Selector.class)) {
@@ -1400,28 +1400,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             collectTopLevelUnionChain(setOp.left(), chain);
             collectTopLevelUnionChain(setOp.right(), chain);
         }
-    }
-
-    private static boolean scalarOfVector(LogicalPlan plan) {
-        return PromqlPlan.returnsScalar(plan)
-            && plan.anyMatch(p -> p instanceof ScalarConversionFunction scalar && hasSourceBackedExpression(scalar.child()));
-    }
-
-    /** Whether a vector's series carry labels: named label columns or the label container. */
-    private static boolean hasLabels(LogicalPlan plan) {
-        return PromqlPlan.returnsScalar(plan) == false && plan.output().isEmpty() == false;
-    }
-
-    private static boolean usesNestedAggregation(LogicalPlan plan, Predicate<LogicalPlan> isAggregation) {
-        return plan.anyMatch(p -> isAggregation.test(p) && p instanceof UnaryPlan unary && unary.child().anyMatch(isAggregation));
-    }
-
-    private static boolean aggregatesAcrossSeries(LogicalPlan plan) {
-        return plan.anyMatch(PromqlCommand::isAcrossSeries);
-    }
-
-    private static boolean isAcrossSeries(LogicalPlan plan) {
-        return plan instanceof AcrossSeriesAggregate || plan instanceof AcrossSeriesReduction || plan instanceof ScalarConversionFunction;
     }
 
     private static boolean usesWithoutGrouping(LogicalPlan plan) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -151,12 +152,11 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlHeterogeneousOffsetBinaryExpression() {
-        // Both operands are source-backed and get merged into a single time-series aggregate, which cannot carry
-        // two different offsets. `or` (UNION) translates to independent branches and is therefore allowed.
-        tsdb.error(
-            "PROMQL index=test step=5m (network.bytes_in - network.bytes_in offset 1d)",
-            containsString("binary expressions with different offsets are not supported at this time")
-        );
+        // Different offsets force an independent-pipeline join (requiresIndependentPipelines refuses a shared timestamp).
+        // `or` already used per-branch offsets; arithmetic/comparison now admit the same shape.
+        assumeTrue("requires independent binary join", EsqlCapabilities.Cap.PROMQL_BINARY_INDEPENDENT_JOIN.isEnabled());
+        assertNotNull(tsdb.query("PROMQL index=test step=5m (network.bytes_in - network.bytes_in offset 1d)"));
+        assertNotNull(tsdb.query("PROMQL index=test step=5m (sum(network.bytes_in) / sum(network.bytes_in offset 1h))"));
     }
 
     public void testLogicalSetBinaryOperators() {
@@ -468,61 +468,14 @@ public class PromqlVerifierTests extends ESTestCase {
         tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
     }
 
-    /** Two instant vectors compare like arithmetic: the operands are independent pipelines joined on their series. */
-    public void testVectorComparisonJoinsOperands() {
-        assertTrue(tsdb.query("PROMQL index=test step=5m network.bytes_in > network.connections").resolved());
-    }
-
     /**
-     * An unmatched operator computes its two source-backed operands in one shared aggregation, so both must be aggregated alike:
-     * both per series, or both one level across series. Each other pairing is rejected with a message naming its shape.
+     * Source-backed binaries that cannot share a fold frame join independent pipelines when a shared fold frame is impossible
+     * ({@link EsqlCapabilities.Cap#PROMQL_BINARY_INDEPENDENT_JOIN}). {@code scalar()} x labeled step-broadcasts.
+     * Opaque reductions need typed {@code _timeseries} (see {@link #testOpaqueReductionBinaryJoinsWithTypedLabelContainer}).
      */
-    public void testUnmatchedOperandsMustAggregateAlike() {
+    public void testUnmatchedAsymmetricOperandsJoin() {
+        assumeTrue("requires independent binary join", EsqlCapabilities.Cap.PROMQL_BINARY_INDEPENDENT_JOIN.isEnabled());
         String query = "PROMQL index=test step=5m ";
-        for (String rejected : List.of(
-            "sum(network.bytes_in) / network.connections",
-            "network.connections * max by (host) (network.bytes_in)",
-            "stddev(network.bytes_in) + network.connections"
-        )) {
-            tsdb.error(
-                query + rejected,
-                containsString("binary operations between an aggregated and a raw vector are not supported at this time")
-            );
-        }
-        for (String rejected : List.of(
-            "scalar(sum(network.bytes_in)) * network.connections",
-            "network.connections / scalar(network.bytes_in)",
-            "network.connections * (scalar(network.bytes_in) + 1)",
-            "sum by (host) (network.bytes_in) * scalar(max(network.connections))",
-            "sum by (value) (label_replace(network.bytes_in, \"value\", \"$1\", \"host\", \"(.*)\")) "
-                + "* scalar(max(network.connections))"
-        )) {
-            tsdb.error(
-                query + rejected,
-                containsString("binary operations between scalar() of a vector and a vector with labels are not supported at this time")
-            );
-        }
-        for (String rejected : List.of(
-            "topk(1, network.bytes_in) / topk(1, network.connections)",
-            "bottomk(1, network.bytes_in) / bottomk(1, network.connections)",
-            "limitk(1, network.bytes_in) / limitk(1, network.connections)",
-            "limit_ratio(0.5, network.bytes_in) / network.connections",
-            "topk(2, network.bytes_in) * network.connections",
-            "sum by (host) (network.bytes_in) / topk(2, network.connections)"
-        )) {
-            tsdb.error(
-                query + rejected,
-                containsString("binary operations over topk, bottomk, limitk or limit_ratio are not supported at this time")
-            );
-        }
-        for (String rejected : List.of(
-            "bottomk(2, bottomk(1, network.bytes_in)) * network.connections",
-            "sum(network.bytes_in) / stdvar(topk(5, network.connections))",
-            "sum(limit_ratio(0.5, network.bytes_in)) / sum(network.connections)",
-            "sum(network.bytes_in) / scalar(sum(network.connections))"
-        )) {
-            tsdb.error(query + rejected, containsString("binary expressions with nested aggregations are not supported at this time"));
-        }
         for (String accepted : List.of(
             "network.bytes_in / network.connections",
             "sum(network.bytes_in) / sum(network.connections)",
@@ -530,11 +483,66 @@ public class PromqlVerifierTests extends ESTestCase {
             "sum(network.bytes_in) * scalar(network.connections)",
             "scalar(network.bytes_in) * scalar(network.connections)",
             "scalar(sum(network.bytes_in)) * 2",
+            "sum(network.bytes_in) / scalar(sum(network.connections))",
+            "scalar(network.bytes_in) * 100 / count(count(network.connections) by (host))",
+            "max(sum by (host) (network.bytes_in)) / min(sum by (host) (network.connections))",
             "topk(1, network.bytes_in) * 2",
-            "abs(topk(1, network.bytes_in))"
+            "abs(topk(1, network.bytes_in))",
+            "sum(network.bytes_in) / network.connections",
+            "network.connections * max by (host) (network.bytes_in)",
+            "stddev(network.bytes_in) + network.connections",
+            "sum by (host) (network.bytes_in) / topk(2, sum by (host) (network.connections))",
+            "topk(1, sum by (host) (network.bytes_in)) - topk(1, sum by (host) (network.connections))",
+            "count(count by (host) (network.bytes_in)) / sum(network.connections)",
+            "scalar(sum(network.bytes_in)) * network.connections",
+            "network.connections / scalar(network.bytes_in)",
+            "network.connections * (scalar(network.bytes_in) + 1)",
+            "sum by (host) (network.bytes_in) * scalar(max(network.connections))"
         )) {
             assertNotNull(accepted, tsdb.query(query + accepted));
         }
+    }
+
+    /** Opaque reductions as binary operands join once typed {@code _timeseries} can refine rest. */
+    public void testOpaqueReductionBinaryJoinsWithTypedLabelContainer() {
+        assumeTrue("requires independent binary join", EsqlCapabilities.Cap.PROMQL_BINARY_INDEPENDENT_JOIN.isEnabled());
+        assumeTrue("requires a functional label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        tsdb.minimumTransportVersion(TransportVersion.current());
+        String query = "PROMQL index=test step=5m ";
+        for (String accepted : List.of(
+            "topk(1, network.bytes_in) / topk(1, network.connections)",
+            "bottomk(1, network.bytes_in) / bottomk(1, network.connections)",
+            "limitk(1, network.bytes_in) / limitk(1, network.connections)",
+            "limit_ratio(0.5, network.bytes_in) / network.connections",
+            "topk(2, network.bytes_in) * network.connections",
+            "bottomk(2, bottomk(1, network.bytes_in)) * network.connections",
+            "sum(network.bytes_in) / stdvar(topk(5, network.connections))",
+            "sum(limit_ratio(0.5, network.bytes_in)) / sum(network.connections)"
+        )) {
+            assertNotNull(accepted, tsdb.query(query + accepted));
+        }
+    }
+
+    /** A keyword label container still cannot regroup opaque reduction binaries. */
+    public void testOpaqueReductionBinaryRejectedWithoutTypedLabelContainer() {
+        assumeTrue("requires independent binary join", EsqlCapabilities.Cap.PROMQL_BINARY_INDEPENDENT_JOIN.isEnabled());
+        assumeFalse("requires a functional label container to be disabled", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        String query = "PROMQL index=test step=5m ";
+        for (String rejected : List.of(
+            "topk(1, network.bytes_in) / topk(1, network.connections)",
+            "topk(2, network.bytes_in) * network.connections",
+            "limit_ratio(0.5, network.bytes_in) / network.connections"
+        )) {
+            tsdb.error(
+                query + rejected,
+                containsString("binary operations over topk, bottomk, limitk or limit_ratio are not supported at this time")
+            );
+        }
+    }
+
+    /** Two instant vectors compare like arithmetic: the operands are independent pipelines joined on their series. */
+    public void testVectorComparisonJoinsOperands() {
+        assertTrue(tsdb.query("PROMQL index=test step=5m network.bytes_in > network.connections").resolved());
     }
 
     /** A vector-matched operator computes each operand on its own, so a reduction in one operand is accepted. */

@@ -73,6 +73,25 @@ sum(avg_over_time(network.cost[5m] offset -5m)):double | step:date
 51.59375                                               | 2024-05-10T00:20:00.000Z
 ;
 
+// Different offsets on the two sides join independent pipelines (one shared fold frame cannot carry two timestamps).
+// At 00:25: numerator is the no-offset window ending 00:25; denominator equals the no-offset window ending 00:20.
+binary_heterogeneous_offset
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: promql_offset_modifier
+required_capability: promql_binary_independent_join
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:25:00.000Z" end="2024-05-10T00:25:00.000Z" result=(
+  sum(avg_over_time(network.cost[5m])) / sum(avg_over_time(network.cost[5m] offset 5m))
+)
+| EVAL result = ROUND(result, 12)
+| KEEP result, step;
+
+result:double    | step:date
+0.992983159583   | 2024-05-10T00:25:00.000Z
+;
+
 auto_step_buckets
 required_capability: promql_command_v0
 required_capability: promql_buckets_parameter

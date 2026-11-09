@@ -1239,3 +1239,34 @@ PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) + sum by (p
 
 result:double | step:datetime | cluster:keyword
 ;
+
+// Nested across-series next to another source-backed operand joins on step.
+// count(count by (cluster)) is one series whose value is 3; sum(rx) at 00:10 is 4290.
+binary_independent_nested_count_over_sum
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_independent_join
+PROMQL index=k8s step=10m result=(count(count by (cluster) (network.eth0.tx)) / sum(network.eth0.rx))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result;
+
+result:double
+0.0006993006993006993
+;
+
+// scalar() of a labelless aggregate x labeled vector: independent step-broadcast (sum(tx)=4248 at 00:10).
+binary_independent_scalar_times_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_independent_join
+required_capability: promql_scalar
+PROMQL index=k8s step=10m result=(scalar(sum(network.eth0.tx)) * sum by (cluster) (network.eth0.rx))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, cluster
+| SORT cluster;
+
+result:double | cluster:keyword
+4112064.0     | prod
+8355816.0     | qa
+5756040.0     | staging
+;

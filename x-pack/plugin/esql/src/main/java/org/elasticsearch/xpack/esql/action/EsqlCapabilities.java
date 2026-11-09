@@ -2812,7 +2812,8 @@ public class EsqlCapabilities {
 
         /**
          * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
-         * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
+         * timestamp. When the two sides of an arithmetic/comparison binary carry different offsets, the operator joins
+         * independent pipelines (see {@link #PROMQL_BINARY_INDEPENDENT_JOIN}) rather than folding into one frame.
          */
         PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
 
@@ -2821,6 +2822,15 @@ public class EsqlCapabilities {
          * Gates regression specs on older nodes that do not implement this parsing behavior.
          */
         FIX_PROMQL_OFFSET_PRECEDENCE(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL arithmetic/comparison binaries join independent operand pipelines when {@code getType} refuses a shared
+         * fold frame: different {@code offset}s, nested across-series next to another operand, aggregated x raw, and
+         * {@code scalar()} x labeled (step-broadcast). Opaque {@code topk}/{@code bottomk}/{@code limitk}/
+         * {@code limit_ratio} join under typed {@code _timeseries}; the keyword path keeps its pre-typed rejection.
+         * Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results

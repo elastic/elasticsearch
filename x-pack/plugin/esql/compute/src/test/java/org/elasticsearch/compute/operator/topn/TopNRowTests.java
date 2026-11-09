@@ -37,8 +37,8 @@ public class TopNRowTests extends ESTestCase {
     public void testFromHeapDump1() {
         TopNRow row = new TopNRow(NoopCircuitBreaker.INSTANCE, 56, 24);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
-        // 304 was measured debugging a heap dump and we've since shrunk
-        assertThat(row.ramBytesUsed(), equalTo(240L));
+        // 304 was measured debugging a heap dump and we've since shrunk; the value pointer of the spill route adds 16
+        assertThat(row.ramBytesUsed(), equalTo(256L));
     }
 
     /**
@@ -49,8 +49,8 @@ public class TopNRowTests extends ESTestCase {
     public void testFromHeapDump2() {
         TopNRow row = new TopNRow(NoopCircuitBreaker.INSTANCE, 1160, 1_153_096);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
-        // 1,154,464 is measured debugging a heap dump and we've since shrunk
-        assertThat(row.ramBytesUsed(), equalTo(1_154_416L));
+        // 1,154,464 is measured debugging a heap dump and we've since shrunk; the value pointer of the spill route adds 16
+        assertThat(row.ramBytesUsed(), equalTo(1_154_432L));
     }
 
     public void testRamBytesUsedBig() {

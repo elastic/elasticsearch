@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -18,6 +19,8 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+
+import java.io.IOException;
 
 import static org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.PartitionSplitter;
 
@@ -95,6 +98,11 @@ class MaxBytesRefAggregator {
 
         PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
             return internalState.createPartitioningSplitter(breaker);
+        }
+
+        GroupingAggregatorFunction.PartitionedState readPartition(StreamInput in, int partition, CircuitBreaker breaker)
+            throws IOException {
+            return internalState.readPartition(in, partition, breaker);
         }
 
         BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {

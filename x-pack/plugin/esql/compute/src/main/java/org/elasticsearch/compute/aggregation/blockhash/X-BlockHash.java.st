@@ -43,7 +43,12 @@ import org.elasticsearch.swisshash.LongSwissHash;
 $endif$
 $if(partitioned)$
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.PartitionedHashTable;
+$endif$
+$if(partitioned)$
+import java.io.IOException;
 $endif$
 import java.util.BitSet;
 // end generated imports
@@ -307,7 +312,7 @@ $if(BytesRef)$
 $endif$
 
 $if(hasVector)$
-    private IntBlock lookup($Type$Vector vector) {
+    IntBlock lookup($Type$Vector vector) {
 $if(BytesRef)$
         BytesRef scratch = new BytesRef();
 $endif$
@@ -333,7 +338,7 @@ $endif$
     }
 
 $endif$
-    private IntBlock lookup($Type$Block block) {
+    IntBlock lookup($Type$Block block) {
         return new MultivalueDedupe$Type$(block).hashLookup(blockFactory, hash);
     }
 
@@ -432,6 +437,11 @@ $if(partitioned)$
         public void releaseAll(CircuitBreaker breaker) {
             delegate.releaseAll(breaker);
         }
+
+        @Override
+        public void writePartition(int partition, StreamOutput out) throws IOException {
+            delegate.writePartition(partition, out);
+        }
     }
 
     @Override
@@ -486,6 +496,20 @@ $if(partitioned)$
             return appendOnly;
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public void writePartitionKeys(PartitionedHashTable.PartitionedHashKeys keys, int partition, StreamOutput out) throws IOException {
+        PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
+        out.writeBoolean(withSeenNull.seenNull());
+        withSeenNull.delegate().writePartition(partition, out);
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedHashKeys readPartitionKeys(StreamInput in, int partition, CircuitBreaker breaker)
+        throws IOException {
+        boolean seenNull = in.readBoolean();
+        return new PartitionedHashKeysWithSeenNull($swissHash$.readPartitionKeys(in, partition, breaker), seenNull);
     }
 
     @Override

@@ -138,6 +138,9 @@ public class TopNOperatorTests extends OperatorTestCase {
             if (o instanceof BlockFactory) {
                 return 0; // shared
             }
+            if (o instanceof DriverContext) {
+                return 0; // the driver's, held for the value store's operations
+            }
             if (o instanceof BigArrays) {
                 return 0; // shared
             }
@@ -210,6 +213,13 @@ public class TopNOperatorTests extends OperatorTestCase {
             InputOrdering.NOT_SORTED,
             minCompetitive
         );
+    }
+
+    @Override
+    protected boolean supportsSpilling() {
+        // the values of the kept rows go to a value run once they no longer fit, the output order being the sort's; the
+        // grouped variant, which the subclasses with group keys test, stays resident
+        return groupKeys().length == 0;
     }
 
     @Override

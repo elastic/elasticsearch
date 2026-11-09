@@ -97,6 +97,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -754,6 +755,26 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         BlockStreamInput in = new BlockStreamInput(delegate, factory);
         in.setTransportVersion(TransportVersion.current());
         return in;
+    }
+
+    public void testTheReleaseHookRunsAfterThePagesWhenTheResponseCloses() {
+        EsqlQueryResponse response = randomResponse(randomBoolean(), null);
+        List<Block> blocks = new ArrayList<>();
+        for (Page page : response.pages()) {
+            for (int b = 0; b < page.getBlockCount(); b++) {
+                blocks.add(page.getBlock(b));
+            }
+        }
+        AtomicBoolean released = new AtomicBoolean();
+        response.releaseOnClose(() -> {
+            for (Block block : blocks) {
+                assertTrue("the pages go first", block.isReleased());
+            }
+            released.set(true);
+        });
+        assertFalse(released.get());
+        response.close();
+        assertTrue(released.get());
     }
 
     public void testChunkResponseSizeColumnar() {

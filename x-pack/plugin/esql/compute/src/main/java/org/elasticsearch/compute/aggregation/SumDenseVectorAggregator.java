@@ -31,7 +31,7 @@ import org.elasticsearch.compute.operator.DriverContext;
     value = { @IntermediateState(name = "sum", type = "FLOAT_BLOCK"), @IntermediateState(name = "failed", type = "BOOLEAN") },
     warnExceptions = ArithmeticException.class
 )
-@GroupingAggregator
+@GroupingAggregator(boundedState = true)
 class SumDenseVectorAggregator {
 
     public static String describe() {

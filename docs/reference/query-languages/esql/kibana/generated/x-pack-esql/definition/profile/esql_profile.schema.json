@@ -760,6 +760,33 @@
         },
         "ram_used" : {
           "type" : "string"
+        },
+        "rows_spilled" : {
+          "type" : "integer"
+        },
+        "partitions_replayed" : {
+          "type" : "integer"
+        },
+        "spilled_bytes" : {
+          "type" : "integer"
+        },
+        "spilled" : {
+          "type" : "string"
+        },
+        "read_back_bytes" : {
+          "type" : "integer"
+        },
+        "read_back" : {
+          "type" : "string"
+        },
+        "spill_runs" : {
+          "type" : "integer"
+        },
+        "spill_nanos" : {
+          "type" : "integer"
+        },
+        "spill_time" : {
+          "type" : "string"
         }
       },
       "required" : [
@@ -863,6 +890,27 @@
         "partitioning" : {
           "type" : "object",
           "properties" : {
+            "spilled_bytes" : {
+              "type" : "integer"
+            },
+            "spilled" : {
+              "type" : "string"
+            },
+            "read_back_bytes" : {
+              "type" : "integer"
+            },
+            "read_back" : {
+              "type" : "string"
+            },
+            "spill_runs" : {
+              "type" : "integer"
+            },
+            "spill_nanos" : {
+              "type" : "integer"
+            },
+            "spill_time" : {
+              "type" : "string"
+            },
             "add_input_nanos" : {
               "type" : "integer"
             },
@@ -928,6 +976,47 @@
             "inline_emit_rows",
             "inline_emit_nanos",
             "worker_tasks"
+          ],
+          "additionalProperties" : false
+        },
+        "freeze" : {
+          "type" : "object",
+          "properties" : {
+            "spilled_bytes" : {
+              "type" : "integer"
+            },
+            "spilled" : {
+              "type" : "string"
+            },
+            "read_back_bytes" : {
+              "type" : "integer"
+            },
+            "read_back" : {
+              "type" : "string"
+            },
+            "spill_runs" : {
+              "type" : "integer"
+            },
+            "spill_nanos" : {
+              "type" : "integer"
+            },
+            "spill_time" : {
+              "type" : "string"
+            },
+            "groups_frozen" : {
+              "type" : "integer"
+            },
+            "rows_spilled" : {
+              "type" : "integer"
+            },
+            "partitions_replayed" : {
+              "type" : "integer"
+            }
+          },
+          "required" : [
+            "groups_frozen",
+            "rows_spilled",
+            "partitions_replayed"
           ],
           "additionalProperties" : false
         }
@@ -1231,6 +1320,46 @@
       ],
       "additionalProperties" : false
     },
+    "OperatorStatus_output" : {
+      "type" : "object",
+      "properties" : {
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_spilled" : {
+          "type" : "integer"
+        },
+        "spilled_bytes" : {
+          "type" : "integer"
+        },
+        "spilled" : {
+          "type" : "string"
+        },
+        "read_back_bytes" : {
+          "type" : "integer"
+        },
+        "read_back" : {
+          "type" : "string"
+        },
+        "spill_runs" : {
+          "type" : "integer"
+        },
+        "spill_nanos" : {
+          "type" : "integer"
+        },
+        "spill_time" : {
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "pages_received",
+        "rows_received"
+      ],
+      "additionalProperties" : false
+    },
     "OperatorStatus_page_mapping" : {
       "type" : "object",
       "properties" : {
@@ -1435,6 +1564,33 @@
         },
         "min_competitive_updates" : {
           "type" : "integer"
+        },
+        "rows_spilled" : {
+          "type" : "integer"
+        },
+        "compactions" : {
+          "type" : "integer"
+        },
+        "spilled_bytes" : {
+          "type" : "integer"
+        },
+        "spilled" : {
+          "type" : "string"
+        },
+        "read_back_bytes" : {
+          "type" : "integer"
+        },
+        "read_back" : {
+          "type" : "string"
+        },
+        "spill_runs" : {
+          "type" : "integer"
+        },
+        "spill_nanos" : {
+          "type" : "integer"
+        },
+        "spill_time" : {
+          "type" : "string"
         }
       },
       "required" : [
@@ -1627,6 +1783,9 @@
                 },
                 {
                   "$ref" : "#/definitions/OperatorStatus_mv_expand"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_output"
                 },
                 {
                   "$ref" : "#/definitions/OperatorStatus_page_mapping"
@@ -1888,6 +2047,27 @@
         "partitioning" : {
           "type" : "object",
           "properties" : {
+            "spilled_bytes" : {
+              "type" : "integer"
+            },
+            "spilled" : {
+              "type" : "string"
+            },
+            "read_back_bytes" : {
+              "type" : "integer"
+            },
+            "read_back" : {
+              "type" : "string"
+            },
+            "spill_runs" : {
+              "type" : "integer"
+            },
+            "spill_nanos" : {
+              "type" : "integer"
+            },
+            "spill_time" : {
+              "type" : "string"
+            },
             "add_input_nanos" : {
               "type" : "integer"
             },
@@ -1959,6 +2139,56 @@
       },
       "required" : [
         "partitioning"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorExtraStatus_hashagg_freeze" : {
+      "type" : "object",
+      "properties" : {
+        "freeze" : {
+          "type" : "object",
+          "properties" : {
+            "spilled_bytes" : {
+              "type" : "integer"
+            },
+            "spilled" : {
+              "type" : "string"
+            },
+            "read_back_bytes" : {
+              "type" : "integer"
+            },
+            "read_back" : {
+              "type" : "string"
+            },
+            "spill_runs" : {
+              "type" : "integer"
+            },
+            "spill_nanos" : {
+              "type" : "integer"
+            },
+            "spill_time" : {
+              "type" : "string"
+            },
+            "groups_frozen" : {
+              "type" : "integer"
+            },
+            "rows_spilled" : {
+              "type" : "integer"
+            },
+            "partitions_replayed" : {
+              "type" : "integer"
+            }
+          },
+          "required" : [
+            "groups_frozen",
+            "rows_spilled",
+            "partitions_replayed"
+          ],
+          "additionalProperties" : false
+        }
+      },
+      "required" : [
+        "freeze"
       ],
       "additionalProperties" : false
     }

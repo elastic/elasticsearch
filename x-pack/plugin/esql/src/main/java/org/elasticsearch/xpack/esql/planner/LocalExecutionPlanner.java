@@ -95,8 +95,10 @@ import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.topn.TopNPreFilterOperator;
+import org.elasticsearch.compute.spill.QueryScope;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.MatcherWatchdog;
@@ -298,6 +300,8 @@ public class LocalExecutionPlanner {
     private final CancellableTask parentTask;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
+    @Nullable
+    private final QueryScope queryScope;
     private final Settings settings;
     private final Configuration configuration;
     private final Supplier<ExchangeSource> exchangeSourceSupplier;
@@ -349,12 +353,71 @@ public class LocalExecutionPlanner {
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion
     ) {
+        this(
+            sessionId,
+            clusterAlias,
+            parentTask,
+            bigArrays,
+            blockFactory,
+            null,
+            settings,
+            configuration,
+            exchangeSourceSupplier,
+            exchangeSinkSupplier,
+            enrichLookupService,
+            lookupFromIndexService,
+            inferenceService,
+            userAgentParserRegistry,
+            ipLocationService,
+            projectResolver,
+            projectMetadata,
+            physicalOperationProviders,
+            operatorFactoryRegistry,
+            snapshotBuild,
+            parallelWorkerExecutor,
+            esqlWorkerPoolSize,
+            grokMatcherWatchdog,
+            minTransportVersion
+        );
+    }
+
+    /**
+     * @param queryScope the query's scope on this node, whose per-driver allocations every driver of this plan takes, or
+     *                   null to run on the node's factory and arrays as before
+     */
+    public LocalExecutionPlanner(
+        String sessionId,
+        String clusterAlias,
+        CancellableTask parentTask,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable QueryScope queryScope,
+        Settings settings,
+        Configuration configuration,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
+        InferenceService inferenceService,
+        UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
+        ProjectResolver projectResolver,
+        ProjectMetadata projectMetadata,
+        AbstractPhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean snapshotBuild,
+        @Nullable Executor parallelWorkerExecutor,
+        int esqlWorkerPoolSize,
+        MatcherWatchdog grokMatcherWatchdog,
+        TransportVersion minTransportVersion
+    ) {
 
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
         this.parentTask = parentTask;
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.queryScope = queryScope;
         this.settings = settings;
         this.configuration = configuration;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
@@ -440,6 +503,7 @@ public class LocalExecutionPlanner {
                     Node.NODE_NAME_SETTING.get(settings),
                     context.bigArrays,
                     context.blockFactory,
+                    queryScope,
                     context.shardContexts,
                     physicalOperation,
                     statusInterval,
@@ -3089,6 +3153,7 @@ public class LocalExecutionPlanner {
         String nodeName,
         BigArrays bigArrays,
         BlockFactory blockFactory,
+        @Nullable QueryScope queryScope,
         IndexedByShardId<? extends ShardContext> shardContexts,
         PhysicalOperation physicalOperation,
         TimeValue statusInterval,
@@ -3101,12 +3166,28 @@ public class LocalExecutionPlanner {
             SinkOperator sink = null;
             boolean success = false;
             var localBreakerSettings = new LocalCircuitBreaker.SizeSettings(settings);
-            final var localBreaker = new LocalCircuitBreaker(
-                blockFactory.breaker(),
-                localBreakerSettings.overReservedBytes(),
-                localBreakerSettings.maxOverReservedBytes()
-            );
-            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
+            final DriverContext driverContext;
+            // closed by the driver: the local breaker alone, or the whole per-driver allocation of the query's scope
+            final Releasable allocation;
+            if (queryScope != null) {
+                QueryScope.DriverAllocation driverAllocation = queryScope.newDriverAllocation(localBreakerSettings);
+                driverContext = new DriverContext(
+                    driverAllocation.bigArrays(),
+                    driverAllocation.blockFactory(),
+                    localBreakerSettings,
+                    description,
+                    queryScope
+                );
+                allocation = driverAllocation;
+            } else {
+                final var localBreaker = new LocalCircuitBreaker(
+                    blockFactory.breaker(),
+                    localBreakerSettings.overReservedBytes(),
+                    localBreakerSettings.maxOverReservedBytes()
+                );
+                driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
+                allocation = localBreaker;
+            }
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);
@@ -3125,11 +3206,11 @@ public class LocalExecutionPlanner {
                     operators,
                     sink,
                     statusInterval,
-                    localBreaker
+                    allocation
                 );
             } finally {
                 if (false == success) {
-                    Releasables.close(source, () -> Releasables.close(operators), sink, localBreaker);
+                    Releasables.close(source, () -> Releasables.close(operators), sink, allocation);
                 }
             }
         }

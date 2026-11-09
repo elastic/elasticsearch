@@ -44,6 +44,17 @@ public class LongLongSwissHashPartitionTests extends PartitionedHashTestCase {
     }
 
     public void testPartition() {
+        runPartitionTest(false);
+    }
+
+    /**
+     * Every partition goes through its codec before the combine: the restore of a spilled slice.
+     */
+    public void testPartitionCodec() {
+        runPartitionTest(true);
+    }
+
+    private void runPartitionTest(boolean codec) {
         var recycler = new LongLongSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
@@ -89,7 +100,7 @@ public class LongLongSwissHashPartitionTests extends PartitionedHashTestCase {
             hash1 = null;
             agg1.close();
             agg1 = null;
-            var results2 = combinePartitions(breaker, hash2, agg2, gens);
+            var results2 = combinePartitions(breaker, hash2, agg2, gens, codec);
             assertThat(result1, equalTo(results2));
         } finally {
             Releasables.close(hash1, hash2, agg1, agg2);
@@ -98,10 +109,17 @@ public class LongLongSwissHashPartitionTests extends PartitionedHashTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    Set<KeyAndSum> combinePartitions(CircuitBreaker breaker, LongLongSwissHash hash, SumAgg agg, List<PartitionedKeyAndAggs> gens) {
+    Set<KeyAndSum> combinePartitions(
+        CircuitBreaker breaker,
+        LongLongSwissHash hash,
+        SumAgg agg,
+        List<PartitionedKeyAndAggs> gens,
+        boolean codec
+    ) {
         int[] mergedIds = null;
         Set<KeyAndSum> results = new HashSet<>();
         for (int partition = 0; partition < PartitionedHashTable.NUM_PARTITIONS; partition++) {
+            final int p = partition;
             hash.clear();
             agg.clear();
             int totalKeys = 0;
@@ -114,8 +132,17 @@ public class LongLongSwissHashPartitionTests extends PartitionedHashTestCase {
                 if (mergedIds == null || mergedIds.length < numKeys) {
                     mergedIds = new int[ArrayUtil.oversize(numKeys, Integer.BYTES)];
                 }
-                boolean appendOnly = hash.combinePartition(gen.keys(), partition, mergedIds);
-                gen.keys().releasePartition(breaker, partition);
+                PartitionedHashTable.PartitionedHashKeys keys = gen.keys();
+                if (codec) {
+                    keys = roundTrip(keys, partition, in -> LongLongSwissHash.readPartitionKeys(in, p, breaker));
+                    gen.keys().releasePartition(breaker, partition);
+                }
+                boolean appendOnly = hash.combinePartition(keys, partition, mergedIds);
+                if (codec) {
+                    keys.releaseAll(breaker);
+                } else {
+                    keys.releasePartition(breaker, partition);
+                }
                 agg.combinePartition(gen.aggs(), partition, mergedIds, numKeys, appendOnly);
                 gen.aggs().releasePartition(breaker, partition);
             }

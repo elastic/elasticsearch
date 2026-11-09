@@ -117,6 +117,9 @@ public class ParallelTopNOperator implements Operator, Accountable {
      */
     private boolean mergeDone = false;
 
+    /** Whether the workers' value lanes were sealed for the merge; the merge waits for them to settle. */
+    private boolean lanesSealed = false;
+
     /**
      * @param config          parallel worker configuration (executor, worker count, etc.)
      * @param driverContext   driver context for block-factory and async-action tracking
@@ -275,8 +278,16 @@ public class ParallelTopNOperator implements Operator, Accountable {
             if (allWorkersDone.isDone() == false) {
                 return new IsBlockedResult(allWorkersDone, "waiting for parallel topn workers");
             }
+            if (mergeDone == false) {
+                for (var worker : workers) {
+                    IsBlockedResult lane = worker.topN.laneBlocked();
+                    if (lane.listener().isDone() == false) {
+                        return lane;
+                    }
+                }
+            }
         }
-        return NOT_BLOCKED;
+        return mergeTarget.isBlocked();
     }
 
     @Override
@@ -288,6 +299,19 @@ public class ParallelTopNOperator implements Operator, Accountable {
             return null;
         }
         if (mergeDone == false) {
+            // The workers' value lanes are sealed first, so that the merged rows' values can be read; what a lane has
+            // in flight lands on this thread, the workers being done.
+            if (lanesSealed == false) {
+                for (var worker : workers) {
+                    worker.topN.sealForMerge();
+                }
+                lanesSealed = true;
+            }
+            for (var worker : workers) {
+                if (worker.topN.laneSettled() == false) {
+                    return null;
+                }
+            }
             // Pop each worker's queue directly into the merge-target, bypassing page encode/decode.
             // Abort-path workers already closed themselves (inputQueue==null); skip them.
             // PriorityQueue.pop() nulls each heap slot, so worker.close() after the drain only

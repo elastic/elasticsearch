@@ -17,7 +17,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
         @IntermediateState(name = "delta", type = "DOUBLE"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
-@GroupingAggregator
+@GroupingAggregator(boundedState = true)
 class SumFloatAggregator extends SumDoubleAggregator {
 
     public static void combine(SumState current, float v) {

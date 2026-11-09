@@ -20,7 +20,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
  * tracking.
  */
 @Aggregator({ @IntermediateState(name = "min", type = "DOUBLE"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(boundedState = true)
 class MinNonFiniteDoubleAggregator {
 
     public static double init() {

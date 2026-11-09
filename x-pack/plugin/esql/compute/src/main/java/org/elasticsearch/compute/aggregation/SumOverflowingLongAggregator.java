@@ -22,7 +22,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
  * </p>
  */
 @Aggregator(value = { @IntermediateState(name = "sum", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(boundedState = true)
 class SumOverflowingLongAggregator {
 
     public static long init() {

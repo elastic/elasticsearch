@@ -15,6 +15,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
@@ -190,6 +192,38 @@ final class HllStates {
             return new HllPartitionSplitter(breaker, bigArrays, hll.maxOrd(), hllPrecision, hll.hllBucketCount(), pagedThresholdBytes);
         }
 
+        /**
+         * Reads one partition written by either form's {@code writePartition} into the flat form, charged to
+         * {@code breaker}.
+         */
+        GroupingAggregatorFunction.PartitionedState readPartition(StreamInput in, int partition, CircuitBreaker breaker)
+            throws IOException {
+            final boolean trackSeen = in.readBoolean();
+            if (trackSeen) {
+                throw new IOException("sketches have no seen flags");
+            }
+            final int count = in.readVInt();
+            final int total = in.readVInt();
+            final long bytes = FlatHllPartitionedState.bytesForPartition(total, count);
+            breaker.addEstimateBytesAndMaybeBreak(bytes, FlatHllPartitionedState.LABEL);
+            boolean success = false;
+            try {
+                final byte[] data = new byte[total];
+                in.readBytes(data, 0, total);
+                final int[] offsets = new int[count + 1];
+                for (int i = 0; i <= count; i++) {
+                    offsets[i] = in.readVInt();
+                }
+                GroupingAggregatorFunction.PartitionedState result = new FlatHllPartitionedState(partition, data, offsets, count);
+                success = true;
+                return result;
+            } finally {
+                if (success == false) {
+                    breaker.addWithoutBreaking(-bytes);
+                }
+            }
+        }
+
         BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
             if (source instanceof FlatHllPartitionedState flat) {
                 return new BytesRefSequence.Flat(
@@ -236,6 +270,41 @@ final class HllStates {
             private int[][] partitionOffsets;
             private int[] partitionDataUsed;
             private int[] partitionCounts;
+
+            /**
+             * One partition read back from a write; the other partitions are empty. {@code breaker} has been charged
+             * what {@link #releaseAll} returns for this shape.
+             */
+            private FlatHllPartitionedState(int partition, byte[] data, int[] offsets, int count) {
+                baseBytes = baseBytes();
+                partitionDataUsed = new int[NUM_PARTITIONS];
+                partitionDataUsed[partition] = offsets[count];
+                partitionCounts = new int[NUM_PARTITIONS];
+                partitionCounts[partition] = count;
+                partitionData = new byte[NUM_PARTITIONS][];
+                partitionData[partition] = data;
+                partitionOffsets = new int[NUM_PARTITIONS][];
+                partitionOffsets[partition] = offsets;
+            }
+
+            private static long baseBytes() {
+                return BASE_RAM_USAGE + bytesUsedByPointerPage(NUM_PARTITIONS) + bytesUsedByPointerPage(NUM_PARTITIONS)
+                    + bytesUsedByIntPage(NUM_PARTITIONS) + bytesUsedByIntPage(NUM_PARTITIONS);
+            }
+
+            static long bytesForPartition(int dataBytes, int count) {
+                return baseBytes() + dataBytes + bytesUsedByIntPage(count + 1);
+            }
+
+            @Override
+            public void writePartition(int partition, int count, StreamOutput out) throws IOException {
+                BytesRefArrayState.writeValues(
+                    out,
+                    new BytesRefSequence.Flat(partitionData[partition], partitionOffsets[partition], count),
+                    count,
+                    null
+                );
+            }
 
             FlatHllPartitionedState(CircuitBreaker breaker, int initialKeysPerPartition, int initialBytesPerPartition) {
                 baseBytes = BASE_RAM_USAGE + bytesUsedByPointerPage(NUM_PARTITIONS)   // partitionData outer ref[]
@@ -321,6 +390,11 @@ final class HllStates {
             @Override
             public boolean hasAllValues(int partition) {
                 return true;
+            }
+
+            @Override
+            public void writePartition(int partition, int count, StreamOutput out) throws IOException {
+                BytesRefArrayState.writeValues(out, new BytesRefSequence.Paged(partitionArrays[partition]), count, null);
             }
 
             @Override

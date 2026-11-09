@@ -22,6 +22,7 @@ import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SampleOperator;
@@ -64,6 +65,7 @@ public final class EsqlProfileSchemaRegistry {
             variant(HashAggregationOperator.Status.ENTRY, HashAggregationOperator.Status.PROFILE_SCHEMA),
             variant(LimitOperator.Status.ENTRY, LimitOperator.Status.PROFILE_SCHEMA),
             variant(GroupedLimitOperator.Status.ENTRY, GroupedLimitOperator.Status.PROFILE_SCHEMA),
+            variant(OutputOperator.Status.ENTRY, OutputOperator.Status.PROFILE_SCHEMA),
             variant(GroupedTopNOperatorStatus.ENTRY, GroupedTopNOperatorStatus.PROFILE_SCHEMA),
             variant(LuceneOperator.Status.ENTRY, LuceneOperator.Status.PROFILE_SCHEMA),
             variant(TopNOperatorStatus.ENTRY, TopNOperatorStatus.PROFILE_SCHEMA),
@@ -93,6 +95,11 @@ public final class EsqlProfileSchemaRegistry {
                 Operator.Status.ExtraStatus.class,
                 ParallelHashAggregationOperator.PartitioningStatus.ENTRY,
                 ParallelHashAggregationOperator.PartitioningStatus.PROFILE_SCHEMA
+            ),
+            ProfileSchema.Variant.fromEntry(
+                Operator.Status.ExtraStatus.class,
+                HashAggregationOperator.FreezeStatus.ENTRY,
+                HashAggregationOperator.FreezeStatus.PROFILE_SCHEMA
             )
         );
     }

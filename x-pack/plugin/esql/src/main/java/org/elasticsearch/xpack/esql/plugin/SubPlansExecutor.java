@@ -16,6 +16,8 @@ import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.LocalExchange;
+import org.elasticsearch.compute.spill.ResultCollector;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
@@ -120,6 +122,7 @@ final class SubPlansExecutor {
         Runnable warnIndexCoordinatorOnce,
         PlanTimeProfile planTimeProfile,
         SubPlan.Merge rootPlan,
+        @Nullable ResultCollector collector,
         ActionListener<Result> listener
     ) {
         this.computeService = computeService;
@@ -143,17 +146,32 @@ final class SubPlansExecutor {
             // For a plan with merge branches this must run only after the root merge has combined every branch's shard accounting, not at
             // the end of each branch (executePlan), which shares the same EsqlExecutionInfo, and would otherwise treat the first all-failed
             // leaf as "all query targets failed". Streaming roots never fill collectedPages; skip the check if rows already went out.
-            ComputeService.failIfAllShardsFailedUnlessStreamed(execInfo, collectedPages, streamPublisher);
+            ComputeService.failIfAllShardsFailedUnlessStreamed(
+                execInfo,
+                collector != null ? collector.rows() > 0 : ComputeService.hasRows(collectedPages),
+                streamPublisher
+            );
             execInfo.markEndQuery();
-            listener.onResponse(new Result(rootPlan.plan().output(), collectedPages, null, configuration, info, execInfo, null));
+            ComputeService.finishResult(
+                collector,
+                collectedPages,
+                listener.map(
+                    pages -> new Result(rootPlan.plan().output(), collectedPages, pages, null, configuration, info, execInfo, null)
+                )
+            );
         }, e -> {
             Releasables.close(collectedPages);
+            if (collector != null) {
+                collector.close();
+            }
             listener.onFailure(e);
         });
         this.rootExecution = new ExecutionMerge(
             null,
             rootPlan,
-            rootPlan.plan() instanceof StreamingOutputExec ? rootPlan.plan() : new OutputExec(rootPlan.plan(), collectedPages::add),
+            rootPlan.plan() instanceof StreamingOutputExec
+                ? rootPlan.plan()
+                : new OutputExec(rootPlan.plan(), collector != null ? collector : collectedPages::add),
             "main.final",
             rootPlanTimeProfile,
             null,
@@ -409,6 +427,7 @@ final class SubPlansExecutor {
                     path,
                     resultListener.safeMap(Result::completionInfo),
                     () -> parent.exchange.exchangeSink(() -> {}),
+                    null,
                     initialClusterStatuses,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     warnIndexCoordinatorOnce,

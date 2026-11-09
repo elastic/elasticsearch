@@ -3729,21 +3729,57 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             ).isEmpty() == false;
 
             int limit;
-            if (limits.isEmpty()) {
+            int maximum = context.configuration().resultTruncationMaxSize(isTsAggregate);
+            // without a maximum, a limit the user wrote on the root path stands as the query's own: the plan is capped at
+            // its value, which bounds a sort above it; one inside a branch of a union does not bound the whole query
+            Integer rootLimit = maximum == AnalyzerSettings.NO_MAXIMUM ? limitOnRootPath(logicalPlan) : null;
+            if (limits.isEmpty() || (maximum == AnalyzerSettings.NO_MAXIMUM && rootLimit == null)) {
                 limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a
                 // default
                 // With a limit in the exemplars setting, the result of the metrics query is replaced by at most that many exemplars,
                 // so the default limit doesn't apply to what the query returns.
                 boolean exemplarsLimited = QuerySettings.EXEMPLARS.get(context.configuration().resolvedSettings()).limit() != null;
-                if (isTsAggregate == false && exemplarsLimited == false) {
+                // a limit the user wrote that does not bound the query, in a branch or below an aggregation, is no
+                // warning's business, as it is not with a maximum
+                if (limits.isEmpty() && isTsAggregate == false && exemplarsLimited == false) {
                     HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
                 }
+            } else if (maximum == AnalyzerSettings.NO_MAXIMUM) {
+                limit = rootLimit;
             } else {
-                limit = context.configuration().resultTruncationMaxSize(isTsAggregate); // user provided a limit: cap result
-                // entries to the max
+                limit = maximum; // user provided a limit: cap result entries to the max
             }
             var source = logicalPlan.source();
             return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);
+        }
+
+        /**
+         * The value of the first limit on the plan's root path, the chain of single-child nodes from the root, or null
+         * when none is there or its value is not a literal: a limit in a branch of a union or a fork bounds that branch
+         * only, and one below a command that may answer more rows than it is given bounds that command's input, not
+         * the query.
+         */
+        @Nullable
+        private static Integer limitOnRootPath(LogicalPlan plan) {
+            LogicalPlan current = plan;
+            while (true) {
+                if (current instanceof Limit found) {
+                    return found.limit() instanceof Literal literal && literal.value() instanceof Integer value ? value : null;
+                }
+                if (mayAddRows(current) || current instanceof UnaryPlan == false) {
+                    return null;
+                }
+                current = ((UnaryPlan) current).child();
+            }
+        }
+
+        /**
+         * Whether the command may answer more rows than it is given: an expansion, a lookup, which repeats a row per
+         * match, or an aggregation, which answers one row to none without groups and, with them, a row per value of a
+         * multivalued key or per empty bucket.
+         */
+        private static boolean mayAddRows(LogicalPlan plan) {
+            return plan instanceof MvExpand || plan instanceof Lookup || plan instanceof Aggregate;
         }
     }
 

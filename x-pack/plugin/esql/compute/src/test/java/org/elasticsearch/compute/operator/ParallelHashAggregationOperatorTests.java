@@ -7,9 +7,12 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
@@ -27,7 +30,9 @@ import org.elasticsearch.compute.test.FakeCpuClock;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.spill.MemorySpillStore;
 import org.elasticsearch.core.CheckedSupplier;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -40,13 +45,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
@@ -55,6 +64,7 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
 
     private TestThreadPool threadPool;
     private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
+    private final List<MemorySpillStore> stores = Collections.synchronizedList(new ArrayList<>());
 
     protected final DriverContext driverContext() {
         return driverContext(blockFactory());
@@ -173,6 +183,208 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         assertThat(partitioningStatus.partitionedBlocksReceived(), greaterThan(0));
     }
 
+    /**
+     * Every generation spills: a budget of a few kilobytes is crossed before the first split, so the registry writes
+     * each one to a slice run and phase two restores them all.
+     */
+    public void testSpillingSinglePass() {
+        StoreAndCodec sc = newStoreAndCodec();
+        DriverContext driverContext = spillingDriverContext(ByteSizeValue.ofKb(between(1, 64)), 0, sc.store(), sc.codec());
+        var status = runTest(
+            between(10_000, 50_000),
+            true,
+            randomBoolean(),
+            driverContext.blockFactory(),
+            driverContext,
+            null,
+            spillingConfig()
+        );
+        assertSpilled(partitioningStatus(status));
+    }
+
+    /**
+     * The second stage receives partitioned blocks from the first and admits them as they arrive: under a tiny budget
+     * every received generation is written out before the next block is taken.
+     */
+    public void testSpillingReceivedGenerations() {
+        StoreAndCodec sc = newStoreAndCodec();
+        DriverContext driverContext = spillingDriverContext(ByteSizeValue.ofKb(between(1, 64)), 0, sc.store(), sc.codec());
+        DriverContext finalContext = spillingDriverContext(driverContext);
+        var status = runTest(
+            between(10_000, 50_000),
+            false,
+            true,
+            driverContext.blockFactory(),
+            driverContext,
+            finalContext,
+            spillingConfig()
+        );
+        ParallelHashAggregationOperator.PartitioningStatus partitioning = partitioningStatus(status);
+        assertThat(partitioning.partitionedBlocksReceived(), greaterThan(0));
+        assertSpilled(partitioning);
+    }
+
+    /**
+     * A handful of keys over a large input: every generation lands in the same few partitions, so a partition
+     * restores many slices, more than the read-ahead, in order.
+     */
+    public void testSpillingSkewed() {
+        StoreAndCodec sc = newStoreAndCodec();
+        DriverContext driverContext = spillingDriverContext(ByteSizeValue.ofKb(between(1, 64)), 0, sc.store(), sc.codec());
+        // the smallest key range makes four keys, which must reach the partitioning threshold
+        var config = new HashAggregationOperator.ParallelConfig(randomWorkerExecutor(), between(1, 8), between(1, 64), between(2, 4));
+        var status = runTest(
+            between(5_000, 20_000),
+            true,
+            randomBoolean(),
+            driverContext.blockFactory(),
+            driverContext,
+            null,
+            config,
+            between(1, 4),
+            between(16, 256)
+        );
+        ParallelHashAggregationOperator.PartitioningStatus partitioning = partitioningStatus(status);
+        assertSpilled(partitioning);
+        assertThat(partitioning.spill().spillRuns(), greaterThan(PartitionedHashAggregations.READ_AHEAD * 4));
+    }
+
+    /**
+     * Past the metadata bound the aggregation fails with a message that says so, rather than keeping a handle per
+     * generation without limit.
+     */
+    public void testTooManyGenerationsFail() {
+        StoreAndCodec sc = newStoreAndCodec();
+        DriverContext driverContext = spillingDriverContext(ByteSizeValue.ofBytes(1), 0, sc.store(), sc.codec());
+        var config = new HashAggregationOperator.ParallelConfig(randomWorkerExecutor(), between(1, 4), 1, 1);
+        int rows = PartitionedHashAggregations.MAX_SPILLED_GENERATIONS + between(10, 100);
+        Exception e = expectThrows(
+            Exception.class,
+            () -> runTest(rows, true, false, driverContext.blockFactory(), driverContext, null, config, rows * 2L, 1)
+        );
+        ElasticsearchStatusException cause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(e, ElasticsearchStatusException.class);
+        assertNotNull("not the generation bound: " + ExceptionsHelper.stackTrace(e), cause);
+        assertThat(cause.getMessage(), containsString("generations"));
+    }
+
+    /**
+     * A write that the store fails takes the aggregation down, with the store's failure as the cause.
+     */
+    public void testWriteFailureFailsTheAggregation() {
+        StoreAndCodec sc = newStoreAndCodec();
+        sc.store().setFailureInjection(operation -> operation.equals("finish") ? new java.io.IOException("the store said no") : null);
+        DriverContext driverContext = spillingDriverContext(ByteSizeValue.ofBytes(1), 0, sc.store(), sc.codec());
+        Exception e = expectThrows(
+            Exception.class,
+            () -> runTest(between(1_000, 10_000), true, false, driverContext.blockFactory(), driverContext, null, spillingConfig())
+        );
+        assertThat(e.getMessage(), containsString("the store said no"));
+    }
+
+    /**
+     * Closing the operator while a generation's write is held by the store: the write completes after the close and
+     * everything it holds goes back, including the generation it published into a closed registry.
+     */
+    public void testCloseWithWriteInFlight() throws Exception {
+        MemorySpillStore store = newStore(MemorySpillStore.Completion.DEFERRED);
+        // a store that holds its completions needs a codec pool: a codec task waits on the append it is held on, and
+        // the releasing thread must not be the one waiting
+        DriverContext driverContext = spillingDriverContext(ByteSizeValue.ofBytes(1), 0, store, threadPool.generic());
+        var config = new HashAggregationOperator.ParallelConfig(EsExecutors.DIRECT_EXECUTOR_SERVICE, 1, 1, between(1, 64));
+        var groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.INT));
+        HashAggregationOperator hash = new HashAggregationOperator(
+            AggregatorMode.SINGLE,
+            aggregatorFactories(AggregatorMode.SINGLE, 1),
+            dc -> BlockHash.build(groupSpecs, dc.blockFactory(), 128, false),
+            1024,
+            0.5,
+            1024,
+            null,
+            driverContext,
+            config,
+            false
+        );
+        ParallelHashAggregationOperator op = new ParallelHashAggregationOperator(config, hash);
+        hash.close();
+        List<Row> rows = new ArrayList<>();
+        for (int i = 0; i < 1024; i++) {
+            rows.add(new Row(new Key((long) i, i), new int[] { i }));
+        }
+        try {
+            for (Page page : inputPages(driverContext.blockFactory(), rows, 1)) {
+                op.addInput(page);
+            }
+            op.finish();
+            assertThat("a write is held by the store", store.heldOperations(), greaterThan(0));
+        } finally {
+            op.close();
+        }
+        driverContext.finish();
+        PlainActionFuture<Void> asyncActionsDone = new PlainActionFuture<>();
+        driverContext.waitForAsyncActions(asyncActionsDone);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (asyncActionsDone.isDone() == false) {
+            store.releaseAll();
+            assertTrue("the write did not complete", System.nanoTime() < deadline);
+            Thread.onSpinWait();
+        }
+        asyncActionsDone.get();
+    }
+
+    private HashAggregationOperator.ParallelConfig spillingConfig() {
+        return new HashAggregationOperator.ParallelConfig(randomWorkerExecutor(), between(1, 8), between(1, 64), between(64, 512));
+    }
+
+    private MemorySpillStore newStore() {
+        return newStore(MemorySpillStore.Completion.INLINE);
+    }
+
+    /**
+     * A store completing inline or on the pool, with a codec executor that is safe for it.
+     */
+    private record StoreAndCodec(MemorySpillStore store, Executor codec) {}
+
+    private StoreAndCodec newStoreAndCodec() {
+        if (randomBoolean()) {
+            return new StoreAndCodec(newStore(MemorySpillStore.Completion.INLINE), codecExecutor());
+        }
+        return new StoreAndCodec(newStore(MemorySpillStore.Completion.EXECUTOR), threadPool.generic());
+    }
+
+    private MemorySpillStore newStore(MemorySpillStore.Completion completion) {
+        MemorySpillStore store = new MemorySpillStore(
+            completion,
+            threadPool.generic(),
+            Long.MAX_VALUE,
+            "test.spill",
+            new Random(randomLong())
+        );
+        stores.add(store);
+        return store;
+    }
+
+    /**
+     * The codec runs on the calling thread only when the store completes inline: otherwise a codec task waiting on an
+     * append could occupy the thread that completes it.
+     */
+    private Executor codecExecutor() {
+        return randomBoolean() ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.generic();
+    }
+
+    private static ParallelHashAggregationOperator.PartitioningStatus partitioningStatus(DriverStatus status) {
+        OperatorStatus operatorStatus = status.completedOperators().get(1);
+        assertThat(operatorStatus.operator(), equalTo("ParallelHashAggregationOperator"));
+        HashAggregationOperator.Status hashStatus = (HashAggregationOperator.Status) operatorStatus.status();
+        return (ParallelHashAggregationOperator.PartitioningStatus) hashStatus.extraFields.get(0);
+    }
+
+    private static void assertSpilled(ParallelHashAggregationOperator.PartitioningStatus partitioning) {
+        assertThat(partitioning.spill().spillRuns(), greaterThan(0));
+        assertThat(partitioning.spill().spilledBytes(), greaterThan(0L));
+        assertThat(partitioning.spill().readBackBytes(), greaterThan(0L));
+        assertThat(partitioning.spill().readBackBytes(), greaterThanOrEqualTo(partitioning.spill().spilledBytes() / 2));
+    }
+
     public void testWorkerCpuIsInDriverCpu() {
         HashAggregationOperator.ParallelConfig config = new HashAggregationOperator.ParallelConfig(
             threadPool.generic(),
@@ -278,6 +490,69 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         DriverContext driverContext,
         HashAggregationOperator.ParallelConfig parallelConfig
     ) {
+        return runTest(numValues, singlePass, allowPartitionedOutput, sourceBlockFactory, driverContext, null, parallelConfig);
+    }
+
+    DriverStatus runTest(
+        int numValues,
+        boolean singlePass,
+        boolean allowPartitionedOutput,
+        BlockFactory sourceBlockFactory,
+        DriverContext driverContext,
+        @Nullable DriverContext finalDriverContext,
+        HashAggregationOperator.ParallelConfig parallelConfig
+    ) {
+        return runTest(
+            numValues,
+            singlePass,
+            allowPartitionedOutput,
+            sourceBlockFactory,
+            driverContext,
+            finalDriverContext,
+            parallelConfig,
+            numValues * 2L
+        );
+    }
+
+    DriverStatus runTest(
+        int numValues,
+        boolean singlePass,
+        boolean allowPartitionedOutput,
+        BlockFactory sourceBlockFactory,
+        DriverContext driverContext,
+        @Nullable DriverContext finalDriverContext,
+        HashAggregationOperator.ParallelConfig parallelConfig,
+        long keyRange
+    ) {
+        return runTest(
+            numValues,
+            singlePass,
+            allowPartitionedOutput,
+            sourceBlockFactory,
+            driverContext,
+            finalDriverContext,
+            parallelConfig,
+            keyRange,
+            between(1, 1024)
+        );
+    }
+
+    /**
+     * @param finalDriverContext the context of the second stage's driver, or null for one over the first's block factory
+     * @param keyRange keys are drawn from {@code [0, keyRange]}: small for skew, many generations over few partitions
+     * @param maxPageSize the largest input page
+     */
+    DriverStatus runTest(
+        int numValues,
+        boolean singlePass,
+        boolean allowPartitionedOutput,
+        BlockFactory sourceBlockFactory,
+        DriverContext driverContext,
+        @Nullable DriverContext finalDriverContext,
+        HashAggregationOperator.ParallelConfig parallelConfig,
+        long keyRange,
+        int maxPageSize
+    ) {
         int aggregations = between(0, 4);
         boolean nullKeys = randomBoolean();
         List<Row> inputRows = new ArrayList<>(numValues);
@@ -287,13 +562,13 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
                 sums[v] = randomIntBetween(0, Integer.MAX_VALUE);
             }
             Key key = new Key(
-                nullKeys && randomInt(100) < 20 ? null : randomLongBetween(0, numValues * 2L),
-                nullKeys && randomInt(100) < 20 ? null : randomIntBetween(0, numValues * 2)
+                nullKeys && randomInt(100) < 20 ? null : randomLongBetween(0, keyRange),
+                nullKeys && randomInt(100) < 20 ? null : randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, keyRange))
             );
             inputRows.add(new Row(key, sums));
         }
         Map<Key, long[]> expected = expected(inputRows, aggregations);
-        List<Page> inputPages = inputPages(sourceBlockFactory, inputRows, aggregations);
+        List<Page> inputPages = inputPages(sourceBlockFactory, inputRows, aggregations, maxPageSize);
         var groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.INT));
         List<Page> outputPages = new ArrayList<>();
         final DriverStatus status;
@@ -316,6 +591,7 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
             } else {
                 status = runTwoPassesAggregation(
                     driverContext,
+                    finalDriverContext,
                     sourceOperator,
                     blockHashSupplier,
                     aggregations,
@@ -385,6 +661,7 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
 
     private DriverStatus runTwoPassesAggregation(
         DriverContext driverContext,
+        @Nullable DriverContext finalDriverContext,
         SourceOperator rawInputSource,
         Function<DriverContext, BlockHash> blockHashSupplier,
         int numAggregations,
@@ -413,7 +690,9 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
                 new TestDriverRunner().run(d);
             }
             try (SourceOperator partialInputSource = new CannedSourceOperator(partialPages.iterator())) {
-                DriverContext finalDriveContext = driverContext(driverContext.blockFactory().parent());
+                DriverContext finalDriveContext = finalDriverContext != null
+                    ? finalDriverContext
+                    : driverContext(driverContext.blockFactory().parent());
                 HashAggregationOperator finalHash = new HashAggregationOperator(
                     AggregatorMode.FINAL,
                     aggregatorFactories(AggregatorMode.FINAL, numAggregations),
@@ -475,11 +754,15 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
     }
 
     static List<Page> inputPages(BlockFactory blockFactory, List<Row> rows, int aggregations) {
+        return inputPages(blockFactory, rows, aggregations, 1024);
+    }
+
+    static List<Page> inputPages(BlockFactory blockFactory, List<Row> rows, int aggregations, int maxPageSize) {
         List<Page> pages = new ArrayList<>();
         boolean success = false;
         try {
             for (int start = 0; start < rows.size();) {
-                int end = Math.min(rows.size(), start + between(1, 1024));
+                int end = Math.min(rows.size(), start + between(1, maxPageSize));
                 pages.add(inputPage(blockFactory, rows.subList(start, end), aggregations));
                 start = end;
             }
@@ -557,10 +840,27 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
     }
 
     @After
-    public void shutdownThreadPool() {
-        if (threadPool != null) {
-            terminate(threadPool);
-            threadPool = null;
+    public void shutdownThreadPool() throws Exception {
+        try {
+            // the scopes complete on this pool: close them, then the stores, before it stops
+            closeSpillingScopes();
+            for (MemorySpillStore store : stores) {
+                PlainActionFuture<Void> shutdown = new PlainActionFuture<>();
+                store.shutdown(shutdown);
+                // a store that holds its completions needs them released for the shutdown to land
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+                while (shutdown.isDone() == false) {
+                    store.releaseAll();
+                    assertTrue("the store did not shut down in time", System.nanoTime() < deadline);
+                    Thread.onSpinWait();
+                }
+                shutdown.get();
+            }
+        } finally {
+            if (threadPool != null) {
+                terminate(threadPool);
+                threadPool = null;
+            }
         }
     }
 }

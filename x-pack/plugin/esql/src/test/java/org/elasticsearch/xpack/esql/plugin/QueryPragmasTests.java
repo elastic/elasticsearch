@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
@@ -19,6 +20,19 @@ import static org.hamcrest.Matchers.hasItem;
  * keeping the time-series chunking knob fully decoupled.
  */
 public class QueryPragmasTests extends ESTestCase {
+
+    public void testSpillBudgetLeavesTheSettingInChargeByDefault() {
+        assertThat(new QueryPragmas(Settings.EMPTY).spillBudget(), equalTo(ByteSizeValue.MINUS_ONE));
+        assertThat(new QueryPragmas(Settings.EMPTY).spillMinBytes(), equalTo(ByteSizeValue.MINUS_ONE));
+        assertThat(
+            new QueryPragmas(Settings.builder().put(QueryPragmas.SPILL_MIN_BYTES.getKey(), "0b").build()).spillMinBytes(),
+            equalTo(ByteSizeValue.ZERO)
+        );
+        assertThat(
+            new QueryPragmas(Settings.builder().put(QueryPragmas.SPILL_BUDGET.getKey(), "4mb").build()).spillBudget(),
+            equalTo(ByteSizeValue.ofMb(4))
+        );
+    }
 
     public void testTimeSeriesTargetChunkRowsPragmaOverridesDefault() {
         QueryPragmas pragmas = new QueryPragmas(

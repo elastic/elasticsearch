@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.spill.SpillStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -57,8 +58,17 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
             randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomBoolean() ? null : randomInt()
+            randomBoolean() ? null : randomInt(),
+            randomNonNegativeLong(),
+            randomNonNegativeInt(),
+            randomSpill()
         );
+    }
+
+    private static SpillStatus randomSpill() {
+        return randomBoolean()
+            ? SpillStatus.NONE
+            : new SpillStatus(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeInt(), randomNonNegativeLong());
     }
 
     @Override
@@ -72,7 +82,10 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
         long rowsReceived = instance.rowsReceived();
         long rowsEmitted = instance.rowsEmitted();
         Integer minCompetitiveUpdates = instance.minCompetitiveUpdateCount();
-        switch (between(0, 8)) {
+        long rowsSpilled = instance.rowsSpilled();
+        int compactions = instance.compactions();
+        SpillStatus spill = instance.spill();
+        switch (between(0, 11)) {
             case 0:
                 receiveNanos = randomValueOtherThan(receiveNanos, ESTestCase::randomNonNegativeLong);
                 break;
@@ -100,6 +113,15 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
             case 8:
                 minCompetitiveUpdates = randomValueOtherThan(minCompetitiveUpdates, () -> randomBoolean() ? null : randomInt());
                 break;
+            case 9:
+                rowsSpilled = randomValueOtherThan(rowsSpilled, ESTestCase::randomNonNegativeLong);
+                break;
+            case 10:
+                compactions = randomValueOtherThan(compactions, ESTestCase::randomNonNegativeInt);
+                break;
+            case 11:
+                spill = randomValueOtherThan(spill, TopNOperatorStatusTests::randomSpill);
+                break;
             default:
                 throw new IllegalArgumentException();
         }
@@ -112,7 +134,10 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
             pagesEmitted,
             rowsReceived,
             rowsEmitted,
-            minCompetitiveUpdates
+            minCompetitiveUpdates,
+            rowsSpilled,
+            compactions,
+            spill
         );
     }
 }

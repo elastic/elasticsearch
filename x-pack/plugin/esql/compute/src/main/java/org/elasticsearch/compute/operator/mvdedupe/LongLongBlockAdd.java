@@ -82,7 +82,7 @@ public class LongLongBlockAdd extends AddPage {
                     block2.copyMissing(first, count);
                     finishAdd(position, work1IsUnique, true);
                 } else {
-                    block1.copyAndSort(first, count);
+                    block2.copyAndSort(first, count);
                     finishAdd(position, work1IsUnique, false);
                 }
             }

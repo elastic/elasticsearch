@@ -92,6 +92,13 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
 
     /**
+     * Whether {@link #lookup} is implemented; a hash that says no throws from it.
+     */
+    public boolean supportsLookup() {
+        return true;
+    }
+
+    /**
      * Returns an array of {@link Block}s containing keys.
      * @param selected The groupIds to include in the results. These are the same
      *                 groupIds returned by {@link #nonEmpty} and fed into aggregations

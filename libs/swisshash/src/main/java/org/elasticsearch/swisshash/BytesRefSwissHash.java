@@ -19,6 +19,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.MixHash64;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -1098,6 +1101,22 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             short[] positions,
             int[] fills
         );
+
+        /**
+         * One partition in the flat form, which both forms write and the reader rebuilds: the fixed length or -1, the
+         * count, the bytes, and the offsets when the length varies.
+         */
+        static void writeFlat(StreamOutput out, int fixedLength, int count, byte[] data, int dataUsed, int[] offsets) throws IOException {
+            out.writeVInt(fixedLength + 1);
+            out.writeVInt(count);
+            out.writeVInt(dataUsed);
+            out.writeBytes(data, 0, dataUsed);
+            if (fixedLength < 0) {
+                for (int i = 0; i <= count; i++) {
+                    out.writeVInt(offsets[i]);
+                }
+            }
+        }
     }
 
     static final class FlatBytesRefPartitionedHashKeys extends BytesRefPartitionedHashKeys {
@@ -1105,6 +1124,24 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         final int[] partitionDataUsed;
         byte[][] partitionData;
         int[][] partitionOffsets;
+
+        /**
+         * The keys of one partition read back from {@link #writePartition}; the other partitions are empty.
+         */
+        private FlatBytesRefPartitionedHashKeys(int partition, int fixedLength, byte[] data, int dataUsed, int[] offsets, int count) {
+            this.fixedLength = fixedLength;
+            partitionDataUsed = new int[NUM_PARTITIONS];
+            partitionDataUsed[partition] = dataUsed;
+            partitionData = new byte[NUM_PARTITIONS][];
+            partitionData[partition] = data;
+            if (fixedLength < 0) {
+                partitionOffsets = new int[NUM_PARTITIONS][];
+                partitionOffsets[partition] = offsets;
+            } else {
+                partitionOffsets = null;
+            }
+            partitionCounts[partition] = count;
+        }
 
         FlatBytesRefPartitionedHashKeys(CircuitBreaker breaker, int totalKeys, long totalKeyBytes, int fixedLength) {
             this.fixedLength = fixedLength;
@@ -1204,6 +1241,18 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         }
 
         @Override
+        public void writePartition(int partition, StreamOutput out) throws IOException {
+            writeFlat(
+                out,
+                fixedLength,
+                partitionCounts[partition],
+                partitionData[partition],
+                partitionDataUsed[partition],
+                partitionOffsets == null ? null : partitionOffsets[partition]
+            );
+        }
+
+        @Override
         public void releaseAll(CircuitBreaker breaker) {
             long bytes = (long) NUM_PARTITIONS * Integer.BYTES;
             for (int p = 0; p < NUM_PARTITIONS; p++) {
@@ -1276,6 +1325,59 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                     partitionArrays[p].close();
                     partitionArrays[p] = null;
                 }
+            }
+        }
+
+        @Override
+        public void writePartition(int partition, StreamOutput out) throws IOException {
+            // the flat variable-length form: the reader rebuilds every partition that way
+            final BytesRefArray keys = partitionArrays[partition];
+            final int count = Math.toIntExact(keys.size());
+            final BytesRef scratch = new BytesRef();
+            final int[] offsets = new int[count + 1];
+            int total = 0;
+            for (int i = 0; i < count; i++) {
+                offsets[i] = total;
+                total += keys.get(i, scratch).length;
+            }
+            offsets[count] = total;
+            final byte[] data = new byte[total];
+            for (int i = 0; i < count; i++) {
+                keys.get(i, scratch);
+                System.arraycopy(scratch.bytes, scratch.offset, data, offsets[i], scratch.length);
+            }
+            writeFlat(out, -1, count, data, total, offsets);
+        }
+    }
+
+    /**
+     * Reads one partition's keys written by {@link PartitionedHashKeys#writePartition} by either form: a flat instance
+     * holding that partition alone, charged to {@code breaker} as a split's keys are, which {@link #combinePartition}
+     * takes as any other.
+     */
+    public static PartitionedHashKeys readPartitionKeys(StreamInput in, int partition, CircuitBreaker breaker) throws IOException {
+        final int fixedLength = in.readVInt() - 1;
+        final int count = in.readVInt();
+        final int dataUsed = in.readVInt();
+        final long bytes = (long) NUM_PARTITIONS * Integer.BYTES + dataUsed + (fixedLength < 0 ? (long) (count + 1) * Integer.BYTES : 0);
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "BytesRefSwissHash#partition");
+        boolean success = false;
+        try {
+            final byte[] data = new byte[dataUsed];
+            in.readBytes(data, 0, dataUsed);
+            int[] offsets = null;
+            if (fixedLength < 0) {
+                offsets = new int[count + 1];
+                for (int i = 0; i <= count; i++) {
+                    offsets[i] = in.readVInt();
+                }
+            }
+            PartitionedHashKeys result = new FlatBytesRefPartitionedHashKeys(partition, fixedLength, data, dataUsed, offsets, count);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                breaker.addWithoutBreaking(-bytes);
             }
         }
     }

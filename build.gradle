@@ -595,6 +595,7 @@ tasks.register("checkBuildLogic").configure {
     ':x-pack:plugin:esql:qa:testFixtures',
     ':x-pack:plugin:esql:tools',
     ':x-pack:plugin:esql-core',
+    ':x-pack:plugin:esql-spill-disk',
   ],
   // The ESQL QA suite is sharded so no job exceeds the CI timeout. The three heaviest,
   // independently-growing workloads are kept apart:

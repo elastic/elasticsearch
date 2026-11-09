@@ -933,7 +933,8 @@ public class EsqlSession {
         return new Versioned<>(
             new Result(
                 result.schema(),
-                result.pages(),
+                result.residentPages(),
+                result.resultPages(),
                 columnMetadata,
                 result.configuration(),
                 completionInfo,
@@ -1052,10 +1053,8 @@ public class EsqlSession {
                 }
             }
 
-            // Release pages from the intermediate result
-            for (var page : result.pages()) {
-                page.releaseBlocks();
-            }
+            // Release pages from the intermediate result, in memory or in a run
+            result.releasePages();
 
             // Build and return the EXPLAIN table
             finishExplain(values, configuration, configuration.newFoldContext(), planTimeProfile, planRunner, next);
@@ -1507,7 +1506,16 @@ public class EsqlSession {
                                 reconcileCapturedSourceStats(merged, pinnedReads);
                                 EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                                 finalListener.onResponse(
-                                    new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo, null)
+                                    new Result(
+                                        finalResult.schema(),
+                                        finalResult.residentPages(),
+                                        finalResult.resultPages(),
+                                        null,
+                                        configuration,
+                                        merged,
+                                        executionInfo,
+                                        null
+                                    )
                                 );
                             })
                         );

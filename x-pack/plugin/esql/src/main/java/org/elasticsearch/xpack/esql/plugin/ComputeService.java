@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -45,6 +46,10 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.compute.spill.QueryScopeRegistry;
+import org.elasticsearch.compute.spill.ResultCollector;
+import org.elasticsearch.compute.spill.ResultPages;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -125,6 +130,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -203,6 +209,7 @@ public class ComputeService {
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
+    private final QueryScopeRegistry queryScopes;
 
     private final TransportService transportService;
     private final DriverTaskRunner driverRunner;
@@ -249,6 +256,7 @@ public class ComputeService {
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
+        this.queryScopes = transportActionServices.queryScopes();
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
@@ -1134,6 +1142,7 @@ public class ComputeService {
         String sessionId,
         CancellableTask rootTask,
         EsqlFlags flags,
+        EsqlSession.PlanRunner.Role role,
         PhysicalPlan physicalPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -1165,7 +1174,18 @@ public class ComputeService {
             return;
         }
 
-        final ActionListener<Result> dispatchListener = ActionListener.notifyOnce(listener);
+        // The root lease spans the whole query on the coordinator: sub-plans run with gaps between their computes and
+        // the response outlives them, so nothing else may be what keeps the scope open.
+        final QueryScope.Lease rootLease = queryScopes.acquire(rootOf(sessionId));
+        final ActionListener<Result> dispatchListener = ActionListener.notifyOnce(
+            rootLease == null ? listener : ActionListener.runAfter(listener, rootLease::close)
+        );
+        // The client's answer goes through the collector, which keeps its pages up to the result budget and sends the
+        // rest to a run of the query's scope. An intermediate result the session consumes stays a list, as its cap is far
+        // below any budget; so does a streamed result, which goes out as it comes, and one of a query that cannot spill.
+        final ResultCollector collector = role == EsqlSession.PlanRunner.Role.OUTPUT && physicalPlan instanceof StreamingOutputExec == false
+            ? resultCollector(sessionId)
+            : null;
         try {
             switch (executionPlan) {
                 case SubPlan.Leaf leaf -> executePlan(
@@ -1179,6 +1199,7 @@ public class ComputeService {
                     null,
                     dispatchListener,
                     null,
+                    collector,
                     initialClusterStatuses,
                     planTimeProfile,
                     warnIndexCoordinatorOnce
@@ -1196,6 +1217,7 @@ public class ComputeService {
                     warnIndexCoordinatorOnce,
                     planTimeProfile,
                     merge,
+                    collector,
                     dispatchListener
                 ).executePlan();
             }
@@ -1203,6 +1225,10 @@ public class ComputeService {
             // executePlan does planning work outside its own try/catch (breakPlanBetweenCoordinatorAndDataNode, getIndices), so a
             // legitimate planning error lands here. SubPlansExecutor can also settle the listener from a finally and then throw out
             // of that same finally; notifyOnce drops that second completion.
+            if (collector != null) {
+                // nothing to do once the collector handed its result over; before that, what it holds goes with the failure
+                collector.close();
+            }
             dispatchListener.onFailure(e);
         }
     }
@@ -1218,6 +1244,7 @@ public class ComputeService {
         String profileQualifier,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier,
+        @Nullable ResultCollector collector,
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce
@@ -1233,6 +1260,7 @@ public class ComputeService {
             profileQualifier,
             listener,
             exchangeSinkSupplier,
+            collector,
             initialClusterStatuses,
             planTimeProfile,
             warnIndexCoordinatorOnce,
@@ -1255,6 +1283,7 @@ public class ComputeService {
         String profileQualifier,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier,
+        @Nullable ResultCollector collector,
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
@@ -1288,6 +1317,7 @@ public class ComputeService {
                     profileQualifier,
                     releasing,
                     exchangeSinkSupplier,
+                    collector,
                     initialClusterStatuses,
                     planTimeProfile,
                     warnIndexCoordinatorOnce,
@@ -1401,6 +1431,7 @@ public class ComputeService {
         String profileQualifier,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier,
+        @Nullable ResultCollector collector,
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
@@ -1429,20 +1460,25 @@ public class ComputeService {
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-        listener = listener.delegateResponse((l, e) -> {
-            collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
-            l.onFailure(e);
-        });
-        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
-        boolean hasConcreteIndices = clusterToConcreteIndices.values().stream().anyMatch(indices -> indices.indices().length > 0);
         var coordinatorAndDataNode = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(resolvedPlan, configuration);
         PhysicalPlan coordinatorPlan = coordinatorAndDataNode.v1();
 
         final PageStreamPublisher streamPublisher = coordinatorPlan instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
+        // the collector, when given, is the client's answer: never a producer's pages, nor a streamed result's
+        assert collector == null || (exchangeSinkSupplier == null && streamPublisher == null) : "a collector for pages that go elsewhere";
+        listener = listener.delegateResponse((l, e) -> {
+            collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
+            if (collector != null) {
+                collector.close();
+            }
+            l.onFailure(e);
+        });
+        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
+        boolean hasConcreteIndices = clusterToConcreteIndices.values().stream().anyMatch(indices -> indices.indices().length > 0);
         if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
-            coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
+            coordinatorPlan = new OutputExec(coordinatorPlan, collector != null ? collector : collectedPages::add);
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNode.v2();
@@ -1472,9 +1508,11 @@ public class ComputeService {
                 false
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
-            try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
+            try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
                 updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, exchangeSinkSupplier == null);
-                return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo, null);
+                finishResult(collector, collectedPages, l.map(pages -> {
+                    return new Result(resolvedPlan.output(), collectedPages, pages, null, configuration, completionInfo, execInfo, null);
+                }));
             }))) {
                 runCompute(
                     rootTask,
@@ -1502,6 +1540,7 @@ public class ComputeService {
                 resolvedPlan,
                 distributionResult.distributionPlan(),
                 collectedPages,
+                collector,
                 execInfo,
                 profileQualifier,
                 cancelQueryOnFailure,
@@ -1533,10 +1572,18 @@ public class ComputeService {
             // A non-null sink means this executePlan is one FORK / UNION ALL / FROM-subquery branch. Skip the query-wide all-targets check
             // and markEndQuery; the root merge listener runs both after every branch has reported.
             if (exchangeSinkSupplier == null) {
-                failIfAllShardsFailedUnlessStreamed(execInfo, collectedPages, streamPublisher);
+                failIfAllShardsFailedUnlessStreamed(
+                    execInfo,
+                    collector != null ? collector.rows() > 0 : hasRows(collectedPages),
+                    streamPublisher
+                );
                 execInfo.markEndQuery();
             }
-            l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
+            finishResult(
+                collector,
+                collectedPages,
+                l.map(pages -> new Result(outputAttributes, collectedPages, pages, null, configuration, completionInfo, execInfo, null))
+            );
         }))) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
@@ -1694,6 +1741,7 @@ public class ComputeService {
         PhysicalPlan resolvedPlan,
         ExternalDistributionPlan distributionPlan,
         List<Page> collectedPages,
+        @Nullable ResultCollector collector,
         EsqlExecutionInfo execInfo,
         String profileQualifier,
         Runnable cancelQueryOnFailure,
@@ -1709,7 +1757,11 @@ public class ComputeService {
             if (exchangeSinkSupplier == null) {
                 execInfo.markEndQuery();
             }
-            l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
+            finishResult(
+                collector,
+                collectedPages,
+                l.map(pages -> new Result(outputAttributes, collectedPages, pages, null, configuration, completionInfo, execInfo, null))
+            );
         }))) {
             // Run the coordinator plan
             runCompute(
@@ -1919,12 +1971,58 @@ public class ComputeService {
      */
     static void failIfAllShardsFailedUnlessStreamed(
         EsqlExecutionInfo execInfo,
-        List<Page> collectedPages,
+        boolean hasRows,
         @Nullable PageStreamPublisher streamPublisher
     ) {
         if (streamPublisher == null || streamPublisher.rowsPublished() == 0) {
-            failIfAllShardsFailed(execInfo, collectedPages);
+            failIfAllShardsFailed(execInfo, hasRows);
         }
+    }
+
+    static boolean hasRows(List<Page> pages) {
+        for (Page p : pages) {
+            if (p.getPositionCount() > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The collector of the main query's result, over the query's scope when it has one on this node: the scope's lease
+     * is the collector's, handed to the result source, until the response closes.
+     */
+    @Nullable
+    private ResultCollector resultCollector(String sessionId) {
+        QueryScope.Lease lease = queryScopes.resolve(rootOf(sessionId));
+        if (lease == null) {
+            return null;
+        }
+        QueryScope scope = lease.scope();
+        if (scope.spillEnabled() == false) {
+            lease.close();
+            return null;
+        }
+        // the budget is read at every page: the pragma that replaces it is applied by the first compute, after this
+        return new ResultCollector(scope, lease, scope::resultBudgetBytes, "result-" + rootOf(sessionId));
+    }
+
+    /**
+     * Hands the client's answer over: the pages the collector kept in memory go back to the list, as without it, and a
+     * run, once sealed, goes as the result's source; without a collector the list is the result.
+     */
+    static void finishResult(@Nullable ResultCollector collector, List<Page> collectedPages, ActionListener<ResultPages> listener) {
+        if (collector == null) {
+            listener.onResponse(null);
+            return;
+        }
+        collector.finish(listener.map(pages -> {
+            if (pages.spilled()) {
+                return pages;
+            }
+            collectedPages.addAll(pages.resident());
+            return null;
+        }));
     }
 
     /**
@@ -1932,12 +2030,10 @@ public class ComputeService {
      * regardless of the partial_results configuration or skip_unavailable setting. This behavior doesn't fully align with the search API,
      * which doesn't consider the failures from the remote clusters when skip_unavailable is true.
      */
-    static void failIfAllShardsFailed(EsqlExecutionInfo execInfo, List<Page> finalResults) {
+    static void failIfAllShardsFailed(EsqlExecutionInfo execInfo, boolean hasRows) {
         // do not fail if any final result has results
-        for (Page p : finalResults) {
-            if (p.getPositionCount() > 0) {
-                return;
-            }
+        if (hasRows) {
+            return;
         }
         int totalFailedShards = 0;
         for (EsqlExecutionInfo.Cluster cluster : execInfo.clusterInfo.values()) {
@@ -2009,6 +2105,31 @@ public class ComputeService {
             singleValueQueryWarnings
         );
 
+        // One lease per compute: the data compute and the node-reduce compute of a request share the scope, and the
+        // request's own lease bridges the gap between them on a data node. Taken right before the try, so that every
+        // path from here on completes the wrapped listener and releases it.
+        final QueryScope.Lease computeLease = queryScopes.acquire(rootOf(context.sessionId()));
+        if (computeLease != null) {
+            listener = ActionListener.runAfter(listener, computeLease::close);
+        }
+        final QueryScope queryScope = computeLease == null ? null : computeLease.scope();
+        if (queryScope != null) {
+            // the test pragmas replace the setting's budget and the own-state minimum for this query: applied by every
+            // compute of the query on this node before any of its drivers runs, so that an operator's safe point sees them
+            QueryPragmas pragmas = context.configuration().pragmas();
+            ByteSizeValue pragmaBudget = pragmas.spillBudget();
+            if (pragmaBudget.getBytes() >= 0) {
+                queryScope.breaker().setBudget(pragmaBudget.getBytes());
+            }
+            ByteSizeValue pragmaMinimum = pragmas.spillMinBytes();
+            if (pragmaMinimum.getBytes() >= 0) {
+                queryScope.setMinSpillBytes(pragmaMinimum.getBytes());
+            }
+            ByteSizeValue pragmaResultBudget = pragmas.spillResultBudget();
+            if (pragmaResultBudget.getBytes() >= 0) {
+                queryScope.setResultBudgetBytes(pragmaResultBudget.getBytes());
+            }
+        }
         try {
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
@@ -2024,6 +2145,7 @@ public class ComputeService {
                 task,
                 bigArrays,
                 blockFactory,
+                queryScope,
                 clusterService.getSettings(),
                 context.configuration(),
                 context.exchangeSourceSupplier(),
@@ -2340,6 +2462,25 @@ public class ComputeService {
 
     String newChildSession(String session) {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
+    }
+
+    /**
+     * The query identity every node derives from a session id it already receives: the root session, before the first
+     * child suffix and after the cluster alias a remote cluster prefixes to it. Session ids are base64 UUIDs, which
+     * contain neither separator, and a cluster alias cannot contain a colon, so a root is its own root and the sink a
+     * querying cluster opens under the global id and the computes a remote cluster runs under its local id meet on one
+     * identity. The exchange service, the compute leases and the data-node request lease all key on it, with nothing new
+     * on the wire.
+     */
+    public static String rootOf(String sessionId) {
+        int separator = sessionId.indexOf('/');
+        String root = separator < 0 ? sessionId : sessionId.substring(0, separator);
+        int alias = root.lastIndexOf(':');
+        return alias < 0 ? root : root.substring(alias + 1);
+    }
+
+    QueryScopeRegistry queryScopes() {
+        return queryScopes;
     }
 
     String profileDescription(String qualifier, String label) {

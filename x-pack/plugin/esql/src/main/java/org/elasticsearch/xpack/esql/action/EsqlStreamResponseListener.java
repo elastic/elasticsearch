@@ -22,6 +22,8 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -99,6 +101,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private volatile boolean[] nullColumns;
     private volatile ZoneId zoneId;
     private final AtomicReference<Page> inFlightPage = new AtomicReference<>();
+    /** The stream's hold on the query's scope, released once with the response. */
+    private final AtomicReference<Releasable> streamHold = new AtomicReference<>();
     private volatile Supplier<ThreadContext.StoredContext> contextRestorer;
     private boolean responseSent = false;
 
@@ -138,6 +142,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     }
 
     private void initializeStream(EsqlStreamQueryAction.ResultStream resultStream) throws IOException {
+        // the stream's hold on the query's scope, released with the response, whatever comes of the stream
+        this.streamHold.set(resultStream.streamHold());
         this.publisher = resultStream.publisher();
         this.columns = resultStream.columns();
         this.nullColumns = resultStream.nullColumns();
@@ -156,9 +162,14 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 subscription.cancel();
             }
         } finally {
-            Page page = inFlightPage.getAndSet(null);
-            if (page != null) {
-                page.releaseBlocks();
+            try {
+                Page page = inFlightPage.getAndSet(null);
+                if (page != null) {
+                    page.releaseBlocks();
+                }
+            } finally {
+                // after the pages: the scope stays open until the last of them went back
+                Releasables.close(streamHold.getAndSet(null));
             }
         }
     }
@@ -184,6 +195,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error("failed to send failure response", inner);
+            // the response's release never runs: what it would have released goes here
+            release();
         } finally {
             PageStreamPublisher p = publisher;
             if (p != null) {

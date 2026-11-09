@@ -36,11 +36,13 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.swisshash.LongSwissHash;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -897,6 +899,36 @@ public class BlockHashTests extends BlockHashTestCase {
                     );
                     assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 8)));
                 }
+            }, b1, b2);
+        }
+    }
+
+    /**
+     * A position with more values in the second key than the deduplicator copies one by one, three hundred, past which
+     * the add sorts them in place: the groups are the distinct values of the second key paired with the one value of
+     * the first, and the lookup, which mirrors the add, must agree with it.
+     */
+    public void testLongLongHashManyValuesInTheSecondKey() {
+        int count = between(300, 600);
+        long[] second = new long[count];
+        for (int i = 0; i < count; i++) {
+            second[i] = randomIntBetween(0, 20);
+        }
+        Set<Long> distinct = Arrays.stream(second).boxed().collect(Collectors.toSet());
+        try (LongBlock.Builder b1 = blockFactory.newLongBlockBuilder(1); LongBlock.Builder b2 = blockFactory.newLongBlockBuilder(count)) {
+            append(b1, b2, new long[] { 1 }, second);
+            hash(ordsAndKeys -> {
+                assertThat(ordsAndKeys.ords().getPositionCount(), equalTo(1));
+                assertThat(ordsAndKeys.ords().getValueCount(0), equalTo(distinct.size()));
+                LongBlock firsts = (LongBlock) ordsAndKeys.keys()[0];
+                LongBlock seconds = (LongBlock) ordsAndKeys.keys()[1];
+                Set<Long> found = new HashSet<>();
+                for (int p = 0; p < seconds.getPositionCount(); p++) {
+                    assertThat(firsts.getLong(p), equalTo(1L));
+                    found.add(seconds.getLong(p));
+                }
+                assertThat(found, equalTo(distinct));
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, distinct.size())));
             }, b1, b2);
         }
     }
@@ -1998,12 +2030,10 @@ public class BlockHashTests extends BlockHashTestCase {
                 }
                 called[0] = true;
                 callback.accept(ordsAndKeys);
-                if (hash instanceof LongLongBlockHash == false && hash instanceof BytesRef3BlockHash == false) {
-                    try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(values), ByteSizeValue.ofKb(between(1, 100)))) {
-                        assertThat(lookup.hasNext(), equalTo(true));
-                        try (IntBlock ords = lookup.next()) {
-                            assertThat(ords, equalTo(ordsAndKeys.ords()));
-                        }
+                try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(values), ByteSizeValue.ofKb(between(1, 100)))) {
+                    assertThat(lookup.hasNext(), equalTo(true));
+                    try (IntBlock ords = lookup.next()) {
+                        assertThat(ords, equalTo(ordsAndKeys.ords()));
                     }
                 }
             }, values);

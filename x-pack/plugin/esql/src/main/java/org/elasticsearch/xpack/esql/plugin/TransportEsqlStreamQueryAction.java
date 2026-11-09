@@ -16,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,6 +28,10 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -228,10 +233,38 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         EsqlExecutionInfo executionInfo,
         PageStreamPublisher publisher,
         AtomicReference<Result> resultRef,
-        ActionListener<ActionResponse.Empty> listener
+        ActionListener<ActionResponse.Empty> delegate
     ) {
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
+        // The query's scope on the coordinator lives until this action completes and, once the stream has started, until
+        // the REST layer is done with the stream's body: the stream takes a hold of its own on the lease, released by
+        // the listener when the channel closes, so the last pages go back against a live account.
+        final QueryScope.Lease responseLease = computeService.queryScopes().acquire(ComputeService.rootOf(sessionId));
+        final RefCountingRunnable leaseRefs = responseLease == null ? null : new RefCountingRunnable(responseLease::close);
+        final ActionListener<ActionResponse.Empty> listener = leaseRefs == null
+            ? delegate
+            : ActionListener.runAfter(delegate, leaseRefs::close);
+        try {
+            innerExecute(task, request, executionInfo, publisher, resultRef, flags, sessionId, leaseRefs, listener);
+        } catch (RuntimeException e) {
+            // a throw before any listener was reached: nothing else releases the lease
+            Releasables.close(leaseRefs);
+            throw e;
+        }
+    }
+
+    private void innerExecute(
+        Task task,
+        EsqlStreamQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        PageStreamPublisher publisher,
+        AtomicReference<Result> resultRef,
+        EsqlFlags flags,
+        String sessionId,
+        @Nullable RefCountingRunnable leaseRefs,
+        ActionListener<ActionResponse.Empty> listener
+    ) {
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
@@ -260,6 +293,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         sessionId,
                         (CancellableTask) task,
                         flags,
+                        role,
                         plan,
                         configuration,
                         foldCtx,
@@ -289,7 +323,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             streamStarted,
                             columns,
                             nullColumns,
-                            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+                            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()),
+                            leaseRefs
                         );
                         if (startFailure != null) {
                             resultListener.onFailure(startFailure);
@@ -299,6 +334,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             sessionId,
                             (CancellableTask) task,
                             flags,
+                            role,
                             streamingPlan,
                             configuration,
                             foldCtx,
@@ -382,7 +418,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         streamStarted,
                         columns,
                         request.dropNullColumns() ? new boolean[columns.size()] : null,
-                        QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings())
+                        QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
+                        leaseRefs
                     );
                     if (startFailure != null) {
                         listener.onFailure(startFailure);
@@ -449,9 +486,13 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicBoolean streamStarted,
         List<ColumnInfoImpl> columns,
         boolean[] nullColumns,
-        ZoneId zoneId
+        ZoneId zoneId,
+        @Nullable RefCountingRunnable leaseRefs
     ) {
-        request.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
+        // the stream's hold on the scope's lease, the REST listener's to release; taken before the action may complete
+        Releasable streamHold = leaseRefs == null ? null : leaseRefs.acquire();
+        request.resultStreamListener()
+            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, streamHold));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;

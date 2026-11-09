@@ -122,6 +122,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
@@ -1360,6 +1361,106 @@ public class AnalyzerTests extends AnalyzerTestCase {
         var plan = basic().query("""
             from test
             """);
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Without a maximum the user's limit stands, however large: the cap added above it is the user's own value.
+     */
+    public void testNoMaximumKeepsTheUserLimit() {
+        int limitValue = MAX_LIMIT + between(1, 1_000_000);
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | limit " + limitValue);
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(limitValue));
+        limit = as(limit.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(limitValue));
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Without a maximum the plan is capped at the user's own limit, which bounds a sort above it.
+     */
+    public void testNoMaximumCapsAtTheUserLimitAboveASort() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | limit 5 | sort emp_no");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(5));
+        var sort = as(limit.child(), OrderBy.class);
+        limit = as(sort.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(5));
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Without a maximum a limit inside a branch bounds that branch only: the query gets the default limit on top.
+     */
+    public void testNoMaximumIgnoresALimitInsideABranch() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM)).query("""
+            from test
+            | fork ( where emp_no > 1 | limit 3 ) ( where emp_no > 2 )
+            """);
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+    }
+
+    /**
+     * Without a maximum a limit below a command that adds rows bounds that command's input, not the query: the default
+     * limit goes on top.
+     */
+    public void testNoMaximumIgnoresALimitBelowAnMvExpand() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | limit 1 | mv_expand languages");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        var expand = as(limit.child(), MvExpand.class);
+        limit = as(expand.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(1));
+    }
+
+    /**
+     * Without a maximum a limit above an expansion is the query's own.
+     */
+    public void testNoMaximumKeepsALimitAboveAnMvExpand() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | mv_expand languages | limit 1");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(1));
+        limit = as(limit.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(1));
+        as(limit.child(), MvExpand.class);
+    }
+
+    /**
+     * An aggregation without groups answers one row to none, so a limit below it does not bound the query either.
+     */
+    public void testNoMaximumIgnoresALimitBelowAnUngroupedStats() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | limit 0 | stats c = count(*)");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        as(limit.child(), Aggregate.class);
+    }
+
+    /**
+     * A grouped aggregation puts a row in every group of a multivalued key, so a limit below it does not bound the
+     * query: the analyzer cannot tell a key's values apart, and every aggregation stops the walk.
+     */
+    public void testNoMaximumIgnoresALimitBelowAGroupedStats() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM))
+            .query("from test | limit 1 | stats c = count(*) by languages");
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        as(limit.child(), Aggregate.class);
+    }
+
+    /**
+     * Without a maximum a query without a limit still gets the default one.
+     */
+    public void testNoMaximumKeepsTheDefaultLimit() {
+        var plan = basic().configuration(EsqlTestUtils.configurationWithRowMaximum(AnalyzerSettings.NO_MAXIMUM)).query("from test");
         var limit = as(plan, Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         as(limit.child(), EsRelation.class);

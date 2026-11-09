@@ -10,6 +10,9 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * A hash table whose keys can be redistributed into partitions by hash, so that several tables can be merged partition by
@@ -76,6 +79,17 @@ public interface PartitionedHashTable {
          * This must happen after all {@link #releasePartition} calls have completed.
          */
         void releaseAll(CircuitBreaker breaker);
+
+        /**
+         * Writes one partition's keys so that the table that split them reads them back, through its own static
+         * {@code readPartitionKeys}, as a {@link PartitionedHashKeys} holding that partition alone, which
+         * {@link #combinePartition} then takes like any other. What is written is what the combine reads, the raw keys
+         * and their count; hashes are not written, since merging rehashes. The default refuses: a table whose keys
+         * stay with it says so through the hash that owns them.
+         */
+        default void writePartition(int partition, StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " has no partition codec");
+        }
     }
 
     /**

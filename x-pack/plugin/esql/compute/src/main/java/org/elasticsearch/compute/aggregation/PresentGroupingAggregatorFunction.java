@@ -211,6 +211,12 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     }
 
     @Override
+    public boolean freezeEligible() {
+        // one bit per group
+        return true;
+    }
+
+    @Override
     public void close() {
         state.close();
     }

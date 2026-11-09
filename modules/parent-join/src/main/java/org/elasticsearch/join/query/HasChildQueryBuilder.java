@@ -343,8 +343,8 @@ public class HasChildQueryBuilder extends LeafQueryBuilder<HasChildQueryBuilder>
             throw new QueryShardException(context, "[" + NAME + "] no parent join field [" + parentJoinField + "] configured");
         }
 
-        Query parentFilter = joiner.parentFilter(type);
-        Query childFilter = joiner.filter(type);
+        Query parentFilter = joiner.parentFilter(type, context);
+        Query childFilter = joiner.filter(type, context);
         Query filteredQuery = Queries.filtered(query.toQuery(context), childFilter);
         MappedFieldType ft = context.getFieldType(parentJoinField);
         final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);

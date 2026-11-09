@@ -155,10 +155,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 .stream()
                 .map(relation -> new ParentIdFieldMapper(leafName() + "#" + relation.parent(), eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.fullPath(), mapper));
-            Joiner joiner = new Joiner(leafName(), relations.get());
             return new ParentJoinFieldMapper(
                 leafName(),
-                new JoinFieldType(context.buildFullName(leafName()), joiner, meta.get()),
+                new JoinFieldType(context.buildFullName(leafName()), relations.get(), meta.get()),
                 Collections.unmodifiableMap(parentIdFields),
                 eagerGlobalOrdinals.get(),
                 relations.get()
@@ -175,9 +174,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         private final Joiner joiner;
 
-        private JoinFieldType(String name, Joiner joiner, Map<String, String> meta) {
+        private JoinFieldType(String name, List<Relations> relations, Map<String, String> meta) {
             super(name, IndexType.terms(true, true), false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            this.joiner = joiner;
+            this.joiner = new Joiner(this, relations);
         }
 
         Joiner getJoiner() {
@@ -220,8 +219,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     private static boolean checkRelationsConflicts(List<Relations> previous, List<Relations> current, Conflicts conflicts) {
-        Joiner pj = new Joiner("f", previous);
-        Joiner cj = new Joiner("f", current);
+        Joiner pj = new JoinFieldType("f", previous, Map.of()).getJoiner();
+        Joiner cj = new JoinFieldType("f", current, Map.of()).getJoiner();
         return pj.canMerge(cj, s -> conflicts.addConflict("relations", s));
     }
 

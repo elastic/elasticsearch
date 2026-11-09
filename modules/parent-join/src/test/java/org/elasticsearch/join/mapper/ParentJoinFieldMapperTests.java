@@ -251,12 +251,24 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));
         assertFalse(joiner.parentTypeExists("child2"));
-        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child"));
-        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child2"));
+        assertEquals(
+            new TermQuery(new Term("join_field", "parent")),
+            joiner.parentFilter("child", createSearchExecutionContext(mapperService))
+        );
+        assertEquals(
+            new TermQuery(new Term("join_field", "parent")),
+            joiner.parentFilter("child2", createSearchExecutionContext(mapperService))
+        );
         assertTrue(joiner.childTypeExists("grand_child2"));
         assertFalse(joiner.parentTypeExists("grand_child2"));
-        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child1"));
-        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child2"));
+        assertEquals(
+            new TermQuery(new Term("join_field", "child")),
+            joiner.parentFilter("grand_child1", createSearchExecutionContext(mapperService))
+        );
+        assertEquals(
+            new TermQuery(new Term("join_field", "child")),
+            joiner.parentFilter("grand_child2", createSearchExecutionContext(mapperService))
+        );
 
         merge(mapperService, mapping(b -> {
             b.startObject("join_field");
@@ -279,19 +291,34 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));
         assertFalse(joiner.parentTypeExists("child2"));
-        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child"));
-        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child2"));
+        assertEquals(
+            new TermQuery(new Term("join_field", "parent")),
+            joiner.parentFilter("child", createSearchExecutionContext(mapperService))
+        );
+        assertEquals(
+            new TermQuery(new Term("join_field", "parent")),
+            joiner.parentFilter("child2", createSearchExecutionContext(mapperService))
+        );
         assertTrue(joiner.childTypeExists("grand_child2"));
         assertFalse(joiner.parentTypeExists("grand_child2"));
-        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child1"));
-        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child2"));
+        assertEquals(
+            new TermQuery(new Term("join_field", "child")),
+            joiner.parentFilter("grand_child1", createSearchExecutionContext(mapperService))
+        );
+        assertEquals(
+            new TermQuery(new Term("join_field", "child")),
+            joiner.parentFilter("grand_child2", createSearchExecutionContext(mapperService))
+        );
         assertTrue(joiner.parentTypeExists("other"));
         assertFalse(joiner.childTypeExists("other"));
         assertTrue(joiner.childTypeExists("child_other1"));
         assertFalse(joiner.parentTypeExists("child_other1"));
         assertTrue(joiner.childTypeExists("child_other2"));
         assertFalse(joiner.parentTypeExists("child_other2"));
-        assertEquals(new TermQuery(new Term("join_field", "other")), joiner.parentFilter("child_other2"));
+        assertEquals(
+            new TermQuery(new Term("join_field", "other")),
+            joiner.parentFilter("child_other2", createSearchExecutionContext(mapperService))
+        );
     }
 
     public void testInvalidJoinFieldInsideObject() throws Exception {

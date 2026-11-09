@@ -179,9 +179,9 @@ public class HasParentQueryBuilder extends LeafQueryBuilder<HasParentQueryBuilde
             }
         }
 
-        Query parentFilter = joiner.filter(parentType);
+        Query parentFilter = joiner.filter(parentType, context);
         Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
-        Query childFilter = joiner.childrenFilter(parentType);
+        Query childFilter = joiner.childrenFilter(parentType, context);
         MappedFieldType fieldType = context.getFieldType(joiner.childJoinField(parentType));
         final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         return new HasChildQueryBuilder.LateParsingQuery(

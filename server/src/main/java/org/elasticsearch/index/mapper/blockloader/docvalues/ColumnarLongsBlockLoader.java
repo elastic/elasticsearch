@@ -55,7 +55,7 @@ public class ColumnarLongsBlockLoader extends BlockDocValuesReader.DocValuesBloc
 
     private static final class Reader extends BlockDocValuesReader {
         private final TrackingBinaryDocValues docValues;
-        private final long[][] decoded = { new long[1] };
+        private final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
         private int[] docIds = new int[0];
 
         Reader(TrackingBinaryDocValues docValues) {
@@ -132,16 +132,18 @@ public class ColumnarLongsBlockLoader extends BlockDocValuesReader.DocValuesBloc
                 builder.appendNull();
                 return;
             }
-            final int count = NumericBinaryPayload.decode(binary.binaryValue(), decoded);
+            decoder.reset(binary.binaryValue());
+            final long[] values = decoder.values();
+            final int count = decoder.valueCount();
             if (count == 0) {
                 // Only null slots, or an empty array.
                 builder.appendNull();
             } else if (count == 1) {
-                builder.appendLong(decoded[0][0]);
+                builder.appendLong(values[0]);
             } else {
                 builder.beginPositionEntry();
                 for (int i = 0; i < count; i++) {
-                    builder.appendLong(decoded[0][i]);
+                    builder.appendLong(values[i]);
                 }
                 builder.endPositionEntry();
             }

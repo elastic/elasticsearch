@@ -468,7 +468,9 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
      */
     public static NumericColumnValues decodePayloads(BinaryDocValues binary) {
         return new NumericColumnValues() {
-            private final long[][] buffer = { new long[8] };
+            private final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
+            /** The current document's values, copied out of its payload, which the next advance may overwrite. */
+            private long[] values;
             private int count;
             private int upto;
 
@@ -479,7 +481,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
 
             @Override
             public long nextValue() {
-                return buffer[0][upto++];
+                return values[upto++];
             }
 
             @Override
@@ -511,7 +513,9 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
             // back with only its non-null values, in order, and one with none reads back as missing the field.
             private int position(int doc) throws IOException {
                 while (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    count = NumericBinaryPayload.decode(binary.binaryValue(), buffer);
+                    decoder.reset(binary.binaryValue());
+                    values = decoder.values();
+                    count = decoder.valueCount();
                     upto = 0;
                     if (count > 0) {
                         break;

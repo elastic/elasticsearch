@@ -132,7 +132,7 @@ public class NumericColumnMergeTests extends ESTestCase {
     }
 
     private static void assertColumn(DirectoryReader reader, List<List<Long>> expected) throws IOException {
-        final long[][] decoded = { new long[8] };
+        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
         int base = 0;
         for (var leaf : reader.leaves()) {
             final BinaryDocValues dv = leaf.reader().getBinaryDocValues(FIELD);
@@ -142,10 +142,11 @@ public class NumericColumnMergeTests extends ESTestCase {
                     assertTrue("doc " + (base + doc) + " has no value", dv == null || dv.advanceExact(doc) == false);
                 } else {
                     assertTrue("doc " + (base + doc) + " has a value", dv.advanceExact(doc));
-                    final int count = NumericBinaryPayload.decode(dv.binaryValue(), decoded);
-                    final List<Long> actual = new ArrayList<>(count);
-                    for (int i = 0; i < count; i++) {
-                        actual.add(decoded[0][i]);
+                    decoder.reset(dv.binaryValue());
+                    final long[] values = decoder.values();
+                    final List<Long> actual = new ArrayList<>(decoder.valueCount());
+                    for (int i = 0; i < decoder.valueCount(); i++) {
+                        actual.add(values[i]);
                     }
                     assertEquals(want, actual);
                 }
@@ -202,12 +203,13 @@ public class NumericColumnMergeTests extends ESTestCase {
                     assertEquals("force-merged to one segment", 1, reader.leaves().size());
                     final LeafReader leaf = reader.leaves().get(0).reader();
                     final BinaryDocValues dv = leaf.getBinaryDocValues(FIELD);
-                    final long[][] decoded = { new long[8] };
+                    final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
                     final List<Long> actual = new ArrayList<>();
                     for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
-                        final int count = NumericBinaryPayload.decode(dv.binaryValue(), decoded);
-                        for (int i = 0; i < count; i++) {
-                            actual.add(decoded[0][i]);
+                        decoder.reset(dv.binaryValue());
+                        final long[] decoded = decoder.values();
+                        for (int i = 0; i < decoder.valueCount(); i++) {
+                            actual.add(decoded[i]);
                         }
                     }
                     assertEquals("merged column holds the surviving values in order", expected, actual);

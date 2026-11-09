@@ -19,7 +19,10 @@ import java.util.List;
 
 public class NumericBinaryPayloadTests extends ESTestCase {
 
-    /** Slots built one at a time come back in order, nulls in place, and {@link NumericBinaryPayload#decode} keeps only the values. */
+    /**
+     * Slots built one at a time come back in order, nulls in place, and {@link NumericBinaryPayload.Decoder#values()} keeps
+     * only the values.
+     */
     public void testBuilderRoundTrip() throws IOException {
         final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
         final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
@@ -39,9 +42,8 @@ public class NumericBinaryPayloadTests extends ESTestCase {
             assertEquals(slots, readSlots(decoder, payload));
             assertEquals(slots.stream().filter(s -> s == null).count(), decoder.nullSlotCount());
 
-            final long[][] values = { new long[1] };
-            final int count = NumericBinaryPayload.decode(payload, values);
-            assertEquals(slots.stream().filter(s -> s != null).toList(), toList(values[0], count));
+            decoder.reset(payload);
+            assertEquals(slots.stream().filter(s -> s != null).toList(), toList(decoder.values(), decoder.valueCount()));
         }
     }
 
@@ -74,8 +76,9 @@ public class NumericBinaryPayloadTests extends ESTestCase {
     public void testEmptyArray() throws IOException {
         final BytesRef payload = new NumericBinaryPayload.Builder().build();
         assertTrue(payload.length > 0);
-        assertEquals(0, new NumericBinaryPayload.Decoder().reset(payload));
-        assertEquals(0, NumericBinaryPayload.decode(payload, new long[][] { new long[0] }));
+        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
+        assertEquals(0, decoder.reset(payload));
+        assertEquals(0, decoder.valueCount());
     }
 
     /** Resetting clears the null bitmap, so a reused builder doesn't carry nulls into the next document. */

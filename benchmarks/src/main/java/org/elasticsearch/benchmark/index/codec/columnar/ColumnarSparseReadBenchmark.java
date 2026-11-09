@@ -164,12 +164,13 @@ public class ColumnarSparseReadBenchmark {
     @Benchmark
     public void perDocPayload(Blackhole bh) throws IOException {
         final BinaryDocValues dv = leafReader.getBinaryDocValues(FIELD);
-        final long[][] decoded = { new long[8] };
+        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
         for (int doc : presentDocs) {
             if (dv.advanceExact(doc)) {
-                final int count = NumericBinaryPayload.decode(dv.binaryValue(), decoded);
-                for (int i = 0; i < count; i++) {
-                    bh.consume(decoded[0][i]);
+                decoder.reset(dv.binaryValue());
+                final long[] values = decoder.values();
+                for (int i = 0; i < decoder.valueCount(); i++) {
+                    bh.consume(values[i]);
                 }
             }
         }
@@ -198,11 +199,12 @@ public class ColumnarSparseReadBenchmark {
     public void rangePayloadBitSet(Blackhole bh) throws IOException {
         final BinaryDocValues dv = leafReader.getBinaryDocValues(FIELD);
         final FixedBitSet matches = new FixedBitSet(docCount);
-        final long[][] decoded = { new long[8] };
+        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
         for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
-            final int count = NumericBinaryPayload.decode(dv.binaryValue(), decoded);
-            for (int i = 0; i < count; i++) {
-                final long value = decoded[0][i];
+            decoder.reset(dv.binaryValue());
+            final long[] values = decoder.values();
+            for (int i = 0; i < decoder.valueCount(); i++) {
+                final long value = values[i];
                 if (value >= RANGE_LOW && value <= RANGE_HIGH) {
                     matches.set(doc);
                     break;

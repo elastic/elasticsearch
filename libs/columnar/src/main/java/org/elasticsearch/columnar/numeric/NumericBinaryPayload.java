@@ -43,31 +43,6 @@ public final class NumericBinaryPayload {
 
     private NumericBinaryPayload() {}
 
-    /**
-     * Decodes the non-null values of a payload into {@code dest} (grown as needed) and returns how many there are.
-     * Null slots are skipped; values come back in the order they were written.
-     *
-     * <p>{@code dest} is a single-element array used only to pass the reusable buffer by mutable
-     * reference: when the buffer must grow, the larger array is written back to {@code dest[0]} so the
-     * caller sees it on the next call.
-     */
-    public static int decode(BytesRef payload, long[][] dest) throws IOException {
-        final int[] pos = { payload.offset };
-        final int slotCount = ByteArrayInts.readVInt(payload.bytes, pos);
-        final int nullCount = ByteArrayInts.readVInt(payload.bytes, pos);
-        final int count = slotCount - nullCount;
-        long[] values = dest[0];
-        if (values.length < count) {
-            values = new long[ArrayUtil.oversize(count, Long.BYTES)];
-            dest[0] = values;
-        }
-        int base = pos[0] + (nullCount > 0 ? bitmapLength(slotCount) : 0);
-        for (int i = 0; i < count; i++) {
-            values[i] = (long) LONG.get(payload.bytes, base + i * Long.BYTES);
-        }
-        return count;
-    }
-
     private static int bitmapLength(int slotCount) {
         return (slotCount + Byte.SIZE - 1) / Byte.SIZE;
     }
@@ -157,7 +132,10 @@ public final class NumericBinaryPayload {
     }
 
     /**
-     * Reads one payload's slots in order. Reusable: {@link #reset} points it at the next payload.
+     * Reads one payload. Reusable: {@link #reset} points it at the next payload.
+     *
+     * <p>A caller that needs the slots, nulls included, walks them with {@link #nextIsNull()} and {@link #nextValue()}. One
+     * that only needs the values takes them all at once with {@link #values()}, since they sit back to back in the payload.
      */
     public static final class Decoder {
         private byte[] bytes;
@@ -167,6 +145,8 @@ public final class NumericBinaryPayload {
         private int nullCount;
         private int slot;
         private int value;
+        /** Holds the values {@link #values()} hands out; grown as needed, never shrunk. */
+        private long[] valueBuffer = new long[8];
 
         /**
          * Points the decoder at {@code payload}, which must stay unchanged while it is read.
@@ -188,6 +168,26 @@ public final class NumericBinaryPayload {
         /** The number of null slots in the payload. */
         public int nullSlotCount() {
             return nullCount;
+        }
+
+        /** The number of non-null values in the payload: its slots less its nulls. */
+        public int valueCount() {
+            return slotCount - nullCount;
+        }
+
+        /**
+         * The payload's non-null values in the order they were written, in the first {@link #valueCount()} entries of the
+         * returned array. The array belongs to this decoder and is only valid until the next {@link #reset}.
+         */
+        public long[] values() {
+            final int count = valueCount();
+            if (valueBuffer.length < count) {
+                valueBuffer = new long[ArrayUtil.oversize(count, Long.BYTES)];
+            }
+            for (int i = 0; i < count; i++) {
+                valueBuffer[i] = (long) LONG.get(bytes, valueOffset + i * Long.BYTES);
+            }
+            return valueBuffer;
         }
 
         /** Whether the next slot {@link #nextValue()} would read is null; advances past it if so. */

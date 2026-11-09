@@ -67,6 +67,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
      * A large enough size that loading the field won't circuit break.
      */
     public static final ByteSizeValue TEST_BREAKER_SIZE = ByteSizeValue.ofMb(1);
+    public static final String TIME_SERIES_DIMENSION_FIELD = "sensor_id";
 
     @ParametersFactory(argumentFormatting = "preference=%s")
     public static List<Object[]> args() {
@@ -457,7 +458,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         if (params.indexMode == IndexMode.TIME_SERIES) {
             var doc = (Map<String, Object>) mapping.raw().get("_doc");
             var properties = (Map<String, Object>) doc.get("properties");
-            properties.put("sensor_id", Map.of("type", "keyword", "time_series_dimension", true));
+            properties.put(TIME_SERIES_DIMENSION_FIELD, Map.of("type", "keyword", "time_series_dimension", true));
         }
         return mapping;
     }
@@ -467,9 +468,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         builder.put("index.mapping.source.mode", params.sourceMode().name());
         builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
         if (params.indexMode() == IndexMode.TIME_SERIES) {
-            // time_series requires a routing path (or dimensions); the tests don't depend on its value
-            builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "sensor_id");
-            // builder.put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "my_temporality_field");
+            builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), TIME_SERIES_DIMENSION_FIELD);
         }
         return builder;
     }

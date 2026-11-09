@@ -42,7 +42,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
-import org.jspecify.annotations.NonNull;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -146,8 +145,8 @@ public class BlockLoaderTestRunner {
         final Map<String, Object> emptyPayloadDoc = Map.of(
             "@timestamp",
             ESTestCase.randomMillisUpToYear9999(),
-            "sensor_id",
-            "empty_sensor_id"
+            BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD,
+            "empty_sensor_id_value"
         );
         return parseDocument(emptyPayloadDoc);
     }
@@ -173,14 +172,12 @@ public class BlockLoaderTestRunner {
         try {
             var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(docToParse);
             var source = new SourceToParse(
-                // "1",
                 // In Time series the _id is derived from document
                 params.indexMode() == IndexMode.TIME_SERIES ? null : "1",
                 new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
-                // null,
-                // params.indexMode() == IndexMode.TIME_SERIES ? "temp_sensor_1" : null,
-                params.indexMode() == IndexMode.TIME_SERIES ? (String) docToParse.get("sensor_id") : null,
-                // params.indexMode() == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE : null,
+                params.indexMode() == IndexMode.TIME_SERIES
+                    ? (String) docToParse.get(BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD)
+                    : null,
                 Map.of(),
                 Map.of(),
                 XContentMeteringParserDecorator.NOOP,
@@ -217,8 +214,7 @@ public class BlockLoaderTestRunner {
         }
         if (indexMode == IndexMode.TIME_SERIES) {
             document.putIfAbsent("@timestamp", ESTestCase.randomMillisUpToYear9999());
-            document.putIfAbsent("sensor_id", ESTestCase.randomAlphanumericOfLength(10));
-            // document.putIfAbsent("my_temporality_field", "cumulative");
+            document.putIfAbsent(BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD, ESTestCase.randomAlphanumericOfLength(10));
         }
         return document;
     }
@@ -320,7 +316,7 @@ public class BlockLoaderTestRunner {
         }
     }
 
-    private @NonNull IndexWriterConfig setupIndexConfigForTimeSeries(Random rg) {
+    private IndexWriterConfig setupIndexConfigForTimeSeries(Random rg) {
         IndexWriterConfig indexWriterConfig = LuceneTestCase.newIndexWriterConfig(rg, new MockAnalyzer(rg));
         Codec codec = new ES93TSDBDefaultCompressionLucene103Codec(
             new PerFieldMapperCodec(
@@ -333,7 +329,6 @@ public class BlockLoaderTestRunner {
             )
         );
 
-        // Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
         indexWriterConfig.setCodec(codec);
         indexWriterConfig.setMergePolicy(unwrapSyntheticIdOnMerge(newLogMergePolicy()));
         // The random test config may install a SimpleMergedSegmentWarmer, which reads every stored field of the merged

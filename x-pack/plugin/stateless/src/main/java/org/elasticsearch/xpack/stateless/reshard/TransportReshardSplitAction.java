@@ -148,6 +148,7 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
                 handoffPreparation.sourceShardId(),
                 request.targetPrimaryTerm,
                 request.sourcePrimaryTerm,
+                handoffPreparation.historyUuid(),
                 shouldRetry,
                 handoffPreparation.permits(),
                 l

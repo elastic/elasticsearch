@@ -1,0 +1,7 @@
+area: Engine
+issues:
+ - 159567
+pr: 162603
+summary: "Store `SegmentCommitInfo#sizeInBytes` on merge completion, to avoid racy\
+  \ read after completion"
+type: bug

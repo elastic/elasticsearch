@@ -11,6 +11,7 @@ package org.elasticsearch.search.heappressure;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
@@ -41,6 +42,7 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
      */
     protected static final int DOC_BYTES = 256 * 1024;
     protected static final int LARGE_DOCS = 1000;
+    private static final int MAX_DOCS_PER_BULK = 5_000;
 
     /** A {@code big} field that is only ever read back from {@code _source}. */
     protected static final String SOURCE_ONLY_KEYWORD = """
@@ -113,8 +115,17 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
      * @param bigValue the {@code big} value, {@link #DOC_BYTES} characters that need no escaping in JSON
      */
     protected void indexLargeDocuments(String index, int shards, String bigField, String bigValue) throws IOException {
+        indexLargeDocuments(client(), index, shards, bigField, bigValue);
+    }
+
+    /**
+     * Like {@link #indexLargeDocuments(String, int, String, String)}, on the cluster of {@code restClient}, such as the remote cluster of a
+     * cross-cluster search.
+     */
+    protected void indexLargeDocuments(RestClient restClient, String index, int shards, String bigField, String bigValue)
+        throws IOException {
         assertEquals(DOC_BYTES, bigValue.length());
-        indexDocuments(index, shards, Strings.format("""
+        indexDocuments(restClient, index, shards, "", Strings.format("""
             {"tag": {"type": "keyword"}, "big": %s}""", bigField), LARGE_DOCS, i -> Strings.format("""
             {"tag":"tag-%04d","big":"%s"}""", i, bigValue));
     }
@@ -123,34 +134,63 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
      * Creates {@code index} with the given mapping properties and documents, unless an earlier case of the class already did.
      */
     protected void indexDocuments(String index, int shards, String properties, int docs, IntFunction<String> doc) throws IOException {
-        if (indexExists(index)) {
+        indexDocuments(index, shards, "", properties, docs, doc);
+    }
+
+    /**
+     * Like {@link #indexDocuments(String, int, String, int, IntFunction)}, with {@code extraSettings}, JSON members such as
+     * {@code "index.mode": "logsdb"} added to the index settings, or empty for none.
+     */
+    protected void indexDocuments(String index, int shards, String extraSettings, String properties, int docs, IntFunction<String> doc)
+        throws IOException {
+        indexDocuments(client(), index, shards, extraSettings, properties, docs, doc);
+    }
+
+    /**
+     * Like {@link #indexDocuments(String, int, String, String, int, IntFunction)}, on the cluster of {@code restClient}, such as the remote
+     * cluster of a cross-cluster search.
+     */
+    protected void indexDocuments(
+        RestClient restClient,
+        String index,
+        int shards,
+        String extraSettings,
+        String properties,
+        int docs,
+        IntFunction<String> doc
+    ) throws IOException {
+        if (indexExists(restClient, index)) {
             return;
         }
         Request create = new Request("PUT", "/" + index);
         create.setJsonEntity(Strings.format("""
             {
-              "settings": {"number_of_shards": %d, "number_of_replicas": 0},
+              "settings": {"number_of_shards": %d, "number_of_replicas": 0%s},
               "mappings": {"properties": %s}
             }
-            """, shards, properties));
-        client().performRequest(create);
+            """, shards, extraSettings.isEmpty() ? "" : ", " + extraSettings, properties));
+        restClient.performRequest(create);
 
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < docs; i++) {
             bulk.append("{\"index\":{}}\n").append(doc.apply(i)).append('\n');
-            // A few MB per bulk request, which a 256 MB node handles.
-            if (bulk.length() >= 4 * 1024 * 1024 || i == docs - 1) {
+            // A few MB per bulk request, which a 256 MB node handles, and at most MAX_DOCS_PER_BULK documents, which is what limits a bulk
+            // of very small ones.
+            if (bulk.length() >= 4 * 1024 * 1024 || (i + 1) % MAX_DOCS_PER_BULK == 0 || i == docs - 1) {
                 Request request = new Request("POST", "/" + index + "/_bulk");
                 request.setJsonEntity(bulk.toString());
-                assertFalse((Boolean) entityAsMap(client().performRequest(request)).get("errors"));
+                assertFalse((Boolean) entityAsMap(restClient.performRequest(request)).get("errors"));
                 bulk.setLength(0);
+                // Test clusters run with assertions, and the translog then keeps every operation it has seen, with a stack trace, until it
+                // is rolled. Without a flush a 256 MB node runs out of memory on a hundred thousand or more small documents.
+                restClient.performRequest(new Request("POST", "/" + index + "/_flush"));
             }
         }
         Request forceMerge = new Request("POST", "/" + index + "/_forcemerge");
         forceMerge.addParameter("max_num_segments", "1");
-        client().performRequest(forceMerge);
-        client().performRequest(new Request("POST", "/" + index + "/_refresh"));
-        ensureGreen(index);
+        restClient.performRequest(forceMerge);
+        restClient.performRequest(new Request("POST", "/" + index + "/_refresh"));
+        ensureGreen(restClient, index);
     }
 
     /**

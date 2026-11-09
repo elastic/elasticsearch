@@ -506,7 +506,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         }
 
         @Override
-        public int valueCount() {
+        public int valueCount() throws IOException {
             return delegate.valueCount();
         }
 

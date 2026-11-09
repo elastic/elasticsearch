@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -140,6 +141,92 @@ public class ChangesDoubleAggregatorTests extends ComputeTestCase {
             state.prepareEvaluateFinal(selected, evalContext).evaluate(resultBlocks, 0, selected);
             try (LongBlock result = (LongBlock) resultBlocks[0]) {
                 assertEquals(1L, result.getLong(0));
+            }
+        } finally {
+            driverContext.finish();
+        }
+    }
+
+    public void testMultivaluedGroupsWithNullValues() {
+        DriverContext driverContext = driverContext();
+        try (
+            var selected = driverContext.blockFactory().newIntArrayVector(new int[] { 0, 1, 2 }, 3);
+            var state = newAggregator(driverContext);
+            var evalContext = new GroupingAggregatorEvaluationContext(driverContext);
+            var valuesBuilder = driverContext.blockFactory().newDoubleBlockBuilder(5);
+            var groupsBuilder = driverContext.blockFactory().newIntBlockBuilder(5)
+        ) {
+            valuesBuilder.appendDouble(1);
+            valuesBuilder.appendNull();
+            valuesBuilder.appendDouble(100);
+            valuesBuilder.appendDouble(2);
+            valuesBuilder.appendDouble(2);
+
+            groupsBuilder.beginPositionEntry();
+            groupsBuilder.appendInt(0);
+            groupsBuilder.appendInt(1);
+            groupsBuilder.endPositionEntry();
+            groupsBuilder.appendInt(0);
+            groupsBuilder.appendNull();
+            groupsBuilder.beginPositionEntry();
+            groupsBuilder.appendInt(0);
+            groupsBuilder.appendInt(1);
+            groupsBuilder.endPositionEntry();
+            groupsBuilder.appendInt(0);
+
+            DoubleBlock values = valuesBuilder.build();
+            IntBlock groups = groupsBuilder.build();
+            LongBlock timestamps = driverContext.blockFactory().newLongArrayVector(new long[] { 50, 40, 30, 20, 10 }, 5).asBlock();
+            IntBlock sliceIndices = driverContext.blockFactory().newConstantIntBlockWith(0, 5);
+            try (
+                Page page = new Page(values, timestamps, sliceIndices);
+                groups;
+                var addInput = state.prepareProcessRawInputPage(new SeenGroupIds.Empty(), page)
+            ) {
+                addInput.add(0, groups);
+            }
+
+            Block[] resultBlocks = new Block[1];
+            state.prepareEvaluateFinal(selected, evalContext).evaluate(resultBlocks, 0, selected);
+            try (LongBlock result = (LongBlock) resultBlocks[0]) {
+                assertEquals(1L, result.getLong(0));
+                assertEquals(1L, result.getLong(1));
+                assertTrue(result.isNull(2));
+            }
+        } finally {
+            driverContext.finish();
+        }
+    }
+
+    public void testMultivaluedGroupsAcrossIntermediateMerge() {
+        DriverContext driverContext = driverContext();
+        try (
+            var sourceGroup = driverContext.blockFactory().newConstantIntVector(0, 1);
+            var selected = driverContext.blockFactory().newIntArrayVector(new int[] { 0, 1, 2 }, 3);
+            var source = newAggregator(driverContext);
+            var merged = newIntermediateAggregator(driverContext);
+            var evalContext = new GroupingAggregatorEvaluationContext(driverContext)
+        ) {
+            addRaw(source, driverContext, new double[] { 1, 2, 1 }, new long[] { 30, 20, 10 });
+
+            Block[] intermediate = new Block[source.intermediateBlockCount()];
+            source.prepareEvaluateIntermediate(sourceGroup, evalContext).evaluate(intermediate, 0, sourceGroup);
+            try (Page page = new Page(intermediate); var groupsBuilder = driverContext.blockFactory().newIntBlockBuilder(1)) {
+                groupsBuilder.beginPositionEntry();
+                groupsBuilder.appendInt(0);
+                groupsBuilder.appendInt(1);
+                groupsBuilder.endPositionEntry();
+                try (IntArrayBlock groups = (IntArrayBlock) groupsBuilder.build()) {
+                    merged.addIntermediateInput(0, groups, page);
+                }
+            }
+
+            Block[] resultBlocks = new Block[1];
+            merged.prepareEvaluateFinal(selected, evalContext).evaluate(resultBlocks, 0, selected);
+            try (LongBlock result = (LongBlock) resultBlocks[0]) {
+                assertEquals(2L, result.getLong(0));
+                assertEquals(2L, result.getLong(1));
+                assertTrue(result.isNull(2));
             }
         } finally {
             driverContext.finish();

@@ -104,10 +104,36 @@ For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-co
 
 To connect to Exchange Server, the connector fetches Active Directory users with the help of the `ldap3` Python library, then reads each mailbox through Exchange Web Services (EWS).
 
-The account you configure in `username` and `password` needs:
+The connector supports two authentication methods: NTLM and Kerberos.
+
+
+#### NTLM [es-connectors-exchange-server-client-ntlm]
+
+With `auth_method: ntlm` (default), the service account you configure in `username` and `password` needs:
 
 * Permission to read user objects from Active Directory.
 * The Exchange `ApplicationImpersonation` role for the mailboxes you want to sync. The connector opens each mailbox with impersonation, so valid credentials alone are not enough.
+
+
+#### Kerberos [es-connectors-exchange-server-client-kerberos]
+
+With `auth_method: kerberos`, the connector uses GSSAPI for LDAP and EWS. {applies_to}`stack: ga 9.7` Username and password are not used. The service account still needs the same Active Directory and Exchange permissions.
+
+Kerberos is available for self-managed connectors only. The host that runs the connector service must provide:
+
+* The optional Kerberos dependencies: `pip install 'elasticsearch-connectors[kerberos]'`. Building `gssapi` might require krb5 development packages, for example `libkrb5-dev` on Debian or `krb5-dev` on Alpine.
+* A working `krb5.conf` and a reachable Kerberos key distribution center (KDC).
+* A valid Kerberos ticket for the service account, for example by setting `KRB5CCNAME`. The connector does not obtain or renew tickets.
+* Host names (FQDNs) in `exchange_server` and `active_directory_server`, not IP addresses, so that service principal names can be resolved.
+
+The standard connector Docker image does not include the Kerberos packages. To run Kerberos in a container, use the FIPS image from the [connectors repository](https://github.com/elastic/connectors/blob/main/Dockerfile.fips) or build a custom image that installs the `[kerberos]` extra, and make the ticket cache and `krb5.conf` available to the container.
+
+
+### FIPS mode [es-connectors-exchange-server-client-fips]
+
+When FIPS mode is enabled in the [connector service](https://github.com/elastic/connectors/blob/main/docs/FIPS.md), `auth_method: ntlm` is rejected because NTLM relies on non-FIPS algorithms. Configure `auth_method: kerberos` and ensure a valid Kerberos ticket is available for the connector process.
+
+The deprecated `outlook_server` mode of the [Outlook connector](/reference/search-connectors/es-connectors-outlook.md) supports the same `auth_method` setting.
 
 
 ### Configuration [es-connectors-exchange-server-client-configuration]
@@ -118,11 +144,14 @@ The account you configure in `username` and `password` needs:
 `active_directory_server`
 :   (required) IP address of the Active Directory server used to fetch users. Example: `127.0.0.1`
 
+`auth_method` {applies_to}`stack: ga 9.7`
+:   Authentication method for LDAP user lookup and EWS. Supported values: `ntlm` (default) or `kerberos`. Use `kerberos` when running the connector service in FIPS mode. Kerberos is available for self-managed connectors only. Refer to [Kerberos](#es-connectors-exchange-server-client-kerberos) for requirements.
+
 `username`
-:   (required) Username to authenticate with Exchange Server.
+:   (required when `auth_method` is `ntlm`) Username to authenticate with Exchange Server.
 
 `password`
-:   (required) Password to authenticate with Exchange Server.
+:   (required when `auth_method` is `ntlm`) Password to authenticate with Exchange Server.
 
 `domain`
 :   (required) Active Directory domain name, used to look up users. Example: `corp.example.com`

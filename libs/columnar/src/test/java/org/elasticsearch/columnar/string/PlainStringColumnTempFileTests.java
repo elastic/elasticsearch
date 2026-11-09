@@ -50,6 +50,7 @@ public class PlainStringColumnTempFileTests extends ColumnarStringTestCase {
                     .withSizes(PlainStringColumnSkipperTests.sizes(128, 256))
                     .withPlainSkipIndex(eligible),
                 null,
+                null,
                 dir,
                 IOContext.DEFAULT,
                 out.outputs(),
@@ -193,7 +194,7 @@ public class PlainStringColumnTempFileTests extends ColumnarStringTestCase {
         }
 
         @Override
-        public int valueCount() {
+        public int valueCount() throws IOException {
             return delegate.valueCount();
         }
 

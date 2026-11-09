@@ -21,7 +21,7 @@ final class NativeD7Q7Scorer extends NativeMemorySegmentScorer {
 
     @Override
     long dotProduct(MemorySegment dataset, MemorySegment query, int length) {
-        return DISTANCE_FUNCS.dotProductI7u(query, dataset, length);
+        return DISTANCE_FUNCS.dotProductI7u(dataset, query, length);
     }
 
     @Override

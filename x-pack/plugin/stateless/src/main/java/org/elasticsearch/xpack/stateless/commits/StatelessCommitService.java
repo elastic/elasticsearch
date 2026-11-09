@@ -83,12 +83,14 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.HollowShardRecoveryState;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.elasticsearch.xpack.stateless.utils.WaitForVersion;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -99,6 +101,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -148,6 +151,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /// Controls uploads of VBCC based on the size. A VBCC that is bigger than the threshold is uploaded after appending the latest commit.
+    /// Size of VBCC does not include copied generational files, see
+    /// [VirtualBatchedCompoundCommit#sizeInBytesExcludingCopiedGenerationalFiles].
+    /// Note that a smaller VBCC can be uploaded based on the `max_commits` and `max_age` settings.
     public static final Setting<ByteSizeValue> STATELESS_UPLOAD_MAX_SIZE = Setting.byteSizeSetting(
         "stateless.upload.max_size",
         ByteSizeValue.ofMb(15),
@@ -233,6 +240,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     );
 
     public static final String BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC = "es.bcc.notification_time.histogram";
+    public static final String NOTIFICATION_UPLOADED_ATTRIBUTE_KEY = "es_notification_uploaded";
 
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
@@ -358,8 +366,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.bccNotificationTimeHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
                 BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC,
-                "Histogram for time in milliseconds from sending a new-uploaded-commit notification until the search tier responds "
-                    + "(or the notification timeout fires), broken down by the ["
+                "Histogram for time in milliseconds from sending a new-commit notification until the search tier responds (or the "
+                    + "notification timeout fires for uploaded commits), broken down by whether the commit was uploaded ["
+                    + NOTIFICATION_UPLOADED_ATTRIBUTE_KEY
+                    + "] and, for uploaded commits, by the ["
                     + BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY
                     + "] size bucket",
                 "ms"
@@ -443,18 +453,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// completes it.
     ///
     /// @throws AlreadyClosedException if the shard commit state is already closed
-    public void installUploadBoundListener(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
-        assert assertIndexingBlocked(shardId);
-        getSafe(shardsCommitsStates, shardId).installUploadBoundListener(uploadBoundListener);
+    public void installUploadBoundListener(IndexShard shard, SubscribableListener<Long> uploadBoundListener) {
+        assert assertIndexingBlocked(shard);
+        getSafe(shardsCommitsStates, shard.shardId()).installUploadBoundListener(uploadBoundListener);
     }
 
-    private boolean assertIndexingBlocked(ShardId shardId) {
-        final var indexService = indicesService.indexService(shardId.getIndex());
-        assert indexService != null : shardId + " index service expected to be non-null";
-        final var shard = indexService.getShardOrNull(shardId.id());
-        assert shard != null : shardId + " shard expected to be non-null";
+    private boolean assertIndexingBlocked(IndexShard shard) {
+        assert shard != null : "shard expected to be non-null";
         assert shard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
-            : shardId + " installUploadBoundListener must be called while holding all operation permits";
+            : shard.shardId() + " installUploadBoundListener must be called while holding all operation permits";
         return true;
     }
 
@@ -963,6 +970,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
         metrics.recordBccUpload(
             virtualBcc.getTotalSizeInBytes(),
+            virtualBcc.headersSizeInBytes(),
+            virtualBcc.replicatedContentSizeInBytes(),
+            virtualBcc.copiedGenerationalFilesSizeInBytes(),
             virtualBcc.size(),
             threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(),
             Iterators.map(
@@ -1115,7 +1125,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         gen,
                         () -> bccNotificationTimeHistogram.record(
                             threadPool.relativeTimeInMillis() - notificationSentAt,
-                            Map.of(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(bccBlobLength))
+                            Map.of(
+                                NOTIFICATION_UPLOADED_ATTRIBUTE_KEY,
+                                true,
+                                BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY,
+                                BccUploadMetrics.bccSizeBucket(bccBlobLength)
+                            )
                         )
                     );
                     if (commitState.isClosed()) {
@@ -1450,7 +1465,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         @Nullable SourceBlobsInfo sourceBlobsInfo,
         Set<BlobFile> lastCommitBlobs,
         boolean lastCommitIsHollow,
-        boolean hasRecentIdLookup
+        boolean hasRecentIdLookup,
+        @Nullable HollowShardRecoveryState hollowRecoveryState
     ) {}
 
     public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
@@ -1480,6 +1496,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     Set<String> getAllSearchNodesRetainingCommitsForShard(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         return commitState.getAllSearchNodesRetainingCommits();
+    }
+
+    // Visible for testing
+    String describeBlobRetention(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId).describeBlobRetention();
     }
 
     /**
@@ -2184,7 +2205,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
-            return virtualBcc.getTotalSizeInBytes() >= bccUploadMaxSizeInBytes
+            return virtualBcc.sizeInBytesExcludingCopiedGenerationalFiles() >= bccUploadMaxSizeInBytes
+                // This check is intended to catch a theoretical "runaway" scenario where copied generational files could accumulate
+                // and produce very large commits.
+                || virtualBcc.getTotalSizeInBytes() >= bccUploadMaxSizeInBytes * 4
                 || virtualBcc.getPendingCompoundCommits().size() >= bccMaxAmountOfCommits;
         }
 
@@ -2573,7 +2597,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + " state="
                     + state;
 
-            lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+            final long sentAt = threadPool.relativeTimeInMillis();
+            lastNewCommitNotificationSentTimestamp = sentAt;
             statelessCommitNotificationPublisher.sendNewCommitNotification(
                 shardRoutingTable,
                 lastCompoundCommit,
@@ -2581,12 +2606,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 maxUploadedBccTermAndGen,
                 clusterService.state().version(),
                 clusterService.localNode().getId(),
-                ActionListener.wrap(Void -> {
+                ActionListener.runBefore(ActionListener.wrap(Void -> {
                     // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
                     // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload
                     // notification
                     notifyCommitNotificationSuccessListeners(lastCompoundCommit.generation());
-                }, e -> logNotificationException(lastCompoundCommit.generation(), batchedCompoundCommitGeneration, "create", e))
+                }, e -> logNotificationException(lastCompoundCommit.generation(), batchedCompoundCommitGeneration, "create", e)),
+                    () -> bccNotificationTimeHistogram.record(
+                        threadPool.relativeTimeInMillis() - sentAt,
+                        Map.of(NOTIFICATION_UPLOADED_ATTRIBUTE_KEY, false)
+                    )
+                )
             );
         }
 
@@ -3207,9 +3237,28 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (uploadedGenerationNotified.getAndAccumulate(commitNotificationGeneration, Math::max) > commitNotificationGeneration) {
                 // no need to process backwards commit notifications
                 // (but would be safe - and we rely on it, this check is just an optimistic check)
+                logger.debug(
+                    () -> format(
+                        "%s ignoring backwards uploaded commit notification response for commit generation [%s]",
+                        shardId,
+                        commitNotificationGeneration
+                    )
+                );
                 return;
             }
 
+            logger.debug(
+                () -> format(
+                    "%s processing uploaded commit notification response: bcc [%s], cc [%s], search nodes eligible for removal %s, "
+                        + "BCCs reported in use %s, BCC dependencies of the notified commit %s",
+                    shardId,
+                    bccNotificationGeneration,
+                    commitNotificationGeneration,
+                    new TreeSet<>(searchNodes),
+                    new TreeSet<>(primaryTermAndGenerationsInUse),
+                    new TreeSet<>(notificationCommitBCCDependencies)
+                )
+            );
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
                 // we are allowed to shrink the set of search nodes for any generation <= notificationGeneration, since after the
                 // notification generation has been refreshed on the search shard, we know that the shard will never add more use of any
@@ -3221,6 +3270,30 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     blobReference.removeSearchNodes(searchNodes, bccNotificationGeneration, notificationCommitBCCDependencies);
                 }
             }
+        }
+
+        /**
+         * Explains, for every tracked BCC blob of this shard, what currently keeps it alive. Meant for diagnostics of blobs that are
+         * retained longer than expected.
+         */
+        String describeBlobRetention() {
+            final var blobs = List.copyOf(primaryTermAndGenToBlobReference.values());
+            final var latestUploaded = latestUploadedBcc;
+            final var latestCommitReferences = latestUploaded == null
+                ? null
+                : commitReferencesInfos.get(latestUploaded.lastCompoundCommit().primaryTermAndGeneration());
+            final var sb = new StringBuilder();
+            sb.append(shardId)
+                .append(" latestUploadedBcc=")
+                .append(latestUploaded == null ? null : latestUploaded.primaryTermAndGeneration())
+                .append(" latestCommitReferencedBCCs=")
+                .append(latestCommitReferences == null ? null : new TreeSet<>(latestCommitReferences.referencedBCCs()))
+                .append(" uploadedGenerationNotified=")
+                .append(uploadedGenerationNotified.get());
+            blobs.stream()
+                .sorted(Comparator.comparing(BlobReference::getPrimaryTermAndGeneration))
+                .forEach(blob -> sb.append("\n  ").append(blob.describeRetention(blobs)));
+            return sb.toString();
         }
 
         /**
@@ -3247,6 +3320,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         void onRemoveNodesFromCluster(Set<String> removedNodeIds) {
             var bccGenerationAndDependencies = getUploadedNotifiedGenerationAndDependencies();
+            logger.debug(
+                () -> format(
+                    "%s removing nodes %s that left the cluster from tracked blobs, uploaded notified bcc [%s] with dependencies %s",
+                    shardId,
+                    new TreeSet<>(removedNodeIds),
+                    bccGenerationAndDependencies.v1(),
+                    new TreeSet<>(bccGenerationAndDependencies.v2())
+                )
+            );
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
                 blobReference.removeSearchNodes(removedNodeIds, bccGenerationAndDependencies.v1(), bccGenerationAndDependencies.v2());
             }
@@ -3939,6 +4021,37 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + ","
                     + refCount()
                     + "]";
+            }
+
+            /**
+             * Explains everything that currently keeps this blob alive. The blob is deleted once its ref count drops to zero, and the
+             * ref count is held by: the local Lucene commits stored in it (localCommitsRemaining), the local readers
+             * (localReadersClosed), the search nodes (searchNodes, CLOSED once released), the generational files it tracks
+             * (generationalFilesRemaining), and by the blobs that depend on it (referencedByBlobs).
+             *
+             * @param allBlobs all the blobs tracked for this shard, used to find the blobs depending on this one
+             */
+            String describeRetention(Collection<BlobReference> allBlobs) {
+                final var localCommits = localCommitsRef.get();
+                final var searchNodes = searchNodesRef.get();
+                final var generationalFiles = generationalFilesRef.get();
+                final var dependsOn = references;
+                final var referencedBy = allBlobs.stream().filter(other -> other != this).filter(other -> {
+                    final var otherReferences = other.references;
+                    return otherReferences != null && otherReferences.contains(this);
+                }).map(BlobReference::getPrimaryTermAndGeneration).sorted().toList();
+                return format(
+                    "%s refCount=%s localCommitsRemaining=%s localReadersClosed=%s searchNodes=%s generationalFilesRemaining=%s "
+                        + "dependsOn=%s referencedByBlobs=%s",
+                    primaryTermAndGeneration,
+                    refCount(),
+                    localCommits == null ? "RELEASED" : new TreeSet<>(localCommits),
+                    readersClosed.get(),
+                    searchNodes == null ? "CLOSED" : new TreeSet<>(searchNodes),
+                    generationalFiles == null ? "NONE" : new TreeSet<>(generationalFiles),
+                    dependsOn == null ? "RELEASED" : dependsOn.stream().map(BlobReference::getPrimaryTermAndGeneration).sorted().toList(),
+                    referencedBy
+                );
             }
         }
 

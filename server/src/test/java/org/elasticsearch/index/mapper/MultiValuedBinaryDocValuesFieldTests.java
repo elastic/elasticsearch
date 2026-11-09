@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -665,6 +666,40 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
             BytesRef raw = new BytesRef(blob.bytes(), pos - only.length, only.length);
             assertEquals(only, raw);
             assertEquals(MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(List.of(only)), raw);
+        }
+    }
+
+    public void testSlotReaderReadsKeysValuesAndNulls() throws IOException {
+        BytesRef[] tuples = { new BytesRef("a\0"), new BytesRef("1"), new BytesRef("b.c\0"), null, new BytesRef("a\0"), new BytesRef("") };
+        BytesRef blob = encodeTuples(tuples, 3);
+        var reader = new KeyedArrayOrderInlineNull.SlotReader();
+        reader.reset(blob, 3);
+        assertTrue(reader.next());
+        assertEquals("a", reader.key());
+        assertEquals(new BytesRef("1"), reader.value());
+        assertEquals(blob.offset, reader.slotStart());
+        int firstEnd = reader.slotEnd();
+        assertTrue(reader.next());
+        assertEquals("b.c", reader.key());
+        assertTrue(reader.isNull());
+        assertEquals(firstEnd, reader.slotStart());
+        assertTrue(reader.next());
+        assertEquals("a", reader.key());
+        assertFalse(reader.isNull());
+        assertEquals(new BytesRef(""), reader.value());
+        assertEquals(blob.offset + blob.length, reader.slotEnd());
+        assertFalse(reader.next());
+    }
+
+    /** A slot whose key or value runs past the end of the document is reported as corrupt, not read from the bytes after it. */
+    public void testSlotReaderRejectsTruncatedSlots() throws IOException {
+        BytesRef blob = encodeTuples(new BytesRef[] { new BytesRef("key\0"), new BytesRef("value") }, 1);
+        var reader = new KeyedArrayOrderInlineNull.SlotReader();
+        // the value is cut short, then the separator of the key is missing
+        for (int length : new int[] { blob.length - 1, 4 }) {
+            byte[] padded = Arrays.copyOf(blob.bytes, blob.offset + blob.length + 8);
+            reader.reset(new BytesRef(padded, blob.offset, length), 1);
+            expectThrows(CorruptIndexException.class, reader::next);
         }
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -316,7 +317,10 @@ public class EsqlCCSUtils {
             return false;
         }
         for (String expr : indexExpression.split(",")) {
-            if (expr.charAt(0) == '<' || expr.startsWith("-<")) {
+            if (expr.isEmpty()) {
+                continue;
+            }
+            if (expr.startsWith("<") || expr.startsWith("-<")) {
                 // skip date math expressions
                 continue;
             }
@@ -481,7 +485,9 @@ public class EsqlCCSUtils {
      */
     public static boolean canAllowPartial(Exception e) {
         Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-        if (unwrapped instanceof IndexNotFoundException || unwrapped instanceof ElasticsearchSecurityException) {
+        if (unwrapped instanceof IndexNotFoundException
+            || unwrapped instanceof ElasticsearchSecurityException
+            || unwrapped instanceof TaskCancelledException) {
             return false;
         }
         return true;

@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.gpu.codec.ES97GpuHnswBBQVectorsFormat;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
@@ -64,6 +65,15 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
         String expectedStr = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, "
             + "maxConn=12, beamWidth=22, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
+        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
+    }
+
+    @Override
+    public void testKnnBBQHNSWVectorsFormat() throws IOException {
+        KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("bbq_hnsw");
+        String expectedStr = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, "
+            + "maxConn=12, beamWidth=22, hnswGraphThreshold=300, flatVectorFormat=ES93BinaryQuantizedVectorsFormat";
+        assertThat(knnVectorsFormat, instanceOf(ES97GpuHnswBBQVectorsFormat.class));
         assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
     }
 

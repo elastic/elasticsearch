@@ -258,7 +258,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
      * @param document the document to process
      */
     static void renameSpecialKeys(IngestDocument document) {
-        switch (document.getCurrentAccessPatternSafe()) {
+        switch (document.getAccessPattern()) {
             case CLASSIC -> renameSpecialKeysClassic(document);
             case FLEXIBLE -> renameSpecialKeysFlexible(document);
         }

@@ -1033,6 +1033,13 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         return partitionedKeys;
     }
 
+    boolean mergeKeys(BytesRefArray keys, int len, int[] ids) {
+        Objects.checkFromIndexSize(0, len, Math.toIntExact(keys.size()));
+        Objects.checkFromIndexSize(0, len, ids.length);
+        ensureCapacity(Math.addExact(size, len));
+        return smallCore != null ? smallCore.mergeKeys(keys, len, ids) : bigCore.mergeKeys(keys, len, ids);
+    }
+
     @Override
     public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
         Objects.requireNonNull(resultIds);

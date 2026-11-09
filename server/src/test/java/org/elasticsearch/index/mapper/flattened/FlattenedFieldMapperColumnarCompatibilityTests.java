@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
@@ -27,10 +26,7 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
     private static final String FIELD = "flat";
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleKey() throws IOException {

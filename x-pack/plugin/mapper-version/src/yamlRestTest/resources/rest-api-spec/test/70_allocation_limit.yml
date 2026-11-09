@@ -1,0 +1,71 @@
+setup:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              ver:
+                type: version
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "ver": ["1.0.0", "2.0.0", "3.0.0"] }
+
+---
+# The test cluster caps the score context at 300 bytes. One decoded version fits; iterating the three values does not.
+"One read fits the allocation limit":
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            script_score:
+              query: { match_all: {} }
+              script:
+                source: "doc['ver'].value.length()"
+
+  - match: { hits.total.value: 1 }
+
+---
+"Iterating version doc values trips the allocation limit":
+  - do:
+      catch: /allocation limit exceeded/
+      search:
+        index: test1
+        body:
+          query:
+            script_score:
+              query: { match_all: {} }
+              script:
+                source: "int n = 0; for (def v : doc['ver']) { n++; } return n;"
+
+---
+"Streaming version doc values trips the allocation limit":
+  - do:
+      catch: /allocation limit exceeded/
+      search:
+        index: test1
+        body:
+          query:
+            script_score:
+              query: { match_all: {} }
+              script:
+                source: "doc['ver'].stream(); return 1;"
+
+---
+"Iterating the version field trips the allocation limit":
+  - do:
+      catch: /allocation limit exceeded/
+      search:
+        index: test1
+        body:
+          query:
+            script_score:
+              query: { match_all: {} }
+              script:
+                source: "def f = field('ver'); int n = 0; for (def v : f) { n++; } return n;"

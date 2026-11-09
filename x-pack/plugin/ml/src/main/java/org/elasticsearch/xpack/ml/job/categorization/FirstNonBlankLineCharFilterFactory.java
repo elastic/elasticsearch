@@ -24,4 +24,9 @@ public class FirstNonBlankLineCharFilterFactory extends AbstractCharFilterFactor
     public Reader create(Reader tokenStream) {
         return new FirstNonBlankLineCharFilter(tokenStream);
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

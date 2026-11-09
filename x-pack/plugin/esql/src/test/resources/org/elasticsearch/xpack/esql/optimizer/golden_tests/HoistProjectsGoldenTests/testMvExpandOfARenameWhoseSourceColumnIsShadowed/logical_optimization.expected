@@ -1,0 +1,6 @@
+Project[[b{r}#0, $$a$temp_name$0{r}#1 AS a#2]]
+\_Limit[1000[INTEGER],true,false]
+  \_MvExpand[a{r}#3,b{r}#0]
+    \_Eval[[12[INTEGER] AS $$a$temp_name$0#1]]
+      \_Limit[1000[INTEGER],false,false]
+        \_LocalRelation[[a{r}#3],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]]}]

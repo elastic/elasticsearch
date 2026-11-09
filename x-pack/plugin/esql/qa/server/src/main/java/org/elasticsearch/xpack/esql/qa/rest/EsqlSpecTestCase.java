@@ -57,7 +57,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertDataWithValueConverter;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.TestResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.csvFileTemplateResolver;
@@ -72,6 +72,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V2;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ML_ANOMALIES;
@@ -390,7 +392,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             KNN_FUNCTION_V5.capabilityName(),
             TEXT_EMBEDDING_FUNCTION.capabilityName(),
             EMBEDDING_FUNCTION.capabilityName(),
-            DENSE_VECTOR_COMMAND.capabilityName()
+            DENSE_VECTOR_COMMAND.capabilityName(),
+            DENSE_VECTOR_COMMAND_V2.capabilityName(),
+            DENSE_VECTOR_COMMAND_V3.capabilityName()
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 
@@ -490,6 +494,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         addPragmas(builder);
 
+        if (mayDropWarnings()) {
+            testCase.makeWarningsOptional();
+        }
         Map<String, Object> answer = RestEsqlTestCase.runEsql(
             builder.query(query),
             testCase.assertWarnings(deduplicateExactWarnings()),
@@ -564,6 +571,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.PARTITIONING_AGGREGATIONS.capabilityName()))) {
             pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(50_000, 100_000));
         }
+        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TIME_SERIES_SINGLE_PASS.capabilityName()))) {
+            pragma.put(QueryPragmas.TIME_SERIES_SINGLE_PASS.getKey(), randomBoolean());
+        }
     }
 
     protected MappedFieldType.FieldExtractPreference fieldExtractPreference() {
@@ -597,6 +607,36 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     /**
+     * Can a node that runs part of this suite's queries drop compute warnings from the response?
+     * Suites that put nodes of another version into the query path return
+     * {@link #versionMayDropWarnings} for those versions. When {@code true}, {@code warning:}
+     * lines become optional, but every warning that does arrive must still match one of them.
+     */
+    protected boolean mayDropWarnings() {
+        return false;
+    }
+
+    /**
+     * Released versions before the driver warning sink register compute warnings in the
+     * {@code ThreadContext} of the thread that runs the operator. A driver that resumes on another
+     * thread loses them, so the response can come back without its {@code Warning} headers.
+     * 8.19.23, 9.4.8 and 9.5.5 onwards carry the warnings on the driver instead; no 9.0 to 9.3
+     * release does.
+     */
+    public static boolean versionMayDropWarnings(Version version) {
+        if (version.before(Version.V_9_0_0)) {
+            return version.before(Version.V_8_19_23);
+        }
+        if (version.before(Version.V_9_4_0)) {
+            return true;
+        }
+        if (version.before(Version.V_9_5_0)) {
+            return version.before(Version.V_9_4_8);
+        }
+        return version.before(Version.V_9_5_5);
+    }
+
+    /**
      * Should the test ignore the order of individual values.
      */
     protected boolean ignoreValueOrder() {
@@ -604,7 +644,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void assertResults(
-        ExpectedResults expected,
+        TestResults expected,
         List<Map<String, String>> actualColumns,
         List<List<Object>> actualValues,
         Logger logger

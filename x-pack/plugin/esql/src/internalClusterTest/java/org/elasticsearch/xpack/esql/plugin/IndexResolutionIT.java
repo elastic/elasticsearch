@@ -386,6 +386,9 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             equalTo("no such index [nonexisting-1]"), // still fails if there is at least one non-empty existing index
             () -> run(syncEsqlQueryRequest("FROM index-1,index-3,nonexisting-1"))
         );
+        try (var response = run(syncEsqlQueryRequest("FROM index-1,index-2,index-3,nonexisting-1 | LIMIT 0"))) {
+            assertOk(response); // passes when not reading from the index
+        }
     }
 
     public void testResolutionWithFilter() {

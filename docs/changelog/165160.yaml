@@ -1,0 +1,6 @@
+pr: 165160
+summary: Report a wrapped remote connect failure as unavailable
+area: ES|QL
+type: bug
+issues:
+ - 165050

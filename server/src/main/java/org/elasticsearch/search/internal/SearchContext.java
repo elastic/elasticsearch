@@ -86,7 +86,7 @@ public abstract class SearchContext implements Releasable {
         }
     }
     private InnerHitsContext innerHitsContext;
-    private boolean fetchChargedByPool;
+    private volatile boolean fetchChargedByPool;
 
     protected Query rewriteQuery;
 

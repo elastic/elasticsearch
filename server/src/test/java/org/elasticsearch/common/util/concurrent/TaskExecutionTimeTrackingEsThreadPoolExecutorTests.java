@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -345,7 +346,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         Executor charging = TaskLoadAttribution.charging(EsExecutors.DIRECT_EXECUTOR_SERVICE, (nanos, finishNanos) -> {});
         AtomicInteger failed = new AtomicInteger();
         AtomicInteger completed = new AtomicInteger();
-        expectThrows(IllegalStateException.class, () -> charging.execute(new AbstractRunnable() {
+        var thrown = expectThrows(IllegalArgumentException.class, () -> charging.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
                 throw new IllegalStateException("simulated");
@@ -354,7 +355,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             @Override
             public void onFailure(Exception e) {
                 failed.incrementAndGet();
-                throw new IllegalStateException("simulated failure handling", e);
+                throw new IllegalArgumentException("simulated failure handling", e);
             }
 
             @Override
@@ -362,6 +363,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
                 completed.incrementAndGet();
             }
         }));
+        assertThat(thrown.getCause(), instanceOf(IllegalStateException.class));
         assertThat(failed.get(), equalTo(1));
         assertThat(completed.get(), equalTo(1));
     }

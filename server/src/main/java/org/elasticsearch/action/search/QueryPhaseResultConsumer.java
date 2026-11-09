@@ -147,6 +147,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     /**
+     * Where the time spent merging results is charged, or {@code null} when it is not charged.
+     */
+    @Nullable
+    TaskLoadAttribution.Target mergeLoad() {
+        return mergeLoad;
+    }
+
+    /**
      * Transfers query-phase aggregation breaker accounting to a multi-search coordinator.
      * Bytes remain charged on the breaker until {@link TransportMultiSearchAction} releases them.
      *

@@ -136,16 +136,15 @@ public final class ShardSearchStats implements SearchOperationListener {
         if (chargedByPool == false) {
             totalStats.addSearchLoad(tookInNanos, nowInNanos);
         }
-        var groupStats = searchContext.groupStats();
-        if (groupStats != null) {
-            for (String group : groupStats) {
-                groupStats(group).addSearchLoad(tookInNanos, nowInNanos);
-            }
-        }
+        forEachGroup(searchContext, statsHolder -> statsHolder.addSearchLoad(tookInNanos, nowInNanos));
     }
 
     private void computeStats(SearchContext searchContext, Consumer<StatsHolder> consumer) {
         consumer.accept(totalStats);
+        forEachGroup(searchContext, consumer);
+    }
+
+    private void forEachGroup(SearchContext searchContext, Consumer<StatsHolder> consumer) {
         var groupStats = searchContext.groupStats();
         if (groupStats != null) {
             for (String group : groupStats) {

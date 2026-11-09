@@ -94,6 +94,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -1230,16 +1231,44 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     /**
-     * Runs a request for {@code shards} shards through the batched query handler of a node whose shards return empty results, and
-     * returns the channel once the handler has responded on it.
-     *
-     * @param failWrites whether the response stream throws on its first write
+     * Without enough results to fork a merge, the node merges them when it builds its response, which is work for all its shards.
      */
+    public void testBatchedNodeResponseChargesMergeToShards() throws Exception {
+        AtomicLong merged = new AtomicLong();
+        RecordingChannel channel = runBatchedNodeQuery(
+            TransportVersion.current(),
+            newLimitedBreakerService(ByteSizeValue.ofMb(10)),
+            between(2, 5),
+            false,
+            (nanos, finishNanos) -> merged.addAndGet(nanos)
+        );
+        assertNull(channel.failure);
+        assertTrue(channel.response.decRef());
+        assertThat(merged.get(), greaterThan(0L));
+    }
+
     private RecordingChannel runBatchedNodeQuery(
         TransportVersion channelVersion,
         CircuitBreakerService breakerService,
         int shards,
         boolean failWrites
+    ) throws Exception {
+        return runBatchedNodeQuery(channelVersion, breakerService, shards, failWrites, (nanos, finishNanos) -> {});
+    }
+
+    /**
+     * Runs a request for {@code shards} shards through the batched query handler of a node whose shards return empty results, and
+     * returns the channel once the handler has responded on it.
+     *
+     * @param failWrites whether the response stream throws on its first write
+     * @param searchLoad where the node charges merging the results of its shards
+     */
+    private RecordingChannel runBatchedNodeQuery(
+        TransportVersion channelVersion,
+        CircuitBreakerService breakerService,
+        int shards,
+        boolean failWrites,
+        TaskLoadAttribution.Target searchLoad
     ) throws Exception {
         TestThreadPool threadPool = new TestThreadPool(getTestName());
         var innerTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
@@ -1295,7 +1324,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         ) {
             @Override
             public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
-                return (nanos, finishNanos) -> {};
+                return searchLoad;
             }
 
             @Override

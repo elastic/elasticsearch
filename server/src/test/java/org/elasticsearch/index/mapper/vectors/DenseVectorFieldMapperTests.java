@@ -53,7 +53,6 @@ import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectors
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -89,6 +88,7 @@ import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -371,7 +371,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         String changeOptionField,
         Object originalOption,
         Object changeOption,
-        Matcher<FieldMapper> check
+        Matcher<String> check
     ) throws IOException {
         registerIndexOptionsUpdate(
             checker,
@@ -387,7 +387,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         IOConsumer<XContentBuilder> base,
         IOConsumer<XContentBuilder> originalOptions,
         IOConsumer<XContentBuilder> changeOptions,
-        Matcher<FieldMapper> check
+        Matcher<String> check
     ) throws IOException {
         checker.registerUpdateCheck("index_options", b -> {
             base.accept(b);
@@ -399,7 +399,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.startObject("index_options");
             changeOptions.accept(b);
             b.endObject();
-        }, m -> assertThat(m, check));
+        }, (mapperService, m) -> {
+            try {
+                assertThat(fieldMappingToString(mapperService, "field"), check);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     @Override
@@ -447,18 +453,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
         for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
-            registerIndexOptionsUpdate(
-                checker,
-                bbqMapping::build,
-                "type",
-                "flat",
-                newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
-            );
+            registerIndexOptionsUpdate(checker, bbqMapping::build, "type", "flat", newType, containsString("\"type\":\"" + newType + "\""));
         }
 
         // update for int8_flat
@@ -476,7 +475,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int8_flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
         for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
@@ -486,7 +485,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int8_flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
 
@@ -507,7 +506,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "hnsw",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
         registerIndexOptionsUpdate(
@@ -515,7 +514,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             indexedMapping::build,
             b -> b.field("type", "hnsw"),
             b -> b.field("type", "hnsw").field("m", 100),
-            hasToString(containsString("\"m\":100"))
+            containsString("\"m\":100")
         );
         registerConflict(
             checker,
@@ -532,14 +531,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b -> b.field("index_options", Map.of("type", "bbq_flat"))
         );
         for (String newType : List.of("bbq_hnsw")) {
-            registerIndexOptionsUpdate(
-                checker,
-                bbqMapping::build,
-                "type",
-                "hnsw",
-                newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
-            );
+            registerIndexOptionsUpdate(checker, bbqMapping::build, "type", "hnsw", newType, containsString("\"type\":\"" + newType + "\""));
         }
 
         // update for int8_hnsw
@@ -548,14 +540,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             indexedMapping::build,
             b -> b.field("type", "int8_hnsw"),
             b -> b.field("type", "int8_hnsw").field("m", 256),
-            hasToString(containsString("\"m\":256"))
+            containsString("\"m\":256")
         );
         registerIndexOptionsUpdate(
             checker,
             indexedMapping::build,
             b -> b.field("type", "int8_hnsw"),
             b -> b.field("type", "int4_hnsw").field("m", 256),
-            hasToString(containsString("\"type\":\"int4_hnsw\""))
+            containsString("\"type\":\"int4_hnsw\"")
         );
         registerConflict(
             checker,
@@ -587,7 +579,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int8_hnsw",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
 
@@ -599,7 +591,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int4_flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
         for (String newType : List.of("flat", "int8_flat")) {
@@ -618,7 +610,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int4_flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
 
@@ -628,14 +620,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             indexedMapping::build,
             b -> b.field("type", "int4_hnsw"),
             b -> b.field("type", "int4_hnsw").field("m", 256),
-            hasToString(containsString("\"m\":256"))
+            containsString("\"m\":256")
         );
         registerIndexOptionsUpdate(
             checker,
             indexedMapping::build,
             b -> b.field("type", "int4_hnsw").field("m", 4),
             b -> b.field("type", "int4_hnsw").field("m", 100),
-            hasToString(containsString("\"m\":100"))
+            containsString("\"m\":100")
         );
         registerConflict(
             checker,
@@ -681,7 +673,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "int4_hnsw",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
 
@@ -693,7 +685,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 "type",
                 "bbq_flat",
                 newType,
-                hasToString(containsString("\"type\":\"" + newType + "\""))
+                containsString("\"type\":\"" + newType + "\"")
             );
         }
         for (String newType : List.of("flat", "int8_flat", "int4_flat", "hnsw", "int8_hnsw", "int4_hnsw")) {
@@ -723,7 +715,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             bbqMapping::build,
             b -> b.field("type", "bbq_disk").field("cluster_size", 1000),
             b -> b.field("type", "bbq_disk").field("cluster_size", 500),
-            hasToString(containsString("\"cluster_size\":500"))
+            containsString("\"cluster_size\":500")
         );
         registerConflict(
             checker,
@@ -737,7 +729,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             bbqMapping::build,
             b -> b.field("type", "bbq_disk").field("bits", 4),
             b -> b.field("type", "bbq_disk").field("bits", 2),
-            hasToString(containsString("\"bits\":2"))
+            containsString("\"bits\":2")
         );
         registerIndexOptionsUpdate(checker, bbqMapping::build, b -> {
             b.field("type", "bbq_disk").field("bits", 4);
@@ -749,7 +741,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.startObject("rescore_vector");
             b.field("oversample", 4f);
             b.endObject();
-        }, hasToString(containsString("\"oversample\":4.0")));
+        }, containsString("\"oversample\":4.0"));
     }
 
     @Override

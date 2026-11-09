@@ -214,7 +214,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
         }
         // Declaring nothing is declaring the standard analyzer, so it still disagrees with a sibling that names a
         // different one: the merged column can carry only one, and the other branch's values would be analyzed with
-        // an analyzer they never declared. A column with no values to analyze - one branch alignment filled with
+        // an analyzer they never declared. A column with no values to analyze - one a branch lacks, or fills with
         // nulls - is skipped by the caller rather than weakening the comparison here.
         String branchAnalyzer = analyzerOrStandard(branch);
         String mergedAnalyzer = analyzerOrStandard(merged);
@@ -230,9 +230,9 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     /**
-     * Whether a column of {@code branch}'s output holds nothing but nulls. Branch alignment fills a column a branch
-     * lacks this way, so that every branch outputs the same names; a column written as an explicit
-     * {@code EVAL x = null} is indistinguishable and equally empty, so both are treated alike.
+     * Whether a column of {@code branch}'s output holds nothing but nulls, like the column a branch lacks altogether
+     * contributes to the merge; a column written as an explicit {@code EVAL x = null} is equally empty, so both are treated
+     * alike.
      * <p>
      * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
      * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment

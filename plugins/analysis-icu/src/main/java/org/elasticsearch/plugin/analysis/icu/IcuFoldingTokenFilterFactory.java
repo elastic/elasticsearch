@@ -37,10 +37,12 @@ public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory imp
     private static final Normalizer2 ICU_FOLDING_NORMALIZER = ICUFoldingFilter.NORMALIZER;
 
     private final Normalizer2 normalizer;
+    private final Object sharingKey;
 
     public IcuFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(ICU_FOLDING_NORMALIZER, settings);
+        this.sharingKey = new Key(settings.get("unicode_set_filter"));
     }
 
     @Override
@@ -48,4 +50,10 @@ public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory imp
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String unicodeSetFilter) {}
 }

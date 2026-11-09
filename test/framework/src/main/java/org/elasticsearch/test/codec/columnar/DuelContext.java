@@ -35,10 +35,11 @@ import java.util.function.Predicate;
  * @param contenderIndex the contender (ColumNAR) index name
  * @param baselineConfig the baseline layout
  * @param contenderConfig the contender layout
- * @param keywordField   the keyword field under test
+ * @param field          the field under test
  * @param docIdField     the numeric identity field used as the sort tiebreak and retrieval anchor
  * @param scenario       the corpus scenario
  * @param writePlan      the write and merge plan applied to both indices
+ * @param phase          the comparison phase, such as {@link BehaviorDuelHarness#INITIAL_PHASE}
  * @param docs           the corpus indexed into both indices
  */
 public record DuelContext(
@@ -46,13 +47,14 @@ public record DuelContext(
     Client client,
     String baselineIndex,
     String contenderIndex,
-    KeywordIndexConfig baselineConfig,
-    KeywordIndexConfig contenderConfig,
-    String keywordField,
+    DuelIndexConfig baselineConfig,
+    DuelIndexConfig contenderConfig,
+    String field,
     String docIdField,
-    KeywordScenario scenario,
+    DuelScenario scenario,
     BehaviorWritePlan writePlan,
-    List<KeywordDoc> docs
+    String phase,
+    List<DuelDoc> docs
 ) {
 
     /**
@@ -73,8 +75,10 @@ public record DuelContext(
             + contenderConfig.layoutLabel()
             + "] writePlan=["
             + writePlan
+            + "] phase=["
+            + phase
             + "] field=["
-            + keywordField
+            + field
             + "]";
     }
 
@@ -83,7 +87,7 @@ public record DuelContext(
      */
     public List<String> distinctValues() {
         final Set<String> distinct = new TreeSet<>();
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             distinct.addAll(doc.sortedDistinctValues());
         }
         return new ArrayList<>(distinct);
@@ -116,7 +120,7 @@ public record DuelContext(
      */
     public Set<Long> docIdsContaining(final String term) {
         final Set<Long> matches = new TreeSet<>();
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             if (doc.sortedDistinctValues().contains(term)) {
                 matches.add(doc.docId());
             }
@@ -129,7 +133,7 @@ public record DuelContext(
      */
     public Set<Long> docIdsWithAnyValue() {
         final Set<Long> matches = new TreeSet<>();
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             if (doc.sortedDistinctValues().isEmpty() == false) {
                 matches.add(doc.docId());
             }
@@ -142,7 +146,7 @@ public record DuelContext(
      */
     public Set<Long> docIdsWithoutValue() {
         final Set<Long> matches = new TreeSet<>();
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             if (doc.sortedDistinctValues().isEmpty()) {
                 matches.add(doc.docId());
             }
@@ -158,7 +162,7 @@ public record DuelContext(
      */
     public Set<Long> docIdsWithValueMatching(final Predicate<String> predicate) {
         final Set<Long> matches = new TreeSet<>();
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             if (doc.sortedDistinctValues().stream().anyMatch(predicate)) {
                 matches.add(doc.docId());
             }
@@ -214,7 +218,7 @@ public record DuelContext(
      */
     public Map<String, Long> valueDocCounts() {
         final Map<String, Long> counts = new LinkedHashMap<>();
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             for (final String value : doc.sortedDistinctValues()) {
                 counts.merge(value, 1L, Long::sum);
             }
@@ -228,7 +232,7 @@ public record DuelContext(
      */
     public long expectedValueCount() {
         long total = 0;
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             total += doc.nonNullValues().size();
         }
         return total;
@@ -240,7 +244,7 @@ public record DuelContext(
      */
     public Map<String, Long> expectedValueBuckets() {
         final Map<String, Long> counts = new LinkedHashMap<>();
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             for (final String value : doc.nonNullValues()) {
                 counts.merge(value, 1L, Long::sum);
             }
@@ -253,7 +257,7 @@ public record DuelContext(
      */
     public Map<Long, List<String>> perDocSortedDistinct() {
         final Map<Long, List<String>> byDoc = new TreeMap<>();
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             byDoc.put(doc.docId(), doc.sortedDistinctValues());
         }
         return byDoc;
@@ -267,7 +271,7 @@ public record DuelContext(
      */
     public Map<Long, List<String>> perDocOrderedValues() {
         final Map<Long, List<String>> byDoc = new TreeMap<>();
-        for (final KeywordDoc doc : docs) {
+        for (final DuelDoc doc : docs) {
             byDoc.put(doc.docId(), doc.values() == null ? List.of() : doc.values());
         }
         return byDoc;

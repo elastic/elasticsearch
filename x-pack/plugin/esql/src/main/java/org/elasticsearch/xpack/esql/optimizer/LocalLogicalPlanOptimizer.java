@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InjectTemporality;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceEmptyStringWithNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplacePotentiallyUnmappedFieldWithMappedField;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -50,11 +50,11 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new IgnoreNullMetrics(),
             new InjectTemporality(),
             new ReplaceTopNWithLimitAndSort(),
-            new ReplacePotentiallyUnmappedFieldWithMappedField(),
             new ReplaceFieldWithConstantOrNull(),
             new InferIsNotNull(),
             new InferNonNullAggConstraint(),
-            new ReplaceDateTruncBucketWithRoundTo()
+            new ReplaceDateTruncBucketWithRoundTo(),
+            new ReplaceEmptyStringWithNull()
         ),
         localOperators(),
         // After localOperators() has built the filters of the knn functions again.

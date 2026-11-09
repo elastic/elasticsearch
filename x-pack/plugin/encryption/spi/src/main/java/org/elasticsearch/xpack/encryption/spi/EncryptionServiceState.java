@@ -33,7 +33,13 @@ public enum EncryptionServiceState {
      * The matching password setting is present, but it fails to decrypt the persisted project encryption key (wrong password or
      * corrupted key). The operator must correct the password or use the reset API to start over.
      */
-    UNAVAILABLE_DECRYPTION_FAILED("unavailable: decryption_failed");
+    UNAVAILABLE_DECRYPTION_FAILED("unavailable: decryption_failed"),
+
+    /**
+     * The project encryption key in cluster state could not be loaded into this node's key cache. Encryption stays unavailable on this
+     * node until the key metadata changes (e.g. a rotation or reset) or the node restarts.
+     */
+    UNAVAILABLE_KEY_LOAD_FAILED("unavailable: key_load_failed");
 
     private final String displayValue;
 
@@ -58,6 +64,8 @@ public enum EncryptionServiceState {
                 + " and call POST /_nodes/reload_secure_settings (stateful).";
             case UNAVAILABLE_DECRYPTION_FAILED -> "Verify that cluster.state.encryption.password.<id> is correct."
                 + " If the password is unrecoverable, run POST /_encryption/_reset?accept_data_loss=true.";
+            case UNAVAILABLE_KEY_LOAD_FAILED -> "Check the node logs for the key load failure, then restart the node."
+                + " If the failure persists, run POST /_encryption/_reset?accept_data_loss=true.";
         };
     }
 }

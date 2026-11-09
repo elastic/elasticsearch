@@ -58,11 +58,11 @@ public record DocumentExtractionRequest(List<InferenceString> inputs, Map<String
     public static final String CONTENT_FIELD = "content";
 
     /**
-     * The {@link DataType}s that can be used as document extraction inputs. Extraction works on binary document formats (e.g. PDFs) and
-     * images of documents (via OCR), not on raw text.
+     * The {@link DataType}s that can be used as document extraction inputs. Extraction works on binary document formats (e.g. PDFs),
+     * images of documents (via OCR) and web pages ({@link DataType#HTML}), not on raw text.
      */
     public static final Set<DataType> SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES = Collections.unmodifiableSet(
-        EnumSet.of(DataType.PDF, DataType.IMAGE)
+        EnumSet.of(DataType.PDF, DataType.IMAGE, DataType.HTML)
     );
 
     private static final ConstructingObjectParser<InferenceString, Void> INPUT_ITEM_PARSER = new ConstructingObjectParser<>(

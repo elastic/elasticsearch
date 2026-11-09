@@ -18,7 +18,6 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -55,7 +54,6 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider,
         SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
     ) {
         return new DelayWarmCacheUntilShardStartedService(
@@ -63,7 +61,6 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
             threadPool,
             telemetryProvider,
             clusterSettings,
-            warmingRatioProvider,
             searchRecoveryTimeoutCalculationService
         );
     }
@@ -87,17 +84,9 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            super(
-                cacheService,
-                threadPool,
-                telemetryProvider,
-                clusterSettings,
-                warmingRatioProvider,
-                searchRecoveryTimeoutCalculationService
-            );
+            super(cacheService, threadPool, telemetryProvider, clusterSettings, searchRecoveryTimeoutCalculationService);
             this.clusterSettings = clusterSettings;
         }
 
@@ -107,6 +96,7 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
+            WarmingRatioProvider warmingRatioProvider,
             @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
@@ -123,7 +113,16 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
                     }
                 }
             }
-            super.warmCacheAndTimeIt(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
+            super.warmCacheAndTimeIt(
+                type,
+                indexShard,
+                commit,
+                directory,
+                warmingRatioProvider,
+                endTargetsToWarm,
+                preWarmForIdLookup,
+                listener
+            );
         }
     }
 }

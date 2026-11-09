@@ -12,7 +12,9 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -128,7 +130,8 @@ class FieldCapabilitiesFetcher {
         );
         var indexMode = searchExecutionContext.getIndexSettings().getMode();
         final int numberOfShards = searchExecutionContext.getIndexSettings().getNumberOfShards();
-        if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
+        final int createdVersion = searchExecutionContext.getIndexSettings().getIndexVersionCreated().id();
+        if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext, requestBreaker()) == false) {
             return new FieldCapabilitiesIndexResponse(
                 shardId.getIndexName(),
                 null,
@@ -136,6 +139,7 @@ class FieldCapabilitiesFetcher {
                 false,
                 indexMode,
                 numberOfShards,
+                createdVersion,
                 settingsVersion,
                 mappingVersion
             );
@@ -167,6 +171,7 @@ class FieldCapabilitiesFetcher {
                     true,
                     indexMode,
                     numberOfShards,
+                    createdVersion,
                     settingsVersion,
                     mappingVersion
                 );
@@ -192,6 +197,7 @@ class FieldCapabilitiesFetcher {
             true,
             indexMode,
             numberOfShards,
+            createdVersion,
             settingsVersion,
             mappingVersion
         );
@@ -362,21 +368,36 @@ class FieldCapabilitiesFetcher {
         return false;
     }
 
+    private CircuitBreaker requestBreaker() {
+        return indicesService.getCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST);
+    }
+
     private static boolean canMatchShard(
         ShardId shardId,
         QueryBuilder indexFilter,
         long nowInMillis,
-        SearchExecutionContext searchExecutionContext
+        SearchExecutionContext searchExecutionContext,
+        CircuitBreaker breaker
     ) {
         assert alwaysMatches(indexFilter) == false : "should not be called for always matching [" + indexFilter + "]";
         assert nowInMillis != 0L;
-        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY);
+        ShardSearchRequest searchRequest = new ShardSearchRequest(
+            shardId,
+            nowInMillis,
+            AliasFilter.EMPTY,
+            null,
+            SplitShardCountSummary.IRRELEVANT
+        );
         searchRequest.source(new SearchSourceBuilder().query(indexFilter));
+        // With a breaker, the source of a wrapper query in the filter is checked against it while the rewrite parses it.
+        SearchExecutionContext context = new SearchExecutionContext(searchExecutionContext, breaker);
         try {
-            return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
+            return SearchService.queryStillMatchesAfterRewrite(searchRequest, context);
         } catch (Exception e) {
             // treat as if shard is still a potential match
             return true;
+        } finally {
+            context.releaseQueryConstructionMemory();
         }
     }
 

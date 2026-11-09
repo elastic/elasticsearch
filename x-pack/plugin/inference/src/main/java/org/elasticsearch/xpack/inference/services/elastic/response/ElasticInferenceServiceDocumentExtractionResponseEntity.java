@@ -55,7 +55,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class ElasticInferenceServiceDocumentExtractionResponseEntity {
 
     /**
-     * The format of the extracted content returned by the Elastic Inference Service; its Jina Reader provider hands back markdown.
+     * The format of the extracted content returned by the Elastic Inference Service.
      */
     public static final String MARKDOWN_RESPONSE_FORMAT = "markdown";
 

@@ -1,0 +1,5 @@
+pr: 161050
+summary: Forward X-Elastic-Trace-Id, X-Elastic-User-Id, and X-Elastic-Space-Id headers to Elastic Inference Service
+area: Inference
+type: enhancement
+issues: []

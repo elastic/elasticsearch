@@ -16,14 +16,12 @@ public interface OperationListener {
 
     /**
      * This method is called when a new {@link Translog.Record} is added to the translog: either a single
-     * {@link Translog.Operation} ({@code minSeqNo == maxSeqNo}) or an {@link IndexOperationBatch.TranslogRecord}
-     * (one sequence number per replayable row). A record's operations always occupy the contiguous range
-     * {@code [minSeqNo, maxSeqNo]}, so the two bounds identify every operation the record carries.
+     * {@link Translog.Operation} (one sequence number) or an {@link IndexOperationBatch.TranslogRecord}
+     * (one sequence number per replayable row).
      *
      * @param operation the serialized record added to the translog
-     * @param minSeqNo the lowest sequence number the record carries
-     * @param maxSeqNo the highest sequence number the record carries (inclusive)
+     * @param seqNos the sequence numbers of the operations the record carries
      * @param location the location written
      */
-    void recordAdded(Translog.Serialized operation, long minSeqNo, long maxSeqNo, Translog.Location location);
+    void recordAdded(Translog.Serialized operation, long[] seqNos, Translog.Location location);
 }

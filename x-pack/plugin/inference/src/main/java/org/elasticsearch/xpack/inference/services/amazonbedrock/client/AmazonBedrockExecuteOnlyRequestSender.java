@@ -14,8 +14,10 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockExceptions;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
@@ -45,14 +47,15 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
     public void send(
         Logger logger,
         OutboundRequest outboundRequest,
-        Supplier<Boolean> hasRequestTimedOutFunction,
         ResponseHandler responseHandler,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
+        // the AWS SDK manages its own connections and timeouts, so there is no abandoned work to register an abort handler for
+        var listener = timedListener.getListener();
         if (outboundRequest instanceof AmazonBedrockRequest awsRequest
             && responseHandler instanceof AmazonBedrockResponseHandler awsResponse) {
             try {
-                var executor = createExecutor(awsRequest, awsResponse, logger, hasRequestTimedOutFunction, listener);
+                var executor = createExecutor(awsRequest, awsResponse, logger, timedListener::hasCompleted, listener);
 
                 // the run method will call the listener to return the proper value
                 executor.run();
@@ -127,7 +130,7 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
     }
 
     private Exception wrapWithElasticsearchException(Exception e, String inferenceEntityId) {
-        return new ElasticsearchException(
+        return AmazonBedrockExceptions.wrap(
             format("Amazon Bedrock client failed to send request from inference entity id [%s]", inferenceEntityId),
             e
         );

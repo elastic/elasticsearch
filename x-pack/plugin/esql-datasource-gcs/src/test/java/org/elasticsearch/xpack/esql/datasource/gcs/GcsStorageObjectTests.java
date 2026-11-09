@@ -363,6 +363,25 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertNull("exists()/length() must not pin the readers", obj.contentGeneration());
     }
 
+    /**
+     * The probe reports the generation it saw, so an entry built from it is versioned, but it does not pin the readers: a
+     * pin from a probe would make reads conditional on a generation no read has returned.
+     */
+    public void testProbeReportsItsGenerationWithoutPinning() throws IOException {
+        Blob blob = mock(Blob.class);
+        when(blob.getGeneration()).thenReturn(3L);
+        when(blob.getSize()).thenReturn(42L);
+        when(mockStorage.get(any(BlobId.class))).thenReturn(blob);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        assertTrue(obj.exists());
+        assertEquals("3", obj.probedVersion());
+        assertNull(obj.contentGeneration());
+        assertNull(obj.version());
+    }
+
     public void testNewStreamClassifies503AsThrottling() {
         when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));

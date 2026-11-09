@@ -121,17 +121,15 @@ public abstract class SortedNumericLongValues {
     }
 
     /**
-     * Converts a {@link LongValues} to a {@link SortedNumericLongValues}
-     */
-    public static SortedNumericLongValues singleton(LongValues values) {
-        return singleton(values, null);
-    }
-
-    /**
      * Converts a {@link LongValues} to a {@link SortedNumericLongValues} and preserves
      * the associated {@link DocIdSetIterator}.
+     *
+     * <p> Callers that derive a singleton view from another doc-values instance must pass that
+     * instance's {@link #docIdIterator()}. The iterator is deliberately a required argument so that
+     * dropping it is always an explicit choice: pass {@code null} only when there is genuinely no
+     * iterator backing {@code values}.
      */
-    public static SortedNumericLongValues singleton(LongValues values, DocIdSetIterator docIdSetIterator) {
+    public static SortedNumericLongValues singleton(LongValues values, @Nullable DocIdSetIterator docIdSetIterator) {
         return new SortedNumericLongValues(true, docIdSetIterator) {
             @Override
             public boolean advanceExact(int target) throws IOException {

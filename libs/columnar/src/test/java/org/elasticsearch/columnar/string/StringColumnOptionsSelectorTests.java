@@ -65,6 +65,16 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         }
     }
 
+    public void testTheSkipIndexSwitchSurvivesChangingOtherOptions() {
+        final StringColumnOptions off = StringColumnOptions.DEFAULT.withoutSkipIndex();
+        assertTrue(StringColumnOptions.DEFAULT.enableSkipIndex());
+        assertFalse(off.enableSkipIndex());
+        assertFalse(off.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).enableSkipIndex());
+        assertFalse(off.withSizes(StringColumnOptions.DEFAULT_SIZES).enableSkipIndex());
+        assertFalse(off.withSingleValued(true).enableSkipIndex());
+        assertTrue(StringColumnOptions.DEFAULT.withSingleValued(true).enableSkipIndex());
+    }
+
     /** A field naming its own codec is read back through the codec its chunk index records, not a default. */
     public void testAFieldMayChooseItsChunkCodec() throws IOException {
         final List<String> values = new ArrayList<>();
@@ -77,7 +87,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             StringColumnOptions.DEFAULT_SUMMARY,
             fieldName.equals(NAMED) ? ChunkCodec.ZSTD : ChunkCodec.IDENTITY,
             StringColumnOptions.DEFAULT_SIZES,
-            singleValued
+            singleValued,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
         );
 
         try (Directory dir = newDirectory()) {
@@ -110,7 +121,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 StringColumnOptions.DEFAULT_SUMMARY,
                 ChunkCodec.ZSTD,
                 StringColumnOptions.DEFAULT_SIZES,
-                randomBoolean()
+                randomBoolean(),
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
             )
         );
         expectThrows(
@@ -120,7 +132,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 StringColumnOptions.DEFAULT_SUMMARY,
                 null,
                 StringColumnOptions.DEFAULT_SIZES,
-                randomBoolean()
+                randomBoolean(),
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
             )
         );
         expectThrows(
@@ -130,7 +143,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 StringColumnOptions.DEFAULT_SUMMARY,
                 ChunkCodec.ZSTD,
                 null,
-                randomBoolean()
+                randomBoolean(),
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
             )
         );
     }

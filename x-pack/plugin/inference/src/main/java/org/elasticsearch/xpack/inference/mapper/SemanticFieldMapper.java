@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,11 +29,17 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
+import org.elasticsearch.index.mapper.ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -50,6 +58,7 @@ import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
@@ -191,17 +200,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             this.meta = configureMetaParam();
         }
 
-        public Builder(SemanticFieldMapper mapper) {
-            this(
-                mapper.leafName(),
-                mapper.fieldType().getChunksField().bitsetProducer(),
-                mapper.fieldType().getChunksField().indexSettings(),
-                mapper.modelRegistry,
-                mapper.vectorsFormatProviders
-            );
-            init(mapper);
-        }
-
         public Builder setInferenceId(String id) {
             this.inferenceId.setValue(id);
             return this;
@@ -212,18 +210,27 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return this;
         }
 
+        /**
+         * Set model configuration inferred from a document.
+         *
+         * @throws IllegalArgumentException if the settings conflict with those already set
+         */
+        public void inferModelSettings(EndpointClusterState value) {
+            if (modelSettings.isSet()) {
+                Conflicts conflicts = new Conflicts(leafName());
+                canMergeModelSettings(modelSettings.getValue(), value, conflicts);
+                conflicts.check();
+            }
+            setModelSettings(value);
+        }
+
         public Builder setChunkingSettings(ChunkingSettings value) {
             this.chunkingSettings.setValue(value);
             return this;
         }
 
         protected Parameter<String> configureInferenceIdParam() {
-            return Parameter.stringParam(
-                INFERENCE_ID_FIELD,
-                true,
-                mapper -> ((SemanticFieldType) mapper.fieldType()).inferenceId,
-                getDefaultInferenceId()
-            ).addValidator(v -> {
+            return Parameter.stringParam(INFERENCE_ID_FIELD, true, getDefaultInferenceId()).addValidator(v -> {
                 if (Strings.isEmpty(v)) {
                     throw new IllegalArgumentException(
                         "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + contentType() + "] must not be empty"
@@ -237,12 +244,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         protected Parameter<String> configureSearchInferenceIdParam() {
-            return Parameter.stringParam(
-                SEARCH_INFERENCE_ID_FIELD,
-                true,
-                mapper -> ((SemanticFieldType) mapper.fieldType()).searchInferenceId,
-                null
-            ).acceptsNull().addValidator(v -> {
+            return Parameter.stringParam(SEARCH_INFERENCE_ID_FIELD, true, null).acceptsNull().addValidator(v -> {
                 if (v != null && Strings.isEmpty(v)) {
                     throw new IllegalArgumentException(
                         "["
@@ -263,7 +265,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 true,
                 () -> null,
                 (n, c, o) -> SemanticTextField.parseModelSettingsFromMap(o),
-                mapper -> ((SemanticFieldType) mapper.fieldType()).modelSettings,
                 (b, n, v) -> {
                     if (v != null) {
                         b.field(MODEL_SETTINGS_FIELD, v, EndpointClusterState.withoutEndpointMetadata());
@@ -293,7 +294,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 true,
                 () -> null,
                 (n, c, o) -> parseIndexOptionsFromMap(n, o, c, experimentalFeaturesEnabled),
-                mapper -> ((SemanticFieldType) mapper.fieldType()).indexOptions,
                 (b, n, v) -> {
                     throw new IllegalStateException("Serializer for [" + INDEX_OPTIONS_FIELD + "] should not be called");
                 },
@@ -338,7 +338,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 true,
                 () -> null,
                 (n, c, o) -> SemanticTextField.parseChunkingSettingsFromMap(o),
-                mapper -> ((SemanticFieldType) mapper.fieldType()).chunkingSettings,
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
@@ -417,8 +416,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 false,
                 experimentalFeaturesEnabled,
                 vectorsFormatProviders,
-                false,
-                indexSettings.getPostFilterSelectivityThreshold()
+                false
             );
             ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                 ? getExtendedDenseVectorIndexOptions(indexOptions.get())
@@ -534,14 +532,16 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
             final String fullName = context.buildFullName(leafName());
             if (context.isInNestedContext()) {
+                // If we ever support inference fields in nested contexts, intercepted query rewriting will have to be adjusted accordingly.
                 throw new IllegalArgumentException(contentType() + " field [" + fullName + "] cannot be nested");
             }
+
             var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
             final ObjectMapper inferenceField = inferenceFieldBuilder != null
                 ? inferenceFieldBuilder.build(childContext)
                 : getInferenceFieldBuilder(childContext).build(childContext);
 
-            return buildMapper(fullName, inferenceField, builderParams(this, context));
+            return buildMapper(fullName, inferenceField, builderParams(this, context), context.isSourceColumnarStored());
         }
 
         protected void validateTaskType(EndpointClusterState modelSettings) {
@@ -581,7 +581,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             }
         }
 
-        protected SemanticFieldMapper buildMapper(String fullName, ObjectMapper inferenceField, BuilderParams builderParams) {
+        protected SemanticFieldMapper buildMapper(
+            String fullName,
+            ObjectMapper inferenceField,
+            BuilderParams builderParams,
+            boolean sourceColumnarStored
+        ) {
             return new SemanticFieldMapper(
                 leafName(),
                 new SemanticFieldType(
@@ -594,13 +599,15 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                     inferenceField,
                     // the semantic field always stores its input in doc values (written and read only under synthetic source or columnar)
                     true,
+                    ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings),
                     meta.getValue()
                 ),
                 builderParams,
                 indexVersionCreated,
                 indexSettings.getMode(),
                 modelRegistry,
-                vectorsFormatProviders
+                vectorsFormatProviders,
+                sourceColumnarStored
             );
         }
 
@@ -632,15 +639,18 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     protected final List<VectorsFormatProvider> vectorsFormatProviders;
     protected final IndexVersion indexCreatedVersion;
     protected final IndexMode indexMode;
+    /** Whether the original input is left out of the {@code columnar_stored} {@code _source} and patched back from doc values. */
+    private final boolean patchedIntoSource;
 
     SemanticFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        SemanticFieldType mappedFieldType,
         BuilderParams builderParams,
         IndexVersion indexCreatedVersion,
         IndexMode indexMode,
         ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders
+        List<VectorsFormatProvider> vectorsFormatProviders,
+        boolean sourceColumnarStored
     ) {
         super(simpleName, mappedFieldType, builderParams);
         ensureMultiFields(builderParams.multiFields().iterator());
@@ -648,6 +658,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         this.indexMode = indexMode;
         this.modelRegistry = modelRegistry;
         this.vectorsFormatProviders = vectorsFormatProviders;
+        this.patchedIntoSource = sourceColumnarStored && mappedFieldType.storesOriginalValuesInDocValues;
     }
 
     private void ensureMultiFields(Iterator<FieldMapper> mappers) {
@@ -674,11 +685,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
         mappers.add(fieldType().getInferenceField());
         return mappers.iterator();
-    }
-
-    @Override
-    public SemanticFieldMapper.Builder getMergeBuilder() {
-        return new Builder(this);
     }
 
     @Override
@@ -760,14 +766,57 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         final Object value = parser.currentToken() == XContentParser.Token.START_OBJECT
             ? InferenceString.PARSER.parse(parser, null)
             : parser.text();
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-            context.doc(),
-            SemanticTextField.getOriginalValuesFieldName(fullPath()),
-            SemanticOriginalValueEncoder.encode(value),
-            MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
-            indexCreatedVersion
-        );
+        recordOriginalValue(context, SemanticOriginalValueEncoder.encode(value));
         return true;
+    }
+
+    /**
+     * Adds one original input value to the internal binary doc values store, in document order and keeping duplicates, so a
+     * multi-valued field round-trips exactly.
+     */
+    protected final void recordOriginalValue(DocumentParserContext context, BytesRef value) {
+        final String fieldName = SemanticTextField.getOriginalValuesFieldName(fullPath());
+        final MultiValuedBinaryDocValuesField.ValueOrdering ordering = MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED;
+        if (fieldType().columnarOriginalValues == false) {
+            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldName, value, ordering, indexCreatedVersion);
+        } else if (context.isPartOfArray()) {
+            ColumnarBinaryDocValuesField.recordValue(context.doc(), fieldName, value, ordering);
+        } else {
+            ColumnarBinaryDocValuesField.recordSingleValue(context.doc(), fieldName, value, ordering);
+        }
+    }
+
+    @Override
+    public StringColumnOptions internalColumnarStringOptions(String fieldName) {
+        return fieldType().columnarOriginalValues && fieldName.equals(SemanticTextField.getOriginalValuesFieldName(fullPath()))
+            ? StringColumnOptions.PAYLOADS
+            : null;
+    }
+
+    @Override
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
+        if (patchedIntoSource == false) {
+            return null;
+        }
+        final CheckedFunction<BytesRef, Object, IOException> decoder = fieldType().inputDecoder();
+        return context -> {
+            final SortableBinaryDocValues values = fieldType().originalValues(context.reader());
+            return (doc, acc) -> {
+                if (values.advanceExact(doc) == false) {
+                    return;
+                }
+                final int count = values.docValueCount();
+                if (count == 1) {
+                    acc.add(new SourceLoader.LeafSyntheticVectorPath(fullPath(), decoder.apply(values.nextValue())));
+                    return;
+                }
+                final List<Object> list = new ArrayList<>(count);
+                for (int i = 0; i < count; i++) {
+                    list.add(decoder.apply(values.nextValue()));
+                }
+                acc.add(new SourceLoader.LeafSyntheticVectorPath(fullPath(), list));
+            };
+        };
     }
 
     /**
@@ -792,7 +841,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 () -> new CompositeSyntheticFieldLoader(
                     leafName(),
                     fullPath(),
-                    new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName, indexCreatedVersion) {
+                    fieldType().columnarOriginalValues ? new ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer(fieldName) {
+                        @Override
+                        protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                            writeOriginalValue(b, value);
+                        }
+                    } : new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName, indexCreatedVersion) {
                         @Override
                         protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                             writeOriginalValue(b, value);
@@ -857,15 +911,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             try {
                 conflicts.check();
             } catch (Exception exc) {
-                throw new DocumentParsingException(
-                    xContentLocation,
-                    "Incompatible model settings for field ["
-                        + fullPath()
-                        + "]. Check that the "
-                        + INFERENCE_ID_FIELD
-                        + " is not using different model settings",
-                    exc
-                );
+                throw incompatibleModelSettings(xContentLocation, exc);
             }
             mapper = this;
         }
@@ -937,25 +983,40 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
     }
 
+    private DocumentParsingException incompatibleModelSettings(XContentLocation location, Exception cause) {
+        return new DocumentParsingException(
+            location,
+            "Incompatible model settings for field ["
+                + fullPath()
+                + "]. Check that the "
+                + INFERENCE_ID_FIELD
+                + " is not using different model settings",
+            cause
+        );
+    }
+
     protected SemanticFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
-        Builder builder = getMergeBuilder();
         context.path().remove();
         try {
-            builder.setModelSettings(field.inference().modelSettings()).setInferenceId(field.inference().inferenceId());
+            Builder update;
+            try {
+                update = (Builder) context.updateMapping(
+                    fullPath(),
+                    builder -> ((Builder) builder).setInferenceId(field.inference().inferenceId())
+                        .inferModelSettings(field.inference().modelSettings())
+                );
+            } catch (IllegalArgumentException exc) {
+                throw incompatibleModelSettings(context.parser().getTokenLocation(), exc);
+            }
             if (context.mappingLookup().isMultiField(fullPath())) {
-                // The field is part of a multi-field, so the parent field must also be updated accordingly.
                 var fieldName = context.path().remove();
                 try {
-                    var parentMapper = ((FieldMapper) context.mappingLookup().getMapper(context.mappingLookup().parentField(fullPath())))
-                        .getMergeBuilder();
-                    String parentFullPath = context.mappingLookup().parentField(fullPath());
-                    context.addDynamicMapper(parentMapper.addMultiField(builder), parentFullPath);
-                    return builder.build(context.createDynamicMapperBuilderContext());
+                    return update.build(context.createDynamicMapperBuilderContext());
                 } finally {
                     context.path().add(fieldName);
                 }
             } else {
-                return (SemanticFieldMapper) context.getDynamicMapper(builder);
+                return update.build(context.createDynamicMapperBuilderContext());
             }
         } finally {
             context.path().add(leafName());
@@ -970,6 +1031,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected final SemanticIndexOptions indexOptions;
         protected final ObjectMapper inferenceField;
         protected final boolean storesOriginalValuesInDocValues;
+        /** Whether the original input is written as a ColumNAR payload column rather than with a {@code .counts} companion. */
+        protected final boolean columnarOriginalValues;
 
         public SemanticFieldType(
             String name,
@@ -980,6 +1043,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             SemanticIndexOptions indexOptions,
             ObjectMapper inferenceField,
             boolean storesOriginalValuesInDocValues,
+            boolean columnarOriginalValues,
             Map<String, String> meta
         ) {
             super(name, IndexType.terms(true, false), false, meta);
@@ -990,6 +1054,20 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             this.indexOptions = indexOptions;
             this.inferenceField = inferenceField;
             this.storesOriginalValuesInDocValues = storesOriginalValuesInDocValues;
+            this.columnarOriginalValues = storesOriginalValuesInDocValues && columnarOriginalValues;
+        }
+
+        /** How the original input is framed in its internal binary doc values store. */
+        protected BinaryDocValuesFormat originalValuesFormat() {
+            return columnarOriginalValues ? BinaryDocValuesFormat.COLUMNAR_PAYLOAD : BinaryDocValuesFormat.SEPARATE_COUNT;
+        }
+
+        /** The original input values of one segment, in document order. */
+        SortableBinaryDocValues originalValues(LeafReader reader) throws IOException {
+            final String fieldName = SemanticTextField.getOriginalValuesFieldName(name());
+            return columnarOriginalValues
+                ? SortableBinaryDocValues.forFormat(reader, fieldName, IndexVersion.current(), BinaryDocValuesFormat.COLUMNAR_PAYLOAD)
+                : MultiValuedSortableBinaryDocValues.fromMultiValued(reader, fieldName);
         }
 
         @Override
@@ -1140,7 +1218,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             if (readsOriginalValuesFromDocValues(context)) {
                 // When _source is rebuilt from doc values, read the original value straight from the binary store so retrieval does not
                 // have to rebuild _source.
-                return new OriginalValuesDocValuesFetcher(SemanticTextField.getOriginalValuesFieldName(name()), inputDecoder());
+                return new OriginalValuesDocValuesFetcher(this, inputDecoder());
             }
             return new OriginalValuesSemanticFieldValueFetcher(name(), context);
         }
@@ -1152,7 +1230,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected ValueFetcher directValueFetcher(SearchExecutionContext context) {
             if (readsOriginalValuesFromDocValues(context)) {
                 // The binary store never holds copy_to values
-                return new OriginalValuesDocValuesFetcher(SemanticTextField.getOriginalValuesFieldName(name()), inputDecoder());
+                return new OriginalValuesDocValuesFetcher(this, inputDecoder());
             }
 
             final Set<String> sourcePaths;

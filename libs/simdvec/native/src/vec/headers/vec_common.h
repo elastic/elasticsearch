@@ -66,18 +66,42 @@ static inline const T* sequential_mapper(const T* data, const int32_t i, const i
     return data + (int64_t)i * pitch;
 }
 
-// Offset layout: vectors share a common base but are at non-sequential positions
-// given by offsets[i], each `pitch` elements from the base.
-template <typename T>
-static inline const T* offsets_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
-    return data + (int64_t)offsets[i] * pitch;
-}
-
 // Sparse layout: vectors reside in disjoint memory regions. `data` is an array
 // of pre-resolved pointers — one per vector — so pitch and offsets are unused.
 template <typename T>
 static inline const T* sparse_mapper(const T* const* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
     return data[i];
+}
+
+// Position of the k-th (0-based) set bit of mask; k must be below popcount(mask).
+// The k-th bit needs to be extracted from the middle of the mask, independently from other bits being set around it;
+// our kernels do unrolling and prefetching, so the need to be able to access (and select) any vector at random
+// inside the dataset.
+// Defined per architecture (as different processors may or may not have native instructions for this operation).
+static inline int32_t mask_select(const uint32_t mask, const int32_t k);
+
+// Masked layout: a block of up to 32 vectors, each `pitch` elements apart, of which only those
+// whose bit is set in the mask offsets[0] are scored; the i-th vector is the one at the position
+// of the i-th set bit.
+template <typename T>
+static inline const T* masked_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+    return data + (int64_t)mask_select((uint32_t)offsets[0], i) * pitch;
+}
+
+// --- Output mapper functions ---
+// Each output mapper resolves the result slot of the i-th scored vector.
+// All share the same signature so they can be passed as a template
+// parameter to the bulk scoring templates, next to the (input) mapper.
+
+// Compact output: the score of the i-th vector goes to results[i].
+static inline int32_t compact_output(const int32_t* offsets, const int32_t i) {
+    return i;
+}
+
+// Masked output: the score of the i-th vector goes to the position of the i-th set bit of
+// offsets[0] (see masked_mapper).
+static inline int32_t masked_output(const int32_t* offsets, const int32_t i) {
+    return mask_select((uint32_t)offsets[0], i);
 }
 
 // Populates out[0..N-1] by invoking mapper for indices [base..base+N-1],

@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockExceptions;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseHandler;
@@ -60,7 +60,7 @@ public abstract class AmazonBedrockExecutor implements Runnable {
         } catch (Exception e) {
             var errorMessage = Strings.format("Failed to send request from inference entity id [%s]", inferenceEntityId);
             logger.warn(errorMessage, e);
-            inferenceResultsListener.onFailure(new ElasticsearchException(errorMessage, e));
+            inferenceResultsListener.onFailure(AmazonBedrockExceptions.wrap(errorMessage, e));
         }
     }
 

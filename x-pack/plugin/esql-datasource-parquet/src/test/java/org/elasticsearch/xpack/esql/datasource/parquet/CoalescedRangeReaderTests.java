@@ -320,6 +320,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -406,6 +411,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         StorageObject storageObject = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -521,6 +531,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -628,6 +643,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -728,6 +748,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         StorageObject shortReadObject = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -842,6 +867,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 StorageObject injecting = new StorageObject() {
                     @Override
                     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                    @Override
+                    public String version() {
+                        return "v1";
+                    }
 
                     @Override
                     public StorageIdentity storageIdentity() {
@@ -1015,7 +1045,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertNotNull(cache.get(key));
         for (int i = 0; i < 16; i++) {
             cache.put(
-                new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "memory://other-" + i + ".parquet", 256),
+                new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "memory://other-" + i + ".parquet", 256, "v1"),
                 sequentialBytes(256)
             );
         }
@@ -1624,6 +1654,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     private static class CountingStorage implements StorageObject {
         @Override
         public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+        @Override
+        public String version() {
+            return "v1";
+        }
 
         @Override
         public StorageIdentity storageIdentity() {

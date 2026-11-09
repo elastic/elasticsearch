@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodeUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsTagsProvider;
 import org.elasticsearch.action.admin.cluster.stats.ProjectRoutingUsageHolder;
+import org.elasticsearch.action.admin.cluster.stats.SearchTierStatsProvider;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.BaseRestHandler;
 
@@ -33,18 +34,21 @@ public class UsageService {
     private final ProjectRoutingUsageHolder projectRoutingUsageHolder;
     @Nullable
     private final ClusterStatsTagsProvider tagsProvider;
+    @Nullable
+    private final SearchTierStatsProvider searchTierStatsProvider;
 
     public UsageService() {
-        this(null);
+        this(null, null);
     }
 
-    public UsageService(@Nullable ClusterStatsTagsProvider tagsProvider) {
+    public UsageService(@Nullable ClusterStatsTagsProvider tagsProvider, @Nullable SearchTierStatsProvider searchTierStatsProvider) {
         this.handlers = new HashMap<>();
         this.searchUsageHolder = new SearchUsageHolder();
         this.ccsUsageHolder = new CCSUsageTelemetry();
         this.esqlUsageHolder = new CCSUsageTelemetry(false);
         this.projectRoutingUsageHolder = new ProjectRoutingUsageHolder();
         this.tagsProvider = tagsProvider;
+        this.searchTierStatsProvider = searchTierStatsProvider;
     }
 
     /**
@@ -115,5 +119,10 @@ public class UsageService {
     @Nullable
     public ClusterStatsTagsProvider getTagsProvider() {
         return tagsProvider;
+    }
+
+    @Nullable
+    public SearchTierStatsProvider getSearchTierStatsProvider() {
+        return searchTierStatsProvider;
     }
 }

@@ -79,22 +79,27 @@ public class LabelMatchers implements NodeStringRenderable {
 
     /**
      * Lowers these matchers into an AND of per-label ES|QL predicates over {@code fields} - the label fields in matcher
-     * order, the metric name matcher having none since it selects the series. Uses {@link AutomatonUtils} to lower a
+     * order, where a metric name written as an identifier has none. Uses {@link AutomatonUtils} to lower a
      * pattern to a predicate cheaper than a regex where possible: exact values become equality/IN, prefix/suffix
      * alternations become STARTS_WITH/ENDS_WITH disjunctions, everything else falls back to RLIKE. Null when there is
      * nothing to filter on.
      */
     public Expression predicate(Source source, List<Expression> fields, Configuration configuration) {
+        // Prometheus resolves these to `cpu_util{host="..."}`:
+        // `{__name__="cpu_util", host="..."}`
+        // `{"cpu_util", host="..."}`
+        // Their name matcher has a label field like every other matcher; in `cpu_util{...}` the name matcher has none.
+        int fieldOffset = labelMatchers.size() - fields.size();
+        assert fieldOffset == 0 || (fieldOffset == 1 && LabelMatcher.NAME.equals(labelMatchers.getFirst().name()))
+            : "invariant: label fields " + fields + " must align with matchers " + labelMatchers;
         List<Expression> conditions = new ArrayList<>(labelMatchers.size());
-        boolean hasNameMatcher = false;
         for (int i = 0, s = labelMatchers.size(); i < s; i++) {
             LabelMatcher matcher = labelMatchers.get(i);
             // the metric name matcher selects the series; it has no label field to filter on
             if (LabelMatcher.NAME.equals(matcher.name())) {
-                hasNameMatcher = true;
                 continue;
             }
-            Expression field = fields.get(hasNameMatcher ? i - 1 : i); // adjust index if name matcher was seen
+            Expression field = fields.get(i - fieldOffset);
             if (field.resolved() && DataType.isString(field.dataType()) == false) {
                 field = new ToString(field.source(), field, configuration);
             }

@@ -27,12 +27,14 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -53,7 +55,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -72,6 +73,15 @@ import java.util.stream.Collectors;
  * the prefetch mechanism regardless of hardware speed.
  */
 public class PrefetchLatencySimulationTests extends ESTestCase {
+
+    /**
+     * Footer byte cache budget that admits no entry, for a test that injects a failure into the scan's own
+     * GET on a file that fits the footer prefetch: with the default cache the footer parse stores such a file
+     * whole and the scan reads nothing.
+     */
+    private static final Settings NO_FOOTER_BYTE_CACHE = Settings.builder()
+        .put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b")
+        .build();
 
     private BlockFactory blockFactory;
     private ExecutorService asyncIoExecutor;
@@ -268,13 +278,12 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
             assertTrue(iter.hasNext());
             assertEquals("the first real prefetch must fail", 1, storage.failedAsyncReadCount.get());
+            assertFalse("the re-ticketed GET is a successful probe and must leave probe mode", opi.probingPrefetch());
+            assertEquals(floor, opi.prefetchDepth());
             Page first = iter.next();
             first.releaseBlocks();
 
-            assertTrue(storage.successfulAsyncReads.await(10, TimeUnit.SECONDS));
             assertTrue(iter.hasNext());
-            assertFalse("the re-ticketed GET is a successful probe and must leave probe mode", opi.probingPrefetch());
-            assertEquals(floor, opi.prefetchDepth());
             Page second = iter.next();
             second.releaseBlocks();
             assertFalse(iter.hasNext());
@@ -291,7 +300,12 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             new CompletionException(new CompletionException(injected))
         );
 
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (
+            CloseableIterator<Page> iter = new ParquetFormatReader(NO_FOOTER_BYTE_CACHE, blockFactory).read(
+                storage,
+                FormatReadContext.of(null, 1024)
+            )
+        ) {
             int syncReadBaseline = storage.syncReadCount.get();
             AssertionError actual = expectThrows(AssertionError.class, iter::hasNext);
             assertSame(injected, actual);
@@ -318,8 +332,8 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
                 .withPageSize(10 * 1024 * 1024)
                 .build()
         ) {
-            // Two >8 MB row groups cross SHALLOW_PREFETCH_BYTES and provide a real successful
-            // probe after the first row group's failed prefetch falls back synchronously.
+            // Two >8 MB row groups cross SHALLOW_PREFETCH_BYTES, so the floor is above 1 and the
+            // first row group's re-ticketed GET is a real successful probe.
             byte[] value = new byte[9 * 1024 * 1024];
             for (int i = 0; i < 2; i++) {
                 writer.write(groupFactory.newGroup().append("payload", Binary.fromConstantByteArray(value)));
@@ -617,6 +631,15 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             this.asyncIoExecutor = asyncIoExecutor;
         }
 
+        /**
+         * A version, so this object's footer cache key is non-null. Without one the key is null, nothing is ever
+         * stored or read, and NO_FOOTER_BYTE_CACHE stops being what keeps the cache out of these tests.
+         */
+        @Override
+        public String version() {
+            return "v1";
+        }
+
         @Override
         public InputStream newStream() {
             return new ByteArrayInputStream(data);
@@ -714,7 +737,6 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         private final Exception firstFailure;
         private final AtomicBoolean failNextAsyncRead = new AtomicBoolean(true);
         private final AtomicInteger failedAsyncReadCount = new AtomicInteger();
-        private final CountDownLatch successfulAsyncReads = new CountDownLatch(2);
 
         private FailFirstAsyncStorageObject(byte[] data, ExecutorService asyncIoExecutor, Exception firstFailure) {
             super(data, asyncIoExecutor);
@@ -735,18 +757,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
                 failureExecutor.execute(() -> listener.onFailure(firstFailure));
                 return;
             }
-            super.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
-                @Override
-                public void onResponse(DirectReadBuffer response) {
-                    listener.onResponse(response);
-                    successfulAsyncReads.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            super.readBytesAsync(position, length, factory, executor, listener);
         }
     }
 
@@ -754,6 +765,11 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {

@@ -318,7 +318,6 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
@@ -327,7 +326,6 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider,
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
@@ -336,9 +334,10 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
-                    org.elasticsearch.action.ActionListener<Void> listener
+                    ActionListener<Void> listener
                 ) {
                     listener.onResponse(null);
                 }

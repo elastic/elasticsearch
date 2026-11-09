@@ -32,6 +32,16 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AnalysisTests extends ESTestCase {
+
+    public void testSha256Hex() {
+        String text = randomUnicodeOfLengthBetween(0, 200);
+        assertEquals(Analysis.sha256Hex(text), Analysis.sha256Hex(new String(text)));
+        assertNotEquals(Analysis.sha256Hex(text), Analysis.sha256Hex(text + "x"));
+        // a charset encoding would collapse both unpaired surrogates to one replacement character
+        assertNotEquals(Analysis.sha256Hex("\uD800"), Analysis.sha256Hex("\uDC00"));
+        assertEquals(64, Analysis.sha256Hex(text).length());
+    }
+
     public void testParseStemExclusion() {
         /* Comma separated list */
         Settings settings = Settings.builder().put("stem_exclusion", "foo,bar").build();

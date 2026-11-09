@@ -24,6 +24,7 @@ import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocIdStream;
+import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
@@ -647,6 +648,48 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     }
 
     /**
+     * One weight serves every leaf of a shard, so the operator renders its query for the status once, however many leaves it reads.
+     */
+    public void testRendersTheQueryOnce() throws IOException {
+        int numDocs = 1_000;
+        reader = simpleReader(directory, numDocs, /* commitEvery */ 50);
+        assertThat(reader.leaves().size(), greaterThan(1));
+        ShardContext ctx = new MockShardContext(reader, 0);
+        RenderCountingQuery query = new RenderCountingQuery();
+        LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            ignored -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            DataPartitioning.SEGMENT,
+            DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            1,
+            between(10, 100),
+            LuceneOperator.NO_LIMIT,
+            scoring,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
+        );
+        DriverContext driverContext = driverContext();
+        LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(driverContext);
+        List<Page> results = new ArrayList<>();
+        new TestDriverRunner().run(
+            TestDriverFactory.create(driverContext, sourceOperator, List.of(), new TestResultPageSinkOperator(results::add))
+        );
+        OperatorTestCase.assertDriverContext(driverContext);
+
+        int rows = 0;
+        for (Page page : results) {
+            rows += page.getPositionCount();
+            page.releaseBlocks();
+        }
+        assertThat(rows, equalTo(numDocs));
+        LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) sourceOperator.status();
+        assertThat(status.processedQueries(), equalTo(List.of("RenderCountingQuery")));
+        assertThat(query.renders.get(), equalTo(1));
+    }
+
+    /**
      * Runs the operator against a query whose {@link BulkScorer} delivers every scored window through
      * {@link LeafCollector#collectRange}, the way Lucene's {@code DenseConjunctionBulkScorer} does for dense doc-id runs.
      * Covers the counted-loop override in {@code LimitingCollector} and the per-document one in {@code ScoringCollector}
@@ -805,6 +848,39 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         @Override
         public int hashCode() {
             return 31 * classHash() + Boolean.hashCode(useDocIdStream);
+        }
+    }
+
+    /**
+     * Match-all query that counts how often it is rendered. Its weight reports this query, so the operator renders this one.
+     */
+    private static class RenderCountingQuery extends Query {
+        private final AtomicInteger renders = new AtomicInteger();
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new FilterWeight(this, Queries.ALL_DOCS_INSTANCE.createWeight(searcher, scoreMode, boost)) {};
+        }
+
+        @Override
+        public String toString(String field) {
+            renders.incrementAndGet();
+            return "RenderCountingQuery";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
         }
     }
 

@@ -73,6 +73,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.junit.Before;
@@ -190,6 +191,13 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         assertNotEquals(q1, getKnnVectorQuery("f1", vector(1, 1), 10));
         assertNotEquals(q1, getKnnVectorQuery("f1", vector(0, 1), 2));
         assertNotEquals(q1, getKnnVectorQuery("f1", vector(0), 10));
+    }
+
+    public void testLeafCollectorBudgetKeepsOverspillHeadroom() {
+        int k = random().nextInt(100) + 1;
+        float oversample = 1f + random().nextFloat() * 9f;
+        AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", randomVector(4), k);
+        assertEquals(IvfSegmentConfig.leafCollectorBudget(k, oversample), query.leafCollectorBudget(oversample));
     }
 
     /**

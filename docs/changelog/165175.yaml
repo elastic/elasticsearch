@@ -1,5 +1,0 @@
-area: Infra/Core
-issues: []
-pr: 165175
-summary: Empty `SingleShardRequest#indices` without an index
-type: bug

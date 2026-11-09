@@ -1994,3 +1994,143 @@ Fields of a columnar_stored _source under FLS:
           query: 'FROM index_fls_columnar_stored METADATA _source | KEEP _source | LIMIT 1'
   - match: { values.0.0.name: "a" }
   - is_false: "values.0.0.secret"
+
+---
+ColumNAR long null offsets of a denied field are not exposed under FLS (columnar):
+  # A long field stored with the ColumNAR numeric codec keeps its non-null values in a binary payload and places its nulls
+  # with a <field>.offsets companion. The companion must follow its field: a denied field must not leak where its nulls were.
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, columnar_numeric_codec ]
+      reason: "the ColumNAR numeric codec is behind a feature flag"
+
+  - do:
+      indices.create:
+        index: index_fls_columnar_long_deny
+        body:
+          settings:
+            index.mode: columnar
+            index.columnar_numeric_codec.enabled: true
+          mappings:
+            properties:
+              name:
+                type: long
+              secret:
+                type: long
+
+  - do:
+      bulk:
+        index: index_fls_columnar_long_deny
+        refresh: true
+        body:
+          - '{"create": {"_id": "1"}}'
+          - '{"name": [3, null, 3, 1], "secret": [null, 30, 10]}'
+          - '{"create": {"_id": "2"}}'
+          - '{"name": [4, 5], "secret": [50, null]}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_columnar_long_deny" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
+  - match: { name: "test-fls" }
+  - set:
+      encoded: credentials
+
+  # With superuser: both fields return their arrays, nulls in place
+  - do:
+      search:
+        index: index_fls_columnar_long_deny
+        body:
+          sort: [ { _id: asc } ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: [ 3, null, 3, 1 ] }
+  - match: { hits.hits.0._source.secret: [ null, 30, 10 ] }
+  - match: { hits.hits.1._source.name: [ 4, 5 ] }
+  - match: { hits.hits.1._source.secret: [ 50, null ] }
+
+  # With FLS API Key: name keeps its nulls, secret and its offsets are denied
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls_columnar_long_deny
+        body:
+          sort: [ { _id: asc } ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: [ 3, null, 3, 1 ] }
+  - is_false: "hits.hits.0._source.secret"
+  - match: { hits.hits.1._source.name: [ 4, 5 ] }
+  - is_false: "hits.hits.1._source.secret"
+
+---
+ColumNAR long null offsets follow an explicitly granted field under FLS (columnar):
+  # With grant: ["name"] (no wildcard), name.offsets does not literally match "name". FieldSubsetReader must filter it under
+  # its parent's name so the granted field keeps its nulls.
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, columnar_numeric_codec ]
+      reason: "the ColumNAR numeric codec is behind a feature flag"
+
+  - do:
+      indices.create:
+        index: index_fls_columnar_long_grant
+        body:
+          settings:
+            index.mode: columnar
+            index.columnar_numeric_codec.enabled: true
+          mappings:
+            properties:
+              name:
+                type: long
+              secret:
+                type: long
+
+  - do:
+      bulk:
+        index: index_fls_columnar_long_grant
+        refresh: true
+        body:
+          - '{"create": {"_id": "1"}}'
+          - '{"name": [3, null, 3, 1], "secret": [null, 30, 10]}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_columnar_long_grant" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name" ]
+  - match: { name: "test-fls" }
+  - set:
+      encoded: credentials
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls_columnar_long_grant
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: [ 3, null, 3, 1 ] }
+  - is_false: "hits.hits.0._source.secret"

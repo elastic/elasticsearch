@@ -80,6 +80,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -91,6 +92,7 @@ import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.OnFailureStoredValues;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -1792,6 +1794,72 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 )
             ) {
                 assertEquals("{\"keep\":[3,1,2]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
+     * A {@code long} field stored with the ColumNAR numeric codec keeps its non-null values in document order and places its nulls
+     * with an {@code .offsets} companion. The companion has to follow its field's FLS decision: a hidden field must not leak where
+     * its nulls were, and a granted one must keep them.
+     */
+    public void testColumnarLongNullOffsetsFollowTheirField() throws Exception {
+        assumeTrue("behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarLongMapper();
+        CheckedConsumer<XContentBuilder, IOException> source = b -> {
+            b.array("keep", 3, null, 3, 1);
+            b.array("secret", null, 30, 10);
+        };
+        String[] all = new String[] { "*" };
+        assertEquals("{\"keep\":[3,null,3,1]}", columnarLongSource(mapper, source, all, new String[] { "secret" }));
+        assertEquals("{\"keep\":[3,null,3,1]}", columnarLongSource(mapper, source, new String[] { "keep" }, null));
+        assertEquals("{\"keep\":[3,null,3,1]}", columnarLongSource(mapper, source, new String[] { "k*" }, null));
+        assertEquals("{\"secret\":[null,30,10]}", columnarLongSource(mapper, source, new String[] { "secret" }, null));
+        assertEquals("{\"secret\":[null,30,10]}", columnarLongSource(mapper, source, all, new String[] { "keep" }));
+        assertEquals("{\"keep\":[3,null,3,1],\"secret\":[null,30,10]}", columnarLongSource(mapper, source, all, null));
+        assertEquals("{}", columnarLongSource(mapper, source, new String[] { "other" }, null));
+    }
+
+    private DocumentMapper columnarLongMapper() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("keep").field("type", "long").endObject();
+            b.startObject("secret").field("type", "long").endObject();
+        })).documentMapper();
+        for (String field : List.of("keep", "secret")) {
+            NumberFieldMapper.NumberFieldType fieldType = (NumberFieldMapper.NumberFieldType) mapper.mappers().getFieldType(field);
+            assertEquals(NumberFieldMapper.DocValuesDiskFormat.COLUMNAR, fieldType.diskFormat());
+        }
+        return mapper;
+    }
+
+    /** Indexes one document into a segment of its own and reads its synthetic source back through a field-level-security filter. */
+    private String columnarLongSource(
+        DocumentMapper mapper,
+        CheckedConsumer<XContentBuilder, IOException> source,
+        String[] granted,
+        String[] denied
+    ) throws IOException {
+        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(granted, denied));
+        try (Directory directory = newDirectory()) {
+            ParsedDocument doc = mapper.parse(source(source));
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                doc.updateSeqID(0, 0);
+                doc.version().setLongValue(0);
+                iw.addDocuments(doc.docs());
+            }
+            try (
+                DirectoryReader reader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    mapper.mapping().ignoredSourceFormat(),
+                    fieldName -> mapper.mappers().getFieldType(fieldName) != null
+                )
+            ) {
+                return syntheticSource(mapper, reader, doc.docs().size() - 1);
             }
         }
     }

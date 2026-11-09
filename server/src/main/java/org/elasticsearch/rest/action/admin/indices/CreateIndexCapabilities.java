@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.util.HashSet;
@@ -74,6 +75,13 @@ public class CreateIndexCapabilities {
      */
     private static final String DYNAMIC_FLATTENED_CAPABILITY = "dynamic_flattened";
 
+    /**
+     * Support for {@code index.columnar_numeric_codec.enabled}, which stores {@code long} fields of strict columnar indices with the
+     * ColumNAR codec. Advertised only when the feature flag is on, so yaml tests can gate on it and skip on builds where the setting
+     * is unavailable.
+     */
+    private static final String COLUMNAR_NUMERIC_CODEC_CAPABILITY = "columnar_numeric_codec";
+
     public static final Set<String> CAPABILITIES;
 
     static {
@@ -97,6 +105,9 @@ public class CreateIndexCapabilities {
         }
         if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
             caps.add(DYNAMIC_FLATTENED_CAPABILITY);
+        }
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled()) {
+            caps.add(COLUMNAR_NUMERIC_CODEC_CAPABILITY);
         }
         CAPABILITIES = Set.copyOf(caps);
     }

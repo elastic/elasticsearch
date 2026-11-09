@@ -80,6 +80,7 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
     task.skipTest("indices.recovery/10_basic/Indices recovery test for closed index", "IP/Host regexes in tests on old versions don't support IPV6")
     task.skipTest("indices.recovery/10_basic/Indices recovery test", "IP/Host regexes in tests on old versions don't support IPV6")
   }
+  task.skipTest("search/260_parameter_validation/test script field without a script is a bad request", "fails in older versions because it's not backported yet")
   task.skipTest("search/330_fetch_fields/Test with subobjects: auto", "subobjects auto removed")
   task.skipTest("search/500_date_range/from, to, include_lower, include_upper deprecated", "deprecated parameters are removed in 9.0")
   task.skipTest("search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL", "semantics of test has changed")

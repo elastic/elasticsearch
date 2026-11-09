@@ -219,12 +219,18 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
+        return getFieldValue(FieldPath.parse(path), clazz, ignoreMissing);
+    }
+
+    private <T> T getFieldValue(FieldPath fieldPath, Class<T> clazz, boolean ignoreMissing) {
+        final FieldPath parsedPath = fieldPath.resolve(this);
+        final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
-        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
-        Object context = fieldPath.initialContext(this);
+        parsedPath.validate(accessPattern);
+        Object context = parsedPath.initialContext(this);
         Object result = resolve(
-            fieldPath.pathElements,
-            fieldPath.pathElements.length,
+            parsedPath.pathElements,
+            parsedPath.pathElements.length,
             path,
             context,
             accessPattern,
@@ -261,14 +267,20 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
+        return hasField(FieldPath.parse(path), failOutOfRange);
+    }
+
+    private boolean hasField(FieldPath fieldPath, boolean failOutOfRange) {
+        final FieldPath parsedPath = fieldPath.resolve(this);
+        final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
-        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
-        Object context = fieldPath.initialContext(this);
-        int leafKeyIndex = fieldPath.pathElements.length - 1;
-        int lastContainerIndex = fieldPath.pathElements.length - 2;
-        String leafKey = fieldPath.pathElements[leafKeyIndex];
+        parsedPath.validate(accessPattern);
+        Object context = parsedPath.initialContext(this);
+        int leafKeyIndex = parsedPath.pathElements.length - 1;
+        int lastContainerIndex = parsedPath.pathElements.length - 2;
+        String leafKey = parsedPath.pathElements[leafKeyIndex];
         for (int i = 0; i <= lastContainerIndex; i++) {
-            String pathElement = fieldPath.pathElements[i];
+            String pathElement = parsedPath.pathElements[i];
             if (context == null) {
                 return false;
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
@@ -286,7 +298,7 @@ public final class IngestDocument {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
                             String combinedPath = pathElement;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                combinedPath = combinedPath + "." + parsedPath.pathElements[j];
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -322,7 +334,7 @@ public final class IngestDocument {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
                             String combinedPath = pathElement;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                combinedPath = combinedPath + "." + parsedPath.pathElements[j];
                                 object = typedMap.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -416,13 +428,19 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
      */
     public void removeField(String path, boolean ignoreMissing) {
+        removeField(FieldPath.parse(path), ignoreMissing);
+    }
+
+    private void removeField(FieldPath fieldPath, boolean ignoreMissing) {
+        final FieldPath parsedPath = fieldPath.resolve(this);
+        final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
-        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
-        Object context = fieldPath.initialContext(this);
-        String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
+        parsedPath.validate(accessPattern);
+        Object context = parsedPath.initialContext(this);
+        String leafKey = parsedPath.pathElements[parsedPath.pathElements.length - 1];
         Object result = resolve(
-            fieldPath.pathElements,
-            fieldPath.pathElements.length - 1,
+            parsedPath.pathElements,
+            parsedPath.pathElements.length - 1,
             path,
             context,
             accessPattern,
@@ -653,7 +671,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(String path, Object value, boolean allowDuplicates) {
-        setFieldValue(path, value, true, allowDuplicates, false);
+        setFieldValue(FieldPath.parse(path), value, true, allowDuplicates, false);
     }
 
     /**
@@ -671,7 +689,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(String path, Object value, boolean allowDuplicates, boolean ignoreEmptyValues) {
-        setFieldValue(path, value, true, allowDuplicates, ignoreEmptyValues);
+        setFieldValue(FieldPath.parse(path), value, true, allowDuplicates, ignoreEmptyValues);
     }
 
     /**
@@ -703,7 +721,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value) {
-        setFieldValue(path, value, false, false, false);
+        setFieldValue(FieldPath.parse(path), value, false, false, false);
     }
 
     /**
@@ -760,17 +778,19 @@ public final class IngestDocument {
         }
     }
 
-    private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {
+    private void setFieldValue(FieldPath fieldPath, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {
         assert append || (allowDuplicates == false && ignoreEmptyValues == false)
             : "allowDuplicates and ignoreEmptyValues only apply if append is true";
+        final FieldPath parsedPath = fieldPath.resolve(this);
+        final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
-        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
-        Object context = fieldPath.initialContext(this);
-        int leafKeyIndex = fieldPath.pathElements.length - 1;
-        int lastContainerIndex = fieldPath.pathElements.length - 2;
-        String leafKey = fieldPath.pathElements[leafKeyIndex];
+        parsedPath.validate(accessPattern);
+        Object context = parsedPath.initialContext(this);
+        int leafKeyIndex = parsedPath.pathElements.length - 1;
+        int lastContainerIndex = parsedPath.pathElements.length - 2;
+        String leafKey = parsedPath.pathElements[leafKeyIndex];
         for (int i = 0; i <= lastContainerIndex; i++) {
-            String pathElement = fieldPath.pathElements[i];
+            String pathElement = parsedPath.pathElements[i];
             if (context == null) {
                 throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
@@ -797,7 +817,7 @@ public final class IngestDocument {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
                             String combinedPath = pathElement;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                combinedPath = combinedPath + "." + parsedPath.pathElements[j];
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -844,7 +864,7 @@ public final class IngestDocument {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
                             String combinedPath = pathElement;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                combinedPath = combinedPath + "." + parsedPath.pathElements[j];
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used

@@ -11,6 +11,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -31,12 +32,12 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class StatelessRestoringShardIT extends AbstractStatelessRestoringShardIT {
 
-    private static final String PAINLESS_EXECUTE = """
+    private static final String PAINLESS_EXECUTE = Strings.format("""
         {
           "script": { "source": "true" },
           "context": "filter",
           "context_setup": { "index": "%s", "document": { "field": "value" } }
-        }""".formatted(RESTORED_INDEX);
+        }""", RESTORED_INDEX);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

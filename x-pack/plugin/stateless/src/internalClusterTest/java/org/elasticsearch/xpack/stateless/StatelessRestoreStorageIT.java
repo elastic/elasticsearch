@@ -29,7 +29,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 public class StatelessRestoreStorageIT extends AbstractStatelessPluginIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        // Control reported capacity instead of exhausting the test host's disk. Recovery and the metrics/reroute pipeline remain real.
         return Stream.concat(super.nodePlugins().stream(), Stream.of(MockInternalClusterInfoService.TestPlugin.class)).toList();
     }
 
@@ -46,7 +45,6 @@ public class StatelessRestoreStorageIT extends AbstractStatelessPluginIntegTestC
         assertAcked(indicesAdmin().prepareDelete("source"));
 
         var infoService = (MockInternalClusterInfoService) internalCluster().getInstance(ClusterInfoService.class, master);
-        // Simulate a small index node vs a large one (both mostly empty). The small node cannot admit the restore.
         infoService.setDiskUsageFunctionAndRefresh((node, path) -> {
             long total = node.getName().equals(smallNode) ? ByteSizeValue.ofKb(1).getBytes() : ByteSizeValue.ofGb(100).getBytes();
             return new FsInfo.Path(path.getPath(), path.getMount(), total, total, total);
@@ -78,7 +76,6 @@ public class StatelessRestoreStorageIT extends AbstractStatelessPluginIntegTestC
         startIndexNode();
         internalCluster().stopNode(smallNode);
 
-        // No manual reroute or second restore request.
         assertBusy(
             () -> assertTrue(
                 clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)

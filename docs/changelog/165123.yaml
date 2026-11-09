@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165123
+summary: Drop searchable and aggregatable from DESCRIBE
+type: enhancement

@@ -129,18 +129,11 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         | LIMIT 1000
         """;
 
-    /** From {@code pack_dims_agg} on, the outer aggregate sits directly on the Eval: no PackDims, so no Project feeding it either. */
+    /**
+     * A PackDims over a Project packs the label between the two aggregates: the label is read as absent when empty after the
+     * first pass, so it does not pack inside it.
+     */
     public void testAvgAvgOverTimeOutput() {
-        assumeTrue("plan shape from pack_dims_agg on", packsDimsInAggregate());
-        var plan = planPromql(AVG_AVG_OVER_TIME);
-        var aggregate = avgAvgOverTimeOuterAggregate(plan);
-        var evalMiddle = as(aggregate.child(), Eval.class);
-        assertAvgAvgOverTimeBelow(plan, aggregate, evalMiddle);
-    }
-
-    /** Before {@code pack_dims_agg}, a PackDims over a Project packs the dimension between the two aggregates. */
-    public void testAvgAvgOverTimeOutputBeforePackDimsAgg() {
-        assumeFalse("plan shape before pack_dims_agg", packsDimsInAggregate());
         var plan = planPromql(AVG_AVG_OVER_TIME);
         var aggregate = avgAvgOverTimeOuterAggregate(plan);
         var pack = as(aggregate.child(), PackDims.class);

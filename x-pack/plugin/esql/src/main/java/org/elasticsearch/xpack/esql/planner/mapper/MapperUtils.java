@@ -113,7 +113,7 @@ public class MapperUtils {
         }
 
         if (p instanceof PackDims pack) {
-            return new PackDimsExec(pack.source(), child, pack.dims(), pack.packed());
+            return new PackDimsExec(pack.source(), child, pack.dims(), pack.packed(), pack.emptyAsAbsent());
         }
 
         if (p instanceof UnpackDims unpack) {

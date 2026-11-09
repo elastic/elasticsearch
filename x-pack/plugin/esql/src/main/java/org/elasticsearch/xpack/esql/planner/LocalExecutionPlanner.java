@@ -816,7 +816,7 @@ public class LocalExecutionPlanner {
             channels[i] = source.layout.get(packDimsExec.dims().get(i).id()).channel();
         }
         Layout layout = source.layout.builder().append(packDimsExec.packed()).build();
-        return source.with(new PackDimsOperator.Factory(channels), layout);
+        return source.with(new PackDimsOperator.Factory(channels, packDimsExec.emptyAsAbsent()), layout);
     }
 
     private PhysicalOperation planUnpackDims(UnpackDimsExec unpackDimsExec, LocalExecutionPlannerContext context) {

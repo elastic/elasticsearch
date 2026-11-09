@@ -1867,11 +1867,7 @@ public class NumberFieldMapper extends FieldMapper {
                 DocValuesFieldFactory dvFactory
             ) {
                 final long l = value.longValue();
-                if (indexType.hasPoints() && indexType.hasDocValues() && dvFactory.isColumnarNumeric()) {
-                    // LongField writes SORTED_NUMERIC doc values, so a ColumNAR field writes its points and doc values apart.
-                    document.add(new LongPoint(name, l));
-                    dvFactory.addNumericField(document, name, l);
-                } else if (indexType.hasPoints() && indexType.hasDocValues()) {
+                if (indexType.hasPoints() && indexType.hasDocValues()) {
                     document.add(new LongField(name, l, Field.Store.NO));
                 } else if (indexType.hasDocValues()) {
                     dvFactory.addNumericField(document, name, l);
@@ -2981,8 +2977,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
             fieldType.indexType.hasDocValuesSkipper(),
-            builder.indexSettings.getIndexVersionCreated(),
-            fieldType.diskFormat == DocValuesDiskFormat.COLUMNAR
+            builder.indexSettings.getIndexVersionCreated()
         );
     }
 
@@ -3351,16 +3346,23 @@ public class NumberFieldMapper extends FieldMapper {
                 document.add(new Field(name, encodeLongIndexTerm(l), INDEX_TERMS_FIELD_TYPE_INDEX_ONLY));
             }
         } else {
-            if (indexType.hasPoints() && indexType.hasDocValues() && dvFactory.isColumnarNumeric()) {
-                // LongField writes SORTED_NUMERIC doc values, so a ColumNAR field writes its points and doc values apart.
-                document.add(new LongPoint(name, l));
-                dvFactory.addNumericField(document, name, l);
-            } else if (indexType.hasPoints() && indexType.hasDocValues()) {
-                document.add(new LongField(name, l, Field.Store.NO));
-            } else if (indexType.hasDocValues()) {
-                dvFactory.addNumericField(document, name, l);
-            } else if (indexType.hasPoints()) {
-                document.add(new LongPoint(name, l));
+            switch (fieldType.diskFormat) {
+                case COLUMNAR -> {
+                    // LongField writes SORTED_NUMERIC doc values, so a ColumNAR field writes its points and doc values apart.
+                    if (indexType.hasPoints()) {
+                        document.add(new LongPoint(name, l));
+                    }
+                    dvFactory.addColumnarNumericField(document, name, l);
+                }
+                case SORTED_NUMERIC, NONE -> {
+                    if (indexType.hasPoints() && indexType.hasDocValues()) {
+                        document.add(new LongField(name, l, Field.Store.NO));
+                    } else if (indexType.hasDocValues()) {
+                        dvFactory.addNumericField(document, name, l);
+                    } else if (indexType.hasPoints()) {
+                        document.add(new LongPoint(name, l));
+                    }
+                }
             }
         }
         if (stored) {

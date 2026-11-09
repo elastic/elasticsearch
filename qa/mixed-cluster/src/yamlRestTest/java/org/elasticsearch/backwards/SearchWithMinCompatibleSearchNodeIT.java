@@ -133,7 +133,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                 allNodes.stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
             )
         ) {
-            String version = randomBoolean() ? Version.CURRENT : BWC_NODES_VERSION;
+            String version = randomBoolean() ? Version.CURRENT.toString() : BWC_NODES_VERSION;
 
             Request request = new Request(
                 "POST",

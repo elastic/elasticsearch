@@ -11,9 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -30,9 +30,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
+public abstract class Mapper implements Iterable<Mapper> {
 
     public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
@@ -126,7 +127,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         Setting.Property.ServerlessPublic
     );
 
-    public abstract static class Builder {
+    public abstract static class Builder implements ToXContentFragment {
 
         private String leafName;
 
@@ -144,8 +145,39 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         /**
          * Rewrites the builder into a normalized form - merges duplicate mapper definitions,
          * collapses object mappers with subobjects:false, propagates nested include directives, etc.
+         * <p>
+         * Normalizing is idempotent but cannot be undone: it resolves settings that were declared elsewhere, such as an
+         * {@code include_in_root} that an ancestor suppresses or a dimension inherited from a passthrough parent, so they can
+         * no longer be told apart from explicit ones. Merge into a builder before normalizing it, never after. Building and
+         * serializing a {@code MappingBuilder} both normalize it.
          */
         public void normalize(MapperBuilderContext context) {}
+
+        /**
+         * Writes this builder as {@code "<leafName>": {...}}
+         * <p>
+         * Serializing a child on its own does not normalize it. Serialize through {@link MappingBuilder}, which does.
+         */
+        @Override
+        public abstract XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+
+        /**
+         * Collect all leaf Builders under this Builder and pass them to a consumer.
+         * <p>
+         * Like serializing, it expects a normalized tree.
+         *
+         * @param parentPath the full path of the object or field this builder is in, or null if it is a child of the root
+         * @param consumer   receives each field builder with its full path
+         */
+        public abstract void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer);
+
+        /**
+         * The full path of this builder given the full path of its container
+         * @see MapperBuilderContext#buildFullName(String)
+         */
+        protected final String fullPath(@Nullable String parentPath) {
+            return parentPath == null ? leafName() : parentPath + "." + leafName();
+        }
 
         /**
          * Returns the total number of fields that this builder will create.
@@ -332,7 +364,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return getClass().getSimpleName() + "[" + fullPath() + "]";
     }
 
     private static final StringLiteralDeduplicator fieldNameStringDeduplicator = new StringLiteralDeduplicator();

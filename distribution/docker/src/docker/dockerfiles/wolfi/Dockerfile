@@ -20,12 +20,20 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
+<% /*
+  Paths in the Elasticsearch home that are copied to the final image in layers of their own, so that
+  the layers that do not change between builds can be reused. List them from the least to the most
+  frequently changing. Wildcards are allowed: the distribution only contains the machine learning
+  libraries of the architecture being built.
+*/
+def separateLayers = ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
+
 ################################################################################
 # Build stage 1 `builder`:
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:ff0f4a139d24109d731eb9cc4d21b8c4f146603d1d082c24eec222ad8f0ddce3 AS builder
+FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:704212b36834be0a5635101cec0bf0321d1c9e4a444770ff454c4dcd711125ed AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -63,6 +71,8 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 #  8. Make some directories writable. `bin` must be writable because
 #     plugins can install their own CLI utilities.
 #  9. Make some files writable
+# 10. Move the paths that are copied in layers of their own out of the way, keeping their paths, into a
+#     directory per layer
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
@@ -71,7 +81,17 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find . -type f -perm /111 -exec chmod 0555 {} + && \\
     find . -type f ! -perm /111 -exec chmod 0444 {} + && \\
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
-    find config -type f -exec chmod 0664 {} +
+    find config -type f -exec chmod 0664 {} + && \\
+    mkdir /layers && \\
+    n=0 && \\
+    for pattern in <%= separateLayers.collect { "'" + it + "'" }.join(' ') %>; do \\
+        mkdir "/layers/\$n" || exit 1; \\
+        for path in \$pattern; do \\
+            [ -d "\$path" ] || continue; \\
+            mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
+        done; \\
+        n=\$((n + 1)); \\
+    done
 
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
@@ -80,7 +100,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:ff0f4a139d24109d731eb9cc4d21b8c4f146603d1d082c24eec222ad8f0ddce3
+FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:704212b36834be0a5635101cec0bf0321d1c9e4a444770ff454c4dcd711125ed
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -107,6 +127,10 @@ ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 
 WORKDIR /usr/share/elasticsearch
 
+<% separateLayers.eachWithIndex { path, i -> %>
+# Layer of its own: ${path}
+COPY --from=builder --chown=0:0 /layers/${i} /usr/share/elasticsearch
+<% } %>
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH

@@ -1,0 +1,61 @@
+---
+"an object is not a field":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ objects_are_not_fields ]
+      reason: "An object is not a field"
+  - do:
+      indices.create:
+        index: field
+        body:
+          mappings:
+            properties:
+              a:
+                type: keyword
+  - do:
+      indices.create:
+        index: object
+        body:
+          mappings:
+            properties:
+              a:
+                properties:
+                  b:
+                    type: keyword
+  - do:
+      indices.create:
+        index: disabled
+        body:
+          mappings:
+            properties:
+              a:
+                type: object
+                enabled: false
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "field" } }
+          - { "a": "x" }
+          - { "index": { "_index": "object" } }
+          - { "a": { "b": "y" } }
+          - { "index": { "_index": "disabled" } }
+          - { "a": "w" }
+          - { "index": { "_index": "unmapped" } }
+          - { "a": "z" }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM field, object, disabled METADATA _index | KEEP _index, a, a.b | SORT _index | LIMIT 10'
+  - match: { columns.1: { name: a, type: keyword } }
+  - match: { values: [ [ "disabled", null, null ], [ "field", "x", null ], [ "object", null, "y" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM field, object, disabled METADATA _index | KEEP _index, a | SORT _index | LIMIT 10'
+  - match: { columns.1: { name: a, type: keyword } }
+  - match: { values: [ [ "disabled", "w" ], [ "field", "x" ], [ "object", null ] ] }

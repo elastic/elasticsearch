@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.test.ComputeTestCase;
 
@@ -68,6 +69,20 @@ public class MetadataValuesTests extends ComputeTestCase {
             long charged = breaker.getUsed();
             assertThat(values.unsharedUnion(current, Set.of("b")), sameInstance(current));
             assertThat(breaker.getUsed(), equalTo(charged));
+        }
+    }
+
+    /** Most metadata lists hold one or two values, and those lists keep them in fields, without an array. */
+    public void testListOfOneOrTwoValuesIsChargedWithoutAnArray() {
+        CircuitBreaker breaker = blockFactory().breaker();
+        try (MetadataValues values = new MetadataValues(breaker, "test")) {
+            values.string("a");
+            values.string("b");
+            long before = breaker.getUsed();
+
+            List<String> list = values.unsharedUnion(List.of(), randomFrom(Set.of("a"), Set.of("a", "b")));
+
+            assertThat(breaker.getUsed() - before, equalTo(RamUsageEstimator.shallowSizeOf(list)));
         }
     }
 

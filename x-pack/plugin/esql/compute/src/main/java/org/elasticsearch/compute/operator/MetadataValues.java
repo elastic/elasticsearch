@@ -47,6 +47,9 @@ final class MetadataValues implements Releasable {
     /** Shallow size of the immutable list class that {@link List#copyOf} returns for three or more elements. */
     private static final long LIST_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(List.of("a", "b", "c").getClass());
 
+    /** The immutable list class for one or two elements keeps them in fields, without an array. */
+    private static final long SMALL_LIST_SIZE = RamUsageEstimator.shallowSizeOfInstance(List.of("a", "b").getClass());
+
     private final CircuitBreaker breaker;
     /** Names the owning operator in breaker messages. */
     private final String breakerLabel;
@@ -144,11 +147,18 @@ final class MetadataValues implements Releasable {
         return List.of(canonical);
     }
 
-    /** Bytes of an immutable list of {@code size} references, excluding the strings, which are charged once. */
+    /**
+     * Bytes of an immutable list of {@code size} references from {@link List#copyOf} or {@link List#of}, excluding the
+     * strings, which are charged once. The empty list is a shared constant.
+     */
     static long listBytes(int size) {
-        return LIST_SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-        );
+        return switch (size) {
+            case 0 -> 0;
+            case 1, 2 -> SMALL_LIST_SIZE;
+            default -> LIST_SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            );
+        };
     }
 
     /** The bytes currently charged for the values, which is part of the owning operator's buffered memory. */

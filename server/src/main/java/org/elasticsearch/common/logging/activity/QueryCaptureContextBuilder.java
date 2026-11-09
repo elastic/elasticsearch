@@ -21,18 +21,18 @@ import java.util.function.LongSupplier;
  * @param <Request> Request class.
  * @param <Response> Response type for the listener.
  */
-public abstract class ActivityLoggerContextBuilder<Context extends ActivityLoggerContext, Request, Response> {
+public abstract class QueryCaptureContextBuilder<Context extends QueryCaptureContext, Request, Response> {
 
     private final long start;
     protected final Request request;
     protected final Task task;
     protected final LongSupplier nanoTimeSupplier;
 
-    protected ActivityLoggerContextBuilder(Task task, Request request) {
+    protected QueryCaptureContextBuilder(Task task, Request request) {
         this(task, request, System::nanoTime);
     }
 
-    protected ActivityLoggerContextBuilder(Task task, Request request, LongSupplier nanoTimeSupplier) {
+    protected QueryCaptureContextBuilder(Task task, Request request, LongSupplier nanoTimeSupplier) {
         start = nanoTimeSupplier.getAsLong();
         this.nanoTimeSupplier = nanoTimeSupplier;
         this.task = task;

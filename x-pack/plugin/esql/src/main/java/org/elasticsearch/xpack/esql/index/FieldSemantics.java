@@ -152,9 +152,6 @@ public record FieldSemantics(
         if (metricType != null) {
             map.put("metric_type", metricType);
         }
-        if (unit != null) {
-            map.put("unit", unit);
-        }
         if (description != null) {
             map.put("description", description);
         }

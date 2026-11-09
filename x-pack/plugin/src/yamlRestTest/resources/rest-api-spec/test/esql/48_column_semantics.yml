@@ -78,7 +78,7 @@ setup:
   - match:    { columns.1._meta.field.name: latency }
   - match:    { columns.1._meta.field.role: metric }
   - match:    { columns.1._meta.field.metric_type: gauge }
-  - match:    { columns.1._meta.field.unit: ms }
+  - is_false: columns.1._meta.field.unit
   - match:    { columns.1._meta.field.description: Request latency }
   - match:    { columns.2.name: message }
   - match:    { columns.2._meta.field.role: text }
@@ -111,7 +111,7 @@ setup:
 
   - match:    { columns.0._meta.field.role: attribute }
   - match:    { columns.1._meta.field.role: numeric }
-  - match:    { columns.1._meta.field.unit: ms }
+  - match:    { columns.1._meta.unit: ms }
   - is_false: columns.1._meta.field.metric_type
 
 ---

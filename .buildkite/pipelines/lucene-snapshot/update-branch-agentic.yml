@@ -1,0 +1,19 @@
+# Daily main → lucene_snapshot_* merge via Archimedes.
+# Schedule (catalog-info) sets TARGET_BRANCH; change that env to retarget.
+# When the old merge is retired, delete update-branch.yml and its pipeline.
+env:
+  TARGET_BRANCH: "${TARGET_BRANCH:-}"
+
+steps:
+  - trigger: "elasticsearch-agentic-workflow"
+    label: ":robot_face: lucene-merge-conflicts"
+    async: false
+    build:
+      message: "lucene-merge-conflicts: main → ${TARGET_BRANCH}"
+      branch: "main"
+      env:
+        WORKFLOW: "lucene-merge-conflicts"
+        TARGET_BRANCH: "${TARGET_BRANCH}"
+        # compileJava / compileTestJava / spotless run on this agent, not a
+        # forked n4-standard-64 reproduction job.
+        ARCHIMEDES_AGENT_MACHINE_TYPE: "n4-standard-16"

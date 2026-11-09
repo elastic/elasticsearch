@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -24,6 +25,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
@@ -1221,5 +1223,31 @@ public class ServiceUtilsTests extends ESTestCase {
             case COMPLETION, CHAT_COMPLETION, DOCUMENT_EXTRACTION -> TimeValue.timeValueSeconds(120);
             default -> throw new IllegalArgumentException("Invalid task type " + taskType);
         };
+    }
+
+    public void testRemoveFromMap_GivenValueThatIsNotAMap() {
+        assertNonMapValueIsBadRequest(sourceMap -> ServiceUtils.removeFromMap(sourceMap, "settings"));
+    }
+
+    public void testRemoveFromMapOrThrowIfNull_GivenValueThatIsNotAMap() {
+        assertNonMapValueIsBadRequest(sourceMap -> ServiceUtils.removeFromMapOrThrowIfNull(sourceMap, "settings"));
+    }
+
+    public void testRemoveFromMapOrDefaultEmpty_GivenValueThatIsNotAMap() {
+        assertNonMapValueIsBadRequest(sourceMap -> ServiceUtils.removeFromMapOrDefaultEmpty(sourceMap, "settings"));
+    }
+
+    /**
+     * A client can send any JSON value for a field that is expected to be an object, so this must be reported as a bad request
+     * instead of failing with a {@link ClassCastException}, which results in an internal server error.
+     */
+    private static void assertNonMapValueIsBadRequest(Consumer<Map<String, Object>> removeFromMap) {
+        Object notAMap = randomFrom("a string", 42, true, List.of("a", "list"));
+        var sourceMap = new HashMap<String, Object>(Map.of("settings", notAMap));
+
+        var e = expectThrows(ElasticsearchStatusException.class, () -> removeFromMap.accept(sourceMap));
+
+        assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("settings"));
     }
 }

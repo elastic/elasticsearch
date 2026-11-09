@@ -2799,6 +2799,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_CARRIED_FIELD_LABELS,
 
         /**
+         * PromQL filter comparisons against a scalar keep the vector's value whichever side the scalar is on, and a scalar
+         * computed from the source, such as {@code scalar(sum(x))}, may be the right-hand side.
+         */
+        FIX_PROMQL_SCALAR_COMPARISON,
+
+        /**
          * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
          * also match time series where the label is absent ({@code NULL}), per PromQL spec.
          */

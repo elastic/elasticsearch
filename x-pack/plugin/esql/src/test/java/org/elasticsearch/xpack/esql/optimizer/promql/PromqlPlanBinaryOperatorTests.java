@@ -297,8 +297,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
      * join on step. It must read that step, not the command's, which nothing below the join produces.
      */
     public void testTimeBesideScalarOfVectorReadsItsOwnStep() {
-        var plan = planPromql("PROMQL index=k8s step=1m result=(time() / scalar(sum(network.cost)))");
-        assertThat(plan.collect(HashJoin.class), hasSize(1));
+        for (String query : List.of("time() / scalar(sum(network.cost))", "hour() > bool scalar(sum(network.cost))")) {
+            var plan = planPromql("PROMQL index=k8s step=1m result=(" + query + ")");
+            assertThat(query, plan.collect(HashJoin.class), hasSize(1));
+        }
     }
 
     public void testTopLevelBinaryArithmeticQuery() {

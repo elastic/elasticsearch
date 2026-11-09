@@ -7966,3 +7966,51 @@ mapped-1       | William Faulkner | text_state_mapped      | null
 nonexistent-1  | none             | text_state_nonexistent | null
 unmapped-1     | none             | text_state_unmapped    | null
 ;
+
+// A column that one subquery branch computes is loaded from _source in the branches that lack it (#164545), where LOAD null-fills.
+loadAllSubqueryEvalInOneBranchLoadsSourceValueInSiblings
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data, (FROM no_mapping_sample_data | EVAL message = "sub" | LIMIT 1)
+| KEEP message
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 1             | 0
+;
+
+// Without an outer reference the column is still a column of the merge, so it is not left in the sibling's _unmapped_fields.
+loadAllSubqueryEvalInOneBranchNoKeepLoadsSourceValueInSiblings
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | WHERE unmapped_message == "43"), (FROM no_mapping_sample_data | WHERE unmapped_message == "Disconnected from 10.1.0.1" | EVAL message = "sub")
+| SORT unmapped_message
+;
+
+unmapped_message:keyword | message:keyword | _unmapped_fields:_source
+43 | 42 | "{""@timestamp"":""2024-10-23T13:33:34.937Z"",""client_ip"":""173.21.0.5"",""event_duration"":1232381,""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
+Disconnected from 10.1.0.1 | sub | "{""@timestamp"":""2024-10-23T13:55:01.543Z"",""client_ip"":""173.21.3.15"",""event_duration"":1756466,""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""language_code"":""1""}"
+;
+
+// Where a branch genuinely drops the column it stays null-filled there, even though it is read from _source.
+loadAllSubqueryEvalInOneBranchDroppedInSiblingStaysNull
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | DROP message), (FROM no_mapping_sample_data | EVAL message = "sub" | LIMIT 1)
+| KEEP message
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+0                | 1             | 7
+;

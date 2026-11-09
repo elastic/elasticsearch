@@ -2524,7 +2524,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                 return true;
             }
+            if (mergePlan instanceof UnionAll
+                && unmappedResolution.loadsAllUnmappedFields()
+                && isComputedSiblingColumn(attr)
+                && branchCanSurfaceLoadedField(branch, attr.name())) {
+                // A sibling defines the column (EVAL, STATS, ...) and this branch lacks it. LOAD_ALL gives everything that is in
+                // _source, so read it from this branch's source rather than null-filling a value that exists there (#164545).
+                // Where a branch genuinely hides the name (DROP, KEEP without a matching pattern) the check above fails and the
+                // caller null-fills it.
+                FieldAttribute loaded = unmappedKeyword(attr);
+                AbstractConvertFunction cast = implicitCastFromKeyword(attr.dataType(), loaded, context.configuration());
+                if (cast == null) {
+                    return false;
+                }
+                toLoad.add(loaded);
+                if (cast.isNoop() == false) {
+                    aliases.add(new Alias(branch.source(), attr.name(), cast));
+                }
+                return true;
+            }
             return false;
+        }
+
+        /**
+         * Whether {@code attr}, a merge column some branch lacks, was computed by a sibling rather than read from an index: not a
+         * {@link FieldAttribute} (those are the mapped/unmapped cases above), not a metadata or synthetic column (neither lives in
+         * {@code _source}), and of a type a keyword read from {@code _source} can be cast to.
+         */
+        private static boolean isComputedSiblingColumn(Attribute attr) {
+            return attr instanceof FieldAttribute == false
+                && attr instanceof MetadataAttribute == false
+                && MetadataAttribute.isSupported(attr.name()) == false
+                && attr.synthetic() == false
+                && attr.dataType() != NULL
+                && attr.dataType() != UNSUPPORTED;
         }
 
         /**

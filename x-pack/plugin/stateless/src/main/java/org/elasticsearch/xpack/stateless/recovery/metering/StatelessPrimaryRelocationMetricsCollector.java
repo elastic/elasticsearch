@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.recovery.metering;
 
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
-import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.recovery.RelocationSourceMetrics;
 
@@ -41,16 +40,17 @@ public class StatelessPrimaryRelocationMetricsCollector {
         "es.recovery.shard.primary.relocation.source.prewarm_wait.time";
     public static final String PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY = "prewarm_wait_outcome";
 
-    /// captures the outcome of the target's prewarm response
+    /** captures the outcome of the target's prewarm response */
     public enum PrewarmWaitOutcome {
-        /// target replied successfully before the timeout
+        /** target replied successfully before the timeout */
         COMPLETED("completed"),
-        /// the timeout expired on the source before the target replied
+        /** the timeout expired on the source before the target replied */
         TIMED_OUT("timed_out"),
-        /// the target replied with a failure
+        /** the target replied with a failure */
         FAILED("failed");
 
         private final String attributeValue;
+
         PrewarmWaitOutcome(String attributeValue) {
             this.attributeValue = attributeValue;
         }
@@ -72,7 +72,7 @@ public class StatelessPrimaryRelocationMetricsCollector {
     private final DoubleHistogram relocationTargetPreRecoveryDurationMetric;
     private final DoubleHistogram relocationTargetReadIndexingShardStateDurationMetric;
     private final DoubleHistogram relocationTargetOpenEngineDurationMetric;
-    private final LongHistogram relocationPrewarmWaitDurationMetric;
+    private final DoubleHistogram relocationPrewarmWaitDurationMetric;
 
     public StatelessPrimaryRelocationMetricsCollector(MeterRegistry meterRegistry) {
         relocationInitialFlushDurationMetric = meterRegistry.registerDoubleHistogram(
@@ -116,10 +116,10 @@ public class StatelessPrimaryRelocationMetricsCollector {
             "Time spent opening the engine (and activating with primary context) during primary relocation handoff on the target",
             "seconds"
         );
-        relocationPrewarmWaitDurationMetric = meterRegistry.registerLongHistogram(
+        relocationPrewarmWaitDurationMetric = meterRegistry.registerDoubleHistogram(
             RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_MILLIS,
             "Time spent waiting for the target's response, broken down by [" + PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY + "]",
-            "ms"
+            "seconds"
         );
     }
 
@@ -144,6 +144,9 @@ public class StatelessPrimaryRelocationMetricsCollector {
     }
 
     public void recordRelocationSourcePrewarmWait(long durationInMillis, PrewarmWaitOutcome outcome) {
-        relocationPrewarmWaitDurationMetric.record(durationInMillis, Map.of(PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY, outcome.attributeValue()));
+        relocationPrewarmWaitDurationMetric.record(
+            durationInMillis / 1000.0,
+            Map.of(PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY, outcome.attributeValue())
+        );
     }
 }

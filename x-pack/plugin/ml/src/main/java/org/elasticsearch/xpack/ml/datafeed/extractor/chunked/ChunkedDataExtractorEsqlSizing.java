@@ -55,13 +55,13 @@ final class ChunkedDataExtractorEsqlSizing {
     }
 
     /** Returns the shrunk end to retry the chunk with, or empty after recording {@code interval} as incomplete. */
-    OptionalLong onTruncated(long currentStart, long currentEnd, long rowCount, boolean cancelled, SearchInterval interval) {
+    OptionalLong onTruncated(long currentStart, long currentEnd, boolean cancelled, SearchInterval interval) {
         // A cancelled extractor must not start new queries, so a truncated result is accepted as read.
         if (cancelled || canShrink(currentStart, currentEnd) == false) {
             recordIncomplete(interval);
             return OptionalLong.empty();
         }
-        long newEnd = shrunkEnd(currentStart, currentEnd, rowCount);
+        long newEnd = shrunkEnd(currentStart, currentEnd);
         shrinkAttempts++;
         return OptionalLong.of(newEnd);
     }
@@ -71,15 +71,11 @@ final class ChunkedDataExtractorEsqlSizing {
         return shrinkAttempts < MAX_ESQL_SHRINK_ATTEMPTS && intervalLength > minChunkLength();
     }
 
-    private long shrunkEnd(long currentStart, long currentEnd, long rowCount) {
-        assert rowCount >= EsqlDataExtractor.INJECTED_ROW_LIMIT;
+    private long shrunkEnd(long currentStart, long currentEnd) {
         assert shrinkAttempts < MAX_ESQL_SHRINK_ATTEMPTS;
         long intervalLength = currentEnd - currentStart;
-        // Quotient and remainder keep the scaled length from overflowing on large intervals.
-        long targetLength = Math.max(
-            1L,
-            intervalLength / rowCount * DEFAULT_ESQL_CHUNK_DOCS + intervalLength % rowCount * DEFAULT_ESQL_CHUNK_DOCS / rowCount
-        );
+        // A truncated result has exactly INJECTED_ROW_LIMIT rows, so aiming for DEFAULT_ESQL_CHUNK_DOCS rows scales by 1 / headroom.
+        long targetLength = Math.max(1L, intervalLength / CHUNK_HEADROOM_FACTOR);
         long shrunkEnd = timeAligner.alignToFloor(currentStart + targetLength);
         if (shrunkEnd <= currentStart) {
             shrunkEnd = currentStart + minChunkLength();

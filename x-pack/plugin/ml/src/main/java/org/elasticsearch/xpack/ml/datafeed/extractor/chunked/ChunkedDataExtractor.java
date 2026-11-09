@@ -228,13 +228,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         if (esqlSizing.isTruncated(result.rowCount()) == false) {
             return false;
         }
-        OptionalLong shrunkEnd = esqlSizing.onTruncated(
-            currentStart,
-            currentEnd,
-            result.rowCount(),
-            isCancelled(),
-            result.searchInterval()
-        );
+        OptionalLong shrunkEnd = esqlSizing.onTruncated(currentStart, currentEnd, isCancelled(), result.searchInterval());
         if (shrunkEnd.isEmpty()) {
             return false;
         }

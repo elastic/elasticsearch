@@ -59,13 +59,7 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
 
     public void testCancelledTruncatedChunkShouldNotShrinkAndBeRecordedIncomplete() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
-        OptionalLong shrunkEnd = sizing.onTruncated(
-            0L,
-            60_000L,
-            EsqlDataExtractor.INJECTED_ROW_LIMIT,
-            true,
-            new SearchInterval(0L, 60_000L)
-        );
+        OptionalLong shrunkEnd = sizing.onTruncated(0L, 60_000L, true, new SearchInterval(0L, 60_000L));
         assertThat(shrunkEnd, equalTo(OptionalLong.empty()));
         assertThat(sizing.incompleteInterval(), equalTo(Optional.of(new SearchInterval(0L, 60_000L))));
     }
@@ -91,10 +85,9 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
         assertThat(sizing.incompleteInterval(), equalTo(Optional.of(new SearchInterval(0L, 3_000L))));
     }
 
-    public void testLargeIntervalScalingShouldNotOverflow() {
+    public void testLargeIntervalShouldShrinkToOneFifthAlignedDown() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
         long intervalLength = Long.MAX_VALUE / 4L;
-        // 10_000 rows against a 2_000 row target is one fifth of the interval; intervalLength * 2_000 would overflow a long.
         long expectedEnd = intervalLength / 5L - (intervalLength / 5L) % GROUPING_INTERVAL_MILLIS;
         assertThat(truncated(sizing, 0L, intervalLength), equalTo(OptionalLong.of(expectedEnd)));
     }
@@ -105,7 +98,7 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
     }
 
     private static OptionalLong truncated(ChunkedDataExtractorEsqlSizing sizing, long start, long end) {
-        return sizing.onTruncated(start, end, EsqlDataExtractor.INJECTED_ROW_LIMIT, false, new SearchInterval(start, end));
+        return sizing.onTruncated(start, end, false, new SearchInterval(start, end));
     }
 
     private static ChunkedDataExtractorEsqlSizing esqlSizing(boolean injectsRowLimit) {

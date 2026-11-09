@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ describe_command ]
+          capabilities: [ describe_command, column_metadata_field_semantics ]
       reason: "column_metadata reports field semantics as _meta.field"
 
   - do:

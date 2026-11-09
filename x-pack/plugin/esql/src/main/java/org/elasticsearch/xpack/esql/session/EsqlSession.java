@@ -928,7 +928,7 @@ public class EsqlSession {
         if (columnMetadataEnabled) {
             bucketMetadata = BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext);
             // _meta.field and _meta.unit are reported in snapshot builds only for now.
-            if (EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled()) {
+            if (EsqlCapabilities.Cap.COLUMN_METADATA_FIELD_SEMANTICS.isEnabled()) {
                 bucketMetadata = Maps.merge(bucketMetadata, fieldColumnMetadata(optimizedPlan), (a, b) -> Maps.merge(a, b, (m1, m2) -> {
                     throw new IllegalStateException("Should not produce metadata with the same key");
                 }));
@@ -1894,7 +1894,7 @@ public class EsqlSession {
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis parsedPreAnalysis = preAnalyzer.preAnalyze(parsed);
         // Field semantics for column_metadata, in snapshot builds only for now.
-        PreAnalyzer.PreAnalysis preAnalysis = EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled()
+        PreAnalyzer.PreAnalysis preAnalysis = EsqlCapabilities.Cap.COLUMN_METADATA_FIELD_SEMANTICS.isEnabled()
             && QuerySettings.COLUMN_METADATA.get(configuration.resolvedSettings())
                 ? parsedPreAnalysis.withFieldSemantics()
                 : parsedPreAnalysis;

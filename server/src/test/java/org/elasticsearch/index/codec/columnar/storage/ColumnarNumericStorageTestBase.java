@@ -29,7 +29,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.StringHelper;
@@ -148,13 +147,13 @@ abstract class ColumnarNumericStorageTestBase extends ESTestCase {
     }
 
     private static BinaryDocValues binaryDocValues(long[] values) {
-        final BytesRefBuilder builder = new BytesRefBuilder();
+        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
         return new BinaryDocValues() {
             int doc = -1;
 
             @Override
             public BytesRef binaryValue() {
-                return BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { values[doc] }, 1, builder));
+                return BytesRef.deepCopyOf(builder.encode(new long[] { values[doc] }, 1));
             }
 
             @Override

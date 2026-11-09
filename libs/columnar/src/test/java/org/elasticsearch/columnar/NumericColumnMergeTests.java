@@ -24,7 +24,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.test.ESTestCase;
 
@@ -48,7 +47,7 @@ public class NumericColumnMergeTests extends ESTestCase {
     public void testANumericColumnWritesNoTemporaryFile() throws IOException {
         final int numDocs = 3000;
         final FieldType type = columnarBinaryFieldType();
-        final BytesRefBuilder builder = new BytesRefBuilder();
+        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
         try (Directory real = newDirectory()) {
             final ColumnarTestUtils.TempOutputRecorder dir = new ColumnarTestUtils.TempOutputRecorder(real);
             final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG))
@@ -57,7 +56,7 @@ public class NumericColumnMergeTests extends ESTestCase {
                 for (int d = 0; d < numDocs; d++) {
                     final Document doc = new Document();
                     final long[] values = d % 3 == 0 ? new long[] { d, d * 7L } : new long[] { randomLong() };
-                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(NumericBinaryPayload.encode(values, values.length, builder)), type));
+                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(builder.encode(values, values.length)), type));
                     writer.addDocument(doc);
                     if ((d + 1) % 1000 == 0) {
                         writer.commit();
@@ -171,15 +170,13 @@ public class NumericColumnMergeTests extends ESTestCase {
                 // and the ordered check below also verifies per-document association.
                 final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG))
                     .setMergePolicy(new LogDocMergePolicy());
-                final BytesRefBuilder builder = new BytesRefBuilder();
+                final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
                 final int batch = Math.max(1, numDocs / between(2, 6));
                 try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                     for (int d = 0; d < numDocs; d++) {
                         final Document doc = new Document();
                         doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
-                        doc.add(
-                            new Field(FIELD, BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { values[d] }, 1, builder)), type)
-                        );
+                        doc.add(new Field(FIELD, BytesRef.deepCopyOf(builder.encode(new long[] { values[d] }, 1)), type));
                         writer.addDocument(doc);
                         if ((d + 1) % batch == 0) {
                             writer.commit(); // force a segment boundary so the merge has real work

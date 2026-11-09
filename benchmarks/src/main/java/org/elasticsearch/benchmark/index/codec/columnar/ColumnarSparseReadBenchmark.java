@@ -23,7 +23,6 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
@@ -109,16 +108,14 @@ public class ColumnarSparseReadBenchmark {
         tempPath = Files.createTempDirectory("columnar-sparse-");
         directory = FSDirectory.open(tempPath);
         final IndexWriterConfig config = new IndexWriterConfig().setCodec(NumericFormat.COLUMNAR.codec("RANDOM_FULL", blockSize));
-        final BytesRefBuilder builder = new BytesRefBuilder();
+        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
         int presentCount = 0;
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int doc = 0; doc < docCount; doc++) {
                 final Document document = new Document();
                 if (random.nextDouble() < density) {
                     final long value = random.nextInt(1000);
-                    document.add(
-                        new Field(FIELD, BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { value }, 1, builder)), fieldType)
-                    );
+                    document.add(new Field(FIELD, BytesRef.deepCopyOf(builder.encode(new long[] { value }, 1)), fieldType));
                     presentCount++;
                 }
                 writer.addDocument(document);

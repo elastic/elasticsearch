@@ -16,7 +16,6 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -43,7 +42,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
     private final NumericColumnMetadata.Skipper skipperMeta;
     private final IndexInput skipIndex;
 
-    private final BytesRefBuilder payload = new BytesRefBuilder();
+    private final NumericBinaryPayload.Builder payload = new NumericBinaryPayload.Builder();
     private long[] values = new long[8];
     /** Reused across {@link #bulkLongs} calls; grown to the batch size, never to the column size. */
     private int[] ranks = new int[8];
@@ -80,7 +79,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         for (int i = 0; i < count; i++) {
             values[i] = reader.valueAt(first + i);
         }
-        return NumericBinaryPayload.encode(values, (int) count, payload);
+        return payload.encode(values, (int) count);
     }
 
     /** Whether every document in the column holds exactly one value. */

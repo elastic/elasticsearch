@@ -21,7 +21,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.search.FixedBitSetCollector;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.test.ESTestCase;
@@ -161,10 +160,10 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
             // The per-file assertions need the codec's own files, not a packed .cfs.
             iwc.getMergePolicy().setNoCFSRatio(0.0);
         }
-        final BytesRefBuilder builder = new BytesRefBuilder();
+        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (long value : values) {
-                final BytesRef payload = BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { value }, 1, builder));
+                final BytesRef payload = BytesRef.deepCopyOf(builder.encode(new long[] { value }, 1));
                 final Document doc = new Document();
                 doc.add(new Field(FIELD, payload, type));
                 writer.addDocument(doc);

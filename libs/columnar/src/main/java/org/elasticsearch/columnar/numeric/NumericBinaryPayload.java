@@ -43,20 +43,6 @@ public final class NumericBinaryPayload {
 
     private NumericBinaryPayload() {}
 
-    /** Packs {@code values[0..count)} as a payload with no null slots into {@code out}, reusing its buffer. */
-    public static BytesRef encode(long[] values, int count, BytesRefBuilder out) {
-        out.grow(2 * ByteArrayInts.MAX_VINT_BYTES + count * Long.BYTES);
-        final byte[] bytes = out.bytes();
-        int pos = ByteArrayInts.writeVInt(count, bytes, 0);
-        bytes[pos++] = 0; // nullCount
-        for (int i = 0; i < count; i++) {
-            LONG.set(bytes, pos, values[i]);
-            pos += Long.BYTES;
-        }
-        out.setLength(pos);
-        return out.get();
-    }
-
     /**
      * Decodes the non-null values of a payload into {@code dest} (grown as needed) and returns how many there are.
      * Null slots are skipped; values come back in the order they were written.
@@ -120,6 +106,20 @@ public final class NumericBinaryPayload {
                 // The grown tail is zeroed, so new slots start out non-null.
                 nullBits = ArrayUtil.grow(nullBits, (slotCount >>> 3) + 1);
             }
+        }
+
+        /**
+         * The payload for {@code values[0..count)}, none of them null, in place of whatever the builder held. The returned
+         * bytes belong to this builder and are only valid until it is next changed.
+         */
+        public BytesRef encode(long[] values, int count) {
+            reset();
+            if (this.values.length < count) {
+                this.values = new long[ArrayUtil.oversize(count, Long.BYTES)];
+            }
+            System.arraycopy(values, 0, this.values, 0, count);
+            slotCount = count;
+            return build();
         }
 
         /** The number of slots appended so far. */

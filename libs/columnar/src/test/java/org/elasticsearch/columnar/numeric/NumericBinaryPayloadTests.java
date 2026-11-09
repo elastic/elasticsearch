@@ -10,7 +10,6 @@
 package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -46,17 +45,29 @@ public class NumericBinaryPayloadTests extends ESTestCase {
         }
     }
 
-    /** {@link NumericBinaryPayload#encode} writes the same bytes the builder does for slots without nulls. */
-    public void testEncodeMatchesBuilder() {
+    /**
+     * {@link NumericBinaryPayload.Builder#encode} writes the same bytes as adding the values a slot at a time, and replaces
+     * whatever the builder held before, nulls included.
+     */
+    public void testEncodeMatchesAddingValues() throws IOException {
         final long[] values = new long[between(0, 40)];
         for (int i = 0; i < values.length; i++) {
             values[i] = randomLong();
         }
-        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
+        final NumericBinaryPayload.Builder slotAtATime = new NumericBinaryPayload.Builder();
         for (long v : values) {
-            builder.addValue(v);
+            slotAtATime.addValue(v);
         }
-        assertEquals(builder.build(), NumericBinaryPayload.encode(values, values.length, new BytesRefBuilder()));
+        final NumericBinaryPayload.Builder encoder = new NumericBinaryPayload.Builder();
+        for (int i = 0; i < between(0, 20); i++) {
+            encoder.addNull();
+            encoder.addValue(randomLong());
+        }
+        final BytesRef encoded = encoder.encode(values, values.length);
+        assertEquals(slotAtATime.build(), encoded);
+        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
+        assertEquals(values.length, decoder.reset(encoded));
+        assertEquals(0, decoder.nullSlotCount());
     }
 
     /** An empty array is a payload of zero slots, not an absent one. */

@@ -20,8 +20,8 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -114,7 +114,7 @@ public class ColumnarNumericIngestBenchmark {
         if (merge == Merge.NONE) {
             config.setMergePolicy(NoMergePolicy.INSTANCE); // otherwise the default policy merges naturally
         }
-        final BytesRefBuilder builder = new BytesRefBuilder();
+        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
         // Flush periodically so the index holds more than one segment. Buffered on its own, the whole run
         // lands in a single segment, and NoMergePolicy and forceMerge(1) then produce identical output.
         final int docsPerSegment = Math.max(1, docCount / SEGMENTS);

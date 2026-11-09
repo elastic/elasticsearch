@@ -309,10 +309,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             // AllocationGuard.allocationLimitExceeded(<context>, bytes, total, <limit>);
             // }
             // }
-            // The limit and the context name are baked-in constants; the breach path delegates to AllocationGuard to keep this
-            // method compact.
-            // Metrics-only omits the comparison and just charges the total. With metrics on, the breach counts itself first,
-            // since the throw skips the return path that records finished executions.
+            // The limit and context name are baked-in constants; the breach path delegates to AllocationGuard to keep this
+            // method compact. Metrics-only omits the comparison and just charges the total.
             MethodWriter checkAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.CHECK_ALLOC_BYTES);
             checkAllocBytes.visitCode();
             checkAllocBytes.loadThis();

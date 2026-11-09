@@ -40,7 +40,7 @@ public final class AllocationMetrics {
 
     static final String METRIC_PREFIX = "es.script.painless.allocation.execution.";
 
-    /** Prefix of the per-context counter of executions that failed by exceeding the allocation limit. */
+    /** Prefix of the per-context counter of executions that tripped the limit. */
     static final String LIMIT_EXCEEDED_PREFIX = "es.script.painless.allocation.limit_exceeded.";
 
     /** Stands in until real telemetry is installed. */
@@ -106,11 +106,7 @@ public final class AllocationMetrics {
         return METRIC_PREFIX + metricSegment(scriptContextName) + "." + bucketRange(bucket) + ".total";
     }
 
-    /**
-     * {@code es.script.painless.allocation.limit_exceeded.<context>.total}. Kept apart from the execution buckets, which
-     * count only executions that finished: a tripped execution throws before its total is recorded, so without this it
-     * would leave no trace in the metrics at all.
-     */
+    /** {@code es.script.painless.allocation.limit_exceeded.<context>.total}. A tripped execution is never counted in a bucket. */
     static String limitExceededMetricName(String scriptContextName) {
         return LIMIT_EXCEEDED_PREFIX + metricSegment(scriptContextName) + ".total";
     }
@@ -169,13 +165,13 @@ public final class AllocationMetrics {
      * thread is striped onto, and the observers sum each column when telemetry collects. Nothing is pushed and nothing has
      * to be flushed, which matters because a script instance has no end-of-life hook to flush on.
      * <p>
-     * One column per bucket, plus a last column for executions that tripped the allocation limit.
+     * One column per bucket, plus one for executions that tripped the limit.
      */
     public static final class ContextRecorder {
 
         private static final VarHandle SLOT = MethodHandles.arrayElementVarHandle(long[].class);
 
-        /** The column after the buckets, counting executions that exceeded the limit. */
+        /** The column after the buckets. */
         static final int LIMIT_EXCEEDED_SLOT = BUCKET_COUNT;
 
         /** Enough rows that threads rarely share one; the write pool is sized to allocated processors. */
@@ -206,22 +202,19 @@ public final class AllocationMetrics {
             SLOT.getAndAdd(row, bucketIndex(totalBytes), 1L);
         }
 
-        /**
-         * Counts one execution that exceeded the allocation limit, from the generated {@code $checkAllocBytes} breach path
-         * just before it throws. Same striping as {@link #recordExecutionAllocation(long)}.
-         */
+        /** Counts one tripped execution, from the generated {@code $checkAllocBytes} just before it throws. */
         public void recordLimitExceeded() {
             long[] row = rows[(int) (Thread.currentThread().threadId() & (STRIPES - 1))];
 
             SLOT.getAndAdd(row, LIMIT_EXCEEDED_SLOT, 1L);
         }
 
-        /** The executions that exceeded the limit so far, summed across rows. Called when telemetry collects. */
+        /** Tripped executions so far, summed across rows. */
         long limitExceededCount() {
             return count(LIMIT_EXCEEDED_SLOT);
         }
 
-        /** The executions counted in one column so far, summed across rows. Called when telemetry collects. */
+        /** The count in one column so far, summed across rows. Called when telemetry collects. */
         long count(int bucket) {
             long total = 0;
 

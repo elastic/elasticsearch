@@ -320,10 +320,7 @@ public final class WriterConstants {
      */
     public static final Method RECORD_EXECUTION_ALLOCATION = getAsmMethod(void.class, "recordExecutionAllocation", long.class);
 
-    /**
-     * {@link AllocationMetrics.ContextRecorder#recordLimitExceeded()}, invoked on {@code $allocMetrics} from the
-     * {@code $checkAllocBytes} breach path when metrics are on.
-     */
+    /** {@link AllocationMetrics.ContextRecorder#recordLimitExceeded()}, called from {@code $checkAllocBytes} on breach. */
     public static final Method RECORD_LIMIT_EXCEEDED = getAsmMethod(void.class, "recordLimitExceeded");
 
     /** {@link AllocationGuard#sanitizeEstimate(long)} — normalizes an {@code @allocates} estimator's result. */

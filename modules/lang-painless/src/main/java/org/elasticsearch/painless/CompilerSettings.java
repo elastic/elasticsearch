@@ -136,7 +136,7 @@ public final class CompilerSettings {
     /** Record each execution's allocation total. Enables the counter on its own, with no limit enforced. */
     private boolean allocationMetricsEnabled = false;
 
-    /** Name of the context the script is compiled for, so a limit breach can say which context tripped. */
+    /** The script's context, named in the limit breach message. */
     private String scriptContextName;
 
     /**

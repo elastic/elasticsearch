@@ -59,7 +59,7 @@ public class AllocationGuardTests extends ESTestCase {
         assertThat(error.getMessage(), containsString("[20] bytes"));
         assertThat(error.getMessage(), containsString("[110] bytes"));
         assertThat(error.getMessage(), containsString("limit of [100] bytes"));
-        // And the context, so a trip can be told apart per context in the node log.
+        // And the context.
         assertThat(error.getMessage(), containsString("in context [painless_test]"));
     }
 

@@ -55,7 +55,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
         return bucketCount(registry, AllocationMetrics.bucketIndex(totalBytes));
     }
 
-    /** The count the limit-exceeded counter reports for the test context. */
+    /** The limit-exceeded count for the test context. */
     private static long limitExceededCount(RecordingMeterRegistry registry) {
         registry.getRecorder().collect();
 
@@ -154,8 +154,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testLimitTripIsCountedOnItsOwnCounter() {
-        // A tripped execution never reaches the return path, so it is counted where it fails instead: once per execution,
-        // on the limit-exceeded counter, and never in a bucket. An execution that stays under the limit does the reverse.
+        // A trip counts once on its own counter and never in a bucket.
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         AllocationMetrics metrics = recordingMetrics(registry);
         compileWithMetricsAndLimit(LARGE, "1mb", metrics).execute();
@@ -172,7 +171,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testLimitTripWarnsWithTheContextName() {
-        // The node log is the other place trips are counted, so the line has to say which context tripped.
+        // The log line names the context.
         PainlessTestScript tripping = compile("int[] a = new int[100000]; return 1;", "1b");
 
         MockLog.assertThatLogger(
@@ -188,7 +187,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testLimitTripWithoutMetricsStillFails() {
-        // The breach path only counts when metrics are on; without them it must still throw and not touch the registry.
+        // No metrics: still throws, records nothing.
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         expectThrows(ScriptException.class, () -> compile("int[] a = new int[100000]; return 1;", "1b").execute());
 

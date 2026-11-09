@@ -18,9 +18,10 @@ public class DeleteEnrichPolicyActionRequestTests extends AbstractWireSerializin
 
     @Override
     protected DeleteEnrichPolicyAction.Request mutateInstance(DeleteEnrichPolicyAction.Request instance) {
-        String name = instance.getName();
-        String newName = randomValueOtherThan(name, () -> randomAlphaOfLength(4));
-        return new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, newName);
+        return new DeleteEnrichPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            randomValueOtherThan(instance.getName(), () -> randomAlphaOfLength(4))
+        );
     }
 
     @Override

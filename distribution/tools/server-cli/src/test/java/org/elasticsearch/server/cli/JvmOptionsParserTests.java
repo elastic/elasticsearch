@@ -397,7 +397,8 @@ public class JvmOptionsParserTests extends ESTestCase {
             "-XX:CompileCommand=quiet",
             "-XX:CompileCommand=dontinline,java.nio.*::putArray",
             "-XX:CompileCommand=dontinline,java.nio.*::putBuffer",
-            "-XX:CompileCommand=dontinline,java.nio.*::getArray"
+            "-XX:CompileCommand=dontinline,java.nio.*::getArray",
+            "-XX:-DoEscapeAnalysis"
         );
         assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(true).toList(), equalTo(expected));
         assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(false).toList(), empty());

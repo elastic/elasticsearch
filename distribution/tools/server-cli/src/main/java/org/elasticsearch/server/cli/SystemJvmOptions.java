@@ -175,7 +175,8 @@ final class SystemJvmOptions {
             "-XX:CompileCommand=quiet",
             "-XX:CompileCommand=dontinline,java.nio.*::putArray",
             "-XX:CompileCommand=dontinline,java.nio.*::putBuffer",
-            "-XX:CompileCommand=dontinline,java.nio.*::getArray"
+            "-XX:CompileCommand=dontinline,java.nio.*::getArray",
+            "-XX:-DoEscapeAnalysis"
         );
     }
 

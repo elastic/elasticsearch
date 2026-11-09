@@ -26,9 +26,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -69,7 +71,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         Property.NodeScope
     );
 
-    private final LRUQueryCache cache;
+    private final ElasticsearchLRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
@@ -129,6 +131,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     // Visible for testing:
     LRUQueryCache getCache() {
         return cache;
+    }
+
+    /** The number of cache populations running right now, across all threads. Visible for testing. */
+    int inFlightPopulationCount() {
+        return cache.inFlightPopulations.size();
     }
 
     private static QueryCacheStats toQueryCacheStatsSafe(@Nullable Stats stats) {
@@ -275,6 +282,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         assert shardKeyMap.size() == 0 : shardKeyMap.size();
         assert shardStats.isEmpty() : shardStats.keySet();
         assert stats2.isEmpty() : stats2;
+        assert cache.inFlightPopulations.isEmpty() : cache.inFlightPopulations;
 
         // This cache stores two things: filters, and doc id sets. At this time
         // we only know that there are no more doc id sets, but we still track
@@ -345,6 +353,13 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     }
 
     private class ElasticsearchLRUQueryCache extends LRUQueryCache {
+
+        /**
+         * The cache populations running right now, so that concurrent searches do not each build their own copy of the same entry. An
+         * entry is added when {@link #tryPopulateCache} starts building a doc id set and removed when it returns, so the set never holds
+         * more entries than there are threads populating the cache, and is empty on an idle node.
+         */
+        private final Set<Tuple<Object, Query>> inFlightPopulations = ConcurrentCollections.newConcurrentSet();
 
         ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache, float skipFactor) {
             super(maxSize, maxRamBytesUsed, leavesToCache, skipFactor);
@@ -455,6 +470,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             }
         }
 
+        /**
+         * Populates the cache unless another thread is already building the same entry, in which case this returns {@code null} and
+         * the caller runs the query uncached for this leaf, as {@link LRUQueryCache} does whenever population is skipped. An
+         * {@link OptionalCachingWeight} decides for itself which thread populates the cache and what the others do, so it is left to
+         * its own gate.
+         */
         @Override
         protected CacheAndCount tryPopulateCache(
             IndexReader.CacheHelper cacheKey,
@@ -471,7 +492,19 @@ public class IndicesQueryCache implements QueryCache, Closeable {
                     }
                 }
             }
-            return super.tryPopulateCache(cacheKey, weight, scorerSupplier, context);
+            // Building a doc id set costs up to maxDoc / 8 bytes of heap that no circuit breaker charges, and the cache only stores one
+            // copy anyway, so letting every concurrent search build its own copy of a popular filter only wastes heap.
+            // The loser does not wait for the winner: a blocked search thread holds a search pool slot, the winner may be
+            // cancelled or fail.
+            final Tuple<Object, Query> populationKey = Tuple.tuple(cacheKey.getKey(), weight.getQuery());
+            if (inFlightPopulations.add(populationKey) == false) {
+                return null;
+            }
+            try {
+                return super.tryPopulateCache(cacheKey, weight, scorerSupplier, context);
+            } finally {
+                inFlightPopulations.remove(populationKey);
+            }
         }
     }
 

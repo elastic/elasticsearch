@@ -9,19 +9,23 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -33,26 +37,16 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
 /**
  * N-ary logical plan whose children are independently planned branches and whose output is the
  * name-union of those branches. {@link Fork} (the {@code FORK} command), {@link UnionAll} (subquery
- * unions), and {@link ViewUnionAll} (view-produced unions) are the concrete forms. All of them map
+ * unions), and {@link BranchPlan} (view-produced unions) are the concrete forms. All of them map
  * to {@code MergeExec} at the physical layer.
  */
 public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanVerificationAware, ExecutesOn.Coordinator {
 
-    public static final int MAX_BRANCHES = 8;
     private final List<Attribute> output;
 
     protected MergePlan(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
         this.output = output;
-    }
-
-    /**
-     * Branch-count predicate shared by every {@link MergePlan} and any caller that wants to fail
-     * earlier with a more user-facing message. Returns {@code true} if {@code count} would exceed the
-     * branch cap. Centralizes the comparison so the cap can move in one place.
-     */
-    public static boolean exceedsMaxBranches(int count) {
-        return count > MAX_BRANCHES;
     }
 
     @Override
@@ -68,28 +62,83 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         throw new UnsupportedOperationException("not serialized");
     }
 
+    /**
+     * A merge is resolved once its branches are and its output has a column for every column a branch produces. The branches do not
+     * have to line up with the output: a branch lacking a column contributes nulls to it, and the optimizer materializes that
+     * alignment (see {@link MergeBranchAlignment}). Until then, the output is what the rest of the plan reads.
+     * <p>
+     * A branch column that is never a merge column does not count: the no-fields marker and IN-subquery marks. Neither does a
+     * synthetic attribute that appears in a branch once the merge has columns; it only becomes a merge column if a rule that owns it
+     * puts it in the output explicitly (e.g. a union-type conversion pushed into the branches).
+     */
     @Override
     public boolean expressionsResolved() {
         if (children().stream().allMatch(LogicalPlan::resolved) == false) {
             return false;
         }
+        Set<String> outputNames = new HashSet<>(output.size());
+        for (Attribute attr : output) {
+            outputNames.add(attr.name());
+        }
+        for (LogicalPlan child : children()) {
+            for (Attribute attr : child.output()) {
+                if (outputNames.contains(attr.name()) == false && isMergeColumnCandidate(attr, output)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 
-        if (children().stream()
-            .anyMatch(p -> p.outputSet().names().contains(Analyzer.NO_FIELDS_NAME) || output.size() != p.output().size())) {
+    /**
+     * Whether a branch column {@code attr} that is not in the merge's {@code output} has to become one of its columns; see
+     * {@link #expressionsResolved()}.
+     */
+    public static boolean isMergeColumnCandidate(Attribute attr, List<Attribute> output) {
+        if (attr == NO_FIELDS.getFirst() || InSubqueryResolver.isInSubquerySynthetic(attr)) {
             return false;
         }
+        return output.isEmpty() || attr.synthetic() == false;
+    }
 
-        // All branches must output the same column names; otherwise the merge is not resolved.
-        List<String> firstOutputNames = children().getFirst().output().stream().map(Attribute::name).toList();
-        Holder<Boolean> resolved = new Holder<>(true);
-        children().stream().skip(1).forEach(subPlan -> {
-            List<String> names = subPlan.output().stream().map(Attribute::name).toList();
-            if (names.equals(firstOutputNames) == false) {
-                resolved.set(false);
+    /**
+     * The columns a merge with branches {@code subplans} and output {@code previous} has once its output is brought up to date with
+     * the branches: {@link #outputUnion} of the branches, without the branch columns that {@link #isMergeColumnCandidate} rules
+     * out, in the order of {@link #inOrderOf}.
+     */
+    public static List<Attribute> mergeColumns(List<LogicalPlan> subplans, List<Attribute> previous) {
+        Set<String> previousNames = new HashSet<>(previous.size());
+        for (Attribute attr : previous) {
+            previousNames.add(attr.name());
+        }
+        List<Attribute> union = new ArrayList<>(outputUnion(subplans));
+        union.removeIf(attr -> previousNames.contains(attr.name()) == false && isMergeColumnCandidate(attr, previous) == false);
+        return inOrderOf(union, previous);
+    }
+
+    /**
+     * {@code union}, a merge's new columns (as from {@link #outputUnion}), ordered like the merge's {@code previous} output: the
+     * columns it already had keep their position, and new ones come after them, in {@code union}'s order. Once a merge's columns
+     * are first determined, later changes to its branches (which can reorder a branch's own output, e.g. an {@code Eval} shadowing
+     * one of its columns) must not reorder the columns the query returns.
+     */
+    public static List<Attribute> inOrderOf(List<Attribute> union, List<Attribute> previous) {
+        if (previous.isEmpty()) {
+            return union;
+        }
+        Map<String, Attribute> byName = new LinkedHashMap<>();
+        for (Attribute attr : union) {
+            byName.putIfAbsent(attr.name(), attr);
+        }
+        List<Attribute> ordered = new ArrayList<>(union.size());
+        for (Attribute attr : previous) {
+            Attribute column = byName.remove(attr.name());
+            if (column != null) {
+                ordered.add(column);
             }
-        });
-
-        return resolved.get();
+        }
+        ordered.addAll(byName.values());
+        return ordered;
     }
 
     public abstract MergePlan replaceSubPlans(List<LogicalPlan> subPlans);
@@ -101,7 +150,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * <p>
      * Deliberately {@code final} and expressed in terms of {@link #replaceSubPlansAndOutput}: a per-subclass
      * implementation only has to construct the node itself, and any such implementation that names a concrete
-     * constructor silently downgrades a further subclass. {@link ViewUnionAll} is the case in point — it carries a
+     * constructor silently downgrades a further subclass. {@link BranchPlan} is the case in point — it carries a
      * named-subqueries map and view-branch keys that a {@code new UnionAll(...)} here would drop, turning its view
      * boundaries back into anonymous union branches. Subclasses only need {@link #replaceSubPlansAndOutput} to be
      * faithful, which they already need for every other rewrite.
@@ -113,7 +162,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     /**
      * Drop branches whose root the {@code isEmpty} predicate considers empty. Each
      * {@link MergePlan} subclass with structural invariants beyond the positional children list
-     * (notably {@link ViewUnionAll}, which carries a named-subqueries map) overrides this method
+     * (notably {@link BranchPlan}, which carries a named-subqueries map) overrides this method
      * to preserve those invariants.
      * <p>
      * Behaviour:
@@ -124,9 +173,9 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      *       with zero children. The caller is expected either to short-circuit the
      *       all-empty case before calling (e.g. {@code PruneEmptyMergeBranches} replaces with
      *       a {@code LocalRelation} when every branch reduces to empty) or to let the
-     *       analyzer's verifier surface the empty-merge state via {@link #checkNonEmpty}.</li>
+     *       analyzer's verifier surface the empty-merge state via {@link #checkBranchCount}.</li>
      * </ul>
-     * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
+     * Single-survivor collapse semantics — a {@link UnionAll}/{@link BranchPlan} with one
      * branch left is equivalent to that branch — are not part of this primitive; callers that
      * want that collapse do it explicitly (see {@code ViewCompaction.stripViewShadowRelations}).
      * A {@link Fork} with a single branch is still a {@link Fork} per FORK syntax.
@@ -144,9 +193,14 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         return replaceChildren(kept);
     }
 
+    /**
+     * The output re-derived from the branches, see {@link #mergeColumns}. Once the optimizer has aligned the branches, that is also
+     * their columns, in their order.
+     */
     protected List<Attribute> refreshedOutput() {
-        List<Attribute> converted = toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
-        // LOAD_ALL stamps $$unmapped_fields; preserve type-conflict UnsupportedAttributes that alignment Eval-null'd in children.
+        List<Attribute> converted = toReferenceAttributesPreservingIds(mergeColumns(children(), output()), this.output());
+        // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that union-type resolution Eval-null'd in
+        // children.
         if (unmappedFieldsAttributeFromChildren() != null) {
             converted = keepExistingUnsupportedAttributes(converted, this.output());
         }
@@ -160,7 +214,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         }
         for (int i = 0; i < converted.size(); i++) {
             if (converted.get(i).name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
-                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the merge.
+                // Keep the subtype so that _unmapped_fields is found after the merge and returned.
                 converted.set(i, ufa.withId(converted.get(i).id()));
                 break;
             }
@@ -211,7 +265,11 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                     continue;
                 }
 
-                if (names.contains(attr.name()) == false && attr != NO_FIELDS.getFirst()) {
+                // Keep union-type cast synthetics ($$field$converted_to$type): a conversion above the merge still references them. Drop
+                // only IN-subquery marks/consts, which are local to the rewrite and leak if they become merge columns.
+                if (names.contains(attr.name()) == false
+                    && attr != NO_FIELDS.getFirst()
+                    && InSubqueryResolver.isInSubquerySynthetic(attr) == false) {
                     names.add(attr.name());
                     output.add(attr);
                 }
@@ -249,20 +307,23 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return MergePlan::checkNonEmpty;
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(
+        AnalysisRegistry analysisRegistry,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return (plan, failures) -> {
+            if (plan != this) {
+                return;
+            }
+            checkBranchCount(plan, failures, pragmas, flags);
+            postAnalysisPlanVerification().accept(plan, failures);
+        };
     }
 
-    /**
-     * Shared empty-merge check for every {@link MergePlan} subclass. Lives at post-analysis verification rather than the constructor so
-     * that compaction passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both {@code Fork::checkFork} and
-     * {@code UnionAll::checkUnionAll} since each subclass dispatches to its own {@link #postAnalysisPlanVerification()} override. This
-     * check can be deferred to logical verifier once we have a logical planner rule that can flatten and simplify a {@code MergePlan}
-     * further.
-     */
-    static void checkNonEmpty(LogicalPlan plan, Failures failures) {
-        if (plan instanceof MergePlan merge && merge.children().isEmpty()) {
-            failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
+    void checkBranchCount(LogicalPlan plan, Failures failures, QueryPragmas pragmas, EsqlFlags flags) {
+        if (plan.children().isEmpty()) {
+            failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
         }
     }
 }

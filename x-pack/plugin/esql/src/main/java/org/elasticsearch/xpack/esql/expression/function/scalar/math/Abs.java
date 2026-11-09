@@ -44,9 +44,9 @@ public class Abs extends UnaryScalarFunction implements AnyNullIsNull {
         .description("Returns the input vector with all sample values converted to their absolute value.")
         .example("abs(rate(http_requests_total[5m]))")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(
+        .stdDivergence(
             "For the minimum `integer` or `long` value, whose absolute value cannot be represented, {{es}} returns "
-                + "`null` and emits a warning. Prometheus, which operates on floating-point values, returns the "
+                + "`null` and emits a warning. {{prom}}, which operates on floating-point values, returns the "
                 + "absolute value instead."
         )
         .name("abs");

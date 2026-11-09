@@ -10,12 +10,14 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,7 +37,7 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
     @Override
     protected FailureWrapper mutateInstance(FailureWrapper instance) {
         Failure failure = instance.failure();
-        int fieldToMutate = randomIntBetween(0, 6);
+        int fieldToMutate = randomIntBetween(0, 7);
         Failure mutated = switch (fieldToMutate) {
             case 0 -> new Failure(
                 randomValueOtherThan(failure.getIndex(), () -> randomAlphaOfLengthBetween(3, 10)),
@@ -106,9 +108,50 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
                 failure.isAborted(),
                 randomValueOtherThan(failure.getFailureStoreStatus(), () -> randomFrom(IndexDocFailureStoreStatus.values()))
             );
+            case 7 -> new Failure(
+                failure.getIndex(),
+                failure.getId(),
+                failure.getCause(),
+                failure.getSeqNo(),
+                failure.getTerm(),
+                failure.isAborted(),
+                failure.getFailureStoreStatus()
+            );
             default -> throw new AssertionError();
         };
+        if (fieldToMutate == 7) {
+            mutated.setFailureStoreCause(failure.getFailureStoreCause() == null || randomBoolean() ? randomException() : null);
+        } else {
+            mutated.setFailureStoreCause(failure.getFailureStoreCause());
+        }
         return new FailureWrapper(mutated);
+    }
+
+    public void testFailureStoreCauseIsSuppressedForOlderVersions() throws IOException {
+        Failure failure = randomFailure();
+        Exception failureStoreCause = randomException();
+        failure.setFailureStoreCause(failureStoreCause);
+        if (randomBoolean()) {
+            failure.getCause().addSuppressed(randomException());
+        }
+        int originalSuppressedCount = failure.getCause().getSuppressed().length;
+        // incompatible versions would wrap unregistered exception types, which production never does
+        TransportVersion version = randomValueOtherThanMany(
+            v -> TransportVersion.isCompatible(v) == false,
+            () -> TransportVersionUtils.randomVersionNotSupporting(Failure.FAILURE_STORE_CAUSE)
+        );
+
+        Failure copy = copyInstance(new FailureWrapper(failure), version).failure();
+
+        assertNull(copy.getFailureStoreCause());
+        Throwable[] copySuppressed = copy.getCause().getSuppressed();
+        assertEquals(originalSuppressedCount + 1, copySuppressed.length);
+        Throwable lastSuppressed = copySuppressed[copySuppressed.length - 1];
+        assertEquals(failureStoreCause.getClass(), lastSuppressed.getClass());
+        assertEquals(failureStoreCause.getMessage(), lastSuppressed.getMessage());
+        assertEquals(originalSuppressedCount, failure.getCause().getSuppressed().length);
+        failure.setFailureStoreCause(null);
+        assertTrue(FailureWrapper.failuresEqual(failure, copy));
     }
 
     /**
@@ -164,7 +207,9 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
                 failure.isAborted(),
                 failure.getFailureStoreStatus(),
                 failure.getCause().getClass(),
-                failure.getCause().getMessage()
+                failure.getCause().getMessage(),
+                failure.getFailureStoreCause() == null ? null : failure.getFailureStoreCause().getClass(),
+                failure.getFailureStoreCause() == null ? null : failure.getFailureStoreCause().getMessage()
             );
         }
 
@@ -176,8 +221,15 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
                 && a.isAborted() == b.isAborted()
                 && a.getStatus() == b.getStatus()
                 && a.getFailureStoreStatus() == b.getFailureStoreStatus()
-                && a.getCause().getClass().equals(b.getCause().getClass())
-                && Objects.equals(a.getCause().getMessage(), b.getCause().getMessage());
+                && exceptionsEqual(a.getCause(), b.getCause())
+                && exceptionsEqual(a.getFailureStoreCause(), b.getFailureStoreCause());
+        }
+
+        private static boolean exceptionsEqual(Exception a, Exception b) {
+            if (a == null || b == null) {
+                return a == b;
+            }
+            return a.getClass().equals(b.getClass()) && Objects.equals(a.getMessage(), b.getMessage());
         }
     }
 
@@ -185,7 +237,7 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
         Exception cause = randomException();
-        return new Failure(
+        Failure failure = new Failure(
             index,
             id,
             cause,
@@ -194,6 +246,10 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
             randomBoolean(),
             randomFrom(IndexDocFailureStoreStatus.values())
         );
+        if (randomBoolean()) {
+            failure.setFailureStoreCause(randomException());
+        }
+        return failure;
     }
 
     static Exception randomException() {

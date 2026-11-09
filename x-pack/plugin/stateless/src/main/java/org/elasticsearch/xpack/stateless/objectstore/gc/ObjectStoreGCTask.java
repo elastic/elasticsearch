@@ -20,7 +20,7 @@ import java.util.Map;
 
 /// A singleton persistent task that runs a recurring garbage-collection loop on the object store.
 /// On every cycle it runs two sub-jobs in parallel (if enabled): [StaleIndicesGCService], which deletes blob
-/// containers for index UUIDs that are no longer referenced in cluster metadata, and [StaleTranslogsGCService],
+/// containers for index UUIDs no longer in metadata and files of shards removed by restore, and [StaleTranslogsGCService],
 /// which deletes translog files belonging to ephemeral node IDs that are no longer present in the cluster.
 ///
 /// After each cycle completes the task reschedules itself after `GC_INTERVAL_SETTING` (default 8h).
@@ -97,7 +97,10 @@ public class ObjectStoreGCTask extends AllocatedPersistentTask {
             return;
         }
 
-        staleIndicesGCService.cleanStaleIndices(listener);
+        try (var listeners = new RefCountingListener(listener)) {
+            staleIndicesGCService.cleanStaleIndices(listeners.acquire());
+            staleIndicesGCService.cleanStaleShardFiles(listeners.acquire());
+        }
     }
 
     private void cleanStaleTranslogs(ActionListener<Void> listener) {

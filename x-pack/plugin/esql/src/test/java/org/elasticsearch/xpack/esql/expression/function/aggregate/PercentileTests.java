@@ -157,7 +157,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
     public static Double getExpectedPercentileForTDigests(List<TDigestHolder> values, double percentile) {
         try (
             TDigest merged = TDigest.createMergingDigest(
-                new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("test-breaker")),
+                new MemoryTrackingTDigestArrays(NoopCircuitBreaker.INSTANCE),
                 TDigestStates.COMPRESSION
             )
         ) {

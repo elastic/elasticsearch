@@ -23,11 +23,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -47,7 +47,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.HollowCommitMetadata;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -95,17 +96,13 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Setting.Property.NodeScope
     );
 
-    /// Controls the heap-based limit on concurrent outgoing primary relocations on stateless indexing nodes. Must be
-    /// strictly positive: 0 is disallowed (consistent with the minimum of
-    /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]).
-    ///
-    /// The effective limit is `min(max_concurrent_outgoing_recoveries, ceil(heapGb * max_concurrent_outgoing_recoveries_per_heap_gb))`.
-    /// See [ThrottledPrimaryRelocations].
-    ///
-    public static final Setting<Double> INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING = Setting.doubleSetting(
-        "indices.recovery.max_concurrent_outgoing_recoveries_per_heap_gb",
-        Double.MAX_VALUE,
-        Double.MIN_NORMAL,
+    /**
+     * Whether relocating a hollow shard transfers its hollow commit metadata to the target, so the target does not read the commit from
+     * the object store. When disabled, the target is asked to prewarm and reads the commit from the object store.
+     */
+    public static final Setting<Boolean> TRANSFER_HOLLOW_COMMIT_METADATA_SETTING = Setting.boolSetting(
+        "stateless.cluster.primary_relocation.transfer_hollow_commit_metadata",
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -129,6 +126,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     private volatile TimeValue slowRelocationWarningThreshold;
     private volatile TimeValue idLookupRecencyThreshold;
     private volatile TimeValue preFlushSlowUploadQueueThreshold;
+    private volatile boolean transferHollowCommitMetadata;
 
     public StatelessPrimaryRelocationSourceService(
         Settings settings,
@@ -162,6 +160,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING, value -> this.preFlushSlowUploadQueueThreshold = value);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING, value -> this.transferHollowCommitMetadata = value);
     }
 
     /// Registers the shared recovery scheduling listeners (available via Guice when the transport action is constructed).
@@ -175,6 +175,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     protected void doStart() {
         if (throttledPrimaryRelocations != null) {
             clusterService.addListener(throttledPrimaryRelocations);
+            throttledPrimaryRelocations.start();
         }
     }
 
@@ -266,9 +267,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             final var engine = indexShard.getEngineOrNull();
             boolean hasRecentIdLookup = engine != null && engine.hasRecentIdLookup(idLookupRecencyThreshold);
 
-            // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
-            // Note that if the shard is already hollow, the target warming will just read a single region.
-            if (hollowShardsService.isHollowableIndexShard(indexShard) == false) {
+            // Hollowable shards are not prewarmed since they are hollowed during relocation, and hollow shards are not prewarmed if their
+            // hollow commit metadata is transferred in the handoff.
+            final boolean hollowCommitMetadataTransferred = engine instanceof HollowIndexEngine && transferHollowCommitMetadata;
+            if (hollowCommitMetadataTransferred == false && hollowShardsService.isHollowableIndexShard(indexShard) == false) {
                 parentClient.execute(
                     TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
                     new TransportStatelessPrimaryRelocationPrewarmAction.PrewarmRequest(
@@ -350,8 +352,16 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 listener0.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
                 return;
             }
-            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
+            // Completed with the pinned upload bound by markRelocating, failed below if the handoff never gets that far.
+            // See StatelessCommitService#installUploadBoundListener
+            final var uploadBoundListener = new SubscribableListener<Long>();
+            final CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> handoffConsumer = (
+                primaryContext,
+                handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
+                // Install the upload bound listener before the final flush, so that a registering search shard cannot pick up a
+                // commit above the upload bound that markRelocating pins after it.
+                statelessCommitServiceProvider.get().installUploadBoundListener(indexShard, uploadBoundListener);
                 Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
                 logShardStats("obtained primary context", indexShard, engine);
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
@@ -409,7 +419,9 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 }
                 logShardStats("flush after acquiring primary context completed", indexShard, engine);
                 final boolean relocatedAsHollow = engine instanceof HollowIndexEngine;
-                long lastFlushedGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
+                long lastFlushedGeneration = engine instanceof HollowIndexEngine hollowEngine
+                    ? hollowEngine.getHollowCommitMetadata().generation()
+                    : engine.getLastCommittedSegmentInfos().getGeneration();
 
                 final var localCheckpoints = new HashMap<>(primaryContext.getCheckpointStates());
                 final var sourceCheckpoints = localCheckpoints.get(indexShard.routingEntry().allocationId().getId());
@@ -540,10 +552,15 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     latestBccBlobLength.set(blobLength);
                     otherBlobFilesCount.set(otherBlobFiles.size());
 
-                    if (indexShard.getEngineOrNull() == null) {
+                    final var handoffEngine = indexShard.getEngineOrNull();
+                    if (handoffEngine == null) {
                         finalHandoffListener.onFailure(new AlreadyClosedException("shard " + shardId + " closed during relocation"));
                         return;
                     }
+                    final HollowShardRecoveryState hollowRecoveryState = transferHollowCommitMetadata
+                        && handoffEngine instanceof HollowIndexEngine hollowEngine
+                            ? hollowRecoveryState(shardId, hollowEngine.getHollowCommitMetadata(), latestBcc)
+                            : null;
                     parentClient.execute(
                         TransportStatelessPrimaryRelocationHandoffAction.TYPE,
                         new TransportStatelessPrimaryRelocationHandoffAction.HandoffRequest(
@@ -562,14 +579,53 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                                 otherBlobFiles,
                                 hasRecentIdLookup,
                                 lastCommitBlobs,
-                                lastCommitIsHollow
+                                lastCommitIsHollow,
+                                hollowRecoveryState
                             )
                         ),
                         finalHandoffListener
                     );
                 }), recoveryExecutor, threadContext);
+            };
+
+            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
+                try {
+                    handoffConsumer.accept(primaryContext, handoffResultListener);
+                } catch (Exception e) {
+                    // Unwind before IndexShard#relocated releases the operation permits, such that a retry stays blocked
+                    // until state is clean. No-op if markRelocating already completed the listener.
+                    uploadBoundListener.onFailure(e);
+                    throw e;
+                }
             }, listener0.map(unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())));
         }), recoveryExecutor, threadContext);
+    }
+
+    /**
+     * Returns the hollow commit metadata to transfer to the relocation target, or {@code null} if the target must read the latest
+     * commit from the object store.
+     *
+     * @param metadata the hollow commit metadata of the engine, or {@code null} if the engine is not hollow
+     */
+    @Nullable
+    static HollowShardRecoveryState hollowRecoveryState(
+        ShardId shardId,
+        @Nullable HollowCommitMetadata metadata,
+        BatchedCompoundCommit latestBcc
+    ) {
+        if (metadata != null && latestBcc.lastCompoundCommit().hollow()) {
+            if (HollowShardRecoveryState.matches(latestBcc, metadata)) {
+                return new HollowShardRecoveryState(latestBcc, metadata);
+            }
+            // A concurrent flush (e.g. by a force merge) can upload another hollow commit after the engine was hollowed
+            logger.debug(
+                "{} hollow engine commit generation [{}] does not match the latest uploaded commit generation [{}], not transferring it",
+                shardId,
+                metadata.generation(),
+                latestBcc.lastCompoundCommit().generation()
+            );
+        }
+        return null;
     }
 
     private void logShardStats(String message, IndexShard indexShard, Engine engine) {
@@ -668,9 +724,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         private final RelocationRunner runner;
         private final ByteSizeValue maxHeap;
 
-        /// Effective max concurrent outgoing relocations, derived from
-        /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING] and
-        /// [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING].
+        /// Effective max concurrent outgoing relocations, see [DataNodeRecoveryThrottlingSettings#watchOutgoingRecoveryLimit].
         private int effectiveMaxConcurrentOutgoingRelocations;
         private int activeRelocationCount = 0;
 
@@ -683,24 +737,13 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             this.executor = executor;
             this.runner = runner;
             this.maxHeap = maxHeap;
+        }
 
-            final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-            final List<Setting<?>> outgoingThrottleSettings = List.of(
-                PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-                INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
-            );
-            this.effectiveMaxConcurrentOutgoingRelocations = effectiveMaxConcurrentRelocations(
-                clusterSettings.get(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
-                clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING)
-            );
-            // These settings jointly determine the effective outgoing relocation limit. Watch them as a group so that a
-            // single cluster-settings update that changes more than one is applied atomically before startRelocationsUpToLimit runs.
-            clusterSettings.addSettingsUpdateConsumer(
-                settings -> applyOutgoingThrottleSettings(
-                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings),
-                    INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings)
-                ),
-                outgoingThrottleSettings
+        void start() {
+            DataNodeRecoveryThrottlingSettings.watchOutgoingRecoveryLimit(
+                clusterService.getClusterSettings(),
+                maxHeap,
+                this::applyMaxConcurrentOutgoingRelocations
             );
         }
 
@@ -784,29 +827,19 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             cancelPendingRelocations(ignored -> true, new NodeClosedException(clusterService.localNode()));
         }
 
-        // visible for testing
-        void applyOutgoingThrottleSettings(int newMax, double newHeapRatio) {
+        private void applyMaxConcurrentOutgoingRelocations(int newMax) {
             final boolean maxIncreased;
             synchronized (this) {
                 final int oldMax = effectiveMaxConcurrentOutgoingRelocations;
-                effectiveMaxConcurrentOutgoingRelocations = effectiveMaxConcurrentRelocations(newMax, newHeapRatio);
-                maxIncreased = oldMax < effectiveMaxConcurrentOutgoingRelocations;
+                effectiveMaxConcurrentOutgoingRelocations = newMax;
+                maxIncreased = oldMax < newMax;
             }
             if (maxIncreased) {
-                // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
-                // applier thread stops before the thread pool shuts down so this should never be rejected.
+                // Move off the calling thread (the cluster applier thread for updates). The generic executor has an
+                // unbounded queue and the cluster applier thread stops before the thread pool shuts down so this should
+                // never be rejected.
                 executor.execute(this::startRelocationsUpToLimit);
             }
-        }
-
-        /// Computes the effective max concurrent outgoing relocations from the static and heap-based limits.
-        private int effectiveMaxConcurrentRelocations(int maxConcurrent, double perHeapGb) {
-            final double heapInGb = maxHeap.getGbFrac();
-            assert heapInGb >= 0;
-            if (heapInGb == 0) { // Heap size unknown, fall back to the static limit.
-                return maxConcurrent;
-            }
-            return Math.min(maxConcurrent, (int) Math.ceil(heapInGb * perHeapGb));
         }
 
         private void startRelocationsUpToLimit() {

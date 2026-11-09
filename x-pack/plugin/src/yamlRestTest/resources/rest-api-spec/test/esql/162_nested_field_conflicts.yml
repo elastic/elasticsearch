@@ -144,25 +144,28 @@ setup:
 
 ---
 "unmapped_fields=load_all KEEP * still nullifies nested":
-  # Wildcard KEEP must not resurrect mapped nested values from _source.
+  # Wildcard KEEP must not resurrect mapped nested values from _source, neither as a column nor inside _unmapped_fields.
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ fix_nested_subfield_extraction, optional_fields_load_all_v2 ]
+          capabilities: [ fix_nested_subfield_extraction, optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard ]
       reason: "SET unmapped_fields=load_all KEEP * must still nullify mapped nested subfields"
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="load_all"; FROM nest_int, obj_long | KEEP * | SORT id | LIMIT 10'
+  - length: { columns: 3 }
   - match: { columns.0.name: "id" }
   - match: { columns.1.name: "item.value" }
   - match: { columns.1.type: "long" }
-  - match: { values.0: [ "n0", null ] }
-  - match: { values.1: [ "n1", null ] }
-  - match: { values.2: [ "o0", 1 ] }
-  - match: { values.3: [ "o1", 2 ] }
+  - match: { columns.2.name: "_unmapped_fields" }
+  - match: { columns.2.type: "_source" }
+  - match: { values.0: [ "n0", null, null ] }
+  - match: { values.1: [ "n1", null, null ] }
+  - match: { values.2: [ "o0", 1, null ] }
+  - match: { values.3: [ "o1", 2, null ] }
 
 ---
 "DOUBLE vs LONG nested conflict":

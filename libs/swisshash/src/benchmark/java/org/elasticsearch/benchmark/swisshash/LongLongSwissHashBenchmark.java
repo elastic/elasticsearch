@@ -75,7 +75,7 @@ public class LongLongSwissHashBenchmark {
     int numWorkers;
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("bench"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     @Setup(Level.Trial)
@@ -83,7 +83,7 @@ public class LongLongSwissHashBenchmark {
         keys = generate(cardinality);
         bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        breaker = new NoopCircuitBreaker("dummy");
+        breaker = NoopCircuitBreaker.INSTANCE;
         threadPool = new TestThreadPool("test", Settings.EMPTY);
     }
 

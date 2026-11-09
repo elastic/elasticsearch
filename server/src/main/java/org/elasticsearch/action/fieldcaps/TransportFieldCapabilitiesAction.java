@@ -30,8 +30,10 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -54,9 +56,12 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -115,6 +120,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final ThreadPool threadPool;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private volatile FieldCapsCache cache = new FieldCapsCache();
 
     @Inject
     public TransportFieldCapabilitiesAction(
@@ -145,6 +151,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.threadPool = threadPool;
         this.forceConnectTimeoutSecs = clusterService.getSettings().getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = crossProjectModeDecider;
+        // _id aggregate depends on this setting
+        clusterService.getClusterSettings().initializeAndWatch(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING, v -> {
+            if (v) {
+                cache = null;
+            } else {
+                cache = new FieldCapsCache();
+            }
+        });
     }
 
     @Override
@@ -312,7 +326,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         curr.get(),
                         true,
                         curr.getIndexMode(),
-                        resp.getNumberOfShards()
+                        resp.getNumberOfShards(),
+                        resp.getCreatedVersion(),
+                        resp.getIndexSettingsVersion(),
+                        resp.getMappingVersion()
                     );
                 }
             }
@@ -332,7 +349,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         mergedCaps,
                         true,
                         a.getIndexMode(),
-                        a.getNumberOfShards()
+                        a.getNumberOfShards(),
+                        a.getCreatedVersion(),
+                        a.getIndexSettingsVersion(),
+                        a.getMappingVersion()
                     );
                 });
             }
@@ -345,18 +365,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 releaseResourcesOnCancel.run();
                 return;
             }
-            indexFailures.collect(index, error);
+            final ShardRestoringException restoring = TransportActions.isShardNotAvailableException(error)
+                ? restoringIndexFailure(index, projectState)
+                : null;
+            // a restoring index is reported with its restore rather than as unavailable
+            indexFailures.collect(index, restoring != null ? restoring : error);
             if (fieldCapTask.isCancelled()) {
                 releaseResourcesOnCancel.run();
             }
         };
         final var finishedOrCancelled = new AtomicBoolean();
-        fieldCapTask.addListener(() -> {
-            if (finishedOrCancelled.compareAndSet(false, true)) {
-                singleThreadedExecutor.execute(releaseResourcesOnCancel);
-                LOGGER.trace("clear index responses on cancellation submitted");
-            }
-        });
         try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
             finishedOrCancelled.set(true);
             if (fieldCapTask.notifyIfCancelled(listener)) {
@@ -388,7 +406,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         })) {
             // local cluster
-            final RequestDispatcher requestDispatcher = new RequestDispatcher(
+            var requestDispatcher = new RequestDispatcher(
                 clusterService,
                 transportService,
                 projectResolver,
@@ -401,9 +419,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 singleThreadedExecutor,
                 handleIndexResponse,
                 handleIndexFailure,
-                refs.acquire()::close
+                refs.acquire()::close,
+                canCache(request, remoteClusterIndices, concreteLocalIndices) ? cache : null
             );
-            requestDispatcher.execute();
+            requestDispatcher.start();
+            fieldCapTask.addListener(() -> {
+                if (finishedOrCancelled.compareAndSet(false, true)) {
+                    singleThreadedExecutor.execute(releaseResourcesOnCancel);
+                    LOGGER.trace("clear index responses on cancellation submitted");
+                }
+            });
 
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
             // send us back all individual index results.
@@ -437,7 +462,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 resp.get(),
                                 resp.canMatch(),
                                 resp.getIndexMode(),
-                                resp.getNumberOfShards()
+                                resp.getNumberOfShards(),
+                                resp.getCreatedVersion(),
+                                resp.getIndexSettingsVersion(),
+                                resp.getMappingVersion()
                             )
                         );
                     }
@@ -498,6 +526,28 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     .maybeEnsureConnectedAndGetConnection(clusterAlias, ensureConnected, connectionListener);
             }
         }
+    }
+
+    private boolean canCache(FieldCapabilitiesRequest request, Map<String, OriginalIndices> remoteIndices, String[] concreteLocalIndices) {
+        if (remoteIndices.isEmpty() == false) {
+            // This cache targets low-latency local requests. A request that fans out to remote clusters already pays
+            // a remote round trip, so the saving is negligible; keep the slots for local requests.
+            return false;
+        }
+        if (concreteLocalIndices.length > FieldCapsCache.MAX_INDICES) {
+            return false;
+        }
+        if (request.cacheable() == false) {
+            return false;
+        }
+        final Function<String, FieldPredicate> fieldFilter = indicesService.getFieldFilter();
+        for (String index : concreteLocalIndices) {
+            // disable cache with field-level security
+            if (fieldFilter.apply(index) != FieldPredicate.ACCEPT_ALL) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static ResolvedIndexExpression createResolvedIndexExpression(String original, String[] concreteIndexNames) {
@@ -565,6 +615,31 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
+    /**
+     * Returns a {@link ShardRestoringException} if {@code index} is a local index being restored by a restore that reports its shards, or
+     * {@code null} otherwise, such as for an index of a remote cluster.
+     */
+    @Nullable
+    private static ShardRestoringException restoringIndexFailure(String index, ProjectState projectState) {
+        final IndexMetadata indexMetadata = projectState.metadata().index(index);
+        return indexMetadata == null
+            ? null
+            : RestoreService.reportableRestoreException(projectState.projectId(), indexMetadata.getIndex(), projectState.cluster());
+    }
+
+    /**
+     * The exception to fail the request with when no index answered: the {@link ShardRestoringException} when every failed index is being
+     * restored by a restore that reports its shards, and otherwise a failure that is not a restore, because if any index failed for another
+     * reason, waiting for the restores would not let the request succeed. Package-private for tests.
+     */
+    static Exception failureWhenNoIndexAnswered(List<FieldCapabilitiesFailure> failures) {
+        return failures.stream()
+            .map(FieldCapabilitiesFailure::getException)
+            .filter(e -> e instanceof ShardRestoringException == false)
+            .findFirst()
+            .orElse(failures.get(0).getException());
+    }
+
     private static void mergeIndexResponses(
         FieldCapabilitiesRequest request,
         CancellableTask task,
@@ -612,8 +687,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         .build()
                 );
             } else {
-                // throw back the first exception
-                listener.onFailure(failures.get(0).getException());
+                // throw back the first exception that is not a restore, or the restore when it is all that stopped the request
+                listener.onFailure(failureWhenNoIndexAnswered(failures));
             }
         } else {
             FieldCapabilitiesResponse.Builder builder = FieldCapabilitiesResponse.builder()
@@ -822,7 +897,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     false,
                     false,
                     null,
+                    null,
                     diff,
+                    null,
                     null,
                     null,
                     null,
@@ -865,6 +942,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 fieldCap.isInference(),
                 fieldCap.isDimension(),
                 fieldCap.metricType(),
+                fieldCap.isPassthrough(),
                 fieldCap.meta()
             );
         }

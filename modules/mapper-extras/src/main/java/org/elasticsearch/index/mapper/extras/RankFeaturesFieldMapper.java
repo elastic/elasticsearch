@@ -46,12 +46,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> positiveScoreImpact = Parameter.boolParam(
-            "positive_score_impact",
-            false,
-            m -> ft(m).positiveScoreImpact,
-            true
-        );
+        private final Parameter<Boolean> positiveScoreImpact = Parameter.boolParam("positive_score_impact", false, true);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -143,11 +138,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
     }
 
     @Override

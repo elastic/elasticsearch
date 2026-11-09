@@ -1,0 +1,9 @@
+knn_eval_user:
+  indices:
+    - names: [ "knn_eval_test" ]
+      privileges: [ "read", "view_index_metadata" ]
+
+knn_eval_read_only:
+  indices:
+    - names: [ "knn_eval_test" ]
+      privileges: [ "read" ]

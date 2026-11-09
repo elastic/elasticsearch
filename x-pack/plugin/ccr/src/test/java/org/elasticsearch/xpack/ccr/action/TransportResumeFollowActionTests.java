@@ -385,6 +385,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         settings.put(IndexMetadata.SETTING_CREATION_DATE, "");
         settings.put(IndexMetadata.SETTING_VERSION_UPGRADED, "");
         settings.put(IndexMetadata.SETTING_VERSION_UPGRADED_STRING, "");
+        settings.put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), "");
 
         Settings result = TransportResumeFollowAction.filter(settings.build());
         assertThat(result.size(), equalTo(0));

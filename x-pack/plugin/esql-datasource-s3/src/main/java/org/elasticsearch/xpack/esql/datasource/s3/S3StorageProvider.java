@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -540,7 +541,7 @@ public class S3StorageProvider implements StorageProvider {
             // Custom endpoint (MinIO, Scaleway, …): cross-region flag is a no-op for non-AWS stores.
             // Seed with us-east-1; if the store validates the signing region it will respond with
             // AuthorizationHeaderMalformed and the provider will discover the correct region via HeadBucket
-            // and retry once (see elastic/esql-planning#1747 step 1).
+            // and retry once.
             builder.region(Region.US_EAST_1);
         }
 
@@ -743,40 +744,74 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageEntry objectMetadata(StoragePath path) throws IOException {
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path).headObjectMetadata();
+    }
+
+    @Override
     public StorageObject newObject(StoragePath path) {
-        validateS3Scheme(path);
-        String bucket = path.host();
-        String key = extractKey(path);
-        DiscoveredClients dc = resolveClientsForBucket(bucket);
-        S3Client sync = dc != null ? dc.sync() : s3Client;
-        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path);
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
-        validateS3Scheme(path);
-        String bucket = path.host();
-        String key = extractKey(path);
-        DiscoveredClients dc = resolveClientsForBucket(bucket);
-        S3Client sync = dc != null ? dc.sync() : s3Client;
-        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length);
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length, lastModified);
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        Target t = resolve(path);
+        S3StorageObject object = new S3StorageObject(
+            t.sync,
+            t.async,
+            asyncReadRetryStrategy,
+            storageIdentity,
+            t.bucket,
+            t.key,
+            path,
+            length,
+            lastModified
+        );
+        object.seedVersion(version);
+        return object;
+    }
+
+    /** The bucket, the key and the clients that serve them, which the four single-path entry points all need. */
+    private record Target(S3Client sync, S3AsyncClient async, String bucket, String key) {}
+
+    /**
+     * Checks the scheme, splits the path, and resolves the clients for that bucket — which may differ from the
+     * configured pair when the bucket lives in another region.
+     */
+    private Target resolve(StoragePath path) {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
         DiscoveredClients dc = resolveClientsForBucket(bucket);
-        S3Client sync = dc != null ? dc.sync() : s3Client;
-        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length, lastModified);
+        return new Target(dc != null ? dc.sync() : s3Client, dc != null ? dc.async() : s3AsyncClient, bucket, key);
     }
 
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        return listObjects(prefix, "", recursive);
+    }
+
+    /**
+     * S3 lists by key prefix natively, so {@code namePrefix} is appended to the directory's key and the store does
+     * the narrowing. The separator closing that directory's key is added either way; what differs is that with a
+     * name prefix the key asked for then deliberately stops mid-name.
+     */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
         validateS3Scheme(prefix);
         String bucket = prefix.host();
         String keyPrefix = extractKey(prefix);
@@ -784,6 +819,7 @@ public class S3StorageProvider implements StorageProvider {
         if (keyPrefix.isEmpty() == false && keyPrefix.endsWith(StoragePath.PATH_SEPARATOR) == false) {
             keyPrefix += StoragePath.PATH_SEPARATOR;
         }
+        keyPrefix += namePrefix;
 
         // Prefer the already-discovered client when available; fall back to s3Client for the first call.
         DiscoveredClients dcNow = discoveredClients;
@@ -822,6 +858,7 @@ public class S3StorageProvider implements StorageProvider {
                     requestBuilder.continuationToken(continuationToken);
                 }
                 ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                ExternalPlanningIo.addMetadataGet(0);
                 for (S3Object s3Object : response.contents()) {
                     if (s3Object.key().endsWith(StoragePath.PATH_SEPARATOR)) {
                         continue; // directory placeholder key (console "folder" object)
@@ -841,6 +878,7 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
             } while (continuationToken != null);
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             // Same typing as the other list sites: a 503/429 must surface as ExternalUnavailableException so the
             // retry layer re-attempts it and the adaptive backoff hears about it.
             ExternalUnavailableException unavailable = mapResolveFailure(prefix, e);
@@ -860,7 +898,17 @@ public class S3StorageProvider implements StorageProvider {
     /** One conversion from an SDK listing entry to a {@link StorageEntry}, shared by both listing shapes. */
     private static StorageEntry toStorageEntry(S3Object s3Object, String pathPrefix) {
         Instant lastModified = s3Object.lastModified() != null ? s3Object.lastModified() : Instant.EPOCH;
-        return new StorageEntry(StoragePath.of(pathPrefix + s3Object.key()), s3Object.size(), lastModified);
+        return new StorageEntry(
+            StoragePath.of(pathPrefix + s3Object.key()),
+            s3Object.size(),
+            lastModified,
+            S3StorageObject.strongEtag(s3Object.eTag())
+        );
+    }
+
+    @Override
+    public boolean listsInKeyOrder() {
+        return true;
     }
 
     @Override
@@ -1157,11 +1205,13 @@ public class S3StorageProvider implements StorageProvider {
                 }
 
                 ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                ExternalPlanningIo.addMetadataGet(0);
 
                 currentBatch = response.contents().iterator();
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
+                ExternalPlanningIo.addMetadataGet(0);
                 ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
                 if (expired != null) {
                     throw expired;

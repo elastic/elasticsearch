@@ -17,8 +17,11 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -80,6 +83,22 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
             );
         }
         meterProvider.close();
+    }
+
+    public void testGetAfterSecureSettingsClosed() throws IOException {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("telemetry.secret_token", "tok");
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "http://127.0.0.1:9")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
+            .setSecureSettings(secureSettings)
+            .build();
+        try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
+            secureSettings.close();
+            supplier.get();
+            assertThat(supplier.authHeader, equalTo("Bearer tok"));
+        }
     }
 
     public void testSampledRootSpanCarriesLegacyOtTracestate() {

@@ -105,7 +105,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-            .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
             // unthrottle the allocation side on the master
             .put(
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
@@ -175,7 +175,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         // This creates target active=2, target queued=1, source active=1, source queued=1.
         final var targetNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
                 .build()
         );
         final var targetTelemetry = resetAndGetTelemetryPlugin(targetNode);
@@ -392,7 +392,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
     public void testRecoveryMetricsOnThrottledStoreRecovery() {
         final var node = internalCluster().startNode(
             Settings.builder()
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
         final var telemetry = resetAndGetTelemetryPlugin(node);
@@ -499,7 +499,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         final var node1 = internalCluster().startNode();
         final var node2 = internalCluster().startNode(
             Settings.builder()
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
         final var node2Telemetry = resetAndGetTelemetryPlugin(node2);
@@ -663,7 +663,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         // directly, so we can make a more precise assertion about the latency metric:
         final var node = internalCluster().startNode(
             Settings.builder()
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)
                 .build()
         );

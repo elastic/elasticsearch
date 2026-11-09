@@ -7,6 +7,8 @@
 :::{include} brief-summary/or.md
 :::
 
+An `or` chain takes at most 8 operands by default. {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Change the limit with the `esql.query.max_branch_count_per_merge` cluster setting.
+
 **Operands**
 
 `lhs`, `rhs` (`instant_vector`)
@@ -22,6 +24,8 @@ An `instant_vector`.
 vector1 or vector2
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
-{{es}} evaluates `or` only at the top level of an expression, and a top-level `or` chain supports at most 8 operands. A nested `or`, or a chain of more than 8 operands, returns a client error (4xx). See [Unsupported PromQL constructs](/reference/query-languages/promql/promql-limitations.md#promql-limitations-unsupported-constructs).
+`on(...)` or `ignoring(...)`, such as `a or on(job) b`, and `or` inside another expression, such as `(sum(a) or sum(b)) * 2` or `count(a or b)`, aren't supported yet. Refer to [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-logical-set-binary-operators).
+:::

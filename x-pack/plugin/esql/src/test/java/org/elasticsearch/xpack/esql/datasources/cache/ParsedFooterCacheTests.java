@@ -23,7 +23,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -31,6 +36,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests the generic parsed-footer cache without depending on any specific format. The cache treats
@@ -67,6 +74,100 @@ public class ParsedFooterCacheTests extends ESTestCase {
         String result = cache.getOrLoad(k, ignore -> expected);
         assertSame(expected, result);
         assertSame(expected, cache.get(k));
+    }
+
+    /**
+     * Reading a parsed footer renews it, on the same clock as the bytes it was parsed from. The reads below
+     * span more than twice the TTL, so under a write clock the entry would be gone by the last one.
+     */
+    public void testReadingAnEntryRenewsIt() {
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
+        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+
+        shortLived.put(k, "footer");
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(k));
+        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
+        while (System.nanoTime() < readUntil) {
+            assertEquals("an entry read at least once per TTL is still served past one TTL", "footer", shortLived.get(k));
+            safeSleep(50);
+        }
+    }
+
+    /**
+     * The two caches take the same TTL but do not age out together, and this pins that rather than leaving
+     * it to a javadoc. A reader that answers from the parsed cache does not touch the bytes, so renewing the
+     * parsed entry alone lets its byte entry go cold. Sharing the TTL value is not co-expiry.
+     */
+    public void testRenewingTheParsedEntryDoesNotRenewItsBytes() {
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
+        ParsedFooterCache<String> parsed = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache bytes = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+        byte[] tail = randomByteArrayOfLength(64);
+
+        parsed.put(k, "footer");
+        bytes.put(k, tail);
+        assertNotNull("both entries must be stored, or the assertions below pass vacuously", parsed.get(k));
+        assertNotNull(bytes.get(k));
+
+        // Read only the parsed side, as a reader answering from the parsed cache does.
+        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
+        while (System.nanoTime() < readUntil) {
+            assertEquals("the parsed entry is renewed by its own reads", "footer", parsed.get(k));
+            safeSleep(100);
+        }
+
+        assertNull("its bytes were not read, so they are released on their own clock", bytes.get(k));
+    }
+
+    /**
+     * The clock still releases a parsed footer nothing is reading. Without this the test above would pass on
+     * a cache with no clock at all.
+     */
+    public void testAnEntryNobodyReadsExpires() {
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
+        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+
+        shortLived.put(k, "footer");
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(k));
+        safeSleep(ttl.millis() * 3);
+
+        assertNull("an entry unread for a TTL is released", shortLived.get(k));
+    }
+
+    /**
+     * The write cap expires a parsed entry even when it is being continuously read, bounding how long a stale
+     * footer (from a same-length overwrite) may be served. TTL=500ms → write cap=3s (6×). Reads every 50ms
+     * keep the access clock alive; the entry must be present at 2.5s (access clock renewal confirmed, cap
+     * not yet fired) and absent at 3.5s (cap fired; continuous reads cannot keep it alive).
+     */
+    public void testWriteCapExpiresAnEntryDespiteContinuousReads() {
+        TimeValue ttl = TimeValue.timeValueMillis(500);
+        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+
+        shortLived.put(k, "footer");
+        long writeNanos = System.nanoTime();
+        assertNotNull("the entry must be stored to begin with", shortLived.get(k));
+
+        long priorCapDeadline = writeNanos + TimeValue.timeValueMillis(2500).nanos();
+        while (System.nanoTime() < priorCapDeadline) {
+            shortLived.get(k);
+            safeSleep(50);
+        }
+        assertNotNull(
+            "entry kept alive by continuous reads must be present at 2.5s: access clock is renewed and write cap has not fired yet",
+            shortLived.get(k)
+        );
+
+        long postCapDeadline = writeNanos + TimeValue.timeValueMillis(3500).nanos();
+        while (System.nanoTime() < postCapDeadline) {
+            shortLived.get(k);
+            safeSleep(50);
+        }
+        assertNull("write cap must force-expire the entry at 3s even though it was continuously read through 3.5s", shortLived.get(k));
     }
 
     public void testPutThenGetReturnsSameInstance() {
@@ -245,6 +346,77 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertSame(recoveredValue, recovered);
     }
 
+    /**
+     * Every caller of a load that trips a breaker receives the loader's own exception from {@link ParsedFooterCache#getOrLoad}
+     * (see {@link #testThunderingHerdPropagatesLoaderFailureAndClearsInFlight}); {@link ParsedFooterCache#rethrowStructural}
+     * is where the sharing is broken, so each caller is routed through it and must get its own instance.
+     */
+    public void testCopiedBreakerFailureKeepsItsCause() {
+        IllegalStateException cause = new IllegalStateException("cause");
+        CircuitBreakingException shared = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
+        shared.initCause(cause);
+
+        CircuitBreakingException copy = expectThrows(
+            CircuitBreakingException.class,
+            () -> ParsedFooterCache.rethrowStructural(new ExecutionException(shared))
+        );
+
+        assertNotSame(shared, copy);
+        assertSame(cause, copy.getCause());
+    }
+
+    public void testWaitersOnAFailedLoadReceiveTheirOwnException() throws Exception {
+        FooterByteCache.Key k = key("tripped.parquet", 1000);
+        CircuitBreakingException boom = new CircuitBreakingException(
+            "[parent] Data too large, data for [parquet reader]",
+            1024,
+            512,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        CountDownLatch loaderStarted = new CountDownLatch(1);
+        CountDownLatch releaseLoader = new CountDownLatch(1);
+        AtomicReference<AssertionError> failure = new AtomicReference<>();
+        Queue<CircuitBreakingException> thrown = new ConcurrentLinkedQueue<>();
+
+        Thread loaderThread = startHerdThread("herd-cbe-loader", failure, () -> {
+            ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(k, ignore -> {
+                loaderStarted.countDown();
+                safeAwait(releaseLoader, LOADER_HOLD_TIMEOUT);
+                throw boom;
+            }));
+            thrown.add(expectThrows(CircuitBreakingException.class, () -> ParsedFooterCache.rethrowStructural(ex)));
+        });
+        safeAwait(loaderStarted);
+
+        int waiterCount = randomIntBetween(3, 15);
+        List<Thread> waiters = new ArrayList<>(waiterCount);
+        for (int i = 0; i < waiterCount; i++) {
+            waiters.add(startHerdThread("herd-cbe-waiter-" + i, failure, () -> {
+                ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(k, ignore -> {
+                    throw new AssertionError("waiter must not load");
+                }));
+                thrown.add(expectThrows(CircuitBreakingException.class, () -> ParsedFooterCache.rethrowStructural(ex)));
+            }));
+        }
+        try {
+            awaitBlockedOnInFlight(waiters, failure);
+        } finally {
+            releaseAndJoinHerd(releaseLoader, loaderThread, waiters, failure);
+        }
+
+        assertThat(thrown, hasSize(waiterCount + 1));
+        Set<CircuitBreakingException> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (CircuitBreakingException e : thrown) {
+            assertNotSame(boom, e);
+            assertTrue("each caller must get its own instance", distinct.add(e));
+            assertEquals(boom.getMessage(), e.getMessage());
+            assertEquals(boom.getBytesWanted(), e.getBytesWanted());
+            assertEquals(boom.getByteLimit(), e.getByteLimit());
+            assertEquals(boom.getDurability(), e.getDurability());
+            assertArrayEquals(boom.getStackTrace(), e.getStackTrace());
+        }
+    }
+
     public void testGetOrLoadPropagatesLoaderException() {
         FooterByteCache.Key k = key("bad.parquet", 1000);
         ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(k, ignore -> {
@@ -321,6 +493,38 @@ public class ParsedFooterCacheTests extends ESTestCase {
         FooterByteCache.Key k = key("file.parquet", 1000);
         assertSame("v", fromSettings.getOrLoad(k, ignore -> "v"));
         assertSame("v", fromSettings.get(k));
+    }
+
+    public void testFromSettingsDefaults() {
+        ParsedFooterCache<String> defaults = ParsedFooterCache.fromSettings(Settings.EMPTY, ignored -> ENTRY_WEIGHT);
+        assertEquals(TimeValue.timeValueMinutes(5), defaults.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(30), defaults.expireAfterWrite());
+    }
+
+    public void testWriteCapIsSixTimesAccessTtl() {
+        Settings settings = Settings.builder().put("esql.external.cache.footer.ttl", "3m").build();
+        ParsedFooterCache<String> configured = ParsedFooterCache.fromSettings(settings, ignored -> ENTRY_WEIGHT);
+        assertEquals(TimeValue.timeValueMinutes(3), configured.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(18), configured.expireAfterWrite());
+    }
+
+    public void testWriteCapSaturatesOnLargeTtl() {
+        // 20000 days exceeds Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanoseconds;
+        // without the saturation guard, WRITE_CAP_MULTIPLIER * ttl_nanos wraps negative.
+        ParsedFooterCache<String> large = new ParsedFooterCache<>(
+            8 * ENTRY_WEIGHT,
+            TimeValue.timeValueDays(20000),
+            ignored -> ENTRY_WEIGHT
+        );
+        assertEquals(Long.MAX_VALUE, large.expireAfterWrite().nanos());
+        // Boundary: exactly Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanos does not saturate.
+        long boundaryNanos = Long.MAX_VALUE / FooterByteCache.WRITE_CAP_MULTIPLIER;
+        ParsedFooterCache<String> boundary = new ParsedFooterCache<>(
+            8 * ENTRY_WEIGHT,
+            TimeValue.timeValueNanos(boundaryNanos),
+            ignored -> ENTRY_WEIGHT
+        );
+        assertEquals(boundaryNanos * FooterByteCache.WRITE_CAP_MULTIPLIER, boundary.expireAfterWrite().nanos());
     }
 
     public void testFromSettingsReadsCoalesceSetting() {
@@ -846,7 +1050,7 @@ public class ParsedFooterCacheTests extends ESTestCase {
     }
 
     private static FooterByteCache.Key key(String path, long length) {
-        return new FooterByteCache.Key(AbstractTestStorageObject.NOOP, path, length);
+        return new FooterByteCache.Key(AbstractTestStorageObject.NOOP, path, length, "v1");
     }
 
     private static Thread startHerdThread(String name, AtomicReference<AssertionError> failure, CheckedRunnable<Exception> body) {

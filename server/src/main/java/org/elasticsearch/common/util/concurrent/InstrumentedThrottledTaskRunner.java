@@ -12,7 +12,6 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.telemetry.metric.LongHistogram;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Queue;
@@ -76,13 +75,13 @@ public class InstrumentedThrottledTaskRunner<T extends ActionListener<Releasable
             prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE,
             "number of tasks waiting in the queue for throttled task runner " + name,
             "count",
-            () -> new LongWithAttributes(runner.queuedTasks())
+            runner::queuedTasks
         );
         meterRegistry.registerLongAsyncGauge(
             prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING,
             "number of tasks currently running (i.e., submitted to the underlying executor) for throttled task runner " + name,
             "count",
-            () -> new LongWithAttributes(runner.runningTasks())
+            runner::runningTasks
         );
     }
 

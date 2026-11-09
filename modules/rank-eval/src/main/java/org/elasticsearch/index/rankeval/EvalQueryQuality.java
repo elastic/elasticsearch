@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,10 +28,13 @@ import java.util.Objects;
  */
 public class EvalQueryQuality implements ToXContentFragment, Writeable {
 
+    private static final TransportVersion RANK_EVAL_PER_REQUEST_TOOK = TransportVersion.fromName("rank_eval_per_request_took");
+
     private final String queryId;
     private final double metricScore;
     private MetricDetail optionalMetricDetails;
     private final List<RatedSearchHit> ratedHits;
+    private Long took;
 
     public EvalQueryQuality(String id, double metricScore) {
         this(id, metricScore, new ArrayList<>(), null);
@@ -43,6 +47,9 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
             in.readCollectionAsList(RatedSearchHit::new),
             in.readOptionalNamedWriteable(MetricDetail.class)
         );
+        if (in.getTransportVersion().supports(RANK_EVAL_PER_REQUEST_TOOK)) {
+            this.took = in.readOptionalVLong();
+        }
     }
 
     EvalQueryQuality(String queryId, double evaluationResult, List<RatedSearchHit> ratedHits, MetricDetail optionalMetricDetails) {
@@ -58,6 +65,9 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
         out.writeDouble(metricScore);
         out.writeCollection(ratedHits);
         out.writeOptionalNamedWriteable(this.optionalMetricDetails);
+        if (out.getTransportVersion().supports(RANK_EVAL_PER_REQUEST_TOOK)) {
+            out.writeOptionalVLong(this.took);
+        }
     }
 
     public String getId() {
@@ -76,6 +86,17 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
         return this.optionalMetricDetails;
     }
 
+    /**
+     * Sets the time in milliseconds that the underlying search request took to execute.
+     */
+    public void setTook(long tookInMillis) {
+        this.took = tookInMillis;
+    }
+
+    public Long getTook() {
+        return this.took;
+    }
+
     public void addHitsAndRatings(List<RatedSearchHit> hits) {
         this.ratedHits.addAll(hits);
     }
@@ -88,6 +109,9 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(queryId);
         builder.field(METRIC_SCORE_FIELD.getPreferredName(), this.metricScore);
+        if (took != null) {
+            builder.field(TOOK_FIELD.getPreferredName(), took);
+        }
         builder.startArray(UNRATED_DOCS_FIELD.getPreferredName());
         for (DocumentKey key : EvaluationMetric.filterUnratedDocuments(ratedHits)) {
             builder.startObject();
@@ -109,6 +133,7 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     }
 
     static final ParseField METRIC_SCORE_FIELD = new ParseField("metric_score");
+    static final ParseField TOOK_FIELD = new ParseField("took");
     private static final ParseField UNRATED_DOCS_FIELD = new ParseField("unrated_docs");
     static final ParseField HITS_FIELD = new ParseField("hits");
     static final ParseField METRIC_DETAILS_FIELD = new ParseField("metric_details");
@@ -125,11 +150,12 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
         return Objects.equals(queryId, other.queryId)
             && Objects.equals(metricScore, other.metricScore)
             && Objects.equals(ratedHits, other.ratedHits)
-            && Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
+            && Objects.equals(optionalMetricDetails, other.optionalMetricDetails)
+            && Objects.equals(took, other.took);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(queryId, metricScore, ratedHits, optionalMetricDetails);
+        return Objects.hash(queryId, metricScore, ratedHits, optionalMetricDetails, took);
     }
 }

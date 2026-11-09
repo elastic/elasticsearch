@@ -271,12 +271,12 @@ public class BlobCacheMetricsTests extends ESTestCase {
         );
     }
 
-    public void testFutureDatedTimestampRecordsNegativeAge() {
+    public void testFutureDatedTimestampRecordsZeroAge() {
         long now = fakeNowMillis.get();
         metrics.recordRead(now + 1_000);
         List<Measurement> readAges = ageMeasurements(BLOB_CACHE_READ_AGE);
         assertThat(readAges, hasSize(1));
-        assertEquals(TimeRangeBucket.toHours(-1_000), readAges.getFirst().getDouble(), 0.0);
+        assertEquals(0.0, readAges.getFirst().getDouble(), 0.0);
     }
 
     public void testSentinelsOmittedFromHistogramsAndTotalsRemainUnattributed() {

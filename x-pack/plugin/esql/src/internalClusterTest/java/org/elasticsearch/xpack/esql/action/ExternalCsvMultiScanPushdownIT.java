@@ -18,11 +18,14 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
@@ -93,6 +96,44 @@ public class ExternalCsvMultiScanPushdownIT extends AbstractExternalDataSourceIT
             }
         } finally {
             Files.deleteIfExists(gzFile);
+        }
+    }
+
+    /**
+     * A {@code .csv.gz} written as several concatenated gzip members (as {@code cat a.gz b.gz}, BGZF and log shippers do)
+     * must be read in full: every member's rows are counted, not just the first member's (elastic/esql-planning#2121).
+     */
+    public void testMultiMemberGzipCsvReadsAllMembers() throws Exception {
+        int rowsPerMember = between(1, 200);
+        int members = between(2, 20);
+        Path file = createTempDir().resolve("multi_member.csv.gz");
+        try (OutputStream out = Files.newOutputStream(file)) {
+            for (int m = 0; m < members; m++) {
+                StringBuilder sb = new StringBuilder();
+                if (m == 0) {
+                    sb.append("id:integer,name:keyword,value:integer\n");
+                }
+                for (int i = 0; i < rowsPerMember; i++) {
+                    int id = m * rowsPerMember + i;
+                    sb.append(id).append(",row_").append(id).append(',').append(id * 10).append('\n');
+                }
+                // finish() without close() ends the member and leaves the file open for the next one.
+                GZIPOutputStream gz = new GZIPOutputStream(out);
+                gz.write(sb.toString().getBytes(StandardCharsets.UTF_8));
+                gz.finish();
+            }
+        }
+        try {
+            String dataset = registerDataset("csv_multi_member", StoragePath.fileUri(file), Map.of());
+            try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*), s = SUM(id)"))) {
+                long total = (long) members * rowsPerMember;
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(rows.size(), equalTo(1));
+                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(total));
+                assertThat(((Number) rows.get(0).get(1)).longValue(), equalTo(total * (total - 1) / 2));
+            }
+        } finally {
+            Files.deleteIfExists(file);
         }
     }
 

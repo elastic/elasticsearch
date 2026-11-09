@@ -83,8 +83,8 @@ import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -229,23 +229,15 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         protected void parseCreateField(DocumentParserContext context) {}
 
         @Override
-        public Builder getMergeBuilder() {
-            return new DeprecatedParameterMapper.TypeBuilder(leafName()).init(this);
-        }
-
-        @Override
         protected String contentType() {
             return CONTENT_TYPE;
         }
 
         static class TypeBuilder extends FieldMapper.Builder {
 
-            private final Parameter<String> deprecatedParam = Parameter.stringParam(
-                "deprecated_field",
-                true,
-                m -> ((DeprecatedParameterFieldType) m.fieldType()).deprecatedField,
-                null
-            ).acceptsNull().deprecated();
+            private final Parameter<String> deprecatedParam = Parameter.stringParam("deprecated_field", true, null)
+                .acceptsNull()
+                .deprecated();
 
             TypeBuilder(String name) {
                 super(name);
@@ -1176,7 +1168,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public void testTryIncRecoveryFastPath() throws Exception {
         updateClusterSettings(
             Settings.builder()
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
         final String blockingIndex = randomIndexName();
@@ -1227,7 +1219,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertAcked(indicesAdmin().prepareDelete(blockingIndex, closedIndex));
             updateClusterSettings(
                 Settings.builder()
-                    .putNull(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey())
+                    .putNull(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey())
                     .build()
             );
         }

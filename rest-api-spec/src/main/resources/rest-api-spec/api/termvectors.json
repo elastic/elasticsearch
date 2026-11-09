@@ -45,6 +45,46 @@
               "description": "The index in which the document resides."
             }
           }
+        },
+        {
+          "path": "/{index}/{_slice}/_termvectors/{id}",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The index in which the document resides."
+            },
+            "id": {
+              "type": "string",
+              "description": "The id of the document, when not specified a doc param should be supplied."
+            },
+            "_slice": {
+              "type": "string",
+              "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the operation to that slice",
+              "feature_flag": "es.slice_indexing_feature_flag_enabled"
+            }
+          }
+        },
+        {
+          "path": "/{index}/{_slice}/_termvectors",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The index in which the document resides."
+            },
+            "_slice": {
+              "type": "string",
+              "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the operation to that slice",
+              "feature_flag": "es.slice_indexing_feature_flag_enabled"
+            }
+          }
         }
       ]
     },

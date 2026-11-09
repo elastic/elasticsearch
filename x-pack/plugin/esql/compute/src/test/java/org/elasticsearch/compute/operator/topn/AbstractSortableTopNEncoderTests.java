@@ -30,7 +30,7 @@ public abstract class AbstractSortableTopNEncoderTests extends ESTestCase {
         BiFunction<TopNEncoder, BytesRef, T> decode
     ) {
         public void testCompare(TopNEncoder encoder, BiConsumer<BreakingBytesRefBuilder, BreakingBytesRefBuilder> assertMinMax) {
-            CircuitBreaker breaker = new NoopCircuitBreaker("test");
+            CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
             T min = randomValue.get();
             T max = randomValueOtherThan(min, randomValue);
             if (comparator.compare(min, max) > 0) {
@@ -47,7 +47,7 @@ public abstract class AbstractSortableTopNEncoderTests extends ESTestCase {
         }
 
         public void testEncodeDecode(TopNEncoder encoder) {
-            CircuitBreaker breaker = new NoopCircuitBreaker("test");
+            CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
             T v = randomValue.get();
             BreakingBytesRefBuilder bytes = new BreakingBytesRefBuilder(breaker, "bytes");
             encode().apply(encoder, v, bytes);

@@ -674,122 +674,151 @@ public final class IndicesPermission {
 
         // now... every index that is associated with the request, must be granted
         // by at least one index permission group
-        final Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
-        final Map<String, DocumentLevelPermissions> roleQueriesByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
+        final Map<String, IndexAccess> accessByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Set<String> grantedResources = Sets.newHashSetWithExpectedSize(totalResourceCount);
-        final Set<String> indicesWithExplicitDlsFls = new HashSet<>();
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
         for (Map.Entry<String, IndexResource> resourceEntry : requestedResources.entrySet()) {
-            // true if ANY group covers the given index AND the given action
-            boolean granted = false;
             final String resourceName = resourceEntry.getKey();
             final IndexResource resource = resourceEntry.getValue();
-            final Collection<String> concreteIndicesViewsAndDatasets = resource.resolveConcreteIndicesViewsAndDatasets(
-                failureIndicesByIndexResource.get(resourceEntry.getKey())
-            );
-            for (Group group : groups) {
-                // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
-                if (resource.checkIndex(group)) {
-                    if (group.checkAction(action)
-                        || (isMappingUpdateAction // for BWC reasons, mapping updates are exceptionally allowed for certain privileges on
-                            // indices and aliases (but not on data streams)
-                            && false == resource.isPartOfDataStream()
-                            && containsPrivilegeThatGrantsMappingUpdatesForBwc(group))) {
-                        granted = true;
-                        final boolean groupHasExplicitDlsFls = !group.implicitlyGranted()
-                            && (group.hasQuery() || group.getFieldPermissions().hasFieldLevelSecurity());
-                        // propagate DLS and FLS permissions over the concrete indices and views
-                        for (String index : concreteIndicesViewsAndDatasets) {
-                            final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
-                                if (existingSet == null) {
-                                    // Most indices rely on the default (empty) field permissions object, so we optimize for that case
-                                    // Using an immutable single item set is significantly faster because it avoids any of the hashing
-                                    // and backing set creation.
-                                    return Set.of(group.getFieldPermissions());
-                                } else if (existingSet.size() == 1) {
-                                    FieldPermissions fp = group.getFieldPermissions();
-                                    if (existingSet.contains(fp)) {
-                                        return existingSet;
-                                    }
-                                    // This index doesn't have a single field permissions object, replace the singleton with a real Set
-                                    final Set<FieldPermissions> hashSet = new HashSet<>(existingSet);
-                                    hashSet.add(fp);
-                                    return hashSet;
-                                } else {
-                                    existingSet.add(group.getFieldPermissions());
-                                    return existingSet;
-                                }
-                            });
-
-                            DocumentLevelPermissions docPermissions;
-                            if (group.hasQuery()) {
-                                docPermissions = roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
-                                docPermissions.addAll(group.getQuery());
-                            } else {
-                                // if more than one permission matches for a concrete index here and if
-                                // a single permission doesn't have a role query then DLS will not be
-                                // applied even when other permissions do have a role query
-                                docPermissions = DocumentLevelPermissions.ALLOW_ALL;
-                                // don't worry about what's already there - just overwrite it, it avoids doing a 2nd hash lookup.
-                                roleQueriesByIndex.put(index, docPermissions);
-                            }
-
-                            if (groupHasExplicitDlsFls) {
-                                indicesWithExplicitDlsFls.add(index);
-                            }
-
-                            if (index.equals(resourceName) == false) {
-                                fieldPermissionsByIndex.put(resourceName, fieldPermissions);
-                                roleQueriesByIndex.put(resourceName, docPermissions);
-                                if (groupHasExplicitDlsFls) {
-                                    indicesWithExplicitDlsFls.add(resourceName);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (granted) {
+            final IndexAccess access = accumulateIndexAccess(action, isMappingUpdateAction, resource);
+            if (access != null) {
                 grantedResources.add(resourceName);
-
-                if (resource.canHaveBackingIndices()) {
-                    for (String concreteIndex : concreteIndicesViewsAndDatasets) {
-                        // If the name appears directly as part of the requested indices, it takes precedence over implicit access
-                        if (false == requestedResources.containsKey(concreteIndex)) {
-                            grantedResources.add(concreteIndex);
-                        }
-                    }
-                }
+                propagateIndexAccess(
+                    access,
+                    resourceName,
+                    resource,
+                    resource.resolveConcreteIndicesViewsAndDatasets(failureIndicesByIndexResource.get(resourceName)),
+                    requestedResources,
+                    grantedResources,
+                    accessByIndex
+                );
             }
         }
 
-        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedResources.size());
+        return resolveIndexAccessControls(grantedResources, accessByIndex, fieldPermissionsCache);
+    }
+
+    /**
+     * Records {@code access} for every concrete index of a granted resource, and under the key the resource was
+     * requested by ({@code resourceName}, i.e. {@link IndexResource#nameWithSelector()}) when that key is not itself
+     * one of those concrete indices. Every entry shares the same {@code IndexAccess} by reference.
+     * Using merge (not put) preserves cross-resource accumulation semantics: if a concrete index appears in
+     * multiple resources, their FLS/DLS contributions are unioned.
+     */
+    private static void propagateIndexAccess(
+        IndexAccess access,
+        String resourceName,
+        IndexResource resource,
+        Collection<String> concreteIndicesViewsAndDatasets,
+        Map<String, IndexResource> requestedResources,
+        Set<String> grantedResources,
+        Map<String, IndexAccess> accessByIndex
+    ) {
+        final boolean canHaveBackingIndices = resource.canHaveBackingIndices();
+        for (String concreteIndex : concreteIndicesViewsAndDatasets) {
+            accessByIndex.merge(concreteIndex, access, IndexAccess::merge);
+            // If the name appears directly as part of the requested indices, it takes precedence over implicit access
+            if (canHaveBackingIndices && false == requestedResources.containsKey(concreteIndex)) {
+                grantedResources.add(concreteIndex);
+            }
+        }
+
+        // The key is one of the concrete names only for a plain index, view or dataset requested without a ::failures
+        // selector: the loop above has already written it. An alias or data stream key is never a concrete index name,
+        // and neither is any key carrying a ::failures suffix (a plain index, view or dataset still resolves to its bare
+        // name). Record the key in those cases so its entry reflects the groups that granted it. A name that resolves to
+        // nothing records neither FLS nor DLS, and its IndexAccessControl stays unrestricted.
+        final boolean keyIsAConcreteName = canHaveBackingIndices == false && resourceName.equals(resource.name);
+        if (keyIsAConcreteName == false && false == concreteIndicesViewsAndDatasets.isEmpty()) {
+            accessByIndex.merge(resourceName, access, IndexAccess::merge);
+        }
+    }
+
+    /**
+     * Accumulates the access granted to {@code resource} over the groups that cover it and allow {@code action}:
+     * one pass over the groups per resource rather than per concrete index, since every concrete index of a
+     * resource is matched by the same groups. Returns {@code null} when no group grants the action.
+     */
+    @Nullable
+    private IndexAccess accumulateIndexAccess(String action, boolean isMappingUpdateAction, IndexResource resource) {
+        // true if ANY group covers the given index AND the given action
+        boolean granted = false;
+        Set<FieldPermissions> fieldPermissions = null;
+        // DLS queries are gathered in a plain set and frozen into the IndexAccess below. The first matching
+        // group's query set is shared rather than copied; a copy is only made when a second group's queries
+        // have to be merged in.
+        Set<BytesReference> queries = null;
+        boolean queriesCopied = false;
+        boolean allowAllDocuments = false;
+        boolean hasExplicitDlsFls = false;
+
+        for (Group group : groups) {
+            // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
+            if (resource.checkIndex(group)) {
+                if (group.checkAction(action)
+                    || (isMappingUpdateAction // for BWC reasons, mapping updates are exceptionally allowed for certain privileges on
+                        // indices and aliases (but not on data streams)
+                        && false == resource.isPartOfDataStream()
+                        && containsPrivilegeThatGrantsMappingUpdatesForBwc(group))) {
+                    granted = true;
+
+                    FieldPermissions fp = group.getFieldPermissions();
+                    if (fieldPermissions == null) {
+                        fieldPermissions = Set.of(fp);
+                    } else if (false == fieldPermissions.contains(fp)) {
+                        if (fieldPermissions.size() == 1) {
+                            fieldPermissions = new HashSet<>(fieldPermissions);
+                        }
+                        fieldPermissions.add(fp);
+                    }
+
+                    if (group.hasQuery()) {
+                        if (allowAllDocuments == false) {
+                            final Set<BytesReference> query = group.getQuery();
+                            if (queries == null) {
+                                queries = query;
+                            } else if (false == queries.containsAll(query)) {
+                                if (queriesCopied == false) {
+                                    queries = new HashSet<>(queries);
+                                    queriesCopied = true;
+                                }
+                                queries.addAll(query);
+                            }
+                        }
+                    } else {
+                        // if more than one permission matches for a concrete index here and if
+                        // a single permission doesn't have a role query then DLS will not be
+                        // applied even when other permissions do have a role query
+                        allowAllDocuments = true;
+                        queries = null;
+                    }
+
+                    // Tracked at the resource level rather than per concrete index: all concrete
+                    // indices of a resource are matched by the same groups, so OR-ing here and
+                    // propagating to each of them is equivalent to deciding it index by index.
+                    hasExplicitDlsFls |= false == group.implicitlyGranted() && (group.hasQuery() || fp.hasFieldLevelSecurity());
+                }
+            }
+        }
+        return granted ? new IndexAccess(fieldPermissions, allowAllDocuments, queries, hasExplicitDlsFls) : null;
+    }
+
+    /** One {@code IndexAccessControl} per granted name; names sharing an {@code IndexAccess} share the object. */
+    private static Map<String, IndicesAccessControl.IndexAccessControl> resolveIndexAccessControls(
+        Set<String> grantedResources,
+        Map<String, IndexAccess> accessByIndex,
+        FieldPermissionsCache fieldPermissionsCache
+    ) {
+        final Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedResources.size());
         for (String index : grantedResources) {
-            final DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
-            final DocumentPermissions documentPermissions;
-            if (permissions != null && permissions.isAllowAll() == false) {
-                documentPermissions = DocumentPermissions.filteredBy(permissions.queries);
-            } else {
-                documentPermissions = DocumentPermissions.allowAll();
-            }
-            final FieldPermissions fieldPermissions;
-            final Set<FieldPermissions> indexFieldPermissions = fieldPermissionsByIndex.get(index);
-            if (indexFieldPermissions != null && indexFieldPermissions.isEmpty() == false) {
-                fieldPermissions = indexFieldPermissions.size() == 1
-                    ? indexFieldPermissions.iterator().next()
-                    : fieldPermissionsCache.union(indexFieldPermissions);
-            } else {
-                fieldPermissions = FieldPermissions.DEFAULT;
-            }
-            // dlsFlsImplicit: this IAC carries DLS or FLS, and every contributing group with DLS or
-            // FLS was itself implicit. If any explicit DLS/FLS group covered this index, the IAC is
-            // treated as explicit and downstream license checks apply normally.
-            final boolean dlsFlsImplicit = !indicesWithExplicitDlsFls.contains(index)
-                && (documentPermissions.hasDocumentLevelPermissions() || fieldPermissions.hasFieldLevelSecurity());
-            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(fieldPermissions, documentPermissions, dlsFlsImplicit));
+            final IndexAccess access = accessByIndex.get(index);
+            // A granted name that resolved to no index has no IndexAccess and stays unrestricted, as before.
+            indexPermissions.put(
+                index,
+                access == null ? IndicesAccessControl.IndexAccessControl.ALLOW_ALL : access.toIndexAccessControl(fieldPermissionsCache)
+            );
         }
         return unmodifiableMap(indexPermissions);
     }
@@ -1124,27 +1153,92 @@ public final class IndicesPermission {
         }
     }
 
-    private static class DocumentLevelPermissions {
+    /**
+     * The access granted to one index by the groups that matched it and allowed the action: the field
+     * permissions still to be unioned, the document queries or allow-all, and whether a group declared in
+     * the role, rather than contributed by an {@code ImplicitPrivilegesProvider}, supplied DLS or FLS.
+     *
+     * <p>One instance is built per requested resource and shared by reference across every concrete index
+     * that resource resolves to; an index reached through several resources gets a merged instance. The
+     * {@link IndicesAccessControl.IndexAccessControl} is built once per instance, on first use, so every
+     * index sharing an instance shares the access control object too (e.g. the 1500 backing indices of a
+     * data stream). Lives for a single {@code buildIndicesAccessControl} call; not thread-safe.
+     */
+    private static final class IndexAccess {
 
-        public static final DocumentLevelPermissions ALLOW_ALL = new DocumentLevelPermissions();
-        static {
-            ALLOW_ALL.allowAll = true;
+        /** Never empty: at least one group matched. */
+        private final Set<FieldPermissions> fieldPermissions;
+        /** A matching group had no query, which grants all documents regardless of other groups' queries. */
+        private final boolean allowAllDocuments;
+        /** {@code null} iff {@link #allowAllDocuments}. */
+        @Nullable
+        private final Set<BytesReference> queries;
+        /** A group declared in the role contributed DLS or FLS; decides {@code dlsFlsImplicit}. */
+        private final boolean hasExplicitDlsFls;
+        @Nullable
+        private IndicesAccessControl.IndexAccessControl indexAccessControl;
+
+        IndexAccess(
+            Set<FieldPermissions> fieldPermissions,
+            boolean allowAllDocuments,
+            @Nullable Set<BytesReference> queries,
+            boolean hasExplicitDlsFls
+        ) {
+            assert fieldPermissions.isEmpty() == false : "granted access carries at least one group's field permissions";
+            assert allowAllDocuments == (queries == null) : "queries are tracked only while documents are restricted";
+            this.fieldPermissions = fieldPermissions;
+            this.allowAllDocuments = allowAllDocuments;
+            this.queries = queries;
+            this.hasExplicitDlsFls = hasExplicitDlsFls;
         }
 
-        private Set<BytesReference> queries = null;
-        private boolean allowAll = false;
-
-        private void addAll(Set<BytesReference> query) {
-            if (allowAll == false) {
-                if (queries == null) {
-                    queries = Sets.newHashSetWithExpectedSize(query.size());
-                }
-                queries.addAll(query);
+        /**
+         * The union of two accesses. Returns one of the inputs unchanged when the other adds nothing to it,
+         * so indices keep sharing an instance, and its IndexAccessControl, wherever the merge is a no-op.
+         */
+        static IndexAccess merge(IndexAccess a, IndexAccess b) {
+            if (a.covers(b)) {
+                return a;
             }
+            if (b.covers(a)) {
+                return b;
+            }
+            final boolean allowAllDocuments = a.allowAllDocuments || b.allowAllDocuments;
+            return new IndexAccess(
+                Sets.union(a.fieldPermissions, b.fieldPermissions),
+                allowAllDocuments,
+                allowAllDocuments ? null : Sets.union(a.queries, b.queries),
+                a.hasExplicitDlsFls || b.hasExplicitDlsFls
+            );
         }
 
-        private boolean isAllowAll() {
-            return allowAll;
+        /** True when merging {@code other} into this instance would change nothing. */
+        private boolean covers(IndexAccess other) {
+            return fieldPermissions.containsAll(other.fieldPermissions)
+                && (allowAllDocuments || (other.allowAllDocuments == false && queries.containsAll(other.queries)))
+                && (hasExplicitDlsFls || other.hasExplicitDlsFls == false);
+        }
+
+        IndicesAccessControl.IndexAccessControl toIndexAccessControl(FieldPermissionsCache fieldPermissionsCache) {
+            if (indexAccessControl == null) {
+                indexAccessControl = buildIndexAccessControl(fieldPermissionsCache);
+            }
+            return indexAccessControl;
+        }
+
+        private IndicesAccessControl.IndexAccessControl buildIndexAccessControl(FieldPermissionsCache fieldPermissionsCache) {
+            final FieldPermissions resolvedFieldPermissions = fieldPermissions.size() == 1
+                ? fieldPermissions.iterator().next()
+                : fieldPermissionsCache.union(fieldPermissions);
+            final DocumentPermissions documentPermissions = allowAllDocuments
+                ? DocumentPermissions.allowAll()
+                : DocumentPermissions.filteredBy(queries);
+            // dlsFlsImplicit: this IAC carries DLS or FLS, and every contributing group with DLS or
+            // FLS was itself implicit. If any explicit DLS/FLS group covered this index, the IAC is
+            // treated as explicit and downstream license checks apply normally.
+            final boolean dlsFlsImplicit = hasExplicitDlsFls == false
+                && (documentPermissions.hasDocumentLevelPermissions() || resolvedFieldPermissions.hasFieldLevelSecurity());
+            return new IndicesAccessControl.IndexAccessControl(resolvedFieldPermissions, documentPermissions, dlsFlsImplicit);
         }
     }
 }

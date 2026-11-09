@@ -21,7 +21,8 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 public class EsqlPluginWithEnterpriseOrTrialLicense extends EsqlPlugin {
     protected XPackLicenseState getLicenseState() {
         License.OperationMode operationMode = randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.TRIAL);
-        return new XPackLicenseState(() -> System.currentTimeMillis(), new XPackLicenseStatus(operationMode, true, "Test license expired"));
+        // No expiry warning: the license is active, and a tracked feature check would otherwise add it as a response header
+        return new XPackLicenseState(() -> System.currentTimeMillis(), new XPackLicenseStatus(operationMode, true, null));
     }
 
     @Override

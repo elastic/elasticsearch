@@ -49,6 +49,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URL;
 import java.net.UnknownHostException;
@@ -56,6 +57,8 @@ import java.security.KeyStore;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.SSLException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptyMap;
@@ -258,12 +261,17 @@ public class GoogleCloudStorageService {
         return ShouldRetryDecorator.decorate(
             StorageRetryStrategy.getLegacyStorageRetryStrategy(),
             (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
-                // Retry in the event of an unknown host exception
                 if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
                     return true;
                 }
-                // Also retry on `SocketException`s
                 if (ExceptionsHelper.unwrap(prevThrowable, SocketException.class) != null) {
+                    return true;
+                }
+                // TLS handshake failures are SSLExceptions, not SocketExceptions. S3 and Azure retry them too.
+                if (ExceptionsHelper.unwrap(prevThrowable, SSLException.class) != null) {
+                    return true;
+                }
+                if (ExceptionsHelper.unwrap(prevThrowable, SocketTimeoutException.class) != null) {
                     return true;
                 }
                 return delegate.shouldRetry(prevThrowable, prevResponse);

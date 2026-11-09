@@ -444,7 +444,8 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         // time out. Total hits are not compared, they are accumulated per result rather than taken from the merge
         CollapseContext collapseContext = new CollapseContext(
             COLLAPSE_FIELD,
-            new NumberFieldMapper.NumberFieldType(COLLAPSE_FIELD, NumberFieldMapper.NumberType.LONG)
+            new NumberFieldMapper.NumberFieldType(COLLAPSE_FIELD, NumberFieldMapper.NumberType.LONG),
+            null
         );
         for (boolean sorted : new boolean[] { false, true }) {
             for (boolean collapsed : new boolean[] { false, true }) {

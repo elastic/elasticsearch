@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
@@ -26,11 +26,11 @@ import java.util.function.BiConsumer;
 public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
 
     /**
-     * This field defines the behaviour used to apply authorization headers to a {@link HttpPost}. By default, this is
-     * {@link IbmWatsonxRequestUtils#decorateWithBearerToken(HttpPost, DefaultSecretSettings, String)}. Unit tests may provide different
-     * behaviour to allow requests to be created without needing to retrieve credentials.
+     * This field defines the behaviour used to apply authorization headers to a {@link SimpleHttpRequest}. By default, this is
+     * {@link IbmWatsonxRequestUtils#decorateWithBearerToken(SimpleHttpRequest, DefaultSecretSettings, String)}. Unit tests may provide
+     * different behaviour to allow requests to be created without needing to retrieve credentials.
      */
-    private final BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator;
+    private final BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator;
 
     public IbmWatsonxModel(ModelConfigurations configurations, ModelSecrets secrets) {
         this(
@@ -47,7 +47,7 @@ public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
     public IbmWatsonxModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
-        BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
     ) {
         super(configurations, secrets);
 
@@ -73,7 +73,7 @@ public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
         return (IbmWatsonxServiceSettings) super.getServiceSettings();
     }
 
-    public BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator() {
+    public BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator() {
         return authHeaderDecorator;
     }
 

@@ -11,7 +11,17 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
+import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 import org.elasticsearch.script.ScriptTermStats;
+import org.elasticsearch.script.field.BaseKeywordDocValuesField;
+import org.elasticsearch.script.field.BinaryDocValuesField;
+import org.elasticsearch.script.field.HalfFloatDocValuesField;
+import org.elasticsearch.script.field.IPAddress;
+import org.elasticsearch.script.field.IpDocValuesField;
+import org.elasticsearch.script.field.vectors.BinaryDenseVector;
+import org.elasticsearch.script.field.vectors.DenseVector;
+import org.elasticsearch.script.field.vectors.RankVectors;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -35,8 +45,13 @@ import java.util.Stack;
 import java.util.StringJoiner;
 import java.util.Vector;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
+import java.util.function.ObjIntConsumer;
 import java.util.function.Predicate;
+import java.util.function.ToDoubleFunction;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 /**
@@ -102,9 +117,17 @@ public final class AllocationEstimators {
         return AllocSizes.arrayBytes(receiver.length(), 2);
     }
 
-    /** Cost of {@code Iterable.iterator()}. See {@link AllocSizes#ITERATOR_BYTES}. */
+    /**
+     * Cost of {@code Iterable.iterator()}: the iterator ({@link AllocSizes#ITERATOR_BYTES}) plus, for doc values that decode a
+     * value on every {@code next()}, every decode up front. See {@link #decodeBytes}.
+     */
     public static long iteratorBytes(Iterable<?> receiver) {
-        return AllocSizes.ITERATOR_BYTES;
+        return AllocSizes.addSat(AllocSizes.ITERATOR_BYTES, decodeBytes(receiver));
+    }
+
+    /** Cost of {@code Collection.stream()}: the spliterator, sized as an iterator, plus every decode up front for doc values. */
+    public static long streamBytes(Collection<?> receiver) {
+        return AllocSizes.addSat(AllocSizes.ITERATOR_BYTES, decodeBytes(receiver));
     }
 
     /**
@@ -254,27 +277,28 @@ public final class AllocationEstimators {
 
     /** {@code Iterable.asCollection()}: a collection is returned as is, anything else is copied. */
     public static long asCollectionBytes(Iterable<?> receiver) {
-        return receiver instanceof Collection ? 0 : listBuiltByAddBytes(UNKNOWN_ELEMENT_COUNT);
+        return receiver instanceof Collection ? 0 : AllocSizes.addSat(decodeBytes(receiver), listBuiltByAddBytes(UNKNOWN_ELEMENT_COUNT));
     }
 
     /** {@code Iterable.asList()}: a list is returned as is, anything else is copied. */
     public static long asListBytes(Iterable<?> receiver) {
-        return receiver instanceof List ? 0 : listBuiltByAddBytes(iterableCount(receiver));
+        return receiver instanceof List ? 0 : AllocSizes.addSat(decodeBytes(receiver), listBuiltByAddBytes(iterableCount(receiver)));
     }
 
     /** {@code Iterable.findResults(function)}: a list with room for every element. */
     public static long findResultsBytes(PainlessScript script, Iterable<?> receiver, Function<?, ?> function) {
-        return listBuiltByAddBytes(iterableCount(receiver));
+        return AllocSizes.addSat(decodeBytes(receiver), listBuiltByAddBytes(iterableCount(receiver)));
     }
 
     /** {@code Iterable.groupBy(function)}: a map plus, at worst, a group per element. */
     public static long groupByBytes(PainlessScript script, Iterable<?> receiver, Function<?, ?> function) {
-        return AllocSizes.addSat(hashMapShellBytes(), AllocSizes.mulSat(iterableCount(receiver), GROUP_BY_ELEMENT_BYTES));
+        long groups = AllocSizes.addSat(hashMapShellBytes(), AllocSizes.mulSat(iterableCount(receiver), GROUP_BY_ELEMENT_BYTES));
+        return AllocSizes.addSat(decodeBytes(receiver), groups);
     }
 
     /** {@code Iterable.join(separator)}: same as {@code String.join}. */
     public static long iterableJoinBytes(Iterable<?> receiver, String separator) {
-        return joinBytes(separator == null ? "" : separator, receiver);
+        return AllocSizes.addSat(decodeBytes(receiver), joinBytes(separator == null ? "" : separator, receiver));
     }
 
     /** {@code Character.getName(codePoint)}. */
@@ -405,7 +429,7 @@ public final class AllocationEstimators {
      * the {@code @script_aware} signature.
      */
     public static long collectBytes(PainlessScript script, Collection<?> receiver, Function<?, ?> function) {
-        return listBuiltByAddBytes(receiver == null ? 0 : receiver.size());
+        return AllocSizes.addSat(decodeBytes(receiver), listBuiltByAddBytes(receiver == null ? 0 : receiver.size()));
     }
 
     /** The {@code Map.collect(BiFunction)} augmentation: a new {@code ArrayList} with one slot per map entry. */
@@ -420,7 +444,7 @@ public final class AllocationEstimators {
     public static long splitBytes(PainlessScript script, Collection<?> receiver, Predicate<?> predicate) {
         long size = receiver == null ? 0 : receiver.size();
         long outer = AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(2, AllocSizes.REFERENCE_SIZE));
-        return AllocSizes.addSat(outer, AllocSizes.mulSat(listBuiltByAddBytes(size), 2));
+        return AllocSizes.addSat(decodeBytes(receiver), AllocSizes.addSat(outer, AllocSizes.mulSat(listBuiltByAddBytes(size), 2)));
     }
 
     /** An {@code ArrayList} built by adding {@code count} elements: the object plus a backing array of at least the default capacity. */
@@ -545,7 +569,8 @@ public final class AllocationEstimators {
     }
 
     // ---- java.math.BigDecimal: the object plus, when the unscaled value exceeds long range, a backing BigInteger. ----
-    // precision() (unscaled decimal digit count) and scale() are allocation-free, so estimators size results from them.
+    // Estimators size results from precision() (unscaled decimal digit count) and scale(). scale() never allocates. precision()
+    // can allocate once, on its first call for a value over 18 digits, and then caches the answer.
 
     /** Heap cost of a {@link BigDecimal} whose unscaled value has {@code digits} decimal digits. */
     private static long bigDecimalBytes(long digits) {
@@ -654,6 +679,279 @@ public final class AllocationEstimators {
      */
     public static long geoPointsDoublesBytes(ScriptDocValues.GeoPoints receiver) {
         return AllocSizes.arrayBytes(receiver == null ? 0 : receiver.size(), 8);
+    }
+
+    /**
+     * {@code ScriptDocValues.GeoPoints.get(index)}, {@code getValue()}, {@code getLat()}, {@code getLon()} and the distance
+     * methods: each copies the current point into a new {@code GeoPoint}.
+     */
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver) {
+        return geoPointBytes();
+    }
+
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver, int index) {
+        return geoPointBytes();
+    }
+
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver, double lat, double lon) {
+        return geoPointBytes();
+    }
+
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver, double lat, double lon, double defaultValue) {
+        return geoPointBytes();
+    }
+
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver, String geohash) {
+        return geoPointBytes();
+    }
+
+    public static long geoPointReadBytes(ScriptDocValues.GeoPoints receiver, String geohash, double defaultValue) {
+        return geoPointBytes();
+    }
+
+    /** {@code ScriptDocValues.Longs.get(index)}: the value comes back boxed. {@code getValue()} returns the primitive and is free. */
+    public static long boxedLongReadBytes(ScriptDocValues.Longs receiver, int index) {
+        return AllocSizes.boxSize(long.class);
+    }
+
+    /** {@code ScriptDocValues.Doubles.get(index)}: the value comes back boxed. */
+    public static long boxedDoubleReadBytes(ScriptDocValues.Doubles receiver, int index) {
+        return AllocSizes.boxSize(double.class);
+    }
+
+    // ---- Doc-value reads. A keyword, binary or ip read copies the stored bytes out of the field's buffer and decodes them,
+    // ---- so it costs in proportion to the value. The keyword, BytesRef and binary reads are charged after the call by the
+    // ---- Augmentation wrappers, which see the real result; the sizing helpers below are public for them.
+
+    /** A {@link BytesRef} without its array: header, one reference, offset and length. */
+    private static final long BYTES_REF_SHELL_BYTES = AllocSizes.pad8(
+        AllocSizes.OBJECT_HEADER + AllocSizes.REFERENCE_SIZE + 2L * Integer.BYTES
+    );
+
+    /** The {@code HeapByteBuffer} from {@code ByteBuffer.wrap}. It shares the array it is given. */
+    private static final long BYTE_BUFFER_SHELL_BYTES = 48;
+
+    /** Decoding one ip value: the copied bytes, the {@code InetAddress} and the {@code IPAddress} wrapper. */
+    private static final long IP_DECODE_BYTES = 160;
+
+    /** Longest text form of an ip address: IPv6 with an IPv4 suffix and a scope id. */
+    private static final long IP_STRING_CHARS = 45;
+
+    /** The most UTF-8 bytes one char can take. A four byte code point is two chars. */
+    private static final long MAX_UTF8_BYTES_PER_CHAR = 3;
+
+    /** {@code BytesRefBuilder.toBytesRef()}: a copy of {@code byteLength} bytes plus the {@link BytesRef}. */
+    public static long termCopyBytes(long byteLength) {
+        return AllocSizes.addSat(AllocSizes.arrayBytes(byteLength, 1), BYTES_REF_SHELL_BYTES);
+    }
+
+    /**
+     * {@code toBytesRef().utf8ToString()}, sized from the {@code chars} of the String it made: the byte copy at the most bytes
+     * those chars can take, plus the String at two bytes per char.
+     */
+    public static long termStringBytes(long chars) {
+        return AllocSizes.addSat(termCopyBytes(AllocSizes.mulSat(MAX_UTF8_BYTES_PER_CHAR, chars)), newStringBytes(chars));
+    }
+
+    /** A binary read: a copy of {@code byteLength} bytes plus the buffer that wraps it. */
+    public static long byteBufferBytes(long byteLength) {
+        return AllocSizes.addSat(termCopyBytes(byteLength), BYTE_BUFFER_SHELL_BYTES);
+    }
+
+    /** A keyword decode sized before it runs: the copy of {@code byteLength} bytes plus a String of at most that many chars. */
+    public static long termDecodeBytes(long byteLength) {
+        return AllocSizes.addSat(termCopyBytes(byteLength), newStringBytes(byteLength));
+    }
+
+    /**
+     * What iterating or streaming {@code receiver} decodes, charged up front from the stored byte lengths since the loop that
+     * follows never sees the script. Keyword, binary and ip doc values and fields decode a new value on every {@code next()};
+     * anything else returns 0. A loop that stops early is still charged the whole document.
+     */
+    static long decodeBytes(Object receiver) {
+        if (receiver instanceof IpDocValuesField ip) {
+            return AllocSizes.mulSat(ip.size(), IP_DECODE_BYTES);
+        } else if (receiver instanceof ScriptDocValues.Strings strings) {
+            ScriptDocValues.Supplier<String> supplier = strings.getSupplier();
+            if (supplier instanceof IpDocValuesField) {
+                return AllocSizes.mulSat(strings.size(), AllocSizes.addSat(IP_DECODE_BYTES, newStringBytes(IP_STRING_CHARS)));
+            }
+            return decodeBytes(supplier, AllocationEstimators::termDecodeBytes);
+        } else if (receiver instanceof ScriptDocValues.BytesRefs refs) {
+            return decodeBytes(refs.getSupplier(), AllocationEstimators::termCopyBytes);
+        } else if (receiver instanceof BaseKeywordDocValuesField keyword) {
+            return decodeBytes(keyword, AllocationEstimators::termDecodeBytes);
+        } else if (receiver instanceof BinaryDocValuesField binary) {
+            return decodeBytes(binary, AllocationEstimators::byteBufferBytes);
+        }
+        return 0;
+    }
+
+    private static long decodeBytes(ScriptDocValues.Supplier<?> supplier, LongUnaryOperator perValue) {
+        long bytes = 0;
+        for (int i = 0; i < supplier.size(); i++) {
+            bytes = AllocSizes.addSat(bytes, perValue.applyAsLong(supplier.byteLength(i)));
+        }
+        return bytes;
+    }
+
+    /** An {@code ArrayList} of {@code size} elements. */
+    private static long listBytes(long size) {
+        return AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(size, AllocSizes.REFERENCE_SIZE));
+    }
+
+    /** {@code IpDocValuesField.get(index, defaultValue)}: a decoded address in an {@code IPAddress}. */
+    public static long ipAddressReadBytes(IpDocValuesField receiver, int index, IPAddress defaultValue) {
+        return IP_DECODE_BYTES;
+    }
+
+    /** {@code IpDocValuesField.get(defaultValue)}, which reads index 0. */
+    public static long ipAddressReadBytes(IpDocValuesField receiver, IPAddress defaultValue) {
+        return IP_DECODE_BYTES;
+    }
+
+    /** {@code IpDocValuesField.asString(index, defaultValue)}: a decoded address plus its text. */
+    public static long ipStringBytes(IpDocValuesField receiver, int index, String defaultValue) {
+        return AllocSizes.addSat(IP_DECODE_BYTES, newStringBytes(IP_STRING_CHARS));
+    }
+
+    /** {@code IpDocValuesField.asString(defaultValue)}, which reads index 0. */
+    public static long ipStringBytes(IpDocValuesField receiver, String defaultValue) {
+        return AllocSizes.addSat(IP_DECODE_BYTES, newStringBytes(IP_STRING_CHARS));
+    }
+
+    /**
+     * A legacy ip read through {@code ScriptDocValues.Strings}, which decodes the address and then formats it: the decode
+     * plus the text, sized from the {@code chars} of the String it made.
+     */
+    public static long ipStringReadBytes(long chars) {
+        return AllocSizes.addSat(IP_DECODE_BYTES, newStringBytes(chars));
+    }
+
+    /** {@code IpDocValuesField.asStrings()}: a list with one decoded address string per value. */
+    public static long ipStringsBytes(IpDocValuesField receiver) {
+        long size = receiver == null ? 0 : receiver.size();
+        long perValue = AllocSizes.addSat(IP_DECODE_BYTES, newStringBytes(IP_STRING_CHARS));
+        return AllocSizes.addSat(listBytes(size), AllocSizes.mulSat(size, perValue));
+    }
+
+    /** {@code HalfFloatDocValuesField.asDoubles()}: a list with one boxed {@link Double} per value. */
+    public static long halfFloatDoublesBytes(HalfFloatDocValuesField receiver) {
+        long size = receiver == null ? 0 : receiver.size();
+        return AllocSizes.addSat(listBytes(size), AllocSizes.mulSat(size, AllocSizes.boxSize(Double.class)));
+    }
+
+    // ---- Helpers that walk their receiver. Over doc values every element is a decode, so they charge the document up front
+    // ---- like iterator() does (see decodeBytes). Over anything else they charge nothing.
+
+    /** {@code Iterable.forEach(consumer)}. */
+    public static long forEachBytes(PainlessScript script, Iterable<?> receiver, Consumer<?> consumer) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Iterable.any(predicate)}. */
+    public static long anyBytes(PainlessScript script, Iterable<?> receiver, Predicate<?> predicate) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Iterable.count(predicate)}. */
+    public static long countBytes(PainlessScript script, Iterable<?> receiver, Predicate<?> predicate) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Iterable.each(consumer)}. */
+    public static long eachBytes(PainlessScript script, Iterable<?> receiver, Consumer<?> consumer) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Iterable.eachWithIndex(consumer)}. */
+    public static long eachWithIndexBytes(PainlessScript script, Iterable<?> receiver, ObjIntConsumer<?> consumer) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Iterable.every(predicate)}. */
+    public static long everyBytes(PainlessScript script, Iterable<?> receiver, Predicate<?> predicate) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Iterable.sum()}. */
+    public static long sumBytes(Iterable<?> receiver) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Iterable.sum(function)}. */
+    public static long sumBytes(PainlessScript script, Iterable<?> receiver, ToDoubleFunction<?> function) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Collection.removeIf(predicate)}. */
+    public static long removeIfBytes(PainlessScript script, Collection<?> receiver, Predicate<?> predicate) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Collection.collect(collection, function)}: the results go into the caller's collection. */
+    public static long collectBytes(PainlessScript script, Collection<?> receiver, Collection<?> collection, Function<?, ?> function) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Collection.find(predicate)}. */
+    public static long findBytes(PainlessScript script, Collection<?> receiver, Predicate<?> predicate) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Collection.findAll(predicate)}: the decodes plus a list with room for every element. */
+    public static long findAllBytes(PainlessScript script, Collection<?> receiver, Predicate<?> predicate) {
+        return AllocSizes.addSat(decodeBytes(receiver), listBuiltByAddBytes(receiver == null ? 0 : receiver.size()));
+    }
+
+    /** {@code Collection.findResult(function)}. */
+    public static long findResultBytes(PainlessScript script, Collection<?> receiver, Function<?, ?> function) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code Collection.findResult(defaultResult, function)}. */
+    public static long findResultBytes(PainlessScript script, Collection<?> receiver, Object defaultResult, Function<?, ?> function) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code List.replaceAll(operator)}. Doc values refuse the store, but every element is decoded first. */
+    public static long replaceAllBytes(PainlessScript script, List<?> receiver, UnaryOperator<?> operator) {
+        return decodeBytes(receiver);
+    }
+
+    /** {@code DenseVector.getVector()}: a copy of the vector as {@code float[]}. The stored float form hands out its own array. */
+    public static long denseVectorCopyBytes(DenseVector receiver) {
+        if (receiver == null || receiver.isEmpty() || receiver instanceof BinaryDenseVector) {
+            return 0;
+        }
+        return AllocSizes.arrayBytes(receiver.getDims(), Float.BYTES);
+    }
+
+    /** {@code DenseVectorScriptDocValues.getVectorValue()}: the same copy, of the vector the supplier holds. */
+    public static long denseVectorCopyBytes(DenseVectorScriptDocValues receiver) {
+        if (receiver != null && receiver.getSupplier() instanceof DenseVectorScriptDocValues.DenseVectorSupplier supplier) {
+            return denseVectorCopyBytes(supplier.getInternal());
+        }
+        return 0;
+    }
+
+    /** {@code RankVectorsScriptDocValues.getVectorValues()}: two iterators and one {@code float[]} of the field's dimensions. */
+    public static long rankVectorsIteratorBytes(RankVectorsScriptDocValues receiver) {
+        return rankVectorsIteratorBytes(receiver == null ? 0 : receiver.dims());
+    }
+
+    /** {@code RankVectors.getVectors()}. An empty value would throw from {@code getDims()}, so it gets the iterator alone. */
+    public static long rankVectorsIteratorBytes(RankVectors receiver) {
+        if (receiver == null || receiver.isEmpty()) {
+            return AllocSizes.ITERATOR_BYTES;
+        }
+
+        return rankVectorsIteratorBytes(receiver.getDims());
+    }
+
+    private static long rankVectorsIteratorBytes(long dims) {
+        // The copied source iterator, the wrapper a byte-encoded field adds, and the float buffer.
+        return AllocSizes.addSat(AllocSizes.mulSat(2, AllocSizes.ITERATOR_BYTES), AllocSizes.arrayBytes(dims, 4));
     }
 
     /** Cost of {@code Collection.toArray()}: a new {@code Object[]} sized to the collection. */

@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -123,17 +124,13 @@ public class IpFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> indexed;
         private final DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
 
         private final Parameter<Boolean> ignoreMalformed;
-        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
-            .acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
-            m -> toType(m).builderParams.onScriptError(),
-            script
-        );
+        private final Parameter<Script> script = Parameter.scriptParam();
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(script);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Boolean> dimension;
@@ -147,12 +144,7 @@ public class IpFieldMapper extends FieldMapper {
             super(name);
             this.indexSettings = indexSettings;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
-            this.ignoreMalformed = Parameter.boolParam(
-                "ignore_malformed",
-                true,
-                m -> toType(m).ignoreMalformed,
-                IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
-            );
+            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings()));
             this.script.precludesParameters(nullValue, ignoreMalformed);
 
             this.docValuesParameters = DocValuesParameter.of(
@@ -161,12 +153,11 @@ public class IpFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
-                m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
 
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.dimension = TimeSeriesParams.dimensionParam(() -> docValuesParameters.get().enabled());
+            this.indexed = Parameter.indexParam(indexSettings, dimension);
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
         }
 
@@ -222,6 +213,9 @@ public class IpFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 stored,
                 ignoreMalformed,
                 nullValue,
@@ -239,16 +233,33 @@ public class IpFieldMapper extends FieldMapper {
                 // Disable skippers if using binary doc values
                 return IndexType.points(indexed.get(), true);
             }
-            if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+            if (timeSeriesSkippersHonorIndexAndDocValues(indexSettings.getIndexVersionCreated()) == false
+                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                // NOTE: older time series indices ignored [index] and [doc_values], so their segments have skippers and no points
                 return IndexType.skippers();
             }
             if (indexed.get() == false && docValuesParameters.get().enabled()) {
+                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                    return IndexType.skippers();
+                }
                 if (indexSettings.useDocValuesSkipper()
                     && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
                     return IndexType.skippers();
                 }
             }
             return IndexType.points(indexed.get(), docValuesParameters.get().enabled());
+        }
+
+        private static boolean timeSeriesSkippersHonorIndexAndDocValues(IndexVersion indexVersionCreated) {
+            return indexVersionCreated.onOrAfter(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES)
+                || indexVersionCreated.between(
+                    IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5,
+                    IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG
+                )
+                || indexVersionCreated.between(
+                    IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4,
+                    IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES
+                );
         }
 
         @Override
@@ -318,6 +329,12 @@ public class IpFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(
         (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
     );
+
+    // The recorded value is the encoded (sortable) address; format it like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        BytesRef formatted = convert((BytesRef) v);
+        b.utf8Value(formatted.bytes, formatted.offset, formatted.length);
+    };
 
     public static final class IpFieldType extends SimpleMappedFieldType {
 
@@ -770,9 +787,7 @@ public class IpFieldMapper extends FieldMapper {
     private final String nullValueAsString;
 
     private final IndexSettings indexSettings;
-    private final Script script;
     private final FieldValues<InetAddress> scriptValues;
-    private final ScriptCompiler scriptCompiler;
 
     private final String offsetsFieldName;
 
@@ -796,9 +811,7 @@ public class IpFieldMapper extends FieldMapper {
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();
         this.nullValueAsString = builder.nullValue.getValue();
-        this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
-        this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
         this.writeDimensionRouting = this.dimension
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
@@ -1096,7 +1109,7 @@ public class IpFieldMapper extends FieldMapper {
                 context.addIgnoredField(fieldType().name());
                 if (storeIgnored) {
                     // Save a copy of the field so synthetic source can load it
-                    FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                    FallbackPostMapper.captureMalformed(context, fullPath(), offsetsFieldName, docValuesParameters.multiValue());
                 }
                 return;
             } else {
@@ -1115,9 +1128,9 @@ public class IpFieldMapper extends FieldMapper {
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (address != null) {
                 BytesRef sortableValue = address.binaryValue();
-                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }
@@ -1176,11 +1189,6 @@ public class IpFieldMapper extends FieldMapper {
             doc,
             value -> indexValue(documentParserContext, new ESInetAddressPoint(fieldType().name(), value))
         );
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, indexSettings).dimension(dimension).init(this);
     }
 
     @Override

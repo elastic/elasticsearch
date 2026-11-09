@@ -12,10 +12,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 /**
  * What one listing established, and which of the two questions each part of it answers.
  * <p>
- * Resolution lists a dataset for the schema: how many files define its columns is the dataset's business — none
+ * Resolution lists for the schema. How many files define the columns is still the mode's business — none
  * under a declared mapping, one under {@code first_file_wins}, every file under {@code union_by_name} and
- * {@code strict}. Split discovery needs something else entirely: the files this query must read, with its
- * filters applied and no more of them than its limit requires.
+ * {@code strict} — but inferred {@code first_file_wins} and a declared mapping now list the files this
+ * query's filters keep, then take a prefix of that set. {@link #schemaListing()} can therefore be a
+ * filtered subset. Split discovery needs something else entirely: the files this query must
+ * read, with its filters applied and no more of them than its limit requires.
  * <p>
  * Those answers came out of one {@link FileList}, so every consumer read whichever one happened to be there, and
  * the cheap listing had to be gated on "no rows are read" — not because a schema needs a whole dataset, but
@@ -39,8 +41,12 @@ public record DatasetDiscovery(FileList schemaListing, FileList scanFileSet) {
         return new DatasetDiscovery(listing, listing);
     }
 
-    /** Whether the schema's listing is the whole of what the pattern matches, and so usable as a file set. */
+    /**
+     * Whether the schema's listing is the whole of what the pattern matches, and so usable as a file set.
+     * An inference-anchor listing is one leftover file after every folder was pruned, not the glob; Phase 2
+     * skips the scan rather than re-listing it.
+     */
     public boolean schemaListingIsComplete() {
-        return schemaListing.isTruncated() == false;
+        return schemaListing.isTruncated() == false && schemaListing.isInferenceAnchor() == false;
     }
 }

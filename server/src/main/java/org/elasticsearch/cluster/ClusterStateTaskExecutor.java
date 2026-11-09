@@ -98,7 +98,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * method and must instead call {@link #success(Runnable, ClusterStateAckListener)}, passing the task itself as the {@code
          * clusterStateAckListener} argument.
          *
-         * @param onPublicationSuccess An action executed when (if?) the cluster state update succeeds.
+         * @param onPublicationSuccess An action executed on the master-service thread when (if?) the cluster state update succeeds.
          */
         void success(Runnable onPublicationSuccess);
 
@@ -109,7 +109,8 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * method and must instead call {@link #success(Consumer, ClusterStateAckListener)}, passing the task itself as the {@code
          * clusterStateAckListener} argument.
          *
-         * @param publishedStateConsumer A consumer of the cluster state that was ultimately published.
+         * @param publishedStateConsumer A consumer of the cluster state that was ultimately published, executed on the master-service
+         *                               thread.
          *                               <p>
          *                               The consumer should prefer not to use the published state for things like determining the result
          *                               of a task. The task may have been executed as part of a batch, and later tasks in the batch may
@@ -127,7 +128,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you must pass the task
          * itself as the {@code clusterStateAckListener} argument.
          *
-         * @param onPublicationSuccess An action executed when (if?) the cluster state update succeeds.
+         * @param onPublicationSuccess An action executed on the master-service thread when (if?) the cluster state update succeeds.
          *
          * @param clusterStateAckListener A listener for acknowledgements from nodes. If the publication succeeds then this listener is
          *                                completed as nodes ack the state update. If the publication fails then the failure
@@ -141,7 +142,8 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you must pass the task
          * itself as the {@code clusterStateAckListener} argument.
          *
-         * @param publishedStateConsumer A consumer of the cluster state that was ultimately published.
+         * @param publishedStateConsumer A consumer of the cluster state that was ultimately published, executed on the master-service
+         *                               thread.
          *                               <p>
          *                               The consumer should prefer not to use the published state for things like determining the result
          *                               of a task. The task may have been executed as part of a batch, and later tasks in the batch may
@@ -175,7 +177,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         }
 
         /**
-         * Record that the cluster state update task failed.
+         * Record that the cluster state update task failed. Ultimately calls {@link ClusterStateTaskListener#onFailure} on the
+         * corresponding task, using the master-service thread, either with the given exception or else with a batch-wide exception if a
+         * batch-wide exception is thrown.
          *
          * @param failure The exception with which the task failed.
          */

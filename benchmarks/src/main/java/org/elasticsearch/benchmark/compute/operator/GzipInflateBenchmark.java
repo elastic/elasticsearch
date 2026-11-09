@@ -10,6 +10,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -165,6 +166,19 @@ public class GzipInflateBenchmark {
     public void ctorSized(Blackhole bh) throws IOException {
         ByteArrayInputStream raw = new ByteArrayInputStream(gzipBytes);
         try (GZIPInputStream in = new GZIPInputStream(raw, rawBufferBytes)) {
+            drain(in, bh);
+        }
+    }
+
+    /**
+     * {@code GzipDecompressionCodec.decompress(raw)} — the production decoder, which owns the member loop instead of
+     * using {@link GZIPInputStream}. Compare against {@link #ctorSized} at {@code rawBufferBytes=65536}, the codec's
+     * buffer size, to confirm multi-member support costs nothing on single-member input.
+     */
+    @Benchmark
+    public void codec(Blackhole bh) throws IOException {
+        ByteArrayInputStream raw = new ByteArrayInputStream(gzipBytes);
+        try (InputStream in = new GzipDecompressionCodec().decompress(raw)) {
             drain(in, bh);
         }
     }

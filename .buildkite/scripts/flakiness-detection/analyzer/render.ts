@@ -4,8 +4,14 @@ import type { FailureKind, FlakinessReport } from "./junit-reports-analyzer.ts";
 const MAX_FAILING_ROWS = 100;
 const MAX_EXAMPLE_MESSAGES = 25;
 const MAX_MESSAGE_CHARS = 400;
+const MAX_TEMP_DIR_EXHAUSTED_CLASSES = 10;
 const MAX_ANNOTATION_BYTES = 900_000;
 const TRUNCATION_MARKER = "\n\n_Annotation truncated to stay under the Buildkite size limit._";
+
+// Shown on any report with a flakiness found.
+// Placed right under the heading so truncation of a large report can never cut it off.
+export const CONTACT_NOTE =
+  "> If you think this result is wrong - contact #es-core-infra.";
 
 function truncateMessage(msg: string): string {
   return msg.length <= MAX_MESSAGE_CHARS ? msg : `${msg.slice(0, MAX_MESSAGE_CHARS)}…`;
@@ -22,11 +28,15 @@ function summarizeKinds(kinds: FailureKind[]): string {
   return [...counts.entries()].map(([k, n]) => (n > 1 ? `${k} x${n}` : k)).join(", ");
 }
 
-export function renderMarkdown(report: FlakinessReport, buildFailed = false): string {
+export function renderMarkdown(report: FlakinessReport, buildFailed = false, inputProblems: string[] = []): string {
   const { totals } = report;
   const lines: string[] = [];
   lines.push("## Flakiness summary");
   lines.push("");
+  if (totals.realFailures > 0) {
+    lines.push(CONTACT_NOTE);
+    lines.push("");
+  }
   // The compile phase failed, so every batch was skipped and the
   // totals below are all zero. Explain that up front so the run does not read
   // as a clean pass.
@@ -37,10 +47,28 @@ export function renderMarkdown(report: FlakinessReport, buildFailed = false): st
     lines.push("> claim about the rest of the build.");
     lines.push("");
   }
+  if (inputProblems.length > 0) {
+    lines.push("> ⚠️ This report is incomplete: some of its inputs did not reach the report step.");
+    lines.push("> The failure is in the reporting pipeline, not in the PR.");
+    for (const p of inputProblems) {
+      lines.push(`> - ${p}`);
+    }
+    lines.push("");
+  }
   lines.push(`- Iterations attempted: ${totals.iterations}`);
   lines.push(`- Successful cases: ${totals.successfulCases}`);
   lines.push(`- Real failures: ${totals.realFailures}`);
   lines.push(`- Suite-timeout markers (informational): ${totals.suiteTimeoutMarkers}`);
+  if (totals.tempDirExhaustedMarkers > 0) {
+    const classes = report.tempDirExhaustedClasses;
+    const shown = classes.slice(0, MAX_TEMP_DIR_EXHAUSTED_CLASSES).map((c) => `\`${c}\``);
+    if (classes.length > shown.length) {
+      shown.push(`${classes.length - shown.length} more`);
+    }
+    lines.push(
+      `- Iterations not completed: ${totals.tempDirExhaustedMarkers} in ${shown.join(", ")} (Lucene temp dir limit hit, not counted as failures)`
+    );
+  }
   lines.push("");
 
   // Most-flaky first, so truncation drops the least-failing tests.
@@ -88,11 +116,18 @@ export function renderMarkdown(report: FlakinessReport, buildFailed = false): st
   return body.slice(0, MAX_ANNOTATION_BYTES - TRUNCATION_MARKER.length) + TRUNCATION_MARKER;
 }
 
-export function severity(report: FlakinessReport, buildFailed = false): "error" | "warning" | "success" {
+export function severity(
+  report: FlakinessReport,
+  buildFailed = false,
+  inputProblems: string[] = []
+): "error" | "warning" | "success" {
   // A compile-gate failure is not the PR's flakiness problem (the batches never
   // ran), so it is a warning (orange), not an error - and never a false-green.
   if (buildFailed) return "warning";
   if (report.totals.realFailures > 0) return "error";
   if (report.totals.suiteTimeoutMarkers > 0) return "warning";
+  if (report.totals.tempDirExhaustedMarkers > 0) return "warning";
+  // An incomplete report must not read as a clean pass.
+  if (inputProblems.length > 0) return "warning";
   return "success";
 }

@@ -25,9 +25,12 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.TestConnectionResult;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.plugin.ExternalWorkerReadiness;
 import org.elasticsearch.xpack.esql.plugin.NodeEligibilityStrategy;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,6 +82,8 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final DataSourceService dataSourceService;
+    private final FederationLicense federationLicense;
+    private final ExternalWorkerReadiness externalWorkerReadiness;
 
     @Inject
     public TransportTestDataSourceConnectionAction(
@@ -86,7 +91,9 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         ActionFilters actionFilters,
         ThreadPool threadPool,
         ClusterService clusterService,
-        DataSourceService dataSourceService
+        DataSourceService dataSourceService,
+        FederationLicense federationLicense,
+        ExternalWorkerReadiness externalWorkerReadiness
     ) {
         super(TestDataSourceConnectionAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("action [" + TestDataSourceConnectionAction.NAME + "] is local-only");
@@ -94,6 +101,8 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.dataSourceService = dataSourceService;
+        this.federationLicense = federationLicense;
+        this.externalWorkerReadiness = externalWorkerReadiness;
     }
 
     @Override
@@ -102,6 +111,10 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         TestDataSourceConnectionAction.Request request,
         ActionListener<TestDataSourceConnectionAction.Response> listener
     ) {
+        if (federationLicense.isAllowed() == false) {
+            listener.onFailure(EsqlLicenseChecker.invalidLicenseForFederationException(federationLicense.get()));
+            return;
+        }
         // --- Step 1: validate type against PUT registry (unknown type → 400) ---
         DataSourceValidator validator = dataSourceService.validatorFor(request.type());
         if (validator == null) {
@@ -120,7 +133,9 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         }
 
         // --- Step 3: select eligible nodes and fan out ---
-        DiscoveryNodes allNodes = clusterService.state().nodes();
+        // A node that has just joined and not yet applied the state that added it has no credentials to probe with; the
+        // query path leaves it out until it has, and so does the probe.
+        DiscoveryNodes allNodes = externalWorkerReadiness.readyNodes(clusterService.state().nodes());
         List<DiscoveryNode> dataNodes = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(allNodes);
         // Always include the coordinating node: schema resolution and dataset listing run there, so
         // egress blocked on the coordinator causes query failures even when all data nodes report success.

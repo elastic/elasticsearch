@@ -40,6 +40,11 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
     public static final String ENRICH_INDEX_PATTERN = ENRICH_INDEX_NAME_BASE + "*";
+    /**
+     * Field in the {@code _meta} of an enrich index's mapping that names the policy the index was built for. Unlike the index name,
+     * it survives the system index migration, which renames enrich indices.
+     */
+    public static final String ENRICH_POLICY_NAME_FIELD_NAME = "enrich_policy_name";
 
     public static final String MATCH_TYPE = "match";
     public static final String GEO_MATCH_TYPE = "geo_match";

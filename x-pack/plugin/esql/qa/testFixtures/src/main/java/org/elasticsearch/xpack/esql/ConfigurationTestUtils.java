@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
@@ -133,9 +132,7 @@ public class ConfigurationTestUtils {
     }
 
     static Map<String, Column> randomColumns() {
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-            .breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST))
-            .build();
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         int count = scaledRandomIntBetween(1, 10);
         Map<String, Column> columns = new HashMap<>(count);
         int positions = scaledRandomIntBetween(1, 10_000);

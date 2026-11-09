@@ -116,6 +116,12 @@ public class SnapshotInfoCollectorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> SnapshotInfoCollector.create(randomSnapshotInfoComparator(), size, offset));
     }
 
+    public void testLargeCapacity() {
+        final var offset = between(0, Integer.MAX_VALUE - 1);
+        final var size = Integer.MAX_VALUE - offset;
+        SnapshotInfoCollector.create(randomSnapshotInfoComparator(), size, offset); // should not throw or OOM
+    }
+
     private static Comparator<SnapshotInfo> randomSnapshotInfoComparator() {
         return randomFrom(SnapshotSortKey.values()).getSnapshotInfoComparator(randomFrom(SortOrder.values()));
     }

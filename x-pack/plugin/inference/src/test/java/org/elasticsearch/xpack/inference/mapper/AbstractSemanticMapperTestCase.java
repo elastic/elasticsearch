@@ -11,20 +11,30 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.PerFieldFormatSupplier;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -33,13 +43,17 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.Model;
@@ -97,9 +111,11 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FI
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -624,6 +640,70 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             .put(IndexSettings.MODE.getKey(), indexMode.getName())
             .build();
         return createMapperService(indexVersion, settings, mappings);
+    }
+
+    /**
+     * In a columnar index with the ColumNAR codec, the original input is a ColumNAR payload column: routed to the codec, read back in
+     * document order with duplicates by synthetic source, by {@code columnar_stored} (which leaves it out of the source blob and
+     * patches it back) and by the value fetcher.
+     */
+    public void testOriginalValuesAreAColumnarPayloadColumn() throws IOException {
+        assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat());
+        final String dvFieldName = SemanticTextField.getOriginalValuesFieldName("field");
+        for (SourceFieldMapper.Mode mode : List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED)) {
+            final Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), mode)
+                .build();
+            final MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping(this::minimalMapping));
+            final PerFieldFormatSupplier formats = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+            assertThat(formats.getDocValuesFormatForField(dvFieldName), instanceOf(ColumNARDocValuesFormat.class));
+            assertThat(
+                "only a field this mapper owns is answered for",
+                formats.getDocValuesFormatForField("field.other"),
+                not(instanceOf(ColumNARDocValuesFormat.class))
+            );
+
+            final ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "b", "a", "b")));
+            assertThat(doc.rootDoc().getField(dvFieldName), instanceOf(ColumnarBinaryDocValuesField.class));
+            if (mode == SourceFieldMapper.Mode.COLUMNAR_STORED) {
+                final String blob = new BytesArray(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue()).utf8ToString();
+                assertThat("the blob leaves the original input out", blob, not(containsString("field")));
+            }
+
+            final SearchExecutionContext searchContext = createSearchExecutionContext(mapperService);
+            final ValueFetcher fetcher = searchContext.getFieldType("field").valueFetcher(searchContext, null);
+            withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                final SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+                final int[] docIds = new int[] { 0 };
+                final LeafStoredFieldLoader storedFields = StoredFieldLoader.create(false, loader.requiredStoredFields())
+                    .getLoader(leaf, docIds);
+                storedFields.advanceTo(0);
+                final Source source = loader.leaf(leaf, docIds).source(storedFields, 0);
+                assertThat("mode=" + mode, source.source(), equalTo(Map.of("field", List.of("b", "a", "b"))));
+
+                fetcher.setNextReader(leaf);
+                assertThat(fetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>()), contains("b", "a", "b"));
+
+                // ES|QL loads a semantic_text field's original input from the same column.
+                if (mapperService.fieldType("field") instanceof SemanticTextFieldMapper.SemanticTextFieldType fieldType) {
+                    final BlockLoader blockLoader = fieldType.blockLoader(
+                        new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService)
+                    );
+                    try (
+                        BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(leaf)
+                            .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))
+                    ) {
+                        final TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                        assertThat(block.get(0), equalTo(List.of(new BytesRef("b"), new BytesRef("a"), new BytesRef("b"))));
+                    }
+                }
+            });
+        }
     }
 
     protected TestModel createRandomSupportedModel() {

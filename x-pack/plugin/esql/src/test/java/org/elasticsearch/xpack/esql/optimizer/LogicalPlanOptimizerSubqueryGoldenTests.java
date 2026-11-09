@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -46,6 +47,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
 
     public void testMatchAfterSubquerySortWithoutLimit() {
         runGoldenTest("""
@@ -71,7 +73,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     /**
      * Verifies the plan shape when a type conversion is applied to a grouping key after STATS above a
      * multi-subquery FROM. The conversion must remain above the Aggregate (reading aggregate output), not
-     * be pushed into the UnionAll branches. esql-planning#1987
+    * be pushed into the UnionAll branches.
      */
     public void testConvertGroupKeyAfterStats() {
         runGoldenTest("""
@@ -580,6 +582,65 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * A {@code WITHOUT(...)} grouping inside a union subquery branch. The grouping's output column is named
+     * {@code _timeseries} from resolution onward (see {@code Analyzer.ResolveRefs#timeSeriesWithoutRenames}), so the
+     * union's alignment null-fills and output carry that final name through optimization. Aligning under the parser's
+     * sourceText name ({@code WITHOUT(pod, region)}) used to fail the post-optimization merge consistency check once
+     * project-combining normalized the branch's attributes by name id. The SUM overflow fix is this query's floor; at
+     * {@code pack_dims_agg} the PackDims node folds into the TimeSeriesAggregate, so the older shape lives in
+     * {@code before_pack_dims_agg}.
+     */
+    public void testWithoutGroupingInsideSubqueryUnion() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        builder("""
+            FROM employees, (TS k8s | STATS avg_cost = AVG(network.cost) BY WITHOUT(pod, region))
+            | KEEP emp_no, avg_cost, _timeseries
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    /**
+     * A user alias on the {@code WITHOUT(...)} grouping is kept as the output name: the union aligns under {@code dims},
+     * the outer {@code KEEP} addresses it, and the lowering leaves the alias over a {@code _timeseries} attribute with its
+     * own id instead of renaming the grouping.
+     */
+    public void testWithoutGroupingAliasInsideSubqueryUnion() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        builder("""
+            FROM employees, (TS k8s | STATS avg_cost = AVG(network.cost) BY dims = WITHOUT(pod, region))
+            | KEEP emp_no, avg_cost, dims
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    /**
+     * {@code WITHOUT(unmapped)} under {@code unmapped_fields="nullify"} resolves only after {@code ResolveUnmapped} has
+     * nullified the field, so the grouping is unresolved when the aggregate is first visited. Its parser-generated export
+     * into the aggregates is still bound by name at that point; the {@code _timeseries} rename must wait for resolution
+     * or the export is orphaned and nullified as an input field.
+     */
+    public void testWithoutUnmappedDimensionNullifyInsideSubqueryUnion() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM employees, (TS k8s | STATS max_cost = MAX(network.cost) BY WITHOUT(missing_dimension))
+            | KEEP emp_no, max_cost, _timeseries
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    /**
+     * Same merge-plan resolution as the union case, exercised through {@code FORK}: the fork's branches are aligned at
+     * resolution time, so the {@code WITHOUT(...)} grouping must already carry its final {@code _timeseries} name.
+     */
+    public void testWithoutGroupingFollowedByFork() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        builder("""
+            TS k8s
+            | STATS avg_cost = AVG(network.cost) BY WITHOUT(pod, region)
+            | FORK (WHERE avg_cost > 6) (WHERE avg_cost <= 6)
+            | KEEP avg_cost, _timeseries, _fork
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
     public void testForkOutputUpdatedAfterConflictingTypesFromExternalDatasetSubqueries() {
         salariesExternalDatasetBuilder("""
             FROM (FROM salaries_int), (FROM salaries_long)
@@ -878,6 +939,23 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
+    /**
+     * A column with conflicting types in a nested union, next to a sibling branch of the outer union that produces it as
+     * {@code keyword} ({@code first_name}) or as another type ({@code avg_worked_seconds}). Under {@code unmapped_fields} with an
+     * unmapped reference, the nested union's conflict is null-filled as {@code keyword}, so the outer union sees {@code first_name} as
+     * {@code keyword} in every branch and returns the sibling's values, while {@code avg_worked_seconds} conflicts. This pins the
+     * behaviour from before merge branches were left unaligned until the optimizer; see the TODO in
+     * {@code ResolveUnionTypesInUnionAll}, which expects this to change once {@code UNSUPPORTED} columns are no longer null-filled as
+     * {@code keyword}.
+     */
+    public void testNestedUnionTypeConflictNextToSiblingWithUnmappedReference() {
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM (FROM (FROM employees), (FROM employees, employees_incompatible) | EVAL x = 1), (FROM employees)
+            | KEEP first_name, avg_worked_seconds, does_not_exist
+            """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
+    }
+
     public void testSameConversionResolvedOnLaterPassOverViewAndMultiTypedBranch() {
         builder("""
             SET unmapped_fields="nullify";
@@ -1097,6 +1175,71 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | FORK (WHERE true) (WHERE true)
             | KEEP @timestamp
             """, STAGES, Map.of("nanos_view", "FROM sample_data_ts_nanos", "mixed_view", "FROM sample_data, (FROM sample_data_ts_nanos)"));
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnInFirstBranch() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (KEEP message) (KEEP @timestamp, message)
+            | KEEP @timestamp, _fork
+            """, STAGES);
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnInSecondBranch() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (KEEP @timestamp, message) (KEEP message)
+            | KEEP @timestamp, _fork
+            """, STAGES);
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnAfterNestedSubquery() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
+            | FORK (KEEP @timestamp) (KEEP message)
+            | KEEP @timestamp, _fork
+            """, STAGES);
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnWithEval() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (EVAL x = @timestamp) (WHERE true)
+            | KEEP x, _fork
+            """, STAGES);
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnWithStats() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (STATS m = MAX(@timestamp)) (WHERE true | KEEP @timestamp)
+            | KEEP m, @timestamp
+            """, STAGES);
+    }
+
+    public void testForkNullFillsAtEveryLevelOfNestedUnionAlls() {
+        runGoldenTest("""
+            FROM (FROM (FROM sample_data, (FROM sample_data_ts_nanos)
+                        | FORK (KEEP @timestamp, message) (KEEP message)),
+                       (FROM sample_data | KEEP @timestamp, message)
+                  | FORK (EVAL t = @timestamp) (KEEP message)),
+                 (FROM sample_data_ts_nanos | KEEP @timestamp, message)
+            | RENAME t AS u
+            | KEEP @timestamp, u, message, _fork
+            | SORT @timestamp, u
+            """, STAGES);
+    }
+
+    public void testForkNullFillsInsideAndAfterUnionAllThroughViews() {
+        runGoldenTest("""
+            FROM (FROM fork_over_union_view, (FROM sample_data | KEEP @timestamp, message)
+                      | FORK (WHERE message IS NOT NULL) (KEEP message)),
+                     (FROM sample_data | KEEP @timestamp, message)
+                | KEEP @timestamp, message, _fork
+                | SORT @timestamp
+            """, STAGES, Map.of("fork_over_union_view", """
+            FROM sample_data, (FROM sample_data_ts_nanos) | FORK (KEEP @timestamp, message) (KEEP message)
+            """));
     }
 
     // implicit casting field referenced in functions, test fix to collectAliasesNeedingTypeUpdate

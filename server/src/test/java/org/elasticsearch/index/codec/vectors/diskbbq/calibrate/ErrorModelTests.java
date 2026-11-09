@@ -276,7 +276,7 @@ public class ErrorModelTests extends ESTestCase {
 
         // Fast path: single measurement; use the same slope for a direct comparison of the intercept
         double sharedInvDim = scalingFit.scalingModel().params().beta1();
-        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
+        ErrorModel.RealResidualState state = new ErrorModel.RealResidualState(source);
         QuantizationErrorStdModel fastModel = ErrorModel.estimateMagnitudeFromRealResiduals(
             sharedInvDim,
             source,
@@ -377,7 +377,7 @@ public class ErrorModelTests extends ESTestCase {
         );
         double invDim = ManifoldModel.estimateManifoldParameters(source).invDim();
 
-        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
+        ErrorModel.RealResidualState state = new ErrorModel.RealResidualState(source);
         QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 2, 128, state);
 
         // Use the model's own fitted slope (beta1) — with corpus ≥ REAL_RESIDUAL_SAMPLE this comes
@@ -582,7 +582,7 @@ public class ErrorModelTests extends ESTestCase {
             fvv.size()
         );
         double invDim = ManifoldModel.estimateManifoldParameters(source).invDim();
-        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
+        ErrorModel.RealResidualState state = new ErrorModel.RealResidualState(source);
         return ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 2, 128, state).errorStd(128, corpus.length);
     }
 
@@ -679,7 +679,7 @@ public class ErrorModelTests extends ESTestCase {
         );
 
         double invDim = ManifoldModel.estimateManifoldParameters(source).invDim();
-        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
+        ErrorModel.RealResidualState state = new ErrorModel.RealResidualState(source);
 
         // First sweep leg (false): primes state.shared with original-space doc/query centroids.
         QuantizationErrorStdModel falseModel = ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 1, 128, state);
@@ -701,4 +701,5 @@ public class ErrorModelTests extends ESTestCase {
             lessThan(falseStd)
         );
     }
+
 }

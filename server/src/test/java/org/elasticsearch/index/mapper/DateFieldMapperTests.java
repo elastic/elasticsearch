@@ -83,6 +83,9 @@ public class DateFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
@@ -747,9 +750,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     b.field("ignore_malformed", true);
                 }
                 if (enforceSingleValue) {
-                    b.startObject("doc_values");
                     b.field("multi_value", false);
-                    b.endObject();
                 }
             }
 
@@ -843,7 +844,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         // Check that we allow the use of camel case date formats on 7.x indices
         @SuppressWarnings("unchecked")
-        FieldMapper.Parameter<String> formatParam = (FieldMapper.Parameter<String>) builder.getParameters()[3];
+        FieldMapper.Parameter<String> formatParam = formatParameter(builder);
         formatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime");
         builder.buildFormatter(); // shouldn't throw exception
 
@@ -859,7 +860,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         );
 
         @SuppressWarnings("unchecked")
-        final FieldMapper.Parameter<String> newFormatParam = (FieldMapper.Parameter<String>) newFieldBuilder.getParameters()[3];
+        final FieldMapper.Parameter<String> newFormatParam = formatParameter(newFieldBuilder);
 
         // Check that we don't allow the use of camel case date formats on 8.x indices
         assertEquals(
@@ -1017,5 +1018,26 @@ public class DateFieldMapperTests extends MapperTestCase {
         String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
         // epoch_millis values are emitted as quoted strings under strict columnar synthetic source.
         assertThat(src, containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
+    }
+
+    @Override
+    protected List<CheckedConsumer<XContentBuilder, IOException>> fieldMappingsForIndexSortRangeTest() {
+        return List.of(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }, b -> {
+            minimalMapping(b);
+            b.field("index", true);
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static FieldMapper.Parameter<String> formatParameter(DateFieldMapper.Builder builder) {
+        for (FieldMapper.Parameter<?> parameter : builder.getParameters()) {
+            if (parameter.name.equals("format")) {
+                return (FieldMapper.Parameter<String>) parameter;
+            }
+        }
+        throw new AssertionError("no [format] parameter");
     }
 }

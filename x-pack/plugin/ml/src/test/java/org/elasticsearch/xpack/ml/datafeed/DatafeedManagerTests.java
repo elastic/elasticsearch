@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -513,12 +514,63 @@ public class DatafeedManagerTests extends ESTestCase {
         return Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", true).build();
     }
 
-    @SuppressWarnings("unchecked")
-    public void testPutDatafeedWithSecurityAndSecondaryAuthShouldGrantUnderSecondaryPrincipal() {
-        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+    private static Settings securityEnabledSettings() {
+        return Settings.builder().put("xpack.security.enabled", true).build();
+    }
 
-        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", true).build();
+    /** Shared mocks for {@link DatafeedManager#putDatafeed} tests that exercise the security-enabled put path. */
+    private record SecurityEnabledPutHarness(
+        DatafeedConfigProvider datafeedConfigProvider,
+        CloudCredentialManager credentialManager,
+        InternalCloudApiKeyService apiKeyService,
+        MachineLearningExtension mlExtension,
+        JobConfigProvider jobConfigProvider,
+        Client client,
+        ThreadPool threadPool,
+        ThreadContext threadContext,
+        DatafeedManager manager
+    ) {
+        @SuppressWarnings("unchecked")
+        void stubSuccessfulPutPrerequisites() {
+            doAnswer(invocation -> {
+                ActionListener<Set<String>> listener = invocation.getArgument(1);
+                listener.onResponse(Collections.emptySet());
+                return null;
+            }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
+            doAnswer(invocation -> {
+                ActionListener<Boolean> listener = invocation.getArgument(1);
+                listener.onResponse(Boolean.TRUE);
+                return null;
+            }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }
 
+        @SuppressWarnings("unchecked")
+        void stubPutDatafeedConfigSuccess() {
+            doAnswer(invocation -> {
+                ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = invocation.getArgument(2);
+                DatafeedConfig cfg = invocation.getArgument(0);
+                listener.onResponse(Tuple.tuple(cfg, mock(DocWriteResponse.class)));
+                return null;
+            }).when(datafeedConfigProvider).putDatafeedConfig(any(), any(), any());
+        }
+
+        @SuppressWarnings("unchecked")
+        void stubPutDatafeedConfigCapturingHeaders(AtomicReference<Map<String, String>> storedHeaders) {
+            doAnswer(invocation -> {
+                ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = invocation.getArgument(2);
+                DatafeedConfig cfg = invocation.getArgument(0);
+                storedHeaders.set(invocation.getArgument(1));
+                listener.onResponse(Tuple.tuple(cfg, mock(DocWriteResponse.class)));
+                return null;
+            }).when(datafeedConfigProvider).putDatafeedConfig(any(), any(), any());
+        }
+    }
+
+    private SecurityEnabledPutHarness newSecurityEnabledPutHarness(Settings settings) {
+        return newSecurityEnabledPutHarness(settings, new ThreadContext(Settings.EMPTY));
+    }
+
+    private SecurityEnabledPutHarness newSecurityEnabledPutHarness(Settings settings, ThreadContext threadContext) {
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
         InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
@@ -526,42 +578,46 @@ public class DatafeedManagerTests extends ESTestCase {
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+        return new SecurityEnabledPutHarness(
+            datafeedConfigProvider,
+            credentialManager,
+            apiKeyService,
+            mlExtension,
+            jobConfigProvider,
+            client,
+            threadPool,
+            threadContext,
+            manager
+        );
+    }
 
-        AnomalyDetectionAuditor auditor = mockAuditor();
-        DatafeedManager manager = newDatafeedManager(datafeedConfigProvider, jobConfigProvider, settings, client, mlExtension, auditor);
+    @SuppressWarnings("unchecked")
+    public void testPutDatafeedWithSecurityAndSecondaryAuthShouldGrantUnderSecondaryPrincipal() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
-        when(credentialManager.hasCloudManagedCredential(any())).thenReturn(true);
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(cpsWithSecurityEnabledSettings());
+        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(true);
         CloudCredential extractedCredential = new CloudCredential(new SecureString("caller-token".toCharArray()));
-        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(extractedCredential);
+        when(harness.credentialManager().extractCloudManagedCredential(any())).thenReturn(extractedCredential);
 
         PersistedCloudCredential persisted = randomPersistedCloudCredential("minted-key-id-2");
-        mockGrantSucceeds(apiKeyService, persisted);
+        mockGrantSucceeds(harness.apiKeyService(), persisted);
 
-        stubClientForSecurityPutPath(client, threadPool);
-        mockSearchProbeSucceeds(credentialManager, client);
+        stubClientForSecurityPutPath(harness.client(), harness.threadPool());
+        mockSearchProbeSucceeds(harness.credentialManager(), harness.client());
 
-        doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(Collections.emptySet());
-            return null;
-        }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
-
-        doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
-            listener.onResponse(Boolean.TRUE);
-            return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
-
-        doAnswer(invocation -> {
-            ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
-                Tuple<DatafeedConfig, DocWriteResponse>>) invocation.getArguments()[2];
-            DatafeedConfig cfg = invocation.getArgument(0);
-            listener.onResponse(Tuple.tuple(cfg, mock(DocWriteResponse.class)));
-            return null;
-        }).when(datafeedConfigProvider).putDatafeedConfig(any(), any(), any());
+        harness.stubSuccessfulPutPrerequisites();
+        harness.stubPutDatafeedConfigSuccess();
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
@@ -577,17 +633,57 @@ public class DatafeedManagerTests extends ESTestCase {
         when(securityContext.getSecondaryAuthentication()).thenReturn(secondaryAuth);
 
         AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
-        manager.putDatafeed(
-            request,
-            mockClusterStateForUpdate(),
-            securityContext,
-            threadPool,
-            ActionListener.wrap(response::set, e -> fail("unexpected failure: " + e))
-        );
+        harness.manager()
+            .putDatafeed(
+                request,
+                mockClusterStateForUpdate(),
+                securityContext,
+                harness.threadPool(),
+                ActionListener.wrap(response::set, e -> fail("unexpected failure: " + e))
+            );
 
         assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(persisted));
         Mockito.verify(secondaryAuth, Mockito.atLeast(2)).wrap(any(Runnable.class));
-        verify(credentialManager).wrapClient(same(client), eq(extractedCredential));
+        verify(harness.credentialManager()).wrapClient(same(harness.client()), eq(extractedCredential));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutEsqlDatafeedWithSecurityEnabledShouldShortCircuitIndexPrivilegeCheck() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final String callerAuthentication = "caller-auth";
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, callerAuthentication);
+
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings(), threadContext);
+        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
+        harness.stubSuccessfulPutPrerequisites();
+        AtomicReference<Map<String, String>> storedHeaders = new AtomicReference<>();
+        harness.stubPutDatafeedConfigCapturingHeaders(storedHeaders);
+
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(datafeed);
+
+        SecurityContext securityContext = mockSecurityContextWithUser("df-user");
+
+        AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+        harness.manager()
+            .putDatafeed(
+                request,
+                mockClusterStateWithNoTasks(),
+                securityContext,
+                harness.threadPool(),
+                ActionTestUtils.assertNoFailureListener(response::set)
+            );
+
+        assertThat(response.get(), notNullValue());
+        // Index privileges are not checked at PUT for ES|QL datafeeds, so the persisted datafeed headers
+        // (used by every runtime query) must carry the caller's identity.
+        assertThat(storedHeaders.get(), notNullValue());
+        assertThat(storedHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY), equalTo(callerAuthentication));
+        verify(harness.client(), never()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
+        verify(harness.client(), never()).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -1084,6 +1180,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         assertThat(response.get(), notNullValue());
         assertThat(response.get().getResponse().getProjectRouting(), equalTo("_alias:prod-*"));
+        assertWarnings(DatafeedConfig.PROJECT_ROUTING_INERT_WITHOUT_CPS_MESSAGE);
     }
 
     @SuppressWarnings("unchecked")
@@ -2015,6 +2112,72 @@ public class DatafeedManagerTests extends ESTestCase {
         );
 
         assertThat(manager.currentCallerCredential(threadPool, securityContext), nullValue());
+    }
+
+    public void testCarryCallerCredentialWithCredentialShouldHandCredentialToCarrier() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", true).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller-uiam-token".toCharArray()));
+        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(callerCredential);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        DatafeedManager manager = newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class)),
+            mockAuditor()
+        );
+        AtomicReference<CloudCredential> carried = new AtomicReference<>();
+
+        manager.carryCallerCredential(threadPool, null, carried::set);
+
+        assertThat(carried.get(), equalTo(callerCredential));
+    }
+
+    public void testCarryCallerCredentialWithoutCredentialShouldNotTouchCarrier() {
+        // doExecute runs again on the master, where transient headers are gone and extraction yields null: the credential carried
+        // from the coordinator must not be overwritten.
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", true).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(null);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        DatafeedManager manager = newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class)),
+            mockAuditor()
+        );
+        AtomicBoolean carrierCalled = new AtomicBoolean();
+
+        manager.carryCallerCredential(threadPool, null, credential -> carrierCalled.set(true));
+
+        assertFalse(carrierCalled.get());
+    }
+
+    public void testCarryCallerCredentialWithCrossProjectDisabledShouldNotTouchCarrier() {
+        Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        DatafeedManager manager = newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class)),
+            mockAuditor()
+        );
+        AtomicBoolean carrierCalled = new AtomicBoolean();
+
+        manager.carryCallerCredential(threadPool, null, credential -> carrierCalled.set(true));
+
+        assertFalse(carrierCalled.get());
+        verify(credentialManager, never()).extractCloudManagedCredential(any());
     }
 
     @SuppressWarnings("unchecked")

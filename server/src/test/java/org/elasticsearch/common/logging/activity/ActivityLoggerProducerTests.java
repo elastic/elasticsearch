@@ -33,13 +33,13 @@ import static org.mockito.Mockito.when;
 
 public class ActivityLoggerProducerTests extends ESTestCase {
 
-    ActivityLogProducer<ActivityLoggerContext> producer;
+    ActivityLogProducer<QueryCaptureContext> producer;
 
     @Before
     public void setup() {
         producer = new ActivityLogProducer<>() {
             @Override
-            public Optional<ESLogMessage> produce(ActivityLoggerContext ctx, ActionLoggingFields additionalFields) {
+            public Optional<ESLogMessage> produce(QueryCaptureContext ctx, ActionLoggingFields additionalFields) {
                 return Optional.of(produceCommon(ctx, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields));
             }
 
@@ -50,8 +50,8 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         };
     }
 
-    private static ActivityLoggerContext makeSuccessContext() {
-        ActivityLoggerContext context = mock(ActivityLoggerContext.class);
+    private static QueryCaptureContext makeSuccessContext() {
+        QueryCaptureContext context = mock(QueryCaptureContext.class);
         when(context.getType()).thenReturn("testType");
         when(context.getOpaqueId()).thenReturn("test_task");
         when(context.getTraceId()).thenReturn("test_trace_id");
@@ -62,8 +62,8 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         return context;
     }
 
-    private static ActivityLoggerContext makeFailContext() {
-        ActivityLoggerContext context = mock(ActivityLoggerContext.class);
+    private static QueryCaptureContext makeFailContext() {
+        QueryCaptureContext context = mock(QueryCaptureContext.class);
         when(context.getType()).thenReturn("failType");
         when(context.getOpaqueId()).thenReturn("test_task2");
         when(context.getTraceId()).thenReturn("test_trace_id2");

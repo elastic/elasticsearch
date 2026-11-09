@@ -1411,6 +1411,38 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             """, FUNCTION_NAME, FUNCTION_NAME, TOOL_RESULT_JSON));
     }
 
+    public void testSerialization_ToolMessageOmitsSynthesizedId() throws IOException {
+        var syntheticId = FUNCTION_NAME + "#abc123";
+        var messages = List.of(assistantToolCall(syntheticId), toolResult(syntheticId, TOOL_RESULT_JSON));
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" } },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "response": %s
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, FUNCTION_NAME, TOOL_RESULT_JSON));
+    }
+
     public void testSerialization_NonJsonToolResultIsWrappedUnderOutput() throws IOException {
         var deliveredOutput = "delivered";
         var messages = List.of(assistantToolCall(GOOGLE_TOOL_CALL_ID), toolResult(GOOGLE_TOOL_CALL_ID, deliveredOutput));
@@ -2343,6 +2375,40 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 ]
             }
             """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID));
+    }
+
+    public void testSerialization_ToolResultUnknownSynthesizedId_UsesNameFromIdAndOmitsId() throws IOException {
+        var messages = List.of(
+            assistantToolCall(GOOGLE_TOOL_CALL_ID),
+            new Message(new ContentString(TOOL_RESULT_JSON), TOOL_ROLE, SECOND_FUNCTION_NAME + "#abc123", null)
+        );
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "response": { "delivery_date": "2025-03-27" }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, SECOND_FUNCTION_NAME));
     }
 
     public void testSerialization_ToolResultNonTextContentObject_Throws() throws IOException {

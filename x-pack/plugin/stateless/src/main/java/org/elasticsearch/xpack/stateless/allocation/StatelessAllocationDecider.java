@@ -24,7 +24,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 
 public class StatelessAllocationDecider extends AllocationDecider {
 
-    private static final String NAME = "stateless_shard_role";
+    public static final String NAME = "stateless_shard_role";
 
     private static final Decision YES_SHARD_ROLE_MATCHES_NODE_ROLE = Decision.single(
         Decision.Type.YES,
@@ -44,16 +44,9 @@ public class StatelessAllocationDecider extends AllocationDecider {
 
     private Decision decideCanAllocateShardToNode(ShardRouting shardRouting, RoutingNode routingNode, RoutingAllocation allocation) {
         var roles = routingNode.node().getRoles();
-        return canAllocateShardToNode(shardRouting, roles) ? YES_SHARD_ROLE_MATCHES_NODE_ROLE
-            : allocation.debugDecision()
-                ? allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "shard role [%s] does not match stateless node role [%s]",
-                    shardRouting.role(),
-                    statelessNodeRole(roles)
-                )
-            : Decision.NO;
+        return canAllocateShardToNode(shardRouting, roles)
+            ? YES_SHARD_ROLE_MATCHES_NODE_ROLE
+            : createNoDecision(allocation, shardRouting, roles);
     }
 
     private static boolean canAllocateShardToNode(ShardRouting shardRouting, Set<DiscoveryNodeRole> nodeRoles) {
@@ -63,5 +56,17 @@ public class StatelessAllocationDecider extends AllocationDecider {
 
     private static String statelessNodeRole(Set<DiscoveryNodeRole> roles) {
         return roles.stream().filter(StatelessPlugin.STATELESS_ROLES::contains).map(DiscoveryNodeRole::roleName).collect(joining(","));
+    }
+
+    private static Decision createNoDecision(RoutingAllocation allocation, ShardRouting shardRouting, Set<DiscoveryNodeRole> nodeRoles) {
+        // Only prepare the node-roles string if debug decision is enabled - it won't be used otherwise
+        final String statelessNodeRole = allocation.debugDecision() ? statelessNodeRole(nodeRoles) : null;
+        return allocation.decision(
+            Decision.NO,
+            NAME,
+            "shard role [%s] does not match stateless node role [%s]",
+            shardRouting.role(),
+            statelessNodeRole
+        );
     }
 }

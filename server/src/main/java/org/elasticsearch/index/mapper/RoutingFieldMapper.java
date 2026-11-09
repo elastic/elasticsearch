@@ -14,6 +14,10 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -26,6 +30,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -48,16 +53,15 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_routing";
     public static final String CONTENT_TYPE = "_routing";
-
-    private static RoutingFieldMapper toType(FieldMapper in) {
-        return (RoutingFieldMapper) in;
-    }
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
@@ -71,8 +75,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             super(NAME);
             this.requiredByDefault = requiredByDefault;
             this.docValuesEnabledByDefault = docValuesEnabledByDefault;
-            this.required = Parameter.boolParam("required", false, m -> toType(m).required, requiredByDefault);
-            this.docValues = Parameter.boolParam("doc_values", false, m -> toType(m).docValues, docValuesEnabledByDefault);
+            this.required = Parameter.boolParam("required", false, requiredByDefault);
+            this.docValues = Parameter.boolParam("doc_values", false, docValuesEnabledByDefault);
         }
 
         @Override
@@ -87,7 +91,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         @Override
         public RoutingFieldMapper build() {
-            return InstancesLookup.lookup(requiredByDefault, required.getValue(), docValuesEnabledByDefault, docValues.getValue());
+            return InstancesLookup.lookup(required.getValue(), docValues.getValue());
         }
     }
 
@@ -145,6 +149,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
+                if (isSliceKeySorted(context)) {
+                    return sliceKeyExactQuery(indexedValueForSearch(value));
+                }
                 return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             } else {
                 return super.termQuery(value, context);
@@ -155,11 +162,48 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
+                if (isSliceKeySorted(context)) {
+                    final Set<BytesRef> distinct = values.stream()
+                        .map(this::indexedValueForSearch)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                    if (distinct.size() == 1) {
+                        return sliceKeyExactQuery(distinct.iterator().next());
+                    }
+                    if (distinct.size() > IndexSearcher.getMaxClauseCount()) {
+                        // too many slices for one clause each, fall back to a set query on the encoded keys
+                        return SortedDocValuesField.newSlowSetQuery(
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
+                            distinct.stream().map(SliceIndexing::encodeSliceKey).toList()
+                        );
+                    }
+                    final BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                    for (BytesRef value : distinct) {
+                        builder.add(sliceKeyExactQuery(value), BooleanClause.Occur.SHOULD);
+                    }
+                    return new ConstantScoreQuery(builder.build());
+                }
                 Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedDocValuesField.newSlowSetQuery(name(), bytesRefs);
             } else {
                 return super.termsQuery(values, context);
             }
+        }
+
+        /**
+         * On a slice-enabled index, term queries target {@link SliceIndexing#SLICE_KEY_FIELD_NAME}, which carries
+         * equivalent content as _routing but, as the primary index sort, answers them without a doc-values scan.
+         * Only term(s) queries redirect: the hash prefix breaks lexicographic order for range and automaton queries, but
+         * those are not expected, making it an acceptable trade.
+         */
+        private static boolean isSliceKeySorted(SearchExecutionContext context) {
+            return SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()
+                && context != null
+                && context.getIndexSettings() != null
+                && context.getIndexSettings().isSliceEnabled();
+        }
+
+        private static Query sliceKeyExactQuery(BytesRef slice) {
+            return XSortedSetDocValuesRangeQuery.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(slice));
         }
 
         @Override
@@ -259,7 +303,14 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
-                return new StringScriptFieldWildcardQuery(new Script(""), leafFactory, name(), value, caseInsensitive);
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    leafFactory,
+                    name(),
+                    value,
+                    caseInsensitive,
+                    context.getCircuitBreaker()
+                );
             } else {
                 return super.wildcardQuery(value, method, caseInsensitive, context);
             }
@@ -322,28 +373,16 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     private final boolean required;
 
     /**
-     * Whether routing is required by default
-     */
-    private final boolean requiredByDefault;
-
-    /**
      * Whether routing values are stored as sorted doc values instead of stored fields.
      */
     private final boolean docValues;
 
-    /**
-     * Whether routing values are stored as sorted doc values by default.
-     */
-    private final boolean docValuesEnabledByDefault;
-
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
-    private RoutingFieldMapper(boolean requiredByDefault, boolean required, boolean docValuesEnabledByDefault, boolean docValues) {
+    private RoutingFieldMapper(boolean required, boolean docValues) {
         super(docValues ? DOC_VALUES_FIELD_TYPE : FIELD_TYPE);
         this.required = required;
-        this.requiredByDefault = requiredByDefault;
         this.docValues = docValues;
-        this.docValuesEnabledByDefault = docValuesEnabledByDefault;
     }
 
     @Override
@@ -426,39 +465,22 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(requiredByDefault, docValuesEnabledByDefault).init(this);
-    }
-
     static final class InstancesLookup {
 
-        private record Key(boolean requiredByDefault, boolean required, boolean docValuesEnabledByDefault, boolean docValues) {}
+        private record Key(boolean required, boolean docValues) {}
 
-        static final Map<Key, RoutingFieldMapper> INSTANCES = new HashMap<>(16);
+        static final Map<Key, RoutingFieldMapper> INSTANCES = new HashMap<>(4);
 
         static {
             for (boolean required : new boolean[] { true, false }) {
-                for (boolean requiredByDefault : new boolean[] { true, false }) {
-                    for (boolean docValuesEnabled : new boolean[] { true, false }) {
-                        for (boolean docValuesEnabledByDefault : new boolean[] { true, false }) {
-                            INSTANCES.put(
-                                new Key(requiredByDefault, required, docValuesEnabledByDefault, docValuesEnabled),
-                                new RoutingFieldMapper(requiredByDefault, required, docValuesEnabledByDefault, docValuesEnabled)
-                            );
-                        }
-                    }
+                for (boolean docValues : new boolean[] { true, false }) {
+                    INSTANCES.put(new Key(required, docValues), new RoutingFieldMapper(required, docValues));
                 }
             }
         }
 
-        static RoutingFieldMapper lookup(
-            boolean requiredByDefault,
-            boolean required,
-            boolean docValuesEnabledByDefault,
-            boolean docValues
-        ) {
-            var key = new Key(requiredByDefault, required, docValuesEnabledByDefault, docValues);
+        static RoutingFieldMapper lookup(boolean required, boolean docValues) {
+            var key = new Key(required, docValues);
             var routingFieldMapper = INSTANCES.get(key);
             assert routingFieldMapper != null;
             return routingFieldMapper;

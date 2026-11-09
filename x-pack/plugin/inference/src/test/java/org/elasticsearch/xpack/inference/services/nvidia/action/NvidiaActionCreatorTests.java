@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -23,7 +23,6 @@ import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
@@ -840,7 +839,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
     }
 
     private static void assertContentTypeAndAuthorization(MockRequest request) {
-        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
         assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 

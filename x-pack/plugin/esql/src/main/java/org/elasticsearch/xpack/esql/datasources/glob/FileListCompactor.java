@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Compresses a {@link GenericFileList} into a compact representation. Builds a
@@ -50,11 +51,12 @@ final class FileListCompactor {
         if (raw == null || raw.isResolved() == false || raw.fileCount() == 0) {
             return raw;
         }
-        // Neither compacted encoding carries the truncation flag, so compacting would report a bounded listing as
-        // a complete one. Refused here rather than at the caller so a future caller cannot drop the flag. The
-        // cost: a listing bounded at a raised partition_sample_size is carried uncompacted through planning.
-        // Teaching the encodings to carry the flag would remove the trade-off.
-        if (raw.isTruncated()) {
+        // Neither compacted encoding carries the truncation flag or the inference-anchor flag, so compacting
+        // would report a bounded listing or a one-file schema stash as a complete dataset. Refused here rather
+        // than at the caller so a future caller cannot drop the flag. The cost: a listing bounded at a raised
+        // partition_sample_size is carried uncompacted through planning. Teaching the encodings to carry the
+        // flag would remove the trade-off.
+        if (raw.isTruncated() || raw.isInferenceAnchor()) {
             return raw;
         }
         String normalizedBase = normalizeBase(basePath);
@@ -112,7 +114,9 @@ final class FileListCompactor {
      * anticipates — e.g. a base path that is not a prefix of the listed keys, as a comma-separated resource
      * produces on the first_file_wins rail. Path is compared as a string; a candidate whose reconstructed
      * key does not even parse is treated as a mismatch rather than allowed to throw. Size and mtime are
-     * checked too because an encoding may collapse them per group (see {@link DirectoryGroupedFileList}).
+     * checked too because an encoding may collapse them per group (see {@link DirectoryGroupedFileList}), and so is
+     * the version, which must come back per file: it addresses the footer cache, so a version handed to the wrong
+     * file would read that file under another file's footer.
      * {@code listedPaths} carries the raw listing's keys, collected once so verifying several candidates walks
      * the raw entries once.
      */
@@ -130,7 +134,8 @@ final class FileListCompactor {
             }
             if (expected.equals(actual) == false
                 || candidate.size(i) != raw.size(i)
-                || candidate.lastModifiedMillis(i) != raw.lastModifiedMillis(i)) {
+                || candidate.lastModifiedMillis(i) != raw.lastModifiedMillis(i)
+                || Objects.equals(candidate.version(i), raw.version(i)) == false) {
                 logger.debug(
                     "discarding {} for pattern [{}]: listed file [{}] reconstructs as [{}]",
                     candidate.getClass().getSimpleName(),
@@ -173,6 +178,8 @@ final class FileListCompactor {
         short[] fileGroups = new short[count];
         long[] sizes = new long[count];
         long[] mtimes = new long[count];
+        String[] versions = new String[count];
+        boolean anyVersion = false;
         String[] leafNames = new String[count];
         String sharedExt = null;
         boolean extChecked = false;
@@ -181,6 +188,8 @@ final class FileListCompactor {
             StorageEntry entry = files.get(f);
             sizes[f] = entry.length();
             mtimes[f] = entry.lastModified().toEpochMilli();
+            versions[f] = entry.version();
+            anyVersion |= entry.version() != null;
 
             String relative = relativize(normalizedBase, entry.path().toString());
             int lastSlash = relative.lastIndexOf('/');
@@ -244,6 +253,7 @@ final class FileListCompactor {
             uniformMtimes ? null : mtimes,
             uniformMtimes ? gMtimes : null,
             leafNames,
+            anyVersion ? versions : null,
             sharedExt,
             raw.originalPattern(),
             pm,
@@ -262,6 +272,8 @@ final class FileListCompactor {
         int count = files.size();
         long[] sizes = new long[count];
         long[] mtimes = new long[count];
+        String[] versions = new String[count];
+        boolean anyVersion = false;
 
         Map<String, Short> tokenMap = new HashMap<>();
         List<String> tokenList = new ArrayList<>();
@@ -273,6 +285,8 @@ final class FileListCompactor {
             StorageEntry entry = files.get(f);
             sizes[f] = entry.length();
             mtimes[f] = entry.lastModified().toEpochMilli();
+            versions[f] = entry.version();
+            anyVersion |= entry.version() != null;
 
             String relative = relativize(normalizedBase, entry.path().toString());
 
@@ -363,6 +377,7 @@ final class FileListCompactor {
             starts,
             sizes,
             mtimes,
+            anyVersion ? versions : null,
             sharedExt,
             raw.originalPattern(),
             partitionMetadata,

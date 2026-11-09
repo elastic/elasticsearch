@@ -37,8 +37,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
@@ -137,8 +136,51 @@ public class ShardStateActionIT extends ESIntegTestCase {
         final var masterService = masterClusterService.getMasterService();
         final var masterTransportService = MockTransportService.getInstance(masterNode);
         final var indexName = randomIndexName();
-        final var heldUpdates = new HeldShardStartedUpdates();
         final var updatesAheadOfReroute = new AtomicInteger();
+
+        // Hold the index's shard-started updates on the master, grouped by shard, until the test releases them a shard at a time. A data
+        // node re-sends the update for a recovered shard each time it applies a new cluster state, so holding by shard keeps all of a
+        // shard's updates back until the test decides that shard has finished recovering.
+        final var heldUpdatesByShard = new LinkedHashMap<ShardId, List<Runnable>>();
+        final var releasedShards = new HashSet<ShardId>();
+        final var allShardsHeld = new CountDownLatch(shardCount);
+        masterTransportService.<StartedShardEntry>addRequestHandlingBehavior(
+            ShardStateAction.SHARD_STARTED_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                final Runnable update = () -> {
+                    try {
+                        handler.messageReceived(request, channel, task);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                };
+                synchronized (heldUpdatesByShard) {
+                    if (request.shardId.getIndexName().equals(indexName) && releasedShards.contains(request.shardId) == false) {
+                        final var updates = heldUpdatesByShard.computeIfAbsent(request.shardId, ignored -> new ArrayList<>());
+                        if (updates.isEmpty()) {
+                            allShardsHeld.countDown();
+                        }
+                        updates.add(update);
+                        return;
+                    }
+                }
+                update.run();
+            }
+        );
+        final Runnable releaseNextShard = () -> {
+            final List<Runnable> updates;
+            synchronized (heldUpdatesByShard) {
+                final var iterator = heldUpdatesByShard.entrySet().iterator();
+                if (iterator.hasNext() == false) {
+                    return;
+                }
+                final var next = iterator.next();
+                iterator.remove();
+                releasedShards.add(next.getKey());
+                updates = next.getValue();
+            }
+            updates.forEach(Runnable::run);
+        };
 
         // The master applies each new cluster state before it completes the batch that produced it, so this listener runs inside that
         // batch. Releasing one held shard there, first in the node-join batch and then in each shard-started batch, leaves an update
@@ -149,20 +191,10 @@ public class ShardStateActionIT extends ESIntegTestCase {
                 updatesAheadOfReroute.incrementAndGet();
             }
             if (event.nodesAdded() || shardStarted) {
-                heldUpdates.releaseNextShard();
+                releaseNextShard.run();
             }
         };
 
-        masterTransportService.<StartedShardEntry>addRequestHandlingBehavior(
-            ShardStateAction.SHARD_STARTED_ACTION_NAME,
-            (handler, request, channel, task) -> heldUpdates.receive(request.shardId, () -> {
-                try {
-                    handler.messageReceived(request, channel, task);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-            })
-        );
         try {
             // Let the data node recover every shard at once, so that all their updates are waiting to be released.
             updateClusterSettings(
@@ -171,7 +203,7 @@ public class ShardStateActionIT extends ESIntegTestCase {
             prepareCreate(indexName).setSettings(
                 indexSettings(shardCount, 0).put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", dataNode)
             ).setWaitForActiveShards(ActiveShardCount.NONE).get();
-            assertBusy(() -> assertThat(heldUpdates.heldShardCount(), equalTo(shardCount)));
+            safeAwait(allShardsHeld);
 
             masterClusterService.addListener(releaseOneShardPerBatch);
             internalCluster().startDataOnlyNode();
@@ -179,7 +211,10 @@ public class ShardStateActionIT extends ESIntegTestCase {
         } finally {
             masterClusterService.removeListener(releaseOneShardPerBatch);
             masterTransportService.clearInboundRules();
-            heldUpdates.releaseAll(); // only needed if the test failed part-way, so that the cluster can shut down cleanly
+            // Only needed if the test failed part-way, so that the cluster can shut down cleanly.
+            for (int i = 0; i < shardCount; i++) {
+                releaseNextShard.run();
+            }
             updateClusterSettings(
                 Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey())
             );
@@ -266,51 +301,6 @@ public class ShardStateActionIT extends ESIntegTestCase {
         @Override
         public String describeTasks(List<LoopingTask> tasks) {
             return "";
-        }
-    }
-
-    /**
-     * Holds the {@code shard-started} updates that the master receives, grouped by shard, until the test releases them a shard at a time.
-     * A data node re-sends the update for a recovered shard each time it applies a new cluster state, so holding by shard rather than by
-     * request keeps all of a shard's updates back until the test decides that shard has finished recovering.
-     */
-    private static class HeldShardStartedUpdates {
-        private final Map<ShardId, List<Runnable>> heldByShard = new LinkedHashMap<>();
-        private final Set<ShardId> releasedShards = new HashSet<>();
-
-        void receive(ShardId shardId, Runnable update) {
-            synchronized (this) {
-                if (releasedShards.contains(shardId) == false) {
-                    heldByShard.computeIfAbsent(shardId, ignored -> new ArrayList<>()).add(update);
-                    return;
-                }
-            }
-            update.run();
-        }
-
-        synchronized int heldShardCount() {
-            return heldByShard.size();
-        }
-
-        void releaseNextShard() {
-            final List<Runnable> updates;
-            synchronized (this) {
-                final var iterator = heldByShard.entrySet().iterator();
-                if (iterator.hasNext() == false) {
-                    return;
-                }
-                final var next = iterator.next();
-                iterator.remove();
-                releasedShards.add(next.getKey());
-                updates = next.getValue();
-            }
-            updates.forEach(Runnable::run);
-        }
-
-        void releaseAll() {
-            while (heldShardCount() > 0) {
-                releaseNextShard();
-            }
         }
     }
 }

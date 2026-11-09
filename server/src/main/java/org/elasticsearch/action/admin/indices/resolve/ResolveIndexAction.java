@@ -66,6 +66,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -832,6 +833,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             Set<IndexMode> indexModes
         ) {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
+            Set<String> localIndexNames = new HashSet<>();
             for (Map.Entry<String, Response> responseEntry : remoteResponses.entrySet()) {
                 String clusterAlias = responseEntry.getKey();
                 Response response = responseEntry.getValue();
@@ -841,13 +843,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         continue;
                     }
                     indices.add(index.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index.getName())));
+                    localIndexNames.add(index.getName());
                 }
-                Set<String> indexNames = indices.stream().map(ResolvedIndexAbstraction::getName).collect(Collectors.toSet());
                 for (ResolvedAlias alias : response.aliases) {
                     if (indexModes.isEmpty() == false) {
                         // We filter out indices that are not included in the main index list after index mode filtering
                         String[] filteredIndices = Arrays.stream(alias.getIndices())
-                            .filter(idxName -> indexNames.contains(RemoteClusterAware.buildRemoteIndexName(clusterAlias, idxName)))
+                            .filter(localIndexNames::contains)
                             .toArray(String[]::new);
                         if (filteredIndices.length == 0) {
                             // If this alias points to no indices after filtering, we skip it
@@ -863,7 +865,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     if (indexModes.isEmpty() == false) {
                         // We filter out indices that are not included in the main index list after index mode filtering
                         String[] filteredBackingIndices = Arrays.stream(dataStream.getBackingIndices())
-                            .filter(idxName -> indexNames.contains(RemoteClusterAware.buildRemoteIndexName(clusterAlias, idxName)))
+                            .filter(localIndexNames::contains)
                             .toArray(String[]::new);
                         if (filteredBackingIndices.length == 0) {
                             // If this data stream points to no backing indices after filtering, we skip it

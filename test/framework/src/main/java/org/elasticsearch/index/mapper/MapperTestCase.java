@@ -2718,7 +2718,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * The single-value proof that ES|QL uses ({@link FieldMapper#guaranteesSingleValue()}) holds for a field with
+     * The single-value proof that ES|QL uses ({@link MappedFieldType#isStaticallySingleValued()}) holds for a field with
      * {@code multi_value=false} and {@code on_failure=ignore}, because the second value never reaches the doc values or the stored
      * fields. This pins the reader side of that: the block loaders that ES|QL uses return the first value only, never the value
      * that went to the {@code ._on_failure} column and is still in {@code _source}. If this fails, the proof is wrong for such a

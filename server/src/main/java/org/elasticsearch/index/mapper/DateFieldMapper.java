@@ -506,7 +506,8 @@ public final class DateFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 scriptValues(),
                 meta.getValue(),
-                readInArrayOrder
+                readInArrayOrder,
+                docValuesParameters.getValue().multiValue() == false
             );
 
             Long nullTimestamp = parseNullValue(ft);
@@ -543,6 +544,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final FieldValues<Long> scriptValues;
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
+        private final boolean staticallySingleValued;
 
         public DateFieldType(
             String name,
@@ -570,6 +572,34 @@ public final class DateFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean readInArrayOrder
         ) {
+            this(
+                name,
+                indexType,
+                isStored,
+                isSyntheticSource,
+                dateTimeFormatter,
+                resolution,
+                nullValue,
+                scriptValues,
+                meta,
+                readInArrayOrder,
+                false
+            );
+        }
+
+        public DateFieldType(
+            String name,
+            IndexType indexType,
+            boolean isStored,
+            boolean isSyntheticSource,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            FieldValues<Long> scriptValues,
+            Map<String, String> meta,
+            boolean readInArrayOrder,
+            boolean staticallySingleValued
+        ) {
             super(name, indexType, isStored, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
@@ -578,6 +608,12 @@ public final class DateFieldMapper extends FieldMapper {
             this.scriptValues = scriptValues;
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         public DateFieldType(
@@ -1229,11 +1265,6 @@ public final class DateFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
-    }
-
-    @Override
-    protected boolean guaranteesSingleValue() {
-        return docValuesParameters.multiValue() == false;
     }
 
     @Override

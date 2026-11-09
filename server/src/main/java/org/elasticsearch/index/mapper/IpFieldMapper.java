@@ -315,7 +315,8 @@ public class IpFieldMapper extends FieldMapper {
                     readInArrayOrder,
                     arrayOrderBinaryDocValues,
                     indexSettings.getIndexVersionCreated(),
-                    docValuesParameters.getValue()
+                    docValuesParameters.getValue(),
+                    docValuesParameters.getValue().multiValue() == false
                 ),
                 builderParams(this, context),
                 context.isSourceSynthetic(),
@@ -348,6 +349,7 @@ public class IpFieldMapper extends FieldMapper {
         private final boolean useArrayOrderBinaryDocValues;
         private final IndexVersion indexVersion;
         private final DocValuesParameter.Values docValuesParams;
+        private final boolean staticallySingleValued;
 
         public IpFieldType(
             String name,
@@ -364,6 +366,40 @@ public class IpFieldMapper extends FieldMapper {
             IndexVersion indexVersion,
             DocValuesParameter.Values docValuesParams
         ) {
+            this(
+                name,
+                indexType,
+                stored,
+                nullValue,
+                scriptValues,
+                meta,
+                isDimension,
+                isSyntheticSource,
+                usesBinaryDocValues,
+                readInArrayOrder,
+                useArrayOrderBinaryDocValues,
+                indexVersion,
+                docValuesParams,
+                false
+            );
+        }
+
+        public IpFieldType(
+            String name,
+            IndexType indexType,
+            boolean stored,
+            InetAddress nullValue,
+            FieldValues<InetAddress> scriptValues,
+            Map<String, String> meta,
+            boolean isDimension,
+            boolean isSyntheticSource,
+            boolean usesBinaryDocValues,
+            boolean readInArrayOrder,
+            boolean useArrayOrderBinaryDocValues,
+            IndexVersion indexVersion,
+            DocValuesParameter.Values docValuesParams,
+            boolean staticallySingleValued
+        ) {
             super(name, indexType, stored, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
@@ -375,6 +411,12 @@ public class IpFieldMapper extends FieldMapper {
             this.useArrayOrderBinaryDocValues = useArrayOrderBinaryDocValues;
             this.indexVersion = indexVersion;
             this.docValuesParams = docValuesParams;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         public IpFieldType(String name) {
@@ -828,11 +870,6 @@ public class IpFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
-    }
-
-    @Override
-    protected boolean guaranteesSingleValue() {
-        return docValuesParameters.multiValue() == false;
     }
 
     @Override

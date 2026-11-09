@@ -163,17 +163,22 @@ public class MapperServiceTests extends MapperServiceTestCase {
         }));
         MappingLookup lookup = mapperService.mappingLookup();
         for (String type : List.of("keyword", "long", "double", "ip", "date", "boolean")) {
-            assertTrue(type, lookup.isStaticallySingleValued(type + "_single"));
-            assertFalse(type, lookup.isStaticallySingleValued(type + "_multi"));
+            assertTrue(type, isStaticallySingleValued(lookup, type + "_single"));
+            assertFalse(type, isStaticallySingleValued(lookup, type + "_multi"));
         }
         // With on_failure=ignore the extra value is not in the doc values or the stored fields, which are what the ES|QL block loaders
         // read, so the field is still single-valued.
         // MapperTestCase#testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue checks that the block loaders do not expose it.
-        assertTrue(lookup.isStaticallySingleValued("keyword_ignore"));
-        assertFalse(lookup.isStaticallySingleValued("unknown"));
+        assertTrue(isStaticallySingleValued(lookup, "keyword_ignore"));
+        assertFalse(isStaticallySingleValued(lookup, "unknown"));
 
         MapperService standard = createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
-        assertFalse(standard.mappingLookup().isStaticallySingleValued("field"));
+        assertFalse(isStaticallySingleValued(standard.mappingLookup(), "field"));
+    }
+
+    private static boolean isStaticallySingleValued(MappingLookup lookup, String field) {
+        MappedFieldType fieldType = lookup.getFieldType(field);
+        return fieldType != null && fieldType.isStaticallySingleValued();
     }
 
     public void testIsSingleValueGuaranteedFromIndexSetting() throws IOException {
@@ -185,15 +190,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
             b.startObject("plain").field("type", "keyword").endObject();
             b.startObject("override").field("type", "keyword").field("multi_value", true).endObject();
         }));
-        assertTrue(mapperService.mappingLookup().isStaticallySingleValued("plain"));
-        assertFalse(mapperService.mappingLookup().isStaticallySingleValued("override"));
+        assertTrue(isStaticallySingleValued(mapperService.mappingLookup(), "plain"));
+        assertFalse(isStaticallySingleValued(mapperService.mappingLookup(), "override"));
     }
 
     /**
      * Today no {@code copy_to} can feed a field with {@code multi_value=false}: the {@code multi_value} parameter is only accepted in
      * strict columnar index modes, and those modes reject {@code copy_to}. This pins that.
      * <p>
-     * {@link MappingLookup#isStaticallySingleValued} does not exclude a {@code copy_to} target, because a target enforces
+     * {@link MappedFieldType#isStaticallySingleValued()} does not exclude a {@code copy_to} target, because a target enforces
      * {@code multi_value=false} like any field: the copied values are parsed by the target's {@code FieldMapper#parse}, in a context
      * that shares the per-document set of fields that already have a value. A mapping with a {@code copy_to} source never takes the
      * columnar batch path. If this test fails because {@code multi_value} can now be combined with {@code copy_to}, replace it with a
@@ -256,8 +261,8 @@ public class MapperServiceTests extends MapperServiceTestCase {
             b.startObject("multi_alias").field("type", "alias").field("path", "multi").endObject();
         }));
         MappingLookup lookup = mapperService.mappingLookup();
-        assertTrue(lookup.isStaticallySingleValued("single_alias"));
-        assertFalse(lookup.isStaticallySingleValued("multi_alias"));
+        assertTrue(isStaticallySingleValued(lookup, "single_alias"));
+        assertFalse(isStaticallySingleValued(lookup, "multi_alias"));
     }
 
     /**
@@ -272,11 +277,11 @@ public class MapperServiceTests extends MapperServiceTestCase {
         );
         MappingLookup lookup = mapperService.mappingLookup();
         MappedFieldType mapped = lookup.getFieldType("field");
-        assertTrue(lookup.isStaticallySingleValued(mapped));
+        assertTrue(mapped.isStaticallySingleValued());
 
         MappedFieldType shadowing = new KeywordFieldMapper.KeywordFieldType("field");
         assertNotSame(mapped, shadowing);
-        assertFalse(lookup.isStaticallySingleValued(shadowing));
+        assertFalse(shadowing.isStaticallySingleValued());
     }
 
     /**
@@ -292,9 +297,9 @@ public class MapperServiceTests extends MapperServiceTestCase {
             b.endObject().endObject();
         }));
         MappingLookup lookup = mapperService.mappingLookup();
-        assertTrue(lookup.isStaticallySingleValued("parent"));
-        assertFalse(lookup.isStaticallySingleValued("parent.plain"));
-        assertTrue(lookup.isStaticallySingleValued("parent.single"));
+        assertTrue(isStaticallySingleValued(lookup, "parent"));
+        assertFalse(isStaticallySingleValued(lookup, "parent.plain"));
+        assertTrue(isStaticallySingleValued(lookup, "parent.single"));
     }
 
     public void testMappingLookupAutoFlattenedPassthroughStatus() throws IOException {

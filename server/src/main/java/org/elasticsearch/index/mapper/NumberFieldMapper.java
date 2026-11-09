@@ -2360,6 +2360,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
         private final boolean indexTerms;
+        private final boolean staticallySingleValued;
 
         public NumberFieldType(
             String name,
@@ -2377,6 +2378,42 @@ public class NumberFieldMapper extends FieldMapper {
             boolean readInArrayOrder,
             boolean indexTerms
         ) {
+            this(
+                name,
+                type,
+                indexType,
+                isStored,
+                coerce,
+                nullValue,
+                meta,
+                script,
+                isDimension,
+                metricType,
+                indexMode,
+                isSyntheticSource,
+                readInArrayOrder,
+                indexTerms,
+                false
+            );
+        }
+
+        public NumberFieldType(
+            String name,
+            NumberType type,
+            IndexType indexType,
+            boolean isStored,
+            boolean coerce,
+            Number nullValue,
+            Map<String, String> meta,
+            FieldValues<Number> script,
+            boolean isDimension,
+            MetricType metricType,
+            IndexMode indexMode,
+            boolean isSyntheticSource,
+            boolean readInArrayOrder,
+            boolean indexTerms,
+            boolean staticallySingleValued
+        ) {
             super(name, indexType, isStored, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
@@ -2388,6 +2425,12 @@ public class NumberFieldMapper extends FieldMapper {
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
             this.indexTerms = indexTerms;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         NumberFieldType(String name, Builder builder, boolean isSyntheticSource) {
@@ -2407,7 +2450,8 @@ public class NumberFieldMapper extends FieldMapper {
                 builder.offsetsFieldName != null
                     && builder.docValuesParameters.getValue().multiValue()
                     && builder.indexSettings.getMode().isStrictColumnar(),
-                builder.indexTerms.getValue()
+                builder.indexTerms.getValue(),
+                builder.allowMultipleValues == false || builder.docValuesParameters.getValue().multiValue() == false
             );
         }
 
@@ -2801,11 +2845,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
-    }
-
-    @Override
-    protected boolean guaranteesSingleValue() {
-        return isSingleValueEnforced();
     }
 
     @Override

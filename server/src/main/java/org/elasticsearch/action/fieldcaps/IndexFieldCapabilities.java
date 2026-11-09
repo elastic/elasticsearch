@@ -41,7 +41,7 @@ import java.util.Map;
  * @param isStaticallySingleValued {@code true} when the mapping guarantees that a block loader sees at most one value per document for
  *                       this field ({@code multi_value=false}). With {@code on_failure=ignore} an extra value is still in
  *                       {@code _source}, so a reader of {@code _source} itself may see more; see
- *                       {@code FieldMapper#guaranteesSingleValue}.
+ *                       {@code MappedFieldType#isStaticallySingleValued}.
  *                       {@code false} means "unknown": the mapping does not guarantee a single value, so the field may hold more than
  *                       one. A node that does not report this flag looks the same. It is not part of the merged field caps response.
  */

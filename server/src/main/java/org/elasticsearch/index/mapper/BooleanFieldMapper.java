@@ -218,7 +218,8 @@ public class BooleanFieldMapper extends FieldMapper {
                 meta.getValue(),
                 dimension.getValue(),
                 context.isSourceSynthetic(),
-                readInArrayOrder
+                readInArrayOrder,
+                docValuesParameters.getValue().multiValue() == false
             );
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
@@ -258,6 +259,7 @@ public class BooleanFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
+        private final boolean staticallySingleValued;
 
         public BooleanFieldType(
             String name,
@@ -283,12 +285,33 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean isSyntheticSource,
             boolean readInArrayOrder
         ) {
+            this(name, indexType, isStored, nullValue, scriptValues, meta, isDimension, isSyntheticSource, readInArrayOrder, false);
+        }
+
+        public BooleanFieldType(
+            String name,
+            IndexType indexType,
+            boolean isStored,
+            Boolean nullValue,
+            FieldValues<Boolean> scriptValues,
+            Map<String, String> meta,
+            boolean isDimension,
+            boolean isSyntheticSource,
+            boolean readInArrayOrder,
+            boolean staticallySingleValued
+        ) {
             super(name, indexType, isStored, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         public BooleanFieldType(String name) {
@@ -601,11 +624,6 @@ public class BooleanFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
-    }
-
-    @Override
-    protected boolean guaranteesSingleValue() {
-        return docValuesParameters.multiValue() == false;
     }
 
     @Override

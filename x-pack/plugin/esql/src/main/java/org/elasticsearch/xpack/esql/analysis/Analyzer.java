@@ -5263,7 +5263,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 convertFunctionsToAttributes
             );
 
-            // TODO: remove together with the KEYWORD null fill of UNSUPPORTED merge columns (MergeBranchAlignment#nullFillType).
+            // TODO: remove together with the KEYWORD null fill of UNSUPPORTED merge columns (MergeBranchAlignment#nullFillType);
+            // tracked in https://github.com/elastic/elasticsearch/issues/150207.
             // A union decides its common types from its branches as they were before this pass, not as a nested union in them was
             // just rebuilt by this pass. This keeps the outcome of a type conflict in a nested union the same as when the analyzer
             // still aligned branches with Projects, which held on to the nested union's output from before the pass. A nested union's

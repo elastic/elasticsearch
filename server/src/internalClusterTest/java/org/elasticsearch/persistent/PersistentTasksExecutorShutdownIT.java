@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -31,6 +30,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeShutdownTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -343,32 +343,26 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
             .setRecheckInterval(TimeValue.timeValueMillis(1));
         final var taskId = startTask(TestLocalAbortExecutor.NAME);
         try {
-            // Add a listener to explicitly check the "test local abort" message.
-            final var abortReasonObserved = new PlainActionFuture<Void>();
-            final ClusterStateListener abortReasonListener = event -> {
-                final var tasks = findTasks(event.state(), TestLocalAbortExecutor.NAME);
-
-                // Complete the future when we observe the desired error message
-                if (tasks.size() == 1
-                    && taskId.equals(tasks.getFirst().getId())
-                    && tasks.getFirst().getAssignment().getExecutorNode() == null
-                    && "test local abort".equals(tasks.getFirst().getAssignment().getExplanation())) {
-                    abortReasonObserved.onResponse(null);
+            // Add a listener to explicitly check the "test local abort" message. It is registered before the abort is triggered so
+            // that it cannot miss the short-lived state, and it unregisters itself once that state has been observed.
+            final var abortReasonObserved = ClusterServiceUtils.addTemporaryStateListener(
+                internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+                state -> {
+                    final var tasks = findTasks(state, TestLocalAbortExecutor.NAME);
+                    return tasks.size() == 1
+                        && taskId.equals(tasks.getFirst().getId())
+                        && tasks.getFirst().getAssignment().getExecutorNode() == null
+                        && "test local abort".equals(tasks.getFirst().getAssignment().getExplanation());
                 }
-            };
-            final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-            masterClusterService.addListener(abortReasonListener);
-            try {
-                // Block reassignment so we can observe the unassigned state.
-                TestLocalAbortExecutor.allowAssignment = false;
-                TestLocalAbortExecutor.abortTask(taskId);
+            );
 
-                awaitClusterStateHasTaskUnassigned(taskId, TestLocalAbortExecutor.NAME);
-                // Wait for completion of the future
-                safeGet(abortReasonObserved);
-            } finally {
-                masterClusterService.removeListener(abortReasonListener);
-            }
+            // Block reassignment so we can observe the unassigned state.
+            TestLocalAbortExecutor.allowAssignment = false;
+            TestLocalAbortExecutor.abortTask(taskId);
+
+            awaitClusterStateHasTaskUnassigned(taskId, TestLocalAbortExecutor.NAME);
+            // Wait until the abort reason has been observed
+            safeAwait(abortReasonObserved);
             assertThat(clusterAdmin().prepareListTasks().setActions(TestLocalAbortExecutor.NAME + "[c]").get().getTasks(), empty());
 
             TestLocalAbortExecutor.allowAssignment = true;
@@ -422,9 +416,10 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
      * would be missed and then leak into the next test.
      */
     private static void removeTask(String taskId, String taskName) {
-        final var future = new PlainActionFuture<PersistentTask<?>>();
-        internalCluster().getInstance(PersistentTasksService.class).sendRemoveRequest(taskId, TEST_REQUEST_TIMEOUT, future);
-        future.actionGet();
+        safeAwait(
+            (ActionListener<PersistentTask<?>> l) -> internalCluster().getInstance(PersistentTasksService.class)
+                .sendRemoveRequest(taskId, TEST_REQUEST_TIMEOUT, l)
+        );
         awaitClusterState(state -> findTasks(state, taskName).isEmpty());
     }
 }

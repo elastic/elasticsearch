@@ -101,10 +101,11 @@ public class EsqlCCSUtils {
         // This applies even for subplans - if we had an error and have to skip a cluster, then it will remain skipped.
         executionInfo.markEndQuery();
         Exception exceptionForResponse;
-        if (e instanceof ConnectTransportException) {
-            // when field-caps has no field info (since no clusters could be connected to or had matching indices)
-            // it just throws the first exception in its list, so this odd special handling is here is to avoid
-            // having one specific remote alias name in all failure lists in the metadata response
+        if (ExceptionsHelper.unwrap(e, ConnectTransportException.class) != null) {
+            // Field-caps throws the first failure when no index responded. A remote that is already gone throws
+            // ConnectTransportException directly. A remote whose connection is still listed but closing throws
+            // NodeNotConnectedException, which TransportService wraps in SendRequestTransportException. Either way,
+            // record one generic failure on every remote instead of that first exception, which names one node.
             exceptionForResponse = new RemoteTransportException("connect_transport_exception - unable to connect to remote cluster", null);
         } else {
             exceptionForResponse = e;

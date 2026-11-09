@@ -14,6 +14,8 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -27,9 +29,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -59,6 +64,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlCCSUtilsTests extends ESTestCase {
 
@@ -917,6 +923,59 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             List<ShardSearchFailure> remoteFailures = executionInfo.getCluster(remoteAlias).getFailures();
             assertThat(remoteFailures.size(), equalTo(1));
             assertThat(remoteFailures.get(0).reason(), containsString("unable to connect to remote cluster"));
+        }
+    }
+
+    /**
+     * A remote that is closing but not yet removed from the connection manager fails the send, and
+     * {@code TransportService} wraps that {@link NodeNotConnectedException} in a {@link SendRequestTransportException}.
+     * That is still a connect failure, so every remote gets the generic message rather than the node address.
+     * A send failure that is not a connect failure stays as the original exception.
+     */
+    public void testUpdateExecutionInfoToReturnEmptyResultRewritesWrappedConnectFailure() {
+        DiscoveryNode node = DiscoveryNodeUtils.builder("closing-node").name("closing-node").build();
+        Exception wrappedConnect = new SendRequestTransportException(
+            node,
+            EsqlResolveFieldsAction.NAME,
+            new NodeNotConnectedException(node, "connection already closed")
+        );
+        assertEmptyResultFailure(wrappedConnect, "unable to connect to remote cluster", "closing-node", "connection already closed");
+
+        Exception wrappedOther = new SendRequestTransportException(
+            node,
+            EsqlResolveFieldsAction.NAME,
+            new IllegalStateException("serializer blew up")
+        );
+        assertEmptyResultFailure(wrappedOther, "serializer blew up", "unable to connect to remote cluster");
+    }
+
+    private void assertEmptyResultFailure(Exception failure, String expectedInReason, String... absentFromReason) {
+        Predicate<String> skipUnPredicate = s -> s.startsWith("remote");
+        EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
+        executionInfo.swapCluster(
+            LOCAL_CLUSTER_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
+        );
+        for (String remoteAlias : List.of(REMOTE1_ALIAS, REMOTE2_ALIAS)) {
+            executionInfo.swapCluster(
+                remoteAlias,
+                (k, v) -> createEsqlExecutionInfoCluster(remoteAlias, "logs*", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+        }
+
+        EsqlCCSUtils.updateExecutionInfoToReturnEmptyResult(executionInfo, failure);
+
+        assertThat(executionInfo.getCluster(LOCAL_CLUSTER_ALIAS).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        assertThat(executionInfo.getCluster(LOCAL_CLUSTER_ALIAS).getFailures(), hasSize(0));
+        for (String remoteAlias : List.of(REMOTE1_ALIAS, REMOTE2_ALIAS)) {
+            assertThat(executionInfo.getCluster(remoteAlias).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            List<ShardSearchFailure> remoteFailures = executionInfo.getCluster(remoteAlias).getFailures();
+            assertThat(remoteFailures, hasSize(1));
+            String reason = remoteFailures.get(0).reason();
+            assertThat(reason, containsString(expectedInReason));
+            for (String absent : absentFromReason) {
+                assertThat(reason, not(containsString(absent)));
+            }
         }
     }
 

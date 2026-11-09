@@ -539,11 +539,6 @@ tests:
   - :server:internalClusterTest
   method: testCircuitBreakerReduceFail
   issue: https://github.com/elastic/elasticsearch/issues/165046
-- class: org.elasticsearch.xpack.esql.action.CrossClusterLookupJoinFailuresIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testLookupDisconnect
-  issue: https://github.com/elastic/elasticsearch/issues/165050
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest

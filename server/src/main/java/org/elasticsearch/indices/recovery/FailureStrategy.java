@@ -9,9 +9,10 @@
 
 package org.elasticsearch.indices.recovery;
 
-/// How a recovery failure should be handled. Classified by [org.elasticsearch.index.shard.IndexShard]
-/// from the failure itself, but [org.elasticsearch.indices.cluster.IndicesClusterStateService] may
-/// still convert [#RETRY] into [#FAIL_SEND] -- callers should not assume [#RETRY] always retries locally.
+/// How a recovery failure should be handled. Chosen by callers of [RecoveryListener#onRecoveryFailure] at failure
+/// time and consumed by [org.elasticsearch.indices.cluster.IndicesClusterStateService#handleRecoveryFailure] (except
+/// [#ABORT], which is dropped before reaching it). Note that `handleRecoveryFailure` may override the requested
+/// strategy when necessary (e.g. convert [#RETRY] into [#FAIL_SEND]).
 public enum FailureStrategy {
     RETRY(false),
     ABORT(false),

@@ -1380,9 +1380,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         long primaryTerm,
         Exception failure
     ) {
-        // No local recovery retry mechanism exists yet; always fall back to notifying master for a RETRY
-        // classification, matching what IndexShard's only call site produced for a non-CLOSED failure before
-        // RETRY existed (always FAIL_SEND).
+        // TODO: local recovery retry is not supported yet, so we always fall back to notifying master for a RETRY.
+        // Add recovery retry support (see: elastic/elasticsearch-team#4351)
         final FailureStrategy finalStrategy = failureStrategy == FailureStrategy.RETRY ? FailureStrategy.FAIL_SEND : failureStrategy;
         final String message = isRecoveryCancellation(failure) ? "recovery cancelled by master" : "failed recovery";
         try {

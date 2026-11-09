@@ -2897,9 +2897,6 @@ public class IndexShardTests extends IndexShardTestCase {
         };
         threadPool.generic().execute(() -> shard.startRecovery(null, recoveryListener, null, (mapping, l) -> l.onResponse(null), null, 0L));
 
-        // IndicesClusterStateService#handleRecoveryFailure currently always downgrades RETRY to FAIL_SEND, since no
-        // local recovery retry mechanism exists yet; that downgrade isn't exercised here, which calls startRecovery
-        // directly rather than going through IndicesClusterStateService.
         assertThat(safeGet(failureStrategyFuture), equalTo(closeShardDuringRecovery ? FailureStrategy.ABORT : FailureStrategy.RETRY));
         closeShards(shard);
     }

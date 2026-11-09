@@ -4031,6 +4031,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ActionListener<Void> actionListener = ActionListener.wrap(
             ignored -> recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange()),
             e -> {
+                // See IndicesClusterStateService#handleRecoveryFailure for how each strategy is handled.
                 final FailureStrategy failureStrategy;
                 if (state() == IndexShardState.CLOSED) {
                     // ABORT skips notifying the master, so we only use it only if this shard copy is CLOSED. Whatever closed it
@@ -4040,9 +4041,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } else if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
                     failureStrategy = FAIL_SEND;
                 } else {
-                    // No local recovery retry mechanism exists yet, so IndicesClusterStateService#handleRecoveryFailure
-                    // currently always turns this into FAIL_SEND. Once local retry exists, that will become conditional
-                    // on IndicesClusterStateService#INDICES_RECOVERY_LOCAL_RETRY_SETTING instead.
                     failureStrategy = RETRY;
                 }
                 recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), failureStrategy);

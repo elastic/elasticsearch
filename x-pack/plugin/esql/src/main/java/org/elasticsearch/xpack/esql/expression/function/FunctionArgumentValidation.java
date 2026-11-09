@@ -93,6 +93,12 @@ class FunctionArgumentValidation {
         };
     }
 
+    static final BiConsumer<Source, List<Expression>> BINARY_VARIADIC = (source, children) -> {
+        if (children.size() < 3) {
+            throw new QlIllegalArgumentException("expects at least three arguments");
+        }
+    };
+
     static BiConsumer<Source, List<Expression>> ternary(Class<? extends Function> function) {
         if (TwoOptionalArguments.class.isAssignableFrom(function)) {
             return (source, children) -> {

@@ -218,6 +218,19 @@ public class FunctionDefinition {
         }
 
         /**
+         * Build a {@linkplain FunctionDefinition} for a function with two required arguments followed by
+         * one or more variadic arguments.
+         */
+        public Builder<T> binaryVariadic(FunctionDefinition.BinaryVariadicBuilder<T> ctorRef) {
+            if (TimestampAware.class.isAssignableFrom(function)) {
+                throw new IllegalArgumentException("timestamp aware functions not supported here");
+            }
+            validate = FunctionArgumentValidation.BINARY_VARIADIC;
+            builder = FunctionCtors.binaryVariadic(ctorRef);
+            return this;
+        }
+
+        /**
          * Build a {@linkplain FunctionDefinition} for a binary function.
          */
         public Builder<T> binary(FunctionDefinition.BinaryBuilder<T> ctorRef) {
@@ -359,6 +372,10 @@ public class FunctionDefinition {
 
     public interface BinaryBuilder<T> {
         T build(Source source, Expression left, Expression right);
+    }
+
+    public interface BinaryVariadicBuilder<T> {
+        T build(Source source, Expression first, Expression second, List<Expression> variadic);
     }
 
     public interface BinaryConfigurationAwareBuilder<T> {

@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -51,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -367,7 +370,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         return result;
     }
 
-    private Block executeLeafEvaluableExpression(Expression expression) {
+    private Block executeLeafEvaluableExpression(Expression expression, Map<NameId, TestCaseSupplier.TypedData> multiRowDataByField) {
         try (
             BlockUtils.BuilderWrapper wrapper = BlockUtils.wrapperFor(
                 driverContext().blockFactory(),
@@ -377,8 +380,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         ) {
             List<Object> results = new ArrayList<>();
             try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
-                // TODO: This should look at the layout to place the correct blocks in the correct places
-                for (Page inputPage : rows(testCase.getMultiRowFields())) {
+                for (Page inputPage : rows(inputFieldsInLayoutOrder(expression, multiRowDataByField))) {
                     try (Block block = evaluator.eval(inputPage)) {
                         assertThat(block.getPositionCount(), is(inputPage.getPositionCount()));
                         BlockTestUtils.readInto(results, block);
@@ -393,6 +395,23 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             }
             return wrapper.builder().build();
         }
+    }
+
+    private List<TestCaseSupplier.TypedData> inputFieldsInLayoutOrder(
+        Expression expression,
+        Map<NameId, TestCaseSupplier.TypedData> multiRowDataByField
+    ) {
+        List<FieldAttribute> layoutFields = layoutFields(foldForEvaluation(expression));
+        if (layoutFields.isEmpty()) {
+            return testCase.getMultiRowFields();
+        }
+        List<TestCaseSupplier.TypedData> fields = new ArrayList<>(layoutFields.size());
+        for (FieldAttribute field : layoutFields) {
+            TestCaseSupplier.TypedData data = multiRowDataByField.get(field.id());
+            assertNotNull("no multi-row data for [" + field + "] referenced by [" + expression + "]", data);
+            fields.add(data);
+        }
+        return fields;
     }
 
     /**
@@ -457,17 +476,19 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         // Maps with every evaluation result, which will help us simulating the Layout and pages of each step
         Map<Expression, Block> blocksByField = new HashMap<>();
         Map<Expression, Literal> literalsByField = new HashMap<>();
+        Map<NameId, TestCaseSupplier.TypedData> multiRowDataByField = new HashMap<>();
         try {
             // Populate maps with the test input data
-            int dataIndex = 0;
-            for (int i = 0; i < originalExpression.children().size(); i++) {
-                Expression field = originalExpression.children().get(i);
-
-                if (field instanceof Literal) {
+            Iterator<TestCaseSupplier.TypedData> fieldData = testCase.getData()
+                .stream()
+                .filter(data -> data.isForceLiteral() == false)
+                .iterator();
+            for (Expression field : originalExpression.children()) {
+                if (field instanceof Literal || field instanceof MapExpression) {
                     continue;
                 }
 
-                var data = testCase.getData().get(dataIndex++);
+                var data = fieldData.next();
 
                 if (data.isMultiRow()) {
                     blocksByField.put(
@@ -478,6 +499,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                             data.multiRowData()
                         )
                     );
+                    field.forEachDown(FieldAttribute.class, attribute -> multiRowDataByField.put(attribute.id(), data));
                 } else {
                     literalsByField.put(field, data.asLiteral());
                 }
@@ -499,7 +521,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                         newChildren.add(literal);
                     } else {
                         if (blocksByField.containsKey(child) == false) {
-                            Block result = executeLeafEvaluableExpression(child);
+                            Expression leaf = child.transformUp(e -> {
+                                Literal literal = literalsByField.get(e);
+                                return literal == null ? e : literal;
+                            });
+                            Block result = executeLeafEvaluableExpression(leaf, multiRowDataByField);
                             blocksByField.put(child, result);
                         }
                         newChildren.add(child);

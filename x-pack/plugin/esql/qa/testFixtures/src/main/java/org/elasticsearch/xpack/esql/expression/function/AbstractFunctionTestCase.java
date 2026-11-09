@@ -480,10 +480,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * for {@link ExpressionEvaluator}s in the same way as our planner.
      */
     public static ExpressionEvaluator.Factory evaluator(Expression e) {
-        e = new FoldNull().rule(e, unboundLogicalOptimizerContext());
-        if (e.foldable()) {
-            e = new Literal(e.source(), e.fold(FoldContext.small()), e.dataType());
-        }
+        e = foldForEvaluation(e);
         // Build the layout from the *original* (pre-surrogate) expression so channel positions stay aligned
         // with the test page's positional data; surrogates that reorder children (e.g. swap arguments) would
         // otherwise misalign channels. FieldAttributes survive surrogate substitution unchanged (same NameId),
@@ -582,18 +579,34 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Those will show up in the layout in whatever order a depth first traversal finds them.
      */
     public static void buildLayout(Layout.Builder builder, Expression e) {
-        dedupAndBuildLayout(new HashSet<>(), builder, e);
+        for (FieldAttribute field : layoutFields(e)) {
+            builder.append(field);
+        }
     }
 
-    private static void dedupAndBuildLayout(Set<NameId> seen, Layout.Builder builder, Expression e) {
+    static Expression foldForEvaluation(Expression e) {
+        e = new FoldNull().rule(e, unboundLogicalOptimizerContext());
+        if (e.foldable()) {
+            e = new Literal(e.source(), e.fold(FoldContext.small()), e.dataType());
+        }
+        return e;
+    }
+
+    static List<FieldAttribute> layoutFields(Expression e) {
+        List<FieldAttribute> fields = new ArrayList<>();
+        collectLayoutFields(new HashSet<>(), fields, e);
+        return fields;
+    }
+
+    private static void collectLayoutFields(Set<NameId> seen, List<FieldAttribute> fields, Expression e) {
         if (e instanceof FieldAttribute f) {
             if (seen.add(f.id())) {
-                builder.append(f);
+                fields.add(f);
             }
             return;
         }
         for (Expression c : e.children()) {
-            dedupAndBuildLayout(seen, builder, c);
+            collectLayoutFields(seen, fields, c);
         }
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
@@ -1938,6 +1939,47 @@ public class VerifierTests extends AnalyzerTestCase {
             TS k8s
             | STATS `event_shape` = count_distinct(network.eth0.currently_connected_clients)
             BY event_log, fMGjtTxPiPQV = bucket(@timestamp,1hour)""");
+    }
+
+    public void testWindowFunnelArguments() {
+        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
+        defaultAnalyzer().error(
+            "FROM test | STATS WINDOW_FUNNEL(1 day, hire_date, still_hired)",
+            equalTo(
+                "1:19: first argument of [WINDOW_FUNNEL(1 day, hire_date, still_hired)] must be [time_duration], "
+                    + "found value [1 day] type [date_period]"
+            )
+        );
+        defaultAnalyzer().error(
+            "FROM test | STATS WINDOW_FUNNEL(-1 hour, hire_date, still_hired)",
+            equalTo(
+                "1:19: first argument of [WINDOW_FUNNEL(-1 hour, hire_date, still_hired)] must be a non-negative time_duration, "
+                    + "found [-1 hour]"
+            )
+        );
+        defaultAnalyzer().error(
+            "FROM test | STATS WINDOW_FUNNEL(1 hour, hire_date, still_hired, is_rehired, first_name)",
+            equalTo(
+                "1:19: fifth argument of [WINDOW_FUNNEL(1 hour, hire_date, still_hired, is_rehired, first_name)] must be [boolean], "
+                    + "found value [first_name] type [keyword]"
+            )
+        );
+        defaultAnalyzer().error(
+            "FROM test | EVAL x = WINDOW_FUNNEL(1 hour, hire_date, still_hired)",
+            equalTo("1:22: aggregate function [WINDOW_FUNNEL(1 hour, hire_date, still_hired)] not allowed outside STATS command")
+        );
+    }
+
+    public void testWindowFunnelWithTs() {
+        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
+        tsdb().error(
+            "TS test | STATS WINDOW_FUNNEL(1 hour, @timestamp, network.connections > 0)",
+            equalTo("1:17: window_funnel [WINDOW_FUNNEL(1 hour, @timestamp, network.connections > 0)] can't be used with TS command")
+        );
+        tsdb().error(
+            "TS test | STATS f = WINDOW_FUNNEL(1 hour, @timestamp, network.connections > 0) + 1",
+            equalTo("1:21: window_funnel [WINDOW_FUNNEL(1 hour, @timestamp, network.connections > 0)] can't be used with TS command")
+        );
     }
 
     public void testSparklineRejectsMultiValuedAggs() {

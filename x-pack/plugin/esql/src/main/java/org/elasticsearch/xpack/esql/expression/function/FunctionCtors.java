@@ -171,6 +171,10 @@ class FunctionCtors {
         return (source, children, cfg) -> ctorRef.build(source, children.getFirst(), children.subList(1, children.size()));
     }
 
+    static FunctionDefinition.FunctionBuilder binaryVariadic(FunctionDefinition.BinaryVariadicBuilder<? extends Function> ctorRef) {
+        return (source, children, cfg) -> ctorRef.build(source, children.getFirst(), children.get(1), children.subList(2, children.size()));
+    }
+
     static FunctionDefinition.FunctionBuilder ternaryTsConfig(TernaryConfigurationAwareBuilder<? extends Function> ctorRef) {
         return (source, children, cfg) -> ctorRef.build(
             source,

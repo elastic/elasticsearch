@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
@@ -48,6 +49,20 @@ public class AnalyzerParsingTests extends AnalyzerTestCase {
             "row a = 1 | eval x = case(1)",
             ParsingException.class,
             equalTo("line 1:22: error building [case]: expects at least two arguments")
+        );
+    }
+
+    public void testWindowFunnelFunctionInvalidInputs() {
+        assumeTrue("WINDOW_FUNNEL is only available in snapshot builds", Build.current().isSnapshot());
+        defaultAnalyzer().error(
+            "from test | stats x = window_funnel(1 hour, hire_date)",
+            ParsingException.class,
+            equalTo("line 1:23: error building [window_funnel]: expects at least three arguments")
+        );
+        defaultAnalyzer().error(
+            "from test | stats x = window_funnel(1 hour)",
+            ParsingException.class,
+            equalTo("line 1:23: error building [window_funnel]: expects at least three arguments")
         );
     }
 

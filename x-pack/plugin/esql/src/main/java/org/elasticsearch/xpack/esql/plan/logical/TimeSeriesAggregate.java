@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.WindowFunnel;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -218,6 +219,11 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         }
 
         for (NamedExpression aggregate : aggregates) {
+            // reject `TS metrics | STATS WINDOW_FUNNEL(...)`, also when nested in an expression
+            aggregate.forEachDown(
+                WindowFunnel.class,
+                funnel -> failures.add(fail(funnel, "window_funnel [{}] can't be used with TS command", funnel.sourceText()))
+            );
             if (aggregate instanceof Alias alias && Alias.unwrap(alias) instanceof AggregateFunction outer) {
                 if (outer instanceof Count count && count.field().equals(Literal.keyword(source(), StringUtils.WILDCARD))) {
                     // reject `TS metrics | STATS COUNT(*)`

@@ -66,6 +66,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.WindowFunnel;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.WindowFunnelLevel;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
@@ -271,6 +273,10 @@ public class ApproximationSupportTests extends ESTestCase {
 
         // Histograms are not suitable for approximation.
         HistogramMerge.class,
+
+        // Funnels depend on the order of individual events, which sampling drops.
+        WindowFunnel.class,
+        WindowFunnelLevel.class,
 
         // These aggs are superclasses of other aggs.
         AggregateFunction.class,

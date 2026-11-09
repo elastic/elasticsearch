@@ -275,6 +275,7 @@ public class CsvTestsDataLoader {
         new TestDataset("event_alerts"),
         new TestDataset("event_logs"),
         new TestDataset("event_empty").noData(),
+        new TestDataset("funnel_events"),
         new TestDataset("alerts"),
         new TestDataset("sample_data").withIndex("sample_data_str").withTypeMapping(Map.of("client_ip", "keyword")),
         new TestDataset("sample_data").withIndex("sample_data_ts_long")

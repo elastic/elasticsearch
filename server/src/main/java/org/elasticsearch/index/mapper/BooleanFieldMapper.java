@@ -271,21 +271,7 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean isDimension,
             boolean isSyntheticSource
         ) {
-            this(name, indexType, isStored, nullValue, scriptValues, meta, isDimension, isSyntheticSource, false);
-        }
-
-        public BooleanFieldType(
-            String name,
-            IndexType indexType,
-            boolean isStored,
-            Boolean nullValue,
-            FieldValues<Boolean> scriptValues,
-            Map<String, String> meta,
-            boolean isDimension,
-            boolean isSyntheticSource,
-            boolean readInArrayOrder
-        ) {
-            this(name, indexType, isStored, nullValue, scriptValues, meta, isDimension, isSyntheticSource, readInArrayOrder, false);
+            this(name, indexType, isStored, nullValue, scriptValues, meta, isDimension, isSyntheticSource, false, false);
         }
 
         public BooleanFieldType(

@@ -2376,41 +2376,6 @@ public class NumberFieldMapper extends FieldMapper {
             IndexMode indexMode,
             boolean isSyntheticSource,
             boolean readInArrayOrder,
-            boolean indexTerms
-        ) {
-            this(
-                name,
-                type,
-                indexType,
-                isStored,
-                coerce,
-                nullValue,
-                meta,
-                script,
-                isDimension,
-                metricType,
-                indexMode,
-                isSyntheticSource,
-                readInArrayOrder,
-                indexTerms,
-                false
-            );
-        }
-
-        public NumberFieldType(
-            String name,
-            NumberType type,
-            IndexType indexType,
-            boolean isStored,
-            boolean coerce,
-            Number nullValue,
-            Map<String, String> meta,
-            FieldValues<Number> script,
-            boolean isDimension,
-            MetricType metricType,
-            IndexMode indexMode,
-            boolean isSyntheticSource,
-            boolean readInArrayOrder,
             boolean indexTerms,
             boolean staticallySingleValued
         ) {
@@ -2474,6 +2439,7 @@ public class NumberFieldMapper extends FieldMapper {
                 null,
                 false,
                 false,
+                false,
                 false
             );
         }
@@ -2491,6 +2457,7 @@ public class NumberFieldMapper extends FieldMapper {
                 false,
                 null,
                 null,
+                false,
                 false,
                 false,
                 false

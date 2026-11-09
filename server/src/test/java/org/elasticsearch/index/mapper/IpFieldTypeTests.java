@@ -79,7 +79,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IndexVersion.current(),
-            null
+            null,
+            false
         );
 
         String ip = "2001:db8::2:1";
@@ -136,7 +137,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IndexVersion.current(),
-            null
+            null,
+            false
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
@@ -375,7 +377,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IndexVersion.current(),
-            null
+            null,
+            false
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

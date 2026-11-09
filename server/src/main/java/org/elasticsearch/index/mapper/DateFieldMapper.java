@@ -557,34 +557,7 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            this(name, indexType, isStored, isSyntheticSource, dateTimeFormatter, resolution, nullValue, scriptValues, meta, false);
-        }
-
-        public DateFieldType(
-            String name,
-            IndexType indexType,
-            boolean isStored,
-            boolean isSyntheticSource,
-            DateFormatter dateTimeFormatter,
-            Resolution resolution,
-            String nullValue,
-            FieldValues<Long> scriptValues,
-            Map<String, String> meta,
-            boolean readInArrayOrder
-        ) {
-            this(
-                name,
-                indexType,
-                isStored,
-                isSyntheticSource,
-                dateTimeFormatter,
-                resolution,
-                nullValue,
-                scriptValues,
-                meta,
-                readInArrayOrder,
-                false
-            );
+            this(name, indexType, isStored, isSyntheticSource, dateTimeFormatter, resolution, nullValue, scriptValues, meta, false, false);
         }
 
         public DateFieldType(

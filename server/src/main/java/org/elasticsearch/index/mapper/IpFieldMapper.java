@@ -364,39 +364,6 @@ public class IpFieldMapper extends FieldMapper {
             boolean readInArrayOrder,
             boolean useArrayOrderBinaryDocValues,
             IndexVersion indexVersion,
-            DocValuesParameter.Values docValuesParams
-        ) {
-            this(
-                name,
-                indexType,
-                stored,
-                nullValue,
-                scriptValues,
-                meta,
-                isDimension,
-                isSyntheticSource,
-                usesBinaryDocValues,
-                readInArrayOrder,
-                useArrayOrderBinaryDocValues,
-                indexVersion,
-                docValuesParams,
-                false
-            );
-        }
-
-        public IpFieldType(
-            String name,
-            IndexType indexType,
-            boolean stored,
-            InetAddress nullValue,
-            FieldValues<InetAddress> scriptValues,
-            Map<String, String> meta,
-            boolean isDimension,
-            boolean isSyntheticSource,
-            boolean usesBinaryDocValues,
-            boolean readInArrayOrder,
-            boolean useArrayOrderBinaryDocValues,
-            IndexVersion indexVersion,
             DocValuesParameter.Values docValuesParams,
             boolean staticallySingleValued
         ) {
@@ -441,7 +408,8 @@ public class IpFieldMapper extends FieldMapper {
                 false,
                 false,
                 IndexVersion.current(),
-                null
+                null,
+                false
             );
         }
 

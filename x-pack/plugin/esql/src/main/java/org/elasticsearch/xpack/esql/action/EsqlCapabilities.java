@@ -2766,6 +2766,13 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
+         * Typed label container: PromQL carries {@code _timeseries} internally as a typed column, which the PromQL
+         * shapes that modify it rely on; the user always gets the keyword form. Snapshot-only like the type itself, which is
+         * under construction; also the release gate for that behavior.
+         */
+        ENABLE_TSMD_DATA_TYPE(Build.current().isSnapshot()),
+
+        /**
          * Corrected output shape for PromQL {@code without}: a {@code without} over a concrete-output child (e.g.
          * {@code sum without(pod) (sum by(cluster,region,pod) (...))}) projects the child's concrete grouping columns
          * minus the excluded labels, rather than the opaque {@code _timeseries} column. Gates the affected csv-spec

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -68,9 +71,11 @@ import java.util.TreeSet;
  * and {@link TimeSeriesMetadataPath} reads one; aggregations, joins, unions and hashing compare containers as a whole. Comparing and
  * rewriting whole containers is slow, and a node before 9.7 cannot read the typed container at all. This rule splits each container
  * into columns instead: a residual container, which the source reads as a view leaving out the labels the plan removes or writes,
- * and one column per label the plan names. Every operation then works on columns, and the residual view is the keyword
- * {@code _timeseries} once lowered ({@code LowerLabelContainerToKeyword}). Only the command's rendered label container writes
- * labels back into the residual one.
+ * and one column per label the plan names. Every operation then works on columns. Only the command's rendered label container
+ * writes labels back into the residual one.
+ * <p>
+ * Where a node before 9.7 takes part ({@link PromqlCommand#usesLabelContainer}), the residual containers stay the keyword
+ * {@code _timeseries} views of the source, and a plan that needs more of a container than that fails.
  * <p>
  * The containers a join or a union compares, and the ones an expression combines, are split alike: they share the set of labels in
  * columns. The rule first collects those sets ({@link Classes}), then rewrites the plan bottom-up, keeping each container's split as
@@ -85,20 +90,28 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-        return pushDown(plan, context.configuration());
+        return pushDown(plan, context.configuration(), PromqlCommand.usesLabelContainer(context));
     }
 
-    /** {@code plan} with its PromQL label containers split into columns; {@code configuration} renders the ones left whole. */
     static LogicalPlan pushDown(LogicalPlan plan, Configuration configuration) {
+        return pushDown(plan, configuration, true);
+    }
+
+    /**
+     * {@code plan} with its PromQL label containers split into columns; {@code configuration} renders the ones left whole. Without
+     * {@code typed} a node before 9.7 takes part: the residual containers stay the keyword {@code _timeseries} views of the source,
+     * and what has no keyword form fails: leaving labels out of a residual container after the collapse, reading or writing one.
+     */
+    static LogicalPlan pushDown(LogicalPlan plan, Configuration configuration, boolean typed) {
         Classes classes = Classes.of(plan);
         if (classes.isEmpty()) {
             return plan;
         }
         // A first run finds the views read above each collapse that keeps one row per series; the second one has it carry them.
         Map<NameId, Set<Set<String>>> views = new HashMap<>();
-        new Pushdown(classes, configuration, views, true).rewrite(plan);
+        new Pushdown(classes, configuration, typed, views, true).rewrite(plan);
         int found = views.values().stream().mapToInt(Set::size).sum();
-        LogicalPlan rewritten = new Pushdown(classes, configuration, views, false).rewrite(plan);
+        LogicalPlan rewritten = new Pushdown(classes, configuration, typed, views, false).rewrite(plan);
         if (views.values().stream().mapToInt(Set::size).sum() != found) {
             throw new IllegalStateException("label pushdown found views of a collapse after rewriting it");
         }
@@ -345,10 +358,19 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
 
         /** Whether this run only finds the views read above each collapse. */
         private final boolean finding;
+        /** Whether every node reads the typed label container; otherwise the residual containers stay keyword. */
+        private final boolean typed;
 
-        private Pushdown(Classes classes, Configuration configuration, Map<NameId, Set<Set<String>>> views, boolean finding) {
+        private Pushdown(
+            Classes classes,
+            Configuration configuration,
+            boolean typed,
+            Map<NameId, Set<Set<String>>> views,
+            boolean finding
+        ) {
             this.classes = classes;
             this.configuration = configuration;
+            this.typed = typed;
             this.views = views;
             this.finding = finding;
         }
@@ -517,7 +539,7 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                         excluded.retainAll(read);
                     }
                 }
-                Attribute column = column(Source.EMPTY, MetadataAttribute.TIMESERIES, DataType.TIME_SERIES_METADATA_DATA_TYPE);
+                Attribute column = column(Source.EMPTY, MetadataAttribute.TIMESERIES, containerType());
                 return new Shape(column, null, excluded == null ? Set.of() : excluded, new TreeMap<>());
             });
         }
@@ -682,8 +704,8 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
         }
 
         private Expression restKey(Source source, Shape shape) {
-            Expression rest = shape.hasRest() ? rest(shape) : new ToTimeSeriesMetadata(source, Literal.keyword(source, "{}"));
-            return new Coalesce(source, new ToString(source, rest, configuration), List.of(Literal.keyword(source, "")));
+            Expression rest = shape.hasRest() ? rest(shape) : emptyContainer(source);
+            return new Coalesce(source, render(source, rest), List.of(Literal.keyword(source, "")));
         }
 
         private LogicalPlan union(UnionAll union, List<LogicalPlan> children) {
@@ -725,9 +747,9 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                 if (rest) {
                     var parts = new ArrayList<Expression>();
                     for (Shape branch : branches) {
-                        parts.add(branch.rest() != null ? branch.rest() : new ToTimeSeriesMetadata(source, absent(source)));
+                        parts.add(branch.rest() != null ? branch.rest() : cast(source, absent(source)));
                     }
-                    restOut = unionOutput(parts, out.name(), DataType.TIME_SERIES_METADATA_DATA_TYPE, evals, projections, output, outputs);
+                    restOut = unionOutput(parts, out.name(), containerType(), evals, projections, output, outputs);
                 }
                 var labels = new TreeMap<String, Expression>();
                 for (String name : names) {
@@ -883,7 +905,7 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                 // TimeSeriesWithout reads the names of the labels it leaves out, present at the source or not
                 without.add(field != null ? field : new ReferenceAttribute(Source.EMPTY, label, DataType.KEYWORD));
             }
-            return new ToTimeSeriesMetadata(source, new TimeSeriesWithout(source, without));
+            return cast(source, new TimeSeriesWithout(source, without));
         }
 
         /** The residual container of {@code shape} as an expression. */
@@ -897,18 +919,20 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
             }
             views.computeIfAbsent(shape.view(), k -> new HashSet<>()).add(new TreeSet<>(shape.excluded()));
             if (finding) {
-                return column(Source.EMPTY, MetadataAttribute.TIMESERIES, DataType.TIME_SERIES_METADATA_DATA_TYPE);
+                return column(Source.EMPTY, MetadataAttribute.TIMESERIES, containerType());
             }
             Shape view = carried(shape.view());
             var left = new TreeSet<>(shape.excluded());
             left.removeAll(view.excluded());
             return left.isEmpty()
                 ? view.rest()
-                : new TimeSeriesMetadataFilter(
-                    Source.EMPTY,
-                    view.rest(),
-                    left.stream().<Expression>map(l -> Literal.keyword(Source.EMPTY, l)).toList(),
-                    true
+                : typedOnly(
+                    new TimeSeriesMetadataFilter(
+                        Source.EMPTY,
+                        view.rest(),
+                        left.stream().<Expression>map(l -> Literal.keyword(Source.EMPTY, l)).toList(),
+                        true
+                    )
                 );
         }
 
@@ -921,7 +945,7 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                 return absent(source);
             }
             // A label read without being named: it stays in the residual container.
-            return new TimeSeriesMetadataPath(source, rest(shape), Literal.keyword(source, label));
+            return typedOnly(new TimeSeriesMetadataPath(source, rest(shape), Literal.keyword(source, label)));
         }
 
         private Shape without(Shape shape, Source source, Collection<String> names) {
@@ -962,11 +986,13 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
             var left = new LinkedHashSet<>(names);
             left.removeAll(shape.excluded());
             // Labels removed without being named: the residual container drops them itself.
-            return new TimeSeriesMetadataFilter(
-                source,
-                shape.rest(),
-                left.stream().<Expression>map(name -> Literal.keyword(source, name)).toList(),
-                true
+            return typedOnly(
+                new TimeSeriesMetadataFilter(
+                    source,
+                    shape.rest(),
+                    left.stream().<Expression>map(name -> Literal.keyword(source, name)).toList(),
+                    true
+                )
             );
         }
 
@@ -999,13 +1025,49 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
 
         /** The container as a whole: the residual one with the labels it leaves out written back. */
         private Expression container(Shape shape, Source source) {
-            Expression container = shape.hasRest() ? rest(shape) : new ToTimeSeriesMetadata(source, Literal.keyword(source, "{}"));
+            Expression container = shape.hasRest() ? rest(shape) : emptyContainer(source);
             for (var label : shape.labels().entrySet()) {
                 if (shape.hasRest() == false || shape.excluded().contains(label.getKey())) {
-                    container = new TimeSeriesMetadataSet(source, container, Literal.keyword(source, label.getKey()), label.getValue());
+                    container = typedOnly(
+                        new TimeSeriesMetadataSet(source, container, Literal.keyword(source, label.getKey()), label.getValue())
+                    );
                 }
             }
             return container;
+        }
+
+        // -- keyword: a node before 9.7 reads _timeseries as keyword, so a residual container stays the source's keyword view --
+
+        private DataType containerType() {
+            return typed ? DataType.TIME_SERIES_METADATA_DATA_TYPE : DataType.KEYWORD;
+        }
+
+        private Expression cast(Source source, Expression keyword) {
+            return typed ? new ToTimeSeriesMetadata(source, keyword) : keyword;
+        }
+
+        private Expression emptyContainer(Source source) {
+            return typed ? new ToTimeSeriesMetadata(source, Literal.keyword(source, "{}")) : new Literal(source, null, DataType.KEYWORD);
+        }
+
+        private Expression render(Source source, Expression container) {
+            return typed ? new ToString(source, container, configuration) : container;
+        }
+
+        /** {@code function} over a residual container, which a keyword one cannot express after the collapse. */
+        private Expression typedOnly(Expression function) {
+            if (typed == false) {
+                throw new VerificationException(
+                    List.of(
+                        Failure.fail(
+                            function,
+                            "leaving labels out of _timeseries requires a typed label container [{}]",
+                            function.sourceText()
+                        )
+                    )
+                );
+            }
+            return function;
         }
 
         /** A label value written as empty removes the label, as in Prometheus. */
@@ -1029,7 +1091,7 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                     names(get.children().subList(1, 2)).getFirst()
                 );
                 case ToString render when render.field().dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(render.field()) ->
-                    new ToString(render.source(), container(shape(render.field()), render.source()), configuration);
+                    render(render.source(), container(shape(render.field()), render.source()));
                 case HashOffset hash -> {
                     var keys = new ArrayList<Expression>();
                     for (Expression key : hash.children()) {

@@ -535,9 +535,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/161633
-- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
-  method: testTrackOldSearchNodesWhenIndexingShardRelocates
-  issue: https://github.com/elastic/elasticsearch/issues/161643
+#- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+#  method: testTrackOldSearchNodesWhenIndexingShardRelocates
+#  issue: https://github.com/elastic/elasticsearch/issues/161643
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Basic test}
   issue: https://github.com/elastic/elasticsearch/issues/161650

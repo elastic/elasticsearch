@@ -1792,7 +1792,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * {@link ESIntegTestCase#awaitClusterState(Predicate)} instead of polling {@code clusterService().state()} inside {@code assertBusy}.
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock) throws Exception {
-        assertBusy(codeBlock, 10, TimeUnit.SECONDS);
+        // assertBusy(codeBlock, 10, TimeUnit.SECONDS);
+        assertBusy(codeBlock, 10, TimeUnit.MILLISECONDS);
     }
 
     /**

@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -44,6 +46,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.DateFieldRangeInfo;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -55,6 +58,8 @@ import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.snapshots.RestoringShardTestState;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -74,6 +79,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -245,6 +251,129 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         Map<String, Integer> incomingSkips = Map.of("remote_a", 3, LOCAL_CLUSTER_GROUP_KEY, 0);
         incomingSkips.forEach((cluster, count) -> result.get().skippedByClusterAlias().merge(cluster, count, Integer::sum));
         assertEquals(Map.of("remote_a", 3, LOCAL_CLUSTER_GROUP_KEY, 0), result.get().skippedByClusterAlias());
+    }
+
+    /**
+     * With partial results disallowed the phase rejects a search that has a shard with no copy to search. When that shard is being
+     * restored by a restore that reports its shards the rejection carries a {@link ShardRestoringException}, so it is a 403 and not a 503.
+     */
+    public void testMissingShardBeingRestoredIsReported() {
+        final var restoring = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "restoring",
+            randomUUID(),
+            true
+        );
+
+        final var e = executeWithMissingShard(restoring, restoring.state(), true);
+
+        assertThat(ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof ShardRestoringException).isPresent(), equalTo(true));
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+    }
+
+    /**
+     * Callers that have no cluster state, and restores that do not report their shards, get the rejection a search always got.
+     */
+    public void testMissingShardBeingRestoredIsNotReportedUnlessTheRestoreReportsIt() {
+        final var restoring = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "restoring",
+            randomUUID(),
+            true
+        );
+        final var notReporting = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "not-reporting",
+            randomUUID(),
+            false
+        );
+
+        for (var e : List.of(
+            executeWithMissingShard(restoring, null, true),
+            executeWithMissingShard(restoring, null, false),
+            executeWithMissingShard(notReporting, notReporting.state(), true)
+        )) {
+            assertThat(
+                ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof ShardRestoringException).isPresent(),
+                equalTo(false)
+            );
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+    }
+
+    /**
+     * Runs the phase over one shard that has no copy to search, with partial results disallowed, and returns how it rejects the search.
+     *
+     * @param clusterState    the cluster state to pass, or {@code null}
+     * @param useStateOverload whether to call the {@code execute} that takes the cluster state, or the original one that does not
+     */
+    private SearchPhaseExecutionException executeWithMissingShard(
+        RestoringShardTestState.Restoring restoring,
+        ClusterState clusterState,
+        boolean useStateOverload
+    ) {
+        final var timeProvider = new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
+        final var shardIterators = List.of(
+            new SearchShardIterator(
+                null,
+                restoring.shardId(),
+                Collections.emptyList(),
+                new OriginalIndices(new String[] { restoring.shardId().getIndexName() }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+                SplitShardCountSummary.UNSET
+            )
+        );
+        final var searchTransportService = new SearchTransportService(null, null, null);
+        final var metrics = new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry());
+        final var searchRequest = new SearchRequest().allowPartialSearchResults(false);
+        final Executor executor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
+        final Map<String, AliasFilter> aliasFilter = Map.of(restoring.shardId().getIndex().getUUID(), AliasFilter.EMPTY);
+        final SubscribableListener<CanMatchPreFilterSearchPhase.CanMatchResult> listener;
+        if (useStateOverload) {
+            listener = CanMatchPreFilterSearchPhase.execute(
+                logger,
+                searchTransportService,
+                (alias, node) -> null,
+                aliasFilter,
+                Collections.emptyMap(),
+                executor,
+                searchRequest,
+                shardIterators,
+                timeProvider,
+                null,
+                false,
+                EMPTY_CONTEXT_PROVIDER,
+                metrics,
+                Map.of(),
+                false,
+                clusterState
+            );
+        } else {
+            listener = CanMatchPreFilterSearchPhase.execute(
+                logger,
+                searchTransportService,
+                (alias, node) -> null,
+                aliasFilter,
+                Collections.emptyMap(),
+                executor,
+                searchRequest,
+                shardIterators,
+                timeProvider,
+                null,
+                false,
+                EMPTY_CONTEXT_PROVIDER,
+                metrics,
+                Map.of(),
+                false
+            );
+        }
+        return safeAwaitFailure(
+            SearchPhaseExecutionException.class,
+            CanMatchPreFilterSearchPhase.CanMatchResult.class,
+            listener::addListener
+        );
     }
 
     /**

@@ -1427,11 +1427,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-<<<<<<< HEAD
-        EXEMPLARS_SETTING_DEVELOPMENT_V7(Build.current().isSnapshot()),
-=======
         EXEMPLARS_SETTING_DEVELOPMENT_V8(Build.current().isSnapshot()),
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -4744,8 +4740,6 @@ public class EsqlCapabilities {
          */
         FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
 
-<<<<<<< HEAD
-=======
         /**
          * Run time-series aggregation single pass on data nodes when possible
          */
@@ -4758,7 +4752,6 @@ public class EsqlCapabilities {
          */
         COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

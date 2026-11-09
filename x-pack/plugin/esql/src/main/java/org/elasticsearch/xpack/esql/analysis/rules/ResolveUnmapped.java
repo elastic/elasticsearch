@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
-import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -421,76 +420,6 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         return loaded;
     }
 
-<<<<<<< HEAD
-    // TODO: would an alternative to this be to have ResolveRefs#resolveMergePlan re-resolve the MergePlan?
-    // We might need some plan delimiters/markers to make it unequivocal which nodes belong to
-    // "make the merge work" - like ([Limit -] Project [- Eval])s - and which don't.
-    // PruneColumns does the same dance. There's some fragility w.r.t. assuming there to be a top Project and danger of the outputs not
-    // being aligned after applying the changes.
-    /**
-     * Update the merge's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
-     * A view branch is left alone: this rule adds nothing inside one, only a fill atop it ({@link #nullFillViewOutput}), which
-     * widens the branch's output by itself. Its top Project may also be the view body's own KEEP/DROP/RENAME, analysed without
-     * this scope's setting, which must keep hiding (or renaming) what it does.
-     */
-    private static MergePlan patchMergePlan(MergePlan mergePlan) {
-        List<LogicalPlan> children = mergePlan.children();
-        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
-        boolean changed = false;
-        for (int i = 0; i < children.size(); i++) {
-            LogicalPlan child = children.get(i);
-            LogicalPlan newChild = ViewUtils.isViewBody(mergePlan, i) ? child : patchBranchTopProject(child);
-            changed |= newChild != child;
-            newChildren.add(newChild);
-        }
-        return changed ? ((MergePlan) mergePlan.replaceChildren(newChildren)).refreshOutput() : mergePlan;
-    }
-
-    private static LogicalPlan patchBranchTopProject(LogicalPlan branch) {
-        return branch.transformDownSkipBranch((plan, skip) -> {
-            if (plan instanceof Project project) {
-                skip.set(true); // process top Project only (merge-injected)
-                // Only a merge-injected alignment Project (exact class; resolveMergePlan emits plain Projects) may
-                // surface newly loaded attributes. The branch's top projection can also be a user-written one
-                // (KEEP/DROP/RENAME Project subclasses) now that branches are no longer wrapped in Subquery nodes:
-                // such an explicit column list must keep hiding what it hides, otherwise a broadcast load would
-                // e.g. resurrect a DROPped unmapped field inside that branch.
-                // TODO: keying on the exact class is fragile. Either have resolveMergePlan emit ResolvingProject
-                // (which passes unmapped fields through by design) or add an explicit merge-injected marker on
-                // Project, and match on that instead.
-                if (plan.getClass() == Project.class) {
-                    plan = patchMergeProject(project);
-                }
-            }
-            return plan;
-        });
-    }
-
-    /**
-     * Add any missing attributes that are found in the child's output but not in the Project's output. These have been injected before
-     * by the evalUnresolvedAtopXXX methods and need to be "let through" the Project.
-     */
-    // Maybe using ResolvingProjects at the top of the merge branches would be a more simple solution; adding the `*` pattern
-    // would let any newly introduced attribute through without the need to patch the Projects, we'd just have to refresh the merge output.
-    private static Project patchMergeProject(Project project) {
-        List<Attribute> projectOutput = project.output();
-        List<Attribute> childOutput = project.child().output();
-        if (projectOutput.equals(childOutput) == false) {
-            List<Attribute> delta = new ArrayList<>(childOutput);
-            delta.removeAll(projectOutput);
-            // MarkJoin marks sit under the alignment Project but are not merge columns (MergePlan.outputUnion skips them). Letting them
-            // through here makes ResolveRefs drop them on the next pass and this rule add them back — a Resolution-batch loop that hits
-            // the 100-rule limit. Cast synthetics stay.
-            delta.removeIf(InSubqueryResolver::isInSubquerySynthetic);
-            if (delta.isEmpty() == false) {
-                project = project.withProjections(mergeOutputAttributes(delta, projectOutput));
-            }
-        }
-        return project;
-    }
-
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     /**
      * UAs that weren't resolvable at first were added to the plan. But {@link Analyzer.ResolveRefs} has marked all or some of them as
      * unresolvable by attaching a custom message. This needs to be removed for {@link Analyzer.ResolveRefs} to attempt resolving them

@@ -47,13 +47,7 @@ public class ES97GpuHnswBBQMixedPathTests extends ESBaseKnnVectorsFormatTestCase
                 gpuSupport.getTotalGpuMemory(),
                 DEFAULT_MAX_CONN,
                 DEFAULT_BEAM_WIDTH,
-<<<<<<< HEAD
                 0
-=======
-                false,
-                0,
-                false
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
             )
         );
     }

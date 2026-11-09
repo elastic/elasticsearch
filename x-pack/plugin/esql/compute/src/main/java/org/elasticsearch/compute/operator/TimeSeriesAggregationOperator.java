@@ -186,27 +186,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         } finally {
             if (success == false) {
                 mainDriverContext.releaseChildBlockFactory(workerBlockFactory);
-<<<<<<< HEAD
-            }
-        }
-    }
-
-    @Override
-    protected void emit() {
-        expandWindowBuckets();
-        super.emit();
-    }
-
-    @Override
-    protected boolean shouldEmitPartialResultsPeriodically(Page incomingPage) {
-        if (super.shouldEmitPartialResultsPeriodically(incomingPage) == false) {
-            return false;
-        }
-        for (GroupingAggregator aggregator : aggregators) {
-            if (aggregator.aggregatorFunction().canEmitPartialResultsPeriodically(incomingPage) == false) {
-                return false;
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
             }
         }
     }

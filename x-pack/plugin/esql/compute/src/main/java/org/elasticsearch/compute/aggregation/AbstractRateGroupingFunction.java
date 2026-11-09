@@ -56,11 +56,7 @@ abstract class AbstractRateGroupingFunction {
         return false;
     }
 
-<<<<<<< HEAD
-    public final boolean canEmitPartialResultsPeriodically(Page incomingPage) {
-=======
     public final boolean prepareForPeriodicEmit(Page incomingPage) {
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         return maybeFlushOnNewSlice(incomingPage);
     }
 

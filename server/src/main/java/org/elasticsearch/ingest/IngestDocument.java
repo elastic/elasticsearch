@@ -240,11 +240,8 @@ public final class IngestDocument {
             throw new IllegalArgumentException(
                 Objects.requireNonNullElseGet(failure.errorMessage, () -> Errors.notPresent(path, failure.missingFields))
             );
-<<<<<<< HEAD
-=======
         } else {
             return cast(path, result, clazz);
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         }
     }
 

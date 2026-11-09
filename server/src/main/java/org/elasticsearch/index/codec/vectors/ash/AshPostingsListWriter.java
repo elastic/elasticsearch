@@ -236,19 +236,6 @@ public class AshPostingsListWriter {
         final float[] blockVecCentroidSqDists = new float[ENCODE_SIZE];
         DocIdsWriter idsWriter = new DocIdsWriter();
 
-<<<<<<< HEAD
-=======
-        // On merge the vectors are read from an off-heap temp file in cluster order, which is a
-        // scattered (random) access pattern rather than the sequential scan the file was opened with.
-        // Switch the read-advice to RANDOM for the encode phase so the OS does not waste read-ahead on
-        // pages we will not touch next, and restore SEQUENTIAL afterwards. This is a no-op on flush,
-        // where the values are resident on-heap (not a KMeansFloatVectorValues).
-        final KMeansFloatVectorValues offHeapValues = floatVectorValues instanceof KMeansFloatVectorValues kmeans ? kmeans : null;
-        if (offHeapValues != null) {
-            offHeapValues.updateReadAdvice(DataAccessHint.RANDOM);
-        }
-
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         // Encodes a whole block in one matrix multiply, so W is read once per block rather than once
         // per vector. Created here and reused for every posting list, since W does not change.
         try (AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(w, originalDim, ENCODE_SIZE)) {

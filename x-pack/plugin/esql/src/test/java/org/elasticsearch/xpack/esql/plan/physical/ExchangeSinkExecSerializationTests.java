@@ -96,14 +96,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1152898b - added slice selection to EsRelation (1 byte for the absent optional string)
          *  1159898b - added passthrough flag to EsField
          *  1160499b - added created index version
-<<<<<<< HEAD
-         */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1160499L));
-=======
          *  1162302b - use the current index version (4-byte VInt per index)
          */
         testManyTypeConflicts(false, ByteSizeValue.ofBytes(1162302L));
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     }
 
     /**
@@ -131,14 +126,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  2304521b - added slice selection to EsRelation (1 byte for the absent optional string)
          *  2311521b - added passthrough flag to EsField
          *  2312122b - added created index version
-<<<<<<< HEAD
-         */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2312122L));
-=======
          *  2313925b - use the current index version (4-byte VInt per index)
          */
         testManyTypeConflicts(true, ByteSizeValue.ofBytes(2313925L));
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -215,10 +205,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          * 4999b - added shardCounts to EsRelation (1 byte for empty-map VInt)
          * 5098b - make IndexProperties Writeable: inline VInt(0) per 100 indices (+100 -1 for removed trailing map)
          * 5199b - added created index version
-<<<<<<< HEAD
-=======
          * 5499b - use the current index version (4-byte VInt per index)
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
          */
 
         var index = EsIndexGenerator.esIndex(
@@ -228,11 +215,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
                 .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
                 .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
         );
-<<<<<<< HEAD
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5199));
-=======
         testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5499));
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     }
 
     /**

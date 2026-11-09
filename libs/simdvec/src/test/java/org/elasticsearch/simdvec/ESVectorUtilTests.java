@@ -1547,11 +1547,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     public void testMatrixMultiplyWithOffsets() {
         try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null) {
             TaskExecutor tasks = executor == null ? null : new TaskExecutor(executor);
-<<<<<<< HEAD
-            int m = randomIntBetween(0, 256);
-=======
             int m = randomIntBetween(1, 256);
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
             int k = randomIntBetween(1, 256);
             int n = randomIntBetween(1, 256);
             int aOffset = randomIntBetween(0, 33);

@@ -72,11 +72,6 @@ exception.
 
 ## Reasoning heuristics
 
-<<<<<<< HEAD
-Assume that utilities which decorate an `ActionListener` with extra behavior (such as the static methods on `ActionListener` itself) generally complete the decorated listener.
-
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 Assume that `AbstractRunnable` tasks submitted to a threadpool eventually execute, or are eventually notified of failure or rejection. Submitting an `AbstractRunnable` to a threadpool never throws an exception.
 
 Assume that tasks submitted for execution by the `MasterService` eventually complete.
@@ -84,8 +79,5 @@ Assume that tasks submitted for execution by the `MasterService` eventually comp
 Assume that actions invoked via the `TransportService` eventually complete. The lifecycle of requests submitted to the `TransportService` is described in the Javadoc for `TransportService#sendRequest`, and the lifecycle of the eventually-received response object is described in the Javadoc on `TransportResponseHandler#handleResponse`.
 
 Assume that assertions are disabled, but that the condition in every assertion is satisfied.
-<<<<<<< HEAD
-=======
 
 Utilities which decorate an `ActionListener` with extra behavior (such as the static methods on `ActionListener` itself) split the reasoning path in two: the decorated listener must always eventually be completed, and completing the decorated listener must always complete the original listener.
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51

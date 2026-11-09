@@ -64,17 +64,6 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: ga`
       1. This index uses the `standard` index mode
 
     The `index.mode` setting supports the following values:
-<<<<<<< HEAD
-       - `null`:   Default value (same as `standard`). {applies_to}`vectordb: unavailable`
-       -  `standard`:   Standard indexing with default settings. {applies_to}`vectordb: unavailable`
-       -  `lookup`: Index that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join.md) in ES|QL. Limited to 1 shard. {applies_to}`vectordb: unavailable`
-       - `time_series`:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md). {applies_to}`vectordb: unavailable`
-       - `logsdb`: Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md). {applies_to}`vectordb: unavailable`
-       - `vectordb_document` {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`: Index mode optimized for vector search use cases. Applies settings and defaults tuned for indexing, merging, and searching dense vector data. For details, see [Index modes for vector search](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-modes).
-       - `columnar`: {applies_to}`stack: preview 9.5+` {applies_to}`elasticsearch: preview` {applies_to}`observability: preview` {applies_to}`security: preview` {applies_to}`vectordb: unavailable` Index mode that turns {{es}} into a full analytical and search columnar store. Fields are stored once as doc values with no inverted index or BKD tree by default. For more information, refer to [Columnar index mode](/reference/elasticsearch/columnar/index.md).
-       - `logsdb_columnar`: {applies_to}`stack: preview 9.5+` {applies_to}`elasticsearch: preview` {applies_to}`observability: preview` {applies_to}`security: preview` {applies_to}`vectordb: unavailable` Columnar index mode with logging-oriented defaults, including a default `@timestamp` mapping. For more information, refer to [Columnar index mode](/reference/elasticsearch/columnar/index.md).
-       - `vectordb_columnar`: {applies_to}`stack: preview 9.6+` Columnar index mode optimized for vector search. Combines the vector search defaults of `vectordb_document` with columnar storage, while keeping `dense_vector` and `text` fields indexed for search. For details, see [Index modes for vector search](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-vectordb-columnar-mode).
-=======
 
     `standard` {applies_to}`vectordb: unavailable`
     :   Provides standard indexing with default settings. An index uses this default unless an index template sets another mode or it's a `logs-*-*` data stream as described for the `logsdb` value.
@@ -103,7 +92,6 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: ga`
 
     `null` {applies_to}`vectordb: unavailable`
     :   Same value as `standard`.
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 
 $$$routing-partition-size$$$ `index.routing_partition_size`
 :   The number of shards a custom routing value can go to. Defaults to 1 and can only be set at index creation time. This value must be less than `index.number_of_shards` unless the value is also 1. For more details about how this setting is used, refer to [](/reference/elasticsearch/mapping-reference/mapping-routing-field.md#routing-index-partition).

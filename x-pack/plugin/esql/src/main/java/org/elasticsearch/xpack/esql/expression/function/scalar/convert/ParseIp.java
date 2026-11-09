@@ -17,10 +17,6 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Strings;
 
-<<<<<<< HEAD
-import java.net.InetAddress;
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 import java.nio.charset.StandardCharsets;
 
 /**

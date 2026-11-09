@@ -105,12 +105,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             this.indexOptions = new Parameter<>(SPARSE_VECTOR_INDEX_OPTIONS, true, () -> defaultIndexOptions, (n, c, o) -> {
                 SparseVectorIndexOptions parsed = parseIndexOptions(c, o);
                 return parsed == null ? defaultIndexOptions : parsed;
-<<<<<<< HEAD
-            }, m -> toType(m).fieldType().indexOptions, XContentBuilder::field, Objects::toString).acceptsNull()
-                .setSerializerCheck(this::indexOptionsSerializerCheck);
-=======
             }, XContentBuilder::field, Objects::toString).acceptsNull().setSerializerCheck(this::indexOptionsSerializerCheck);
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         }
 
         public Builder setStored(boolean value) {

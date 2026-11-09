@@ -399,11 +399,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 }
 
                 @Override
-<<<<<<< HEAD
                 public void consumeTermsMatching(Query q, String field, Supplier<ByteRunnable> automaton) {
-=======
-                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
                     if (isIndexedSpatialQuery(q)) {
                         found[0] = true;
                     }

@@ -322,14 +322,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-<<<<<<< HEAD
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
-
-    @Override
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     protected void doValidate(MappingLookup mappingLookup) {
         List<String> joinFields = mappingLookup.getMatchingFieldNames("*")
             .stream()

@@ -1895,22 +1895,11 @@ public class StatelessPlugin extends Plugin
             && hollowShardsService.get().isHollowShard(shardId) == false
             && IndexEngine.isLastCommitHollow(lastCommitUserData)
             && existingBlobContainer) {
-<<<<<<< HEAD
-            logger.debug(() -> shardId + " using hollow engine for shard [generation: " + segmentCommitInfos.getGeneration() + "]");
-            return new HollowIndexEngine(
-                newConfig,
-                getCommitService(),
-                hollowShardsService.get(),
-                HollowCommitMetadata.of(segmentCommitInfos),
-                segmentCommitInfos
-            );
-=======
             final var hollowCommit = transferredHollowCommit != null
                 ? transferredHollowCommit
                 : HollowCommitMetadata.of(segmentCommitInfos);
             logger.debug(() -> shardId + " using hollow engine for shard [generation: " + hollowCommit.generation() + "]");
             return new HollowIndexEngine(newConfig, commitService, hollowShardsService.get(), hollowCommit, segmentCommitInfos);
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         }
 
         return newIndexEngine(

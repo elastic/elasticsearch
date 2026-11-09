@@ -223,11 +223,7 @@ public class ParseIpTests extends ESTestCase {
 
     private void failure(BiFunction<BytesRef, BreakingBytesRefBuilder, BytesRef> fn) {
         try (BreakingBytesRefBuilder scratch = ParseIp.buildScratch(NoopCircuitBreaker.INSTANCE)) {
-<<<<<<< HEAD
-            Exception thrown = expectThrows(IllegalArgumentException.class, () -> fn.apply(new BytesRef(str), scratch));
-=======
             Exception thrown = expectThrows(IllegalArgumentException.class, () -> fn.apply(embedded(str), scratch));
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
             assertThat(thrown.getMessage(), equalTo("'" + Strings.truncateForError(str) + "' is not an IP string literal."));
         }
     }

@@ -15,11 +15,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
-<<<<<<< HEAD
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V7;
-=======
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8;
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_COMPLETION_RERANK_FUSE_HIGHLIGHT_MMR;
@@ -78,11 +74,7 @@ public class ForkTestUtils {
 
         assumeFalse(
             "Tests using the exemplars setting are skipped since FORK duplicates their TS ... | STATS command",
-<<<<<<< HEAD
-            testCase.requiredCapabilities.contains(EXEMPLARS_SETTING_DEVELOPMENT_V7.capabilityName())
-=======
             testCase.requiredCapabilities.contains(EXEMPLARS_SETTING_DEVELOPMENT_V8.capabilityName())
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         );
 
         assumeFalse(

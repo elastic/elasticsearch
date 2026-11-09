@@ -47,10 +47,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
-<<<<<<< HEAD
-=======
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.AlignMergeBranches;
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;

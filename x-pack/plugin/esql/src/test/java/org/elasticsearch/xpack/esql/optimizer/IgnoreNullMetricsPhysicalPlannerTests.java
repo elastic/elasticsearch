@@ -28,10 +28,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-<<<<<<< HEAD
-=======
 import java.util.List;
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 import java.util.Map;
 import java.util.Set;
 
@@ -46,10 +43,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
-<<<<<<< HEAD
-=======
 import static org.hamcrest.Matchers.containsString;
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -113,8 +107,6 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
         assertThat(queryExec.query().toString(), is(expected.toString()));
     }
 
-<<<<<<< HEAD
-=======
     /**
      * PromQL count and presence functions read a counter directly, so only documents with a value of the counter are read.
      */
@@ -130,7 +122,6 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
         }
     }
 
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     public void testPushdownOfMixedAggregateMetricDoubleAndDoubleMetric() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());

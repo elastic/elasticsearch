@@ -234,13 +234,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                 gpuSupport.getTotalGpuMemory(),
                 ES92GpuHnswVectorsFormat.cagraGraphDegree(m),
                 ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(m, efConstruction),
-<<<<<<< HEAD
                 bbqHnswIndexOptions.flatIndexThreshold()
-=======
-                bbqHnswIndexOptions.onDiskRescore(),
-                bbqHnswIndexOptions.flatIndexThreshold(),
-                bbqHnswIndexOptions.isOnDiskMerge()
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
             );
         } else {
             throw new IllegalArgumentException(

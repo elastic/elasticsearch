@@ -1251,11 +1251,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             )
         );
         try (var result = run(request)) {
-<<<<<<< HEAD
-            assertThat(timeSeriesAggEmitCount(result.profile()), greaterThan(dataDriverCount(result.profile())));
-=======
             assertThat(timeSeriesAggEmitCount(result.profile()), greaterThan(dataDriversWithInput(result.profile())));
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         }
         // high keys threshold disables periodic emit completely (one finish emit per data driver)
         request.pragmas(

@@ -118,8 +118,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
         if (useNativeSortField == false || sortRequiresCustomComparator()) {
             SortField sortField = new SortField(getFieldName(), source, reverse);
-            sortField.setOptimizeSortWithPoints(optimizeSortWithPoints && canUseOptimizedSort(indexType()));
-            return sortField;
+            return optimizeSortWithPoints && canUseOptimizedSort(indexType()) ? sortField : SortField.withoutPruning(sortField);
         }
 
         assert nested == null;
@@ -145,8 +144,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             selectorType,
             missingObject
         );
-        sortField.setOptimizeSortWithPoints(optimizeSortWithPoints && canUseOptimizedSort(indexType()));
-        return sortField;
+        return optimizeSortWithPoints && canUseOptimizedSort(indexType()) ? sortField : SortField.withoutPruning(sortField);
     }
 
     private static boolean canUseOptimizedSort(IndexType indexType) {

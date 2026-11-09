@@ -52,15 +52,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
 import static org.elasticsearch.index.IndexingPressure.MAX_PRIMARY_BYTES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -962,37 +959,4 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         }
         safeAwait(startBarrier);
     }
-<<<<<<< HEAD
-
-    public void testTokenCountMetricsAreRecorded() {
-        final String dataNode = internalCluster().startNode();
-        ensureStableCluster(1);
-
-        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        plugin.resetMeter();
-
-        assertAcked(prepareCreate("test").setMapping("message", "type=text", "title", "type=text", "tag", "type=keyword").get());
-
-        // Index a document with two text fields sharing the standard analyzer, and a keyword field that is not analyzed.
-        // The token counts are unusual so that other indexing on the node can't be mistaken for these values.
-        String message = IntStream.range(0, 37).mapToObj(i -> "message" + i).collect(Collectors.joining(" "));
-        String title = IntStream.range(0, 41).mapToObj(i -> "title" + i).collect(Collectors.joining(" "));
-        var indexResponse = client(dataNode).index(
-            new IndexRequest("test").id("doc_1").source(Map.of("message", message, "title", title, "tag", "not counted"))
-        ).actionGet();
-        assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
-
-        // exactly one measurement per text field value
-        var counts = plugin.getLongHistogramMeasurement("es.indexing.field.token_count.histogram")
-            .stream()
-            .map(Measurement::getLong)
-            .filter(count -> count == 37L || count == 41L)
-            .toList();
-        assertThat(counts, containsInAnyOrder(37L, 41L));
-    }
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 }

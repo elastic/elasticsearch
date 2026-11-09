@@ -396,10 +396,6 @@ EXPORT void vec_dotd2q2_bulk_sparse_2(
     dotd2q2_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
-<<<<<<< HEAD
-// No tier-2 d2q4 kernels: the d2q4 functions resolve to the tier-1 (NEON) kernels on SVE CPUs as well,
-// which are faster than SVE versions on 128-bit SVE.
-=======
 // One step of one vector of the d2q4 batch kernel: the low doc plane against the four query planes into
 // lo, the high plane into hi. The pair kernel interleaves its two vectors' dot products instead.
 static inline void dot_d2q4_step_sv(
@@ -671,7 +667,6 @@ EXPORT void vec_dotd2q4_bulk_sparse_2(
     f32_t* results) {
     dotd2q4_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 
 EXPORT int64_t vec_dotd4q4_2(const int8_t* a, const int8_t* query, const int32_t length) {
     const int32_t bit_length = length / 4;

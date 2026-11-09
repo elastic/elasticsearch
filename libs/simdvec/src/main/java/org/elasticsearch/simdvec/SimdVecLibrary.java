@@ -387,11 +387,7 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_doti8_bulk")
-<<<<<<< HEAD
     @Critical
-=======
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     protected abstract void dotProductI8BulkHeap_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -514,11 +510,7 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotf32_bulk")
-<<<<<<< HEAD
     @Critical
-=======
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     protected abstract void dotProductF32BulkHeap_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -618,11 +610,7 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotDbf16Qf32_bulk")
-<<<<<<< HEAD
     @Critical
-=======
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     protected abstract void dotProductDBF16QF32BulkHeap_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,

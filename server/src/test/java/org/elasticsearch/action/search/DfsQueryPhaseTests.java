@@ -259,13 +259,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
             1,
             newSearchResult(1, new ShardSearchContextId("", 2), new SearchShardTarget("node2", new ShardId("test", "na", 0), null))
         );
-<<<<<<< HEAD
         results.get(0).termsStatistics(new Term[0], new TermStats[0]);
         results.get(1).termsStatistics(new Term[0], new TermStats[0]);
-=======
-        results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
-        results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 
         AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {

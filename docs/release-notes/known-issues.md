@@ -10,15 +10,12 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.6.0 [elasticsearch-9.6.0-known-issues]
 
-<<<<<<< HEAD
-=======
 * A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes such as `[a-z]+` and `foo|bar` are unaffected, but patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
 
 This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859).
 
   Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
 
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 * In ES|QL, a [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) function that is followed by `STATS` fails with `Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find`, even if a `LIMIT` is set after `STATS` or the `k` option is specified. As a workaround, add an explicit `LIMIT` immediately after the `KNN` filter and before `STATS`, for example `WHERE KNN(vector_field, [2.0, 3.0, 1.0]) | LIMIT 10 | STATS COUNT(*)`.
 
   Refer to [#163612](https://github.com/elastic/elasticsearch/issues/163612) for further details.

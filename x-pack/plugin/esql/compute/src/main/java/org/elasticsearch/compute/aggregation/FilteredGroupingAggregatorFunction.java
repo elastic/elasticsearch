@@ -147,13 +147,8 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
     }
 
     @Override
-<<<<<<< HEAD
-    public boolean canEmitPartialResultsPeriodically(Page incomingPage) {
-        return next.canEmitPartialResultsPeriodically(incomingPage);
-=======
     public boolean prepareForPeriodicEmit(Page incomingPage) {
         return next.prepareForPeriodicEmit(incomingPage);
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     }
 
     @Override

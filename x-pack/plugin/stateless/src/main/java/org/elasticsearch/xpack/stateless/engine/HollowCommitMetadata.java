@@ -10,20 +10,14 @@ package org.elasticsearch.xpack.stateless.engine;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
-<<<<<<< HEAD
-=======
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.engine.CommitStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-<<<<<<< HEAD
-=======
 import java.text.ParseException;
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -54,8 +48,6 @@ public record HollowCommitMetadata(
         }
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Reads the metadata written by {@link #writeTo}. The files of the commit are not part of the serialized form, since they are the
      * files of the hollow compound commit that is always transferred along with this metadata, and must be given instead.
@@ -73,7 +65,6 @@ public record HollowCommitMetadata(
         );
     }
 
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     public static HollowCommitMetadata of(SegmentInfos segmentInfos) {
         try {
             return new HollowCommitMetadata(
@@ -91,8 +82,6 @@ public record HollowCommitMetadata(
         }
     }
 
-<<<<<<< HEAD
-=======
     private static Version parseLuceneVersion(String version) throws IOException {
         try {
             return Version.parse(version);
@@ -101,7 +90,6 @@ public record HollowCommitMetadata(
         }
     }
 
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     public CommitStats commitStats() {
         return new CommitStats(userData, generation, id, numDocs, segmentCount);
     }
@@ -110,8 +98,6 @@ public record HollowCommitMetadata(
         return IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", generation);
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Writes the metadata except for the files of the commit. They are the files of the hollow compound commit that is always
      * transferred along with this metadata, so writing them would only duplicate them.
@@ -127,7 +113,6 @@ public record HollowCommitMetadata(
         out.writeVInt(segmentCount);
     }
 
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     @Override
     public boolean equals(Object o) {
         return o instanceof HollowCommitMetadata that

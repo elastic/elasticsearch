@@ -279,8 +279,6 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-<<<<<<< HEAD
-=======
     /**
      * With the smallest threshold every data node page with rows is emitted early. The coordinator must still merge
      * each series into one row that lists both indices.
@@ -312,7 +310,6 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
         }
     }
 
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     private void assertRowsPerIndexOfTheSameSeries(String command, long rowsPerIndex) {
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.query(

@@ -715,17 +715,6 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
-<<<<<<< HEAD
-    /**
-     * Returns a {@link Builder} to be used for merging and serialization
-     *
-     * Implement as follows:
-     * {@code return new MyBuilder(simpleName()).init(this); }
-     */
-    public abstract Builder getMergeBuilder();
-
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     protected abstract String contentType();
 
     @Override
@@ -926,24 +915,6 @@ public abstract class FieldMapper extends Mapper {
                 return this;
             }
 
-<<<<<<< HEAD
-            private void add(FieldMapper mapper) {
-                FieldMapper.Builder builder = Objects.requireNonNull(
-                    mapper.getMergeBuilder(),
-                    () -> "multi-field mapper [" + mapper.fullPath() + "] must provide a merge builder"
-                );
-                fieldBuilders.put(mapper.leafName(), builder);
-
-                if (mapper instanceof KeywordFieldMapper kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
-                        hasSyntheticSourceCompatibleKeywordField = true;
-                        hasLegacySyntheticSourceCompatibleKeywordField = true;
-                    }
-                }
-            }
-
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
             void mergeFrom(Builder incoming, MapperMergeContext mergeContext) {
                 for (var entry : incoming.fieldBuilders.entrySet()) {
                     FieldMapper.Builder incomingBuilder = entry.getValue();
@@ -1619,17 +1590,8 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("index", false, defaultValue);
         }
 
-<<<<<<< HEAD
-        public static Parameter<Boolean> indexParam(
-            Function<FieldMapper, Boolean> initializer,
-            IndexSettings indexSettings,
-            Supplier<Boolean> isDimension
-        ) {
-            return Parameter.boolParam("index", false, initializer, () -> defaultIndexed(indexSettings, isDimension.get()));
-=======
         public static Parameter<Boolean> indexParam(IndexSettings indexSettings, Supplier<Boolean> isDimension) {
             return Parameter.boolParam("index", false, () -> defaultIndexed(indexSettings, isDimension.get()));
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         }
 
         public static boolean defaultIndexed(IndexSettings indexSettings, boolean isDimension) {

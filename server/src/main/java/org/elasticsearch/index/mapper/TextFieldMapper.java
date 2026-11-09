@@ -364,10 +364,6 @@ public final class TextFieldMapper extends FieldMapper {
             });
 
             this.store = Parameter.storeParam(
-<<<<<<< HEAD
-                m -> ((TextFieldMapper) m).store,
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
                 () -> defaultStore(indexSettings, isWithinMultiField, multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField())
             )
                 // mappings written before a normalizer that skips storing the original value counted as a synthetic source

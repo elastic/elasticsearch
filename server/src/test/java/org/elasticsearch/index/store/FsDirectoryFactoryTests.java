@@ -30,11 +30,8 @@ import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.NoLockFactory;
-<<<<<<< HEAD
 import org.apache.lucene.store.NoReuseHint;
 import org.apache.lucene.store.ReadAdvice;
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 import org.apache.lucene.store.ReadOnceHint;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;

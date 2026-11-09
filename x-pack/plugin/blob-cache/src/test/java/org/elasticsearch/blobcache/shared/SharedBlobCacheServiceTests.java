@@ -5132,10 +5132,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-<<<<<<< HEAD
     @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back cache slice contents.
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     public void testGetIfPresentFindsPopulatedEntry() throws Exception {
         final long regionSize = size(10);
         final long fileLength = size(randomIntBetween(5, 19));

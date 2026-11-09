@@ -2247,17 +2247,6 @@ public class LocalExecutionPlanner {
         return source.with(new DistinctByOperator.BytesRefKeyPerShardFactory(docChannel, tsidChannel), source.layout);
     }
 
-    /**
-     * Drops the repeated rows of each time series within a shard. Deduplicating across shards would be wrong: a time series
-     * exists in every backing index it was written to, and each of those indices contributes its own data stream and
-     * mapping to {@code METRICS_INFO} and {@code TS_INFO}.
-     */
-    private static PhysicalOperation dedupTimeSeriesPerShard(PhysicalOperation source, Attribute docAttr, Attribute tsidAttr) {
-        int docChannel = source.layout.get(docAttr.id()).channel();
-        int tsidChannel = source.layout.get(tsidAttr.id()).channel();
-        return source.with(new DistinctByOperator.BytesRefKeyPerShardFactory(docChannel, tsidChannel), source.layout);
-    }
-
     private PhysicalOperation emptySourceForAttributes(List<Attribute> attributes) {
         Layout.Builder layout = new Layout.Builder();
         layout.append(attributes);

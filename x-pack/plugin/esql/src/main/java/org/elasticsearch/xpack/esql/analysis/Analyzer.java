@@ -2237,25 +2237,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         aliases,
                         toLoad,
                         context
-<<<<<<< HEAD
-                    )) {
-                        continue;
-                    }
-                    // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
-                    // supported. This way we can add this missing column containing only null values to the union branch output.
-                    var attrType = alignmentDataType(attr);
-                    attrType = attrType == UNSUPPORTED ? KEYWORD : attrType;
-                    if (attrType.isCounter()) {
-                        attrType = attrType.noCounter();
-                    }
-                    // use the current union branch's source as the source of the alias, instead of the original FieldAttribute's source.
-                    // Preserve synthetic so a sibling null-fill of a synthetic merge column (e.g. a union-type
-                    // $$field$converted_to$type cast) stays invisible to planWithoutSyntheticAttributes. IN-subquery
-                    // marks are not merge columns (MergePlan.outputUnion skips them) and do not reach this path.
-                    aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType), null, attr.synthetic()));
-=======
                     );
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
                 }
 
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
@@ -2278,38 +2260,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     changed = true;
                 }
 
-<<<<<<< HEAD
-                List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
-                // We need to add an explicit projection to align the outputs.
-                // If the branch already has a Project on top, and the output of the branch is empty,
-                // don't add another Project with only NO_FIELDS on top of it,
-                // otherwise it will cause an infinite loop in the analyzer, this happens to subquery so far.
-                // mergeColumns do not contain NO_FIELD because MergePlan.outputUnion removes it.
-                if (logicalPlan instanceof Project == false
-                    || (subPlanColumns.equals(mergeColumns) == false
-                        && subqueryReferencingIndexWithEmptyMapping(mergePlan, logicalPlan, mergeColumns) == false)) {
-                    changed = true;
-                    List<Attribute> newOutput = alignToMergeColumns(mergeColumns, logicalPlan.output());
-                    if (mergeColumns.isEmpty()) {
-                        // When mergeColumns is empty (all branches only have no-fields), resolveKeep with empty
-                        // projections would resolve to all child output including no-fields. Create a Project with
-                        // empty output directly so the no-fields marker doesn't leak into the union branch output.
-                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, List.of());
-                    } else {
-                        // Union alignment is structural, not user-named: emit a Project directly rather than
-                        // routing through resolveKeep. A Keep on this path would falsely register every
-                        // virtual attribute in the alignment projection (e.g. EXTERNAL's shim-injected
-                        // _file.* family) as "the user explicitly KEEP'd it", which planWithoutSyntheticAttributes
-                        // then refuses to strip — leaking the columns to the output. The projections here are
-                        // already pre-resolved Attributes drawn from MergePlan.outputUnion, so keepResolver would
-                        // be a no-op anyway (no wildcards, no UnresolvedNamePattern). A user-named KEEP _file.path
-                        // upstream of the union still survives via its own Keep node in the branch's plan tree.
-                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, new ArrayList<>(newOutput));
-                    }
-                }
-
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
                 newSubPlans.add(logicalPlan);
             }
 
@@ -2326,48 +2276,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-<<<<<<< HEAD
-        /**
-         * Picks the attributes of a merge branch's output in {@code mergeColumns} order. The branch output is indexed by name once
-         * so the cost is linear in the schema width: a merge over thousands of columns would otherwise rescan the branch output for
-         * every merge column, saturating the analysis thread pool (#163560). A plan's output never repeats a name, so each merge
-         * column matches at most one branch attribute.
-         */
-        static List<Attribute> alignToMergeColumns(List<String> mergeColumns, List<Attribute> branchOutput) {
-            Map<String, Attribute> branchAttributesByName = HashMap.newHashMap(branchOutput.size());
-            for (Attribute attr : branchOutput) {
-                Attribute previous = branchAttributesByName.put(attr.name(), attr);
-                assert previous == null : "duplicate attribute name [" + attr.name() + "] in merge branch output " + branchOutput;
-            }
-            List<Attribute> aligned = new ArrayList<>(mergeColumns.size());
-            for (String name : mergeColumns) {
-                Attribute match = branchAttributesByName.get(name);
-                if (match != null) {
-                    aligned.add(match);
-                }
-            }
-            return aligned;
-        }
-
-        /*
-         * Returns true if a subquery references an index with empty mapping.
-         */
-        private static boolean subqueryReferencingIndexWithEmptyMapping(
-            LogicalPlan unionAll,
-            LogicalPlan subquery,
-            List<String> outputColumns
-        ) {
-            return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
-        }
-
-        private static Alias nullFillNonLoadable(Source source, FieldAttribute mapped, AnalyzerContext context) {
-            DataType type = mapped.dataType();
-            context.subqueryNonLoadableNullFills().add(mapped.name());
-            return new Alias(source, mapped.name(), new Literal(source, null, type.noCounter()));
-        }
-
-=======
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         private static @Nullable FieldAttribute mappedSiblingField(Attribute attr) {
             return attr instanceof FieldAttribute fa
                 && fa instanceof UnsupportedAttribute == false

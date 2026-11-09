@@ -343,11 +343,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
                         }
 
                         @Override
-<<<<<<< HEAD
                         public long cost() throws IOException {
-=======
-                        public long cost() {
->>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
                             return inner.cost();
                         }
                     };

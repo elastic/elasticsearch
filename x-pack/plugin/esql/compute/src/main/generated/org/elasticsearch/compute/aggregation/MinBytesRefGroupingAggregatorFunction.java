@@ -409,7 +409,7 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

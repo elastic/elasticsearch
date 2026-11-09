@@ -402,7 +402,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

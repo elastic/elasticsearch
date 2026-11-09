@@ -405,7 +405,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

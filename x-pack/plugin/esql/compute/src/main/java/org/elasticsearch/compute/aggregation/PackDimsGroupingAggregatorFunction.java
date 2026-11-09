@@ -104,8 +104,8 @@ public final class PackDimsGroupingAggregatorFunction implements GroupingAggrega
     }
 
     @Override
-    public boolean supportPartitioning() {
-        return delegate.supportPartitioning();
+    public boolean supportPartitioning(AggregatorMode mode) {
+        return delegate.supportPartitioning(mode);
     }
 
     @Override

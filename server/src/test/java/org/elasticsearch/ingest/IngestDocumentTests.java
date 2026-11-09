@@ -571,7 +571,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testGetFieldValueNull() throws Exception {
         try {
-            doWithRandomAccessPattern((doc) -> doc.getFieldValue(null, String.class));
+            doWithRandomAccessPattern((doc) -> doc.getFieldValue((String) null, String.class));
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -728,7 +728,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testHasFieldNull() throws Exception {
         try {
-            doWithRandomAccessPattern((doc) -> doc.hasField(null));
+            doWithRandomAccessPattern((doc) -> doc.hasField((String) null));
             fail("has field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -899,7 +899,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testSetFieldValueNullName() throws Exception {
         try {
-            doWithRandomAccessPattern((doc) -> doc.setFieldValue(null, "bar"));
+            doWithRandomAccessPattern((doc) -> doc.setFieldValue((String) null, "bar"));
             fail("add field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -1942,7 +1942,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveNullField() throws Exception {
         try {
-            doWithRandomAccessPattern((doc) -> doc.removeField(null));
+            doWithRandomAccessPattern((doc) -> doc.removeField((String) null));
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));

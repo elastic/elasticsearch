@@ -44,6 +44,14 @@ import java.util.stream.Collectors;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
+ * <p>
+ * The methods that read or change a field (<code>getFieldValue</code>, <code>hasField</code>, <code>removeField</code>,
+ * <code>appendFieldValue</code> and <code>setFieldValue</code>) come in two forms, one that takes the path as a {@link String} and one
+ * that takes a {@link FieldPath}, and they behave the same. The {@link String} forms parse the path every time they are called (a cache
+ * of recently parsed paths keeps that cheap), whereas a {@link FieldPath} is parsed once, when it is created. Prefer the
+ * {@link FieldPath} forms wherever the path is known up front, as the fields that a processor is configured with are. The
+ * {@link String} forms are not deprecated, and they are the natural choice when the path is only known at run time, for example when it
+ * is taken from the contents of the document, or comes from a caller that has no use for a {@link FieldPath}.
  */
 public final class IngestDocument {
 
@@ -222,7 +230,17 @@ public final class IngestDocument {
         return getFieldValue(FieldPath.parse(path), clazz, ignoreMissing);
     }
 
-    private <T> T getFieldValue(FieldPath fieldPath, Class<T> clazz, boolean ignoreMissing) {
+    /**
+     * Same as {@link #getFieldValue(String, Class)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public <T> T getFieldValue(FieldPath fieldPath, Class<T> clazz) {
+        return getFieldValue(fieldPath, clazz, false);
+    }
+
+    /**
+     * Same as {@link #getFieldValue(String, Class, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public <T> T getFieldValue(FieldPath fieldPath, Class<T> clazz, boolean ignoreMissing) {
         final FieldPath parsedPath = fieldPath.resolve(this);
         final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
@@ -270,7 +288,17 @@ public final class IngestDocument {
         return hasField(FieldPath.parse(path), failOutOfRange);
     }
 
-    private boolean hasField(FieldPath fieldPath, boolean failOutOfRange) {
+    /**
+     * Same as {@link #hasField(String)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public boolean hasField(FieldPath fieldPath) {
+        return hasField(fieldPath, false);
+    }
+
+    /**
+     * Same as {@link #hasField(String, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public boolean hasField(FieldPath fieldPath, boolean failOutOfRange) {
         final FieldPath parsedPath = fieldPath.resolve(this);
         final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
@@ -431,7 +459,17 @@ public final class IngestDocument {
         removeField(FieldPath.parse(path), ignoreMissing);
     }
 
-    private void removeField(FieldPath fieldPath, boolean ignoreMissing) {
+    /**
+     * Same as {@link #removeField(String)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void removeField(FieldPath fieldPath) {
+        removeField(fieldPath, false);
+    }
+
+    /**
+     * Same as {@link #removeField(String, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void removeField(FieldPath fieldPath, boolean ignoreMissing) {
         final FieldPath parsedPath = fieldPath.resolve(this);
         final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
@@ -711,6 +749,36 @@ public final class IngestDocument {
     }
 
     /**
+     * Same as {@link #appendFieldValue(String, Object)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void appendFieldValue(FieldPath fieldPath, Object value) {
+        appendFieldValue(fieldPath, value, true);
+    }
+
+    /**
+     * Same as {@link #appendFieldValue(String, Object, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void appendFieldValue(FieldPath fieldPath, Object value, boolean allowDuplicates) {
+        setFieldValue(fieldPath, value, true, allowDuplicates, false);
+    }
+
+    /**
+     * Same as {@link #appendFieldValue(String, Object, boolean, boolean)} but takes a path that has already been parsed, see
+     * {@link FieldPath}.
+     */
+    public void appendFieldValue(FieldPath fieldPath, Object value, boolean allowDuplicates, boolean ignoreEmptyValues) {
+        setFieldValue(fieldPath, value, true, allowDuplicates, ignoreEmptyValues);
+    }
+
+    /**
+     * Same as {@link #appendFieldValue(String, ValueSource, boolean, boolean)} but takes a path that has already been parsed, see
+     * {@link FieldPath}.
+     */
+    public void appendFieldValue(FieldPath fieldPath, ValueSource valueSource, boolean allowDuplicates, boolean ignoreEmptyValues) {
+        appendFieldValue(fieldPath, valueSource.copyAndResolve(templateModel), allowDuplicates, ignoreEmptyValues);
+    }
+
+    /**
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created.
      * If the last item in the path is a list, the value will replace the existing list as a whole.
@@ -725,6 +793,13 @@ public final class IngestDocument {
     }
 
     /**
+     * Same as {@link #setFieldValue(String, Object)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void setFieldValue(FieldPath fieldPath, Object value) {
+        setFieldValue(fieldPath, value, false, false, false);
+    }
+
+    /**
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
@@ -735,6 +810,13 @@ public final class IngestDocument {
      */
     public void setFieldValue(String path, ValueSource valueSource) {
         setFieldValue(path, valueSource.copyAndResolve(templateModel));
+    }
+
+    /**
+     * Same as {@link #setFieldValue(String, ValueSource)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void setFieldValue(FieldPath fieldPath, ValueSource valueSource) {
+        setFieldValue(fieldPath, valueSource.copyAndResolve(templateModel));
     }
 
     /**
@@ -763,6 +845,24 @@ public final class IngestDocument {
     }
 
     /**
+     * Same as {@link #setFieldValue(String, ValueSource, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     * <p>
+     * As with that method, nothing is done if <code>ignoreEmptyValue</code> is set and the value that is produced is empty. That includes
+     * resolving the path, so a path that is malformed is not reported in that case.
+     */
+    public void setFieldValue(FieldPath fieldPath, ValueSource valueSource, boolean ignoreEmptyValue) {
+        Object value = valueSource.copyAndResolve(templateModel);
+        if (valueSource instanceof ValueSource.TemplatedValue) {
+            if (ignoreEmptyValue == false || valueNotEmpty(value)) {
+                setFieldValue(fieldPath, value);
+            }
+        } else {
+            // see the comment in the String path version of this method
+            setFieldValue(fieldPath, value);
+        }
+    }
+
+    /**
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
@@ -775,6 +875,18 @@ public final class IngestDocument {
     public void setFieldValue(String path, Object value, boolean ignoreEmptyValue) {
         if (ignoreEmptyValue == false || valueNotEmpty(value)) {
             setFieldValue(path, value);
+        }
+    }
+
+    /**
+     * Same as {@link #setFieldValue(String, Object, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     * <p>
+     * As with that method, nothing is done if <code>ignoreEmptyValue</code> is set and the value is empty. That includes resolving the
+     * path, so a path that is malformed is not reported in that case.
+     */
+    public void setFieldValue(FieldPath fieldPath, Object value, boolean ignoreEmptyValue) {
+        if (ignoreEmptyValue == false || valueNotEmpty(value)) {
+            setFieldValue(fieldPath, value);
         }
     }
 

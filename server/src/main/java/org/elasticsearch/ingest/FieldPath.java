@@ -24,11 +24,13 @@ import java.util.Objects;
  * and templates that do not actually contain any templating, are the same for every document, so they only need to be parsed once, when
  * the processor is created. Only the genuinely templated ones have to be rendered and parsed for every document. The
  * {@link IngestDocument} methods that accept a {@link FieldPath} do whichever of these is needed, by calling {@link #resolve}, so a
- * processor can simply create its {@link FieldPath}s up front and pass them in.
+ * processor can simply create its {@link FieldPath}s up front and pass them in. The {@link String} overloads of those methods are not
+ * deprecated, but they are the less preferred form: they parse the path again for every call.
  * <p>
  * A processor that performs several operations with one {@link FieldPath} should call {@link #resolve(IngestDocument)} once and use the
  * result for all of them: for a templated path every call renders the template again, but the result of resolving is already resolved,
- * and resolving that is free.
+ * and resolving that is free. A message about a path should be built from the resolved path, as a templated path that has not been
+ * resolved has no one path to show: its {@link #toString()} is only a description of it.
  * <p>
  * Creating a {@link FieldPath} never fails because a path is malformed. That is deliberate: pipelines are stored, and one that
  * contains a malformed path must continue to load and to fail only when a document is actually run through it, as it always has. A
@@ -53,7 +55,7 @@ import java.util.Objects;
  * report why when it is resolved. (It is null if a constant template rendered as null.)</li>
  * </ul>
  */
-final class FieldPath {
+public final class FieldPath {
 
     private static final int MAX_SIZE = 512;
     private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();

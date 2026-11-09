@@ -161,10 +161,12 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
 
     /**
      * Two segments of 30 logical docs each (60 Lucene docs per segment). Each segment has 2 passing
-     * children near the query vector and 2 passing children far away. The first pass finds only 4
-     * passers total, which is less than k=5, so a retry fires with seed docs (child ids) spanning
-     * both segments. The retry cannot reach the far passers, so the query falls through to the bare
-     * inner diversifying query, which returns the 4 passers per leaf and merges to k=5.
+     * children near the query vector and 2 passing children far away. Same sequence as the flat variant:
+     * round 0 finds only the 4 near passers, so both leaves are exhausted and retries 1 and 2 re-enter both;
+     * retry 2 reaches segment 0's far passers (children 56, 58) and fills the pool, but segment 0's floor is
+     * still above the threshold (child 60), so retry 3 re-enters only segment 0, comes back empty, and proves
+     * the pool. Seeds follow the frontier: retry 3 is seeded with the passers retry 2 found in each segment
+     * (children 56, 58 and 116, 118).
      */
     public void testRetrySeedDocsSpanMultipleSegments() throws IOException {
         IndexWriterConfig cfg = new IndexWriterConfig();
@@ -193,27 +195,33 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
 
                 TopDocs td = searcher.search(pfq, k);
 
-                assertEquals(k, td.scoreDocs.length);
+                assertDocsByScoreDescending(td.scoreDocs, new int[] { 0, 2, 56, 58, 60 });
 
                 AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
-                assertEquals(1, meta.retryCalls());
-                assertArrayEquals(new int[][] { { 0, 2 }, { 60, 62 } }, meta.retrySeedDocs());
+                assertEquals(3, meta.retryCalls());
+                List<boolean[]> rounds = meta.retryLeavesPerRound();
+                assertArrayEquals("short pool: both leaves exhausted", new boolean[] { true, true }, rounds.get(0));
+                assertArrayEquals("short pool: both leaves exhausted", new boolean[] { true, true }, rounds.get(1));
+                assertArrayEquals("full pool, but segment 0's floor is above the threshold", new boolean[] { true, false }, rounds.get(2));
+                assertArrayEquals(new int[][] { { 56, 58 }, { 116, 118 } }, meta.retrySeedDocs());
+                assertEquals("the pool was proven, so post-filtering scored it", 1, meta.finalizeCalls());
             }
         }
     }
 
     /**
-     * Reaching the fallback needs a filter that is hostile <em>near the query</em>, not a globally selective
-     * one: post-filtering only engages at selectivity >= the configured threshold, so a corpus-wide 0.25 is
-     * unreachable. Here 20 logical docs are 0.75 selective overall, but the five failures sit immediately next
-     * to the query - the negatively-correlated shape that actually defeats post-filtering in production.
+     * A filter that is hostile <em>near the query</em> but not globally: post-filtering only engages at
+     * selectivity >= the configured threshold, so a corpus-wide 0.25 is unreachable. Here 20 logical docs are
+     * 0.75 selective overall, but the five failures sit immediately next to the query - the negatively-correlated
+     * shape that defeats a single retry.
      * <p>
      * Logical 0 passes (vector 0.0, child 0), logical 1-5 fail (vectors 1..5, children 2/4/6/8/10), logical
      * 6-19 pass. With k=2, numCands=3, and scale=1.5, the delegate collects the 3 closest children {0,2,4};
-     * only child 0 passes. The retry's candidates {6,8,10} all fail, so the query falls through to the bare
-     * inner query, which returns children {0,12}.
+     * only child 0 passes, so the pool is short and the leaf exhausted. Retry 1's candidates {6,8,10} all fail;
+     * retry 2 surfaces {12,14,16}, which all pass: the pool {0,12} is full and the leaf's floor (child 16) is
+     * below the threshold (child 12), so post-filtering returns it without falling back.
      */
-    public void testFallThroughToInnerQueryClosesTheGap() throws IOException {
+    public void testSecondRetryCrossesTheFailGap() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             for (int i = 0; i < 20; i++) {
                 boolean passes = (i == 0 || i > 5);
@@ -239,12 +247,14 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
                 AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
                 assertEquals(1, meta.postFilterDelegateCalls());
                 assertEquals(0.75f, meta.postFilterDelegateSelectivity(), 0.001f);
-                assertEquals(1, meta.retryCalls());
+                assertEquals(2, meta.retryCalls());
                 // Matched parent's whole block (child 0 + parent 1) is excluded; the filtered-out children
-                // 2 and 4 stay excluded individually so their parents remain eligible for a deeper child.
-                assertArrayEquals(new int[] { 0, 1, 2, 4 }, meta.retryExcludedDocs());
+                // 2, 4 (round 0) and 6, 8, 10 (retry 1) stay excluded individually so their parents remain
+                // eligible for a deeper child.
+                assertArrayEquals(new int[] { 0, 1, 2, 4, 6, 8, 10 }, meta.retryExcludedDocs());
                 assertArrayEquals(new int[][] { { 0 } }, meta.retrySeedDocs());
                 assertEquals("1 parent short, inflated for selectivity 0.75", 4, meta.retryRemainingK());
+                assertEquals("the pool was proven, so post-filtering scored it", 1, meta.finalizeCalls());
             }
         }
     }

@@ -79,6 +79,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -920,6 +921,95 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         }
     }
 
+    /** A post-filter delegate must not share a floor across leaves; see the note in {@code rewrite}. */
+    public void testAccumulatorNullForPostFilterDelegate() throws IOException {
+        try (Directory dir = buildMultiSegmentIndex(); IndexReader reader = DirectoryReader.open(dir)) {
+            assertTrue("test requires multiple segments", reader.leaves().size() > 1);
+            List<LongAccumulator> captured = Collections.synchronizedList(new ArrayList<>());
+            new AccumulatorCapturingQuery("field", 3, testResolver(), captured, true).rewrite(newSearcher(reader));
+
+            assertEquals("one collector manager per leaf", reader.leaves().size(), captured.size());
+            for (LongAccumulator accumulator : captured) {
+                assertNull("post-filter delegate must not share a cross-leaf floor", accumulator);
+            }
+        }
+    }
+
+    /**
+     * Post-filtering must return what pre-filtering returns. Segment A holds the nearest vectors, all failing
+     * the filter; segment B holds only passing vectors with its best ones in the last batches of its posting
+     * list. A shared cross-leaf floor would stop B from collecting those batches once its queue is full.
+     * Segments are larger than the leaf queue so the check engages, and the searcher is single-threaded so
+     * A is searched first.
+     */
+    public void testPostFilterMatchesPreFilterWhenNearestSegmentFailsTheFilter() throws IOException {
+        int dim = 8;
+        int docsPerSegment = 64;
+        IndexWriterConfig iwc = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        decorateIWC(iwc);
+        try (Directory dir = newDirectoryForTest()) {
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                // Segment A: close to the query, all fail.
+                for (int i = 0; i < docsPerSegment; i++) {
+                    Document doc = getDocumentToIndex();
+                    doc.add(getKnnVectorField("vector", constantVector(dim, 100 + (i % 5))));
+                    doc.add(new StringField("tag", "fail", Field.Store.NO));
+                    w.addDocument(doc);
+                }
+                w.commit();
+                // Segment B: all pass, and the closer a doc is the later it sits in the posting list.
+                for (int j = 0; j < docsPerSegment; j++) {
+                    Document doc = getDocumentToIndex();
+                    doc.add(getKnnVectorField("vector", constantVector(dim, j)));
+                    doc.add(new StringField("tag", "pass", Field.Store.NO));
+                    w.addDocument(doc);
+                }
+                w.commit();
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                assertEquals(2, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+                int k = 2;
+                V queryVector = constantVector(dim, 110);
+                Query filter = new TermQuery(new Term("tag", "pass"));
+
+                TopDocs expected = searcher.search(getKnnVectorQuery("vector", queryVector, k, filter, 1.0f), k);
+                PostFilterKnnQuery postFiltered = new PostFilterKnnQuery(
+                    getKnnVectorQuery("vector", queryVector, k, filter, 1.0f),
+                    filter,
+                    k,
+                    "vector",
+                    null,
+                    0f
+                );
+                TopDocs actual = searcher.search(postFiltered, k);
+
+                assertEquals(k, expected.scoreDocs.length);
+                assertEquals(k, actual.scoreDocs.length);
+                // Quantized scores can tie, and the two paths break ties differently.
+                int[] expectedDocs = Arrays.stream(expected.scoreDocs).mapToInt(sd -> sd.doc).sorted().toArray();
+                int[] actualDocs = Arrays.stream(actual.scoreDocs).mapToInt(sd -> sd.doc).sorted().toArray();
+                assertArrayEquals("post-filtered hits must be the pre-filtered ones", expectedDocs, actualDocs);
+                for (int i = 0; i < k; i++) {
+                    // Scores are around 1e-4, so the tolerance must be relative.
+                    assertEquals(
+                        "post-filtered hit " + i + " must score like the pre-filtered one",
+                        expected.scoreDocs[i].score,
+                        actual.scoreDocs[i].score,
+                        Math.abs(expected.scoreDocs[i].score) * 1e-3f
+                    );
+                }
+            }
+        }
+    }
+
+    private V constantVector(int dim, int value) {
+        int[] components = new int[dim];
+        Arrays.fill(components, value);
+        return vector(components);
+    }
+
     /** With a single leaf there is nothing to share, so the accumulator is left null (no atomic churn). */
     public void testAccumulatorNullForSingleLeaf() throws IOException {
         int dim = randomIntBetween(4, 64);
@@ -977,7 +1067,17 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         private final List<LongAccumulator> captured;
 
         AccumulatorCapturingQuery(String field, int k, TestIvfQueryConfigResolver resolver, List<LongAccumulator> captured) {
-            super(field, 0f, k, k, null, resolver, false);
+            this(field, k, resolver, captured, false);
+        }
+
+        AccumulatorCapturingQuery(
+            String field,
+            int k,
+            TestIvfQueryConfigResolver resolver,
+            List<LongAccumulator> captured,
+            boolean postFilterDelegate
+        ) {
+            super(field, 0f, k, k, null, resolver, postFilterDelegate);
             this.captured = captured;
         }
 

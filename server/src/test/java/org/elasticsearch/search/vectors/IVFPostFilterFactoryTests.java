@@ -22,6 +22,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
@@ -343,8 +344,20 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     }
 
     public void testGetPostFilterCandidatesBeforeRewriteIsEmpty() {
-        ScoreDoc[][] candidates = floatPlain().getPostFilterCandidates();
-        assertEquals(0, candidates.length);
+        PostFilterableKnnQuery.PostFilterCandidates candidates = floatPlain().getPostFilterCandidates();
+        assertEquals(0, candidates.perLeafCandidates().length);
+        assertFalse(candidates.hasValidCompetitiveBounds());
+    }
+
+    public void testPostFilterCompetitiveBoundsRequireCompleteLeafResults() {
+        TopDocs complete = new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1f) });
+        TopDocs partial = new TopDocs(
+            new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+            new ScoreDoc[] { new ScoreDoc(1, 0.5f) }
+        );
+
+        assertTrue(PostFilterableKnnQuery.hasValidCompetitiveBounds(new TopDocs[] { complete }));
+        assertFalse(PostFilterableKnnQuery.hasValidCompetitiveBounds(new TopDocs[] { complete, partial }));
     }
 
     public void testCreateRetryQueryExcludesDocsAndScalesNumCandsDown() throws IOException {
@@ -363,6 +376,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                     AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) delegate.createRetryQuery(
                         reader,
                         excluded,
+                        null,
                         new int[0][],
                         remainingK
                     );
@@ -389,6 +403,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) delegate.createRetryQuery(
                     reader,
                     new int[0],
+                    null,
                     new int[0][],
                     1
                 );
@@ -408,6 +423,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) delegate.createRetryQuery(
                     reader,
                     new int[0],
+                    null,
                     new int[0][],
                     4
                 );

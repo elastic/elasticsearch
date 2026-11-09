@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
@@ -76,6 +79,8 @@ import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -107,10 +112,12 @@ import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -154,6 +161,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -3222,6 +3230,100 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(e.getMessage(), containsString("Output has changed from"));
         assertThat(e.getMessage(), containsString("integer -> datetime"));
         assertThat(e.getMessage(), containsString("integer -> keyword"));
+    }
+
+    public void testSinglePassRateOnSingleIndex() {
+        var plan = plannerOptimizerTimeSeries.plan(
+            "TS k8s | STATS sum(rate(network.total_bytes_in)) BY pod, TBUCKET(5 minute)",
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer()
+        );
+        var timeSeriesAggs = plan.collect(TimeSeriesAggregateExec.class);
+        assertThat(timeSeriesAggs, hasSize(1));
+        assertThat(timeSeriesAggs.getFirst().getMode(), equalTo(AggregatorMode.SINGLE));
+        assertThat(Alias.unwrap(timeSeriesAggs.getFirst().aggregates().getFirst()), instanceOf(Rate.class));
+        var outerModes = plan.collect(AggregateExec.class)
+            .stream()
+            .filter(agg -> agg instanceof TimeSeriesAggregateExec == false)
+            .map(AggregateExec::getMode)
+            .toList();
+        assertThat(outerModes, containsInAnyOrder(AggregatorMode.INITIAL, AggregatorMode.FINAL));
+        assertThat(plan.collect(ExchangeExec.class), hasSize(1));
+    }
+
+    public void testSinglePassRateOnMultipleIndices() {
+        for (boolean enabled : List.of(false, true)) {
+            assertSinglePassRateOnMultipleIndices(planSinglePassRateOnMultipleIndices(enabled, null), enabled);
+            assertSinglePassRateOnMultipleIndices(planSinglePassRateOnMultipleIndices(enabled == false, enabled), enabled);
+        }
+    }
+
+    private void assertSinglePassRateOnMultipleIndices(PhysicalPlan plan, boolean enabled) {
+        var timeSeriesAggs = plan.collect(TimeSeriesAggregateExec.class);
+        if (enabled) {
+            assertThat(timeSeriesAggs, hasSize(1));
+            assertThat(timeSeriesAggs.getFirst().getMode(), equalTo(AggregatorMode.SINGLE));
+            assertThat(Alias.unwrap(timeSeriesAggs.getFirst().aggregates().getFirst()), instanceOf(Rate.class));
+            assertThat(plan.collect(ExchangeExec.class), hasSize(1));
+        } else {
+            assertThat(timeSeriesAggs, hasSize(greaterThanOrEqualTo(1)));
+            assertFalse(timeSeriesAggs.stream().anyMatch(agg -> agg.getMode() == AggregatorMode.SINGLE));
+        }
+    }
+
+    private PhysicalPlan planSinglePassRateOnMultipleIndices(boolean flagEnabled, Boolean setValue) {
+        String query = "TS * | STATS sum(rate(network.total_bytes_in)) BY pod, TBUCKET(5 minute)";
+        String statementText = (setValue == null ? "" : "SET time_series_reduce_per_index=" + setValue + "; ") + query;
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement(statementText);
+        var resolvedSettings = QuerySettings.resolve(
+            Map.of(),
+            statement,
+            new SettingsValidationContext(false, Build.current().isSnapshot())
+        );
+        var configuration = new ConfigurationBuilder(EsqlTestUtils.configuration(QueryPragmas.EMPTY)).resolvedSettings(resolvedSettings)
+            .build();
+        var index = EsIndexGenerator.esIndex(
+            "*",
+            loadMapping("k8s-mappings.json"),
+            Map.of("metrics-1", IndexMode.TIME_SERIES, "metrics-2", IndexMode.TIME_SERIES)
+        );
+        var analyzer = EsqlTestUtils.analyzer()
+            .minimumTransportVersion(TransportVersion.current())
+            .addIndex(IndexResolution.valid(index))
+            .buildAnalyzer();
+        var optimizer = new LogicalPlanOptimizer(
+            new LogicalOptimizerContext(
+                configuration,
+                FoldContext.small(),
+                TransportVersion.current(),
+                EsqlFlags.withTimeSeriesReducePerIndex(flagEnabled)
+            )
+        );
+        return new TestPlannerOptimizer(configuration, analyzer, optimizer).plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
+    }
+
+    public void testSinglePassDisabledByPragma() {
+        var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.builder().put("time_series_single_pass", false).build()));
+        var analyzer = metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer();
+        var plan = new TestPlannerOptimizer(configuration, analyzer).plan(
+            "TS k8s | STATS sum(rate(network.total_bytes_in)) BY pod, TBUCKET(5 minute)",
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            analyzer
+        );
+        var timeSeriesAggs = plan.collect(TimeSeriesAggregateExec.class);
+        assertThat(timeSeriesAggs, hasSize(greaterThanOrEqualTo(1)));
+        assertThat(timeSeriesAggs.stream().anyMatch(agg -> agg.getMode() == AggregatorMode.SINGLE), equalTo(false));
+    }
+
+    public void testRateOverWindowIsNotSinglePass() {
+        var plan = plannerOptimizerTimeSeries.plan(
+            "TS k8s | STATS sum(rate(network.total_bytes_in, 10 minute)) BY TBUCKET(5 minute)",
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer()
+        );
+        var timeSeriesAggs = plan.collect(TimeSeriesAggregateExec.class);
+        assertThat(timeSeriesAggs, hasSize(greaterThanOrEqualTo(1)));
+        assertThat(timeSeriesAggs.stream().anyMatch(agg -> agg.getMode() == AggregatorMode.SINGLE), equalTo(false));
     }
 
     public void testTranslateMetricsGroupedByTwoDimension() {

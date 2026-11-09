@@ -613,8 +613,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Writes the same sequence {@link TextFieldMapper#doXContentBody} does, statement for statement: the named
-         * parameters are interleaved with multi-fields, {@code copy_to} and {@code synthetic_source_keep} in an order
+         * Writes the named parameters interleaved with multi-fields, {@code copy_to} and {@code synthetic_source_keep} in an order
          * that has to be kept for BWC, so it is not derived from {@link #getParameters()}.
          */
         @Override
@@ -2609,36 +2608,6 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
         return spanQuery.build();
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        // this is a pain, but we have to do this to maintain BWC
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        builder.field("type", contentType());
-        final Builder b = (Builder) getMergeBuilder();
-        b.index.toXContent(builder, includeDefaults);
-        b.store.toXContent(builder, includeDefaults);
-        b.docValuesParameters.toXContent(builder, includeDefaults);
-        multiFields().toXContent(builder, params);
-        copyTo().toXContent(builder);
-        if (sourceKeepMode().isPresent()) {
-            sourceKeepMode().get().toXContent(builder);
-        }
-        b.meta.toXContent(builder, includeDefaults);
-        b.indexOptions.toXContent(builder, includeDefaults);
-        b.termVectors.toXContent(builder, includeDefaults);
-        b.norms.toXContent(builder, includeDefaults);
-        b.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
-        b.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
-        b.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
-        b.similarity.toXContent(builder, includeDefaults);
-        b.eagerGlobalOrdinals.toXContent(builder, includeDefaults);
-        b.analyzers.positionIncrementGap.toXContent(builder, includeDefaults);
-        b.fieldData.toXContent(builder, includeDefaults);
-        b.freqFilter.toXContent(builder, includeDefaults);
-        b.indexPrefixes.toXContent(builder, includeDefaults);
-        b.indexPhrases.toXContent(builder, includeDefaults);
     }
 
     private boolean isIndexed() {

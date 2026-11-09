@@ -27,6 +27,7 @@ module org.elasticsearch.entitlement {
     exports org.elasticsearch.entitlement.bootstrap to org.elasticsearch.server;
     exports org.elasticsearch.entitlement.initialization to java.base;
     exports org.elasticsearch.entitlement.runtime.registry;
+    exports org.elasticsearch.entitlement.runtime.api to org.elasticsearch.server;
 
     // TODO: Most of the things in the policy package should be internal implementation details that are not exported.
     exports org.elasticsearch.entitlement.runtime.policy;

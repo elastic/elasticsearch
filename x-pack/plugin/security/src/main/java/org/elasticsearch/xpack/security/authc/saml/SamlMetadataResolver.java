@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
-import org.elasticsearch.xpack.security.EntitledFileWatcher;
 import org.elasticsearch.xpack.security.support.LogThrottle;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
@@ -467,7 +466,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);
 
-        final FileWatcher watcher = new EntitledFileWatcher(path);
+        final FileWatcher watcher = new FileWatcher(path);
         watcher.addListener(new FileChangesListener() {
             @Override
             public void onFileCreated(Path file) {

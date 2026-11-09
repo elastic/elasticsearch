@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
-import org.elasticsearch.xpack.security.EntitledFileWatcher;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
@@ -405,7 +404,7 @@ public class PkiRealm extends Realm implements CachingRealm, Releasable {
         };
         for (Path dependentFile : trustConfig.getDependentFiles()) {
             try {
-                final FileWatcher fileWatcher = new EntitledFileWatcher(dependentFile);
+                final FileWatcher fileWatcher = new FileWatcher(dependentFile);
                 fileWatcher.addListener(reloadListener);
                 truststoreWatchers.add(watcherService.add(fileWatcher, ResourceWatcherService.Frequency.HIGH));
             } catch (IOException e) {

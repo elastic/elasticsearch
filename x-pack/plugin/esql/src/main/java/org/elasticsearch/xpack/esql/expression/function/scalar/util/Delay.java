@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -47,9 +48,18 @@ public class Delay extends UnaryScalarFunction {
         returnType = { "boolean" },
         signatures = { @Signature(params = { "time_duration" }, returnType = "boolean") },
         briefSummary = "Sleeps for a duration for every row, for debug purposes only.",
-        description = "Sleeps for a duration for every row. For debug purposes only."
+        description = "Sleeps for a duration for every row. For debug purposes only.",
+        examples = { @Example(description = "Sleep for one millisecond for every row:", file = "delay", tag = "docsDelay") }
     )
-    public Delay(Source source, @Param(name = "ms", type = { "time_duration" }, description = "For how long") Expression ms) {
+    public Delay(
+        Source source,
+        @Param(
+            name = "ms",
+            type = { "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "For how long"
+        ) Expression ms
+    ) {
         super(source, ms);
     }
 
@@ -114,10 +124,22 @@ public class Delay extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        return context -> new DelayEvaluator(context, msValue(toEvaluator.foldCtx()));
+        return new DelayEvaluator.Factory(msValue(toEvaluator.foldCtx()));
     }
 
     static final class DelayEvaluator implements ExpressionEvaluator {
+        record Factory(long ms) implements ExpressionEvaluator.Factory {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new DelayEvaluator(context, ms);
+            }
+
+            @Override
+            public String toString() {
+                return "DelayEvaluator[ms=" + ms + "]";
+            }
+        }
+
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DelayEvaluator.class);
 
         private final DriverContext driverContext;
@@ -147,6 +169,11 @@ public class Delay extends UnaryScalarFunction {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+
+        @Override
+        public String toString() {
+            return "DelayEvaluator[ms=" + ms + "]";
         }
 
         @Override

@@ -66,23 +66,33 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
         .name("clamp");
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+        returnType = {
+            "double",
+            "integer",
+            "long",
+            "double",
+            "unsigned_long",
+            "keyword",
+            "ip",
+            "boolean",
+            "date",
+            "date_nanos",
+            "version" },
         signatures = {
             @Signature(params = { "boolean", "boolean", "boolean" }, returnType = "boolean"),
             @Signature(params = { "date", "date", "date" }, returnType = "date"),
-            @Signature(params = { "double", "double", "double" }, returnType = "double"),
-            @Signature(params = { "double", "integer", "integer" }, returnType = "double"),
-            @Signature(params = { "double", "long", "long" }, returnType = "double"),
-            @Signature(params = { "double", "unsigned_long", "unsigned_long" }, returnType = "double"),
-            @Signature(params = { "integer", "double", "double" }, returnType = "double"),
+            @Signature(params = { "date_nanos", "date_nanos", "date_nanos" }, returnType = "date_nanos"),
             @Signature(params = { "integer", "integer", "integer" }, returnType = "integer"),
-            @Signature(params = { "integer", "long", "long" }, returnType = "long"),
+            @Signature(params = { "long", "integer|long", "integer|long" }, returnType = "long"),
+            @Signature(params = { "integer", "long", "integer|long" }, returnType = "long"),
+            @Signature(params = { "integer", "integer", "long" }, returnType = "long"),
+            @Signature(params = { "double", "integer|long|double", "integer|long|double" }, returnType = "double"),
+            @Signature(params = { "integer|long", "double", "integer|long|double" }, returnType = "double"),
+            @Signature(params = { "integer|long", "integer|long", "double" }, returnType = "double"),
+            @Signature(params = { "double", "unsigned_long", "unsigned_long" }, returnType = "double"),
             @Signature(params = { "integer", "unsigned_long", "unsigned_long" }, returnType = "unsigned_long"),
             @Signature(params = { "ip", "ip", "ip" }, returnType = "ip"),
-            @Signature(params = { "keyword", "keyword", "keyword" }, returnType = "keyword"),
-            @Signature(params = { "long", "double", "double" }, returnType = "double"),
-            @Signature(params = { "long", "integer", "integer" }, returnType = "long"),
-            @Signature(params = { "long", "long", "long" }, returnType = "long"),
+            @Signature(params = { "STRING", "STRING", "STRING" }, returnType = "keyword"),
             @Signature(params = { "long", "unsigned_long", "unsigned_long" }, returnType = "unsigned_long"),
             @Signature(params = { "unsigned_long", "double", "double" }, returnType = "double"),
             @Signature(params = { "unsigned_long", "integer", "integer" }, returnType = "unsigned_long"),
@@ -99,17 +109,53 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
         Source source,
         @Param(
             name = "field",
-            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+            type = {
+                "double",
+                "integer",
+                "long",
+                "double",
+                "unsigned_long",
+                "keyword",
+                "text",
+                "ip",
+                "boolean",
+                "date",
+                "date_nanos",
+                "version" },
             description = "Numeric expression. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "min",
-            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+            type = {
+                "double",
+                "integer",
+                "long",
+                "double",
+                "unsigned_long",
+                "keyword",
+                "text",
+                "ip",
+                "boolean",
+                "date",
+                "date_nanos",
+                "version" },
             description = "The min value to clamp data into."
         ) Expression min,
         @Param(
             name = "max",
-            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+            type = {
+                "double",
+                "integer",
+                "long",
+                "double",
+                "unsigned_long",
+                "keyword",
+                "text",
+                "ip",
+                "boolean",
+                "date",
+                "date_nanos",
+                "version" },
             description = "The max value to clamp data into."
         ) Expression max
     ) {
@@ -139,7 +185,13 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
             t -> t.isNumeric() || t == DataType.BOOLEAN || t.isDate() || DataType.isString(t) || t == DataType.IP || t == DataType.VERSION,
             sourceText(),
             TypeResolutions.ParamOrdinal.FIRST,
-            fieldDataType.typeName()
+            "boolean",
+            "date",
+            "date_nanos",
+            "ip",
+            "numeric",
+            "string",
+            "version"
         );
         if (resolution.unresolved()) {
             return resolution;
@@ -147,12 +199,13 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
         if (fieldDataType == NULL) {
             return new TypeResolution("'field' must not be null in clamp()");
         }
+        String boundType = fieldDataType.isNumeric() ? "numeric" : DataType.isString(fieldDataType) ? "string" : fieldDataType.typeName();
         resolution = TypeResolutions.isType(
             max,
             t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType.noText(),
             sourceText(),
             TypeResolutions.ParamOrdinal.SECOND,
-            fieldDataType.typeName()
+            boundType
         );
         if (resolution.unresolved()) {
             return resolution;
@@ -162,7 +215,7 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
             t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType.noText(),
             sourceText(),
             TypeResolutions.ParamOrdinal.THIRD,
-            fieldDataType.typeName()
+            boundType
         );
         if (resolution.unresolved()) {
             return resolution;

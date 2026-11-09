@@ -56,6 +56,30 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "Numeric expression. If `null`, the function returns `null`."
@@ -86,7 +110,151 @@
         },
         {
           "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
           "type" : "integer",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
           "optional" : false,
           "description" : "The min value to clamp data into."
         },
@@ -159,6 +327,78 @@
         {
           "name" : "min",
           "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
           "optional" : false,
           "description" : "The min value to clamp data into."
         },
@@ -195,6 +435,78 @@
       ],
       "variadic" : false,
       "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
     },
     {
       "params" : [
@@ -296,6 +608,78 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "long",
           "optional" : false,
           "description" : "Numeric expression. If `null`, the function returns `null`."
@@ -326,7 +710,151 @@
         },
         {
           "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
           "type" : "integer",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
           "optional" : false,
           "description" : "The min value to clamp data into."
         },
@@ -387,6 +915,102 @@
       ],
       "variadic" : false,
       "returnType" : "unsigned_long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     },
     {
       "params" : [

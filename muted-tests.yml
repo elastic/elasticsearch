@@ -524,11 +524,6 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/164938
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
-  method: test {yaml=esql/317_unmapped_fields_mapped_later/the result is the same without LOAD}
-  issue: https://github.com/elastic/elasticsearch/issues/164974
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   tasks:
   - :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
@@ -544,11 +539,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testLookupDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/165050
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
-  method: test {yaml=esql/317_unmapped_fields_mapped_later/LOAD returns null for a document indexed before the field was mapped}
-  issue: https://github.com/elastic/elasticsearch/issues/165055
 - class: org.elasticsearch.xpack.sql.qa.single_node.FieldExtractorIT
   tasks:
   - :x-pack:plugin:sql:qa:server:single-node:javaRestTest

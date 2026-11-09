@@ -18,11 +18,14 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetDatabaseConfigurationAction extends BaseRestHandler {
+
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.of("id");
 
     @Override
     public List<Route> routes() {
@@ -44,4 +47,15 @@ public class RestGetDatabaseConfigurationAction extends BaseRestHandler {
         final var req = new GetDatabaseConfigurationAction.Request(Strings.splitStringByCommaToArray(request.param("id")));
         return channel -> client.execute(GetDatabaseConfigurationAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
@@ -156,6 +157,8 @@ public class GrokProcessorGetAction {
     @ServerlessScope(Scope.PUBLIC)
     public static class RestAction extends BaseRestHandler {
 
+        private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("s", "ecs_compatibility");
+
         @Override
         public List<Route> routes() {
             return List.of(new Route(GET, "/_ingest/processor/grok"));
@@ -176,5 +179,11 @@ public class GrokProcessorGetAction {
             Request grokPatternsRequest = new Request(sorted, ecsCompatibility);
             return channel -> client.execute(INSTANCE, grokPatternsRequest, new RestToXContentListener<>(channel));
         }
+
+        @Override
+        public Set<String> supportedQueryParameters() {
+            return SUPPORTED_QUERY_PARAMETERS;
+        }
+
     }
 }

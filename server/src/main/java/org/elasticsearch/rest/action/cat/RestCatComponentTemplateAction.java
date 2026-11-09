@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -45,6 +46,13 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestCatComponentTemplateAction extends AbstractCatAction {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "name");
 
     private final ProjectIdResolver projectIdResolver;
 
@@ -182,4 +190,15 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         }
         return count;
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

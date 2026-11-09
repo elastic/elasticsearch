@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.options.rest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -28,6 +29,15 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetDataStreamOptionsAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "name");
 
     private static final Set<String> CAPABILITIES = Set.of(RestGetDataStreamsAction.FAILURES_LIFECYCLE_API_CAPABILITY);
 
@@ -64,4 +74,15 @@ public class RestGetDataStreamOptionsAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return CAPABILITIES;
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

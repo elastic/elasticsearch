@@ -909,11 +909,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     }
 
     public void testEsqlShrinkAttemptsShouldResetForTheNextChunk() throws IOException {
-        // The first chunk uses every allowed shrink; regrow then lets the second chunk shrink again after attempts reset.
+        // The first chunk uses every allowed shrink; the second chunk keeps the carried span (no regrow) and may shrink again after reset.
         long[] lengths = shrinkLengths(5, ESQL_GROUPING_INTERVAL_MILLIS);
-        long chunkLength = lengths[0];
-        long firstChunkEnd = lengths[lengths.length - 1];
-        long regrownSpan = firstChunkEnd * 5L;
+        long chunkLength = 3_125_000L;
+        long firstChunkEnd = 1_000L;
+        long secondChunkEnd = 2_000L;
         chunkSpan = TimeValue.timeValueMillis(chunkLength);
         long windowEnd = chunkLength + firstChunkEnd;
         ChunkedDataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(0L, windowEnd));
@@ -923,9 +923,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         }
         InputStream firstChunkStream = mock(InputStream.class);
         stubTruncatedChunk(0L, firstChunkEnd, 500L, firstChunkStream);
-        stubTruncatedChunk(firstChunkEnd, firstChunkEnd + regrownSpan, EsqlDataExtractor.INJECTED_ROW_LIMIT, mock(InputStream.class));
         InputStream secondChunkStream = mock(InputStream.class);
-        stubTruncatedChunk(firstChunkEnd, firstChunkEnd + regrownSpan / 5L, 500L, secondChunkStream);
+        stubTruncatedChunk(firstChunkEnd, secondChunkEnd, 500L, secondChunkStream);
 
         assertThat(extractor.next().data().orElseThrow(), equalTo(firstChunkStream));
         assertThat(extractor.next().data().orElseThrow(), equalTo(secondChunkStream));
@@ -949,7 +948,25 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         verify(firstStream).close();
     }
 
-    public void testEsqlCompleteChunkShouldRegrowChunkSpan() throws IOException {
+    public void testEsqlSparseChunkWithoutShrinkShouldRegrowChunkSpan() throws IOException {
+        chunkSpan = TimeValue.timeValueMinutes(1);
+        ChunkedDataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(0L, 120_000L));
+        stubSummary(0L, 120_000L, new DataSummary(0L, 119_999L, 2_000L));
+        InputStream firstStream = mock(InputStream.class);
+        InputStream secondStream = mock(InputStream.class);
+        InputStream thirdStream = mock(InputStream.class);
+        stubTruncatedChunk(0L, 60_000L, EsqlDataExtractor.INJECTED_ROW_LIMIT, mock(InputStream.class));
+        stubTruncatedChunk(0L, 12_000L, 500L, firstStream);
+        stubTruncatedChunk(12_000L, 24_000L, 100L, secondStream);
+        stubTruncatedChunk(24_000L, 84_000L, 50L, thirdStream);
+
+        assertThat(extractor.next().data().orElseThrow(), equalTo(firstStream));
+        assertThat(extractor.next().data().orElseThrow(), equalTo(secondStream));
+        assertThat(extractor.next().data().orElseThrow(), equalTo(thirdStream));
+        verify(dataExtractorFactory).newExtractor(24_000L, 84_000L);
+    }
+
+    public void testEsqlSparseChunkAfterShrinkShouldNotRegrowChunkSpan() throws IOException {
         chunkSpan = TimeValue.timeValueMinutes(1);
         ChunkedDataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(0L, 120_000L));
         stubSummary(0L, 120_000L, new DataSummary(0L, 119_999L, 2_000L));
@@ -957,11 +974,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream secondStream = mock(InputStream.class);
         stubTruncatedChunk(0L, 60_000L, EsqlDataExtractor.INJECTED_ROW_LIMIT, mock(InputStream.class));
         stubTruncatedChunk(0L, 12_000L, 500L, firstStream);
-        stubTruncatedChunk(12_000L, 72_000L, 100L, secondStream);
+        stubTruncatedChunk(12_000L, 24_000L, 100L, secondStream);
 
         assertThat(extractor.next().data().orElseThrow(), equalTo(firstStream));
         assertThat(extractor.next().data().orElseThrow(), equalTo(secondStream));
-        verify(dataExtractorFactory).newExtractor(12_000L, 72_000L);
+        verify(dataExtractorFactory).newExtractor(12_000L, 24_000L);
     }
 
     public void testTwoTruncatedChunksWithCompleteBetweenShouldSpanIncompleteInterval() throws IOException {

@@ -86,10 +86,26 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
             totalIndicesToBeUpgraded,
             complete,
             exception,
-            inProgress,
+            snapshotInProgress(),
             pending.get(),
-            errors
+            snapshotErrors()
         );
+    }
+
+    /*
+     * Synchronized collections are only safe to iterate while holding their lock. The status is read (and iterated) on other threads
+     * while reindexing threads keep updating these collections, so the status must be given copies rather than the live collections.
+     */
+    private Set<String> snapshotInProgress() {
+        synchronized (inProgress) {
+            return Set.copyOf(inProgress);
+        }
+    }
+
+    private List<Tuple<String, Exception>> snapshotErrors() {
+        synchronized (errors) {
+            return List.copyOf(errors);
+        }
     }
 
     public void allReindexesCompleted(ThreadPool threadPool, TimeValue timeToLive) {

@@ -133,9 +133,9 @@ public final class Messages {
         "Cannot update datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
     public static final String DATAFEED_ESQL_INCOMPLETE_CHUNK =
-        "The ES|QL datafeed chunk covering [{0}, {1}) reached its row limit, so only part of that interval was "
-            + "retrieved and analysed; the rows beyond the limit were not retrieved and will not be extracted again. "
-            + "Pre-aggregate the data or configure a narrower chunk.";
+        "Within [{0}, {1}) at least one ES|QL datafeed chunk reached its row limit. "
+            + "Rows beyond the limit were not retrieved and will not be extracted again. "
+            + "Pre-aggregate the data or add a lower LIMIT to esql_query.";
     public static final String DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED =
         "ES|QL datafeeds require chunking to remain enabled; grouping-interval alignment and truncation detection "
             + "depend on it; do not set chunking_config.mode to off";

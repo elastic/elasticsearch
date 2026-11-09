@@ -735,11 +735,10 @@ public class DatafeedJobTests extends ESTestCase {
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
         datafeedJob.runLookBack(0L, 1000L);
 
-        String expectedMessage = Messages.getMessage(
-            Messages.DATAFEED_ESQL_INCOMPLETE_CHUNK,
-            Instant.ofEpochMilli(100L),
-            Instant.ofEpochMilli(200L)
-        );
+        String expectedMessage =
+            "Within [1970-01-01T00:00:00.100Z, 1970-01-01T00:00:00.200Z) at least one ES|QL datafeed chunk reached its row limit. "
+                + "Rows beyond the limit were not retrieved and will not be extracted again. "
+                + "Pre-aggregate the data or add a lower LIMIT to esql_query.";
         verify(auditor).warning(jobId, expectedMessage);
         assertThat(datafeedJob.lastEndTimeMs(), equalTo(999L));
     }
@@ -791,15 +790,7 @@ public class DatafeedJobTests extends ESTestCase {
         runRealtimeCycleAt(datafeedJob, 7000L);
         runRealtimeCycleAt(datafeedJob, 9000L);
         verify(auditor, times(2)).warning(any(), any());
-    }
-
-    private void runRealtimeCycleAt(DatafeedJob datafeedJob, long now) throws Exception {
-        currentTime = now;
-        try {
-            datafeedJob.runRealtime();
-        } catch (DatafeedJob.EmptyDataCountException e) {
-            // The default mocked extractor yields data only on its first call; an empty cycle still runs the audit check.
-        }
+        verify(dataExtractor, times(4)).getIncompleteSearchInterval();
     }
 
     public void testEsqlTruncatedChunkWithIsolateDuringExtractionShouldNotAudit() throws Exception {
@@ -1400,6 +1391,15 @@ public class DatafeedJobTests extends ESTestCase {
             createDatafeedJobWithExtractionFailureThreshold(lowFrequencyMs, null).effectiveMaxConsecutiveExtractionFailures(),
             equalTo(1L)
         );
+    }
+
+    private void runRealtimeCycleAt(DatafeedJob datafeedJob, long now) throws Exception {
+        currentTime = now;
+        try {
+            datafeedJob.runRealtime();
+        } catch (DatafeedJob.EmptyDataCountException expected) {
+            // Mock yields data only on the extractor's first next(); later cycles are empty but still reach the audit path.
+        }
     }
 
     private DatafeedJob createDatafeedJobWithExtractionFailureThreshold(long frequencyMs, Integer maxConsecutiveExtractionFailures) {

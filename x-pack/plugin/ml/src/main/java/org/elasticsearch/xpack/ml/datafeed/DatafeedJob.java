@@ -99,7 +99,7 @@ class DatafeedJob {
     private volatile boolean haveEverSeenData;
     // Audit once per episode of consecutive truncated cycles so a persistent truncation does not flood the audit log
     // every realtime cycle. Accepted blind spot: later distinct truncated intervals in the same episode are not audited.
-    private volatile boolean auditedIncompleteEsqlChunk;
+    private volatile boolean auditedIncompleteChunk;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile SearchInterval searchInterval;
     @Nullable
@@ -580,11 +580,13 @@ class DatafeedJob {
 
                 // Only after post and flush succeeded, so an error path never reports the interval as skipped. A cancelled
                 // run is excluded: its end-time advance is not guaranteed, so it makes no claim about skipped intervals.
+                // Stop, cancel, or isolate before this block neither audits nor resets the episode flag, so the next
+                // truncated cycle may WARN again. Resetting on a non-claim cycle would duplicate WARNs.
                 if (dataExtractor.isCancelled() == false) {
                     if (incompleteSearchInterval.isPresent() == false) {
-                        auditedIncompleteEsqlChunk = false;
-                    } else if (auditedIncompleteEsqlChunk == false) {
-                        auditedIncompleteEsqlChunk = true;
+                        auditedIncompleteChunk = false;
+                    } else if (auditedIncompleteChunk == false) {
+                        auditedIncompleteChunk = true;
                         notifyIncompleteEsqlChunk(incompleteSearchInterval.get());
                     } else {
                         LOGGER.debug("[{}] ES|QL chunk still incomplete for {}", jobId, incompleteSearchInterval.get());
@@ -604,7 +606,7 @@ class DatafeedJob {
 
     /**
      * Audits an extraction that ended on a chunk truncated at the row limit. The window has been posted and flushed and
-     * lastEndTimeMs has moved past it, so the rows beyond the limit are never extracted again; the user must be told.
+     * lastEndTimeMs has moved past it, so the rows beyond the limit are never extracted again. The user must be told.
      */
     private void notifyIncompleteEsqlChunk(SearchInterval interval) {
         String message = Messages.getMessage(

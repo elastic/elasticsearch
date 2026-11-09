@@ -461,21 +461,11 @@ tests:
   - :x-pack:plugin:searchable-snapshots:qa:azure:javaRestTest
   method: testSearchResults
   issue: https://github.com/elastic/elasticsearch/issues/165070
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  tasks:
-  - :server:internalClusterTest
-  method: testKnnQueryRescore
-  issue: https://github.com/elastic/elasticsearch/issues/165083
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   tasks:
   - :x-pack:plugin:stateless:test
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  tasks:
-  - :server:internalClusterTest
-  method: testKnnRetriever
-  issue: https://github.com/elastic/elasticsearch/issues/165103
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
   tasks:
   - :x-pack:plugin:esql:compute:test

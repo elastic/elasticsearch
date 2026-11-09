@@ -508,15 +508,6 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/160421
-- class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testAggregationEmitPartialResultPeriodically
-  issue: https://github.com/elastic/elasticsearch/issues/163688
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  issue: https://github.com/elastic/elasticsearch/issues/163299
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   tasks:
   - :x-pack:plugin:yamlRestCompatTest
@@ -527,11 +518,6 @@ tests:
   - :x-pack:plugin:yamlRestCompatTest
   method: test {yaml=data_streams/10_data_stream_resolvability/Verify data stream resolvability in migrations API}
   issue: https://github.com/elastic/elasticsearch/issues/163653
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  tasks:
-  - :x-pack:plugin:encryption:internalClusterTest
-  method: testRotationCycleWithNoHandlers
-  issue: https://github.com/elastic/elasticsearch/issues/164186
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
@@ -571,3 +557,48 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRelocateHollowableShards
   issue: https://github.com/elastic/elasticsearch/issues/164753
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  tasks:
+  - :test:external-modules:test-esql-heap-attack:javaRestTest
+  method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
+  issue: https://github.com/elastic/elasticsearch/issues/164383
+- class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFinalChunkingMatchesUnchunked
+  issue: https://github.com/elastic/elasticsearch/issues/164892
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
+  issue: https://github.com/elastic/elasticsearch/issues/164894
+- class: org.elasticsearch.telemetry.apm.internal.APMAgentSettingsTests
+  tasks:
+  - :modules:apm:test
+  method: testUpdateMaxSpansPropagatesToTracer
+  issue: https://github.com/elastic/elasticsearch/issues/164198
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
+  method: test {yaml=mtermvectors/10_basic/Basic tests for multi termvector get}
+  issue: https://github.com/elastic/elasticsearch/issues/165079
+- class: org.elasticsearch.xpack.stateless.StatelessRecoveryIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testIndexAfterRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/165081
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  tasks:
+  - :modules:data-streams:yamlRestCompatTest
+  method: test {yaml=data_stream/240_data_stream_settings/Test dry run}
+  issue: https://github.com/elastic/elasticsearch/issues/165096
+- class: org.elasticsearch.xpack.stateless.reshard.SplitSourceServiceTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testRefCountedAcquirer
+  issue: https://github.com/elastic/elasticsearch/issues/165107
+- class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testLoadId
+  issue: https://github.com/elastic/elasticsearch/issues/165112

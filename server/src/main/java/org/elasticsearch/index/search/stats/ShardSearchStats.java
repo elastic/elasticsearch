@@ -16,6 +16,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -87,13 +88,11 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-        boolean chargeTook = chargesTookTime();
+        chargeTook(searchContext, TaskLoadAttribution.chargedByPool(), tookInNanos);
         computeStats(searchContext, searchContext.hasOnlySuggest() ? statsHolder -> {
-            statsHolder.chargeTook(chargeTook, tookInNanos);
             statsHolder.suggestMetric.inc(tookInNanos);
             statsHolder.suggestCurrent.dec();
         } : statsHolder -> {
-            statsHolder.chargeTook(chargeTook, tookInNanos);
             statsHolder.queryMetric.inc(tookInNanos);
             statsHolder.queryCurrent.dec();
         });
@@ -101,6 +100,8 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onPreFetchPhase(SearchContext searchContext) {
+        // the fetch can complete on a thread that is not a task of its pool
+        searchContext.fetchChargedByPool(TaskLoadAttribution.chargedByPool());
         computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.inc());
     }
 
@@ -114,9 +115,8 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
-        boolean chargeTook = chargesTookTime();
+        chargeTook(searchContext, searchContext.fetchChargedByPool(), tookInNanos);
         computeStats(searchContext, statsHolder -> {
-            statsHolder.chargeTook(chargeTook, tookInNanos);
             statsHolder.fetchMetric.inc(tookInNanos);
             statsHolder.fetchCurrent.dec();
         });
@@ -124,17 +124,24 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
-        if (chargesTookTime()) {
-            computeStats(searchContext, statsHolder -> statsHolder.chargeTook(true, tookInNanos));
-        }
+        chargeTook(searchContext, TaskLoadAttribution.chargedByPool(), tookInNanos);
     }
 
     /**
-     * Whether a phase charges its took time to the search load: when its pool does not charge the time of its tasks, like the
-     * pools of system indices.
+     * Charges the took time of a phase to the search load of its groups, and to that of the shard when its pool does not charge
+     * the time of its tasks, like the pools of system indices.
      */
-    private static boolean chargesTookTime() {
-        return TaskLoadAttribution.chargedByPool() == false;
+    private void chargeTook(SearchContext searchContext, boolean chargedByPool, long tookInNanos) {
+        long nowInNanos = System.nanoTime();
+        if (chargedByPool == false) {
+            totalStats.addSearchLoad(tookInNanos, nowInNanos);
+        }
+        var groupStats = searchContext.groupStats();
+        if (groupStats != null) {
+            for (String group : groupStats) {
+                groupStats(group).addSearchLoad(tookInNanos, nowInNanos);
+            }
+        }
     }
 
     private void computeStats(SearchContext searchContext, Consumer<StatsHolder> consumer) {
@@ -193,6 +200,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     /**
      * Charges the time of tasks equally to {@code shards}, or {@code null} when there are none.
      */
+    @Nullable
     public static TaskLoadAttribution.Target target(List<ShardSearchStats> shards) {
         if (shards.isEmpty()) {
             return null;
@@ -204,6 +212,10 @@ public final class ShardSearchStats implements SearchOperationListener {
      * Charges {@code nanos} equally to {@code shards}.
      */
     public static void charge(List<ShardSearchStats> shards, long nanos, long finishNanos) {
+        assert nanos >= 0 : nanos;
+        if (shards.isEmpty()) {
+            return;
+        }
         long share = nanos / shards.size();
         long remainder = nanos % shards.size();
         for (ShardSearchStats shard : shards) {
@@ -260,12 +272,6 @@ public final class ShardSearchStats implements SearchOperationListener {
         void addSearchLoad(long nanos, long nowInNanos) {
             recentSearchLoad.addIncrement(nanos, nowInNanos);
             searchLoadNanos.add(nanos);
-        }
-
-        void chargeTook(boolean charge, long tookInNanos) {
-            if (charge) {
-                addSearchLoad(tookInNanos, System.nanoTime());
-            }
         }
 
         SearchStats.Stats stats() {

@@ -338,6 +338,34 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         assertThat(ran.get(), equalTo(0));
     }
 
+    /**
+     * A task whose failure handling throws is failed once, and completed once.
+     */
+    public void testChargingExecutorFailsTaskOnce() {
+        Executor charging = TaskLoadAttribution.charging(EsExecutors.DIRECT_EXECUTOR_SERVICE, (nanos, finishNanos) -> {});
+        AtomicInteger failed = new AtomicInteger();
+        AtomicInteger completed = new AtomicInteger();
+        expectThrows(IllegalStateException.class, () -> charging.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                throw new IllegalStateException("simulated");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failed.incrementAndGet();
+                throw new IllegalStateException("simulated failure handling", e);
+            }
+
+            @Override
+            public void onAfter() {
+                completed.incrementAndGet();
+            }
+        }));
+        assertThat(failed.get(), equalTo(1));
+        assertThat(completed.get(), equalTo(1));
+    }
+
     private static AbstractRunnable countingTask(
         boolean fails,
         AtomicInteger ran,

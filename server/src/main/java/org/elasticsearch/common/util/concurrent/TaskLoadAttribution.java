@@ -93,13 +93,11 @@ public final class TaskLoadAttribution {
     }
 
     /**
-     * Runs {@code task} charged to {@code target}. A task that runs completes itself; a rejected one is completed here, as the
-     * pool would.
+     * Runs {@code task} charged to {@code target}, forwarding its completion so that it completes once.
      */
     private static final class Charging extends AbstractRunnable {
         private final AbstractRunnable task;
         private final Target target;
-        private boolean ran;
 
         Charging(AbstractRunnable task, Target target) {
             this.task = task;
@@ -107,10 +105,9 @@ public final class TaskLoadAttribution {
         }
 
         @Override
-        protected void doRun() {
-            ran = true;
+        protected void doRun() throws Exception {
             attribute(target);
-            task.run();
+            task.doRun();
         }
 
         @Override
@@ -125,9 +122,7 @@ public final class TaskLoadAttribution {
 
         @Override
         public void onAfter() {
-            if (ran == false) {
-                task.onAfter();
-            }
+            task.onAfter();
         }
 
         @Override

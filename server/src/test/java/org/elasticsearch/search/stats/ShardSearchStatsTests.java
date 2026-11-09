@@ -47,6 +47,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+
 public class ShardSearchStatsTests extends IndexShardTestCase {
 
     private static final long TEN_MILLIS = 10;
@@ -61,28 +63,34 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     }
 
     /**
-     * A phase run by a task whose pool charges its time does not charge its took time on top.
+     * A phase run by a task whose pool charges its time does not charge its took time to the shard on top, even when it completes
+     * on another thread, but still charges it to its groups.
      */
-    public void testPhasesOfChargedTasksDoNotChargeTheirTookTime() throws Exception {
+    public void testPhasesOfChargedTasksDoNotChargeTheirTookTime() {
         EsThreadPoolExecutor pool = EsExecutors.newFixed(
             "charging",
             1,
             -1,
             EsExecutors.daemonThreadFactory("test", "charging"),
             new ThreadContext(Settings.EMPTY),
-            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).attributeTaskLoad().build()
+            EsExecutors.TaskTrackingConfig.builder()
+                .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                .attributeTaskLoad()
+                .build()
         );
         try (SearchContext sc = createSearchContext(false)) {
-            pool.submit(() -> {
+            safeGet(pool.submit(() -> {
                 shardSearchStatsListener.onPreDfsPhase(sc);
                 shardSearchStatsListener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
                 shardSearchStatsListener.onPreQueryPhase(sc);
                 shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
                 shardSearchStatsListener.onPreFetchPhase(sc);
-                shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
-            }).get();
+            }));
+            shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
             assertEquals(0, shardSearchStatsListener.totalSearchLoadNanos());
             assertEquals(1, shardSearchStatsListener.stats().getTotal().getQueryCount());
+            SearchStats.Stats group = Objects.requireNonNull(shardSearchStatsListener.stats("_all").getGroupStats()).get("group1");
+            assertTrue(group.getSearchLoadRate() > 0.0);
         } finally {
             ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
         }
@@ -95,6 +103,7 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         SearchStatsSettings searchStatsSettings = new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings());
         List<ShardSearchStats> shards = randomList(1, 5, () -> new ShardSearchStats(searchStatsSettings));
         long nanos = randomLongBetween(0, 1000);
+        ShardSearchStats.charge(List.of(), nanos, System.nanoTime());
         ShardSearchStats.charge(shards, nanos, System.nanoTime());
         assertEquals(nanos, shards.stream().mapToLong(ShardSearchStats::totalSearchLoadNanos).sum());
     }

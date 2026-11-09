@@ -15,8 +15,18 @@ lets you discover the exact dimension values (labels) that identify each series.
 `METRICS_INFO`, any [`WHERE`](/reference/query-languages/esql/commands/where.md) filters that precede
 `TS_INFO` narrow the set of time series considered.
 
+<<<<<<< HEAD
 If you only need metric names, types, units, or dimension field names, use
 [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) instead.
+=======
+:::{note}
+Prefer [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) when you only need
+metric-level metadata, such as metric names, types, units, or dimension field names. It avoids producing
+a row for every metric and time series combination, which reduces memory use and processing cost.
+Use `TS_INFO` when you need metadata for individual series, including their dimension values,
+or aggregates that depend on the number of series, such as counting series per metric.
+:::
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 
 ## Syntax
 

@@ -186,6 +186,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         } finally {
             if (success == false) {
                 mainDriverContext.releaseChildBlockFactory(workerBlockFactory);
+<<<<<<< HEAD
             }
         }
     }
@@ -204,9 +205,24 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         for (GroupingAggregator aggregator : aggregators) {
             if (aggregator.aggregatorFunction().canEmitPartialResultsPeriodically(incomingPage) == false) {
                 return false;
+=======
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
             }
         }
-        return true;
+    }
+
+    @Override
+    protected void emit() {
+        expandWindowBuckets();
+        super.emit();
+    }
+
+    @Override
+    protected boolean canEmitCurrentBatchPeriodically() {
+        if (aggregatorMode == AggregatorMode.SINGLE) {
+            return aggregators.isEmpty() == false;
+        }
+        return super.canEmitCurrentBatchPeriodically();
     }
 
     private long largestWindowMillis() {

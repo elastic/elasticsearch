@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -2188,7 +2189,14 @@ public class LocalExecutionPlanner {
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
 
         return sourceWithMetadata.with(
-            new TsInfoOperator.Factory(fieldLookup, createDataStreamLookup(context.shardContexts), metadataSourceChannel, indexChannel),
+            new TsInfoOperator.Factory(
+                fieldLookup,
+                createDataStreamLookup(context.shardContexts),
+                metadataSourceChannel,
+                indexChannel,
+                context.plannerSettings().tsInfoPartialEmitThreshold(),
+                ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE)
+            ),
             layoutBuilder.build()
         );
     }
@@ -2222,7 +2230,21 @@ public class LocalExecutionPlanner {
             case INTERMEDIATE -> tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
             case INITIAL -> throw new IllegalStateException("unexpected mode [" + tsInfoExec.mode() + "]");
         };
-        return source.with(new TsInfoOperator.FinalFactory(channels, limit), layoutBuilder.build());
+        return source.with(
+            new TsInfoOperator.FinalFactory(channels, limit, ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE)),
+            layoutBuilder.build()
+        );
+    }
+
+    /**
+     * Drops the repeated rows of each time series within a shard. Deduplicating across shards would be wrong: a time series
+     * exists in every backing index it was written to, and each of those indices contributes its own data stream and
+     * mapping to {@code METRICS_INFO} and {@code TS_INFO}.
+     */
+    private static PhysicalOperation dedupTimeSeriesPerShard(PhysicalOperation source, Attribute docAttr, Attribute tsidAttr) {
+        int docChannel = source.layout.get(docAttr.id()).channel();
+        int tsidChannel = source.layout.get(tsidAttr.id()).channel();
+        return source.with(new DistinctByOperator.BytesRefKeyPerShardFactory(docChannel, tsidChannel), source.layout);
     }
 
     /**

@@ -15,10 +15,22 @@ setup:
         behavior is desired. See https://github.com/elastic/elasticsearch/issues/164035.
 
   # Indexed under dynamic:false, so "f", "n" and "other" are in _source only. "f" and "n" are mapped afterwards.
+<<<<<<< HEAD
+=======
+  #
+  # The rebalancer must not move a copy of these indices once "f" and "n" are mapped: a copy that is built by recovery
+  # replays the translog with the current mapping, so it holds doc values for the first document, and the result then
+  # depends on which copy answers. Rebalancing is disabled for them, see https://github.com/elastic/elasticsearch/issues/164963.
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
   - do:
       indices.create:
         index: mapped-later-stored
         body:
+<<<<<<< HEAD
+=======
+          settings:
+            index.routing.rebalance.enable: none
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
           mappings:
             dynamic: false
             properties:
@@ -69,10 +81,15 @@ setup:
         index: mapped-later-synthetic
         body:
           settings:
+<<<<<<< HEAD
             index:
               mapping:
                 source:
                   mode: synthetic
+=======
+            index.mapping.source.mode: synthetic
+            index.routing.rebalance.enable: none
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
           mappings:
             dynamic: false
             properties:

@@ -962,6 +962,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         }
         safeAwait(startBarrier);
     }
+<<<<<<< HEAD
 
     public void testTokenCountMetricsAreRecorded() {
         final String dataNode = internalCluster().startNode();
@@ -992,4 +993,6 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             .toList();
         assertThat(counts, containsInAnyOrder(37L, 41L));
     }
+=======
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 }

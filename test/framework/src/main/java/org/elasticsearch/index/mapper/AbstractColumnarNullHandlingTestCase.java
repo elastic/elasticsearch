@@ -511,12 +511,51 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     private void addBatch(MapperService mapperService, MappedColumns columns, int expectedDocs) throws IOException {
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
             iw.addBatch(columns.toColumnBatch());
+<<<<<<< HEAD
+=======
             try (DirectoryReader reader = DirectoryReader.open(iw)) {
                 assertEquals(expectedDocs, reader.numDocs());
             }
         }
     }
 
+    private static IndexWriterConfig batchIndexWriterConfig(MapperService mapperService) {
+        return new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
+            new PerFieldMapperCodec(
+                Lucene104Codec.Mode.BEST_SPEED,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                mapperService,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
+            )
+        );
+    }
+
+    private void assertBatchesIndex(IndexMode indexMode, boolean withCodec, List<List<String>> batches) throws IOException {
+        final MapperService mapperService = createMapperService(
+            columnarVersion(withCodec),
+            Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build(),
+            mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject();
+            })
+        );
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
+            for (List<String> batch : batches) {
+                final List<String> sources = batch.stream().map(AbstractColumnarNullHandlingTestCase::timestamped).toList();
+                withMappedColumns(mapperService, sources, columns -> iw.addBatch(columns.toColumnBatch()));
+            }
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                assertEquals(batches.stream().mapToInt(List::size).sum(), reader.numDocs());
+                final Terms terms = MultiTerms.getTerms(reader, FIELD);
+                assertEquals("only the valued document has postings", 1, terms == null ? 0 : terms.getDocCount());
+            }
+        }
+    }
+
+<<<<<<< HEAD
     private static IndexWriterConfig batchIndexWriterConfig(MapperService mapperService) {
         return new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics()))
             .setCodec(
@@ -553,6 +592,8 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         }
     }
 
+=======
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     private static String timestamped(String field) {
         return "{\"@timestamp\":1735689600000" + (field.isEmpty() ? "" : "," + field) + "}";
     }

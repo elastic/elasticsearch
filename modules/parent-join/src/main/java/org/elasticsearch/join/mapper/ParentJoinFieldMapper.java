@@ -78,24 +78,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    private static ParentJoinFieldMapper toType(FieldMapper in) {
-        return (ParentJoinFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
-            "eager_global_ordinals",
-            true,
-            m -> toType(m).eagerGlobalOrdinals,
-            true
-        );
+        final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true, true);
         final Parameter<List<Relations>> relations = new Parameter<List<Relations>>(
             "relations",
             true,
             Collections::emptyList,
             (n, c, o) -> Relations.parse(o),
-            m -> toType(m).relations,
             XContentBuilder::field,
             Objects::toString
         ).setMergeValidator(ParentJoinFieldMapper::checkRelationsConflicts);
@@ -159,9 +149,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             return new ParentJoinFieldMapper(
                 leafName(),
                 new JoinFieldType(context.buildFullName(leafName()), joiner, meta.get()),
-                Collections.unmodifiableMap(parentIdFields),
-                eagerGlobalOrdinals.get(),
-                relations.get()
+                Collections.unmodifiableMap(parentIdFields)
             );
         }
     }
@@ -226,20 +214,10 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     private final Map<String, ParentIdFieldMapper> parentIdFields;
-    private final boolean eagerGlobalOrdinals;
-    private final List<Relations> relations;
 
-    protected ParentJoinFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        Map<String, ParentIdFieldMapper> parentIdFields,
-        boolean eagerGlobalOrdinals,
-        List<Relations> relations
-    ) {
+    protected ParentJoinFieldMapper(String simpleName, MappedFieldType mappedFieldType, Map<String, ParentIdFieldMapper> parentIdFields) {
         super(simpleName, mappedFieldType, BuilderParams.empty());
         this.parentIdFields = parentIdFields;
-        this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-        this.relations = relations;
     }
 
     @Override
@@ -344,11 +322,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
+<<<<<<< HEAD
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(leafName()).init(this);
     }
 
     @Override
+=======
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     protected void doValidate(MappingLookup mappingLookup) {
         List<String> joinFields = mappingLookup.getMatchingFieldNames("*")
             .stream()

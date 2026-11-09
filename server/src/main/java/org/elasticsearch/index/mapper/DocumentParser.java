@@ -1032,11 +1032,14 @@ public final class DocumentParser {
             }
 
             @Override
+<<<<<<< HEAD
             public Builder getMergeBuilder() {
                 throw new UnsupportedOperationException();
             }
 
             @Override
+=======
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
             protected String contentType() {
                 throw new UnsupportedOperationException();
             }

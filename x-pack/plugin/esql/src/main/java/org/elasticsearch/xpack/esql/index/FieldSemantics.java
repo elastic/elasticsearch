@@ -28,6 +28,7 @@ import java.util.TreeSet;
  * @param metricType   {@code counter}, {@code gauge} or {@code histogram} when the mapping declares {@code time_series_metric}
  * @param unit         {@code meta.unit}; comma-separated when the indices disagree
  * @param description  {@code meta.description}; comma-separated when the indices disagree
+<<<<<<< HEAD
  * @param searchable   whether every index can filter on the field
  * @param aggregatable whether every index can group or aggregate on the field
  */
@@ -40,6 +41,10 @@ public record FieldSemantics(
     boolean searchable,
     boolean aggregatable
 ) {
+=======
+ */
+public record FieldSemantics(String field, Role role, @Nullable String metricType, @Nullable String unit, @Nullable String description) {
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 
     /**
      * How a field is meant to be used. Declared roles ({@link #DIMENSION}, {@link #METRIC}) come from
@@ -75,8 +80,11 @@ public record FieldSemantics(
     public static FieldSemantics from(String field, List<IndexFieldCapabilities> fcs) {
         Role role = null;
         String metricType = null;
+<<<<<<< HEAD
         boolean searchable = true;
         boolean aggregatable = true;
+=======
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         TreeSet<String> units = new TreeSet<>();
         TreeSet<String> descriptions = new TreeSet<>();
         for (IndexFieldCapabilities fc : fcs) {
@@ -86,6 +94,7 @@ public record FieldSemantics(
                 String type = fc.metricType().toString();
                 metricType = metricType == null || metricType.equals(type) ? type : "mixed";
             }
+<<<<<<< HEAD
             searchable &= fc.isSearchable();
             aggregatable &= fc.isAggregatable();
             addMeta(fc.meta(), "unit", units);
@@ -100,6 +109,12 @@ public record FieldSemantics(
             searchable,
             aggregatable
         );
+=======
+            addMeta(fc.meta(), "unit", units);
+            addMeta(fc.meta(), "description", descriptions);
+        }
+        return new FieldSemantics(field, role == null ? Role.OTHER : role, metricType, join(units), join(descriptions));
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     }
 
     private static Role role(String field, IndexFieldCapabilities fc) {

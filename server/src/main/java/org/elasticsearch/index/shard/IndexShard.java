@@ -83,9 +83,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
+<<<<<<< HEAD
 import org.elasticsearch.index.analysis.TokenCountingAnalyzer;
 import org.elasticsearch.index.analysis.TokenCountingIndexAnalyzer;
 import org.elasticsearch.index.analysis.TokenCountingMetrics;
+=======
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -4145,6 +4148,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public static Analyzer buildIndexAnalyzer(MapperService mapperService) {
+<<<<<<< HEAD
         return buildIndexAnalyzer(mapperService, TokenCountingMetrics.NOOP);
     }
 
@@ -4161,6 +4165,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return null;
         }
         return new TokenCountingIndexAnalyzer(mapperService::mappingLookup, tokenCountingMetrics);
+=======
+        if (mapperService == null) {
+            return null;
+        }
+        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+            @Override
+            protected Analyzer getWrappedAnalyzer(String fieldName) {
+                return mapperService.indexAnalyzer(
+                    fieldName,
+                    f -> { throw new IllegalArgumentException("Field [" + f + "] has no associated analyzer"); }
+                );
+            }
+        };
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
@@ -4181,12 +4199,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .warmer(warmer)
             .store(store)
             .mergePolicy(indexSettings.getMergePolicy(isTimeBasedIndex))
-            .analyzer(
-                buildIndexAnalyzer(
-                    mapperService,
-                    mapperService != null ? mapperService.getMapperMetrics().tokenCountingMetrics() : TokenCountingMetrics.NOOP
-                )
-            )
+            .analyzer(buildIndexAnalyzer(mapperService))
             .similarity(similarityService.similarity(mapperService == null ? null : mapperService::fieldType))
             .codecProvider(codecService)
             .eventListener(shardEventListener)

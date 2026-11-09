@@ -15,6 +15,10 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.test-build-info'
 apply plugin: 'elasticsearch.transport-version-references'
 apply plugin: 'elasticsearch.transport-version-resources'
+<<<<<<< HEAD
+=======
+apply plugin: 'elasticsearch.foreign-api'
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 apply plugin: 'jacoco'
 
 publishing {

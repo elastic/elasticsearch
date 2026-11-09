@@ -41,8 +41,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.containsString;
@@ -401,22 +403,75 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
     }
 
     public void testEmitPartialResultsPeriodicallyWithRate() {
+<<<<<<< HEAD
+=======
+        assertEmitResultsPeriodicallyWithRate(AggregatorMode.INITIAL);
+    }
+
+    public void testEmitResultsPeriodicallyWithRateInSingleMode() {
+        assertEmitResultsPeriodicallyWithRate(AggregatorMode.SINGLE);
+    }
+
+    private void assertEmitResultsPeriodicallyWithRate(AggregatorMode mode) {
+        var operatorFactory = rateOperatorFactory(mode);
+        BlockFactory bf = blockFactory();
+        var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
+        List<Page> outputPages = new ArrayList<>();
+        try (Operator op = operatorFactory.get(driverCtx)) {
+            for (int i = 0; i < 8; i++) {
+                op.addInput(ratePage(bf, i, 0));
+                assertNull("rate must not emit partial results within a slice", op.getOutput());
+            }
+            op.addInput(ratePage(bf, 8, 1));
+            drainInto(op, outputPages);
+            assertThat(
+                "the previous slice is emitted when a new slice starts",
+                outputPages.stream().mapToInt(Page::getPositionCount).sum(),
+                equalTo(8)
+            );
+            for (int i = 9; i < 12; i++) {
+                op.addInput(ratePage(bf, i, 1));
+                assertNull("rate must not emit partial results within a slice", op.getOutput());
+            }
+            op.finish();
+            drainInto(op, outputPages);
+            assertTrue(op.isFinished());
+            assertThat(outputPages.stream().mapToInt(Page::getPositionCount).sum(), equalTo(12));
+            Set<String> tsids = new HashSet<>();
+            BytesRef scratch = new BytesRef();
+            for (Page page : outputPages) {
+                BytesRefBlock tsidBlock = page.getBlock(0);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    tsids.add(tsidBlock.getBytesRef(tsidBlock.getFirstValueIndex(p), scratch).utf8ToString());
+                }
+            }
+            assertThat("every series is emitted exactly once", tsids.size(), equalTo(12));
+        } finally {
+            for (Page page : outputPages) {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    private static TimeSeriesAggregationOperator.Factory rateOperatorFactory(AggregatorMode mode) {
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
         Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
         var rate = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false, TestWarningsSource.INSTANCE)
-            .groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2, 3, 4, 5, 6));
-        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            .groupingAggregatorFactory(mode, List.of(2, 3, 4, 5, 6));
+        return new TimeSeriesAggregationOperator.Factory(
             oneMinBucket,
             false,
             List.of(
                 new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
                 new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
             ),
-            AggregatorMode.INITIAL,
+            mode,
             List.of(rate),
             1024,
             Integer.MAX_VALUE,
             1,
             null
+<<<<<<< HEAD
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -456,6 +511,21 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 page.releaseBlocks();
             }
         }
+=======
+        );
+    }
+
+    private static Page ratePage(BlockFactory bf, int i, int sliceIndex) {
+        return new Page(
+            bf.newConstantBytesRefBlockWith(new BytesRef("tsid-" + i), 1),
+            bf.newConstantLongBlockWith(i * 60_000L, 1),
+            bf.newConstantDoubleBlockWith(10.0 + i, 1),
+            bf.newConstantLongBlockWith(i * 60_000L, 1),
+            bf.newConstantNullBlock(1),
+            bf.newConstantIntBlockWith(sliceIndex, 1),
+            bf.newConstantLongBlockWith(Long.MAX_VALUE, 1)
+        );
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
     }
 
     /**

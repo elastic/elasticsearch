@@ -3604,6 +3604,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                    ( SORT emp_no )
                    ( LIMIT 9 )
             """);
+        plan = aligned(plan);
 
         var expectedOutput = List.of("emp_no", "first_name", "last_name", "_fork");
         Limit limit = as(plan, Limit.class);
@@ -3698,6 +3699,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                    | STATS x = MIN(d::double), y = MAX(e::double) WHERE d::double > 1000
                    | EVAL xyz = "abc")
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
         Fork fork = as(limit.child(), Fork.class);
@@ -3807,6 +3809,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
+<<<<<<< HEAD
      * Aligning a merge branch to the merge columns must read the branch output once, not once per merge column. The branch output
      * here counts element reads: indexing it by name up-front reads each attribute exactly once, while scanning it for every merge
      * column (#163560) would read it {@code width * width} times.
@@ -3840,6 +3843,10 @@ public class AnalyzerTests extends AnalyzerTestCase {
     /**
      * A FORK over a wide index aligns every branch to all of its columns. The alignment used to be quadratic in the number of
      * columns (#163560); this checks the wide case still resolves to correctly aligned branches.
+=======
+     * A FORK over a wide index aligns every branch to all of its columns. The alignment used to be quadratic in the number of
+     * columns (#163560); this checks the wide case still aligns the branches correctly.
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
      */
     public void testForkAlignmentOverWideIndex() {
         int width = 10_000;
@@ -3855,6 +3862,10 @@ public class AnalyzerTests extends AnalyzerTestCase {
             | FORK ( EVAL a = 1 )
                    ( EVAL b = 2 )
             """);
+<<<<<<< HEAD
+=======
+        plan = aligned(plan);
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
 
         Fork fork = as(as(plan, Limit.class).child(), Fork.class);
         List<String> expected = new ArrayList<>(mapping.keySet());
@@ -6470,6 +6481,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 | STATS {}
                 """, count);
             var plan = basic().addNoFieldsIndex().query(query);
+            plan = aligned(plan);
 
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
@@ -6498,6 +6510,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 | STATS {}
                 """, count);
             var plan = basic().addEmptyIndex().query(query);
+            plan = aligned(plan);
 
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
@@ -7465,7 +7478,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Fork fork = plan.collect(Fork.class).getFirst();
         assertThat(fork.output(), hasItem(key));
         for (LogicalPlan branch : fork.children()) {
-            assertThat(fieldNames(branch.output()).getLast(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+            assertThat(fieldNames(branch.output()), hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME));
         }
         assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
         assertWarnings();

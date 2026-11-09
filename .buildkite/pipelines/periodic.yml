@@ -720,7 +720,11 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
+<<<<<<< HEAD
               - openjdk25
+=======
+              - openjdk21
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
             BWC_VERSION: ["8.19.25", "9.4.10", "9.5.7", "9.6.0", "9.7.0"]
         agents:
           provider: gcp
@@ -787,7 +791,11 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
+<<<<<<< HEAD
               - openjdk25
+=======
+              - openjdk21
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
             BWC_VERSION: ["8.19.25", "9.4.10", "9.5.7", "9.6.0", "9.7.0"]
         agents:
           provider: gcp

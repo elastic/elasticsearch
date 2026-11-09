@@ -6,7 +6,11 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
+<<<<<<< HEAD
           capabilities: [ exemplars_setting_development_v7, subquery_in_from_command ]
+=======
+          capabilities: [ exemplars_setting_development_v8, subquery_in_from_command ]
+>>>>>>> 97fdd221f5919be472b60d29241f673774c19c51
       reason: "requires the exemplars query setting and subqueries in FROM"
 
   - do:

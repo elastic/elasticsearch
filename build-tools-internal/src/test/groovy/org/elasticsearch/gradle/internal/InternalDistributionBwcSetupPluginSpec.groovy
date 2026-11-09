@@ -104,6 +104,36 @@ class InternalDistributionBwcSetupPluginSpec extends Specification {
         !msg.contains("building distribution")
     }
 
+    // -------------------------------------------------------------------------
+    // buildMissingPrebuiltArtifactMessage
+    // -------------------------------------------------------------------------
+
+    def "buildMissingPrebuiltArtifactMessage names the artifact, snapshot and URL and rules out a source-build fallback"() {
+        when:
+        def msg = InternalDistributionBwcSetupPlugin.buildMissingPrebuiltArtifactMessage(
+            "org.elasticsearch.plugin:x-pack-sql-jdbc:8.19.24-SNAPSHOT@jar",
+            "8.19.24",
+            "8.19",
+            "auto",
+            "8.19.24-1a2b3c4d",
+            "https://snapshots.elastic.co/maven/org/elasticsearch/plugin/x-pack-sql-jdbc/8.19.24-SNAPSHOT/x-pack-sql-jdbc-8.19.24-SNAPSHOT.jar"
+        )
+
+        then:
+        msg.startsWith(
+            "BWC [8.19.24]: pre-built snapshot artifact [org.elasticsearch.plugin:x-pack-sql-jdbc:8.19.24-SNAPSHOT@jar] could not be resolved"
+        )
+        msg.contains("branch: 8.19")
+        msg.contains("tests.bwc.mode: auto")
+        msg.contains("DRA build ID: 8.19.24-1a2b3c4d")
+        msg.contains(
+            "searched: https://snapshots.elastic.co/maven/org/elasticsearch/plugin/x-pack-sql-jdbc/8.19.24-SNAPSHOT/x-pack-sql-jdbc-8.19.24-SNAPSHOT.jar"
+        )
+        msg.contains("snapshot publishing or resolution bug")
+        msg.contains("not fall back to a source build")
+        msg.contains("-Dtests.bwc.mode=gradle")
+    }
+
     def "buildFallbackMessage for gradle mode and Maven JAR emits a plain source-build message"() {
         when:
         def msg = InternalDistributionBwcSetupPlugin.buildFallbackMessage("gradle", false, "9.4.2", "logging")

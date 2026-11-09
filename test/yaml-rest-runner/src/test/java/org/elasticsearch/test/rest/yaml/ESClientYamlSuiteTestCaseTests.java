@@ -16,9 +16,11 @@ import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -313,6 +315,34 @@ public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
         public UnnamedSuiteWithLeadingParameter(@Name("yaml") int other, ClientYamlTestCandidate candidate) {
             super(candidate);
         }
+    }
+
+    public void testShardFilterPartitionsSuitesExactlyOnce() {
+        List<String> suitePaths = new ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            suitePaths.add("api" + (i % 13) + "/" + i + "_basic");
+        }
+        int count = between(2, 6);
+        Map<String, Integer> seen = new HashMap<>();
+        for (int shard = 0; shard < count; shard++) {
+            Predicate<String> filter = ESClientYamlSuiteTestCase.shardFilter(count + ":" + shard);
+            suitePaths.stream().filter(filter).forEach(p -> seen.merge(p, 1, Integer::sum));
+        }
+        assertThat(seen.keySet(), equalTo(Set.copyOf(suitePaths)));
+        assertThat(Set.copyOf(seen.values()), equalTo(Set.of(1)));
+    }
+
+    public void testShardFilterAcceptsSeveralShardsAndNoValue() {
+        Predicate<String> all = ESClientYamlSuiteTestCase.shardFilter("3:0,1,2");
+        assertTrue(all.test("index/10_basic"));
+        assertTrue(ESClientYamlSuiteTestCase.shardFilter(null).test("index/10_basic"));
+        expectThrows(IllegalArgumentException.class, () -> ESClientYamlSuiteTestCase.shardFilter("3"));
+        expectThrows(IllegalArgumentException.class, () -> ESClientYamlSuiteTestCase.shardFilter("3:3"));
+    }
+
+    /** The build computes the same hash (CiShards#bucket in build-tools-internal); this pins the shared value. */
+    public void testShardOfMatchesTheBuild() {
+        assertThat(ESClientYamlSuiteTestCase.shardOf("index/10_basic", 7), equalTo(5));
     }
 
     private static Set<String> apis(List<ClientYamlTestCandidate> candidates) {

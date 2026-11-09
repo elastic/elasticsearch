@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Loads values from a chunk of lucene documents into a "Block" for the compute engine.
@@ -273,6 +274,22 @@ public interface BlockLoader {
          * and fall back to the slow per-doc predicate path for multi-valued fields.
          */
         default DocIdSetIterator tryTermEqualIterator(BytesRef term) throws IOException {
+            return null;
+        }
+
+        /**
+         * PROTOTYPE, only for the proof of concept of the Parquet doc values format: not meant for main in this shape.
+         *
+         * <p>Returns a {@link DocIdSetIterator} that matches documents whose value satisfies {@code matcher}, or {@code null} if this
+         * optimization is not supported by the underlying data. It is the general form of {@link #tryTermEqualIterator} and
+         * {@link #tryContainsIterator}, for the queries that have no hook of their own (prefix, range, in-set, automaton, regexp), so
+         * an implementation can run the matcher once for each distinct value, for example once for each entry of a dictionary.
+         *
+         * <p>Like those two it is only valid for single-valued fields, where the value of a document is the raw bytes that the matcher
+         * tests, and it should return a {@link TwoPhaseIterator}-backed iterator (see {@link #tryContainsIterator}). The matcher must
+         * not keep the {@link BytesRef} that it is given, which is reused for the next value, and may be called from several threads.
+         */
+        default DocIdSetIterator tryMatchIterator(Predicate<BytesRef> matcher) throws IOException {
             return null;
         }
     }

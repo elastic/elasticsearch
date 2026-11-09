@@ -34,6 +34,7 @@ final class S3RepositorySettings {
         S3ClientSettings.API_CALL_TIMEOUT_SETTING,
         S3ClientSettings.UNUSED_USE_THROTTLE_RETRIES_SETTING,
         S3ClientSettings.USE_PATH_STYLE_ACCESS,
+        S3ClientSettings.ANONYMOUS,
         S3ClientSettings.DISABLE_CHUNKED_ENCODING,
         S3ClientSettings.UNUSED_SIGNER_OVERRIDE,
         S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,

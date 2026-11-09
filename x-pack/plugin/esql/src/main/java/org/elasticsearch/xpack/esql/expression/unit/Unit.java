@@ -25,6 +25,9 @@ import java.util.function.Function;
  * OpenTelemetry's UCUM units ({@code By}, {@code {packets}}). Only identical base units cancel: units of the same
  * family, such as {@code ms} and {@code s} or {@code bytes} and {@code MiB}, are only converted into each other
  * when a constant factor scales them.
+ * <p>
+ * For example {@code kB/s} is {@code {kB=1, s=-1}}, {@code bytes*s} is {@code {bytes=1, s=1}}, and {@link #ONE}
+ * is the empty map.
  */
 public record Unit(Map<String, Integer> exponents) {
 
@@ -33,7 +36,7 @@ public record Unit(Map<String, Integer> exponents) {
 
     public static final Unit SECOND = new Unit(Map.of("s", 1));
 
-    private static final String DIMENSIONLESS = "1";
+    private static final String UNITLESS = "1";
 
     private static final Map<String, String> VOCABULARY = Map.ofEntries(
         Map.entry("nanos", "nanos"),
@@ -112,7 +115,7 @@ public record Unit(Map<String, Integer> exponents) {
     }
 
     /**
-     * Parses a {@code meta.unit} value. {@code 1} is dimensionless; {@code a/b} and {@code a*b} compose.
+     * Parses a {@code meta.unit} value. {@code 1} is unitless; {@code a/b} and {@code a*b} compose.
      */
     public static Unit parse(String unit) {
         String[] parts = unit.split("/");
@@ -120,7 +123,7 @@ public record Unit(Map<String, Integer> exponents) {
         for (int i = 0; i < parts.length; i++) {
             for (String base : parts[i].split("\\*")) {
                 String trimmed = base.trim();
-                if (trimmed.isEmpty() || trimmed.equals(DIMENSIONLESS)) {
+                if (trimmed.isEmpty() || trimmed.equals(UNITLESS)) {
                     continue;
                 }
                 result = i == 0 ? result.times(of(trimmed)) : result.over(of(trimmed));
@@ -162,7 +165,7 @@ public record Unit(Map<String, Integer> exponents) {
                 denominator.append('/').append(term);
             }
         });
-        return (numerator.isEmpty() ? DIMENSIONLESS : numerator.toString()) + denominator;
+        return (numerator.isEmpty() ? UNITLESS : numerator.toString()) + denominator;
     }
 
     @Override

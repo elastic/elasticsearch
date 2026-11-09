@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.unit.Unit;
@@ -111,6 +113,11 @@ public class ColumnUnitsTests extends ESTestCase {
 
     public void testCount() {
         assertThat(unitOf(new Count(Source.EMPTY, column("x", "ms"))), equalTo("1"));
+    }
+
+    public void testHistogramConversions() {
+        assertThat(unitOf(new ToTDigest(Source.EMPTY, column("h", "ms"))), equalTo("ms"));
+        assertThat(unitOf(new ToExponentialHistogram(Source.EMPTY, column("h", "ms"))), equalTo("ms"));
     }
 
     public void testUnknownUnits() {

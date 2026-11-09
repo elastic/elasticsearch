@@ -58,7 +58,7 @@ public class CountDistinct extends UnaryAggregateFunction
         OptionalArgument,
         ToAggregator,
         SurrogateExpression,
-        UnitAware.Dimensionless {
+        UnitAware.Unitless {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

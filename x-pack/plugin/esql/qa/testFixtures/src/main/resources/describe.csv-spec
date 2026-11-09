@@ -148,6 +148,20 @@ total            | network.total_bytes_in | renamed        | bytes
 network.bytes_in | network.bytes_in       | mapped         | null
 ;
 
+describeUnitsThroughBucket
+required_capability: describe_command
+
+FROM k8s
+| STATS c = COUNT(*) BY b = BUCKET(network.eth0.rx, 100)
+| DESCRIBE
+| KEEP name, origin, unit
+;
+
+name:keyword | origin:keyword | unit:keyword
+c            | computed       | 1
+b            | computed       | packets
+;
+
 describeStatsAfterTs
 required_capability: describe_command
 

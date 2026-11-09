@@ -44,7 +44,7 @@ public interface UnitAware {
     /**
      * The result is a count: {@code COUNT}, {@code COUNT_DISTINCT}.
      */
-    interface Dimensionless extends UnitAware {
+    interface Unitless extends UnitAware {
         @Override
         default Unit unit(Function<Expression, Unit> unitOf) {
             return Unit.ONE;

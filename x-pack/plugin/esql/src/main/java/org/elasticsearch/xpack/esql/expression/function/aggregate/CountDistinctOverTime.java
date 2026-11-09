@@ -33,7 +33,7 @@ import java.util.List;
 /**
  * Similar to {@link CountDistinct}, but it is used to calculate the distinct count of values over a time series from the given field.
  */
-public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, UnitAware.Dimensionless {
+public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, UnitAware.Unitless {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DistinctOverTime",

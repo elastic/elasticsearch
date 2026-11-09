@@ -62,7 +62,7 @@ public class Count extends UnaryAggregateFunction
         SurrogateExpression,
         AggregateMetricDoubleNativeSupport,
         OptionalArgument,
-        UnitAware.Dimensionless {
+        UnitAware.Unitless {
     public static final TransportVersion ESQL_COUNT_HISTOGRAM_BUCKET = TransportVersion.fromName("esql_count_histogram_bucket");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)

@@ -47,7 +47,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         SurrogateExpression,
         TimestampAware,
         ToAggregator,
-        UnitAware.Dimensionless {
+        UnitAware.Unitless {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountOverTime.class)
         .ternary(CountOverTime::new)
         .name("count_over_time");

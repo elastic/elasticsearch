@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -29,9 +33,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -43,7 +47,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -84,6 +87,9 @@ import java.util.TreeSet;
  *     <li>From the leaves up, each node on its own: a node that defines a container promotes the labels read by name to
  *     attributes next to it, and a node that names a container names the container that is left and its promoted labels.</li>
  * </ol>
+ * Where a node before 9.7 takes part ({@link #usesLabelContainer}), a container is the keyword {@code _timeseries} the source
+ * loads, and nothing can change it after that. The same two steps run, and a plan that is left with a call changing a container
+ * fails.
  */
 public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
@@ -93,20 +99,39 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         if (context.configuration().pragmas().enablePromqlTranslationV2() == false) {
             return plan;
         }
-        return pushDown(plan, context.configuration());
+        return pushDown(plan, context.configuration(), usesLabelContainer(context));
     }
 
-    /** {@code plan} with its label containers split into parts; {@code configuration} renders the ones left whole. */
+    /**
+     * Whether {@code _timeseries} is a typed label container for this query: the feature is on and every participating node reads
+     * it. Otherwise what is left of a container stays keyword.
+     */
+    static boolean usesLabelContainer(AnalyzerContext context) {
+        return EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled()
+            && DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion()
+                .supportedOn(context.minimumVersion(), Build.current().isSnapshot());
+    }
+
     static LogicalPlan pushDown(LogicalPlan plan, Configuration configuration) {
+        return pushDown(plan, configuration, true);
+    }
+
+    /**
+     * {@code plan} with its label containers split into parts; {@code configuration} renders the ones left whole. Without
+     * {@code typed} a node before 9.7 takes part: what is left of a container stays the keyword {@code _timeseries} of the source.
+     */
+    static LogicalPlan pushDown(LogicalPlan plan, Configuration configuration, boolean typed) {
         if (plan.anyMatch(ScalarizeTimeSeriesMetadataPaths::readsSource) == false) {
             return plan;
         }
-        return new Pushdown(configuration).apply(plan);
+        return new Pushdown(configuration, typed).apply(plan);
     }
 
     /** The source's label container, as translation reads it: every label of the series. */
     static boolean isSource(Expression expression) {
-        return expression instanceof TimeSeriesWithout without && without.children().isEmpty();
+        return expression instanceof ToTimeSeriesMetadata cast
+            && cast.field() instanceof TimeSeriesWithout without
+            && without.children().isEmpty();
     }
 
     /** Whether {@code node} is a PromQL time-series aggregate keyed by the source's labels: where every label container starts. */
@@ -166,7 +191,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         if (part instanceof Attribute attribute) {
             return attribute;
         }
-        Alias alias = new Alias(part.source(), TemporaryNameGenerator.locallyUniqueTemporaryName(name), part);
+        Alias alias = new Alias(part.source(), Attribute.rawTemporaryName(name, "temp_name", new NameId().toString()), part);
         evals.add(alias);
         return alias.toAttribute();
     }
@@ -193,7 +218,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         if (labels.isEmpty()) {
             return child;
         }
-        String name = TemporaryNameGenerator.locallyUniqueTemporaryName(PackDims.PACKED_FIELD_NAME);
+        String name = Attribute.rawTemporaryName(PackDims.PACKED_FIELD_NAME, "key", new NameId().toString());
         Attribute packed = new ReferenceAttribute(child.source(), null, name, DataType.KEYWORD);
         keys.add(packed);
         return new PackDims(child.source(), child, labels, packed);
@@ -205,6 +230,8 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
      */
     static final class Pushdown {
         private final Configuration configuration;
+        /** Whether every node reads the typed label container; otherwise a container stays the keyword the source loads. */
+        private final boolean typed;
 
         /** Step 1: the labels read by name off each container. */
         private final Map<NameId, Set<String>> need = new HashMap<>();
@@ -229,13 +256,27 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         /** The input of the time-series aggregate whose groupings are being rewritten: where the source's labels are read. */
         private LogicalPlan source;
 
-        Pushdown(Configuration configuration) {
+        Pushdown(Configuration configuration, boolean typed) {
             this.configuration = configuration;
+            this.typed = typed;
         }
 
         LogicalPlan apply(LogicalPlan plan) {
             demand(plan);
-            return rewrite(plan);
+            LogicalPlan rewritten = rewrite(plan);
+            if (typed == false) {
+                // A keyword container cannot change after the source loads it: no call that changes one may be left.
+                rewritten.forEachDown(node -> node.forEachExpression(Expression.class, e -> {
+                    if (e instanceof TimeSeriesMetadataFilter || e instanceof TimeSeriesMetadataSet) {
+                        throw new VerificationException(
+                            List.of(
+                                Failure.fail(e, "leaving labels out of _timeseries requires a typed label container [{}]", e.sourceText())
+                            )
+                        );
+                    }
+                }));
+            }
+            return rewritten;
         }
 
         // -- step 1: what the plan asks of its containers. From the root down, so every use is seen before the definition --
@@ -505,33 +546,18 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                         var names = new ArrayList<String>();
                         var types = new ArrayList<DataType>();
                         var parts = new ArrayList<List<Expression>>();
-                        // The union's container is without a label only where every branch's is. A branch without a container
-                        // returns one holding its promoted labels, as the other branches' containers hold theirs.
                         var outGone = new TreeSet<String>();
-                        boolean container = false;
-                        for (NameId branch : branches) {
-                            if (timeseries.containsKey(branch)) {
-                                if (container) {
-                                    outGone.retainAll(without.get(branch));
-                                } else {
-                                    outGone.addAll(without.get(branch));
-                                }
-                                container = true;
-                            }
-                        }
-                        for (NameId branch : branches) {
-                            if (timeseries.containsKey(branch) == false) {
-                                outGone.removeAll(promoted.getOrDefault(branch, new TreeMap<>()).keySet());
-                            }
-                        }
+                        branches.forEach(branch -> outGone.addAll(without.getOrDefault(branch, Set.of())));
+                        boolean container = branches.stream().anyMatch(timeseries::containsKey);
                         if (container) {
                             var branchParts = new ArrayList<Expression>();
                             for (NameId branch : branches) {
-                                branchParts.add(timeseries.containsKey(branch) ? timeseries.get(branch) : whole(branch, at));
+                                Expression part = timeseries.get(branch);
+                                branchParts.add(part != null ? part : typed ? new ToTimeSeriesMetadata(at, absent(at)) : absent(at));
                             }
                             // Union outputs are named apart: the container's own name for the container, prefixed for its labels.
                             names.add(out.name());
-                            types.add(DataType.TIME_SERIES_METADATA_DATA_TYPE);
+                            types.add(typed ? DataType.TIME_SERIES_METADATA_DATA_TYPE : DataType.KEYWORD);
                             parts.add(branchParts);
                         }
                         var outLabels = new ArrayList<String>();
@@ -838,7 +864,11 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                                 || projections.stream()
                                     .anyMatch(p -> p.name().equals(attribute.name()) && p.id().equals(attribute.id()) == false);
                             NamedExpression projected = shadows
-                                ? new Alias(attribute.source(), TemporaryNameGenerator.locallyUniqueTemporaryName(name), attribute)
+                                ? new Alias(
+                                    attribute.source(),
+                                    Attribute.rawTemporaryName(name, "temp_name", new NameId().toString()),
+                                    attribute
+                                )
                                 : attribute;
                             addIfAbsent(projections, projected);
                             return projected.toAttribute();
@@ -880,7 +910,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                             // container leaves it out.
                             var leftOut = new TreeSet<String>();
                             var rightOut = new TreeSet<String>();
-                            for (String name : names) {
+                            for (String name : typed ? names : Set.<String>of()) {
                                 if (inContainer(l, name) && inContainer(r, name) == false) {
                                     leftOut.add(name);
                                 } else if (inContainer(r, name) && inContainer(l, name) == false) {
@@ -999,7 +1029,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 }
                 // every label of the series; what it is without is left out where the aggregate loads it
                 container = under;
-            } else if (under instanceof Literal) {
+            } else if (under instanceof ToTimeSeriesMetadata cast && cast.field() instanceof Literal || isAbsent(under)) {
                 // the empty container
                 container = null;
             } else {
@@ -1084,7 +1114,8 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         /**
          * {@code container}, already without {@code gone}, without {@code names} as well. The source's labels leave them out where
          * the aggregate loads them. A container a time-series aggregate loads holds dimensions only, so it is without any other
-         * name already.
+         * name already; where it is keyword it cannot change, and a use that leaves out more reads it as it is, as the keyword
+         * translation did.
          */
         private @Nullable Expression unset(@Nullable Expression container, Set<String> gone, Collection<String> names, Source at) {
             if (container == null || isSource(container) || gone.containsAll(names)) {
@@ -1095,7 +1126,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             LogicalPlan series = base(container) instanceof Attribute loaded ? sources.get(loaded.id()) : null;
             if (series != null) {
                 left.removeIf(name -> PromqlLabels.getLabel(series, name) == null);
-                if (left.isEmpty()) {
+                if (left.isEmpty() || typed == false) {
                     return container;
                 }
             }
@@ -1134,21 +1165,8 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     fields.add(field);
                 }
             }
-            return new TimeSeriesWithout(Source.EMPTY, fields, DataType.TIME_SERIES_METADATA_DATA_TYPE);
-        }
-
-        /** The container {@code id} as a whole: the container with the promoted labels it is without written back. */
-        private Expression whole(NameId id, Source at) {
-            Expression whole = container(id);
-            if (whole == null) {
-                whole = TranslationContextV2.emptyLabels(at);
-            }
-            for (var label : promoted.getOrDefault(id, new TreeMap<>()).entrySet()) {
-                if (inContainer(id, label.getKey()) == false) {
-                    whole = new TimeSeriesMetadataSet(at, whole, Literal.keyword(at, label.getKey()), label.getValue());
-                }
-            }
-            return whole;
+            Expression loaded = new TimeSeriesWithout(Source.EMPTY, fields);
+            return typed ? new ToTimeSeriesMetadata(Source.EMPTY, loaded) : loaded;
         }
 
         /** Whether the container {@code id} holds {@code name}, promoted or not. */
@@ -1182,9 +1200,19 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     yield label(timeseries.get(id), without.get(id), promoted.get(id), name, path.source());
                 }
                 case ToString render when render.field().dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(render.field()) -> {
+                    // the container as a whole: the labels it is without written back
                     Source at = render.source();
-                    Expression whole = whole(record(render.field()), at);
-                    yield new ToString(at, whole, configuration);
+                    NameId id = record(render.field());
+                    Expression whole = container(id);
+                    if (whole == null) {
+                        whole = typed ? new ToTimeSeriesMetadata(at, Literal.keyword(at, "{}")) : absent(at);
+                    }
+                    for (var label : promoted.get(id).entrySet()) {
+                        if (inContainer(id, label.getKey()) == false) {
+                            whole = new TimeSeriesMetadataSet(at, whole, Literal.keyword(at, label.getKey()), label.getValue());
+                        }
+                    }
+                    yield typed ? new ToString(at, whole, configuration) : whole;
                 }
                 case HashOffset hash -> {
                     var keys = new ArrayList<Expression>();
@@ -1215,9 +1243,9 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         private Expression containerKey(NameId id, Set<String> out, Source at) {
             Expression container = unset(container(id), without.get(id), out, at);
             if (container == null) {
-                container = TranslationContextV2.emptyLabels(at);
+                container = typed ? new ToTimeSeriesMetadata(at, Literal.keyword(at, "{}")) : absent(at);
             }
-            return new Coalesce(at, new ToString(at, container, configuration), List.of(Literal.keyword(at, "")));
+            return new Coalesce(at, typed ? new ToString(at, container, configuration) : container, List.of(Literal.keyword(at, "")));
         }
 
     }

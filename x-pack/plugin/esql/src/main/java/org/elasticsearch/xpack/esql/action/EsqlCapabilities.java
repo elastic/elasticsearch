@@ -1427,7 +1427,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V7(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V8(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -2777,6 +2777,12 @@ public class EsqlCapabilities {
          * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
          */
         PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL offset modifiers accept either sign and bind to their selector before binary operators.
+         * Gates regression specs on older nodes that do not implement this parsing behavior.
+         */
+        FIX_PROMQL_OFFSET_PRECEDENCE(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
@@ -4349,6 +4355,12 @@ public class EsqlCapabilities {
         FILLNULL_LATE_LOADED_COLUMNS(FILLNULL.isEnabled()),
 
         /**
+         * Commands after an {@code INLINE STATS} follow a column filled by an earlier {@code FILLNULL}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/163730">#163730</a>.
+         */
+        FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
@@ -4723,6 +4735,13 @@ public class EsqlCapabilities {
          * Run time-series aggregation single pass on data nodes when possible
          */
         TIME_SERIES_SINGLE_PASS,
+
+        /**
+         * {@code COUNT}, {@code PRESENT}, {@code ABSENT} and their {@code *_OVER_TIME} variants accept counter fields, since they only
+         * look at whether values exist. In {@code PROMQL}, {@code count_over_time}, {@code present_over_time} and
+         * {@code absent_over_time} read a counter as is.
+         */
+        COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

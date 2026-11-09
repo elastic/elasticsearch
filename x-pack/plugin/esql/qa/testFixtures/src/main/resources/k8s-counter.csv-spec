@@ -28,3 +28,31 @@ total_cost:double | cluster:keyword | pod:keyword
 112.25            | qa              | one
 108.75            | staging         | two
 ;
+
+countOfCounter
+required_capability: count_present_absent_counter_support
+FROM k8s | STATS c = count(network.total_bytes_in);
+
+c:long
+200
+;
+
+countPresentAbsentOfCounterByCluster
+required_capability: count_present_absent_counter_support
+FROM k8s
+| STATS c = count(network.total_cost), p = present(network.total_bytes_in), a = absent(network.total_cost) BY cluster
+| SORT cluster;
+
+c:long | p:boolean | a:boolean | cluster:keyword
+61     | true      | false     | prod
+82     | true      | false     | qa
+57     | true      | false     | staging
+;
+
+presentAbsentOfCounterWithoutValues
+required_capability: count_present_absent_counter_support
+FROM k8s | WHERE cluster == "none" | STATS p = present(network.total_bytes_in), a = absent(network.total_cost);
+
+p:boolean | a:boolean
+false     | true
+;

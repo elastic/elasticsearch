@@ -34,8 +34,11 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -45,6 +48,8 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -217,6 +222,77 @@ public class MapperServiceTests extends MapperServiceTestCase {
         // At the limit is fine.
         XContentBuilder atLimitMapping = mapping(b -> createMappingSpecifyingNumberOfFields(b, totalFieldsLimit));
         mapperService.parseMappings(new CompressedXContent(BytesReference.bytes(atLimitMapping)));
+    }
+
+    public void testParseMappingsWithFieldFilters() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("a").field("type", "keyword").endObject();
+            b.startObject("text").field("type", "text");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+            b.startObject("obj").startObject("properties");
+            b.startObject("x").field("type", "long").endObject();
+            b.startObject("y").field("type", "long").endObject();
+            b.endObject().endObject();
+        }));
+        CompressedXContent source = mapperService.documentMapper().mappingSource();
+
+        assertThat(collectedPaths(mapperService, source, "a"), containsInAnyOrder("a"));
+        assertThat(collectedPaths(mapperService, source, "text.raw"), containsInAnyOrder("text", "text.raw"));
+        assertThat(collectedPaths(mapperService, source, "obj.x"), containsInAnyOrder("obj.x", "obj.y"));
+        assertThat(collectedPaths(mapperService, source, "obj.*"), containsInAnyOrder("obj.x", "obj.y"));
+        assertThat(collectedPaths(mapperService, source, "a", "text"), containsInAnyOrder("a", "text", "text.raw"));
+        assertThat(collectedPaths(mapperService, source, "missing"), empty());
+        assertThat(MapperService.fieldFilters(List.of("a", "*")), nullValue());
+    }
+
+    public void testParseMappingsWithFieldFiltersAndRootSubobjectsFalse() throws IOException {
+        MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("obj.my.field").field("type", "keyword").endObject();
+            b.startObject("obj.other").field("type", "long").endObject();
+            b.startObject("flat").field("type", "keyword").endObject();
+        }));
+        CompressedXContent source = mapperService.documentMapper().mappingSource();
+
+        assertThat(collectedPaths(mapperService, source, "obj.my.field"), containsInAnyOrder("obj.my.field", "obj.other"));
+        assertThat(collectedPaths(mapperService, source, "flat"), containsInAnyOrder("flat"));
+        assertThat(collectedPaths(mapperService, source, "obj.*"), containsInAnyOrder("obj.my.field", "obj.other"));
+        assertThat(collectedPaths(mapperService, source, "obj.my.*"), containsInAnyOrder("obj.my.field", "obj.other"));
+        assertThat(collectedPaths(mapperService, source, "fl*"), containsInAnyOrder("obj.my.field", "obj.other", "flat"));
+        assertThat(collectedPaths(mapperService, source, "*"), containsInAnyOrder("obj.my.field", "obj.other", "flat"));
+
+        Map<String, String> leafNames = new HashMap<>();
+        mapperService.parseMappings(source, MergeReason.MAPPING_RECOVERY, MapperService.fieldFilters(List.of("obj.my.field")))
+            .collectFieldBuilders(MergeReason.MAPPING_RECOVERY, (path, builder) -> leafNames.put(path, builder.leafName()));
+        assertThat(leafNames.get("obj.my.field"), equalTo("obj.my.field"));
+    }
+
+    public void testParseMappingsWithFieldFiltersAndNestedSubobjectsFalse() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("obj").field("subobjects", false).startObject("properties");
+            b.startObject("a.b").field("type", "keyword").endObject();
+            b.startObject("c").field("type", "long").endObject();
+            b.endObject().endObject();
+            b.startObject("other").field("type", "keyword").endObject();
+        }));
+        CompressedXContent source = mapperService.documentMapper().mappingSource();
+
+        assertThat(collectedPaths(mapperService, source, "obj.a.b"), containsInAnyOrder("obj.a.b", "obj.c"));
+        assertThat(collectedPaths(mapperService, source, "other"), containsInAnyOrder("other"));
+        assertThat(collectedPaths(mapperService, source, "obj.*"), containsInAnyOrder("obj.a.b", "obj.c"));
+        assertThat(collectedPaths(mapperService, source, "obj.a.*"), containsInAnyOrder("obj.a.b", "obj.c"));
+        assertThat(collectedPaths(mapperService, source, "*"), containsInAnyOrder("obj.a.b", "obj.c", "other"));
+    }
+
+    private static Set<String> collectedPaths(MapperService mapperService, CompressedXContent source, String... patterns) {
+        Set<String> paths = new HashSet<>();
+        mapperService.parseMappings(source, MergeReason.MAPPING_RECOVERY, MapperService.fieldFilters(List.of(patterns)))
+            .collectFieldBuilders(MergeReason.MAPPING_RECOVERY, (path, builder) -> {
+                if (path.startsWith("_") == false) {
+                    paths.add(path);
+                }
+            });
+        return paths;
     }
 
     public void testDottedFieldNamesAreNotOvercountedAtParseTime() throws IOException {

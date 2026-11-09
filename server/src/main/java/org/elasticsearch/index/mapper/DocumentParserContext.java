@@ -901,7 +901,8 @@ public abstract class DocumentParserContext {
             update.accept(pending);
             return pending;
         }
-        Map<String, Mapper.Builder> stored = storedMapping.fieldBuilders(mappingParserContext, mappingLookup);
+        String registeredPath = mappingLookup.isMultiField(fullPath) ? mappingLookup.parentField(fullPath) : fullPath;
+        Map<String, Mapper.Builder> stored = storedMapping.fieldBuilders(mappingParserContext, mappingLookup, registeredPath);
         Mapper.Builder builder = stored.get(fullPath);
         if (builder == null) {
             throw new IllegalArgumentException("cannot update the mapping of [" + fullPath + "], which is not a mapped field");
@@ -909,7 +910,6 @@ public abstract class DocumentParserContext {
         // run the update before registering - updates may throw exceptions on bad data, for
         // example documents with multiple dense_vector fields of different lengths.
         update.accept(builder);
-        String registeredPath = mappingLookup.isMultiField(fullPath) ? mappingLookup.parentField(fullPath) : fullPath;
         addDynamicMapper(stored.get(registeredPath), registeredPath);
         return builder;
     }
@@ -947,21 +947,22 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Lazily computed Builders for the current set of Mappings, used by {@link #updateMapping(String, Consumer)}
+     * Lazily computed Builders for the fields of the current set of Mappings, used by {@link #updateMapping(String, Consumer)}.
+     * Only the part of the mapping source holding a requested field is parsed, and the builders are kept so that later updates
+     * of the same field see the same instances.
      */
     private static final class StoredMapping {
-        private Map<String, Mapper.Builder> fieldBuilders;
+        private final Map<String, Mapper.Builder> fieldBuilders = new HashMap<>();
 
-        // TODO add a filter so that we don't re-parse the entire Mapping just to update a single field
-        Map<String, Mapper.Builder> fieldBuilders(MappingParserContext parserContext, MappingLookup mappingLookup) {
-            if (fieldBuilders == null) {
+        Map<String, Mapper.Builder> fieldBuilders(MappingParserContext parserContext, MappingLookup mappingLookup, String fieldPath) {
+            if (fieldBuilders.containsKey(fieldPath) == false) {
                 CompressedXContent source = mappingLookup.mappingSource();
                 if (source == null) {
                     throw new IllegalStateException("the source of the mapping is not available to update a field of it");
                 }
-                Map<String, Mapper.Builder> collected = new HashMap<>();
-                parserContext.parseStoredMapping(source).collectFieldBuilders(MergeReason.MAPPING_RECOVERY, collected::put);
-                fieldBuilders = collected;
+                Set<String> include = MapperService.fieldFilters(List.of(fieldPath));
+                parserContext.parseStoredMapping(source, include)
+                    .collectFieldBuilders(MergeReason.MAPPING_RECOVERY, fieldBuilders::putIfAbsent);
             }
             return fieldBuilders;
         }

@@ -47,8 +47,10 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -314,7 +316,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getNamespaceValidator(),
             projectMetadataSupplier,
             ParseFieldLimits.parseFieldLimits(reason, indexSettings),
-            source -> parseMappings(source, MergeReason.MAPPING_RECOVERY)
+            (source, include) -> parseMappings(source, MergeReason.MAPPING_RECOVERY, include)
         );
         this.documentParser = new DocumentParser(
             parserConfiguration,
@@ -687,7 +689,42 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Parses a mapping source into a builder under the given reason
      */
     public MappingBuilder parseMappings(CompressedXContent mappingSource, MergeReason reason) {
-        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource));
+        return parseMappings(mappingSource, reason, null);
+    }
+
+    /**
+     * Parses a mapping source into a builder under the given reason, keeping only the parts of the source matched by
+     * {@code include}, or all of it if {@code include} is null. See {@link #fieldFilters} for building the filters.
+     * Anything not matched is absent from the result, including metadata fields and the settings of the root object.
+     */
+    public MappingBuilder parseMappings(CompressedXContent mappingSource, MergeReason reason, @Nullable Set<String> include) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource, include));
+    }
+
+    /**
+     * Builds the include filters for {@link #parseMappings(CompressedXContent, MergeReason, Set)} that keep the given field
+     * paths, which may be simple wildcard patterns. Only the first segment of a path is used to filter, so everything below
+     * the top-level field or object is kept. That is deliberately coarse: below the first level a field may be a multi-field,
+     * or have dots in its leaf name if its parent has {@code subobjects: false}, and neither can be told from the path alone.
+     * Returns null if the first segment of any pattern is a wildcard, as that matches every top-level field.
+     */
+    @Nullable
+    public static Set<String> fieldFilters(Collection<String> fieldPatterns) {
+        // the root's subobjects setting decides the leaf names of the fields, so it has to be kept
+        Set<String> filters = new HashSet<>(List.of("subobjects", SINGLE_MAPPING_NAME + ".subobjects"));
+        for (String pattern : fieldPatterns) {
+            String topLevelName = pattern.contains(".") ? pattern.substring(0, pattern.indexOf('.')) : pattern;
+            if (topLevelName.contains("*")) {
+                return null;
+            }
+            filters.add("properties." + topLevelName);
+            filters.add(SINGLE_MAPPING_NAME + ".properties." + topLevelName);
+            if (topLevelName.startsWith("_")) {
+                filters.add(topLevelName);
+                filters.add(SINGLE_MAPPING_NAME + "." + topLevelName);
+            }
+        }
+        return filters;
     }
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {

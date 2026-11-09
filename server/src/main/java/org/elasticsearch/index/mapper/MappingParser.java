@@ -15,6 +15,8 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -22,6 +24,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -78,8 +81,18 @@ public final class MappingParser {
     }
 
     static Map<String, Object> convertToMap(CompressedXContent source) {
+        return convertToMap(source, null);
+    }
+
+    /**
+     * Converts a mapping source to a map, keeping only the paths matched by {@code include} if it is not null.
+     */
+    static Map<String, Object> convertToMap(CompressedXContent source, @Nullable Set<String> include) {
         Objects.requireNonNull(source, "source cannot be null");
-        return XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
+        XContentParserConfiguration config = include == null
+            ? XContentParserConfiguration.EMPTY
+            : XContentParserConfiguration.EMPTY.withFiltering(null, include, null, true);
+        return XContentHelper.parseToType(XContentParser::mapOrdered, source.compressedReference(), XContentType.JSON, config).v2();
     }
 
     Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {

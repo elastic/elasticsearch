@@ -27,6 +27,8 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.util.List;
+import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -55,9 +57,14 @@ public class MappingParserContext {
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     private final Supplier<ProjectMetadata> projectMetadataSupplier;
     private final ParseFieldLimits parseFieldLimits;
-    // How the source of a mapping that is already stored is parsed into builders, for updating one of its fields
     @Nullable
-    private final Function<CompressedXContent, MappingBuilder> storedMappingParser;
+    private final StoredMappingParser storedMappingParser;
+
+    /**
+     * Parses the source of a stored mapping into builders, optionally applying a filter
+     */
+    @FunctionalInterface
+    public interface StoredMappingParser extends BiFunction<CompressedXContent, Set<String>, MappingBuilder> {}
 
     // Package-private: used by MapperService (to pass ParseFieldLimits and the stored mapping parser directly) and by inner subcontexts.
     MappingParserContext(
@@ -76,7 +83,7 @@ public class MappingParserContext {
         RootObjectMapperNamespaceValidator namespaceValidator,
         Supplier<ProjectMetadata> projectMetadataSupplier,
         ParseFieldLimits parseFieldLimits,
-        @Nullable Function<CompressedXContent, MappingBuilder> storedMappingParser
+        @Nullable StoredMappingParser storedMappingParser
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -214,14 +221,14 @@ public class MappingParserContext {
     }
 
     /**
-     * Parses the source of a mapping that is already stored into builders, without enforcing limits: the mapping was
-     * validated when it was written.
+     * Parses the source of a mapping that is already stored into builders, optionally applying
+     * a filter to limit the amount of parsing needed.
      */
-    MappingBuilder parseStoredMapping(CompressedXContent source) {
+    MappingBuilder parseStoredMapping(CompressedXContent source, @Nullable Set<String> include) {
         if (storedMappingParser == null) {
             throw new IllegalStateException("this context has no parser for stored mappings");
         }
-        return storedMappingParser.apply(source);
+        return storedMappingParser.apply(source, include);
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {

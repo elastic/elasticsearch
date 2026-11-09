@@ -14,6 +14,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -916,9 +917,15 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
             UnmappedFields.Found found = unmappedFields.walk(
                 parsed.internalSourceRef(),
                 XContentType.JSON,
-                new UnmappedFields.Walk(unmappedNames, UnmappedFields.Filter.ALL, 0)
+                new UnmappedFields.Walk(unmappedNames, UnmappedFields.Filter.ALL, 0),
+                NoopCircuitBreaker.INSTANCE,
+                0
             );
-            assertThat(json, found.written(), equalTo(unmappedFields.extract(parsed.internalSourceRef(), XContentType.JSON)));
+            assertThat(
+                json,
+                found.written(),
+                equalTo(unmappedFields.extract(parsed.internalSourceRef(), XContentType.JSON, NoopCircuitBreaker.INSTANCE))
+            );
             for (String name : names) {
                 if (mapperService.mappingLookup().getFieldType(name) != null) {
                     assertThat(name + " in " + source, walked.get(name), nullValue());
@@ -1151,8 +1158,12 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
      */
     @Nullable
     private static Map<String, Object> extract(UnmappedFields unmappedFields, String json) throws IOException {
-        BytesRef written = unmappedFields.extract(new BytesArray(json), XContentType.JSON);
-        assertThat(json, unmappedFields.extract(new BytesArray(json), XContentType.JSON, true), equalTo(written));
+        BytesRef written = unmappedFields.extract(new BytesArray(json), XContentType.JSON, NoopCircuitBreaker.INSTANCE);
+        assertThat(
+            json,
+            unmappedFields.extract(new BytesArray(json), XContentType.JSON, true, NoopCircuitBreaker.INSTANCE),
+            equalTo(written)
+        );
         if (written == null) {
             return null;
         }
@@ -1161,7 +1172,12 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
 
     /** Whether the values of {@code json} are written as they are found. */
     private static boolean writtenAsFound(UnmappedFields unmappedFields, String json) throws IOException {
-        return unmappedFields.extract(new BytesArray(json), XContentType.JSON, false) != UnmappedFields.SPELLED_IN_TWO_WAYS;
+        return unmappedFields.extract(
+            new BytesArray(json),
+            XContentType.JSON,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        ) != UnmappedFields.SPELLED_IN_TWO_WAYS;
     }
 
     /** The values that {@code extracted} holds for each unmapped field, by path. Nothing in it may be an object, null or empty. */

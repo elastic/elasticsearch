@@ -127,23 +127,24 @@ public final class UnmappedFields {
      * object is walked like any array of objects.
      */
     @Nullable
-    BytesRef extract(BytesReference source, XContentType sourceType) throws IOException {
-        return extract(source, sourceType, Filter.ALL);
+    BytesRef extract(BytesReference source, XContentType sourceType, CircuitBreaker breaker) throws IOException {
+        return extract(source, sourceType, Filter.ALL, breaker);
     }
 
     /**
      * Returns the unmapped fields of the document {@code source} that {@code filter} includes, as {@link #extract(BytesReference,
-     * XContentType)} writes them, or {@code null} if it has none. An object or an array below which {@code filter} includes
-     * nothing is skipped without being parsed.
+     * XContentType, CircuitBreaker)} writes them, or {@code null} if it has none. An object or an array below which {@code filter}
+     * includes nothing is skipped without being parsed. The values that the walk holds are charged to {@code breaker}, with no
+     * reservation made for them: see {@link HeldValues}.
      */
     @Nullable
-    BytesRef extract(BytesReference source, XContentType sourceType, Filter filter) throws IOException {
-        return walk(source, sourceType, new Walk(Set.of(), filter, 0)).written();
+    BytesRef extract(BytesReference source, XContentType sourceType, Filter filter, CircuitBreaker breaker) throws IOException {
+        return walk(source, sourceType, new Walk(Set.of(), filter, 0), breaker, 0).written();
     }
 
     @Nullable
-    BytesRef extract(BytesReference source, XContentType sourceType, boolean holdAll) throws IOException {
-        return extract(source, sourceType, Filter.ALL, holdAll);
+    BytesRef extract(BytesReference source, XContentType sourceType, boolean holdAll, CircuitBreaker breaker) throws IOException {
+        return extract(source, sourceType, Filter.ALL, holdAll, breaker);
     }
 
     /**
@@ -152,12 +153,16 @@ public final class UnmappedFields {
      * @return {@link #SPELLED_IN_TWO_WAYS} if {@code holdAll} is {@code false} and the document may spell a field in two ways
      */
     @Nullable
-    BytesRef extract(BytesReference source, XContentType sourceType, Filter filter, boolean holdAll) throws IOException {
-        Found found = walk(source, sourceType, new Walk(Set.of(), filter, 0), holdAll, null, 0);
+    BytesRef extract(BytesReference source, XContentType sourceType, Filter filter, boolean holdAll, CircuitBreaker breaker)
+        throws IOException {
+        Found found = walk(source, sourceType, new Walk(Set.of(), filter, 0), holdAll, breaker, 0);
         return found == null ? SPELLED_IN_TWO_WAYS : found.written();
     }
 
-    /** What {@link #extract(BytesReference, XContentType, Filter, boolean)} returns for a document it has to hold the values of. */
+    /**
+     * What {@link #extract(BytesReference, XContentType, Filter, boolean, CircuitBreaker)} returns for a document it has to hold the
+     * values of.
+     */
     static final BytesRef SPELLED_IN_TWO_WAYS = new BytesRef();
 
     /**
@@ -201,7 +206,7 @@ public final class UnmappedFields {
 
     /**
      * What a walk found in a document: the unmapped fields its filter includes, as {@link #extract(BytesReference,
-     * XContentType)} writes them, and the values of each of its names, as text. The values of a name are in the order a
+     * XContentType, CircuitBreaker)} writes them, and the values of each of its names, as text. The values of a name are in the order a
      * lookup in {@code _source} parsed into a map finds them: where an object has several keys that lead to the name, those
      * of the keys with fewer dots come first, and the values of one key are in the order they are found.
      */
@@ -213,18 +218,15 @@ public final class UnmappedFields {
         }
     }
 
-    Found walk(BytesReference source, XContentType sourceType, Walk walk) throws IOException {
-        return walk(source, sourceType, walk, null, 0);
-    }
-
     /**
-     * {@link #walk(BytesReference, XContentType, Walk)}, charging the values that it holds to {@code breaker}, if there is one, as it
-     * holds them. See {@link HeldValues}.
+     * Walks {@code source}, charging the values that it holds to {@code breaker} as it holds them. See {@link HeldValues}. There is
+     * deliberately no walk without a breaker: what a walk holds is a multiple of the size of {@code _source}, so one that did not
+     * charge it could exhaust the heap. A test that has no breaker to charge passes a
+     * {@link org.elasticsearch.common.breaker.NoopCircuitBreaker}.
      *
      * @param allowance how many bytes of held values the reservation that the caller made already stands for
      */
-    Found walk(BytesReference source, XContentType sourceType, Walk walk, @Nullable CircuitBreaker breaker, long allowance)
-        throws IOException {
+    Found walk(BytesReference source, XContentType sourceType, Walk walk, CircuitBreaker breaker, long allowance) throws IOException {
         Found found = walk(source, sourceType, walk, false, breaker, allowance);
         return found == null ? walk(source, sourceType, walk, true, breaker, allowance) : found;
     }
@@ -235,14 +237,8 @@ public final class UnmappedFields {
      * @return {@code null} if {@code holdAll} is {@code false} and the document may spell a field in two ways
      */
     @Nullable
-    private Found walk(
-        BytesReference source,
-        XContentType sourceType,
-        Walk walk,
-        boolean holdAll,
-        @Nullable CircuitBreaker breaker,
-        long allowance
-    ) throws IOException {
+    private Found walk(BytesReference source, XContentType sourceType, Walk walk, boolean holdAll, CircuitBreaker breaker, long allowance)
+        throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, sourceType);
             XContentBuilder out = walk.filter == null ? null : XContentFactory.jsonBuilder();
@@ -647,21 +643,17 @@ public final class UnmappedFields {
         private static final long STEP = 64 * 1024;
         private static final String LABEL = "unmapped fields held values";
 
-        @Nullable
         private final CircuitBreaker breaker;
         private final long allowance;
         private long held;
         private long charged;
 
-        HeldValues(@Nullable CircuitBreaker breaker, long allowance) {
+        HeldValues(CircuitBreaker breaker, long allowance) {
             this.breaker = breaker;
             this.allowance = allowance;
         }
 
         void add(long bytes) {
-            if (breaker == null) {
-                return;
-            }
             held += bytes;
             long uncharged = held - allowance - charged;
             if (uncharged >= STEP) {

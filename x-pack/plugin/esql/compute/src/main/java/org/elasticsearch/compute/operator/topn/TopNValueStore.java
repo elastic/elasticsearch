@@ -29,11 +29,15 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -227,8 +231,13 @@ final class TopNValueStore implements Releasable {
         private long segmentBytes;
         @Nullable
         private DriverSpillOperation<FramedRun> sealing;
+        /** The writers whose finish is in flight, so that a close may abort them; the codec's completions remove them. */
+        private final Set<FramedRunWriter> sealingWriters = Collections.synchronizedSet(new HashSet<>());
         @Nullable
         private DriverSpillOperation<long[]> compacting;
+        /** The compaction in flight, so that a close may cancel it. */
+        @Nullable
+        private Compaction compaction;
         /** What a compaction in flight rewrites, in the order its new offsets come back. */
         @Nullable
         private List<TopNRow> compactingRows;
@@ -471,12 +480,15 @@ final class TopNValueStore implements Releasable {
             segmentBytes = 0;
             segmentRecords = 0;
             long sealStarted = System.nanoTime();
+            sealingWriters.add(finishing);
             sealing = DriverSpillOperation.issue(driverContext, "top-n value segment seal", l -> {
-                ActionListener<FramedRun> publish = ActionListener.runBefore(l, () -> spillNanos.addAndGet(System.nanoTime() - sealStarted))
-                    .map(run -> {
-                        finished.sealed(run);
-                        return run;
-                    });
+                ActionListener<FramedRun> publish = ActionListener.runBefore(l, () -> {
+                    sealingWriters.remove(finishing);
+                    spillNanos.addAndGet(System.nanoTime() - sealStarted);
+                }).map(run -> {
+                    finished.sealed(run);
+                    return run;
+                });
                 if (previous == null || previous.isDone()) {
                     finishing.finish(publish);
                 } else {
@@ -587,11 +599,13 @@ final class TopNValueStore implements Releasable {
             long start = System.nanoTime();
             compacting = DriverSpillOperation.issue(driverContext, "top-n value compaction", l -> {
                 ActionListener<long[]> timed = ActionListener.runBefore(l, () -> spillNanos.addAndGet(System.nanoTime() - start));
+                // created now, started once the seal has landed, so that a close meanwhile has something to cancel
+                Compaction task = new Compaction(rows, target, timed);
+                compaction = task;
                 if (awaited == null || awaited.isDone()) {
-                    new Compaction(rows, target, timed).start();
+                    task.start();
                 } else {
-                    awaited.completion()
-                        .addListener(timed.delegateFailureAndWrap((l2, ignored) -> new Compaction(rows, target, l2).start()));
+                    awaited.completion().addListener(timed.delegateFailureAndWrap((ignored1, ignored2) -> task.start()));
                 }
             });
         }
@@ -611,6 +625,7 @@ final class TopNValueStore implements Releasable {
             long[] pointers = compactingPointers;
             Segment target = compactingInto;
             compacting = null;
+            compaction = null;
             compactingRows = null;
             compactingPointers = null;
             compactingInto = null;
@@ -642,8 +657,10 @@ final class TopNValueStore implements Releasable {
         }
 
         /**
-         * Aborts what is active; the driver waits for the appends in flight before it completes, and the codec lets go
-         * of their values. A compaction in flight lands into retired segments: its target goes with the store.
+         * Aborts what is active, the writer and those whose seal is in flight alike, so that the codec drops their queued
+         * values rather than writing them out; the driver waits for the appends in flight before it completes, and the
+         * codec lets go of their values. A compaction in flight is cancelled: its target goes, and the rows keep their
+         * pointers, as after any failed compaction.
          */
         @Override
         public void close() {
@@ -655,6 +672,17 @@ final class TopNValueStore implements Releasable {
             if (writer != null) {
                 writer.abort(ActionListener.noop());
                 writer = null;
+            }
+            List<FramedRunWriter> finishing;
+            synchronized (sealingWriters) {
+                finishing = new ArrayList<>(sealingWriters);
+            }
+            for (FramedRunWriter sealingWriter : finishing) {
+                // idempotent, and a no-op on the backend once the finish has published: a seal that lands anyway is retired
+                sealingWriter.abort(ActionListener.noop());
+            }
+            if (compaction != null) {
+                compaction.cancel();
             }
         }
     }
@@ -670,9 +698,11 @@ final class TopNValueStore implements Releasable {
         private final ActionListener<long[]> listener;
         private final long[] offsets;
         private final AtomicInteger turns = new AtomicInteger();
-        private final AtomicBoolean failed = new AtomicBoolean();
+        /** Set by whichever outcome comes first, the publish or a failure, so that the listener hears exactly once. */
+        private final AtomicBoolean done = new AtomicBoolean();
         private final Object lock = new Object();
-        private FramedRunWriter into;
+        private volatile FramedRunWriter into;
+        private volatile boolean cancelled;
         private int next;
         private long queued;
         private boolean parked;
@@ -693,11 +723,27 @@ final class TopNValueStore implements Releasable {
                 scope.rootView(),
                 scope.codecExecutor(),
                 RUN_OPTIONS,
-                listener.delegateFailureAndWrap((l, writer) -> {
+                ActionListener.wrap(writer -> {
                     into = writer;
+                    if (cancelled) {
+                        // cancelled while the writer was being created: it goes before it takes a value
+                        fail(new TaskCancelledException("top-n value compaction into [" + target.name + "] cancelled"));
+                        return;
+                    }
                     advance();
-                })
+                }, this::fail)
             );
+        }
+
+        /**
+         * Fails the compaction and aborts its writer, from the lane's close; a writer still being created is aborted as
+         * soon as it lands. Safe to call once the compaction has finished, when it does nothing.
+         */
+        void cancel() {
+            cancelled = true;
+            if (into != null) {
+                fail(new TaskCancelledException("top-n value compaction into [" + target.name + "] cancelled"));
+            }
         }
 
         private void advance() {
@@ -710,7 +756,7 @@ final class TopNValueStore implements Releasable {
         }
 
         private void step() {
-            if (failed.get()) {
+            if (done.get()) {
                 return;
             }
             synchronized (lock) {
@@ -731,8 +777,12 @@ final class TopNValueStore implements Releasable {
             }
             if (finishing) {
                 into.finish(ActionListener.wrap(run -> {
+                    // the run is recorded either way, so that the segment's retirement deletes it; the listener hears
+                    // once, which a cancellation while the finish was in flight has already seen to
                     target.sealed(run);
-                    listener.onResponse(offsets);
+                    if (done.compareAndSet(false, true)) {
+                        listener.onResponse(offsets);
+                    }
                 }, this::fail));
                 return;
             }
@@ -777,7 +827,7 @@ final class TopNValueStore implements Releasable {
         }
 
         private void fail(Exception e) {
-            if (failed.compareAndSet(false, true) == false) {
+            if (done.compareAndSet(false, true) == false) {
                 return;
             }
             if (into != null) {

@@ -18,7 +18,11 @@ import java.util.concurrent.Executor;
 /**
  * The registry's scope factory: a scope from the settings snapshot of the moment and the store, or null when spilling is
  * off or there is no store, in which case the query runs on its pre-feature paths with the node's block factory. The
- * snapshot is read once, here, so a flip of the kill switch applies to queries started afterwards only.
+ * snapshot is read once per scope, here, when the first holder on this node creates it: turning the switch off never
+ * touches a scope that exists, so a query that spills keeps spilling. A null is not remembered by the registry, so
+ * turning the switch on may give a scope to a later compute of a query that started without one; that is harmless,
+ * since every holder of a lease is independent and does without one, as the nodes of a query may disagree anyway while
+ * a settings update reaches them.
  */
 public final class SpillScopes {
 

@@ -218,7 +218,14 @@ public final class ResponseValueUtils {
                 var to = ((DoubleRangeBlock) block).getDoubleToBlock().getDouble(offset);
                 return doubleRangeToString(from, to);
             };
-            case TDIGEST -> (block, offset, scratch) -> ((TDigestBlock) block).getTDigestHolder(offset, new TDigestHolder());
+            case TDIGEST -> (block, offset, scratch) -> {
+                // the holder the block fills points into the block's storage; the value handed out owns its bytes, like every
+                // other type's, since a walk over a spilled result releases a page once its rows are out
+                TDigestHolder view = ((TDigestBlock) block).getTDigestHolder(offset, new TDigestHolder());
+                TDigestHolder owned = new TDigestHolder();
+                owned.reset(BytesRef.deepCopyOf(view.getEncodedDigest()), view.getMin(), view.getMax(), view.getSum(), view.size());
+                return owned;
+            };
             case HISTOGRAM -> (block, offset, scratch) -> EsqlDataTypeConverter.histogramToString(
                 ((BytesRefBlock) block).getBytesRef(offset, scratch)
             );

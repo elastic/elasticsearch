@@ -231,10 +231,10 @@ public final class DiskSpillStore implements SpillStore {
     // ---- admission
 
     /**
-     * Admits {@code bytes} against the cap; they stay counted until {@link #unreserve}, or once written, until their
-     * file is {@link #deleted}. One counter for the reserved and the written alike, so that the check and the admission
-     * are a single compare-and-set: a counter per state let a stale read of one admit past the cap. Atomics only, since
-     * this runs on the caller's thread.
+     * Admits {@code bytes} against the cap; they stay counted until their file is {@link #deleted}, whether the write
+     * succeeded or failed part way, since a failed write may have left some of them on disk. One counter for the
+     * reserved and the written alike, so that the check and the admission are a single compare-and-set: a counter per
+     * state let a stale read of one admit past the cap. Atomics only, since this runs on the caller's thread.
      */
     void reserve(long bytes) throws SpillLimitExceededException {
         long cap = capBytes;
@@ -275,10 +275,6 @@ public final class DiskSpillStore implements SpillStore {
                     + "]"
             );
         }
-    }
-
-    void unreserve(long bytes) {
-        inUse.addAndGet(-bytes);
     }
 
     /**

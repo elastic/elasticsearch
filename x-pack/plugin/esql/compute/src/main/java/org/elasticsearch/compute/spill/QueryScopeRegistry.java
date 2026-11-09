@@ -38,7 +38,9 @@ public final class QueryScopeRegistry {
     }
 
     /**
-     * A lease on the query's scope, creating the scope if there is none, or null when spilling is off for the query.
+     * A lease on the query's scope, creating the scope if there is none, or null when spilling is off for the query. A
+     * null is not remembered: the next acquire for the query asks the factory again, which reads the settings of that
+     * moment.
      */
     @Nullable
     public QueryScope.Lease acquire(String queryId) {

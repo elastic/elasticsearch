@@ -26,10 +26,11 @@ import java.nio.file.Path;
 /**
  * One file, written sequentially with one append outstanding. The chunk is admitted against the cap before the I/O is
  * scheduled, the free-space margin is checked on the pool right before the write, the chunk is written page by page
- * from the engine's buffers without a copy, and its bytes stay counted until the file is gone; the backend's reference
- * to the chunk goes before the callback. A failure poisons the writer; abort deletes the file and returns everything,
- * and when it finds an append in flight it leaves the file to that append's completion, which removes it, so that no
- * byte stays counted for a file nobody tracks.
+ * from the engine's buffers without a copy, and its bytes stay counted until the file is gone, whether the write
+ * succeeded or failed part way through the chunk; the backend's reference to the chunk goes before the callback. A
+ * failure poisons the writer; abort deletes the file and returns everything, and when it finds an append in flight it
+ * leaves the file to that append's completion, which removes it, so that no byte stays counted for a file nobody
+ * tracks and no byte on disk goes uncounted.
  */
 final class DiskSpillWriter implements SpillWriter {
 
@@ -116,11 +117,14 @@ final class DiskSpillWriter implements SpillWriter {
 
             @Override
             public void onFailure(Exception e) {
-                scope.store().unreserve(length);
+                // the write may have failed part way, so the chunk's bytes stay counted as the file's, in full rather than
+                // by what the channel reports, until the file is gone: an over-count of at most one chunk, for a file that
+                // the writer's failure has the framed writer remove right away
                 final boolean aborted;
                 final long size;
                 synchronized (DiskSpillWriter.this) {
                     outstanding = false;
+                    written += length;
                     aborted = state == State.ABORTED;
                     if (aborted) {
                         size = written;
@@ -132,9 +136,10 @@ final class DiskSpillWriter implements SpillWriter {
                         }
                     }
                 }
+                scope.addBytes(length);
                 if (aborted) {
-                    // the chunk's bytes are returned above; the file goes with whatever the failed write left in it.
-                    // This runs on the I/O pool, except after a rejection, when the cleanup is the one small thing left
+                    // the abort found this append in flight and left the file to it, with whatever the failed write left
+                    // in it. This runs on the I/O pool, except after a rejection, when the cleanup is the one small thing left
                     removeFile(size);
                 }
                 listener.onFailure(e);

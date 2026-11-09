@@ -175,6 +175,96 @@ public class TopNValueStoreTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * A lane closed with values queued for the codec, before or after its seal was requested, aborts the writer: the
+     * queued work is dropped, the values are released and the driver has nothing left to wait for. The codec's drain
+     * is held in a queue and run only afterwards, when it finds nothing to do.
+     */
+    public void testCloseAbortsTheWriterBeforeAndAfterTheSeal() throws Exception {
+        boolean sealFirst = randomBoolean();
+        MemorySpillStore store = newStore();
+        try {
+            ArrayDeque<Runnable> codec = new ArrayDeque<>();
+            DriverContext ctx = spillingDriverContext(ByteSizeValue.ofBytes(1), 0, store, codec::add);
+            TopNValueStore values = new TopNValueStore(ctx, ctx.queryScope(), "test-values");
+            TopNValueStore.Lane lane = values.newLane();
+            TopNRow row = new TopNRow(ctx.breaker(), 0, 1024);
+            try {
+                lane.acquire();
+                assertTrue("the writer lands inline", lane.ready());
+                append(lane, row, randomByteArrayOfLength(1024));
+                assertThat("one drain is queued", codec.size(), equalTo(1));
+                if (sealFirst) {
+                    lane.sealForGood();
+                }
+                lane.close();
+                PlainActionFuture<Void> drained = new PlainActionFuture<>();
+                ctx.waitForAsyncActions(drained);
+                ctx.finish();
+                assertTrue("the close aborted the queued work, seal first [" + sealFirst + "]", drained.isDone());
+                codec.removeFirst().run();
+                assertTrue(codec.isEmpty());
+            } finally {
+                Releasables.close(row, lane, values);
+            }
+        } finally {
+            closeSpillingScopes();
+            shutdown(store);
+        }
+    }
+
+    /**
+     * A lane closed with a compaction in flight cancels it, whether its writer is still waiting for the seal before it
+     * or has values queued already: the target is aborted and the driver has nothing left to wait for.
+     */
+    public void testCloseCancelsACompactionInFlight() throws Exception {
+        boolean started = randomBoolean();
+        MemorySpillStore store = newStore();
+        try {
+            ArrayDeque<Runnable> codec = new ArrayDeque<>();
+            DriverContext ctx = spillingDriverContext(ByteSizeValue.ofBytes(1), 0, store, codec::add);
+            TopNValueStore values = new TopNValueStore(ctx, ctx.queryScope(), "test-values");
+            TopNValueStore.Lane lane = values.newLane();
+            List<TopNRow> rows = new ArrayList<>();
+            try {
+                lane.acquire();
+                assertTrue("the writer lands inline", lane.ready());
+                for (int i = 0; i < between(2, 10); i++) {
+                    TopNRow row = new TopNRow(ctx.breaker(), 0, 100);
+                    rows.add(row);
+                    append(lane, row, randomByteArrayOfLength(100));
+                }
+                while (codec.isEmpty() == false) {
+                    codec.removeFirst().run();
+                }
+                assertTrue("the appends landed", lane.quiescent());
+                lane.compact(rows);
+                assertTrue(lane.compacting());
+                assertThat("the seal's drain is queued", codec.size(), equalTo(1));
+                if (started) {
+                    // the seal lands and the compaction starts reading values into its writer, whose drain queues up
+                    codec.removeFirst().run();
+                    assertThat("the compaction's drain is queued", codec.size(), equalTo(1));
+                }
+                lane.close();
+                PlainActionFuture<Void> drained = new PlainActionFuture<>();
+                ctx.waitForAsyncActions(drained);
+                ctx.finish();
+                assertTrue("the close cancelled the compaction, started [" + started + "]", drained.isDone());
+                assertThat(lane.finishCompaction(), equalTo(false));
+                while (codec.isEmpty() == false) {
+                    codec.removeFirst().run();
+                }
+            } finally {
+                Releasables.close(rows);
+                Releasables.close(lane, values);
+            }
+        } finally {
+            closeSpillingScopes();
+            shutdown(store);
+        }
+    }
+
     private static void append(TopNValueStore.Lane lane, TopNRow row, byte[] bytes) {
         row.values.append(bytes, 0, bytes.length);
         lane.append(row, row.values);

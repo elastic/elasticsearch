@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -49,6 +50,7 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
@@ -329,6 +331,91 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
             Thread.onSpinWait();
         }
         asyncActionsDone.get();
+    }
+
+    /**
+     * A split that spills hands its generation to the write before it clears the worker's batch: the replacement
+     * aggregators the clear builds may trip the breaker, and a generation nobody owns by then would keep its charge on
+     * the request breaker for good.
+     */
+    public void testASplitWhoseClearTripsTheBreakerLeaksNothing() throws Exception {
+        MemorySpillStore store = newStore(MemorySpillStore.Completion.INLINE);
+        DriverContext driverContext = spillingDriverContext(ByteSizeValue.ofBytes(1), 0, store, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        GroupingAggregator.Factory sum = new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(
+            AggregatorMode.SINGLE,
+            List.of(1)
+        );
+        AtomicBoolean failReplacement = new AtomicBoolean();
+        // what a state's initial allocation does under pressure, at the one point of the split where it can: the clear
+        GroupingAggregator.Factory factory = new GroupingAggregator.Factory() {
+            @Override
+            public GroupingAggregator apply(DriverContext context) {
+                if (failReplacement.get()) {
+                    throw new CircuitBreakingException("replacement aggregator", CircuitBreaker.Durability.TRANSIENT);
+                }
+                return sum.apply(context);
+            }
+
+            @Override
+            public String describe() {
+                return sum.describe();
+            }
+        };
+        var config = new HashAggregationOperator.ParallelConfig(EsExecutors.DIRECT_EXECUTOR_SERVICE, 1, 1, 1024);
+        var groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
+        HashAggregationOperator op = new HashAggregationOperator(
+            AggregatorMode.SINGLE,
+            List.of(factory),
+            dc -> BlockHash.build(groupSpecs, dc.blockFactory(), 128, false),
+            1024,
+            0.5,
+            1024,
+            null,
+            driverContext,
+            config,
+            false
+        );
+        PartitionedHashAggregations registry = new PartitionedHashAggregations(
+            driverContext.blockFactory().parent().breaker(),
+            driverContext.queryScope(),
+            driverContext,
+            op.spawnWorker(),
+            1,
+            new PartitionedHashAggregations.Events() {
+                @Override
+                public void generationPublished() {}
+
+                @Override
+                public void restoreLanded() {}
+
+                @Override
+                public void failed(Exception e) {
+                    throw new AssertionError(e);
+                }
+            }
+        );
+        try {
+            int rows = between(100, 1000);
+            try (
+                var keys = driverContext.blockFactory().newLongBlockBuilder(rows);
+                var values = driverContext.blockFactory().newIntBlockBuilder(rows)
+            ) {
+                for (int i = 0; i < rows; i++) {
+                    keys.appendLong(i);
+                    values.appendInt(i);
+                }
+                op.addInput(new Page(keys.build(), values.build()));
+            }
+            failReplacement.set(true);
+            expectThrows(CircuitBreakingException.class, () -> registry.split(driverContext.breaker(), op));
+            assertThat("the generation was written before the clear failed", registry.spillStatus().spillRuns(), equalTo(1));
+        } finally {
+            registry.close();
+            op.close();
+            driverContext.finish();
+        }
+        closeSpillingScopes();
+        assertThat("the query holds nothing once closed", driverContext.queryScope().breaker().used(), equalTo(0L));
     }
 
     private HashAggregationOperator.ParallelConfig spillingConfig() {

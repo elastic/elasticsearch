@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.spill.disk;
 
+import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -34,8 +35,11 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -58,7 +62,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * What only a disk can show: the startup sweep, the path validation, a rejecting pool, a file that vanishes or is cut
- * under a reader, an abort that meets an append in flight, the cap raced by several scopes and the ledger behind it, a
+ * under a reader, an abort that meets an append in flight, a write that fails part way through its chunk, the cap raced
+ * by several scopes and the ledger behind it, a
  * lowered cap, a delete that fails and is retried, cancellation of a queued write, a closing scope succeeded by one
  * with its id, and the shutdown. The entitlement policy is not exercised here: the test framework resolves neither a
  * data directory nor the path setting for it, so only a real node checks the grants.
@@ -371,6 +376,49 @@ public class DiskSpillStoreSpecificTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * A write that fails part way, a short write before a full volume say, leaves a prefix of the chunk on disk: those
+     * bytes stay counted until the file is gone, so the cap never admits past what is physically held.
+     */
+    public void testAnAppendThatFailsPartWayKeepsItsBytesCountedUntilTheFileGoes() throws Exception {
+        DiskSpillStore store = store(createTempDir(), 1 << 20);
+        DiskSpillScope scope = (DiskSpillScope) store.newScope("q", breaker);
+        Files.createDirectories(scope.directory());
+        Path path = scope.directory().resolve("partial.run");
+        int partial = between(1, 255);
+        FileChannel channel = new FilterFileChannel(FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            private boolean wrote;
+
+            @Override
+            public int write(ByteBuffer source) throws IOException {
+                if (wrote) {
+                    throw new IOException("injected failure after a short write");
+                }
+                wrote = true;
+                int limit = source.limit();
+                source.limit(source.position() + partial);
+                try {
+                    return super.write(source);
+                } finally {
+                    source.limit(limit);
+                }
+            }
+        };
+        DiskSpillWriter writer = new DiskSpillWriter(scope, path, "partial", channel);
+        int length = between(256, 1000);
+        try (ReleasableBytesReference chunk = chunk(length)) {
+            Throwable e = this.<Void>awaitFailure(l -> writer.append(chunk, l));
+            assertThat(e, instanceOf(IOException.class));
+        }
+        assertThat("a prefix of the chunk is on disk", Files.size(path), equalTo((long) partial));
+        assertThat("the whole chunk stays counted while the file exists", store.bytesInUse(), equalTo((long) length));
+        await(writer::abort);
+        assertFalse("the file is gone", Files.exists(path));
+        assertThat("and its bytes with it", store.bytesInUse(), equalTo(0L));
+        await(scope::close);
+        await(store::shutdown);
+    }
+
     public void testTheCapIsNeverExceededByRacingScopes() throws Exception {
         long cap = between(2000, 20_000);
         DiskSpillStore store = store(createTempDir(), cap);
@@ -432,8 +480,8 @@ public class DiskSpillStoreSpecificTests extends ComputeTestCase {
     }
 
     /**
-     * The store's ledger, one counter from admission to deletion: what an append reserves is what its failure, or the
-     * deletion of its file, returns.
+     * The store's ledger, one counter from admission to deletion: what an append reserves is what the deletion of its
+     * file returns, and nothing else does.
      */
     public void testAdmissionIsExactAcrossReserveAndRelease() {
         DiskSpillStore store = store(createTempDir(), 200);
@@ -442,10 +490,10 @@ public class DiskSpillStoreSpecificTests extends ComputeTestCase {
         assertThat(store.bytesInUse(), equalTo(200L));
         SpillLimitExceededException e = expectThrows(SpillLimitExceededException.class, () -> store.reserve(1));
         assertThat(e.limitBytes(), equalTo(200L));
-        store.unreserve(100);
-        assertThat("a failed append returns its reservation", store.bytesInUse(), equalTo(100L));
         store.deleted(store.root().resolve("gone"), 100, null);
-        assertThat("a deleted file returns what went into it", store.bytesInUse(), equalTo(0L));
+        assertThat("a deleted file returns what went into it", store.bytesInUse(), equalTo(100L));
+        store.deleted(store.root().resolve("gone-too"), 100, null);
+        assertThat(store.bytesInUse(), equalTo(0L));
         await(store::shutdown);
     }
 
@@ -475,12 +523,8 @@ public class DiskSpillStoreSpecificTests extends ComputeTestCase {
                         }
                         admitted.incrementAndGet();
                         assertThat(store.bytesInUse(), lessThanOrEqualTo(cap));
-                        // the two ways bytes come back: an append that failed, and a file that is gone
-                        if (i % 2 == 0) {
-                            store.unreserve(100);
-                        } else {
-                            store.deleted(gone, 100, null);
-                        }
+                        // the one way bytes come back: a file that is gone
+                        store.deleted(gone, 100, null);
                     }
                 } catch (Throwable e) {
                     // reported on the test thread, where an assertion counts
@@ -570,8 +614,9 @@ public class DiskSpillStoreSpecificTests extends ComputeTestCase {
                 Exception e = expectThrows(Exception.class, () -> appended.actionGet(30, TimeUnit.SECONDS));
                 assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(TaskCancelledException.class));
             }
-            assertThat("a cancelled append reserved nothing", store.bytesInUse(), equalTo(0L));
+            assertThat("a failed append's bytes stay counted until its file goes", store.bytesInUse(), equalTo(100L));
             await(scope::close);
+            assertThat("the close removed the file", store.bytesInUse(), equalTo(0L));
             await(store::shutdown);
         } finally {
             ThreadPool.terminate(single, 10, TimeUnit.SECONDS);

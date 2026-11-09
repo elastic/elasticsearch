@@ -224,8 +224,10 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
         if (spill != null && spill.shouldSpill(0)) {
             // charged to the root view, so that the codec pool may release the arrays as it serializes them
             PartitionedKeyAndAggs partitioned = splitKeysAndAggs(spill.scope.rootView(), op);
-            op.clearCurrentBatch();
+            // handed over before the batch is cleared, as the resident path registers first: the replacement aggregators
+            // the clear builds may trip the breaker, and a generation nobody owns by then would keep its charge for good
             spill.write(partitioned, spill.scope.rootView(), false);
+            op.clearCurrentBatch();
             return;
         }
         MeteredBreaker metered = new MeteredBreaker(breaker);

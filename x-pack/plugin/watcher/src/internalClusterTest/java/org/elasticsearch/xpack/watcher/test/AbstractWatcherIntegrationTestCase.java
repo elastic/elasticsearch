@@ -343,19 +343,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected void assertWatchWithMinimumPerformedActionsCount(final String watchName, final long minimumExpectedWatchActionsPerformed) {
-        var coordinator = internalCluster().getRandomNodeName();
-        awaitWatcherIndicesCreated(coordinator);
-
-        boolean success = waitUntil(() -> {
-            SearchResponse searchResponse = executedStateSearch(coordinator, watchName);
-            try {
-                return searchResponse.getHits().getTotalHits().value() >= minimumExpectedWatchActionsPerformed;
-            } finally {
-                searchResponse.decRef();
-            }
-        });
-
-        assertTrue("Failed to find " + minimumExpectedWatchActionsPerformed + " executed actions for watch " + watchName, success);
+        searchHistoryForExecutedWatch(watchName, minimumExpectedWatchActionsPerformed).decRef();
     }
 
     protected SearchResponse searchHistoryForExecutedWatch(final String watchName, final long minimumExpectedWatchActionsPerformed) {

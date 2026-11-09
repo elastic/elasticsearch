@@ -18,12 +18,14 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -34,6 +36,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -359,6 +362,76 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         // Out-of-order with v2 duplicated — sorted-deduped output would collapse the run.
         String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
         assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
+    }
+
+    /**
+     * With the ColumNAR numeric codec, a document's values go into one payload in the order they were written, nulls
+     * included, and no {@code .offsets} companion is written. A strict columnar index doesn't record an empty array for any
+     * field, so it writes no payload.
+     */
+    public void testColumnarCodecPayloadKeepsArrayOrder() throws IOException {
+        assumeTrue("behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createMapperService(
+            columnarNumericCodecSettings(),
+            mapping(b -> b.startObject("field").field("type", "long").endObject())
+        ).documentMapper();
+        assertEquals(
+            NumberFieldMapper.DocValuesDiskFormat.COLUMNAR,
+            ((NumberFieldMapper.NumberFieldType) mapper.mappers().getFieldType("field")).diskFormat()
+        );
+
+        long v1 = randomLong();
+        long v2 = randomLong();
+        assertEquals(Arrays.asList(v2, null, v1, v2), payloadSlots(mapper.parse(source(b -> b.array("field", v2, null, v1, v2)))));
+        assertEquals(Arrays.asList((Long) null), payloadSlots(mapper.parse(source(b -> b.startArray("field").nullValue().endArray()))));
+        assertNull(payloadSlots(mapper.parse(source(b -> b.startArray("field").endArray()))));
+        assertEquals(List.of(v1), payloadSlots(mapper.parse(source(b -> b.field("field", v1)))));
+        assertNull(payloadSlots(mapper.parse(source(b -> b.nullField("field")))));
+    }
+
+    /**
+     * Synthetic source reads the payload back as it was written. This test's index doesn't use the ColumNAR codec, which
+     * drops null slots for now, so the nulls come back too.
+     */
+    public void testColumnarCodecSyntheticSourceKeepsArrayOrder() throws IOException {
+        assumeTrue("behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createMapperService(
+            columnarNumericCodecSettings(),
+            mapping(b -> b.startObject("field").field("type", "long").endObject())
+        ).documentMapper();
+        long v1 = randomLong();
+        long v2 = randomLong();
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", v2, null, v1, v2)),
+            containsString("[" + v2 + ",null," + v1 + "," + v2 + "]")
+        );
+        assertThat(syntheticSource(mapper, b -> b.startArray("field").nullValue().endArray()), containsString("\"field\":[null]"));
+        assertThat(syntheticSource(mapper, b -> b.field("field", v1)), containsString("\"field\":" + v1));
+    }
+
+    private static Settings columnarNumericCodecSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey(), true)
+            .build();
+    }
+
+    /** The slots of the document's {@code field} payload, or {@code null} if it has none. */
+    private static List<Long> payloadSlots(ParsedDocument doc) throws IOException {
+        assertNull("no offsets companion", doc.rootDoc().getField(FieldArrayContext.offsetsFieldName("field")));
+        final List<IndexableField> fields = doc.rootDoc().getFields("field");
+        if (fields.isEmpty()) {
+            return null;
+        }
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.BINARY, fields.get(0).fieldType().docValuesType());
+        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
+        final int slotCount = decoder.reset(fields.get(0).binaryValue());
+        final List<Long> slots = new ArrayList<>(slotCount);
+        for (int i = 0; i < slotCount; i++) {
+            slots.add(decoder.nextIsNull() ? null : decoder.nextValue());
+        }
+        return slots;
     }
 
 }

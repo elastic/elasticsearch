@@ -35,11 +35,29 @@ public class DocValuesFieldFactory {
     private final boolean multiValue;
     private final boolean hasSkipper;
     private final IndexVersion indexVersion;
+    private final boolean columnarNumeric;
 
     public DocValuesFieldFactory(boolean multiValue, boolean hasSkipper, IndexVersion indexVersion) {
+        this(multiValue, hasSkipper, indexVersion, false);
+    }
+
+    /**
+     * @param columnarNumeric whether numeric doc values are written for the ColumNAR codec, see {@link #addNumericField}
+     */
+    public DocValuesFieldFactory(boolean multiValue, boolean hasSkipper, IndexVersion indexVersion, boolean columnarNumeric) {
+        assert columnarNumeric == false || hasSkipper == false : "ColumNAR numeric doc values are binary and can't carry a skipper";
         this.multiValue = multiValue;
         this.hasSkipper = hasSkipper;
         this.indexVersion = indexVersion;
+        this.columnarNumeric = columnarNumeric;
+    }
+
+    /**
+     * Whether numeric doc values are written as a {@link ColumnarNumericDocValuesField} payload for the ColumNAR codec
+     * rather than as {@code SORTED_NUMERIC}.
+     */
+    public boolean isColumnarNumeric() {
+        return columnarNumeric;
     }
 
     /**
@@ -54,9 +72,17 @@ public class DocValuesFieldFactory {
      * Adds a numeric doc values field as {@link SortedNumericDocValuesField}. Always uses the multi-valued Lucene type
      * regardless of the {@code multi_value} setting, so that index-sort ({@code SortedNumericSortField}) works correctly
      * at segment-merge time for {@code multi_value=false} fields.
+     *
+     * <p>A {@link #isColumnarNumeric() ColumNAR} field instead appends the value to the document's
+     * {@link ColumnarNumericDocValuesField} payload, in the order the values arrive. Such a field is never an index
+     * sort field.
      */
     public void addNumericField(LuceneDocument doc, String name, long value) {
-        doc.add(hasSkipper ? SortedNumericDocValuesField.indexedField(name, value) : new SortedNumericDocValuesField(name, value));
+        if (columnarNumeric) {
+            ColumnarNumericDocValuesField.recordValue(doc, name, value);
+        } else {
+            doc.add(hasSkipper ? SortedNumericDocValuesField.indexedField(name, value) : new SortedNumericDocValuesField(name, value));
+        }
     }
 
     /**

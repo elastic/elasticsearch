@@ -83,6 +83,27 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         return NumericBinaryPayload.encode(values, (int) count, payload);
     }
 
+    /** Whether every document in the column holds exactly one value. */
+    public boolean isSingleValued() {
+        return singleValued;
+    }
+
+    /** Whether every document in the segment has a value. */
+    public boolean isDense() {
+        return reader.numDocsWithField() == maxDoc;
+    }
+
+    /** The number of values the current document holds; at least one. */
+    public int docValueCount() {
+        return (int) reader.valueCount(iterator.rank());
+    }
+
+    /** The current document's {@code index}-th value, in the order the values were written. */
+    public long valueAt(int index) throws IOException {
+        assert index >= 0 && index < docValueCount() : "value " + index + " of a document holding " + docValueCount();
+        return reader.valueAt(reader.firstValueAddress(iterator.rank()) + index);
+    }
+
     @Override
     public boolean advanceExact(int target) throws IOException {
         return iterator.advanceExact(target);
@@ -482,10 +503,21 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
                 return binary.cost();
             }
 
+            /**
+             * Lands on {@code doc} or the first document after it that has a value. A document holding only null slots, or an
+             * empty array, is skipped: the column records a document as present by the values it holds, and one with none
+             * would read as a single-valued column's value.
+             */
+            // TODO: keep null slots and empty arrays in the column. Until then they are dropped here, so a document reads
+            // back with only its non-null values, in order, and one with none reads back as missing the field.
             private int position(int doc) throws IOException {
-                if (doc != DocIdSetIterator.NO_MORE_DOCS) {
+                while (doc != DocIdSetIterator.NO_MORE_DOCS) {
                     count = NumericBinaryPayload.decode(binary.binaryValue(), buffer);
                     upto = 0;
+                    if (count > 0) {
+                        break;
+                    }
+                    doc = binary.nextDoc();
                 }
                 return doc;
             }

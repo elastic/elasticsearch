@@ -14,7 +14,11 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
+import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
+import org.elasticsearch.columnar.numeric.NumericPipelineTemplate;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.util.BigArrays;
@@ -111,7 +115,7 @@ public class PerFieldFormatSupplier {
     private final DocValuesFormat tsdbDocValuesFormat;
     @Nullable
     private final DocValuesFormat idRandomAccessDocValuesFormat;
-    private final DocValuesFormat stringColumnarDocValuesFormat;
+    private final DocValuesFormat columnarDocValuesFormat;
 
     @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
@@ -131,11 +135,16 @@ public class PerFieldFormatSupplier {
             && mapperService.getIndexSettings().getMode() == IndexMode.VECTORDB_COLUMNAR
                 ? ES819Version3TSDBDocValuesFormat.forRandomAccessColumn()
                 : null;
-        // Built per supplier for the same reason the TSDB format is: the options it writes a string column
-        // with are resolved against this index's mapping, so the format cannot be shared between indices.
-        this.stringColumnarDocValuesFormat = mapperService == null
+        // Built per supplier for the same reason the TSDB format is: how it writes each column is resolved
+        // against this index's mapping, so the format cannot be shared between indices.
+        this.columnarDocValuesFormat = mapperService == null
             ? null
-            : ColumnarDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveStringColumnOptions);
+            : ColumnarDocValuesFormatSelector.select(
+                mapperService.getIndexSettings(),
+                this::resolveColumnarFieldType,
+                this::resolveNumericPipeline,
+                this::resolveStringColumnOptions
+            );
         var bloomFilterSettings = mapperService == null ? null : mapperService.getIndexSettings().syntheticIdBloomFilterSettings();
         this.idBloomFilterDocValuesFormat = bloomFilterSettings == null
             ? new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME) // fallback to the defaults if no settings are present
@@ -266,8 +275,8 @@ public class PerFieldFormatSupplier {
             return idBloomFilterDocValuesFormat;
         }
 
-        if (stringColumnarDocValuesFormat != null && columnarStringOptionsOf(field) != null) {
-            return stringColumnarDocValuesFormat;
+        if (columnarDocValuesFormat != null && (columnarStringOptionsOf(field) != null || columnarNumericTypeOf(field) != null)) {
+            return columnarDocValuesFormat;
         }
 
         if (useTSDBDocValuesFormat(field)) {
@@ -299,6 +308,53 @@ public class PerFieldFormatSupplier {
             }
         }
         return null;
+    }
+
+    /**
+     * The kind of numeric column the named field is written as, or {@code null} when the ColumNAR codec doesn't
+     * store it as one. Only {@link NumberFieldMapper} fields are stored as numeric columns.
+     */
+    @Nullable
+    ColumnarFieldType columnarNumericTypeOf(final String field) {
+        return mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper numberFieldMapper
+            ? numberFieldMapper.columnarNumericType()
+            : null;
+    }
+
+    /**
+     * The kind of column a field routed to the ColumNAR codec is written as, asked by the codec at write and merge. A
+     * field the codec doesn't store is never asked, and asking about one fails rather than guessing.
+     */
+    ColumnarFieldType resolveColumnarFieldType(final FieldInfo fieldInfo) {
+        final String field = fieldInfo.getName();
+        if (columnarStringOptionsOf(field) != null) {
+            return ColumnarFieldType.STRING;
+        }
+        final ColumnarFieldType numericType = columnarNumericTypeOf(field);
+        if (numericType == null) {
+            throw new IllegalStateException("field [" + field + "] is written by the ColumNAR codec but its mapper has no column type");
+        }
+        return numericType;
+    }
+
+    /**
+     * The pipeline a numeric column is encoded with, following the rules {@code StaticPipelineConfigResolver} applies
+     * for ES95: {@code @timestamp} and counters, which mostly rise, take the split-delta pipeline, and everything else
+     * the baseline.
+     */
+    NumericPipelineTemplate resolveNumericPipeline(final String field, final ColumnarFieldType type) {
+        return switch (type) {
+            case LONG -> {
+                final boolean counter = mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper numberFieldMapper
+                    && numberFieldMapper.fieldType().getMetricType() == TimeSeriesParams.MetricType.COUNTER;
+                yield DataStream.TIMESTAMP_FIELD_NAME.equals(field) || counter
+                    ? NumericPipeline::monotonicLongPipeline
+                    : NumericPipeline::defaultPipeline;
+            }
+            // TODO: choose ALP pipelines for double gauges and counters once doubles are stored here.
+            case DOUBLE -> NumericPipeline::defaultPipeline;
+            case STRING -> throw new IllegalStateException("field [" + field + "] is a string column, not a numeric one");
+        };
     }
 
     /**

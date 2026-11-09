@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.querydsl.query;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -220,9 +222,9 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                NumericDocValues ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                NumericDocValues ndv = sortedNumericSingleton(context.reader(), fieldData.getFieldName());
                 if (ndv != null && ndv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                    ndv = sortedNumericSingleton(context.reader(), fieldData.getFieldName());
                     return new DocIdSetIteratorScorerSupplier(boost, scoreMode, ndv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
@@ -313,7 +315,7 @@ public final class SingleValueMatchQuery extends Query {
             final int maxDoc = reader.maxDoc();
             final LeafFieldData lfd = fieldData.load(context);
             if (lfd instanceof LeafNumericFieldData) {
-                NumericDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, fieldData.getFieldName()));
+                NumericDocValues singleton = sortedNumericSingleton(reader, fieldData.getFieldName());
                 if (singleton != null) {
                     singleton.nextDoc();
                     if (singleton.docIDRunEnd() == maxDoc) {
@@ -401,6 +403,20 @@ public final class SingleValueMatchQuery extends Query {
 
     private void registerMultiValueException() {
         warningsTarget.registerException(this, IllegalArgumentException.class, multiValueExceptionMessage);
+    }
+
+    /**
+     * A numeric field's doc values as a singleton, or {@code null} when they hold more than one value for some document or
+     * aren't {@code SORTED_NUMERIC} at all, as for a numeric field the ColumNAR codec stores as binary doc values. Those are
+     * checked a document at a time through their field data instead.
+     */
+    @Nullable
+    private static NumericDocValues sortedNumericSingleton(LeafReader reader, String fieldName) throws IOException {
+        final FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(fieldName);
+        if (fieldInfo != null && fieldInfo.getDocValuesType() != DocValuesType.SORTED_NUMERIC) {
+            return null;
+        }
+        return DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, fieldName));
     }
 
     static DocIdSetIterator getApproximationIterator(LeafReader reader, String fieldName, int maxDoc) throws IOException {

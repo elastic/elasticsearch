@@ -48,8 +48,9 @@ doc id → rank.
 Every field is a `BinaryDocValues` field whose `ColumnarFieldType` the integration supplies through an
 injected `ColumnarFieldTypeSelector` (and which is re-read from the column metadata at read time):
 
-- **`LONG` / `DOUBLE`** — packed as a `NumericBinaryPayload` and stored on the adaptive long column
-  (a double arrives as a sortable long). Read back through:
+- **`LONG` / `DOUBLE`** — packed as a `NumericBinaryPayload` (a document's slots in array order, nulls
+  included) and stored on the adaptive long column (a double arrives as a sortable long). Null slots and
+  empty arrays are dropped on the way in for now. Read back through:
   - `ColumnarNumericRangeQuery` — a self-contained Lucene range query, vectorized and skipper-aware;
   - `ColumnarNumericBinaryDocValues.bulkLongs` — column-at-a-time reads for aggregation/block loading;
   - `binaryValue()` — re-emits the payload for a classic binary consumer.

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.querylog;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.activity.QueryLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
@@ -29,20 +29,20 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class EsqlLogContext extends QueryLoggerContext {
+public class EsqlCaptureContext extends QueryCaptureContext {
     public static final String TYPE = "esql";
     private final EsqlQueryRequest request;
     private final @Nullable EsqlQueryResponse response;
     // Cached index names
     private String[] indexNames = null;
 
-    EsqlLogContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
+    EsqlCaptureContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
         super(task, queryType(request), response.getExecutionInfo().overallTook().nanos());
         this.request = request;
         this.response = response;
     }
 
-    EsqlLogContext(Task task, EsqlQueryRequest request, long tookInNanos, Exception error) {
+    EsqlCaptureContext(Task task, EsqlQueryRequest request, long tookInNanos, Exception error) {
         super(task, queryType(request), tookInNanos, error);
         this.request = request;
         this.response = null;
@@ -53,7 +53,7 @@ public class EsqlLogContext extends QueryLoggerContext {
      * that never build an {@link EsqlQueryResponse}); all response-derived accessors return their
      * null-/empty defaults until overridden by the subclass.
      */
-    protected EsqlLogContext(Task task, EsqlQueryRequest request, long tookInNanos) {
+    protected EsqlCaptureContext(Task task, EsqlQueryRequest request, long tookInNanos) {
         super(task, queryType(request), tookInNanos);
         this.request = request;
         this.response = null;
@@ -72,7 +72,7 @@ public class EsqlLogContext extends QueryLoggerContext {
     }
 
     public Optional<ShardInfo> shardInfo() {
-        return Optional.ofNullable(response).map(EsqlQueryResponse::getExecutionInfo).map(EsqlLogContext::getShardInfo);
+        return Optional.ofNullable(response).map(EsqlQueryResponse::getExecutionInfo).map(EsqlCaptureContext::getShardInfo);
     }
 
     static ShardInfo getShardInfo(EsqlExecutionInfo info) {

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.logging;
 
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.logging.activity.QueryLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -23,18 +23,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class EqlLogContext extends QueryLoggerContext {
+public class EqlCaptureContext extends QueryCaptureContext {
     public static final String TYPE = "eql";
     private final EqlSearchRequest request;
     private final EqlSearchResponse response;
 
-    EqlLogContext(Task task, EqlSearchRequest request, EqlSearchResponse response) {
+    EqlCaptureContext(Task task, EqlSearchRequest request, EqlSearchResponse response) {
         super(task, TYPE, TimeUnit.MILLISECONDS.toNanos(response.took()));
         this.request = request;
         this.response = response;
     }
 
-    EqlLogContext(Task task, EqlSearchRequest request, long tookInNanos, Exception error) {
+    EqlCaptureContext(Task task, EqlSearchRequest request, long tookInNanos, Exception error) {
         super(task, TYPE, tookInNanos, error);
         this.request = request;
         this.response = null;

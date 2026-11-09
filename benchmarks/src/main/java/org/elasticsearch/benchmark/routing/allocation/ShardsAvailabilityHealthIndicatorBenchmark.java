@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -145,7 +146,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
                     RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                     decidersNoUnassignedInfo,
                     ShardRouting.Role.DEFAULT,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                    RecoveryPriority.UNASSIGNED_UNEXPECTED
                 );
                 shardBuilder.addShard(shardRouting);
                 if (shardIdNumber < numReplicas) {
@@ -156,7 +157,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
                             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                             decidersNoUnassignedInfo,
                             ShardRouting.Role.DEFAULT,
-                            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                            RecoveryPriority.UNASSIGNED_UNEXPECTED
                         )
                     );
                 }

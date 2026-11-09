@@ -35,6 +35,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.parseObjects;
+import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.ANTHROPIC_CLAUDE_V1_FORMAT;
 
 /**
  * Chat Completions Streaming Processor for Anthropic provider.
@@ -114,7 +115,6 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     // Other constants
     private static final String OBJECT_VALUE = "chat.completion.chunk";
     private static final String FUNCTION_TYPE = "function";
-    private static final String ANTHROPIC_CLAUDE_V1_FORMAT = "anthropic-claude-v1";
 
     // Per-stream state
     private String id;

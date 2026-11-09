@@ -1,6 +1,6 @@
 changes_of_double_ts
 required_capability: ts_command_v0
-required_capability: promql_changes
+required_capability: fn_changes
 // tag::changes[]
 TS k8s
 | STATS cost_changes = SUM(CHANGES(network.cost)) BY time_bucket = TBUCKET(1 minute)
@@ -19,7 +19,7 @@ cost_changes:long | time_bucket:datetime
 changes_of_double_ts_with_multivalued_dimension
 skip_flattened_rewrite: mv_dimension
 required_capability: ts_command_v0
-required_capability: promql_changes
+required_capability: fn_changes
 required_capability: pack_dimensions_in_ts
 
 TS k8s
@@ -37,7 +37,7 @@ cost_changes:long | cluster:keyword | region:keyword | time_bucket:datetime
 
 changes_of_counter_ts_with_explicit_window
 required_capability: ts_command_v0
-required_capability: promql_changes
+required_capability: fn_changes
 
 TS k8s
 | STATS byte_changes = SUM(CHANGES(network.total_bytes_in, 2 minutes)) BY cluster, time_bucket = TBUCKET(1 minute)

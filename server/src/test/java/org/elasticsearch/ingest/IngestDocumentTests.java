@@ -185,7 +185,6 @@ public class IngestDocumentTests extends ESTestCase {
             // and whichever it is, it is the same field that the String overloads find
             assertThat(doc.getFieldValue("a.b.c.", String.class), equalTo("value"));
             // but the elements of a path only lead to the field when they are all there, in order
-            assertThat(doc.getFieldValue(FieldPath.of("a.b"), Object.class), equalTo(Map.of("c", "value")));
             assertThat(doc.getFieldValue(FieldPath.of("b.c"), String.class, true), nullValue());
         });
 

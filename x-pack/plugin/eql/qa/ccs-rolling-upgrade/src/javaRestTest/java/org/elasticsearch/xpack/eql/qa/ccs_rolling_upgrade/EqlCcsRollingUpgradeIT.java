@@ -71,7 +71,7 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
         .name("remote")
         // Nodes here start on a prior Elasticsearch version, which requires the default distribution type.
         .distribution(DistributionType.DEFAULT)
-        .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
+        .version(OLD_CLUSTER_VERSION)
         .nodes(REMOTE_NODE_NUM)
         .setting("xpack.security.enabled", "false")
         .node(0, spec -> spec.setting("node.attr.gateway", "true"))

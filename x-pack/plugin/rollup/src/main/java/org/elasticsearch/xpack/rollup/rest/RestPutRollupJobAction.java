@@ -15,10 +15,13 @@ import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutRollupJobAction extends BaseRestHandler {
+
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.of("id");
 
     @Override
     public List<Route> routes() {
@@ -38,6 +41,16 @@ public class RestPutRollupJobAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "put_rollup_job";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
 }

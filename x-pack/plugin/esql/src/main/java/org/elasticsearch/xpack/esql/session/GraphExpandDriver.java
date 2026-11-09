@@ -710,9 +710,7 @@ public final class GraphExpandDriver {
             Expression droppedValue = new Literal(source, null, DataType.INTEGER);
             if (degreeAttr != null) {
                 // The guard counted the pointers: a count past hub_degree is the refused degree.
-                Expression degree = graphExpand.aggregates() != null
-                    ? attributeByName(hopChild.output(), HUB_DEGREE_COLUMN)
-                    : degreeAttr;
+                Expression degree = graphExpand.aggregates() != null ? attributeByName(hopChild.output(), HUB_DEGREE_COLUMN) : degreeAttr;
                 droppedValue = new Case(
                     source,
                     new GreaterThan(source, degree, new Literal(source, hubDegree, DataType.INTEGER)),

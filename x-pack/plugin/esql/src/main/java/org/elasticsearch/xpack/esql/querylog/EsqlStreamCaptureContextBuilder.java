@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.querylog;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.logging.activity.ActivityLoggerContextBuilder;
+import org.elasticsearch.common.logging.activity.QueryCaptureContextBuilder;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -18,18 +18,21 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.util.function.Supplier;
 
 /**
- * {@link ActivityLoggerContextBuilder} for streaming ES|QL queries ({@code POST /_query?streaming=true}).
+ * {@link QueryCaptureContextBuilder} for streaming ES|QL queries ({@code POST /_query?streaming=true}).
  * Because the response type is {@link ActionResponse.Empty} and carries no query data, this builder
  * holds the collaborators it needs: {@link EsqlExecutionInfo}, {@link PageStreamPublisher}, and a
  * {@link Supplier} of the final {@link Result} populated once the query completes.
  */
-public class EsqlStreamLogContextBuilder extends ActivityLoggerContextBuilder<EsqlLogContext, EsqlQueryRequest, ActionResponse.Empty> {
+public class EsqlStreamCaptureContextBuilder extends QueryCaptureContextBuilder<
+    EsqlCaptureContext,
+    EsqlQueryRequest,
+    ActionResponse.Empty> {
 
     private final EsqlExecutionInfo executionInfo;
     private final PageStreamPublisher publisher;
     private final Supplier<Result> resultSupplier;
 
-    public EsqlStreamLogContextBuilder(
+    public EsqlStreamCaptureContextBuilder(
         Task task,
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
@@ -43,17 +46,17 @@ public class EsqlStreamLogContextBuilder extends ActivityLoggerContextBuilder<Es
     }
 
     @Override
-    public EsqlLogContext build(ActionResponse.Empty empty) {
+    public EsqlCaptureContext build(ActionResponse.Empty empty) {
         long tookInNanos = executionInfo.overallTook() != null ? executionInfo.overallTook().nanos() : elapsed();
         Result result = resultSupplier.get();
         if (result == null) {
-            return new EsqlLogContext(task, request, tookInNanos);
+            return new EsqlCaptureContext(task, request, tookInNanos);
         }
-        return new EsqlStreamLogContext(task, request, tookInNanos, executionInfo, publisher, result);
+        return new EsqlStreamCaptureContext(task, request, tookInNanos, executionInfo, publisher, result);
     }
 
     @Override
-    public EsqlLogContext build(Exception e) {
-        return new EsqlLogContext(task, request, elapsed(), e);
+    public EsqlCaptureContext build(Exception e) {
+        return new EsqlCaptureContext(task, request, elapsed(), e);
     }
 }

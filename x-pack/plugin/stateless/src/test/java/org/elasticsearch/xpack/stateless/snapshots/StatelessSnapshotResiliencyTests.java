@@ -99,6 +99,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.StatelessComponents;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
@@ -207,11 +208,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     private static class StatelessDeterministicTaskQueue extends DeterministicTaskQueue {
 
         private static final Set<String> EXECUTOR_NAMES_TO_USE_DIRECT_EXECUTOR = Set.of(
-            StatelessPlugin.CLUSTER_STATE_READ_WRITE_THREAD_POOL,
-            StatelessPlugin.SHARD_READ_THREAD_POOL,
-            StatelessPlugin.SHARD_WRITE_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL,
-            StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
+            StatelessThreadPools.CLUSTER_STATE_READ_WRITE_THREAD_POOL,
+            StatelessThreadPools.SHARD_READ_THREAD_POOL,
+            StatelessThreadPools.SHARD_WRITE_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL,
+            StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
             ThreadPool.Names.REFRESH
         );
 
@@ -844,7 +845,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 threadPool,
                 clusterService,
                 projectResolver,
-                null,
                 MeterRegistry.NOOP
             );
             this.cacheService = new StatelessSharedBlobCacheService(

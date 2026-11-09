@@ -71,6 +71,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -158,8 +159,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 String bucket,
                 String client,
                 String basePath,
-                @Nullable ByteSizeValue multiPartThreshold,
-                @Nullable Integer objectStoreAccessConcurrency
+                @Nullable ByteSizeValue multiPartThreshold
             ) {
                 return Settings.builder().put("location", basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket).build();
             }
@@ -170,10 +170,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 String bucket,
                 String client,
                 String basePath,
-                @Nullable ByteSizeValue multiPartThreshold,
-                @Nullable Integer objectStoreAccessConcurrency
+                @Nullable ByteSizeValue multiPartThreshold
             ) {
-                return FS.createRepositorySettings(bucket, client, basePath, multiPartThreshold, objectStoreAccessConcurrency);
+                return FS.createRepositorySettings(bucket, client, basePath, multiPartThreshold);
             }
         },
         S3("bucket") {
@@ -182,18 +181,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 String bucket,
                 String client,
                 String basePath,
-                @Nullable ByteSizeValue multiPartThreshold,
-                @Nullable Integer objectStoreAccessConcurrency
+                @Nullable ByteSizeValue multiPartThreshold
             ) {
                 Settings.Builder builder = Settings.builder()
-                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold, objectStoreAccessConcurrency))
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold))
                     .put("add_purpose_custom_query_parameter", "true");
                 if (multiPartThreshold != null) {
                     builder.put(S3_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
-                }
-                if (objectStoreAccessConcurrency != null) {
-                    String key = S3_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY;
-                    builder.put(key, objectStoreAccessConcurrency);
                 }
                 return builder.build();
             }
@@ -204,11 +198,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 String bucket,
                 String client,
                 String basePath,
-                @Nullable ByteSizeValue multiPartThreshold,
-                @Nullable Integer objectStoreAccessConcurrency
+                @Nullable ByteSizeValue multiPartThreshold
             ) {
                 Settings.Builder builder = Settings.builder()
-                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold, objectStoreAccessConcurrency));
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold));
                 if (multiPartThreshold != null) {
                     builder.put(GCS_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
                 }
@@ -221,12 +214,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 String bucket,
                 String client,
                 String basePath,
-                @Nullable ByteSizeValue multiPartThreshold,
-                @Nullable Integer objectStoreAccessConcurrency
-
+                @Nullable ByteSizeValue multiPartThreshold
             ) {
                 Settings.Builder builder = Settings.builder()
-                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold, objectStoreAccessConcurrency));
+                    .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold));
                 if (multiPartThreshold != null) {
                     // Azure has both the part size and threshold settings so we update both of them.
                     // This has the same effect as other repositories.
@@ -242,10 +233,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         builder.put(AZURE_MULTIPART_PART_SIZE_SETTING_KEY, multiPartThreshold);
                     }
                 }
-                if (objectStoreAccessConcurrency != null) {
-                    String key = AZURE_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY;
-                    builder.put(key, objectStoreAccessConcurrency);
-                }
                 return builder.build();
             }
         };
@@ -260,8 +247,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             String bucket,
             String client,
             String basePath,
-            @Nullable ByteSizeValue multiPartThreshold,
-            @Nullable Integer objectStoreAccessConcurrency
+            @Nullable ByteSizeValue multiPartThreshold
         ) {
             Settings.Builder builder = Settings.builder();
             builder.put(bucketSettingName, bucket);
@@ -449,8 +435,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     static final String S3_CLIENT_SETTING_PREFIX = "s3.client";
     static final String MAX_CONNECTIONS_SETTING_KEY = "max_connections";
 
-    static final String S3_MAX_CONNECTIONS_SETTING_KEY = "s3.client.default.max_connections";
-
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
     private final Settings settings;
@@ -473,8 +457,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
 
-    private final Integer objectStoreAccessConcurrency;
-
     private final boolean concurrentMultipartUploads;
     private final boolean cacheSearchRecoveryBcc;
 
@@ -490,7 +472,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         ThreadPool threadPool,
         ClusterService clusterService,
         ProjectResolver projectResolver,
-        @Nullable Integer objectStoreAccessConcurrency,
         MeterRegistry meterRegistry
     ) {
         this.settings = settings;
@@ -499,13 +480,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.clusterService = clusterService;
         this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
-            threadPool.info(StatelessPlugin.TRANSLOG_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL)
+            threadPool.info(StatelessThreadPools.TRANSLOG_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL)
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             "upload_task_runner",
-            threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
+            threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL),
             meterRegistry,
             threadPool::relativeTimeInNanos
         );
@@ -515,7 +496,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         } else {
             projectObjectStoreExceptions = null;
         }
-        this.objectStoreAccessConcurrency = objectStoreAccessConcurrency;
         this.permits = new Semaphore(0);
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
@@ -540,6 +520,25 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             "time from the start of a concurrent multipart upload of a BCC until the repository client requests the data of each part",
             "milliseconds"
         );
+    }
+
+    /// Returns a set of settings that are needed to configure connection pools of object store client used.
+    /// Note this assumes that `stateless.object_store.client` is available.
+    public static Settings connectionPoolSettings(Settings settings, StatelessThreadPools.ThreadPoolConfig threadPoolConfig) {
+        // We simply set the settings for all cloud providers, settings for the provider we are not using will be noop.
+        // GCP doesn't support configuration connection pool size yet.
+        String client = CLIENT_SETTING.get(settings);
+
+        // Add a 10% buffer to account for possible miscalculations.
+        // This is translated into the maximum size of a connection pool, and we will only use as much as we need.
+        // We only bump the ceiling.
+        int objectStoreAccessConcurrency = threadPoolConfig.expectedBlobStoreConcurrency() + threadPoolConfig.expectedBlobStoreConcurrency()
+            / 10;
+
+        return Settings.builder()
+            .put(S3_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY, objectStoreAccessConcurrency)
+            .put(AZURE_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY, objectStoreAccessConcurrency)
+            .build();
     }
 
     @Override
@@ -769,8 +768,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             BUCKET_SETTING.get(settings),
             CLIENT_SETTING.get(settings),
             BASE_PATH_SETTING.get(settings),
-            multiPartThreshold,
-            objectStoreAccessConcurrency
+            multiPartThreshold
         );
     }
 
@@ -945,9 +943,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             translogBlobsToDelete.add(fileToDelete);
             if (translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
+                threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
             }
-        }, StatelessPlugin.TRANSLOG_THREAD_POOL);
+        }, StatelessThreadPools.TRANSLOG_THREAD_POOL);
     }
 
     public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
@@ -955,9 +953,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             commitBlobsToDelete.add(staleCompoundCommit);
             if (shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
-        }, StatelessPlugin.SHARD_WRITE_THREAD_POOL);
+        }, StatelessThreadPools.SHARD_WRITE_THREAD_POOL);
     }
 
     private void asyncDeleteFile(Runnable deleteFileRunnable, String executor) {
@@ -1332,7 +1330,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     ) {
                         for (var blobContainerWithTerm : blobContainersWithTerms) {
                             // use the prewarm thread pool to avoid exceeding the connection pool size with blob listings
-                            threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL)
+                            threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL)
                                 .execute(
                                     ActionRunnable.run(
                                         listeners.acquire(),
@@ -1381,7 +1379,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             }
         }
 
-        final Executor executor = threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL);
+        final Executor executor = threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL);
         ConcurrentMultipartHelper.runConcurrentTasks(tasks.size(), executor, i -> {
             var t = tasks.get(i);
             task.ensureNotCancelled();
@@ -1415,7 +1413,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             blobName,
             blobName,
             virtualBcc.getTotalSizeInBytes(),
-            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
+            threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL)
         );
     }
 
@@ -1889,8 +1887,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             // Ensure that one large upload doesn't starve other uploads
                             new ThrottledTaskRunner(
                                 "bcc-concurrent-multipart-upload",
-                                Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax() / 2),
-                                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                                Math.max(1, threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax() / 2),
+                                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
                             ).asExecutor()
                         );
                     } finally {
@@ -1961,7 +1959,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         public void onAfter() {
             translogDeleteSchedulePermit.release();
             if (isRunning() && translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
+                threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
         }
 
@@ -2029,7 +2027,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             toDeleteInThisTask.values().forEach(commitBlobsToDelete::addAll);
             shardFileDeleteSchedulePermit.release();
             if (lifecycle.started() && commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
         }
 

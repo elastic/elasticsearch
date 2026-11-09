@@ -30,7 +30,7 @@ import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
@@ -46,7 +46,6 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL;
 
 /**
  * Used by {@link BlobCacheIndexInput} to read data from the cache using a given {@link StatelessSharedBlobCacheService.CacheFile} instance.
@@ -405,8 +404,8 @@ public class CacheFileReader {
                 cacheBlobReader,
                 () -> writeBuffer.get().clear(),
                 bytesCopied -> {},
-                StatelessPlugin.SHARD_READ_THREAD_POOL,
-                StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                StatelessThreadPools.SHARD_READ_THREAD_POOL,
+                StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
             ),
             "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
             listener.delegateResponse((l, e) -> {
@@ -514,7 +513,8 @@ public class CacheFileReader {
         String executorName = EsExecutors.executorName(Thread.currentThread());
 
         if (executorName != null
-            && (executorName.equals(SEARCH) || executorName.equals(GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL))) {
+            && (executorName.equals(SEARCH)
+                || executorName.equals(StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL))) {
             long start = relativeTimeInMillisSupplier.getAsLong();
             doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
             blobCacheMetrics.getSearchOriginDownloadTime()
@@ -566,8 +566,8 @@ public class CacheFileReader {
                     cacheBlobReader,
                     () -> writeBuffer.get().clear(),
                     bytesCopied -> {},
-                    StatelessPlugin.SHARD_READ_THREAD_POOL,
-                    StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                    StatelessThreadPools.SHARD_READ_THREAD_POOL,
+                    StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                 );
                 // Determine madvise advice for this read. For compound sub-files, only ranges
                 // that fall entirely within the exclusive interior get MADV_RANDOM; boundary

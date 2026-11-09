@@ -23,7 +23,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -38,8 +38,6 @@ import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.INFO;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
 
 /**
  * {@link OnlinePrewarmingService} implementation specific to our stateless search nodes. This aims to prewarm all the segments of the
@@ -68,8 +66,8 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
     private static final Logger logger = LogManager.getLogger(StatelessOnlinePrewarmingService.class);
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
         assert ThreadPool.assertCurrentThreadPool(
-            StatelessPlugin.PREWARM_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessThreadPools.PREWARM_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         ) : "writeBuffer should only be used in the prewarm or fill vbcc thread pool but used in " + Thread.currentThread().getName();
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);
     });
@@ -99,8 +97,8 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
         // leave a few threads available for the blob cache warming that happens on shard recovery
         this.throttledTaskRunner = new ThrottledTaskRunner(
             "online-prewarming",
-            threadPool.info(PREWARM_THREAD_POOL).getMax() / 2 + 1,
-            threadPool.executor(PREWARM_THREAD_POOL)
+            threadPool.info(StatelessThreadPools.PREWARM_THREAD_POOL).getMax() / 2 + 1,
+            threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL)
         );
         shardTookDurationMillisHistogram = meterRegistry.registerLongHistogram(
             SHARD_TOOK_DURATION_HISTOGRAM_NAME,
@@ -218,8 +216,8 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                                 // Can be executed on different thread pool depending whether we read from
                                 // the SharedBlobCacheWarmingService (PREWARM_THREAD_POOL pool) or the IndexingShardCacheBlobReader (VBCC
                                 // pool)
-                                PREWARM_THREAD_POOL,
-                                FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                                StatelessThreadPools.PREWARM_THREAD_POOL,
+                                StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                             )
                         ),
                         fetchRangeRunnable -> throttledTaskRunner.enqueueTask(new ActionListener<>() {

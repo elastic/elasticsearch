@@ -408,18 +408,9 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
             ThreadPool threadPool,
             ClusterService clusterService,
             ProjectResolver projectResolver,
-            @Nullable Integer objectStoreAccessConcurrency,
             MeterRegistry meterRegistry
         ) {
-            return new TestObjectStoreService(
-                settings,
-                repositoriesService,
-                threadPool,
-                clusterService,
-                projectResolver,
-                objectStoreAccessConcurrency,
-                meterRegistry
-            );
+            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
     }
 
@@ -437,10 +428,9 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
             ThreadPool threadPool,
             ClusterService clusterService,
             ProjectResolver projectResolver,
-            @Nullable Integer objectStoreAccessConcurrency,
             MeterRegistry meterRegistry
         ) {
-            super(settings, repositoriesService, threadPool, clusterService, projectResolver, objectStoreAccessConcurrency, meterRegistry);
+            super(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
 
         synchronized void block() {

@@ -82,6 +82,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
@@ -173,7 +174,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
         // no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
-        Settings settings = objectStoreType.createRepositorySettings(bucket, randomAlphaOfLength(5), basePath, null, null);
+        Settings settings = objectStoreType.createRepositorySettings(bucket, randomAlphaOfLength(5), basePath, null);
         assertThat(settings.keySet().size(), equalTo(1));
         assertThat(settings.get("location"), equalTo(basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket));
     }
@@ -198,7 +199,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
         // check no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
-        Settings settings = objectStoreType.createRepositorySettings(bucket, client, basePath, null, null);
+        Settings settings = objectStoreType.createRepositorySettings(bucket, client, basePath, null);
         assertThat(
             settings.keySet().size(),
             equalTo(2 + (basePath == null ? 0 : 1) + (objectStoreType == S3 ? 1 /* add_purpose_custom_query_parameter */ : 0))
@@ -223,7 +224,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
         // when threshold is set, the per-type key must be present with the right value and the key count grows by one
         ByteSizeValue threshold = randomBoolean() ? ByteSizeValue.ofMb(between(5, 100)) : null;
-        Settings settingsWithThreshold = objectStoreType.createRepositorySettings(bucket, client, basePath, threshold, null);
+        Settings settingsWithThreshold = objectStoreType.createRepositorySettings(bucket, client, basePath, threshold);
         if (threshold == null) {
             for (var setting : multiPartUploadSettings) {
                 assertThat(settingsWithThreshold.get(setting), is(nullValue()));
@@ -267,56 +268,36 @@ public class ObjectStoreServiceTests extends ESTestCase {
         assertThat(eMax.getMessage(), containsString("6gb"));
     }
 
-    public void testObjectStoreAccessConcurrency() {
-        final int value = 100;
-
-        String s3Key = "s3.client.c.max_connections";
-        assertThat(S3.createRepositorySettings("b", "c", null, null, null).get(s3Key), is(nullValue()));
-
-        assertThat(S3.createRepositorySettings("b", "c", null, null, 100).get(s3Key), equalTo(Integer.toString(value)));
-
-        String azureKey = "azure.client.cl.max_connections";
-        assertThat(AZURE.createRepositorySettings("b", "cl", null, null, null).get(azureKey), is(nullValue()));
-
-        assertThat(AZURE.createRepositorySettings("b", "cl", null, null, 100).get(azureKey), equalTo(Integer.toString(value)));
-
-        // Not supported in GCP
-    }
-
     public void testMultiPartThresholdInjectedPerType() {
         ByteSizeValue threshold = ByteSizeValue.ofMb(between(5, 100));
         assertThat(
-            S3.createRepositorySettings("b", "c", null, threshold, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY),
+            S3.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY),
             equalTo(threshold.getStringRep())
         );
         assertThat(
-            GCS.createRepositorySettings("b", "c", null, threshold, null).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY),
+            GCS.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY),
             equalTo(threshold.getStringRep())
         );
         assertThat(
-            AZURE.createRepositorySettings("b", "c", null, threshold, null).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY),
+            AZURE.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY),
             equalTo(threshold.getStringRep())
         );
         assertThat(
-            AZURE.createRepositorySettings("b", "c", null, threshold, null).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY),
+            AZURE.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY),
             equalTo(threshold.getStringRep())
         );
     }
 
     public void testMultiPartThresholdNotInjectedWhenNull() {
-        assertNull(S3.createRepositorySettings("b", "c", null, null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
-        assertNull(GCS.createRepositorySettings("b", "c", null, null, null).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY));
-        assertNull(
-            AZURE.createRepositorySettings("b", "c", null, null, null).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY)
-        );
-        assertNull(
-            AZURE.createRepositorySettings("b", "c", null, null, null).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY)
-        );
-        assertNull(FS.createRepositorySettings("b", "c", null, null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(S3.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(GCS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(AZURE.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(AZURE.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY));
+        assertNull(FS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
     }
 
     public void testMultiPartThresholdClampedForAzure() {
-        var settings = AZURE.createRepositorySettings("b", "c", null, ByteSizeValue.ofMb(200), null);
+        var settings = AZURE.createRepositorySettings("b", "c", null, ByteSizeValue.ofMb(200));
         assertEquals(ByteSizeValue.ofMb(200).getStringRep(), settings.get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY));
         assertEquals(ByteSizeValue.ofMb(100).getStringRep(), settings.get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY));
     }
@@ -1216,11 +1197,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
             final var objectStoreService = testHarness.objectStoreService;
 
             // Block shard file deletions
-            final int maxDeletionThreads = testHarness.threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax();
+            final int maxDeletionThreads = testHarness.threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax();
             final var startBarrier = new CyclicBarrier(maxDeletionThreads + 1);
             final var deletionBarrier = new CyclicBarrier(maxDeletionThreads + 1);
             for (int i = 0; i < maxDeletionThreads; i++) {
-                testHarness.threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).submit(() -> {
+                testHarness.threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).submit(() -> {
                     safeAwait(startBarrier);
                     safeAwait(deletionBarrier);
                 });
@@ -1492,8 +1473,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 // a single translog-upload slot
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
-                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
                     .build();
             }
 
@@ -1569,8 +1550,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 // a single translog-upload slot
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
-                    .put(StatelessPlugin.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
                     .build();
             }
 
@@ -1740,6 +1721,17 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
     }
 
+    public void testConnectionPoolSettings() {
+        var settings = Settings.builder().put(ObjectStoreService.CLIENT_SETTING.getKey(), "my_client").build();
+        var config = new StatelessThreadPools.ThreadPoolConfig(10, 0, 10, 0, 10, 0, 10, 0, 10, 0, 10, 10, 0, 10, 0, 10);
+        // This is what the `config` above should produce plus buffer added inside `connectionPoolSettings`.
+        int expected = 6 * 10 + 6;
+
+        var newSettings = ObjectStoreService.connectionPoolSettings(settings, config);
+        assertEquals(Integer.toString(expected), newSettings.get("azure.client.my_client.max_connections"));
+        assertEquals(Integer.toString(expected), newSettings.get("s3.client.my_client.max_connections"));
+    }
+
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {
         final var e = expectThrows(RepositoryException.class, () -> objectStoreService.getProjectObjectStore(projectId));
         assertThat(e.getMessage(), equalTo("[" + StatelessPlugin.NAME + "] project [" + projectId + "] object store not found"));
@@ -1812,10 +1804,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
         if (randomBoolean()) {
             return Optional.empty();
         }
-        final int numCopyThreads = node.threadPool.info(StatelessPlugin.BLOB_COPY_THREAD_POOL).getMax();
+        final int numCopyThreads = node.threadPool.info(StatelessThreadPools.BLOB_COPY_THREAD_POOL).getMax();
         final var releaseThreadsLatch = new CountDownLatch(1);
         for (int i = 0; i < numCopyThreads; i++) {
-            node.threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL).execute(() -> { safeAwait(releaseThreadsLatch); });
+            node.threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL).execute(() -> { safeAwait(releaseThreadsLatch); });
         }
         return Optional.of(releaseThreadsLatch);
     }

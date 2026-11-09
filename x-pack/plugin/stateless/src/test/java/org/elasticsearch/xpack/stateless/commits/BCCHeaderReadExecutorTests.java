@@ -16,13 +16,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
 import static org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor.MAX_CONCURRENCY_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor.maxConcurrency;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +69,12 @@ public class BCCHeaderReadExecutorTests extends ESTestCase {
             assertThat(MAX_CONCURRENCY_SETTING.get(nodeSettings), equalTo(-1));
             assertThat(
                 maxConcurrency(nodeSettings, threadPool),
-                equalTo(Math.max(threadPool.info(PREWARM_THREAD_POOL).getMax(), threadPool.info(SHARD_READ_THREAD_POOL).getMax()))
+                equalTo(
+                    Math.max(
+                        threadPool.info(StatelessThreadPools.PREWARM_THREAD_POOL).getMax(),
+                        threadPool.info(StatelessThreadPools.SHARD_READ_THREAD_POOL).getMax()
+                    )
+                )
             );
 
             final int override = randomIntBetween(1, 64);

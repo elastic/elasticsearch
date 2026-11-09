@@ -55,6 +55,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -1111,6 +1112,18 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static boolean randomBoolean() {
         return random().nextBoolean();
+    }
+
+    public static Settings.Builder randomBatchIndexing(Settings.Builder settings) {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            int choice = randomIntBetween(0, 2);
+            if (choice == 0) {
+                settings.put(IndexSettings.BATCH_INDEXING.getKey(), true);
+            } else if (choice == 1) {
+                settings.put(IndexSettings.BATCH_INDEXING.getKey(), false);
+            }
+        }
+        return settings;
     }
 
     public static Boolean randomOptionalBoolean() {

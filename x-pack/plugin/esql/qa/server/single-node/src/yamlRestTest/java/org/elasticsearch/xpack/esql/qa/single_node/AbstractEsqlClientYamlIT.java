@@ -33,7 +33,8 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        // Federation is only on by default in snapshot builds; the data source and dataset YAML suites need it on.
+        // Pinned so the data source and dataset YAML suites do not depend on the default, which is off on a stateless
+        // release build.
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .setting("ingest.geoip.downloader.enabled", "false")
         .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))

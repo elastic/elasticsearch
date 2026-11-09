@@ -131,6 +131,14 @@ public class Verifier {
     }
 
     /**
+     * A copy of this verifier that runs every check but records no feature or function telemetry. Diagnostic analyses —
+     * such as the analyze-only pass that validates a view definition — must not count the plans they walk as feature usage.
+     */
+    public Verifier withoutMetrics() {
+        return new Verifier(null, licenseState, extraCheckers);
+    }
+
+    /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
@@ -204,7 +212,7 @@ public class Verifier {
         }
 
         // gather metrics
-        if (failures.hasFailures() == false) {
+        if (metrics != null && failures.hasFailures() == false) {
             gatherMetrics(plan, partialMetrics);
         }
 

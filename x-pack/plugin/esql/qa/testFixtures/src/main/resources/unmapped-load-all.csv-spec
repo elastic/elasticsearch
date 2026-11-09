@@ -24,6 +24,24 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""language_code"":""1""}"
 ;
 
+// The docs example for LOAD_ALL, included in esql-unmapped-fields.md.
+loadAllSample
+required_capability: optional_fields_load_all_single_source_column
+
+// tag::unmapped-load-all-sample[]
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| SORT @timestamp
+| LIMIT 1
+// end::unmapped-load-all-sample[]
+;
+
+// tag::unmapped-load-all-sample-result[]
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | "{""unmapped_message"":""Disconnected from 10.1.0.3"",""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g"",""language_code"":""4""}"
+// end::unmapped-load-all-sample-result[]
+;
+
 keepStarIsIdempotent
 required_capability: optional_fields_load_all_single_source_column
 

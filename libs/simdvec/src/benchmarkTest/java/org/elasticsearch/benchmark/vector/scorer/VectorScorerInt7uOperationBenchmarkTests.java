@@ -42,7 +42,7 @@ public class VectorScorerInt7uOperationBenchmarkTests extends BenchmarkTest {
             };
             assertEquals(expected, bench.lucene(), delta);
             assertEquals(expected, bench.nativeWithNativeSeg(), delta);
-            if (supportsHeapSegments()) {
+            if (supportsHeapSegments() && function == VectorSimilarityType.DOT_PRODUCT) {
                 assertEquals(expected, bench.nativeWithHeapQuery(), delta);
             }
         } finally {

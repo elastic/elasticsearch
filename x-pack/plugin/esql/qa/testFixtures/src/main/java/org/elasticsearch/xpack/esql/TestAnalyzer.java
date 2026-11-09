@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -46,7 +47,6 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
@@ -682,7 +683,7 @@ public class TestAnalyzer {
             // No views to expand, resolve and validate IN subqueries directly
             return InSubqueryResolver.resolve(plan);
         }
-        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
+        PlanSize planSize = PlanSize.unlimited();
         LogicalPlan resolved = resolveViews(plan, planSize);
         InSubqueryResolver.verify(resolved);
         return resolved;
@@ -850,7 +851,8 @@ public class TestAnalyzer {
                 new QueryParams(),
                 new InferenceSettings(Settings.EMPTY),
                 entry.getKey(),
-                EsqlParser.DEFAULT_MAX_COMMAND_COUNT
+                QueryPragmas.EMPTY,
+                EsqlFlags.DEFAULTS
             );
             viewSettings.put(entry.getKey(), ViewQuerySettings.from(statement, Settings.EMPTY, Settings.EMPTY));
             parsedViews.put(entry.getKey(), statement.plan());
@@ -1136,7 +1138,7 @@ public class TestAnalyzer {
             new EsIndex(
                 indexName,
                 EsqlTestUtils.loadMapping(resource),
-                Map.of(indexName, new IndexProperties(indexMode, 0)),
+                Map.of(indexName, new IndexProperties(indexMode, 1, IndexVersion.current().id())),
                 grouped,
                 grouped
             )

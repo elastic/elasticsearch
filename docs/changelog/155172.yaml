@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 155101
-pr: 155172
-summary: Fix `InferIsNotNull`
-type: bug

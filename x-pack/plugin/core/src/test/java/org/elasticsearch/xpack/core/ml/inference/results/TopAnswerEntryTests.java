@@ -36,7 +36,6 @@ public class TopAnswerEntryTests extends AbstractXContentSerializingTestCase<Que
 
     @Override
     protected QuestionAnsweringInferenceResults.TopAnswerEntry mutateInstance(QuestionAnsweringInferenceResults.TopAnswerEntry instance) {
-        // Since TopAnswerEntry is a record, we don't need to check for equality
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 }

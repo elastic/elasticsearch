@@ -24,8 +24,7 @@ public class SearchIntervalTests extends AbstractWireSerializingTestCase<SearchI
 
     @Override
     protected SearchInterval mutateInstance(SearchInterval instance) {
-        // Since SearchInterval is a record, we don't need to check for equality
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 
     public static SearchInterval createRandom() {

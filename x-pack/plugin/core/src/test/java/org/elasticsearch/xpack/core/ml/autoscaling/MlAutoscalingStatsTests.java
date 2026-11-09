@@ -42,7 +42,6 @@ public class MlAutoscalingStatsTests extends AbstractWireSerializingTestCase<MlA
 
     @Override
     protected MlAutoscalingStats mutateInstance(MlAutoscalingStats instance) throws IOException {
-        // Since MlAutoscalingStats is a record, we don't need to check for equality
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 }

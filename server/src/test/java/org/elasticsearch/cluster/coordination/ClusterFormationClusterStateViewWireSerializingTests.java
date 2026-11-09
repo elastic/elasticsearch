@@ -73,8 +73,7 @@ public class ClusterFormationClusterStateViewWireSerializingTests extends Abstra
 
     @Override
     protected Wrapper mutateInstance(Wrapper instance) throws IOException {
-        // Since ClusterFormationFailureHelper.ClusterFormationClusterStateView is a record, we don't need to check for equality
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 
     public record Wrapper(ClusterFormationFailureHelper.ClusterFormationClusterStateView delegate) implements Writeable {

@@ -48,9 +48,8 @@ public class MappingParserContext {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final Function<Query, BitSetProducer> bitSetProducer;
-    private final long mappingObjectDepthLimit;
     // Start at 1 to account for the root object, so the limit semantics match the post-build
-    // checkObjectDepthLimit formula (path depth = dots + 2, where root = 1).
+    // ParseFieldLimits#checkObjectDepth formula (path depth = dots + 2, where root = 1).
     private long mappingObjectDepth = 1;
     private final List<VectorsFormatProvider> vectorsFormatProviders;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
@@ -89,7 +88,6 @@ public class MappingParserContext {
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
-        this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
         this.bitSetProducer = bitSetProducer;
         this.vectorsFormatProviders = vectorsFormatProviders;
         this.namespaceValidator = namespaceValidator;
@@ -130,6 +128,7 @@ public class MappingParserContext {
             namespaceValidator,
             projectMetadataSupplier,
             new ParseFieldLimits(
+                indexSettings.getMappingDepthLimit(),
                 indexSettings.getMappingFieldNameLengthLimit(),
                 indexSettings.getMappingNestedFieldsLimit(),
                 NewFieldsBudget.unlimited(),
@@ -266,33 +265,13 @@ public class MappingParserContext {
 
     void incrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth++;
-        if (mappingObjectDepth > mappingObjectDepthLimit) {
-            throw new MapperParsingException("Limit of mapping depth [" + mappingObjectDepthLimit + "] has been exceeded");
+        if (mappingObjectDepth > parseFieldLimits.mappingDepthLimit()) {
+            throw new MapperParsingException("Limit of mapping depth [" + parseFieldLimits.mappingDepthLimit() + "] has been exceeded");
         }
     }
 
     void decrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth--;
-    }
-
-    /**
-     * Checks that adding a dynamic object at {@code fullPath} would not exceed the object depth limit.
-     * Depth is computed by counting dots in the path (each dot represents one nesting level).
-     * Called eagerly during document parsing to avoid stack-overflow errors from deeply nested objects.
-     */
-    public void checkObjectDepthLimit(String fullPath) {
-        int numDots = 0;
-        for (int i = 0; i < fullPath.length(); i++) {
-            if (fullPath.charAt(i) == '.') {
-                numDots++;
-            }
-        }
-        int depth = numDots + 2;
-        if (depth > mappingObjectDepthLimit) {
-            throw new MapperParsingException(
-                "Limit of mapping depth [" + mappingObjectDepthLimit + "] has been exceeded due to object field [" + fullPath + "]"
-            );
-        }
     }
 
     /**
@@ -358,15 +337,26 @@ public class MappingParserContext {
         }
     }
 
+    /**
+     * Create a MappingParserContext to be used when creating dynamic fields from templates
+     */
     public MappingParserContext createDynamicTemplateContext(DateFormatter dateFormatter) {
-        return new DynamicTemplateParserContext(this, dateFormatter);
+        return createDynamicTemplateContext(dateFormatter, parseFieldLimits);
+    }
+
+    /**
+     * Create a MappingParserContext to be used when creating dynamic fields from templates, with
+     * specific field limits.
+     */
+    public MappingParserContext createDynamicTemplateContext(DateFormatter dateFormatter, ParseFieldLimits limits) {
+        return new DynamicTemplateParserContext(this, dateFormatter, limits);
     }
 
     private static class DynamicTemplateParserContext extends MappingParserContext {
 
         private final DateFormatter dateFormatter;
 
-        DynamicTemplateParserContext(MappingParserContext in, DateFormatter dateFormatter) {
+        DynamicTemplateParserContext(MappingParserContext in, DateFormatter dateFormatter, ParseFieldLimits limits) {
             super(
                 in.similarityLookupService,
                 in.typeParsers,
@@ -382,8 +372,8 @@ public class MappingParserContext {
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
                 null,
-                // Use UNLIMITED so that parsing a dynamic template definition does not count against field limits.
-                ParseFieldLimits.UNLIMITED,
+                // Dynamic templates should not count towards the total field budget
+                limits.withoutTotalFieldsBudget(),
                 in.storedMappingParser
             );
             this.dateFormatter = dateFormatter;

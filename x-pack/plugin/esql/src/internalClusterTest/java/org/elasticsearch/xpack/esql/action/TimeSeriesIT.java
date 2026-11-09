@@ -1426,7 +1426,15 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                                 assertThat(driver.description(), sample.limit(), equalTo(threshold));
                                 assertThat(driver.description(), sample.rowsEmitted(), Matchers.lessThanOrEqualTo((long) threshold));
                                 assertThat(driver.description(), tsInfo.rowsReceived(), equalTo(sample.rowsEmitted()));
-                                assertThat(driver.description(), ops.get(i).operator(), equalTo("TsInfoOperator[mode=INITIAL]"));
+                                assertThat(
+                                    driver.description(),
+                                    ops.get(i).operator(),
+                                    equalTo(
+                                        "TsInfoOperator[mode=INITIAL, partialEmitThreshold="
+                                            + TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD
+                                            + "]"
+                                    )
+                                );
                                 if (sample.rowsEmitted() == threshold) {
                                     dataDriversAtCap++;
                                 }

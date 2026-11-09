@@ -544,11 +544,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
-  method: test {yaml=esql/317_unmapped_fields_mapped_later/LOAD_ALL does not return the old values in _unmapped_fields either}
-  issue: https://github.com/elastic/elasticsearch/issues/164963
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
   method: test {yaml=esql/317_unmapped_fields_mapped_later/the result is the same without LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/164974
 - class: org.elasticsearch.simdvec.ESVectorUtilTests
@@ -566,10 +561,6 @@ tests:
   - :server:internalClusterTest
   method: testCircuitBreakerReduceFail
   issue: https://github.com/elastic/elasticsearch/issues/165046
-- class: org.elasticsearch.index.IndexServiceTests
-  tasks:
-  - :server:test
-  issue: https://github.com/elastic/elasticsearch/issues/165048
 - class: org.elasticsearch.xpack.esql.action.CrossClusterLookupJoinFailuresIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -580,3 +571,23 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
   method: test {yaml=esql/317_unmapped_fields_mapped_later/LOAD returns null for a document indexed before the field was mapped}
   issue: https://github.com/elastic/elasticsearch/issues/165055
+- class: org.elasticsearch.xpack.sql.qa.single_node.FieldExtractorIT
+  tasks:
+  - :x-pack:plugin:sql:qa:server:single-node:javaRestTest
+  method: testNestedFieldsHierarchy
+  issue: https://github.com/elastic/elasticsearch/issues/165099
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  tasks:
+  - :modules:repository-azure:test
+  method: testWriteLargeBlob
+  issue: https://github.com/elastic/elasticsearch/issues/163262
+- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
+  tasks:
+  - :x-pack:plugin:ccr:test
+  method: testProcessOnceOnPrimary
+  issue: https://github.com/elastic/elasticsearch/issues/165114
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testNoConflictsOrLostUpdatesDuringRefreshes
+  issue: https://github.com/elastic/elasticsearch/issues/165117

@@ -370,6 +370,10 @@ public final class FramedRunWriter {
         if (partition >= options.maxima().partitions()) {
             throw new IllegalStateException("spill run [" + name + "] partition [" + partition + "] exceeds the maximum");
         }
+        if (offsets == null) {
+            // the index went with the seal: an append after finish is the caller's breach, named rather than a null
+            throw new IllegalStateException("spill run [" + name + "] indexed after its finish");
+        }
         if (records == offsets.length) {
             int grown = Math.toIntExact(Math.max(records + 1L, Math.min(offsets.length * 2L, options.maxima().indexEntries())));
             long add = (long) (grown - offsets.length) * FramedRunLayout.INDEX_ENTRY_BYTES;
@@ -409,6 +413,7 @@ public final class FramedRunWriter {
             } finally {
                 breaker.addWithoutBreaking(-indexBytes);
             }
+            dropIndex();
             FramedRunLayout.Footer footer = new FramedRunLayout.Footer(records, logicalBytes, indexOffset, partitionCount);
             out.appendRaw(footer.encode());
             FramedRunLayout.Header header = header();
@@ -499,6 +504,30 @@ public final class FramedRunWriter {
             pending.fail(failedEarlier(e));
         }
         writer.abort(ActionListener.running(this::release));
+    }
+
+    /**
+     * Drops the index arrays with their charge once the index is in the run: nothing reads them afterwards, the reader
+     * loads the index from the object, and a sealed writer may be kept through a whole replay. Codec thread only, like
+     * the arrays; the charge's return takes the lock an abort's release takes.
+     */
+    private void dropIndex() {
+        offsets = null;
+        lengths = null;
+        partitions = null;
+        synchronized (indexLock) {
+            breaker.addWithoutBreaking(-indexCharged);
+            indexCharged = 0;
+        }
+    }
+
+    /**
+     * The bytes the index arrays hold, for tests: zero once the run is sealed. Read off the codec thread, after the
+     * appends and the finish the test awaited, whose completions order the writes before this read.
+     */
+    long indexBytesRetained() {
+        long[] held = offsets;
+        return held == null ? 0 : (long) held.length * FramedRunLayout.INDEX_ENTRY_BYTES;
     }
 
     /**

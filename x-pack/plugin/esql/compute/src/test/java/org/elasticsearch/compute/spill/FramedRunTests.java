@@ -639,6 +639,38 @@ public class FramedRunTests extends ComputeTestCase {
         await(scope::close);
     }
 
+    /**
+     * The writer's index goes with its charge once the run is sealed: the reader loads the index from the object, and a
+     * sealed writer may be kept through a whole replay.
+     */
+    public void testTheIndexIsDroppedWithItsChargeOnceTheRunIsSealed() {
+        SpillScope scope = store.newScope("q", breaker);
+        FramedRunWriter writer = newWriter(scope, FramedRunMaxima.DEFAULT);
+        int count = between(129, 500);
+        List<byte[]> expected = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            byte[] bytes = randomRecord(chunkSize);
+            append(writer, 0, bytes);
+            expected.add(bytes);
+        }
+        assertThat(
+            "the index grew past its first slots",
+            writer.indexBytesRetained(),
+            greaterThan(64L * FramedRunLayout.INDEX_ENTRY_BYTES)
+        );
+        FramedRun run = await(writer::finish);
+        assertThat(writer.indexBytesRetained(), equalTo(0L));
+        assertThat(breaker.getUsed(), equalTo(0L));
+        try (FramedRunReader reader = open(run, FramedRunMaxima.DEFAULT); FramedRunReader.RecordCursor cursor = reader.cursor(0)) {
+            for (byte[] bytes : expected) {
+                assertArrayEquals(bytes, readRecord(cursor));
+            }
+            assertThat(readRecord(cursor), nullValue());
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+        await(scope::close);
+    }
+
     public void testAPageIsHeldUntilItsBytesAreInTheStream() {
         MemorySpillStore deferred = replaceStore(MemorySpillStore.Completion.DEFERRED);
         chunkSize = between(1, 64);

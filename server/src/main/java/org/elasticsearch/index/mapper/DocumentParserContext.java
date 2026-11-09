@@ -1097,7 +1097,7 @@ public abstract class DocumentParserContext {
      *
      * @return the mapper, or null if the field limit was exceeded
      */
-    public final Mapper getDynamicMapper(Mapper.Builder builder, @Nullable Mapper preBuiltMapper, MapperBuilderContext builderContext) {
+    final Mapper getDynamicMapper(Mapper.Builder builder, @Nullable Mapper preBuiltMapper, MapperBuilderContext builderContext) {
         String fullPath = builderContext.buildFullName(builder.leafName());
         Mapper existing = builtDynamicMappers.get(fullPath);
         if (existing != null) {

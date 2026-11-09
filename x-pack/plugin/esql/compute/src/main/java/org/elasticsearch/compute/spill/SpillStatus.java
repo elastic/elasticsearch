@@ -18,6 +18,8 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -48,23 +50,23 @@ public record SpillStatus(long spilledBytes, long readBackBytes, int spillRuns, 
 
     public static final SpillStatus NONE = new SpillStatus(0, 0, 0, 0);
 
-    /** The XContent fields, for a status's profile schema. */
-    public static final Map<String, Map<String, Object>> SCHEMA = Map.of(
-        "spilled_bytes",
-        ProfileSchema.integer(),
-        "spilled",
-        ProfileSchema.string(),
-        "read_back_bytes",
-        ProfileSchema.integer(),
-        "read_back",
-        ProfileSchema.string(),
-        "spill_runs",
-        ProfileSchema.integer(),
-        "spill_nanos",
-        ProfileSchema.integer(),
-        "spill_time",
-        ProfileSchema.string()
-    );
+    /**
+     * The XContent fields, for a status's profile schema, in {@link #toXContent}'s order. The order is fixed, unlike
+     * {@link Map#of}'s, so that the generated profile schema is the same from one run to the next.
+     */
+    public static final Map<String, Map<String, Object>> SCHEMA = schema();
+
+    private static Map<String, Map<String, Object>> schema() {
+        Map<String, Map<String, Object>> schema = new LinkedHashMap<>();
+        schema.put("spilled_bytes", ProfileSchema.integer());
+        schema.put("spilled", ProfileSchema.string());
+        schema.put("read_back_bytes", ProfileSchema.integer());
+        schema.put("read_back", ProfileSchema.string());
+        schema.put("spill_runs", ProfileSchema.integer());
+        schema.put("spill_nanos", ProfileSchema.integer());
+        schema.put("spill_time", ProfileSchema.string());
+        return Collections.unmodifiableMap(schema);
+    }
 
     /**
      * Adds the fields to a status's schema, all optional since they are absent when nothing spilled.

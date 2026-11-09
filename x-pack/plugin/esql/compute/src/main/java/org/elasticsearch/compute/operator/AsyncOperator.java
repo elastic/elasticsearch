@@ -278,6 +278,16 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             "async_operator",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, (builder, status, params) -> {
+            builder.startObject();
+            status.innerToXContent(builder);
+            return builder.endObject();
+        })
+            .required("process_nanos", ProfileSchema.integer())
+            .optional("process_time", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_completed", ProfileSchema.integer())
+            .build();
 
         final long receivedPages;
         final long completedPages;
@@ -327,9 +337,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            innerToXContent(builder);
-            return builder.endObject();
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         protected final XContentBuilder innerToXContent(XContentBuilder builder) throws IOException {

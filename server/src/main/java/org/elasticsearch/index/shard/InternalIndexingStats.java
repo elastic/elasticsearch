@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.ThreadUtilizationTracker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.util.List;
@@ -131,8 +132,11 @@ public final class InternalIndexingStats implements IndexingOperationListener {
         if (index.origin().isRecovery() == false) {
             totalStats.indexCurrent.dec();
             totalStats.indexFailed.inc();
-            if (ExceptionsHelper.unwrapCause(ex) instanceof VersionConflictEngineException) {
+            final Throwable failure = ExceptionsHelper.unwrapCause(ex);
+            if (failure instanceof VersionConflictEngineException) {
                 totalStats.indexFailedDueToVersionConflicts.inc();
+            } else if (InternalEngine.isTooManyDocsFailure(failure)) {
+                totalStats.indexFailedDueToTooManyDocs.inc();
             }
         }
     }
@@ -157,6 +161,7 @@ public final class InternalIndexingStats implements IndexingOperationListener {
         long tookTotal = 0;
         long failed = 0;
         long versionConflicts = 0;
+        long tooManyDocs = 0;
         for (Engine.IndexResult result : results) {
             switch (result.getResultType()) {
                 case SUCCESS -> {
@@ -166,8 +171,11 @@ public final class InternalIndexingStats implements IndexingOperationListener {
                 }
                 case FAILURE -> {
                     failed++;
-                    if (ExceptionsHelper.unwrapCause(result.getFailure()) instanceof VersionConflictEngineException) {
+                    final Throwable failure = ExceptionsHelper.unwrapCause(result.getFailure());
+                    if (failure instanceof VersionConflictEngineException) {
                         versionConflicts++;
+                    } else if (InternalEngine.isTooManyDocsFailure(failure)) {
+                        tooManyDocs++;
                     }
                 }
                 default -> throw new IllegalArgumentException("unknown result type: " + result.getResultType());
@@ -180,6 +188,7 @@ public final class InternalIndexingStats implements IndexingOperationListener {
         totalStats.indexCurrent.dec(results.size());
         totalStats.indexFailed.inc(failed);
         totalStats.indexFailedDueToVersionConflicts.inc(versionConflicts);
+        totalStats.indexFailedDueToTooManyDocs.inc(tooManyDocs);
     }
 
     /**
@@ -257,6 +266,7 @@ public final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric indexCurrent = new CounterMetric();
         private final CounterMetric indexFailed = new CounterMetric();
         private final CounterMetric indexFailedDueToVersionConflicts = new CounterMetric();
+        private final CounterMetric indexFailedDueToTooManyDocs = new CounterMetric();
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
 
@@ -322,6 +332,7 @@ public final class InternalIndexingStats implements IndexingOperationListener {
                 indexCurrent.count(),
                 indexFailed.count(),
                 indexFailedDueToVersionConflicts.count(),
+                indexFailedDueToTooManyDocs.count(),
                 deleteMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()),
                 deleteCurrent.count(),

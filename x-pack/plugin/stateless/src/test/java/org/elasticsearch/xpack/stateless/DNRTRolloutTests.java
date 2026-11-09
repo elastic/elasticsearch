@@ -62,6 +62,13 @@ public class DNRTRolloutTests extends ESTestCase {
             equalTo(100.0)
         );
         assertThat(
+            effectiveValue(
+                clusterSettings,
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
+            ).getAsPercent(),
+            equalTo(100.0)
+        );
+        assertThat(
             effectiveValue(clusterSettings, DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
             equalTo(Integer.MAX_VALUE)
         );

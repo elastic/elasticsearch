@@ -45,6 +45,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -4143,6 +4145,236 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
             assertThat("the reader must relay its warning", warnings, contains(expectedWarning));
             assertThat("the warning must not leak to the scan thread's response headers", drainWarnings(), empty());
+        }
+    }
+
+    /**
+     * A {@code required} MICROS column whose value overflows nanoseconds marks the position null, but the array was
+     * allocated for a dense column. The position is serialized whatever the mask says, so leaving it unassigned puts
+     * stale memory on the wire. A long slot never fails deserialization, so the bytes are the only oracle.
+     */
+    public void testRequiredMicrosOverflowSerializesDeterministically() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+
+        long inRangeMicros = 946728000000L * 1_000;
+        long outOfRangeMicros = 20_000_000_000_000_000L;
+        assertTrue("precondition: value must overflow nanos scaling", ParquetColumnDecoding.microsOverflowsNanos(outOfRangeMicros));
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("ts", inRangeMicros);
+            Group g2 = factory.newGroup();
+            g2.add("ts", outOfRangeMicros);
+            return List.of(g1, g2);
+        });
+
+        byte[] expected = null;
+        for (int read = 0; read < 200; read++) {
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withBaselinePath();
+            StorageObject storageObject = createStorageObject(parquetData);
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    storageObject,
+                    FormatReadContext.builder().batchSize(10).informationalWarningSink(w -> {}).build()
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                try {
+                    LongBlock block = (LongBlock) page.getBlock(0);
+                    assertFalse("in-range value must be present", block.isNull(0));
+                    assertTrue("overflowing value must be null", block.isNull(1));
+                    byte[] actual = serializedBytes(block);
+                    if (expected == null) {
+                        expected = actual;
+                    } else {
+                        assertArrayEquals("serialized form changed on read " + read, expected, actual);
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            drainWarnings();
+        }
+    }
+
+    /**
+     * A {@code required} text column declared {@code datetime} nulls any value that fails to parse, and a declared
+     * coercion is independent of definition levels — so the definition level alone would allocate this array
+     * uninitialized while the parse-failure branch leaves its position unassigned. This is the one arm whose
+     * condition is not the definition-level test, and the serialized bytes are the only oracle for a long slot.
+     */
+    public void testRequiredDeclaredDatetimeCoercionFailureSerializesDeterministically() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("ts")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group parses = factory.newGroup();
+            parses.add("ts", "2000-01-01T12:00:00.000Z");
+            Group fails = factory.newGroup();
+            fails.add("ts", "not-a-datetime");
+            return List.of(parses, fails);
+        });
+
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        byte[] expected = null;
+        for (int read = 0; read < 200; read++) {
+            ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withBaselinePath()
+                .withDeclaredTypeColumns(Set.of("ts"));
+            StorageObject storageObject = createStorageObject(parquetData);
+            try (
+                CloseableIterator<Page> iterator = reader.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                try {
+                    LongBlock block = (LongBlock) page.getBlock(0);
+                    assertFalse("the parseable value must be present", block.isNull(0));
+                    assertTrue("the unparseable value must be null", block.isNull(1));
+                    byte[] actual = serializedBytes(block);
+                    if (expected == null) {
+                        expected = actual;
+                    } else {
+                        assertArrayEquals("serialized form changed on read " + read, expected, actual);
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            drainWarnings();
+        }
+    }
+
+    /**
+     * The whole-column arms, which {@code withBaselinePath} selects. The batch arms have their own determinism
+     * cells, but reverting a whole-column allocation on its own leaves the rest of the suite green, so these are
+     * asserted here directly: a masked position must read as the type's zero, not merely agree between reads.
+     * Comparing reads alone can only false-pass, because memory that happens to be reproducible agrees with
+     * itself — a fresh zeroed region, or an allocation too large for the TLAB fast path that the JVM zeroed
+     * anyway, both named in {@link UninitializedArrays}.
+     */
+    public void testNullableWholeColumnsDefineMaskedPositions() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.BOOLEAN)
+            .named("b")
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("i")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("l")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("d")
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false))
+            .named("u")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.decimalType(4, 18))
+            .named("dec")
+            .optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(2)
+            .as(LogicalTypeAnnotation.float16Type())
+            .named("f16")
+            .optional(PrimitiveType.PrimitiveTypeName.INT96)
+            .named("i96")
+            // Nullable, unlike the required column the overflow test uses: there the condition is already
+            // false, so only this cell reverts readDateNanosColumn's allocation.
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("dn")
+            // MILLIS, so this is the epoch-millis arm of readDatetimeColumn. INT96 and MICROS reach their own
+            // readers, and the coercion test is a required column, so nothing else reverts this allocation.
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("dt")
+            .named("test_schema");
+
+        int rows = 512;
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(rows);
+            for (int r = 0; r < rows; r++) {
+                Group g = factory.newGroup();
+                if (r % 5 != 0) {
+                    g.add("b", r % 4 == 0);
+                    g.add("i", r);
+                    g.add("l", (long) r * 31);
+                    g.add("d", r * 1.5);
+                    g.add("u", Integer.MIN_VALUE + r);
+                    g.add("dec", (long) r * 101);
+                    g.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(r * 0.5f)));
+                    g.add("i96", new NanoTime(2_451_545, 43_200_000_000_000L + r));
+                    g.add("dn", 1_700_000_000_000_000L + r);
+                    g.add("dt", 1_700_000_000_000L + r);
+                }
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        byte[][] expected = new byte[10][];
+        for (int read = 0; read < 50; read++) {
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withBaselinePath();
+            StorageObject storageObject = createStorageObject(parquetData);
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    storageObject,
+                    FormatReadContext.builder().batchSize(rows).informationalWarningSink(w -> {}).build()
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                try {
+                    for (int c = 0; c < 10; c++) {
+                        Block block = page.getBlock(c);
+                        for (int pos = 0; pos < block.getPositionCount(); pos++) {
+                            if (pos % 5 != 0) {
+                                continue;
+                            }
+                            assertTrue("column " + c + " position " + pos + " must be null", block.isNull(pos));
+                            // Single-valued, so the position indexes the backing array directly: this reads the
+                            // masked element itself rather than going through the mask.
+                            assertEquals("column " + c + " position " + pos, pos, block.getFirstValueIndex(pos));
+                            String where = "column " + c + " position " + pos;
+                            if (block instanceof BooleanBlock bb) {
+                                assertFalse(where, bb.getBoolean(pos));
+                            } else if (block instanceof IntBlock ib) {
+                                assertEquals(where, 0, ib.getInt(pos));
+                            } else if (block instanceof LongBlock lb) {
+                                assertEquals(where, 0L, lb.getLong(pos));
+                            } else if (block instanceof DoubleBlock db) {
+                                assertEquals(where, 0.0, db.getDouble(pos), 0.0);
+                            } else {
+                                throw new AssertionError("unexpected block type for " + where + ": " + block.getClass());
+                            }
+                        }
+                        byte[] actual = serializedBytes(block);
+                        if (expected[c] == null) {
+                            expected[c] = actual;
+                        } else {
+                            assertArrayEquals("column " + c + " serialized form changed on read " + read, expected[c], actual);
+                        }
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            drainWarnings();
+        }
+    }
+
+    /** Serialized bytes, copied out before close returns the stream's pages to the recycler. */
+    private static byte[] serializedBytes(Block block) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Block.writeTypedBlock(block, out);
+            return BytesReference.toBytes(out.bytes());
         }
     }
 

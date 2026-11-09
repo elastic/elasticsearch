@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Randomness;
@@ -16,28 +17,35 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -51,14 +59,19 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
+@LuceneTestCase.SuppressCodecs("*") // require production codecs
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     public void testEmpty() {
@@ -119,7 +132,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     public void populateIndex() {
         Settings.Builder settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster"));
         if (randomBoolean()) {
-            settings.put("index.codec", "default").put("index.number_of_replicas", 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+            settings.put("index.number_of_replicas", 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         client().admin()
             .indices()
@@ -147,7 +160,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             hostToClusters.put("p" + i, randomFrom("qa", "prod"));
         }
         long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
-        int numDocs = between(20, 100);
+        int numDocs = between(50, 200);
         docs.clear();
         Map<String, Integer> requestCounts = new HashMap<>();
         List<String> allProjects = List.of("project-1", "project-2", "project-3");
@@ -707,6 +720,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), between(3, 10))
                 .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
                 .put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.AUTO)
+                .put(QueryPragmas.TIME_SERIES_SINGLE_PASS.getKey(), true)
                 .put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), 1)
                 .build()
         );
@@ -719,17 +733,31 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             request.query("TS my-hosts | STATS sum(rate(request_count)) BY cluster | SORT cluster");
             try (var resp = run(request)) {
                 EsqlQueryResponse.Profile profile = resp.profile();
-                List<DriverProfile> reduceProfiles = profile.drivers()
-                    .stream()
-                    .filter(d -> d.description().equals(ComputeService.REDUCE_DESCRIPTION))
-                    .toList();
-                assertThat(reduceProfiles, empty());
                 List<DriverProfile> dataProfiles = profile.drivers()
                     .stream()
                     .filter(d -> d.description().equals(ComputeService.DATA_DESCRIPTION))
                     .toList();
                 for (DriverProfile p : dataProfiles) {
-                    assertThat(p.operators().get(0).operator(), containsString("TimeSeriesSourceOperator"));
+                    assertThat(p.operators(), hasSize(9));
+                    assertThat(p.operators().get(0).operator(), startsWith("TimeSeriesSourceOperator"));
+                    assertThat(
+                        p.operators().get(1).operator(),
+                        equalTo("ValuesSourceReaderOperator[fields = [_tsid, request_count, @timestamp, <temporality>]]")
+                    );
+                    assertThat(p.operators().get(2).operator(), startsWith("TimeSeriesAggregationOperator"));
+                    assertThat(p.operators().get(2).operator(), endsWith("mode=SINGLE]]]"));
+                    assertThat(p.operators().get(3).operator(), startsWith("ProjectOperator"));
+                    assertThat(p.operators().get(4).operator(), startsWith("ReadDimsOperator"));
+                    assertThat(
+                        p.operators().get(4).operator(),
+                        endsWith("valuesSourceReader=ValuesSourceReaderOperator[fields = [cluster]]]")
+                    );
+                    assertThat(p.operators().get(5).operator(), startsWith("PackDimsOperator"));
+                    assertThat(p.operators().get(6).operator(), startsWith("ProjectOperator"));
+                    assertThat(p.operators().get(7).operator(), startsWith("HashAggregationOperator"));
+                    assertThat(p.operators().get(7).operator(), containsString("HashAggregationOperator"));
+                    assertThat(p.operators().get(7).operator(), endsWith("mode=INITIAL]]]"));
+                    assertThat(p.operators().get(8).operator(), startsWith("ExchangeSinkOperator"));
                     LuceneSourceOperator.Status luceneStatus = (LuceneSourceOperator.Status) p.operators().get(0).status();
                     for (LuceneSliceQueue.PartitioningStrategy v : luceneStatus.partitioningStrategies().values()) {
                         if (TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current())) {
@@ -1206,7 +1234,6 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testAggregationEmitPartialResultPeriodically() {
-        assumeTrue("query pragmas require a snapshot build", canUseQueryPragmas());
         String query = "TS hosts | STATS sum(max_over_time(cpu)) BY host, bucket(@timestamp, 1 minute)";
         Settings basePragma = Settings.builder()
             .put(QueryPragmas.TASK_CONCURRENCY.getKey(), "1")
@@ -1224,7 +1251,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             )
         );
         try (var result = run(request)) {
-            assertThat(timeSeriesAggEmitCount(result.profile()), greaterThan(4L));
+            assertThat(timeSeriesAggEmitCount(result.profile()), greaterThan(dataDriversWithInput(result.profile())));
         }
         // high keys threshold disables periodic emit completely (one finish emit per data driver)
         request.pragmas(
@@ -1236,37 +1263,309 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             )
         );
         try (var result = run(request)) {
-            assertThat(timeSeriesAggEmitCount(result.profile()), equalTo(dataDriverCount(result.profile())));
-        }
-        // rate must not emit periodically even with a low keys threshold
-        request.query("TS hosts | STATS sum(rate(request_count)) BY host, bucket(@timestamp, 1 minute)");
-        request.pragmas(
-            new QueryPragmas(
-                Settings.builder().put(basePragma).put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 5).build()
-            )
-        );
-        try (var result = run(request)) {
-            assertThat(timeSeriesAggEmitCount(result.profile()), equalTo(dataDriverCount(result.profile())));
+            assertThat(timeSeriesAggEmitCount(result.profile()), equalTo(dataDriversWithInput(result.profile())));
         }
     }
 
-    private static long dataDriverCount(EsqlQueryResponse.Profile profile) {
-        return profile.drivers().stream().filter(d -> d.description().equals("data")).count();
+    public void testEmitRatePeriodically() {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("TS hosts | STATS sum(rate(request_count)) BY host, bucket=bucket(@timestamp, 1 minute) | SORT host, bucket");
+        request.profile(true);
+        request.acceptedPragmaRisks(true);
+        final List<List<Object>> coordinatorResults;
+        try (var coordinatorResp = run(request)) {
+            coordinatorResults = EsqlTestUtils.getValuesList(coordinatorResp);
+        }
+        for (boolean singlePass : new boolean[] { false, true }) {
+            request.pragmas(
+                new QueryPragmas(
+                    Settings.builder()
+                        .put(QueryPragmas.TASK_CONCURRENCY.getKey(), "1")
+                        .put(QueryPragmas.PAGE_SIZE.getKey(), 1)
+                        .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 1)
+                        .put(QueryPragmas.TIME_SERIES_SINGLE_PASS.getKey(), singlePass)
+                        .build()
+                )
+            );
+            try (var result = run(request)) {
+                assertThat(EsqlTestUtils.getValuesList(result), equalTo(coordinatorResults));
+                assertThat(
+                    "single pass [" + singlePass + "]",
+                    timeSeriesAggEmitCount(result.profile()),
+                    lessThanOrEqualTo(processedSlices(result.profile()))
+                );
+            }
+        }
+    }
+
+    private static long processedSlices(EsqlQueryResponse.Profile profile) {
+        long slices = 0;
+        for (DriverProfile dataNode : profile.drivers().stream().filter(d -> d.description().equals("data")).toList()) {
+            List<OperatorStatus> sources = dataNode.operators().stream().filter(o -> o.status() instanceof LuceneOperator.Status).toList();
+            assertThat(sources, hasSize(1));
+            slices += ((LuceneOperator.Status) sources.get(0).status()).processedSlices();
+        }
+        return slices;
     }
 
     private static long timeSeriesAggEmitCount(EsqlQueryResponse.Profile profile) {
+        return timeSeriesAggStatuses(profile).stream().mapToLong(HashAggregationOperator.Status::emitCount).sum();
+    }
+
+    private static long dataDriversWithInput(EsqlQueryResponse.Profile profile) {
+        return timeSeriesAggStatuses(profile).stream().filter(s -> s.rowsReceived() > 0).count();
+    }
+
+    private static List<HashAggregationOperator.Status> timeSeriesAggStatuses(EsqlQueryResponse.Profile profile) {
         List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
         assertThat(dataNodes, not(empty()));
-        long emitCount = 0;
+        List<HashAggregationOperator.Status> statuses = new ArrayList<>();
         for (DriverProfile dataNode : dataNodes) {
             List<OperatorStatus> hashOperator = dataNode.operators()
                 .stream()
-                .filter(o -> o.status() instanceof TimeSeriesAggregationOperator.Status)
+                .filter(o -> o.operator().startsWith(TimeSeriesAggregationOperator.class.getSimpleName()))
                 .toList();
             assertThat(hashOperator, hasSize(1));
-            emitCount += ((HashAggregationOperator.Status) hashOperator.get(0).status()).emitCount();
+            statuses.add((HashAggregationOperator.Status) hashOperator.get(0).status());
         }
-        return emitCount;
+        return statuses;
+    }
+
+    public void testTsInfoLimitBoundsSampledSeries() {
+        String index = "many-hosts";
+        int numShards = between(2, 5);
+        Settings indexSettings = Settings.builder()
+            .put("mode", "time_series")
+            .putList("routing_path", List.of("host", "cluster"))
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        client().admin()
+            .indices()
+            .prepareCreate(index)
+            .setSettings(indexSettings)
+            .setMapping(
+                "@timestamp",
+                "type=date",
+                "host",
+                "type=keyword,time_series_dimension=true",
+                "cluster",
+                "type=keyword,time_series_dimension=true",
+                "cpu",
+                "type=double,time_series_metric=gauge",
+                "memory",
+                "type=long,time_series_metric=gauge",
+                "request_count",
+                "type=integer,time_series_metric=counter"
+            )
+            .get();
+        List<String> clusters = List.of("qa", "prod");
+        int numHosts = 200;
+        int numSeries = numHosts * clusters.size();
+        long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
+        var bulk = client().prepareBulk();
+        for (int h = 0; h < numHosts; h++) {
+            for (String cluster : clusters) {
+                int docsPerSeries = between(1, 3);
+                for (int d = 0; d < docsPerSeries; d++) {
+                    bulk.add(
+                        client().prepareIndex(index)
+                            .setSource(
+                                "@timestamp",
+                                timestamp + d * 1000L,
+                                "host",
+                                "h" + h,
+                                "cluster",
+                                cluster,
+                                "cpu",
+                                randomIntBetween(0, 100),
+                                "memory",
+                                randomIntBetween(1024, 1024 * 1024),
+                                "request_count",
+                                randomIntBetween(0, 1000)
+                            )
+                    );
+                }
+            }
+        }
+        var bulkResponse = bulk.get();
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+        client().admin().indices().prepareRefresh(index).get();
+
+        int minRows = between(1, 5);
+        int multiplier = between(1, 3);
+        int limit = between(1, 5);
+        int threshold = Math.max(minRows, limit * multiplier);
+        updateClusterSettings(
+            Settings.builder()
+                .put(PlannerSettings.TS_INFO_SAMPLE_MIN_ROWS.getKey(), minRows)
+                .put(PlannerSettings.TS_INFO_SAMPLE_LIMIT_MULTIPLIER.getKey(), multiplier)
+        );
+        try {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.profile(true);
+            request.query("TS " + index + " | TS_INFO | LIMIT " + limit);
+            try (var resp = run(request)) {
+                assertThat(EsqlTestUtils.getValuesList(resp), hasSize(limit));
+                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> dataDrivers = drivers.stream().filter(d -> d.description().equals("data")).toList();
+                assertThat(dataDrivers, not(empty()));
+                int dataDriversAtCap = 0;
+                for (DriverProfile driver : drivers) {
+                    List<OperatorStatus> ops = driver.operators();
+                    for (int i = 0; i < ops.size(); i++) {
+                        if (ops.get(i).status() instanceof TsInfoOperator.Status tsInfo) {
+                            if (tsInfo.mode() == TsInfoOperator.Mode.INITIAL) {
+                                LimitOperator.Status sample = null;
+                                for (int j = i - 1; j >= 0 && sample == null; j--) {
+                                    if (ops.get(j).status() instanceof LimitOperator.Status s) {
+                                        sample = s;
+                                    }
+                                }
+                                assertNotNull(driver.description() + ": no LimitOperator before " + ops.get(i).operator(), sample);
+                                assertThat(driver.description(), sample.limit(), equalTo(threshold));
+                                assertThat(driver.description(), sample.rowsEmitted(), Matchers.lessThanOrEqualTo((long) threshold));
+                                assertThat(driver.description(), tsInfo.rowsReceived(), equalTo(sample.rowsEmitted()));
+                                assertThat(
+                                    driver.description(),
+                                    ops.get(i).operator(),
+                                    equalTo(
+                                        "TsInfoOperator[mode=INITIAL, partialEmitThreshold="
+                                            + TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD
+                                            + "]"
+                                    )
+                                );
+                                if (sample.rowsEmitted() == threshold) {
+                                    dataDriversAtCap++;
+                                }
+                            } else {
+                                int expectedLimit = driver.description().equals("node_reduce") ? threshold : limit;
+                                assertThat(
+                                    driver.description(),
+                                    ops.get(i).operator(),
+                                    equalTo("TsInfoOperator[mode=FINAL, limit=" + expectedLimit + "]")
+                                );
+                                assertThat(driver.description(), tsInfo.rowsEmitted(), Matchers.lessThanOrEqualTo((long) expectedLimit));
+                            }
+                        }
+                    }
+                }
+                // every series lands in some data driver, so with fewer than numSeries / threshold drivers one of them must overflow
+                if ((long) dataDrivers.size() * threshold < numSeries) {
+                    assertThat(dataDriversAtCap, Matchers.greaterThan(0));
+                }
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(PlannerSettings.TS_INFO_SAMPLE_MIN_ROWS.getKey())
+                    .putNull(PlannerSettings.TS_INFO_SAMPLE_LIMIT_MULTIPLIER.getKey())
+            );
+        }
+    }
+
+    public void testInfoCommandsLimitTimeRange() {
+        for (String timestampType : List.of("date", "date_nanos")) {
+            String index = "info-time-range-" + timestampType;
+            long now = System.currentTimeMillis();
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("mode", "time_series")
+                        .putList("routing_path", List.of("host"))
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(
+                            IndexSettings.TIME_SERIES_START_TIME.getKey(),
+                            Instant.ofEpochMilli(now - TimeValue.timeValueHours(6).millis()).toString()
+                        )
+                        .put(
+                            IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                            Instant.ofEpochMilli(now + TimeValue.timeValueHours(1).millis()).toString()
+                        )
+                )
+                .setMapping(
+                    "@timestamp",
+                    "type=" + timestampType,
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "old_metric",
+                    "type=double,time_series_metric=gauge",
+                    "new_metric",
+                    "type=double,time_series_metric=gauge"
+                )
+                .get();
+            long threeHoursAgo = now - TimeValue.timeValueHours(3).millis();
+            long tenMinutesAgo = now - TimeValue.timeValueMinutes(10).millis();
+            var bulk = client().prepareBulk();
+            bulk.add(client().prepareIndex(index).setSource("@timestamp", threeHoursAgo, "host", "h1", "old_metric", 1.0));
+            bulk.add(client().prepareIndex(index).setSource("@timestamp", tenMinutesAgo, "host", "h2", "new_metric", 2.0));
+            var bulkResponse = bulk.get();
+            assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+            client().admin().indices().prepareRefresh(index).get();
+
+            assertInfo(index, null, "old_metric", "new_metric");
+
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE.getKey(), "1h"));
+            try {
+                // No time range in the request reads the last hour
+                assertInfo(index, null, "new_metric");
+                // A range wider than the cap is narrowed to its most recent hour
+                assertInfo(index, timestampRange(now - TimeValue.timeValueHours(4).millis(), now + 60_000), "new_metric");
+                assertInfo(
+                    index,
+                    timestampRange(now - TimeValue.timeValueHours(5).millis(), now - TimeValue.timeValueMinutes(150).millis()),
+                    "old_metric"
+                );
+                assertInfo(index, QueryBuilders.rangeQuery("@timestamp").gte("now-1d"), "new_metric");
+                assertInfo(index, QueryBuilders.rangeQuery("@timestamp").gte("now-1d").lte("now"), "new_metric");
+                assertInfo(index, timestampRange(now - TimeValue.timeValueMinutes(30).millis(), now + 60_000), "new_metric");
+
+                EsqlQueryRequest request = new EsqlQueryRequest();
+                request.query("TS " + index + " | METRICS_INFO");
+                request.profile(true);
+                try (var resp = run(request)) {
+                    List<String> queries = resp.profile()
+                        .drivers()
+                        .stream()
+                        .flatMap(driver -> driver.operators().stream())
+                        .map(OperatorStatus::status)
+                        .filter(LuceneSourceOperator.Status.class::isInstance)
+                        .flatMap(status -> ((LuceneSourceOperator.Status) status).processedQueries().stream())
+                        .toList();
+                    assertThat(queries, not(empty()));
+                    assertThat(String.join(" ", queries), containsString("@timestamp"));
+                }
+            } finally {
+                updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE.getKey()));
+            }
+        }
+    }
+
+    private static QueryBuilder timestampRange(long fromMillis, long toMillis) {
+        return QueryBuilders.rangeQuery("@timestamp")
+            .gte(Instant.ofEpochMilli(fromMillis).toString())
+            .lte(Instant.ofEpochMilli(toMillis).toString());
+    }
+
+    private void assertInfo(String index, QueryBuilder filter, String... metrics) {
+        for (String command : List.of("METRICS_INFO", "TS_INFO")) {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("TS " + index + " | " + command);
+            if (filter != null) {
+                request.filter(filter);
+            }
+            try (var resp = run(request)) {
+                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                if (command.equals("METRICS_INFO")) {
+                    assertThat(rows.stream().map(row -> (String) row.get(0)).toList(), containsInAnyOrder(metrics));
+                } else {
+                    assertThat(rows, hasSize(metrics.length));
+                }
+            }
+        }
     }
 
     private static double round(double value) {

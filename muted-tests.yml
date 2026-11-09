@@ -446,11 +446,6 @@ tests:
   - :server:internalClusterTest
   method: testMetadataVersion
   issue: https://github.com/elastic/elasticsearch/issues/164246
-- class: org.elasticsearch.system_indices.action.SystemDataStreamMigrationIT
-  tasks:
-  - :x-pack:plugin:migrate:internalClusterTest
-  method: testMigrationRestartAfterFailure
-  issue: https://github.com/elastic/elasticsearch/issues/164473
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   tasks:
   - :x-pack:plugin:esql:test

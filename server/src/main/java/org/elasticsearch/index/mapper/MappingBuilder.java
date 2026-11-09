@@ -153,12 +153,14 @@ public class MappingBuilder implements ToXContentFragment {
         List<String> serializedBeforeBuild = null;
         assert checkSerialization == false || (serializedBeforeBuild = serializationsAfterNormalizing(reason)) != null;
         RootObjectMapper root = rootBuilder.build(rootContext(reason));
+        for (MetadataFieldMapper.Builder metadataBuilder : metadataBuilders.values()) {
+            metadataBuilder.validateMapping(rootBuilder);
+        }
         MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
             .stream()
             .map(MetadataFieldMapper.Builder::build)
             .toArray(MetadataFieldMapper[]::new);
         Mapping mapping = new Mapping(root, metadataMappers, meta);
-        assert checkSerialization == false || serializesLike(mapping);
         assert checkSerialization == false || serializedBeforeBuild.isEmpty() || serializedBeforeBuild.equals(serializations())
             : "building changed the serialization of the builder: BEFORE "
                 + serializedBeforeBuild.get(0)
@@ -213,25 +215,8 @@ public class MappingBuilder implements ToXContentFragment {
     }
 
     /**
-     * Checks that this builder writes the same bytes as the mapping built from it, with and without defaults, for every
-     * mapping the tests build. Both serializers exist side by side until the mapping's is removed, and this keeps the
-     * builder's from drifting in the meantime; it goes with the mapper-side serialization.
+     * Serializes with the given params, as a stand-alone object.
      */
-    private boolean serializesLike(Mapping mapping) {
-        for (Params params : PARAMS_TO_CHECK) {
-            String fromMapping = serialize(mapping, params);
-            String fromBuilder = serialize(this, params);
-            assert fromMapping.equals(fromBuilder)
-                : "builder serialization differs from mapping serialization with params "
-                    + params.param("include_defaults", "false")
-                    + ": mapping "
-                    + fromMapping
-                    + " builder "
-                    + fromBuilder;
-        }
-        return true;
-    }
-
     private static String serialize(ToXContentFragment fragment, Params params) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();

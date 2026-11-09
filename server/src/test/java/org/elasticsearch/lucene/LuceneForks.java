@@ -93,6 +93,14 @@ public final class LuceneForks {
     }
 
     public static final List<Fork> ALL = List.of(
+        workaround(
+            "org.elasticsearch.index.store.FsDirectoryFactory",
+            "apache/lucene#16970",
+            10,
+            6,
+            1,
+            "Remove FsDirectoryFactory.HybridDirectory#confineTempStoredFieldsIndex and its test."
+        ),
         permanent("org.elasticsearch.lucene.comparators.XNumericComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XLongComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator", "Elasticsearch-specific sort skipping behaviour"),

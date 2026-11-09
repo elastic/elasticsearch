@@ -1130,8 +1130,17 @@ public abstract class Engine implements Closeable {
         return acquireSearcher(source, SearcherScope.EXTERNAL);
     }
 
+    public final Searcher acquireSearcher(String source, SplitShardCountSummary splitShardCountSummary) throws EngineException {
+        return acquireSearcher(source, SearcherScope.EXTERNAL, splitShardCountSummary);
+    }
+
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
         return acquireSearcher(source, scope, Function.identity());
+    }
+
+    public Searcher acquireSearcher(String source, SearcherScope scope, SplitShardCountSummary splitShardCountSummary)
+        throws EngineException {
+        return acquireSearcher(source, scope, splitShardCountSummary, Function.identity());
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
@@ -1270,8 +1279,11 @@ public abstract class Engine implements Closeable {
         ensureOpen(null);
     }
 
-    /** get commits stats for the last commit */
-    public final CommitStats commitStats() {
+    /**
+     * Get commit stats for the last commit. Engines may override this to avoid reading the last committed segment infos, as long as
+     * the stats are the same as those built from {@link #getLastCommittedSegmentInfos()}.
+     */
+    public CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 

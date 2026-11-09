@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 158475
+summary: Add snapshot/restore for PEK encrypted data - password
+type: enhancement

@@ -102,6 +102,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -266,6 +267,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     }
 
     private SourceOperator simpleInput(DriverContext context, int size, int commitEvery, int pageSize) {
+        // See ValuesSourceReaderOperatorTests.pageSizeFor. This fixture indexes two indices, so the same
+        // page size of 1 is twice as many pages and is what pushed testLoadAll past 3 minutes.
+        pageSize = ValuesSourceReaderOperatorTests.pageSizeFor(size, pageSize);
         List<LuceneSourceOperatorTests.MockShardContext> shardContexts = new ArrayList<>();
         try {
             for (String indexKey : INDICES.keySet()) {
@@ -475,6 +479,18 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             Block.MvOrdering.SORTED_ASCENDING,
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
+    }
+
+    /**
+     * A requested page size of 1 is raised once each index passes {@link ValuesSourceReaderOperatorTests#MAX_PAGES_PER_INDEX}.
+     * Both indices together still return every value inside the 3 minute driver wait.
+     */
+    public void testPageSizeOfOneStaysWithinDriverBudget() {
+        int docs = 1_000;
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, docs, commitEvery(docs), 1));
+        assertThat(input.size(), lessThanOrEqualTo(ValuesSourceReaderOperatorTests.MAX_PAGES_PER_INDEX * INDICES.size()));
+        loadSimpleAndAssert(driverContext, input, Block.MvOrdering.SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
     }
 
     public void testLoadAllInOnePage() {

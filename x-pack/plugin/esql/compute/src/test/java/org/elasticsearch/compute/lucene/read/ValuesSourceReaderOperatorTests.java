@@ -223,12 +223,29 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private SourceOperator simpleInput(DriverContext context, int size, int commitEvery, int pageSize) {
+        // Each page builds field loaders. Page size 1 with thousands of docs exceeds TestDriverRunner's
+        // 30s wait. 9756 such pages took about 200s on CI.
+        pageSize = pageSizeFor(size, pageSize);
         try {
             initIndex(size, commitEvery);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         return sourceOperator(context, pageSize);
+    }
+
+    /**
+     * Most pages one index is allowed to emit. Above this, a page size of 1 does not fit in the driver wait.
+     */
+    static final int MAX_PAGES_PER_INDEX = 256;
+
+    /**
+     * Smallest page size that keeps {@code docCount} documents to {@link #MAX_PAGES_PER_INDEX} pages,
+     * unless the caller already asked for a larger page.
+     */
+    static int pageSizeFor(int docCount, int requestedPageSize) {
+        int floor = Math.max(1, (docCount + MAX_PAGES_PER_INDEX - 1) / MAX_PAGES_PER_INDEX);
+        return Math.max(Math.max(1, requestedPageSize), floor);
     }
 
     private SourceOperator sourceOperator(DriverContext context, int pageSize) {
@@ -508,6 +525,24 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Block.MvOrdering.SORTED_ASCENDING,
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
+    }
+
+    /**
+     * A requested page size of 1 is raised once the document count passes {@link #MAX_PAGES_PER_INDEX},
+     * and that shape still returns every value inside the driver wait.
+     */
+    public void testPageSizeOfOneStaysWithinDriverBudget() {
+        assertThat(pageSizeFor(MAX_PAGES_PER_INDEX, 1), equalTo(1));
+        assertThat(pageSizeFor(MAX_PAGES_PER_INDEX + 1, 1), equalTo(2));
+        assertThat(pageSizeFor(5_000, 1), equalTo((5_000 + MAX_PAGES_PER_INDEX - 1) / MAX_PAGES_PER_INDEX));
+        assertThat(pageSizeFor(10_000, 1), equalTo((10_000 + MAX_PAGES_PER_INDEX - 1) / MAX_PAGES_PER_INDEX));
+        assertThat(pageSizeFor(5_000, 100), equalTo(100));
+
+        int docs = 1_000;
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, docs, commitEvery(docs), 1));
+        assertThat(input.size(), lessThanOrEqualTo(MAX_PAGES_PER_INDEX));
+        loadSimpleAndAssert(driverContext, input, Block.MvOrdering.SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
     }
 
     public void testLoadAllInOnePage() {

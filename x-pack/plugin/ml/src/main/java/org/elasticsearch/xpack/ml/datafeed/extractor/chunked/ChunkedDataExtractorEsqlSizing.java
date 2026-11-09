@@ -97,10 +97,11 @@ final class ChunkedDataExtractorEsqlSizing {
             // The shrunk retry already proved a larger span truncates; regrowing here would waste shrink retries on the next chunk.
             return chunkSpan;
         }
-        if (rowCount < 0 || rowCount >= DEFAULT_ESQL_CHUNK_DOCS || initialChunkSpan <= 0) {
+        if (rowCount <= 0 || rowCount >= DEFAULT_ESQL_CHUNK_DOCS || initialChunkSpan <= 0) {
             return chunkSpan;
         }
-        return timeAligner.alignToCeil(Math.min(initialChunkSpan, chunkSpan * CHUNK_HEADROOM_FACTOR));
+        long scaledSpan = (chunkSpan * DEFAULT_ESQL_CHUNK_DOCS) / rowCount;
+        return timeAligner.alignToCeil(Math.min(initialChunkSpan, scaledSpan));
     }
 
     private void recordIncomplete(SearchInterval interval) {

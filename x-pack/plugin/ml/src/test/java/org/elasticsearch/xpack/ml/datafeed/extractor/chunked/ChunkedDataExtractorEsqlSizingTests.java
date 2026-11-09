@@ -91,14 +91,41 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
         assertThat(sizing.regrownSpan(shrunkEnd.getAsLong(), 500L), equalTo(shrunkEnd.getAsLong()));
     }
 
-    public void testSparseChunkWithoutShrinkShouldRegrowByHeadroomFactorCappedAtInitialSpan() {
+    public void testSparseChunkWithoutShrinkShouldRegrowTowardTargetRowCountCappedAtInitialSpan() {
         long initialSpan = representativeChunkEnd();
         long chunkSpan = initialSpan / ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
         ChunkedDataExtractorContext.TimeAligner aligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(GROUPING_INTERVAL_MILLIS);
-        long expected = aligner.alignToCeil(Math.min(initialSpan, chunkSpan * ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR));
+        long targetDocs = ChunkedDataExtractorEsqlSizing.DEFAULT_ESQL_CHUNK_DOCS;
+        long scaled = (chunkSpan * targetDocs) / 500L;
+        long expected = aligner.alignToCeil(Math.min(initialSpan, scaled));
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
         sizing.captureInitialChunkSpan(initialSpan);
         assertThat(sizing.regrownSpan(chunkSpan, 500L), equalTo(expected));
+    }
+
+    public void testSparseChunkJustUnderTargetShouldNotDoubleSpan() {
+        long initialSpan = representativeChunkEnd();
+        ChunkedDataExtractorContext.TimeAligner aligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(GROUPING_INTERVAL_MILLIS);
+        long chunkSpan = initialSpan / ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
+        ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
+        sizing.captureInitialChunkSpan(initialSpan);
+        long rowCount = ChunkedDataExtractorEsqlSizing.DEFAULT_ESQL_CHUNK_DOCS - 1;
+        long scaled = (chunkSpan * ChunkedDataExtractorEsqlSizing.DEFAULT_ESQL_CHUNK_DOCS) / rowCount;
+        long expected = aligner.alignToCeil(Math.min(initialSpan, scaled));
+        assertThat(sizing.regrownSpan(chunkSpan, rowCount), equalTo(expected));
+        assertThat(sizing.regrownSpan(chunkSpan, rowCount), lessThan(chunkSpan * ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR));
+    }
+
+    public void testVerySparseChunkShouldRegrowUpToInitialSpan() {
+        long initialSpan = representativeChunkEnd();
+        long chunkSpan = initialSpan / ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
+        ChunkedDataExtractorContext.TimeAligner aligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(GROUPING_INTERVAL_MILLIS);
+        long scaled = (chunkSpan * ChunkedDataExtractorEsqlSizing.DEFAULT_ESQL_CHUNK_DOCS) / 1_000L;
+        long expected = aligner.alignToCeil(Math.min(initialSpan, scaled));
+        ChunkedDataExtractorEsqlSizing sizing = esqlSizing(true);
+        sizing.captureInitialChunkSpan(initialSpan);
+        assertThat(sizing.regrownSpan(chunkSpan, 1_000L), equalTo(expected));
+        assertThat(expected, equalTo(initialSpan));
     }
 
     public void testTwoTruncatedIntervalsShouldMergeIntoCoveringSpan() {

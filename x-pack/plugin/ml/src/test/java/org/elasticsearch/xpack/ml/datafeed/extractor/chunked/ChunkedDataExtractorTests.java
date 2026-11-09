@@ -524,22 +524,17 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
     public void testExtractionGivenEsqlQueryAndAutoChunk() throws IOException {
         chunkSpan = null;
-        stubSummary(100_000L, 450_000L, new DataSummary(100_000L, 400_000L, 3_000L));
+        DataSummary summary = new DataSummary(100_000L, 400_000L, 3_000L);
 
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(100_000L, 450_000L));
 
         InputStream inputStream1 = mock(InputStream.class);
-        InputStream inputStream2 = mock(InputStream.class);
-        stubChunk(100_000L, 300_000L, inputStream1);
-        stubChunk(300_000L, 450_000L, inputStream2);
+        stubChunkWithSummary(100_000L, 450_000L, summary, inputStream1);
 
         assertNextStream(extractor, inputStream1);
-        assertNextStream(extractor, inputStream2);
         assertNoMoreData(extractor);
 
-        verify(dataExtractorFactory).newExtractor(100_000L, 450_000L);
-        verify(dataExtractorFactory).newExtractor(100_000L, 300_000L);
-        verify(dataExtractorFactory).newExtractor(300_000L, 450_000L);
+        verify(dataExtractorFactory, times(2)).newExtractor(100_000L, 450_000L);
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
@@ -706,14 +701,14 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end, groupingInterval));
 
-        // earliest=60_000 behind start=180_000; chunkSpan=120_000 (grouping-interval multiple).
+        // earliest=60_000 behind start=180_000; auto chunk span is 300_000 ms at 2_000 hits.
         stubSummary(start, end, new DataSummary(60_000L, 180_000L, 2_000L));
-        stubChunk(start, 300_000L, mock(InputStream.class));
+        stubChunk(start, 480_000L, mock(InputStream.class));
 
         assertThat(extractor.hasNext(), is(true));
         extractor.next();
 
-        verify(dataExtractorFactory).newExtractor(start, 300_000L);
+        verify(dataExtractorFactory).newExtractor(start, 480_000L);
         verify(dataExtractorFactory, times(0)).newExtractor(60_000L, 300_000L);
     }
 
@@ -761,22 +756,22 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         stubSummary(100_000L, 400_000L, new DataSummary(100_000L, 400_000L, 6_000L));
         InputStream inputStream1 = mock(InputStream.class);
-        stubChunk(100_000L, 200_000L, inputStream1);
-        stubChunk(200_000L, 300_000L);
+        stubChunk(100_000L, 350_000L, inputStream1);
+        stubChunk(350_000L, 400_000L);
 
         assertNextStream(extractor, inputStream1);
         assertThat(extractor.hasNext(), is(true));
 
         InputStream inputStream2 = mock(InputStream.class);
-        stubChunkWithSummary(300_000L, 400_000L, new DataSummary(300_000L, 400_000L, 2_000L), inputStream2);
+        stubChunkWithSummary(350_000L, 400_000L, new DataSummary(350_000L, 400_000L, 2_000L), inputStream2);
 
         assertNextStream(extractor, inputStream2);
         assertNoMoreData(extractor);
 
         verify(dataExtractorFactory).newExtractor(100_000L, 400_000L);
-        verify(dataExtractorFactory).newExtractor(100_000L, 200_000L);
-        verify(dataExtractorFactory).newExtractor(200_000L, 300_000L);
-        verify(dataExtractorFactory, times(2)).newExtractor(300_000L, 400_000L);
+        verify(dataExtractorFactory).newExtractor(100_000L, 350_000L);
+        verify(dataExtractorFactory).newExtractor(350_000L, 400_000L);
+        verify(dataExtractorFactory, times(1)).newExtractor(350_000L, 400_000L);
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
@@ -856,6 +851,45 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(extractor.getIncompleteSearchInterval(), equalTo(Optional.of(new SearchInterval(0L, floorEnd))));
         for (int i = 0; i < streams.size() - 1; i++) {
             verify(streams.get(i)).close();
+        }
+    }
+
+    public void testEsqlTruncatedChunkShouldReturnReusedPrefixWithoutRequeryingShrunkWindow() throws IOException {
+        int truncationsBeforeComplete = 2;
+        long completeSpan = ESQL_GROUPING_INTERVAL_MILLIS * 16;
+        long[] lengths = shrinkLengths(truncationsBeforeComplete, completeSpan);
+        chunkSpan = TimeValue.timeValueMillis(lengths[0]);
+        long windowEnd = lengths[0] * 2;
+        ChunkedDataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(0L, windowEnd));
+        stubSummary(0L, windowEnd, new DataSummary(0L, windowEnd - 1, 50_000L));
+        long firstShrunkEnd = lengths[1];
+        try (
+            InputStream fullTruncatedStream = mock(InputStream.class);
+            InputStream prefixStream = mock(InputStream.class);
+            InputStream remainderStream = mock(InputStream.class)
+        ) {
+            stubTruncatedChunkWithReuse(
+                0L,
+                lengths[0],
+                EsqlDataExtractor.INJECTED_ROW_LIMIT,
+                firstShrunkEnd,
+                fullTruncatedStream,
+                prefixStream,
+                7_500L
+            );
+            stubTruncatedChunk(firstShrunkEnd, lengths[0], 500L, remainderStream);
+
+            DataExtractor.Result result = extractor.next();
+
+            assertThat(result.rowCount(), equalTo(7_500L));
+            assertThat(result.data().orElseThrow(), equalTo(prefixStream));
+            verify(dataExtractorFactory, never()).newExtractor(0L, firstShrunkEnd);
+            verify(dataExtractorFactory).newExtractor(firstShrunkEnd, lengths[0]);
+            verify(fullTruncatedStream).close();
+
+            DataExtractor.Result remainder = extractor.next();
+            assertThat(remainder.data().orElseThrow(), equalTo(remainderStream));
+            assertThat(remainder.rowCount(), equalTo(500L));
         }
     }
 
@@ -961,7 +995,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         long chunkEnd = esqlChunkSpanMillis();
         long windowEnd = esqlWindowSpanMillis();
         long shrunkEnd = esqlShrunkChunkEnd(chunkEnd);
-        long regrownChunkEnd = esqlRegrownChunkEnd(chunkEnd);
+        long regrownChunkEnd = esqlRegrownChunkEnd(chunkEnd, 100L);
         chunkSpan = TimeValue.timeValueMillis(chunkEnd);
         ChunkedDataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(0L, windowEnd));
         stubSummary(0L, windowEnd, new DataSummary(0L, windowEnd - 1, 2_000L));
@@ -1195,6 +1229,27 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         );
     }
 
+    private void stubTruncatedChunkWithReuse(
+        long start,
+        long end,
+        long rowCount,
+        long prefixEndExclusive,
+        InputStream fullStream,
+        InputStream prefixStream,
+        long prefixRowCount
+    ) {
+        when(dataExtractorFactory.newExtractor(start, end)).thenReturn(
+            new StubEsqlTruncatedReuseExtractor(
+                new SearchInterval(start, end),
+                rowCount,
+                prefixEndExclusive,
+                fullStream,
+                prefixStream,
+                prefixRowCount
+            )
+        );
+    }
+
     private static long esqlChunkSpanMillis() {
         long span = ESQL_GROUPING_INTERVAL_MILLIS;
         for (int i = 0; i < ChunkedDataExtractorEsqlSizing.MAX_ESQL_SHRINK_ATTEMPTS; i++) {
@@ -1211,8 +1266,13 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         return chunkEnd / ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
     }
 
-    private static long esqlRegrownChunkEnd(long chunkEnd) {
-        return Math.multiplyExact(chunkEnd, ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR);
+    private static long esqlRegrownChunkEnd(long chunkEnd, long completeRowCount) {
+        long shrunkEnd = esqlShrunkChunkEnd(chunkEnd);
+        long targetDocs = ChunkedDataExtractorEsqlSizing.DEFAULT_ESQL_CHUNK_DOCS;
+        long scaled = (shrunkEnd * targetDocs) / completeRowCount;
+        ChunkedDataExtractorContext.TimeAligner aligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(ESQL_GROUPING_INTERVAL_MILLIS);
+        long regrownSpan = aligner.alignToCeil(Math.min(chunkEnd, scaled));
+        return chunkEnd + regrownSpan;
     }
 
     /**
@@ -1228,6 +1288,41 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             length = Math.multiplyExact(length, ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR);
         }
         return lengths;
+    }
+
+    private static class StubEsqlTruncatedReuseExtractor extends StubSubExtractor {
+        private final long prefixEndExclusive;
+        private final InputStream prefixStream;
+        private final long prefixRowCount;
+
+        StubEsqlTruncatedReuseExtractor(
+            SearchInterval searchInterval,
+            long rowCount,
+            long prefixEndExclusive,
+            InputStream fullStream,
+            InputStream prefixStream,
+            long prefixRowCount
+        ) {
+            super(searchInterval, rowCount, fullStream);
+            this.prefixEndExclusive = prefixEndExclusive;
+            this.prefixStream = prefixStream;
+            this.prefixRowCount = prefixRowCount;
+        }
+
+        @Override
+        public Optional<DataExtractor.Result> esqlTruncatedPrefixBefore(long chunkEndExclusive) {
+            if (chunkEndExclusive > prefixEndExclusive) {
+                return Optional.empty();
+            }
+            return Optional.of(
+                new DataExtractor.Result(
+                    new SearchInterval(searchInterval().startMs(), chunkEndExclusive),
+                    Optional.of(prefixStream),
+                    List.of(),
+                    prefixRowCount
+                )
+            );
+        }
     }
 
     private static class StubSubExtractor implements DataExtractor {
@@ -1255,6 +1350,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             this.summary = summary;
             this.rowCount = rowCount;
             Collections.addAll(this.streams, streams);
+        }
+
+        SearchInterval searchInterval() {
+            return searchInterval;
         }
 
         @Override

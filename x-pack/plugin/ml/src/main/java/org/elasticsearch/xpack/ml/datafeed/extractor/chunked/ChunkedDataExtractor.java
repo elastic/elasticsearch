@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
@@ -173,9 +174,12 @@ public class ChunkedDataExtractor implements DataExtractor {
             } catch (IOException | RuntimeException e) {
                 // Capture states from the inner extractor before rethrowing so that
                 // getLinkedClusterStates() gives accurate data to DatafeedJob's catch block.
-                List<LinkedClusterState> innerStates = currentExtractor.getLinkedClusterStates();
-                if (innerStates.isEmpty() == false) {
-                    lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, innerStates);
+                DataExtractor delegate = currentExtractor;
+                if (delegate != null) {
+                    List<LinkedClusterState> innerStates = delegate.getLinkedClusterStates();
+                    if (innerStates.isEmpty() == false) {
+                        lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, innerStates);
+                    }
                 }
                 throw e;
             }
@@ -186,7 +190,11 @@ public class ChunkedDataExtractor implements DataExtractor {
                     result.linkedClusterStates()
                 );
             }
-            if (handleTruncatedEsqlResult(result)) {
+            TruncationAction truncationAction = handleTruncatedEsqlResult(result);
+            if (truncationAction.deliverPrefix()) {
+                return truncationAction.prefixResult();
+            }
+            if (truncationAction.retrySameChunk()) {
                 continue;
             }
             if (context.hasEsqlQuery() && result.data().isPresent()) {
@@ -221,23 +229,40 @@ public class ChunkedDataExtractor implements DataExtractor {
         return new Result(lastSearchInterval, Optional.empty(), lastLinkedClusterStates);
     }
 
-    /**
-     * @return {@code true} to retry the current chunk after shrinking; {@code false} to fall through with the result as read
-     */
-    private boolean handleTruncatedEsqlResult(Result result) throws IOException {
+    private TruncationAction handleTruncatedEsqlResult(Result result) throws IOException {
         if (esqlSizing.isTruncated(result.rowCount()) == false) {
-            return false;
+            return TruncationAction.fallThrough();
         }
         OptionalLong shrunkEnd = esqlSizing.onTruncated(currentStart, currentEnd, isCancelled(), result.searchInterval());
         if (shrunkEnd.isEmpty()) {
-            return false;
+            return TruncationAction.fallThrough();
+        }
+        long newEnd = shrunkEnd.getAsLong();
+        long chunkEndBeforeShrink = currentEnd;
+        assert currentExtractor != null;
+        Optional<Result> prefix = currentExtractor.esqlTruncatedPrefixBefore(newEnd);
+        if (prefix.isPresent()) {
+            if (result.data().isPresent()) {
+                result.data().get().close();
+            }
+            currentExtractor.destroy();
+            currentEnd = newEnd;
+            chunkSpan = esqlSizing.alignChunkSpanAfterShrink(chunkSpan, currentStart, currentEnd);
+            installExtractor(dataExtractorFactory.newExtractor(newEnd, chunkEndBeforeShrink));
+            LOGGER.debug(
+                "[{}] reuses ES|QL truncated rows for [{}, {}) after receiving [{}] rows",
+                context.jobId(),
+                currentStart,
+                currentEnd,
+                result.rowCount()
+            );
+            return TruncationAction.returningPrefix(prefix.get());
         }
         if (result.data().isPresent()) {
             result.data().get().close();
         }
-        assert currentExtractor != null;
         currentExtractor.destroy();
-        currentEnd = shrunkEnd.getAsLong();
+        currentEnd = newEnd;
         chunkSpan = esqlSizing.alignChunkSpanAfterShrink(chunkSpan, currentStart, currentEnd);
         installExtractor(dataExtractorFactory.newExtractor(currentStart, currentEnd));
         LOGGER.debug(
@@ -247,7 +272,21 @@ public class ChunkedDataExtractor implements DataExtractor {
             currentEnd,
             result.rowCount()
         );
-        return true;
+        return TruncationAction.sameChunkRetry();
+    }
+
+    private record TruncationAction(boolean retrySameChunk, boolean deliverPrefix, @Nullable Result prefixResult) {
+        private static TruncationAction fallThrough() {
+            return new TruncationAction(false, false, null);
+        }
+
+        private static TruncationAction sameChunkRetry() {
+            return new TruncationAction(true, false, null);
+        }
+
+        private static TruncationAction returningPrefix(Result prefix) {
+            return new TruncationAction(false, true, prefix);
+        }
     }
 
     /** Installs a new delegate extractor for the current chunk window. */

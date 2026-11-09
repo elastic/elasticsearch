@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition.BinaryBuilder;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition.BinaryConfigurationAwareBuilder;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition.BinaryVariadicConfigurationAwareBuilder;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition.ConfigurationAwareBuilder;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition.NaryBuilder;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition.QuaternaryBuilder;
@@ -171,8 +172,14 @@ class FunctionCtors {
         return (source, children, cfg) -> ctorRef.build(source, children.getFirst(), children.subList(1, children.size()));
     }
 
-    static FunctionDefinition.FunctionBuilder binaryVariadic(FunctionDefinition.BinaryVariadicBuilder<? extends Function> ctorRef) {
-        return (source, children, cfg) -> ctorRef.build(source, children.getFirst(), children.get(1), children.subList(2, children.size()));
+    static FunctionDefinition.FunctionBuilder binaryVariadicConfig(BinaryVariadicConfigurationAwareBuilder<? extends Function> ctorRef) {
+        return (source, children, cfg) -> ctorRef.build(
+            source,
+            children.getFirst(),
+            children.get(1),
+            children.subList(2, children.size()),
+            cfg
+        );
     }
 
     static FunctionDefinition.FunctionBuilder ternaryTsConfig(TernaryConfigurationAwareBuilder<? extends Function> ctorRef) {

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -24,14 +25,15 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -42,12 +44,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFol
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpression {
+public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpression, ConfigurationFunction {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(WindowFunnel.class)
-        .binaryVariadic(WindowFunnel::new)
+        .binaryVariadicConfig(WindowFunnel::new)
         .name("window_funnel");
 
     public static final int MAX_CONDITIONS = 32;
+
+    private final Configuration configuration;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.7.0") },
@@ -90,9 +94,10 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
             name = "conditions",
             type = { "boolean" },
             description = "Between one and 32 conditions, in the order the events must happen."
-        ) List<Expression> conditions
+        ) List<Expression> conditions,
+        Configuration configuration
     ) {
-        this(source, timestamp, conditions, Literal.TRUE, NO_WINDOW, maxspan);
+        this(source, timestamp, conditions, Literal.TRUE, NO_WINDOW, maxspan, configuration);
     }
 
     public WindowFunnel(
@@ -101,9 +106,11 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
         List<Expression> conditions,
         Expression filter,
         Expression window,
-        Expression maxspan
+        Expression maxspan,
+        Configuration configuration
     ) {
         super(source, fields(timestamp, conditions), filter, window, List.of(maxspan));
+        this.configuration = configuration;
     }
 
     private static List<Expression> fields(Expression timestamp, List<Expression> conditions) {
@@ -121,6 +128,10 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
     @Override
     public String getWriteableName() {
         throw new UnsupportedOperationException("not serialized");
+    }
+
+    public Configuration configuration() {
+        return configuration;
     }
 
     public Expression maxspan() {
@@ -196,7 +207,16 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
 
     @Override
     protected NodeInfo<WindowFunnel> info() {
-        return NodeInfo.create(this, WindowFunnel::new, timestamp(), List.<Expression>copyOf(conditions()), filter(), window(), maxspan());
+        return NodeInfo.create(
+            this,
+            WindowFunnel::new,
+            timestamp(),
+            List.<Expression>copyOf(conditions()),
+            filter(),
+            window(),
+            maxspan(),
+            configuration
+        );
     }
 
     @Override
@@ -208,8 +228,22 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
             newChildren.subList(1, conditionsEnd),
             newChildren.get(conditionsEnd),
             newChildren.get(conditionsEnd + 1),
-            newChildren.get(conditionsEnd + 2)
+            newChildren.get(conditionsEnd + 2),
+            configuration
         );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), configuration);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        return configuration.equals(((WindowFunnel) obj).configuration);
     }
 
     @Override
@@ -220,7 +254,7 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
         for (int i = 0; i < conditions.size(); i++) {
             masks.add(stepMask(s, conditions.get(i), i));
         }
-        Expression mask = conditions.size() == 1 ? masks.getFirst() : new MvSum(s, appendAll(s, masks, 0, masks.size()));
+        Expression mask = addAll(s, masks, 0, masks.size());
         WindowFunnelLevel level = new WindowFunnelLevel(
             s,
             timestamp(),
@@ -233,12 +267,12 @@ public class WindowFunnel extends AggregateFunction implements OnlySurrogateExpr
         return new Coalesce(s, level, List.of(Literal.integer(s, 0)));
     }
 
-    private static Expression appendAll(Source s, List<Expression> values, int from, int to) {
+    private Expression addAll(Source s, List<Expression> values, int from, int to) {
         if (to - from == 1) {
             return values.get(from);
         }
         int middle = (from + to) >>> 1;
-        return new MvAppend(s, appendAll(s, values, from, middle), appendAll(s, values, middle, to));
+        return new Add(s, addAll(s, values, from, middle), addAll(s, values, middle, to), configuration);
     }
 
     private static Expression stepMask(Source s, Expression condition, int step) {

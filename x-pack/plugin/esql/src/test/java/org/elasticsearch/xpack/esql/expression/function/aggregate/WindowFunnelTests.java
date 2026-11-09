@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -23,6 +24,8 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class WindowFunnelTests extends AbstractAggregationTestCase {
     public WindowFunnelTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -114,11 +117,20 @@ public class WindowFunnelTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new WindowFunnel(source, args.get(0), args.get(1), args.subList(2, args.size()));
+        return new WindowFunnel(source, args.get(0), args.get(1), args.subList(2, args.size()), testCase.getConfiguration());
     }
 
     @Override
     protected boolean canSerialize() {
         return false;
+    }
+
+    public void testSurrogateMaskUsesFunnelConfiguration() {
+        WindowFunnel funnel = (WindowFunnel) buildFieldExpression(testCase);
+        List<Add> adds = funnel.surrogate().collect(Add.class);
+        assertThat(adds, hasSize(funnel.conditions().size() - 1));
+        for (Add add : adds) {
+            assertThat(add.configuration(), sameInstance(funnel.configuration()));
+        }
     }
 }

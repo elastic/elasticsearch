@@ -216,6 +216,26 @@ millis_zero:integer | nanos_zero:integer | truncated_zero:integer | millis_one:i
 2                   | 1                  | 2                      | 3                  | 3                 | u9
 ;
 
+maxspanIsElapsedTimeAcrossDaylightSavingTime
+required_capability: fn_window_funnel
+SET time_zone = "Europe/Bucharest"\;
+ROW ts = ["2026-03-29T00:30:00Z", "2026-03-29T01:30:00Z", "2026-10-25T00:30:00Z", "2026-10-25T01:30:00Z"]
+| MV_EXPAND ts
+| EVAL ts = TO_DATETIME(ts), season = CASE(ts < TO_DATETIME("2026-06-01T00:00:00Z"), "spring", "autumn")
+| EVAL step = CASE(ts == TO_DATETIME("2026-03-29T00:30:00Z") OR ts == TO_DATETIME("2026-10-25T00:30:00Z"), 1, 2)
+| STATS
+    one_hour = WINDOW_FUNNEL(1 hour, ts, step == 1, step == 2),
+    under_one_hour = WINDOW_FUNNEL(59 minutes, ts, step == 1, step == 2),
+    zero = WINDOW_FUNNEL(0 seconds, ts, step == 1, step == 2)
+  BY season
+| SORT season
+;
+
+one_hour:integer | under_one_hour:integer | zero:integer | season:keyword
+2                | 1                      | 1            | autumn
+2                | 1                      | 1            | spring
+;
+
 sampleDataBoundary
 required_capability: fn_window_funnel
 FROM sample_data

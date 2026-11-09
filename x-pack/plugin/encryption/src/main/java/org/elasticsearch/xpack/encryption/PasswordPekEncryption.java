@@ -6,11 +6,16 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -19,10 +24,20 @@ import java.util.function.Supplier;
  *
  * <p>The active password id and password material are sourced from a {@link Supplier} so that secure-settings reloads are reflected
  * automatically: the supplier is re-evaluated on every call.
+ *
+ * <p>Also tracks the outcome of this node's on-disk writes, so a node that cannot wrap the PEK logs it once per distinct cause and
+ * reports via {@link #isKeyMissingOnDisk()} whether its last persisted copy lacks key material.
  */
 final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEncryption {
 
+    private static final Logger logger = LogManager.getLogger(PasswordPekEncryption.class);
+
     private final Supplier<Settings> settingsSupplier;
+    private final AtomicReference<String> lastWrapFailure = new AtomicReference<>();
+    private final ProjectEncryptionKeyMetadata.LocalKeys localKeys = new ProjectEncryptionKeyMetadata.LocalKeys(
+        () -> lastWrapFailure.set(null)
+    );
+    private volatile boolean keyMissingOnDisk;
 
     PasswordPekEncryption(Supplier<Settings> settingsSupplier) {
         this.settingsSupplier = settingsSupplier;
@@ -74,5 +89,33 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
             }
             return PasswordBasedEncryption.unwrap(new EncryptedData(passwordId, wrappedPek), password.getChars());
         }
+    }
+
+    @Override
+    public void onGatewayWrite(@Nullable Exception wrapFailure, boolean keysWritten) {
+        keyMissingOnDisk = keysWritten == false;
+        String failure = wrapFailure == null ? null : Objects.requireNonNullElse(wrapFailure.getMessage(), wrapFailure.toString());
+        String previous = lastWrapFailure.getAndSet(failure);
+        if (failure != null && failure.equals(previous) == false) {
+            logger.warn(
+                "{}; cluster state was persisted {}. Configure [{}] and the matching [{}<id>] secure setting and reload secure settings",
+                failure,
+                keysWritten ? "with this node's previous copy of the project encryption key" : "without the project encryption key",
+                ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY,
+                ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
+            );
+        } else if (failure == null && previous != null) {
+            logger.info("project encryption key is persisted to this node's disk again");
+        }
+    }
+
+    @Override
+    public ProjectEncryptionKeyMetadata.LocalKeys localKeys() {
+        return localKeys;
+    }
+
+    /** Returns whether this node's last on-disk write of the project encryption key carried no key material. */
+    boolean isKeyMissingOnDisk() {
+        return keyMissingOnDisk;
     }
 }

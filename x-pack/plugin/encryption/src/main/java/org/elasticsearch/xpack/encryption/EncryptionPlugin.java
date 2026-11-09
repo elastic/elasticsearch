@@ -47,15 +47,14 @@ import static java.util.Collections.singletonList;
 public class EncryptionPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
 
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
+    private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
     private final SetOnce<SnapshotEncryptedDataFilter> snapshotEncryptedDataFilter = new SetOnce<>();
 
     private volatile Settings pekSettings;
 
-    private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
-    private final ProjectEncryptionKeyMetadata.DegradedBlobHolder degradedBlobHolder =
-        new ProjectEncryptionKeyMetadata.DegradedBlobHolder();
+    private final PasswordPekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
 
     public EncryptionPlugin(Settings settings) {
         this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
@@ -74,7 +73,8 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         ProjectEncryptionKeyService pekService = ProjectEncryptionKeyService.create(
             services.clusterService(),
             services.projectResolver(),
-            () -> this.pekSettings
+            () -> this.pekSettings,
+            pekEncryption.localKeys()
         );
         AesGcmEncryptionService encryptionService = new AesGcmEncryptionService(
             pekService,
@@ -101,9 +101,11 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         ProjectEncryptionKeyHealthIndicatorService healthIndicator = new ProjectEncryptionKeyHealthIndicatorService(
             services.clusterService(),
             services.projectResolver(),
-            pekService
+            pekService,
+            pekEncryption::isKeyMissingOnDisk
         );
 
+        this.pekService.set(pekService);
         this.coordinator.set(coordinator);
         this.healthIndicatorService.set(healthIndicator);
 
@@ -127,7 +129,12 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public void reload(Settings settings) {
-        this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
+        Settings updated = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
+        ProjectEncryptionKeyService localPekService = this.pekService.get();
+        if (localPekService != null && localPekService.hasInstalledKey()) {
+            ProjectEncryptionKeyPasswordSettings.validateReload(this.pekSettings, updated);
+        }
+        this.pekSettings = updated;
         KeyRotationCoordinator localCoordinator = this.coordinator.get();
         if (localCoordinator != null) {
             localCoordinator.reload();
@@ -142,7 +149,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(this.coordinator.get());
+        IOUtils.close(this.coordinator.get(), this.pekService.get());
     }
 
     @Override
@@ -170,7 +177,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             new NamedWriteableRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 ProjectEncryptionKeyMetadata.TYPE,
-                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption, degradedBlobHolder)
+                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption)
             ),
             new NamedWriteableRegistry.Entry(NamedDiff.class, ProjectEncryptionKeyMetadata.TYPE, ProjectEncryptionKeyMetadata::readDiffFrom)
         );
@@ -182,7 +189,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             new NamedXContentRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 new ParseField(ProjectEncryptionKeyMetadata.TYPE),
-                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption, degradedBlobHolder)
+                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption)
             )
         );
     }

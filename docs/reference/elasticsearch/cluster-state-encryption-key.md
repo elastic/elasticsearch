@@ -63,7 +63,7 @@ You don't need to configure an encryption password to upgrade an existing deploy
 
 ### Rotate the encryption password [cluster-state-encryption-password-rotation]
 
-You can rotate each node's password independently without restarting {{es}}. The following procedure rotates the password on one node. Repeat it for any other nodes whose passwords you want to rotate. Keep a node's old password available until that node has loaded the new password and rewrapped its on-disk copy of the cluster state encryption key.
+You can rotate each node's password independently without restarting {{es}}. Only removing the old password waits for the node's next restart. The following procedure rotates the password on one node. Repeat it for any other nodes whose passwords you want to rotate.
 
 1. Add the new password to the node's local {{es}} keystore. For example, to use the password ID `v2`:
 
@@ -89,9 +89,9 @@ You can rotate each node's password independently without restarting {{es}}. The
    GET /_health_report/cluster_state_encryption
    ```
 
-   Before proceeding, verify that the node reports a green status and that both `active_password_id` and `metadata_password_id` are `v2`.
+   Verify that the node reports a green status and that `active_password_id` is `v2`.
 
-5. Remove the old password from the node's keystore, then reload the secure settings on that node again.
+5. Keep the old password in the keystore until the node has restarted at least once with `v2` active. Reloading the secure settings doesn't rewrap the node's on-disk copy of the key, but a restart does. After the restart, remove the old password from the node's keystore, then reload the secure settings on that node again. If the old password must be removed right away, for example because it was exposed, restart the node now instead of waiting.
 
 ## Automatic key rotation [cluster-state-encryption-key-rotation]
 
@@ -109,6 +109,26 @@ The `cluster_state_encryption` health indicator reports on the status of the clu
 
 * **Green**: encryption is either working normally, or hasn't been configured (which is expected on most self-managed clusters that haven't set a password).
 * **Yellow**: a password is missing where one is required, a node can't persist the key to disk, or {{es}} failed to decrypt the key.
+
+If a node's keystore doesn't contain the active encryption password, the node stays in the cluster and keeps working, but it can't store the encryption key on its own disk. The health indicator reports yellow for that node, and the node logs a warning such as:
+
+```
+cannot wrap PEK for disk: [cluster.state.encryption.active_password_id] is not configured; cluster state was persisted without the project encryption key
+```
+
+or, if the active password ID is set but the matching password isn't:
+
+```
+cannot wrap PEK for disk: secure setting [cluster.state.encryption.password.<id>] is not configured; cluster state was persisted without the project encryption key
+```
+
+To fix this, add `cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>` to that node's keystore, then call `POST /_nodes/<node_id>/reload_secure_settings`. The node stores the key on disk again the next time persistent cluster settings, index templates, or other cluster-wide metadata change. Creating or changing indices doesn't trigger this. Until then the health indicator keeps reporting yellow for that node.
+
+After reloading, check that the health indicator is green on every node. If a node still reports yellow, change a persistent cluster setting or restart that node to store the key right away.
+
+{{es}} rejects a secure settings reload that would remove the active password from a node that already holds the encryption key. The node keeps using the previous settings until it restarts, so add the password back to the keystore before restarting it.
+
+If a master-eligible node without a usable copy of the key restarts and is elected master, it can't provide the key to the rest of the cluster. The other nodes keep using their own copy of the key, and their health indicator reports that the elected master holds no encryption key. Encrypt and decrypt operations fail on the elected master, and the key isn't rotated. To fix this, configure the encryption password on the elected master and restart it. The restart lets another master-eligible node take over. If that node holds the key, it restores the key automatically. If the newly elected master holds no key either, repeat these steps for that node. Don't reset the encryption key in this situation: the other nodes still hold it, and a reset permanently deletes all encrypted data.
 
 ## Reset the cluster state encryption key [cluster-state-encryption-key-reset]
 

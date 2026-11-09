@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -35,6 +37,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import javax.crypto.SecretKey;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +49,7 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
     private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = TestPekEncryption.NO_OP;
 
     private final AtomicReference<ClusterState> visibleState = new AtomicReference<>(stateWithoutKey());
+    private ClusterStateApplier applier;
 
     /** Mocked so tests can swap the visible state directly; the real service is used in {@link #testKeyVisibleToClusterStateListener}. */
     private ClusterService mockClusterService() {
@@ -55,11 +60,26 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
         );
         when(cs.getClusterSettings()).thenReturn(clusterSettings);
         when(cs.state()).thenAnswer(invocation -> visibleState.get());
+        doAnswer(invocation -> {
+            applier = invocation.getArgument(0);
+            return null;
+        }).when(cs).addStateApplier(any());
         return cs;
     }
 
+    /** Applies {@code next} and then makes it visible, in the order the cluster applier service does. */
+    private void apply(ClusterState next) {
+        applier.applyClusterState(new ClusterChangedEvent("test", next, visibleState.get()));
+        visibleState.set(next);
+    }
+
     private ProjectEncryptionKeyService createService(Settings settings) {
-        return ProjectEncryptionKeyService.create(mockClusterService(), DefaultProjectResolver.INSTANCE, () -> settings);
+        return ProjectEncryptionKeyService.create(
+            mockClusterService(),
+            DefaultProjectResolver.INSTANCE,
+            () -> settings,
+            new ProjectEncryptionKeyMetadata.LocalKeys()
+        );
     }
 
     private static ProjectEncryptionKeyMetadata.KeyEntry randomKeyEntry(long generatedAt) {
@@ -171,8 +191,7 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
             keyId,
             PASSWORD_ID,
             NO_OP_ENCRYPTION,
-            "wrong password",
-            new ProjectEncryptionKeyMetadata.DegradedBlobHolder()
+            "wrong password"
         );
         visibleState.set(stateWithKey(degraded));
 
@@ -184,6 +203,73 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
             ProjectEncryptionKeyService.class,
             new MockLog.UnseenEventExpectation("no missing-key warning", ProjectEncryptionKeyService.class.getName(), Level.WARN, "*")
         );
+    }
+
+    /** A master that started without keys publishes a degraded instance; nodes holding the same active key must keep encrypting. */
+    public void testKeepsOwnKeysWhenMasterPublishesDegradedInstanceWithSameActiveKey() {
+        ProjectEncryptionKeyService service = createService(Settings.EMPTY);
+        ProjectEncryptionKeyMetadata pek = plaintextPekMetadata(PASSWORD_ID);
+        ClusterState withKey = stateWithKey(pek);
+        apply(withKey);
+
+        ClusterState degraded = stateWithKey(degraded(pek.getActiveKeyId()));
+        MockLog.assertThatLogger(
+            () -> apply(degraded),
+            ProjectEncryptionKeyService.class,
+            new MockLog.SeenEventExpectation(
+                "keeps own keys",
+                ProjectEncryptionKeyService.class.getName(),
+                Level.WARN,
+                "the elected master holds no project encryption keys; this node keeps using its own copy*"
+            )
+        );
+        assertEquals(EncryptionServiceState.READY, service.state());
+        assertTrue(service.isUsingLocalKeys());
+        assertTrue(service.hasInstalledKey());
+        assertEquals(pek.getActiveKeyId(), service.getActiveKey().keyId());
+        assertEquals(service.getActiveKey().key(), service.getKey(pek.getActiveKeyId()));
+
+        ClusterState degradedAgain = stateWithKey(
+            ProjectEncryptionKeyMetadata.degraded(pek.getActiveKeyId(), PASSWORD_ID, NO_OP_ENCRYPTION, "another reason")
+        );
+        MockLog.assertThatLogger(
+            () -> apply(degradedAgain),
+            ProjectEncryptionKeyService.class,
+            new MockLog.UnseenEventExpectation("no repeat", ProjectEncryptionKeyService.class.getName(), Level.WARN, "*")
+        );
+        assertTrue(service.isUsingLocalKeys());
+
+        apply(withKey);
+        assertFalse("keys restored into cluster state", service.isUsingLocalKeys());
+        assertEquals(EncryptionServiceState.READY, service.state());
+    }
+
+    public void testUnavailableWhenDegradedInstanceHasDifferentActiveKey() {
+        ProjectEncryptionKeyService service = createService(Settings.EMPTY);
+        apply(stateWithKey(plaintextPekMetadata(PASSWORD_ID)));
+
+        apply(stateWithKey(degraded(ProjectEncryptionKeyMetadata.generateKeyId())));
+
+        assertEquals(EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED, service.state());
+        assertFalse(service.isUsingLocalKeys());
+        assertFalse(service.hasInstalledKey());
+        assertNull(service.getActiveKey());
+    }
+
+    public void testResetForgetsOwnKeys() {
+        ProjectEncryptionKeyService service = createService(Settings.EMPTY);
+        ProjectEncryptionKeyMetadata pek = plaintextPekMetadata(PASSWORD_ID);
+        apply(stateWithKey(pek));
+        apply(stateWithoutKey());
+
+        apply(stateWithKey(degraded(pek.getActiveKeyId())));
+
+        assertEquals(EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED, service.state());
+        assertNull(service.getActiveKey());
+    }
+
+    private static ProjectEncryptionKeyMetadata degraded(String activeKeyId) {
+        return ProjectEncryptionKeyMetadata.degraded(activeKeyId, PASSWORD_ID, NO_OP_ENCRYPTION, "no key material found on disk");
     }
 
     public void testStateDisabledWhenNoPekAndNoPassword() {
@@ -222,7 +308,8 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
             ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
                 clusterService,
                 DefaultProjectResolver.INSTANCE,
-                () -> Settings.EMPTY
+                () -> Settings.EMPTY,
+                new ProjectEncryptionKeyMetadata.LocalKeys()
             );
             clusterService.addListener(event -> {
                 ProjectEncryptionKeyMetadata visible = clusterService.state()
@@ -296,7 +383,8 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
         ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
             mockClusterService(),
             DefaultProjectResolver.INSTANCE,
-            settingsRef::get
+            settingsRef::get,
+            new ProjectEncryptionKeyMetadata.LocalKeys()
         );
         visibleState.set(stateWithKey(plaintextPekMetadata(PASSWORD_ID)));
         assertNotNull(service.getActiveKey());

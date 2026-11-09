@@ -82,6 +82,25 @@ final class ProjectEncryptionKeyPasswordSettings {
         return id != null && id.isEmpty() == false && PASSWORD.getConcreteSetting(PASSWORD_PREFIX + id).exists(settings);
     }
 
+    static boolean canWrapForDisk(Settings settings) {
+        return hasPassword(settings, getActivePasswordId(settings));
+    }
+
+    /** Rejects a reload that removes the active password from a node that could wrap the key before. */
+    static void validateReload(Settings current, Settings updated) {
+        if (canWrapForDisk(current) == false || canWrapForDisk(updated)) {
+            return;
+        }
+        String activePasswordId = getActivePasswordId(updated);
+        String missing = activePasswordId == null ? ACTIVE_PASSWORD_ID_KEY : PASSWORD_PREFIX + activePasswordId;
+        throw new IllegalArgumentException(
+            "cannot reload cluster state encryption settings: a project encryption key is installed and ["
+                + missing
+                + "] is not configured in the reloaded secure settings, so this node could no longer persist the key to disk;"
+                + " keeping the previous settings until this node restarts. Add the setting to the keystore before restarting this node"
+        );
+    }
+
     /**
      * Returns a {@link Settings} that merges all non-secure entries from {@code settings} with a durable in-memory snapshot of the
      * encryption-related secure settings read from the same source. The returned instance does not hold a reference to the original

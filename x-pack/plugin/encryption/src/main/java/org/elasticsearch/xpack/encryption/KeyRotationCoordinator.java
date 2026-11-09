@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -139,6 +140,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private final AtomicBoolean installInFlight = new AtomicBoolean(false);
     private final AtomicBoolean beginRotationInFlight = new AtomicBoolean(false);
     private final AtomicBoolean passwordIdRotateInFlight = new AtomicBoolean(false);
+    private final AtomicBoolean restoreInFlight = new AtomicBoolean(false);
+    private final AtomicReference<String> installSkippedForPasswordId = new AtomicReference<>();
 
     static KeyRotationCoordinator create(
         ClusterService clusterService,
@@ -224,6 +227,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return;
         }
         reEncrypting.set(false);
+        installSkippedForPasswordId.set(null);
         stopSchedule();
     }
 
@@ -246,9 +250,15 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         var metadata = getCurrentMetadata(state);
         String activePasswordId = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(settingsSupplier.get());
         if (metadata == null) {
-            if (activePasswordId != null && checkPekFeatureAvailable(state)) {
+            if (activePasswordId == null) {
+                installSkippedForPasswordId.set(null);
+            } else if (checkPekFeatureAvailable(state)) {
                 scheduleInstall(activePasswordId);
             }
+            return;
+        }
+        if (metadata.isUnwrapFailed()) {
+            scheduleRestore(metadata);
             return;
         }
         if (activePasswordId != null && activePasswordId.equals(metadata.getPasswordId()) == false) {
@@ -306,7 +316,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         checkPasswordId(state);
 
         ProjectEncryptionKeyMetadata metadata = getCurrentMetadata(state);
-        if (metadata == null) {
+        if (metadata == null || metadata.isUnwrapFailed()) {
             return;
         }
         long now = threadPool.absoluteTimeInMillis();
@@ -449,13 +459,16 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
     private void generateAndSubmitInstall(String passwordId) {
         if (ProjectEncryptionKeyPasswordSettings.hasPassword(settingsSupplier.get(), passwordId) == false) {
-            logger.warn(
-                "project encryption key install skipped: secure setting [{}{}] is not configured",
-                ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX,
-                passwordId
-            );
+            if (passwordId.equals(installSkippedForPasswordId.getAndSet(passwordId)) == false) {
+                logger.warn(
+                    "project encryption key install skipped: secure setting [{}{}] is not configured",
+                    ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX,
+                    passwordId
+                );
+            }
             return;
         }
+        installSkippedForPasswordId.set(null);
         byte[] plaintextPek = randomKey();
         String keyId = ProjectEncryptionKeyMetadata.generateKeyId();
         logger.debug("submitting install-project-encryption-key task: keyId={}, passwordId={}", keyId, passwordId);
@@ -465,16 +478,29 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         );
     }
 
+    private void scheduleRestore(ProjectEncryptionKeyMetadata degraded) {
+        ProjectEncryptionKeyMetadata.LocalKeys localKeys = pekEncryption.localKeys();
+        ProjectEncryptionKeyMetadata ownCopy = localKeys == null ? null : localKeys.lastHealthyWithActiveKey(degraded.getActiveKeyId());
+        if (ownCopy == null) {
+            logger.debug("project encryption key: cluster state is degraded and this node holds no copy of the active key");
+            return;
+        }
+        if (restoreInFlight.compareAndSet(false, true) == false) {
+            return;
+        }
+        if (submitTaskIfOpen("restore-project-encryption-keys", new RestoreKeysTask(ownCopy, restoreInFlight)) == false) {
+            restoreInFlight.set(false);
+        }
+    }
+
     private void submitBeginRotation() {
         if (beginRotationInFlight.compareAndSet(false, true) == false) {
             return;
         }
         // Guard: abort rotation when no active password is configured; nodes must be able to persist the new key to disk.
-        try {
-            pekEncryption.activePasswordId();
-        } catch (Exception e) {
+        if (ProjectEncryptionKeyPasswordSettings.canWrapForDisk(settingsSupplier.get()) == false) {
             beginRotationInFlight.set(false);
-            logger.warn("project encryption key rotation skipped: no active password configured", e);
+            logger.warn("project encryption key rotation skipped: the active encryption password is not configured on this node");
             return;
         }
         byte[] plaintextPek = randomKey();
@@ -537,7 +563,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     }
 
     sealed interface KeyRotationTask extends ClusterStateTaskListener permits InstallKeyTask, BeginRotationTask, RetireKeysTask,
-        ReEncryptApplyTask, UpdatePasswordIdTask {
+        ReEncryptApplyTask, UpdatePasswordIdTask, RestoreKeysTask {
 
         String description();
 
@@ -595,6 +621,24 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
     }
 
+    record RestoreKeysTask(ProjectEncryptionKeyMetadata keys, AtomicBoolean inFlight) implements KeyRotationTask {
+        @Override
+        public String description() {
+            return "project encryption key restore";
+        }
+
+        @Override
+        public void onFailure(@Nullable Exception e) {
+            inFlight.set(false);
+            KeyRotationTask.super.onFailure(e);
+        }
+
+        @Override
+        public String toString() {
+            return "RestoreKeysTask[activeKeyId=" + keys.getActiveKeyId() + "]";
+        }
+    }
+
     record ReEncryptApplyTask(
         String customName,
         Metadata.ProjectCustom expectedOld,
@@ -640,7 +684,29 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
                     updatePasswordId
                 );
                 case ReEncryptApplyTask reEncryptTask -> executeReEncryptApply(clusterState, projectState, existing, reEncryptTask);
+                case RestoreKeysTask restore -> executeRestoreKeys(clusterState, projectState, existing, restore);
             };
+        }
+
+        private Tuple<ClusterState, Void> executeRestoreKeys(
+            ClusterState clusterState,
+            ProjectState projectState,
+            ProjectEncryptionKeyMetadata existing,
+            RestoreKeysTask task
+        ) {
+            ProjectEncryptionKeyMetadata ownCopy = task.keys();
+            // never undo a reset or a newer key: only replace the degraded instance for the same active key
+            if (existing == null
+                || existing.isUnwrapFailed() == false
+                || ownCopy.getActiveKeyId().equals(existing.getActiveKeyId()) == false) {
+                logger.debug("dropping restore task: project encryption key metadata changed to [{}]", existing);
+                return Tuple.tuple(clusterState, null);
+            }
+            logger.info(
+                "restoring project encryption keys from this node's copy of active key [{}]; the previous master held no key material",
+                ownCopy.getActiveKeyId()
+            );
+            return Tuple.tuple(putMetadata(clusterState, projectState, ownCopy), null);
         }
 
         private Tuple<ClusterState, Void> executeInstallInitial(
@@ -669,8 +735,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ProjectEncryptionKeyMetadata existing,
             BeginRotationTask task
         ) {
-            if (existing == null) {
-                logger.warn("ignoring begin-rotation task because no project encryption key is installed");
+            if (existing == null || existing.isUnwrapFailed()) {
+                logger.warn("ignoring begin-rotation task because no usable project encryption key is installed");
                 return Tuple.tuple(clusterState, null);
             }
             Map<String, ProjectEncryptionKeyMetadata.KeyEntry> newEntries = new HashMap<>(existing.getKeys());
@@ -692,7 +758,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ProjectEncryptionKeyMetadata existing,
             RetireKeysTask task
         ) {
-            if (existing == null) {
+            if (existing == null || existing.isUnwrapFailed()) {
                 return Tuple.tuple(clusterState, null);
             }
             // a rotation since the tick makes handlers pending again; retiring now would skip their pass over the new active key
@@ -728,8 +794,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ProjectEncryptionKeyMetadata existing,
             UpdatePasswordIdTask task
         ) {
-            if (existing == null) {
-                logger.debug("dropping password id update task: metadata removed");
+            if (existing == null || existing.isUnwrapFailed()) {
+                logger.debug("dropping password id update task: no usable metadata");
                 return Tuple.tuple(clusterState, null);
             }
             if (task.newPasswordId().equals(existing.getPasswordId())) {
@@ -759,8 +825,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ProjectEncryptionKeyMetadata existing,
             ReEncryptApplyTask task
         ) {
-            if (existing == null) {
-                logger.debug("dropping re-encrypt task for [{}]: no PEK metadata installed", task.customName());
+            if (existing == null || existing.isUnwrapFailed()) {
+                logger.debug("dropping re-encrypt task for [{}]: no usable PEK metadata", task.customName());
                 return Tuple.tuple(clusterState, null);
             }
             if (existing.getActiveKeyId().equals(task.expectedActiveKeyId()) == false) {
@@ -806,6 +872,9 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             }
             if (task instanceof BeginRotationTask begin) {
                 begin.inFlight().set(false);
+            }
+            if (task instanceof RestoreKeysTask restore) {
+                restore.inFlight().set(false);
             }
         }
 

@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption.WrappedKey;
 
 import java.util.Arrays;
@@ -18,6 +20,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PasswordPekEncryptionTests extends ESTestCase {
+
+    private static final String LOGGER = PasswordPekEncryption.class.getName();
 
     private static Settings settingsWithPassword(String passwordId, String password) {
         MockSecureSettings secure = new MockSecureSettings();
@@ -113,5 +117,61 @@ public class PasswordPekEncryptionTests extends ESTestCase {
         assertThrows(Exception.class, () -> enc.unwrap(wrappedOld.wrapped(), wrappedOld.passwordId()));
         // New wrapped bytes unwrap correctly.
         assertThat(enc.unwrap(wrappedNew.wrapped(), wrappedNew.passwordId()), equalTo(plaintext));
+    }
+
+    public void testOnGatewayWriteWarnsOncePerCauseAndTracksMissingKey() {
+        PasswordPekEncryption enc = new PasswordPekEncryption(() -> Settings.EMPTY);
+        assertFalse(enc.isKeyMissingOnDisk());
+
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false),
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation(
+                "warn",
+                LOGGER,
+                Level.WARN,
+                "cannot wrap PEK for disk: missing; cluster state was persisted without the project encryption key*"
+            )
+        );
+        assertTrue(enc.isKeyMissingOnDisk());
+
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false),
+            PasswordPekEncryption.class,
+            new MockLog.UnseenEventExpectation("no repeated warn", LOGGER, Level.WARN, "*")
+        );
+
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: other"), true),
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation(
+                "warn on new cause",
+                LOGGER,
+                Level.WARN,
+                "*with this node's previous copy of the project encryption key*"
+            )
+        );
+        assertFalse("previous copy was written", enc.isKeyMissingOnDisk());
+
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(null, true),
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation("recovered", LOGGER, Level.INFO, "*persisted to this node's disk again*")
+        );
+        assertFalse(enc.isKeyMissingOnDisk());
+    }
+
+    public void testWarnsAgainForSameCauseAfterKeysRemoved() {
+        PasswordPekEncryption enc = new PasswordPekEncryption(() -> Settings.EMPTY);
+        Runnable failedWrite = () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false);
+        failedWrite.run();
+
+        enc.localKeys().onApplied(null);
+
+        MockLog.assertThatLogger(
+            failedWrite,
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation("warn after reset", LOGGER, Level.WARN, "cannot wrap PEK for disk: missing*")
+        );
     }
 }

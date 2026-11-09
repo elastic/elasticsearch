@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -16,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,6 +52,74 @@ public class KeyRotationExecutorTests extends ESTestCase {
 
     private static ProjectEncryptionKeyMetadata metadataOf(ClusterState state) {
         return state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).custom(ProjectEncryptionKeyMetadata.TYPE);
+    }
+
+    private static ProjectEncryptionKeyMetadata degraded(String activeKeyId) {
+        return ProjectEncryptionKeyMetadata.degraded(activeKeyId, PASSWORD_ID, NO_OP_ENCRYPTION, "no key material found on disk");
+    }
+
+    private static ProjectEncryptionKeyMetadata healthy(String activeKeyId, String... keyIds) {
+        Map<String, KeyEntry> keys = new HashMap<>();
+        for (String keyId : keyIds) {
+            keys.put(keyId, entry(10L));
+        }
+        return new ProjectEncryptionKeyMetadata(keys, activeKeyId, PASSWORD_ID, Map.of("handler", activeKeyId), NO_OP_ENCRYPTION);
+    }
+
+    private Tuple<ClusterState, Void> restore(ProjectEncryptionKeyMetadata ownCopy, ClusterState state) {
+        return executor.executeTask(new KeyRotationCoordinator.RestoreKeysTask(ownCopy, new AtomicBoolean(true)), state);
+    }
+
+    public void testRestoreReplacesDegradedInstanceWithSameActiveKey() {
+        ProjectEncryptionKeyMetadata ownCopy = healthy("k2", "k1", "k2");
+        ProjectEncryptionKeyMetadata restored = metadataOf(restore(ownCopy, stateWith(degraded("k2"))).v1());
+
+        assertFalse(restored.isUnwrapFailed());
+        assertEquals(ownCopy.getKeys(), restored.getKeys());
+        assertEquals("k2", restored.getActiveKeyId());
+        assertEquals(ownCopy.getHandlerKeyIds(), restored.getHandlerKeyIds());
+    }
+
+    /**
+     * A node may restore a copy that is older than the last committed instance: it still holds a retired key and a stale handler key id.
+     * The copy holds every current key, and the normal lifecycle tasks bring it up to date again.
+     */
+    public void testRestoreOfOlderCopyWithSameActiveKeyConverges() {
+        ProjectEncryptionKeyMetadata olderCopy = new ProjectEncryptionKeyMetadata(
+            Map.of("k0", entry(1L), "k1", entry(5L), "k2", entry(10L)),
+            "k2",
+            PASSWORD_ID,
+            Map.of("handler", "k0"),
+            NO_OP_ENCRYPTION
+        );
+        ClusterState restored = restore(olderCopy, stateWith(degraded("k2"))).v1();
+        assertSame(olderCopy, metadataOf(restored));
+
+        ClusterState reEncrypted = executor.executeTask(
+            new KeyRotationCoordinator.ReEncryptApplyTask("handler", null, null, "k2", ActionListener.noop()),
+            restored
+        ).v1();
+        assertEquals(Map.of("handler", "k2"), metadataOf(reEncrypted).getHandlerKeyIds());
+
+        ClusterState retired = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(6L, "k2"), reEncrypted).v1();
+        assertEquals(Set.of("k1", "k2"), metadataOf(retired).getKeys().keySet());
+        assertEquals("k2", metadataOf(retired).getActiveKeyId());
+    }
+
+    public void testRestoreOnlyReplacesDegradedInstanceWithSameActiveKey() {
+        ProjectEncryptionKeyMetadata ownCopy = healthy("k1", "k1");
+        for (ClusterState state : List.of(stateWith(degraded("k2")), stateWith(null), stateWith(healthy("k1", "k1")))) {
+            assertSame(state, restore(ownCopy, state).v1());
+        }
+    }
+
+    public void testBeginRotationIsNoopOnDegradedInstance() {
+        ClusterState state = stateWith(degraded("k1"));
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.BeginRotationTask("k2", randomKey(), 20L, new AtomicBoolean(true)),
+            state
+        );
+        assertSame(state, result.v1());
     }
 
     public void testInstallInitialKeyOnEmptyState() {

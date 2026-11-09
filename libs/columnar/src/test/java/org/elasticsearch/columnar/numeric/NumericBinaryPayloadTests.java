@@ -84,6 +84,20 @@ public class NumericBinaryPayloadTests extends ESTestCase {
         assertEquals(0, decoder.valueCount());
     }
 
+    /**
+     * Walking slots after reading values without them leaves the slot cursor behind the values, which would report the
+     * wrong slot's nullness, so the decoder refuses it.
+     */
+    public void testSlotWalkAfterValuesOnlyReadsTrips() throws IOException {
+        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
+        builder.addNull();
+        builder.addValue(5);
+        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
+        decoder.reset(builder.build());
+        assertEquals(5, decoder.nextValue());
+        expectThrows(AssertionError.class, decoder::nextIsNull);
+    }
+
     /** Resetting clears the null bitmap, so a reused builder doesn't carry nulls into the next document. */
     public void testResetClearsNulls() throws IOException {
         final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();

@@ -198,6 +198,9 @@ public final class NumericBinaryPayload {
          */
         public boolean nextIsNull() {
             assert slot < slotCount : "read past the last slot";
+            // Each value read in a slot walk is a non-null slot already passed. More values than slots means values were
+            // read without walking their slots, and this slot is not the one after the last value read.
+            assert slot >= value : "slot " + slot + " is behind value " + value + ": a slot walk can't follow values-only reads";
             final int current = slot++;
             return nullCount > 0 && nullSlots.get(current);
         }

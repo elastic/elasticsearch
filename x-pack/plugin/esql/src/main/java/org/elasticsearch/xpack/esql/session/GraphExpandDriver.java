@@ -31,8 +31,14 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
@@ -69,6 +75,9 @@ public final class GraphExpandDriver {
     private static final Logger LOGGER = LogManager.getLogger(GraphExpandDriver.class);
 
     public static final int DEFAULT_MAX_HOPS = 3;
+
+    /** Column carrying a frontier document's pointer count through a hop subplan, for the hub guard. */
+    private static final String HUB_DEGREE_COLUMN = "__degree";
 
     private static final Set<String> ALLOWED_OPTIONS = Set.of(
         "max_hops",
@@ -582,24 +591,53 @@ public final class GraphExpandDriver {
             null,
             false
         );
-        // Match at the index first. On an outbound leg the frontier field is the node id, a
-        // single value, so an IN on the stored field is a terms query Lucene answers before any
-        // document is read, and the pointer being non-null is an exists query. The filters kept
-        // above the expands still trim per value, which is what an inbound leg, whose frontier
-        // field is the multi-valued pointer, relies on.
-        Attribute storedPointer = leg == Leg.OUT ? targetField : matchField;
+        // Match at the index first, so Lucene answers the frontier with a terms query before any
+        // document is read, and the pointer being non-null with an exists query. On an outbound
+        // leg the frontier field is the node id, a single value, and a plain IN does it. On an
+        // inbound leg the frontier field is the multi-valued pointer, where IN and == carry
+        // single-value semantics and miss a value held inside the array; MV_INTERSECTS against
+        // the frontier list translates to the same terms query without that restriction. The IN
+        // kept above the expands still trims per value either way.
+        Attribute pointerField = leg == Leg.OUT ? targetField : matchField;
         List<Expression> indexPredicates = new ArrayList<>(2);
         if (leg == Leg.OUT) {
             indexPredicates.add(new In(source, frontierField, literals));
+        } else {
+            Literal frontierList = new Literal(source, List.copyOf(frontierValues), nodeType);
+            indexPredicates.add(new MvIntersects(source, frontierField, frontierList));
         }
-        indexPredicates.add(new IsNotNull(source, storedPointer));
+        indexPredicates.add(new IsNotNull(source, pointerField));
         LogicalPlan edges = new Filter(source, graphExpand.edgeRelation(), Predicates.combineAnd(indexPredicates));
-        LogicalPlan scanned = new MvExpand(source, edges, frontierField, expandedFrontier);
+        // Hub guard, outbound legs: a frontier node with more pointers than hub_degree is
+        // refused after the fetch. Counting the pointer array on the matched document, before it
+        // is exploded, and slicing it to hub_degree + 1 values keeps a hub to just enough rows
+        // for that refusal to see it, instead of every pointer it holds being expanded, joined
+        // and shipped. The true count rides along in `dropped` so the refusal stub reports it.
+        Integer hubDegree = leg == Leg.OUT ? optionInt("hub_degree") : null;
+        Attribute degreeAttr = null;
+        Attribute expandSource = pointerField;
+        LogicalPlan beforeExpand = edges;
+        if (hubDegree != null) {
+            Alias degree = new Alias(source, HUB_DEGREE_COLUMN, new MvCount(source, pointerField));
+            Alias capped = new Alias(
+                source,
+                pointerField.name(),
+                new MvSlice(
+                    source,
+                    pointerField,
+                    new Literal(source, 0, DataType.INTEGER),
+                    new Literal(source, hubDegree, DataType.INTEGER)
+                )
+            );
+            beforeExpand = new Eval(source, edges, List.of(degree, capped));
+            degreeAttr = degree.toAttribute();
+            expandSource = capped.toAttribute();
+        }
+        LogicalPlan scanned = new MvExpand(source, beforeExpand, frontierField, expandedFrontier);
         // The other side of the edge is exploded too, so a multi-valued pointer (an entity's
         // list of relationship targets) yields one edge per value on an outbound leg as well,
         // and UNTIL compares against a single reached id rather than a list. Without STATS
         // nothing else would split the values.
-        Attribute pointerField = leg == Leg.OUT ? targetField : matchField;
         Attribute expandedPointer = new ReferenceAttribute(
             pointerField.source(),
             pointerField.qualifier(),
@@ -609,7 +647,7 @@ public final class GraphExpandDriver {
             null,
             false
         );
-        scanned = new MvExpand(source, scanned, pointerField, expandedPointer);
+        scanned = new MvExpand(source, scanned, expandSource, expandedPointer);
         In inPredicate = new In(source, expandedFrontier, literals);
         // Null pointer values emit no row (TO IS NOT NULL on the scanned documents).
         Expression notNullPointer = new IsNotNull(
@@ -642,7 +680,8 @@ public final class GraphExpandDriver {
                 frontierField,
                 expandedFrontier,
                 pointerField,
-                expandedPointer
+                expandedPointer,
+                degreeAttr
             );
             hopChild = aggregate;
             // Aggregate WHERE filters collapsed edges after STATS, before admission.
@@ -668,7 +707,19 @@ public final class GraphExpandDriver {
         // Must live on Eval (Literal) — Project only accepts Attribute children.
         Attribute droppedAttr = findNamed(resultAttributes, "dropped");
         if (droppedAttr != null) {
-            evalFields.add(new Alias(source, droppedAttr.name(), new Literal(source, null, DataType.INTEGER), droppedAttr.id(), false));
+            Expression droppedValue = new Literal(source, null, DataType.INTEGER);
+            if (degreeAttr != null) {
+                // The guard counted the pointers: a count past hub_degree is the refused degree.
+                Expression degree = graphExpand.aggregates() != null
+                    ? attributeByName(hopChild.output(), HUB_DEGREE_COLUMN)
+                    : degreeAttr;
+                droppedValue = new Case(
+                    source,
+                    new GreaterThan(source, degree, new Literal(source, hubDegree, DataType.INTEGER)),
+                    List.of(degree, new Literal(source, null, DataType.INTEGER))
+                );
+            }
+            evalFields.add(new Alias(source, droppedAttr.name(), droppedValue, droppedAttr.id(), false));
         }
         Eval eval = new Eval(source, hopChild, evalFields);
 
@@ -703,7 +754,8 @@ public final class GraphExpandDriver {
         Attribute frontierField,
         Attribute expandedFrontier,
         Attribute pointerField,
-        Attribute expandedPointer
+        Attribute expandedPointer,
+        @Nullable Attribute degreeAttr
     ) {
         List<? extends NamedExpression> userAggregates = graphExpand.aggregates();
         List<Expression> userGroupings = graphExpand.groupings() != null ? graphExpand.groupings() : List.of();
@@ -736,6 +788,11 @@ public final class GraphExpandDriver {
                 );
             }
             aggregates.add(attr);
+        }
+        if (degreeAttr != null) {
+            // Every row of an edge pair comes from one frontier document, so its count is the same
+            // on each; MAX keeps it through the collapse for the `dropped` column.
+            aggregates.add(new Alias(source, HUB_DEGREE_COLUMN, new Max(source, degreeAttr)));
         }
         return new Aggregate(source, filteredEdges, groupings, aggregates);
     }
@@ -936,6 +993,16 @@ public final class GraphExpandDriver {
             return;
         }
         int droppedIdx = indexOf(resultAttributes, "dropped");
+        // The hub guard slices a hub's pointers to hub_degree + 1 in the subplan and reports the
+        // full count in `dropped`; the stub carries that count rather than the sliced one.
+        Map<Object, Integer> reportedDegree = new HashMap<>();
+        if (droppedIdx >= 0) {
+            for (List<Object> row : rows) {
+                if (row.get(droppedIdx) instanceof Number reported) {
+                    reportedDegree.merge(frontierNode(row), reported.intValue(), Math::max);
+                }
+            }
+        }
         List<List<Object>> kept = new ArrayList<>(rows.size());
         Set<Object> stubEmitted = new HashSet<>();
         for (List<Object> row : rows) {
@@ -945,7 +1012,8 @@ public final class GraphExpandDriver {
                 continue;
             }
             if (stubEmitted.add(via)) {
-                kept.add(hubStub(via, row, distinctReached.get(via).size(), droppedIdx));
+                int degree = Math.max(distinctReached.get(via).size(), reportedDegree.getOrDefault(via, 0));
+                kept.add(hubStub(via, row, degree, droppedIdx));
             }
         }
         rows.clear();

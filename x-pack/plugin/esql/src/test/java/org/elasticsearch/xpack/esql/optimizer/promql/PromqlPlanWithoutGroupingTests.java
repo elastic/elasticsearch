@@ -82,15 +82,9 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         var aggregates = plan.collect(Aggregate.class);
         assertThat(aggregates, not(empty()));
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("pod"));
+        Set<String> excluded = viewExclusions(plan);
+        assertNotNull(excluded);
+        assertThat(excluded, hasItem("pod"));
     }
 
     /**
@@ -144,15 +138,9 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=k8s step=1h result=(sum without (pod, event) (network.bytes_in))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItems("pod", "event"));
+        Set<String> excluded = viewExclusions(plan);
+        assertNotNull(excluded);
+        assertThat(excluded, hasItems("pod", "event"));
     }
 
     /**
@@ -174,6 +162,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     }
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
+        assumeTrue("a typed label container leaves the labels out with TS_TRANSFORM", typedLabelContainer());
         String query = "PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))";
         var logical = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false));
         var physical = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, TransportVersion.current())).optimize(
@@ -257,6 +246,27 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         FunctionEsField extractedField = as(extractedTimeSeries.field(), FunctionEsField.class);
         var functionConfig = as(extractedField.functionConfig(), BlockLoaderFunctionConfig.TimeSeriesMetadata.class);
         assertThat(functionConfig.skipFieldNames(), hasItem("pod"));
+    }
+
+    /** The data node evaluates the view from a typed label container; the TS_TRANSFORM it runs survives the plan's transport. */
+    public void testTypedWithoutGroupingSurvivesDataNodePlanSerialization() {
+        assumeTrue("a typed label container leaves the labels out with TS_TRANSFORM", typedLabelContainer());
+        String query = "PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))";
+        var logical = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false));
+        var physical = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, TransportVersion.current())).optimize(
+            new Mapper().map(new Versioned<>(logical, TransportVersion.current()))
+        );
+        PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physical, EsqlTestUtils.TEST_CFG).v2();
+        LogicalPlan fragment = as(as(dataNodePlan, ExchangeSinkExec.class).child(), FragmentExec.class).fragment();
+        assertThat(fragment.toString(), viewExclusions(fragment), hasItem("pod"));
+        PhysicalPlan deserializedDataNodePlan = SerializationTestUtils.serializeDeserialize(
+            dataNodePlan,
+            StreamOutput::writeNamedWriteable,
+            in -> in.readNamedWriteable(PhysicalPlan.class),
+            EsqlTestUtils.TEST_CFG
+        );
+        LogicalPlan deserializedFragment = as(as(deserializedDataNodePlan, ExchangeSinkExec.class).child(), FragmentExec.class).fragment();
+        assertThat(deserializedFragment.toString(), viewExclusions(deserializedFragment), hasItem("pod"));
     }
 
     public void testNestedWithoutOverByProducesConcreteOutput() {
@@ -373,15 +383,9 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.system.cpu.time))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("cpu"));
+        Set<String> excluded = viewExclusions(plan);
+        assertNotNull(excluded);
+        assertThat(excluded, hasItem("cpu"));
     }
 
     /**
@@ -396,15 +400,9 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=otel-metrics step=1h result=(sum without (host.name) (metrics.system.cpu.time))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("host.name"));
+        Set<String> excluded = viewExclusions(plan);
+        assertNotNull(excluded);
+        assertThat(excluded, hasItem("host.name"));
     }
 
     public void testWithoutTrailingCommaPlans() {

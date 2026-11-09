@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
@@ -748,7 +749,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     ) {
         // Validate entire plan. Each contiguous `or` chain (top-level or nested) flattens to one UnionAll; reject
         // chains that exceed the UnionAll branch limit here rather than during translation.
-        Set<VectorBinarySet> topLevelUnions = collectTopLevelUnionChain(p);
+        Set<VectorBinarySet> topLevelUnions = topLevelUnionChain(p);
+        if (typedLabelContainer == false && p instanceof VectorBinarySet union && topLevelUnions.contains(union)) {
+            verifyKeywordUnion(failures, union);
+        }
         Set<VectorBinarySet> countedUnionChains = new HashSet<>();
         p.forEachDown(VectorBinarySet.class, setOp -> {
             if (setOp.op() != VectorBinarySet.SetOp.UNION || countedUnionChains.contains(setOp)) {
@@ -842,6 +846,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         if (binaryOperator.match() != VectorMatch.NONE && scalarOperand) {
                             failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
                         } else if (needsConcreteMatchKeys(binaryOperator)) {
+                            // on(...)/ignoring(...) declare the match keys as unresolved label refs; ResolvePromqlAttributes
+                            // materializes them from the label container/_timeseries (#157669). Default matching (including an unmatched
+                            // op composed over a prior match) packs a label container signature for opaque sides and named keys
+                            // for concrete ones - same joinKey path as concrete x opaque without nesting.
                             failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
                         }
                     }
@@ -874,8 +882,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             );
                         }
                     }
+                    if ((binaryOperator.match().filter() == VectorMatch.Filter.ON
+                        && binaryOperator.match().filterLabels().contains(LabelMatcher.NAME))
+                        || binaryOperator.match().groupingLabels().contains(LabelMatcher.NAME)) {
+                        // A series whose metric is a field stores no __name__ and reads it as absent, so on(__name__) would
+                        // match the series of different metrics, which Prometheus keeps apart. Which series store it is
+                        // known only from the data, so it is rejected for all.
+                        // TODO: Match on __name__ once the metric name is a dimension value.
+                        // https://github.com/elastic/elasticsearch/issues/146989
+                        failures.add(fail(lp, "matching on __name__ is not supported at this time [{}]", lp.sourceText()));
+                    }
                     if (binaryOperator instanceof VectorBinarySet setOp) {
-                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
+                        verifySetOperator(failures, setOp, typedLabelContainer, topLevelUnions.contains(setOp));
                     }
                     if (hasSourceBackedExpression(binaryOperator.left()) && hasSourceBackedExpression(binaryOperator.right())) {
                         verifySourceBackedOperands(failures, binaryOperator, typedLabelContainer);
@@ -1114,36 +1132,141 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
-     * Set operators ({@code and}/{@code or}/{@code unless}) are only partially supported. Phase 1 allows the
-     * {@code or} (UNION) operator when it appears at the top level of the expression and both operands are
-     * instant vectors. The failures here fall into two categories:
+     * Set operators ({@code and}/{@code or}/{@code unless}).
      * <ul>
-     *   <li>Scalar operands are illegal for set operators in PromQL itself, not just in our implementation. We
-     *       mirror Prometheus' wording ({@code set operator "or" not allowed in binary scalar expression}) and
-     *       check it first, so the message does not falsely imply the shape might be supported later.</li>
-     *   <li>Unsupported {@code and}/{@code unless} operators and non-top-level {@code or} are genuine current
-     *       implementation limitations, flagged with "at this time".</li>
+     *   <li>Scalar operands are illegal for set operators in PromQL itself; we mirror Prometheus' wording.</li>
+     *   <li>{@code and} (INTERSECT) keeps left series that match on the right (default or {@code on}/{@code ignoring}).</li>
+     *   <li>{@code unless} (SUBTRACT) keeps left series with no match on the right, by default matching or by
+     *       {@code on}/{@code ignoring}. Operands whose label sets never match anti-join too, so the left operand comes
+     *       back whole, as in Prometheus.</li>
+     *   <li>{@code or} (UNION) unions its branches, keeping one series per step and label set without {@code __name__};
+     *       with {@code on}/{@code ignoring} as {@code a or (b unless<M> a)}.</li>
      * </ul>
+     * Each of them matches series on their labels without {@code __name__}, which a keyword label container cannot leave out: there
+     * only a top-level chain of {@code or} without {@code on}/{@code ignoring} runs, as it did before a typed label container.
      */
-    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion) {
+    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean typedLabelContainer, boolean topLevelUnion) {
         if (PromqlPlan.returnsScalar(setOp.left()) || PromqlPlan.returnsScalar(setOp.right())) {
             failures.add(fail(setOp, "set operator \"{}\" not allowed in binary scalar expression", setOp.op().keyword()));
             return;
         }
-        if (setOp.op() != VectorBinarySet.SetOp.UNION) {
-            // TODO: Support and/unless set operators.
-            // https://github.com/elastic/elasticsearch/issues/158179
-            failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
+        if (typedLabelContainer) {
             return;
         }
-        if (setOp.match() != VectorMatch.NONE) {
-            // TODO: Support or with on/ignoring modifiers.
-            // https://github.com/elastic/elasticsearch/issues/158181
-            failures.add(fail(setOp, "set operator [or] with on/ignoring is not supported at this time [{}]", setOp.sourceText()));
-        } else if (isTopLevelUnion == false) {
-            // TODO: Support or below the top level.
-            // https://github.com/elastic/elasticsearch/issues/158182
-            failures.add(fail(setOp, "set operator [or] is only supported at the top-level at this time [{}]", setOp.sourceText()));
+        if (setOp.op() != VectorBinarySet.SetOp.UNION) {
+            failures.add(fail(setOp, "set operator [{}] requires a typed label container [{}]", setOp.op().keyword(), setOp.sourceText()));
+        } else if (setOp.match() != VectorMatch.NONE) {
+            failures.add(fail(setOp, "set operator [or] with on/ignoring requires a typed label container [{}]", setOp.sourceText()));
+        } else if (topLevelUnion == false) {
+            failures.add(fail(setOp, "set operator [or] below the top level requires a typed label container [{}]", setOp.sourceText()));
+        }
+    }
+
+    /**
+     * A top-level {@code or} on a keyword label container deduplicates series on their labels as the operands read them, which keep
+     * {@code __name__} where the series store it and an operand does not drop it. Prometheus compares label sets without
+     * {@code __name__}, so the two agree only when no pair of operands can hold series that differ in {@code __name__}
+     * alone:
+     * <ul>
+     *   <li>operands that name their labels compare them as columns, a label one lacks as absent, as Prometheus does;</li>
+     *   <li>an operand without labels, such as {@code vector(1)}, beside opaque ones that keep no stored {@code __name__};</li>
+     *   <li>opaque operands that leave different labels out, or keep the name of the same metric, or all drop it.</li>
+     * </ul>
+     */
+    private void verifyKeywordUnion(Failures failures, VectorBinarySet union) {
+        List<LogicalPlan> branches = VectorBinarySet.flattenUnion(union);
+        if (branches.stream().anyMatch(PromqlPlan::returnsScalar)) {
+            return; // a scalar operand is illegal whatever the label container, see verifySetOperator
+        }
+        boolean storesName = storesMetricName();
+        List<Set<String>> opaque = new ArrayList<>();
+        List<LogicalPlan> opaqueBranches = new ArrayList<>();
+        boolean labelledConcrete = false;
+        boolean labellessConcrete = false;
+        for (LogicalPlan branch : branches) {
+            Set<String> excluded = PromqlLabels.excluded(branch);
+            if (excluded != null) {
+                opaque.add(excluded);
+                opaqueBranches.add(branch);
+            } else if (branch.output().stream().anyMatch(a -> PromqlLabels.isTagsLabel(a) == false)) {
+                labelledConcrete = true;
+            } else {
+                labellessConcrete = true;
+            }
+        }
+        if (opaque.isEmpty()) {
+            return;
+        }
+        boolean keepsName = storesName && opaque.stream().anyMatch(excluded -> excluded.contains(LabelMatcher.NAME) == false);
+        boolean agree = labelledConcrete == false && (labellessConcrete == false || keepsName == false);
+        for (int i = 0; agree && i < opaque.size(); i++) {
+            for (int j = i + 1; agree && j < opaque.size(); j++) {
+                agree = keywordUnionAgrees(storesName, opaque.get(i), opaqueBranches.get(i), opaque.get(j), opaqueBranches.get(j));
+            }
+        }
+        if (agree == false) {
+            failures.add(fail(union, "set operator [or] between these operands requires a typed label container [{}]", union.sourceText()));
+        }
+    }
+
+    private static boolean keywordUnionAgrees(
+        boolean storesName,
+        Set<String> left,
+        LogicalPlan leftBranch,
+        Set<String> right,
+        LogicalPlan rightBranch
+    ) {
+        boolean leftKeeps = storesName && left.contains(LabelMatcher.NAME) == false;
+        boolean rightKeeps = storesName && right.contains(LabelMatcher.NAME) == false;
+        if (leftKeeps == false && rightKeeps == false) {
+            return true;
+        }
+        Set<String> leftOthers = new HashSet<>(left);
+        leftOthers.remove(LabelMatcher.NAME);
+        Set<String> rightOthers = new HashSet<>(right);
+        rightOthers.remove(LabelMatcher.NAME);
+        if (leftOthers.equals(rightOthers) == false) {
+            return true; // one leaves out a label the other keeps: their series never share a label set
+        }
+        if (leftKeeps != rightKeeps) {
+            return false;
+        }
+        Set<String> metrics = new HashSet<>(selectedMetrics(leftBranch));
+        metrics.addAll(selectedMetrics(rightBranch));
+        return metrics.size() == 1;
+    }
+
+    /** The metrics the selectors of {@code plan} read. */
+    private static Set<String> selectedMetrics(LogicalPlan plan) {
+        Set<String> metrics = new HashSet<>();
+        plan.forEachDown(Selector.class, selector -> {
+            if (selector instanceof LiteralSelector == false) {
+                metrics.add(selector.series() instanceof NamedExpression named ? named.name() : String.valueOf(selector.series()));
+            }
+        });
+        return metrics;
+    }
+
+    /**
+     * Whether some series may store the metric name as a {@code __name__} label, as Prometheus remote write does: a queried
+     * index maps it.
+     */
+    private boolean storesMetricName() {
+        return child().output().stream().anyMatch(field -> LabelMatcher.NAME.equals(PromqlLabels.labelName(field)));
+    }
+
+    /** The {@code or} operators of the chain at the root of {@code p}, which translate as one top-level union. */
+    private static Set<VectorBinarySet> topLevelUnionChain(LogicalPlan p) {
+        Set<VectorBinarySet> chain = new HashSet<>();
+        collectUnionChain(p, chain);
+        return chain;
+    }
+
+    private static void collectUnionChain(LogicalPlan p, Set<VectorBinarySet> chain) {
+        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
+            chain.add(setOp);
+            collectUnionChain(setOp.left(), chain);
+            collectUnionChain(setOp.right(), chain);
         }
     }
 
@@ -1222,6 +1345,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     private static List<String> namedLabels(LogicalPlan plan) {
         return PromqlLabels.labelNames(plan.output().stream().filter(a -> PromqlLabels.isTagsLabel(a) == false).toList());
+    }
+
+    private static boolean usesWithoutGrouping(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
     }
 
     private static boolean hasConcreteLabels(LogicalPlan plan) {
@@ -1358,23 +1485,4 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
         throw new QlIllegalArgumentException("Expected [{}] to be a duration literal, got [{}]", paramName, expression);
     }
-
-    private static Set<VectorBinarySet> collectTopLevelUnionChain(LogicalPlan p) {
-        Set<VectorBinarySet> chain = new HashSet<>();
-        collectTopLevelUnionChain(p, chain);
-        return chain;
-    }
-
-    private static void collectTopLevelUnionChain(LogicalPlan p, Set<VectorBinarySet> chain) {
-        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
-            chain.add(setOp);
-            collectTopLevelUnionChain(setOp.left(), chain);
-            collectTopLevelUnionChain(setOp.right(), chain);
-        }
-    }
-
-    private static boolean usesWithoutGrouping(LogicalPlan plan) {
-        return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
-    }
-
 }

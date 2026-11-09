@@ -199,116 +199,67 @@ and the `:` operator. Other search functions, such as
 still not supported after `INLINE STATS`. A `STATS` command before the search function still
 causes the query to fail, even if an `INLINE STATS` comes after it.
 
-### Runtime search on expressions [esql-limitations-full-text-search-expressions]
-
-{applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
-`MATCH` can also target an expression rather than an indexed field, for example a column
-produced by `EVAL` or `STATS`. It then evaluates by scanning the column's values row by row
-instead of using the index.
-
 {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
-Because such a search does not use the index, the restriction above does not apply to it: it can
-appear anywhere in the query, including after `STATS`, `LIMIT` and `FORK`. (In earlier versions it
-was restricted to the same positions as a search on an indexed field. Searching a mapped `text` field
-that `FORK` merged is the one exception, described below.) For example, this query is accepted:
+This restriction only applies to searches on indexed fields. A search on an expression, such as a
+column computed by `EVAL`, is a [runtime search](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-position),
+which can appear anywhere in the query.
 
-```esql
-FROM books
-| SORT book_no
-| LIMIT 10
-| EVAL content = TO_TEXT(CONCAT(title, " ", description))
-| WHERE MATCH(content, "Tolkien")
-```
+### Runtime search [esql-limitations-full-text-search-runtime]
 
-The restriction is lifted per search function, not per `WHERE` command, so a search on an indexed
-field sharing the command still fails. (e.g. if `content` was an indexed field instead, the query would be rejected.)
+[Runtime search](/reference/query-languages/esql/esql-runtime-search.md) lets these functions search expressions and
+other values that have no index behind them, such as a column computed by `EVAL`:
 
-{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
-[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
-supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
+* {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga` `MATCH` and the `:` operator
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `MATCH_PHRASE`
+* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+  [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) on `dense_vector` expressions
 
-{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
-[`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md)
-supports targeting a `dense_vector` expression (such as a column produced by `EVAL` or the `DENSE_VECTOR`
-command) instead of an indexed field. It performs an exact search by comparing the query vector against
-every row rather than using a vector index. The `similarity_function` option sets the similarity metric.
-When used on an expression, `KNN` can appear anywhere in the query, but a later `LIMIT` must set the number of
-nearest neighbors to find. In 9.6.0, a `LIMIT` after `STATS` doesn't count, so add a `LIMIT` before `STATS`.
-For details, refer to [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues).
-To get the k nearest results, sort and limit explicitly, for example `SORT _score DESC | LIMIT 10`.
+Runtime search has these limitations:
 
-{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
-When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-(match query options) are supported on `text` expressions. As on an indexed field, the `analyzer`
-option applies to the query string only: how the expression's values are analyzed is declared where
-the column is created, through
-[`TO_TEXT`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_text.md)'s
-`analyzer` option, and the query analyzer defaults to that values analyzer (`standard` when none is
-declared). Analyzer names must name a registered analyzer (prebuilt or plugin-contributed), not a
-per-index custom analyzer. On other expression types options are not supported.
-
-### Analyzer used for a runtime search [esql-limitations-full-text-search-analyzer]
-
-{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
-An indexed `text` field is sometimes searched as an expression rather than through the index, and its values are
-then analyzed with the values analyzer of the column rather than the one its mapping declares: `standard`, unless it uses
-`TO_TEXT` with its optional `analyzer` argument. This applies whenever the field cannot be searched through the
-index, which includes the column [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) expanded and
-a field that is not mapped the same way across every index the query reads. Searching the field where it can still
-use the index uses the mapping's analyzer.
-
-{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
-What [`FORK`](/reference/query-languages/esql/commands/fork.md) outputs is not index-backed either, but there the
-mapped-`text` case is rejected rather than answered with the substituted analyzer. Declare the analyzer on the
-merged column to search it, which is allowed because the merged column is no longer an indexed field, or search the
-field inside the `FORK` branches instead:
-
-```esql
-FROM books
-| FORK (SORT book_no | LIMIT 5)
-       (SORT book_no DESC | LIMIT 5)
-| EVAL t = TO_TEXT(title, {"analyzer": "whitespace"})
-| WHERE MATCH(t, "Tolkien")
-```
-
-This only applies to a column the merge actually makes non-indexed. Where no branch contains a pipeline breaker
-such as `LIMIT` or `STATS`, the search is pushed into the branches and still uses the index, so it is unaffected.
-`FORK` branches that declare different values analyzers for the same column are rejected too, since the merged
-column can only carry one of them.
+* It is usually slower than a search on an indexed field, because it analyzes every row that
+  reaches it. Refer to [Performance](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-performance).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Relevance scores are not BM25, because there are no
+  index statistics for an expression. Refer to
+  [Scoring](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The same query can see a different `_score` depending on
+  whether a search runs at runtime, because a runtime search only adds its score once it runs. For details, refer to
+  [When a runtime search score is visible](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring-visibility)
+  and [this `_score` issue](https://github.com/elastic/elasticsearch/issues/160809).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A runtime search after a
+  [`FORK`](/reference/query-languages/esql/commands/fork.md) or a `FROM` with
+  [subqueries](/reference/query-languages/esql/esql-subquery.md) filters rows, but doesn't contribute to
+  `_score` unless it can be pushed into the branches
+  ([#161746](https://github.com/elastic/elasticsearch/issues/161746)).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The `analyzer` options of `TO_TEXT`, `MATCH` and
+  `MATCH_PHRASE` only accept built-in analyzers and analyzers provided by plugins, not custom analyzers defined in
+  an index's settings. Refer to
+  [Analyzers](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` On expressions that are not `text`, `MATCH` only
+  supports the `lenient` option, and `MATCH_PHRASE` supports no options. Refer to
+  [Options](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-options).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The
+  [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries)
+  setting doesn't apply, so options such as `fuzziness` run even when it is `false`
+  ([#162256](https://github.com/elastic/elasticsearch/issues/162256)).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A mapped `text` field in the output of a `FORK` whose
+  branches contain a command such as `LIMIT` or `STATS`, can't be searched directly. Declare an analyzer for it
+  with `TO_TEXT`, or search it inside the branches. Refer to
+  [Indexed `text` fields searched at runtime](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers-indexed).
+* [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) and
+  [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) don't support
+  runtime search.
+* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+  [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) on a `dense_vector`
+  expression needs a later `LIMIT` to set the number of nearest neighbors to find. In 9.6.0, a `LIMIT` after
+  `STATS` doesn't count, so add a `LIMIT` before `STATS`. Refer to
+  [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues).
 
 :::{warning}
-`MV_EXPAND`, and a field that is not mapped the same way across every index the query reads, substitute the
-analyzer without reporting it. A field whose mapping declares an analyzer other than `standard` is then searched
-differently depending on where in the query it is searched, and the query succeeds while quietly matching a
-different set of documents. Either search the field before the command that turns it into an expression, or declare
-the analyzer again on `TO_TEXT` afterwards, which is allowed once the column is no longer an indexed field:
-
-```esql
-FROM books
-| MV_EXPAND author
-| EVAL a = TO_TEXT(author, {"analyzer": "whitespace"})
-| WHERE MATCH(a, "Tolkien")
-```
+An indexed `text` field searched at runtime, for example after
+[`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md), is silently analyzed with the `standard`
+analyzer instead of the analyzer in its mapping. Refer to
+[Indexed `text` fields searched at runtime](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers-indexed).
 :::
-
-Which column `MV_EXPAND` expanded therefore decides how the field is searched. Both of these expand
-`author`, which a book can have several of, but only the first searches the expanded column and so
-becomes a runtime search:
-
-```esql
-FROM books
-| MV_EXPAND author
-| WHERE MATCH(author, "Tolkien")
-```
-
-The second searches an indexed field instead, which is still subject to the restriction above and
-fails after `MV_EXPAND`:
-
-```esql
-FROM books
-| MV_EXPAND author
-| WHERE MATCH(title, "Tolkien")
-```
 
 ### `KNN` on expressions during rolling upgrades and CCS [esql-limitations-knn-expression-upgrade]
 
@@ -322,63 +273,6 @@ KNN over a non-index-mapped field or expression is not supported on every partic
 ```
 
 Upgrade all nodes and remote clusters before you run queries that use `KNN` on an expression.
-
-### Scoring for a runtime search [esql-limitations-full-text-search-scoring]
-
-{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
-When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
-a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
-(duplicate query terms each contribute separately), rather than BM25, as there are no index
-statistics for an expression. In earlier versions, `MATCH` on an expression does not contribute
-to the score.
-
-A search on an expression contributes to `_score` only once it runs. Filtering on `_score` after
-the search sees its score:
-
-```esql
-FROM books METADATA _score
-| EVAL content = TO_TEXT(CONCAT(title, " ", description))
-| WHERE MATCH(content, "Tolkien Rings")
-| WHERE _score > 1.5
-```
-
-Within one `WHERE`, a condition on `_score` combined with `AND` sees the score from every search in
-that `WHERE`, wherever it appears. Here `_score > 1.5` sees the score from both `MATCH` functions:
-
-```esql
-FROM books METADATA _score
-| EVAL content = TO_TEXT(CONCAT(title, " ", description))
-| WHERE MATCH(content, "Tolkien Rings") AND _score > 1.5 AND MATCH(content, "English")
-```
-
-Anything that uses `_score` before the search runs sees the score from before it, which is 0.0 if no
-earlier search has scored. For example, a `WHERE` on `_score` before the expression is computed, which
-keeps no books here:
-
-```esql
-FROM books METADATA _score
-| WHERE _score > 1.5
-| EVAL content = TO_TEXT(CONCAT(title, " ", description))
-| WHERE MATCH(content, "Tolkien Rings")
-```
-
-A value computed from `_score` before or alongside the expression, so `s` is 0.0:
-
-```esql
-FROM books METADATA _score
-| EVAL s = _score + 0.0, content = TO_TEXT(CONCAT(title, " ", description))
-| WHERE MATCH(content, "Tolkien Rings")
-```
-
-A `SORT` and `LIMIT` before the search, which pick 10 books **_before_** any of them have been scored:
-
-```esql
-FROM books METADATA _score
-| EVAL content = TO_TEXT(CONCAT(title, " ", description))
-| SORT _score DESC
-| LIMIT 10
-| WHERE MATCH(content, "Tolkien Rings")
-```
 
 ### Text fields without a search function [esql-limitations-full-text-search-keyword-fallback]
 

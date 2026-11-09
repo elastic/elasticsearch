@@ -60,7 +60,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * <p>
      * {@link #testEqualsAndHashcode} does not call this method for a record that keeps the
      * compiler-generated {@code equals} and {@code hashCode}. A record that declares either
-     * method, and every non-record, must still return a mutation.
+     * {@code equals} or {@code hashCode} must still return a mutation.
      */
     protected abstract T mutateInstance(T instance) throws IOException;
 

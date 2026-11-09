@@ -261,6 +261,9 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
 
     /// Asks the relocation source for this shard's warm-amount share when the source is shutting down and the answer can be used, see
     /// [TransportGetShardWarmAmountShareAction]. Never fails recovery: a failed request leaves no share.
+    ///
+    /// With warm amounts enabled, the target sends the action to the shutting-down source. A source that does not have the handler hits
+    /// `assert ignoreDeserializationErrors` in `InboundAggregator` and does not answer. Turn the setting off before rolling a node back.
     // visible for testing
     SourceWarmAmountShare requestSourceWarmAmountShare(IndexShard indexShard) {
         if (useInternalFilesReplicatedContentForSearchShards == false) {
@@ -277,9 +280,6 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
             return SourceWarmAmountShare.NOT_REQUESTED;
         }
         final var state = clusterService.state();
-        if (state.getMinTransportVersion().supports(TransportGetShardWarmAmountShareAction.SHARD_WARM_AMOUNT_SHARE) == false) {
-            return SourceWarmAmountShare.NOT_REQUESTED;
-        }
         final var nodeShutdowns = state.metadata().nodeShutdowns();
         final var sourceNode = state.nodes().get(sourceNodeId);
         if (sourceNode == null || nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId) == false) {

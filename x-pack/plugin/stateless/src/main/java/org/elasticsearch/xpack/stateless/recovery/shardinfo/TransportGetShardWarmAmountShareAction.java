@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -67,9 +66,6 @@ public final class TransportGetShardWarmAmountShareAction extends TransportActio
 
     public static final ActionType<Response> TYPE = new ActionType<>("internal:admin/stateless/search/warm_amount_share");
     static final String NODE_ACTION_NAME = TYPE.name() + "[n]";
-
-    /// The cluster must support this before a target sends the request: a node receiving an unknown action trips an assertion.
-    public static final TransportVersion SHARD_WARM_AMOUNT_SHARE = TransportVersion.fromName("shard_warm_amount_share");
 
     private static final Logger logger = LogManager.getLogger(TransportGetShardWarmAmountShareAction.class);
     private static final TimeValue REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS;

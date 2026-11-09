@@ -32,7 +32,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
@@ -145,15 +144,6 @@ public class RequestSourceWarmAmountShareTests extends ESTestCase {
 
     public void testNoRequestWhenSourceLeftCluster() {
         state = targetState(randomRemovalType(), TransportVersion.current(), false);
-        assertNotRequested(relocationTarget());
-    }
-
-    public void testNoRequestWhenClusterDoesNotSupportAction() {
-        state = targetState(
-            randomRemovalType(),
-            TransportVersionUtils.randomVersionNotSupporting(TransportGetShardWarmAmountShareAction.SHARD_WARM_AMOUNT_SHARE),
-            true
-        );
         assertNotRequested(relocationTarget());
     }
 

@@ -90,6 +90,27 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, fieldInfo(WITHOUT_CODEC, FIELD).getDocValuesType());
     }
 
+    /**
+     * An indexed field writes points beside its payload. A document whose array holds only nulls has no point to write, and
+     * Lucene requires every document to present a field the same way, so it must not present the payload alone either.
+     */
+    public void testIndexedFieldWithOnlyNullsInAnArray() throws IOException {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, "type=long,index=true");
+        final List<String> arrays = randomBoolean() ? List.of("[1, 2]", "[null]") : List.of("[null]", "[1, 2]");
+        for (int i = 0; i < arrays.size(); i++) {
+            prepareIndex(WITH_CODEC).setId(Integer.toString(i))
+                .setSource("{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"l\":" + arrays.get(i) + "}", XContentType.JSON)
+                .get();
+        }
+        indicesAdmin().prepareRefresh(WITH_CODEC).get();
+        assertSameHitsIn(WITH_CODEC, QueryBuilders.rangeQuery(FIELD).gte(1), Set.of(Integer.toString(arrays.indexOf("[1, 2]"))));
+    }
+
+    private void assertSameHitsIn(String index, QueryBuilder query, Set<String> expected) {
+        assertEquals(query.toString(), expected, hitIds(index, query));
+    }
+
     /** The setting only means something in a strict columnar mode, and is refused in any other. */
     public void testSettingRejectedOutsideColumnarModes() {
         final IndexMode mode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);

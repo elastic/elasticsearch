@@ -18,9 +18,10 @@
 #   pull-request-fix        — self-heal a failing pull request    (needs PR_URL)
 #   pull-request-creation   — implement a task and open a PR      (needs ISSUE_URL)
 #   lucene-merge-conflicts  — merge main → lucene_snapshot_*      (needs TARGET_BRANCH)
-#                             Daily lucene-snapshot/update-branch.yml always triggers
-#                             this. Clean + compile-green: push to the snapshot
-#                             branch. Agent edits: open a PR.
+#                             Daily lucene-snapshot/update-branch.yml (on main,
+#                             TARGET_BRANCH=lucene_snapshot_11) always triggers this.
+#                             Clean + compile-green: push to the snapshot branch.
+#                             Agent edits: open a PR.
 #
 # Trigger from the UI (fill the input step) or via the Buildkite API with the
 # vars pre-set so the input step is skipped, e.g.:

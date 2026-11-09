@@ -1,21 +1,26 @@
 steps:
-  - label: Require lucene_snapshot branch
+  # Scheduled on main so this file is the one from catalog-info (not the old
+  # merge script still on lucene_snapshot_*). TARGET_BRANCH is the snapshot
+  # branch to merge into; the daily schedule sets lucene_snapshot_11.
+  - label: Require lucene_snapshot target
     command: |
-      if [[ "${BUILDKITE_BRANCH}" != lucene_snapshot* ]]; then
-        echo "This pipeline only runs on lucene_snapshot* branches (got ${BUILDKITE_BRANCH})"
+      TARGET="${TARGET_BRANCH:-${BUILDKITE_BRANCH}}"
+      if [[ "${TARGET}" != lucene_snapshot* ]]; then
+        echo "This pipeline merges main into lucene_snapshot* (got TARGET_BRANCH=${TARGET})"
         exit 1
       fi
+      echo "lucene-merge-conflicts: main → ${TARGET}"
     timeout_in_minutes: 5
   - wait
   - trigger: "elasticsearch-agentic-workflow"
     label: ":robot_face: lucene-merge-conflicts"
     async: false
     build:
-      message: "lucene-merge-conflicts: main → ${BUILDKITE_BRANCH}"
+      message: "lucene-merge-conflicts: main → ${TARGET_BRANCH:-${BUILDKITE_BRANCH}}"
       branch: "main"
       env:
         WORKFLOW: "lucene-merge-conflicts"
-        TARGET_BRANCH: "${BUILDKITE_BRANCH}"
+        TARGET_BRANCH: "${TARGET_BRANCH:-${BUILDKITE_BRANCH}}"
         # compileJava / compileTestJava / spotless run on this agent, not a
         # forked n4-standard-64 reproduction job.
         ARCHIMEDES_AGENT_MACHINE_TYPE: "n4-standard-16"

@@ -5,11 +5,14 @@ set -euo pipefail
 # Credentials must not appear in traced commands, including when invoked with bash -x.
 set +x
 
-for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT PROMCHECK_CORPUS PROMCHECK_RESULTS_INDEX BUILDKITE_BUILD_ID; do
+for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT PROMCHECK_CORPUS PROMCHECK_RESULTS_NAMESPACE BUILDKITE_BUILD_ID; do
   [[ -n "${!var:-}" ]] || { echo "$var must be set" >&2; exit 1; }
 done
 [[ "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid promcheck timeout" >&2; exit 1; }
-[[ "$PROMCHECK_RESULTS_INDEX" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || { echo "Invalid results index" >&2; exit 1; }
+[[ "$PROMCHECK_RESULTS_NAMESPACE" =~ ^[a-z0-9_]+$ && ${#PROMCHECK_RESULTS_NAMESPACE} -le 100 ]] \
+  || { echo "Invalid results namespace" >&2; exit 1; }
+# The namespace selects both the destination and its dashboard filter, keeping experimental runs isolated.
+readonly PROMCHECK_RESULTS_INDEX="synthetics-promql.support-$PROMCHECK_RESULTS_NAMESPACE"
 readonly GITHUB_API_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
 [[ -n "$GITHUB_API_TOKEN" ]] || { echo "GH_TOKEN or GITHUB_TOKEN must be set" >&2; exit 1; }
 
@@ -70,12 +73,13 @@ jq -Rn '
 ' < "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/counts.json"
 jq -n --slurpfile counts "$OUTPUT_DIR/counts.json" \
   --arg timestamp "$started_at" --arg commit "$revision" --arg branch "${BUILDKITE_BRANCH:-}" \
-  --arg version "$PROMCHECK_VER" --arg corpus "$PROMCHECK_CORPUS" \
+  --arg version "$PROMCHECK_VER" --arg corpus "$PROMCHECK_CORPUS" --arg namespace "$PROMCHECK_RESULTS_NAMESPACE" \
   --arg build_id "$BUILDKITE_BUILD_ID" --arg build_url "${BUILDKITE_BUILD_URL:-}" \
   --arg pipeline "${BUILDKITE_PIPELINE_SLUG:-elastic-prometheus-nightly}" \
   --argjson build_number "${BUILDKITE_BUILD_NUMBER:-0}" \
   '$counts[0] as $c | {
     "@timestamp": $timestamp, status: "ok", dataset: $corpus,
+    data_stream: {type: "synthetics", dataset: "promql.support", namespace: $namespace},
     git: {commit: $commit, branch: $branch}, promcheck: {version: $version},
     buildkite: {build_id: $build_id, build_number: $build_number, build_url: $build_url, pipeline: $pipeline},
     compliance: {

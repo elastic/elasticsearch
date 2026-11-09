@@ -47,7 +47,7 @@ esac
         PROMCHECK_VER: "0.9.5+prometheus-3.13.1",
         PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
         PROMCHECK_CORPUS: "grafanalabs-top100",
-        PROMCHECK_RESULTS_INDEX: "synthetics-promql.support-default",
+        PROMCHECK_RESULTS_NAMESPACE: "experimental",
         PROMCHECK_RESULTS_URL: "https://results.example/",
         PROMCHECK_RESULTS_API_KEY: "fake-results-key",
         PROMCHECK_OUTPUT_DIR: join(dir, "output"),
@@ -74,13 +74,21 @@ esac
     expect(JSON.parse(readFileSync(join(dir, "output", "counts.json"), "utf8"))).toEqual({ total: 6, match: 1, mismatch: 1, http4xx: 1, http5xx: 1, error: 1, response_filtered: 0, flaky: 1 });
     expect(result).toMatchObject({
       status: "ok", dataset: "grafanalabs-top100",
+      data_stream: { type: "synthetics", dataset: "promql.support", namespace: "experimental" },
       git: { branch: "main" }, promcheck: { version: "0.9.5+prometheus-3.13.1" },
       buildkite: { build_id: "build-123", build_number: 123, pipeline: "elastic-prometheus-nightly" },
       compliance: { input_total: 6, executed_total: 6, executed_success: 1, executed_failure: 1, executed_error: 3, executed_skip: 1, success_pct: 16.7 },
     });
     expect(result.git.commit).toMatch(/^[a-f0-9]{40}$/);
-    expect(readFileSync(join(dir, "upload.url"), "utf8")).toBe("https://results.example/synthetics-promql.support-default/_create/build-123-grafanalabs-top100");
+    expect(readFileSync(join(dir, "upload.url"), "utf8")).toBe("https://results.example/synthetics-promql.support-experimental/_create/build-123-grafanalabs-top100");
     expect(r.stdout + r.stderr).not.toContain("fake-results-key");
+  });
+
+  test("keeps the destination and namespace tag consistent when changed", () => {
+    const r = run({ PROMCHECK_RESULTS_NAMESPACE: "validation" });
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(join(dir, "upload.url"), "utf8")).toContain("/synthetics-promql.support-validation/_create/");
+    expect(JSON.parse(readFileSync(join(dir, "upload.json"), "utf8")).data_stream.namespace).toBe("validation");
   });
 
   test("accepts an already-created document on upload retry", () => {
@@ -115,6 +123,8 @@ esac
     { TEST_HTTP_STATUS: "403" },
     { TEST_HTTP_STATUS: "409", TEST_RESPONSE: '{"error":{"type":"security_exception"}}' },
     { PROMCHECK_TEST_INSTANCE_TIMEOUT: "soon" },
+    { PROMCHECK_RESULTS_NAMESPACE: "" },
+    { PROMCHECK_RESULTS_NAMESPACE: "../default" },
   ])("fails on incomplete runs, invalid counts, configuration, or upload errors: %j", (env) => {
     expect(run(env).status).not.toBe(0);
   });

@@ -21,7 +21,9 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -364,9 +366,10 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     /**
-     * With the ColumNAR numeric codec, a document's values go into one payload in the order they were written, nulls
-     * included, and no {@code .offsets} companion is written. A strict columnar index doesn't record an empty array for any
-     * field, so it writes no payload.
+     * With the ColumNAR numeric codec, a document's non-null values go into one payload in the order they were written. Only a
+     * document with nulls writes an {@code .offsets} companion, whose slots number the payload's values in order. A document
+     * with no value writes no payload, and so no point either. A strict columnar index doesn't record an empty array for any
+     * field.
      */
     public void testColumnarCodecPayloadKeepsArrayOrder() throws IOException {
         assumeTrue("behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
@@ -381,17 +384,22 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
         long v1 = randomLong();
         long v2 = randomLong();
-        // TODO: null slots are dropped for now.
-        assertEquals(List.of(v2, v1, v2), payloadSlots(mapper.parse(source(b -> b.array("field", v2, null, v1, v2)))));
-        assertNull(payloadSlots(mapper.parse(source(b -> b.startArray("field").nullValue().endArray()))));
-        assertNull(payloadSlots(mapper.parse(source(b -> b.startArray("field").endArray()))));
-        assertEquals(List.of(v1), payloadSlots(mapper.parse(source(b -> b.field("field", v1)))));
-        assertNull(payloadSlots(mapper.parse(source(b -> b.nullField("field")))));
+        ParsedDocument withNull = mapper.parse(source(b -> b.array("field", v2, null, v2, v1)));
+        assertEquals(List.of(v2, v2, v1), payloadValues(withNull));
+        assertArrayEquals(new int[] { 0, FieldArrayContext.NULL_ORD, 1, 2 }, offsets(withNull));
+        assertNull(offsets(mapper.parse(source(b -> b.array("field", v2, v1, v2)))));
+
+        ParsedDocument onlyNulls = mapper.parse(source(b -> b.startArray("field").nullValue().nullValue().endArray()));
+        assertTrue("an all-null array writes no field but its offsets", onlyNulls.rootDoc().getFields("field").isEmpty());
+        assertArrayEquals(new int[] { FieldArrayContext.NULL_ORD, FieldArrayContext.NULL_ORD }, offsets(onlyNulls));
+
+        assertNull(payloadValues(mapper.parse(source(b -> b.startArray("field").endArray()))));
+        assertEquals(List.of(v1), payloadValues(mapper.parse(source(b -> b.field("field", v1)))));
     }
 
     /**
-     * Synthetic source reads the payload back as it was written. This test's index doesn't use the ColumNAR codec, which
-     * drops null slots for now, so the nulls come back too.
+     * Synthetic source puts the nulls back among the payload's values, and reads every array the same as an index that
+     * doesn't use the ColumNAR codec.
      */
     public void testColumnarCodecSyntheticSourceKeepsArrayOrder() throws IOException {
         assumeTrue("behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
@@ -399,11 +407,34 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
             columnarNumericCodecSettings(),
             mapping(b -> b.startObject("field").field("type", "long").endObject())
         ).documentMapper();
+        DocumentMapper sortedNumeric = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> b.startObject("field").field("type", "long").endObject())
+        ).documentMapper();
         long v1 = randomLong();
         long v2 = randomLong();
-        assertThat(syntheticSource(mapper, b -> b.array("field", v2, null, v1, v2)), containsString("[" + v2 + "," + v1 + "," + v2 + "]"));
-        assertThat(syntheticSource(mapper, b -> b.startArray("field").nullValue().endArray()), equalTo("{}"));
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", v2, null, v2, v1)),
+            containsString("\"field\":[" + v2 + ",null," + v2 + "," + v1 + "]")
+        );
+        assertThat(syntheticSource(mapper, b -> b.startArray("field").nullValue().endArray()), containsString("\"field\":[null]"));
         assertThat(syntheticSource(mapper, b -> b.field("field", v1)), containsString("\"field\":" + v1));
+
+        List<CheckedConsumer<XContentBuilder, IOException>> shapes = List.of(
+            b -> b.array("field", v2, null, v2, v1),
+            b -> b.array("field", null, v1),
+            b -> b.array("field", v1, null),
+            b -> b.array("field", v2, v1, v2),
+            b -> b.array("field", v1),
+            b -> b.startArray("field").nullValue().endArray(),
+            b -> b.startArray("field").nullValue().nullValue().endArray(),
+            b -> b.startArray("field").endArray(),
+            b -> b.nullField("field"),
+            b -> b.field("field", v1)
+        );
+        for (CheckedConsumer<XContentBuilder, IOException> shape : shapes) {
+            assertEquals(syntheticSource(sortedNumeric, shape), syntheticSource(mapper, shape));
+        }
     }
 
     private static Settings columnarNumericCodecSettings() {
@@ -413,9 +444,20 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
             .build();
     }
 
-    /** The slots of the document's {@code field} payload, or {@code null} if it has none. */
-    private static List<Long> payloadSlots(ParsedDocument doc) throws IOException {
-        assertNull("no offsets companion", doc.rootDoc().getField(FieldArrayContext.offsetsFieldName("field")));
+    /** The document's {@code field} offsets, or {@code null} if it has none. */
+    private static int[] offsets(ParsedDocument doc) throws IOException {
+        final IndexableField offsets = doc.rootDoc().getField(FieldArrayContext.offsetsFieldName("field"));
+        if (offsets == null) {
+            return null;
+        }
+        final BytesRef encoded = offsets.binaryValue();
+        final ByteArrayStreamInput in = new ByteArrayStreamInput();
+        in.reset(encoded.bytes, encoded.offset, encoded.length);
+        return FieldArrayContext.parseOffsetArray(in);
+    }
+
+    /** The values in the document's {@code field} payload, or {@code null} if it has none. */
+    private static List<Long> payloadValues(ParsedDocument doc) throws IOException {
         final List<IndexableField> fields = doc.rootDoc().getFields("field");
         if (fields.isEmpty()) {
             return null;

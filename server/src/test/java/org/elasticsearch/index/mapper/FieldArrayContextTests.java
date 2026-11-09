@@ -63,6 +63,52 @@ public class FieldArrayContextTests extends ESTestCase {
         assertArrayEquals(new int[] { -1, 0, 1, 2, -1, 1 }, offsetToOrd);
     }
 
+    /**
+     * Values recorded in document order take the ordinal of their place among the non-null values, whatever they are, so
+     * duplicates and values out of order don't share or reorder ordinals.
+     */
+    public void testOffsetsInDocOrder() throws IOException {
+        var context = new FieldArrayContext();
+        context.recordNullInDocOrder("field");
+        context.recordOffsetInDocOrder("field");
+        context.recordOffsetInDocOrder("field");
+        context.recordNullInDocOrder("field");
+        context.recordOffsetInDocOrder("field");
+        context.recordNullInDocOrder("field");
+
+        var parserContext = randomBoolean() ? new TestDocumentParserContext() : strictColumnarParserContext();
+        context.addToLuceneDocument(parserContext);
+
+        var binaryDocValues = parserContext.doc().getField("field");
+        int[] offsetToOrd = parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes));
+        assertArrayEquals(new int[] { -1, 0, 1, -1, 2, -1 }, offsetToOrd);
+    }
+
+    /** Values in document order carry their own order, so without a null there is nothing for the offsets to say. */
+    public void testOffsetsInDocOrderWithoutNullsAreNotWritten() throws IOException {
+        var context = new FieldArrayContext();
+        int count = between(1, 5);
+        for (int i = 0; i < count; i++) {
+            context.recordOffsetInDocOrder("field");
+        }
+
+        var parserContext = randomBoolean() ? new TestDocumentParserContext() : strictColumnarParserContext();
+        context.addToLuceneDocument(parserContext);
+
+        assertNull(parserContext.doc().getField("field"));
+    }
+
+    public void testOnlyNullsInDocOrder() throws IOException {
+        var context = new FieldArrayContext();
+        context.recordNullInDocOrder("field");
+
+        var parserContext = strictColumnarParserContext();
+        context.addToLuceneDocument(parserContext);
+
+        var binaryDocValues = parserContext.doc().getField("field");
+        assertArrayEquals(new int[] { -1 }, parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes)));
+    }
+
     public void testEmptyOffset() throws IOException {
         var context = new FieldArrayContext();
         context.maybeRecordEmptyArray("field");

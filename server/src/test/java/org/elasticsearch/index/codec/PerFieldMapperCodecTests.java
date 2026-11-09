@@ -47,6 +47,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
+import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -884,7 +885,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(supplier.getDocValuesFormatForField("requests"), instanceOf(ColumNARDocValuesFormat.class));
         assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("size")));
         assertEquals(ColumnarFieldType.STRING, supplier.columnarFields().fieldType(fieldInfo("category")));
-        for (String field : List.of("sorted", "terms", "count", "score")) {
+        // The .offsets companion that places a ColumNAR long's nulls is ordinary sorted doc values.
+        for (String field : List.of("sorted", "terms", "count", "score", FieldArrayContext.offsetsFieldName("size"))) {
             assertFalse(field, supplier.getDocValuesFormatForField(field) instanceof ColumNARDocValuesFormat);
             assertNull(field, supplier.columnarFields().numericTypeOf(field));
         }

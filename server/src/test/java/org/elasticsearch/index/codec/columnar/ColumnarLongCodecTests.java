@@ -41,6 +41,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -72,7 +74,10 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         );
     }
 
-    /** Only {@code long} fields are routed to the codec, and they keep array order in their payload rather than in {@code .offsets}. */
+    /**
+     * Only {@code long} fields are routed to the codec, and they keep array order in their payload: without nulls there is no
+     * {@code .offsets} companion.
+     */
     public void testOnlyLongFieldsUseTheCodec() throws IOException {
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, "type=long", "i", "type=integer");
@@ -104,7 +109,9 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
                 .get();
         }
         indicesAdmin().prepareRefresh(WITH_CODEC).get();
-        assertSameHitsIn(WITH_CODEC, QueryBuilders.rangeQuery(FIELD).gte(1), Set.of(Integer.toString(arrays.indexOf("[1, 2]"))));
+        final String withValues = Integer.toString(arrays.indexOf("[1, 2]"));
+        assertSameHitsIn(WITH_CODEC, QueryBuilders.rangeQuery(FIELD).gte(1), Set.of(withValues));
+        assertSameHitsIn(WITH_CODEC, QueryBuilders.existsQuery(FIELD), Set.of(withValues));
     }
 
     private void assertSameHitsIn(String index, QueryBuilder query, Set<String> expected) {
@@ -192,42 +199,66 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * The payload keeps a document's array in the order it was written, duplicates included, which {@code _source} gives back.
-     * The column doesn't keep nulls yet: a null is dropped from the array, and an array of nothing but nulls, or an empty one,
-     * reads back as the field missing.
+     * The payload keeps a document's non-null values in the order they were written, duplicates included, and the
+     * {@code .offsets} companion puts the nulls back among them, so {@code _source} gives back the same arrays as on
+     * {@code SORTED_NUMERIC} doc values.
      */
-    // TODO: expect null slots and empty arrays back once the column keeps them.
     public void testSourceKeepsArrayOrder() throws IOException {
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, "type=long");
+        final String mapping = "type=long,index=" + randomBoolean();
+        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, mapping);
+        createIndex(WITHOUT_CODEC, settings(mode, false), "@timestamp", "type=date", FIELD, mapping);
         final Map<String, String> arrays = new LinkedHashMap<>();
         arrays.put("unsorted", "[3, 1, 2]");
         arrays.put("duplicates", "[5, 5, 1, 5]");
         arrays.put("scalar", "4");
         arrays.put("one-element", "[4]");
         arrays.put("with-null", "[2, null, 1]");
+        arrays.put("duplicates-around-nulls", "[null, 5, null, 5, 1, null]");
         arrays.put("only-null", "[null]");
+        arrays.put("only-nulls", "[null, null]");
+        arrays.put("null", "null");
         arrays.put("empty", "[]");
-        for (Map.Entry<String, String> entry : arrays.entrySet()) {
-            prepareIndex(WITH_CODEC).setId(entry.getKey())
-                .setSource("{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"l\":" + entry.getValue() + "}", XContentType.JSON)
-                .get();
+        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+            for (Map.Entry<String, String> entry : shuffledList(new ArrayList<>(arrays.entrySet()))) {
+                prepareIndex(index).setId(entry.getKey())
+                    .setSource("{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"l\":" + entry.getValue() + "}", XContentType.JSON)
+                    .get();
+                if (rarely()) {
+                    indicesAdmin().prepareRefresh(index).get();
+                }
+            }
+            if (randomBoolean()) {
+                indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+            }
+            indicesAdmin().prepareRefresh(index).get();
         }
-        indicesAdmin().prepareRefresh(WITH_CODEC).get();
 
         final Map<String, Object> expected = new LinkedHashMap<>();
         expected.put("unsorted", List.of(3, 1, 2));
         expected.put("duplicates", List.of(5, 5, 1, 5));
         expected.put("scalar", 4);
         expected.put("one-element", 4);
-        expected.put("with-null", List.of(2, 1));
-        expected.put("only-null", null);
-        expected.put("empty", null);
-        assertResponse(client().prepareSearch(WITH_CODEC).setSize(arrays.size()), response -> {
+        expected.put("with-null", Arrays.asList(2, null, 1));
+        expected.put("duplicates-around-nulls", Arrays.asList(null, 5, null, 5, 1, null));
+        expected.put("only-null", Collections.singletonList(null));
+        expected.put("only-nulls", Arrays.asList(null, null));
+        final Map<String, Object> withCodec = sourceValues(WITH_CODEC, arrays.size());
+        for (Map.Entry<String, Object> entry : expected.entrySet()) {
+            assertEquals(entry.getKey(), entry.getValue(), withCodec.get(entry.getKey()));
+        }
+        assertEquals(sourceValues(WITHOUT_CODEC, arrays.size()), withCodec);
+    }
+
+    /** The field's value in each document's {@code _source}, by id. */
+    private Map<String, Object> sourceValues(String index, int size) {
+        final Map<String, Object> values = new HashMap<>();
+        assertResponse(client().prepareSearch(index).setSize(size), response -> {
             for (SearchHit hit : response.getHits().getHits()) {
-                assertEquals(hit.getId(), expected.get(hit.getId()), hit.getSourceAsMap().get(FIELD));
+                values.put(hit.getId(), hit.getSourceAsMap().get(FIELD));
             }
         });
+        return values;
     }
 
     private static List<Long> randomValues(boolean singleValued, boolean sparse) {

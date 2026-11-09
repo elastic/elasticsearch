@@ -222,7 +222,9 @@ public class NumberFieldMapper extends FieldMapper {
         SORTED_NUMERIC,
         /**
          * Binary doc values stored by the ColumNAR codec, one {@link ColumnarNumericDocValuesField} payload per document
-         * holding its values in the order they were written. So far only {@code long} fields are stored this way.
+         * holding its non-null values in the order they were written. Where an array's nulls went is kept in the
+         * {@code .offsets} companion, written only for documents that have one. So far only {@code long} fields are stored
+         * this way.
          */
         COLUMNAR
     }
@@ -456,7 +458,6 @@ public class NumberFieldMapper extends FieldMapper {
 
         private String offsetsFieldName;
         private DocValuesDiskFormat diskFormat;
-        private boolean arrayValuesInOrder;
 
         /**
          * How the field's doc values are laid out on disk. {@code long} fields of an index that opts into the ColumNAR
@@ -500,12 +501,6 @@ public class NumberFieldMapper extends FieldMapper {
                 indexSettings.getMode().isStrictColumnar(),
                 docValuesParameters.getValue().multiValue()
             );
-            // A ColumNAR payload keeps the document's array as it was written, nulls included, so where the field would record
-            // offsets it keeps array order in its own doc values instead.
-            this.arrayValuesInOrder = offsetsFieldName != null && diskFormat == DocValuesDiskFormat.COLUMNAR;
-            if (arrayValuesInOrder) {
-                this.offsetsFieldName = null;
-            }
             MappedFieldType ft = new NumberFieldType(context.buildFullName(leafName()), this, context.isSourceSynthetic());
 
             return new NumberFieldMapper(leafName(), ft, builderParams(this, context), context.isSourceSynthetic(), this, offsetsFieldName);
@@ -2565,9 +2560,11 @@ public class NumberFieldMapper extends FieldMapper {
                 builder.metric.getValue(),
                 builder.indexSettings.getMode(),
                 isSyntheticSource,
+                // A ColumNAR field's offsets only place nulls among values already in document order, so they don't order its reads.
                 builder.offsetsFieldName != null
                     && builder.docValuesParameters.getValue().multiValue()
-                    && builder.indexSettings.getMode().isStrictColumnar(),
+                    && builder.indexSettings.getMode().isStrictColumnar()
+                    && builder.diskFormat != DocValuesDiskFormat.COLUMNAR,
                 builder.indexTerms.getValue(),
                 builder.diskFormat
             );
@@ -2933,9 +2930,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     private final DocValuesFieldFactory dvFactory;
 
-    /** Whether the field keeps array order in its own ColumNAR payload, see {@link #storesArrayValuesInOrder()}. */
-    private final boolean arrayValuesInOrder;
-
     private NumberFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -2970,7 +2964,6 @@ public class NumberFieldMapper extends FieldMapper {
 
         // this is basically just an inlined version of `(NumberFieldType) super.fieldType()`
         this.fieldType = (NumberFieldType) mappedFieldType;
-        this.arrayValuesInOrder = builder.arrayValuesInOrder;
         // indexValue's one-field-per-key check reads the last field added, which a ColumNAR payload added earlier isn't.
         assert allowMultipleValues || fieldType.diskFormat != DocValuesDiskFormat.COLUMNAR
             : "a field that allows only one value can't be stored with ColumNAR";
@@ -2991,11 +2984,6 @@ public class NumberFieldMapper extends FieldMapper {
             case NONE, SORTED_NUMERIC -> null;
             case COLUMNAR -> ColumnarFieldType.LONG;
         };
-    }
-
-    @Override
-    public boolean storesArrayValuesInOrder() {
-        return arrayValuesInOrder;
     }
 
     boolean coerce() {
@@ -3223,11 +3211,15 @@ public class NumberFieldMapper extends FieldMapper {
         } else {
             value = fieldType.nullValue;
         }
-        if (arrayValuesInOrder) {
-            // Values join the payload in indexValue, in document order.
-            // TODO: keep null slots; until then they are dropped.
-        } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
-            if (value != null) {
+        if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
+            if (fieldType.diskFormat == DocValuesDiskFormat.COLUMNAR) {
+                // The payload keeps the values in document order, so the offsets only need to say where the nulls go.
+                if (value != null) {
+                    context.getOffSetContext().recordOffsetInDocOrder(offsetsFieldName);
+                } else {
+                    context.getOffSetContext().recordNullInDocOrder(offsetsFieldName);
+                }
+            } else if (value != null) {
                 // We cannot simply cast value to Comparable<> because we need to also capture the potential loss of precision that occurs
                 // when the value is stored into the doc values.
                 long sortableLongValue = type.toSortableLong(value);
@@ -3395,7 +3387,7 @@ public class NumberFieldMapper extends FieldMapper {
     private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
         if (fieldType.diskFormat == DocValuesDiskFormat.COLUMNAR) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
-            layers.add(new ColumnarNumericPayloadSyntheticFieldLoaderLayer(fullPath(), type::writeValue));
+            layers.add(new ColumnarNumericPayloadSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, type::writeValue));
             CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }

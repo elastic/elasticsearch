@@ -98,6 +98,26 @@ public class FieldArrayContext {
     }
 
     /**
+     * Records a value of a field whose doc values keep a document's values in the order they were written, duplicates
+     * included, rather than sorted. Its slot is given the ordinal of the value among the document's non-null values,
+     * which is where the value sits in the field's doc values. The encoded offsets then keep their usual meaning, an
+     * ordinal into the document's values per slot, and are only written when they say something the doc values don't:
+     * where the nulls are. See {@link #recordNullInDocOrder}.
+     */
+    public void recordOffsetInDocOrder(String field) {
+        var offsets = offsetsFor(field);
+        offsets.markDocOrder();
+        offsets.recordOffset(offsets.currentOffset() - offsets.nullCount());
+    }
+
+    /** Records a null slot of a field whose values are recorded with {@link #recordOffsetInDocOrder}. */
+    public void recordNullInDocOrder(String field) {
+        var offsets = offsetsFor(field);
+        offsets.markDocOrder();
+        offsets.recordNull();
+    }
+
+    /**
      * Like {@link #recordNull(String)}, but also registers a fallback writer; see
      * {@link #recordOffset(String, Comparable, CheckedBiConsumer)}.
      */
@@ -139,6 +159,10 @@ public class FieldArrayContext {
                 // Writing offsets for it would read back as an empty-array marker; the ignored values are synthesized from the
                 // field's own storage of ignored values instead, like before ignored values were recorded here.
                 if (offsets.hasRecordedSlots() == false) {
+                    continue;
+                }
+                // Values in document order already carry their order and duplicates, so only the nulls need offsets.
+                if (offsets.docOrder && offsets.hasNulls() == false) {
                     continue;
                 }
                 // In strict columnar a single non-null value carries no ordering or shape information beyond what the sorted-set doc
@@ -429,6 +453,9 @@ public class FieldArrayContext {
          */
         record IgnoredValue(int slot, BytesRef encodedValue) {}
 
+        // Whether the values are recorded in document order, keyed by their ordinal, rather than by value.
+        private boolean docOrder;
+
         // Inline single-value state — non-null while no second value/null/empty-array marker has been recorded yet
         private Comparable<?> pendingValue;
 
@@ -483,6 +510,19 @@ public class FieldArrayContext {
 
         public boolean hasNulls() {
             return nullValueOffsets != null && nullValueOffsets.isEmpty() == false;
+        }
+
+        int nullCount() {
+            return nullValueOffsets == null ? 0 : nullValueOffsets.size();
+        }
+
+        /**
+         * Marks the field's values as recorded in document order, see {@link FieldArrayContext#recordOffsetInDocOrder}. A field
+         * records its values one way or the other, never both.
+         */
+        void markDocOrder() {
+            assert docOrder || hasRecordedSlots() == false : "a field's values were recorded sorted before ones in document order";
+            docOrder = true;
         }
 
         /**

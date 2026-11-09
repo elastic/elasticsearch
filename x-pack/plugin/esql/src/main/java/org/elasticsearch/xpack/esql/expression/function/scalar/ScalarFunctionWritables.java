@@ -72,7 +72,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesKeep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesPath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesSet;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesTransform;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeries;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -161,7 +163,9 @@ public class ScalarFunctionWritables {
         entries.add(FloatToLabelValue.ENTRY);
         entries.add(WindowFilter.ENTRY);
         entries.add(NestedPredicate.ENTRY);
+        entries.add(TimeSeriesKeep.ENTRY);
         entries.add(TimeSeriesPath.ENTRY);
+        entries.add(TimeSeriesSet.ENTRY);
         entries.add(TimeSeriesTransform.ENTRY);
         entries.add(ToTimeSeries.ENTRY);
 

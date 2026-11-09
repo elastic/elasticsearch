@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.Describable;
@@ -1811,7 +1812,13 @@ public class LocalExecutionPlanner {
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
 
         return sourceWithMetadata.with(
-            new TsInfoOperator.Factory(fieldLookup, metadataSourceChannel, indexChannel, context.plannerSettings().tsInfoPartialEmitThreshold()),
+            new TsInfoOperator.Factory(
+                fieldLookup,
+                metadataSourceChannel,
+                indexChannel,
+                context.plannerSettings().tsInfoPartialEmitThreshold(),
+                ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE)
+            ),
             layoutBuilder.build()
         );
     }
@@ -1845,7 +1852,10 @@ public class LocalExecutionPlanner {
             case INTERMEDIATE -> tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
             case INITIAL -> throw new IllegalStateException("unexpected mode [" + tsInfoExec.mode() + "]");
         };
-        return source.with(new TsInfoOperator.FinalFactory(channels, limit), layoutBuilder.build());
+        return source.with(
+            new TsInfoOperator.FinalFactory(channels, limit, ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE)),
+            layoutBuilder.build()
+        );
     }
 
     /**

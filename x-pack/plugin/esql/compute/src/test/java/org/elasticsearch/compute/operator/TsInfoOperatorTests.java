@@ -28,6 +28,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class TsInfoOperatorTests extends OperatorTestCase {
 
@@ -42,12 +43,27 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     private static final int[] FINAL_CHANNELS = { 0, 1, 2, 3, 4, 5, 6 };
     /** Any non-empty input reaches this threshold, so every such page is emitted early. */
     private static final ByteSizeValue EMIT_AFTER_EVERY_PAGE = ByteSizeValue.ofBytes(1);
+    private static final ByteSizeValue DEFAULT_TARGET_PAGE_SIZE = ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE);
+    /** Every row reaches this target, so each output page holds exactly one row. */
+    private static final ByteSizeValue ONE_ROW_PER_PAGE = ByteSizeValue.ofBytes(1);
+    private static final List<String> THREE_SERIES = List.of(
+        "{\"cpu_usage\": 0.5, \"host\": \"h1\"}",
+        "{\"cpu_usage\": 0.5, \"host\": \"h2\"}",
+        "{\"cpu_usage\": 0.5, \"host\": \"h3\"}"
+    );
+    /** Series with several dimensions, so that each merged row has a set with several values. */
+    private static final List<String> WIDE_SERIES = List.of(
+        "{\"cpu_usage\": 0.5, \"host\": \"h1\", \"az\": \"a\", \"rack\": \"r1\", \"region\": \"eu\", \"zone\": \"z1\"}",
+        "{\"cpu_usage\": 0.5, \"host\": \"h2\", \"az\": \"a\", \"rack\": \"r1\", \"region\": \"eu\", \"zone\": \"z1\"}",
+        "{\"cpu_usage\": 0.5, \"host\": \"h3\", \"az\": \"a\", \"rack\": \"r1\", \"region\": \"eu\", \"zone\": \"z1\"}"
+    );
 
     private ByteSizeValue simplePartialEmitThreshold;
 
     @Override
     protected TsInfoOperator.Factory simple(SimpleOptions options) {
-        return initialFactory(SIMPLE_LOOKUP,simplePartialEmitThreshold());
+        ByteSizeValue targetPageSize = randomFrom(ONE_ROW_PER_PAGE, ByteSizeValue.ofBytes(between(2, 4096)), DEFAULT_TARGET_PAGE_SIZE);
+        return initialFactory(SIMPLE_LOOKUP, simplePartialEmitThreshold(), targetPageSize);
     }
 
     /** Chosen once per test so that {@link #simple} and its expected description agree. */
@@ -63,7 +79,23 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     private static TsInfoOperator.Factory initialFactory(MetricsInfoOperator.MetricFieldLookup lookup, ByteSizeValue partialEmitThreshold) {
-        return new TsInfoOperator.Factory(lookup, METADATA_CHANNEL, INDEX_CHANNEL, partialEmitThreshold);
+        return initialFactory(lookup, partialEmitThreshold, DEFAULT_TARGET_PAGE_SIZE);
+    }
+
+    private static TsInfoOperator.Factory initialFactory(
+        MetricsInfoOperator.MetricFieldLookup lookup,
+        ByteSizeValue partialEmitThreshold,
+        ByteSizeValue targetPageSize
+    ) {
+        return new TsInfoOperator.Factory(lookup, METADATA_CHANNEL, INDEX_CHANNEL, partialEmitThreshold, targetPageSize);
+    }
+
+    private static TsInfoOperator.FinalFactory finalFactory(int limit) {
+        return finalFactory(limit, DEFAULT_TARGET_PAGE_SIZE);
+    }
+
+    private static TsInfoOperator.FinalFactory finalFactory(int limit, ByteSizeValue targetPageSize) {
+        return new TsInfoOperator.FinalFactory(FINAL_CHANNELS, limit, targetPageSize);
     }
 
     @Override
@@ -153,11 +185,11 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     private Operator createInitialOperator(ByteSizeValue partialEmitThreshold) {
-        return initialFactory(SIMPLE_LOOKUP,partialEmitThreshold).get(driverContext());
+        return initialFactory(SIMPLE_LOOKUP, partialEmitThreshold).get(driverContext());
     }
 
     private Operator createFinalOperator(int[] channels) {
-        return new TsInfoOperator.FinalFactory(channels, TsInfoOperator.NO_LIMIT).get(driverContext());
+        return new TsInfoOperator.FinalFactory(channels, TsInfoOperator.NO_LIMIT, DEFAULT_TARGET_PAGE_SIZE).get(driverContext());
     }
 
     public void testInitialModeSingleTsidSingleMetric() {
@@ -644,9 +676,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (
-            TsInfoOperator op = (TsInfoOperator) initialFactory(SIMPLE_LOOKUP, TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD).get(ctx)
-        ) {
+        try (TsInfoOperator op = (TsInfoOperator) initialFactory(SIMPLE_LOOKUP, TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD).get(ctx)) {
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
             op.addInput(input1);
             long usedAfterOne = blockFactory.breaker().getUsed();
@@ -675,7 +705,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.FinalFactory(FINAL_CHANNELS, TsInfoOperator.NO_LIMIT).get(ctx)) {
+        try (TsInfoOperator op = (TsInfoOperator) finalFactory(TsInfoOperator.NO_LIMIT).get(ctx)) {
             Page page1 = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
@@ -745,7 +775,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     public void testFinalModeLimitsDistinctMetricDimensions() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.FinalFactory(FINAL_CHANNELS, 2).get(ctx)) {
+        try (TsInfoOperator op = (TsInfoOperator) finalFactory(2).get(ctx)) {
             Page cpuA = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
@@ -887,7 +917,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (Operator op = initialFactory(SIMPLE_LOOKUP,EMIT_AFTER_EVERY_PAGE).get(ctx)) {
+        try (Operator op = initialFactory(SIMPLE_LOOKUP, EMIT_AFTER_EVERY_PAGE).get(ctx)) {
             op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a"));
             assertThat(blockFactory.breaker().getUsed(), greaterThan(usedBefore));
 
@@ -933,10 +963,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         var runner = new TestDriverRunner().builder(driverContext)
             .input(buildPage(blockFactory, series, "index-a"), buildPage(blockFactory, series, "index-b"));
 
-        List<Page> output = runner.run(
-            initialFactory(SIMPLE_LOOKUP,EMIT_AFTER_EVERY_PAGE),
-            new TsInfoOperator.FinalFactory(FINAL_CHANNELS, TsInfoOperator.NO_LIMIT)
-        );
+        List<Page> output = runner.run(initialFactory(SIMPLE_LOOKUP, EMIT_AFTER_EVERY_PAGE), finalFactory(TsInfoOperator.NO_LIMIT));
 
         try {
             TsInfoOperator.Status initialStatus = (TsInfoOperator.Status) runner.statuses().get(0);
@@ -957,7 +984,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         var runner = new TestDriverRunner().builder(driverContext)
             .input(buildPage(blockFactory, series, "index-a"), buildPage(blockFactory, series, "index-a"));
 
-        List<Page> output = runner.run(initialFactory(SIMPLE_LOOKUP,EMIT_AFTER_EVERY_PAGE));
+        List<Page> output = runner.run(initialFactory(SIMPLE_LOOKUP, EMIT_AFTER_EVERY_PAGE));
 
         output.forEach(Page::releaseBlocks);
         TsInfoOperator.Status status = (TsInfoOperator.Status) runner.statuses().get(0);
@@ -965,10 +992,176 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testFactoryRejectsZeroPartialEmitThreshold() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> initialFactory(SIMPLE_LOOKUP, ByteSizeValue.ZERO));
+        assertThat(e.getMessage(), equalTo("partialEmitThreshold must be positive; got [0b]"));
+    }
+
+    public void testFinalFactoryRejectsZeroTargetPageSize() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> initialFactory(SIMPLE_LOOKUP,ByteSizeValue.ZERO)
+            () -> finalFactory(TsInfoOperator.NO_LIMIT, ByteSizeValue.ZERO)
         );
-        assertThat(e.getMessage(), equalTo("partialEmitThreshold must be positive; got [0b]"));
+        assertThat(e.getMessage(), equalTo("targetPageSize must be positive; got [0b]"));
+    }
+
+    public void testInitialSplitsOutputIntoPagesOfTargetSize() {
+        DriverContext driverContext = driverContext();
+        var runner = new TestDriverRunner().builder(driverContext)
+            .input(buildPageForIndex(driverContext.blockFactory(), "index-a", THREE_SERIES));
+
+        List<Page> output = runner.run(initialFactory(SIMPLE_LOOKUP, TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD, ONE_ROW_PER_PAGE));
+
+        try {
+            assertThat(output.stream().map(Page::getPositionCount).toList(), equalTo(List.of(1, 1, 1)));
+        } finally {
+            output.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testFinalSplitsOutputIntoPagesOfTargetSize() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        List<Page> input = List.of("cpu_usage", "disk_io", "memory")
+            .stream()
+            .map(
+                metric -> buildFinalPage(
+                    blockFactory,
+                    metric,
+                    Set.of("ds-a"),
+                    Set.of("bytes"),
+                    Set.of("gauge"),
+                    Set.of("long"),
+                    Set.of("host"),
+                    "{}"
+                )
+            )
+            .toList();
+        var runner = new TestDriverRunner().builder(driverContext).input(input);
+
+        List<Page> output = runner.run(finalFactory(TsInfoOperator.NO_LIMIT, ONE_ROW_PER_PAGE));
+
+        try {
+            assertThat(output.stream().map(Page::getPositionCount).toList(), equalTo(List.of(1, 1, 1)));
+        } finally {
+            output.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testOutputBelowTargetPageSizeIsOnePage() {
+        DriverContext driverContext = driverContext();
+        var runner = new TestDriverRunner().builder(driverContext)
+            .input(buildPageForIndex(driverContext.blockFactory(), "index-a", THREE_SERIES));
+
+        List<Page> output = runner.run(initialFactory(SIMPLE_LOOKUP, TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD));
+
+        try {
+            assertThat(output.stream().map(Page::getPositionCount).toList(), equalTo(List.of(3)));
+        } finally {
+            output.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testNoInputWhileMergedRowsRemain() {
+        DriverContext driverContext = driverContext();
+        try (Operator op = initialFactory(SIMPLE_LOOKUP, EMIT_AFTER_EVERY_PAGE, ONE_ROW_PER_PAGE).get(driverContext)) {
+            op.addInput(buildPageForIndex(driverContext.blockFactory(), "index-a", THREE_SERIES));
+
+            op.getOutput().releaseBlocks();
+
+            assertFalse(op.needsInput());
+            assertTrue(op.canProduceMoreDataWithoutExtraInput());
+        }
+    }
+
+    public void testNotFinishedUntilLastPageIsEmitted() {
+        DriverContext driverContext = driverContext();
+        try (
+            Operator op = initialFactory(SIMPLE_LOOKUP, TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD, ONE_ROW_PER_PAGE).get(driverContext)
+        ) {
+            op.addInput(buildPageForIndex(driverContext.blockFactory(), "index-a", THREE_SERIES.subList(0, 2)));
+            op.finish();
+
+            op.getOutput().releaseBlocks();
+            assertFalse(op.isFinished());
+            op.getOutput().releaseBlocks();
+
+            assertTrue(op.isFinished());
+        }
+    }
+
+    public void testBufferedMemoryReturnedAfterLastPage() {
+        DriverContext driverContext = driverContext();
+        long usedBefore = driverContext.breaker().getUsed();
+        try (
+            Operator op = initialFactory(SIMPLE_LOOKUP, TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD, ONE_ROW_PER_PAGE).get(driverContext)
+        ) {
+            op.addInput(buildPageForIndex(driverContext.blockFactory(), "index-a", THREE_SERIES.subList(0, 2)));
+            op.finish();
+
+            op.getOutput().releaseBlocks();
+            op.getOutput().releaseBlocks();
+
+            assertThat(driverContext.breaker().getUsed(), equalTo(usedBefore));
+        }
+    }
+
+    /**
+     * The merge builds a row per signature with its own sets. Those rows outlive the buffered entries until they are
+     * emitted, so their memory is reserved on top of what the entries reserved.
+     */
+    public void testMergedRowsStayReservedUntilEmitted() {
+        DriverContext driverContext = driverContext();
+        try (Operator op = oneRowPerPageOperator(driverContext)) {
+            op.addInput(buildPageForIndex(driverContext.blockFactory(), "index-a", WIDE_SERIES));
+            long usedAfterInput = driverContext.breaker().getUsed();
+            op.finish();
+
+            op.getOutput().releaseBlocks();
+
+            assertThat(driverContext.breaker().getUsed(), greaterThan(usedAfterInput));
+        }
+    }
+
+    public void testEmittedRowsReturnTheirReservation() {
+        DriverContext driverContext = driverContext();
+        try (Operator op = oneRowPerPageOperator(driverContext)) {
+            op.addInput(buildPageForIndex(driverContext.blockFactory(), "index-a", WIDE_SERIES));
+            op.finish();
+            op.getOutput().releaseBlocks();
+            long usedAfterFirstRow = driverContext.breaker().getUsed();
+
+            op.getOutput().releaseBlocks();
+
+            assertThat(driverContext.breaker().getUsed(), lessThan(usedAfterFirstRow));
+        }
+    }
+
+    private static Operator oneRowPerPageOperator(DriverContext driverContext) {
+        return initialFactory(SIMPLE_LOOKUP, TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD, ONE_ROW_PER_PAGE).get(driverContext);
+    }
+
+    public void testNoEmptyPageAfterEarlyEmit() {
+        DriverContext driverContext = driverContext();
+        try (Operator op = initialFactory(SIMPLE_LOOKUP, EMIT_AFTER_EVERY_PAGE).get(driverContext)) {
+            op.addInput(buildPage(driverContext.blockFactory(), "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a"));
+            op.getOutput().releaseBlocks();
+            op.finish();
+
+            assertNull(op.getOutput());
+            assertTrue(op.isFinished());
+        }
+    }
+
+    private static Page buildPageForIndex(BlockFactory blockFactory, String indexName, List<String> metadataJsons) {
+        try (
+            BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(metadataJsons.size());
+            BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(metadataJsons.size())
+        ) {
+            for (String metadataJson : metadataJsons) {
+                metadataBuilder.appendBytesRef(new BytesRef(metadataJson));
+                indexBuilder.appendBytesRef(new BytesRef(indexName));
+            }
+            return new Page(metadataBuilder.build(), indexBuilder.build());
+        }
     }
 }

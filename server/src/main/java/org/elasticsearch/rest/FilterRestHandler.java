@@ -11,6 +11,7 @@ package org.elasticsearch.rest;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class FilterRestHandler implements RestHandler {
     private final RestHandler delegate;
@@ -51,5 +52,20 @@ public abstract class FilterRestHandler implements RestHandler {
     @Override
     public boolean mediaTypesValid(RestRequest request) {
         return delegate.mediaTypesValid(request);
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return delegate.supportedQueryParameters();
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return delegate.allSupportedParameters();
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return delegate.supportedCapabilities();
     }
 }

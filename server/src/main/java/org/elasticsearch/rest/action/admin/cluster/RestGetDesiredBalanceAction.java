@@ -26,9 +26,16 @@ import java.util.Set;
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetDesiredBalanceAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM);
+
     @Override
     public String getName() {
         return "get_desired_balance";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

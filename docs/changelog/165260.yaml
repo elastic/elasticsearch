@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 165260
+summary: Count Painless allocation limit trips
+type: enhancement

@@ -54,6 +54,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
 import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
@@ -284,6 +285,63 @@ public class RestoreServiceTests extends ESTestCase {
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedBackingIndex), renamedDataStream.getIndices());
         assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
+    }
+
+    public void testRestoreDataStreamMatchingSystemIndexPatternFails() {
+        List<DataStream> dataStreams = Stream.of(".my-system-idx-a", ".my-system-idx-b", "data-stream-1")
+            .map(name -> DataStreamTestHelper.newInstance(name, List.of(new Index(DataStream.getDefaultBackingIndexName(name, 1), "uuid"))))
+            .toList();
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), "repository", new SnapshotId("name", "uuid"));
+
+        SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.ensureNoDataStreamMatchesSystemIndexPattern(
+                dataStreams,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT),
+                systemIndicesWithPattern(".my-system-idx*"),
+                snapshot
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "cannot restore data streams matching system index patterns: [.my-system-idx-a] matches [.my-system-idx*], "
+                    + "[.my-system-idx-b] matches [.my-system-idx*]; rename or exclude them"
+            )
+        );
+    }
+
+    public void testRenameDataStreamIntoSystemIndexPatternFails() {
+        DataStream dataStream = DataStreamTestHelper.newInstance(
+            "data-stream-1",
+            List.of(new Index(DataStream.getDefaultBackingIndexName("data-stream-1", 1), randomUUID()))
+        );
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), "repository", new SnapshotId("name", "uuid"));
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("data-stream-1")
+            .renameReplacement(".my-system-idx-ds");
+
+        SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.ensureNoDataStreamMatchesSystemIndexPattern(
+                List.of(dataStream),
+                request,
+                systemIndicesWithPattern(".my-system-idx*"),
+                snapshot
+            )
+        );
+        assertThat(e.getMessage(), containsString("[data-stream-1] as [.my-system-idx-ds] matches [.my-system-idx*]"));
+    }
+
+    private static SystemIndices systemIndicesWithPattern(String indexPattern) {
+        return new SystemIndices(
+            List.of(
+                new SystemIndices.Feature(
+                    "test-feature",
+                    "a test feature",
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(indexPattern, "test"))
+                )
+            )
+        );
     }
 
     public void testPrefixNotChanged() {
@@ -1480,6 +1538,24 @@ public class RestoreServiceTests extends ESTestCase {
         );
     }
 
+    /**
+     * A snapshot never captures an index's resharding metadata (shard snapshots fail while resharding is in progress, and
+     * {@code BlobStoreRepository#adjustIndexMetadataIfNeeded} strips it at finalize time otherwise), so restoring over an
+     * index that is being resharded must discard the current resharding metadata rather than carry it forward.
+     */
+    public void testRestoreOverExistingIndexDiscardsReshardingMetadata() {
+        final IndexMetadata current = IndexMetadata.builder("target")
+            .settings(indexSettings(IndexVersion.current(), 4, 0).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
+            .build();
+        final IndexMetadata snapshotIndexMetadata = IndexMetadata.builder("source")
+            .settings(indexSettings(IndexVersion.current(), 2, 0))
+            .build();
+        final IndexMetadata restored = RestoreService.restoreOverExistingIndex(snapshotIndexMetadata, current).build();
+        assertEquals(2, restored.getNumberOfShards());
+        assertNull(restored.getReshardingMetadata());
+    }
+
     // ---- restore-over-open-index guard tests ---------------------------------------------
 
     /**
@@ -1911,11 +1987,12 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     /**
-     * This tests that a restore over an open index that is being resharded is rejected. Restoring while resharding is happening would fail.
-     * Plus, you can't close an index that is resharding, so we are not losing any functionality a user had previously by explicitly closing
-     * an index and then restoring.
+     * This tests that a restore over an open index that is being resharded is accepted. Restoring discards the index's resharding
+     * metadata along with everything else in {@link RestoreService#restoreOverExistingIndex}, and
+     * {@code IndicesClusterStateService#isRestoreHistoryUuidTransition} already tears down and recreates every shard of the index as
+     * part of any open-index restore, which safely unwinds the in-progress split too.
      */
-    public void testRestoreOverOpenIndexRejectsReshardingIndex() {
+    public void testRestoreOverOpenIndexAllowsReshardingIndex() {
         final IndexMetadata currentIndexMetadata = IndexMetadata.builder("test-idx")
             .settings(indexSettings(IndexVersion.current(), 2, 0))
             .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
@@ -1926,10 +2003,7 @@ public class RestoreServiceTests extends ESTestCase {
             .build();
         final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
 
-        final SnapshotRestoreException e = expectThrows(
-            SnapshotRestoreException.class,
-            () -> RestoreService.validateExistingOpenIndexForRestore(snapshot, state, ProjectId.DEFAULT, currentIndexMetadata, index, false)
-        );
-        assertThat(e.getMessage(), containsString("being resharded"));
+        // Does not throw, even though the index is actively being resharded.
+        RestoreService.validateExistingOpenIndexForRestore(snapshot, state, ProjectId.DEFAULT, currentIndexMetadata, index, false);
     }
 }

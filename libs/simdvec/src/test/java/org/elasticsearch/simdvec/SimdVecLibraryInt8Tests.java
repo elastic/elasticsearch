@@ -93,8 +93,7 @@ public class SimdVecLibraryInt8Tests extends SimdVecLibraryTests {
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
 
         float[] bulkScores = new float[numVecs];
-        similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
-        assertArrayEquals(expectedScores, bulkScores, delta);
+        assertRejectsHeapSegments(() -> similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores)));
     }
 
     // Exercises the heap-only typed-array bulk API: non-zero dataset and scores offsets, and counts

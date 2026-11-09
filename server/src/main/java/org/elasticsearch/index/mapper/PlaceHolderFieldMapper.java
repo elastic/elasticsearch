@@ -69,12 +69,11 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder = super.toXContent(builder, params);
+        protected void serializeParameters(XContentBuilder builder, Params params) throws IOException {
+            super.serializeParameters(builder, params);
             for (Map.Entry<String, Object> unknownParam : unknownParams.entrySet()) {
                 builder.field(unknownParam.getKey(), unknownParam.getValue());
             }
-            return builder;
         }
 
         @Override

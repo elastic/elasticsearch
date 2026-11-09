@@ -31,7 +31,7 @@ Together with index sorting, columnar mode brings Elasticsearch's storage footpr
 
 ## Columnar index modes [columnar-modes]
 
-Two columnar index modes are available:
+The following columnar index modes are available:
 
 `columnar`
 :   A general-purpose columnar store with no use-case-specific defaults. Use this mode for bare indices and data streams that do not fit the logging paradigm.
@@ -43,7 +43,30 @@ Two columnar index modes are available:
 
     Use this mode for log data.
 
-Both modes are strictly columnar: they reject mapping-level runtime fields and prevent turning off `_source`.
+`vectordb_columnar` {applies_to}`stack: preview 9.6+`
+:   A columnar store optimized for vector search and hybrid search that combines text with vectors. It applies the vector search defaults of the `vectordb_document` index mode and, unlike the other columnar modes, keeps `dense_vector` and `text` fields indexed for search by default. For details, refer to [`vectordb_columnar`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-vectordb-columnar-mode).
+
+All columnar modes are strictly columnar: they reject mapping-level runtime fields and prevent turning off `_source`.
+
+### `vectordb_columnar` settings [vectordb-columnar-settings]
+
+{applies_to}`stack: preview 9.6+`
+
+The `vectordb_columnar` mode applies the same vector search settings and defaults as the [`vectordb_document`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-vectordb-document-mode) index mode. In addition, it changes the following columnar defaults unless you explicitly configure them:
+
+`index` (`dense_vector`)
+:   Defaults to `true`, so vectors can be searched with `knn`. In the other columnar modes, `dense_vector` fields are stored as doc values only.
+
+`index_options` and `norms` (`text`)
+:   Default to `positions` and `true`, so that full-text queries are scored by relevance. In the other columnar modes, `text` fields default to `index_options: docs` and have norms turned off.
+
+Dynamic mapping
+:   Strings are mapped as indexed `text` fields without a `.keyword` multi-field, instead of as `keyword` fields. For details, refer to [Dynamic mappings](#dynamic-mappings).
+
+`index.queries.cache.enabled`
+:   Defaults to `true`, unlike the other columnar modes where it defaults to `false`. Filtered vector searches use the query cache to reuse the filter's matching documents across requests.
+
+For more information about vector search index modes, refer to [Index modes for vector search](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-modes).
 
 ## Turning on columnar mode [enabling-columnar-mode]
 
@@ -123,12 +146,18 @@ PUT my-logs-index
 ## Dynamic mappings [dynamic-mappings]
 
 With the columnar modes, fields that are not referenced in static mappings get dynamically mapped as follows:
-* Whole numbers are mapped as a long field type.
-* Decimal numbers are mapped as a double type.
-* Strings are mapped as a keyword field type.
-* Objects and arrays are mapped as one or more leaf fields (depending on the number of unmapped field paths). Mappings are flattened in columnar mode and that applies to unmapped objects too. Each leaf field under the unmapped object will be mapped as a separate leaf field. No object fields are added to the mappings.
 
-Dynamically mapped fields are configured with doc values turned on and indexes turned off by default, in line with the columnar premise of storing each field once using doc values.
+| JSON value | `columnar` and `logsdb_columnar` | `vectordb_columnar` {applies_to}`stack: preview 9.6+` |
+| --- | --- | --- |
+| Whole number | `long` | `long` |
+| Decimal number | `double` | `double` |
+| String | `keyword`, not indexed | `text`, indexed, with no `.keyword` multi-field |
+| Array of at least 128 decimal numbers | `dense_vector`, not indexed, with `element_type: float` | `dense_vector`, indexed, with `element_type: bfloat16` |
+| Array of 32 to 127 decimal numbers | `double` | `dense_vector`, indexed, with `element_type: bfloat16` |
+
+Objects and arrays of objects are mapped as one or more leaf fields, depending on the number of unmapped field paths. Mappings are flattened in columnar mode and that applies to unmapped objects too. Each leaf field under the unmapped object will be mapped as a separate leaf field. No object fields are added to the mappings.
+
+In line with the columnar premise of storing each field once using doc values, dynamically mapped fields have doc values turned on and are not indexed by default. The `vectordb_columnar` mode is the exception for strings and vectors: it indexes dynamically mapped `text` and `dense_vector` fields so that they can be used for full-text and kNN search.
 
 Dynamic mapping behavior is controlled by the [`dynamic`](/reference/elasticsearch/mapping-reference/dynamic.md) configuration parameter, which can be set to:
 - `true` (default): Turns on the dynamic mapping behavior as described in the preceding paragraphs.

@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -48,15 +50,16 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
         "Changes",
         Changes::readFrom
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Changes.class).ternary(Changes::new).name("changes");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(Changes::new)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns the number of times the value changed in each time series in a range vector.")
         .example("changes(process_start_time_seconds[1h])")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
-        .differenceFromPrometheus(
+        .stdDivergence(
             PromqlFunctionDefinition.COUNT_NOTE
-                + " A single Elasticsearch field has a fixed type, so transitions between float and native histogram samples "
+                + " A single {{es}} field has a fixed type, so transitions between float and native histogram samples "
                 + "cannot be represented."
         )
         .name("changes");
@@ -68,7 +71,8 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
         returnType = { "long" },
         briefSummary = "Calculates the number of value changes in a time window.",
         description = "Calculates the number of times the value of a numeric or native histogram metric field changes in a time window.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") },
+        examples = { @Example(file = "k8s-timeseries-changes", tag = "changes") }
     )
     public Changes(
         Source source,

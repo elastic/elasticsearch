@@ -106,6 +106,32 @@ public class SearchCommitPrefetcher {
 
     private final AtomicReference<BCCPreFetchedOffset> maxPrefetchedOffset = new AtomicReference<>(BCCPreFetchedOffset.ZERO);
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
+    private final SearchCommitPrefetcherMetrics metrics;
+
+    /// Outcome of handling a new commit notification, reflecting whether (and how) the commit's segments were prefetched.
+    public enum PrefetchResult {
+        /// Prefetching is disabled, so the commit's segments are not warmed proactively.
+        DISABLED("disabled"),
+        /// The shard is search-idle (no searcher acquired recently), so prefetching was skipped.
+        IDLING("idling"),
+        /// The notification does not report any uploaded BCC and prefetching of non-uploaded commits is disabled, so there is nothing to
+        /// prefetch.
+        SKIPPED("skipped"),
+        /// Prefetching ran in the foreground: the refresh is held back until the segments are warmed.
+        FOREGROUND("foreground"),
+        /// Prefetching was dispatched in the background: the refresh proceeds concurrently with the warming.
+        BACKGROUND("background");
+
+        private final String value;
+
+        PrefetchResult(String value) {
+            this.value = value;
+        }
+
+        public String value() {
+            return value;
+        }
+    }
 
     public SearchCommitPrefetcher(
         ShardId shardId,
@@ -116,9 +142,11 @@ public class SearchCommitPrefetcher {
         ThreadPool threadPool,
         Executor executor,
         ClusterSettings clusterSettings,
-        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings
+        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
+        SearchCommitPrefetcherMetrics metrics
     ) {
         this.shardId = shardId;
+        this.metrics = metrics;
         this.cacheService = cacheService;
         this.cacheBlobReaderSupplier = cacheBlobReaderSupplier;
         this.fileTimestampResolver = fileTimestampResolver;
@@ -138,8 +166,12 @@ public class SearchCommitPrefetcher {
     public void maybePrefetchLatestCommit(
         NewCommitNotification notification,
         long timeSinceLastSearcherWasAcquiredInMillis,
-        ActionListener<Void> listener
+        ActionListener<PrefetchResult> listener
     ) {
+        final ActionListener<PrefetchResult> resultListener = listener.delegateFailureAndWrap((l, result) -> {
+            recordPrefetchResult(result, notification.isBatchedCompoundCommitUploaded());
+            l.onResponse(result);
+        });
         boolean enabled = prefetcherDynamicSettings.prefetchingEnabled();
         if (enabled == false
             // We only want to prefetch commits for shards actively serving searches so skip
@@ -169,7 +201,7 @@ public class SearchCommitPrefetcher {
                 ),
                 (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
             );
-            listener.onResponse(null);
+            resultListener.onResponse(enabled ? PrefetchResult.IDLING : PrefetchResult.DISABLED);
             return;
         }
 
@@ -192,33 +224,33 @@ public class SearchCommitPrefetcher {
         // entire commit from the indexing node as it adds extra load to the indexing nodes.
         if (prefetchNonUploadedCommits == false && notification.latestUploadedBatchedCompoundCommitTermAndGen() == null) {
             logPrefetchCompleted(shardId, notification, 0L, 0L, totalPrefetchedBytes.get());
-            listener.onResponse(null);
+            resultListener.onResponse(PrefetchResult.SKIPPED);
             return;
         }
 
         // This gets executed in a transport thread and if the cache needs to evict regions it acquires a lock,
         // just to be on the safe side, we dispatch it into a different thread pool.
-        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
+        threadPool.generic().execute(ActionRunnable.wrap(resultListener, l -> {
             // If we prefetch in the background the new commit notification would go through and the refresh
             // will be executed concurrently with the prefetching. Otherwise, the refresh won't be executed
             // until the prefetching finishes.
-            ActionListener<Void> prefetchListener = prefetchInBackground ? ActionListener.noop() : l;
-            prefetchLatestCommit(notification, prefetchListener);
-
             if (prefetchInBackground) {
-                l.onResponse(null);
+                prefetchLatestCommit(notification, PrefetchResult.BACKGROUND, ActionListener.noop());
+                l.onResponse(PrefetchResult.BACKGROUND);
+            } else {
+                prefetchLatestCommit(notification, PrefetchResult.FOREGROUND, l.map(unused -> PrefetchResult.FOREGROUND));
             }
         }));
     }
 
-    private void prefetchLatestCommit(NewCommitNotification notification, ActionListener<Void> listener) {
+    private void prefetchLatestCommit(NewCommitNotification notification, PrefetchResult prefetchType, ActionListener<Void> listener) {
         var prefetchedBytes = new AtomicLong(0);
         final var currentMaxPrefetchedOffset = maxPrefetchedOffset.get();
-        var prefetchingStarted = threadPool.relativeTimeInMillis();
+        final long prefetchingStarted = threadPool.relativeTimeInMillis();
 
         ActionListener<Void> prefetchListener = ActionListener.runBefore(listener, () -> {
-            // TODO: add APM metrics?
             totalPrefetchedBytes.addAndGet(prefetchedBytes.get());
+            recordPrefetchDuration(prefetchType, notification.isBatchedCompoundCommitUploaded(), prefetchingStarted);
             logPrefetchCompleted(
                 shardId,
                 notification,
@@ -367,6 +399,18 @@ public class SearchCommitPrefetcher {
                     );
                 }
             }
+        }
+    }
+
+    private void recordPrefetchResult(PrefetchResult result, boolean uploaded) {
+        if (prefetcherDynamicSettings.prefetchMetricsEnabled()) {
+            metrics.recordPrefetchResult(result, uploaded);
+        }
+    }
+
+    private void recordPrefetchDuration(PrefetchResult prefetchType, boolean uploaded, long prefetchingStartedInMillis) {
+        if (prefetcherDynamicSettings.prefetchMetricsEnabled()) {
+            metrics.recordPrefetchDuration(prefetchType, uploaded, threadPool.relativeTimeInMillis() - prefetchingStartedInMillis);
         }
     }
 

@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 public final class Fork extends MergePlan implements TelemetryAware {
 
     public static final String FORK_FIELD = "_fork";
+    public static final String MULTIPLE_FORKS_ERROR = "Only a single FORK command is supported, but found multiple";
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
@@ -179,7 +180,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
         boolean seen = forkSeen;
         if (plan.getClass() == Fork.class) {
             if (forkSeen) {
-                failures.add(Failure.fail(plan, "Only a single FORK command is supported, but found multiple"));
+                failures.add(Failure.fail(plan, MULTIPLE_FORKS_ERROR));
                 return;
             }
             seen = true;

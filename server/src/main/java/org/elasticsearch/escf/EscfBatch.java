@@ -76,6 +76,16 @@ public final class EscfBatch implements SourceBatch {
         return EscfBatchCodec.parse(data, releasable);
     }
 
+    /**
+     * In-memory construction path for builders outside this package that manage their own
+     * {@link SourceSchema} and {@link EscfColumnData} array — for example a domain-specific builder with a
+     * fixed, pre-registered schema (see {@code AbstractOTLPBatchBuilder} in the {@code otel-data} plugin).
+     * Equivalent to the package-internal constructor used by {@link EscfBatchBuilder#buildPartition}.
+     */
+    public static EscfBatch of(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
+        return new EscfBatch(schema, docCount, columnData, releasable);
+    }
+
     @Override
     public int docCount() {
         return docCount;
@@ -88,7 +98,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public BytesReference data() {
-        assert closed == false : "batch already closed";
+        assertOpen();
         // TODO: Eventually optimize to be more stream like on the serialization path.
         if (serialized == null) {
             EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
@@ -107,16 +117,32 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceRow row(int docIndex) {
-        assert closed == false : "batch already closed";
+        assertOpen();
         if (docIndex < 0 || docIndex >= docCount) {
             throw new IndexOutOfBoundsException("docIndex " + docIndex + " out of range [0, " + docCount + ")");
         }
         return new EscfRow(this, docIndex);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>A slice view sizes only its own rows: its columns are already windowed to the slice, so every
+     * column adds exactly {@link #docCount()} entries.
+     */
+    @Override
+    public int[] rowSizesInBytes() {
+        assertOpen();
+        final int[] sizes = new int[docCount];
+        for (EscfColumn column : columns) {
+            column.addSizesInBytes(sizes);
+        }
+        return sizes;
+    }
+
     /** The typed view for {@code columnIndex}. */
     public EscfColumn column(int columnIndex) {
-        assert closed == false : "batch already closed";
+        assertOpen();
         return columns[columnIndex];
     }
 
@@ -127,7 +153,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceBatch slice(int from, int to) {
-        assert closed == false : "batch already closed";
+        assertOpen();
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");
         }
@@ -144,9 +170,13 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public void close() {
-        assert closed == false : "batch already closed";
+        assertOpen();
         closed = true;
         releasable.close();
+    }
+
+    private void assertOpen() {
+        assert closed == false : "batch already closed";
     }
 
     /**

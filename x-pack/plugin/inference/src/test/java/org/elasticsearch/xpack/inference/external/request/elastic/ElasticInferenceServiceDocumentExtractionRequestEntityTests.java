@@ -115,7 +115,7 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
 
     public void testToXContent_WithEmbeddedParameterObjects() throws IOException {
         // Embedded objects and arrays are inlined into the request body as they are.
-        // The parameters are made-up values only demonstrating the pass-through; they are not valid Jina Reader parameters.
+        // The parameters are made-up values only demonstrating the pass-through; they are not valid parameters.
         var parameters = Map.<String, Object>of(
             "preset",
             "ocr",

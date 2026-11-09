@@ -323,6 +323,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         true,
                         curr.getIndexMode(),
                         resp.getNumberOfShards(),
+                        resp.getCreatedVersion(),
                         resp.getIndexSettingsVersion(),
                         resp.getMappingVersion()
                     );
@@ -345,6 +346,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         true,
                         a.getIndexMode(),
                         a.getNumberOfShards(),
+                        a.getCreatedVersion(),
                         a.getIndexSettingsVersion(),
                         a.getMappingVersion()
                     );
@@ -453,6 +455,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 resp.canMatch(),
                                 resp.getIndexMode(),
                                 resp.getNumberOfShards(),
+                                resp.getCreatedVersion(),
                                 resp.getIndexSettingsVersion(),
                                 resp.getMappingVersion()
                             )

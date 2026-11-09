@@ -1,7 +1,7 @@
 TopN[[Order[@timestamp{r}#0,ASC,LAST]],10[INTEGER],false]
 \_Aggregate[[@timestamp{r}#0],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#1, @timestamp{r}#0]]
   \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
-    |_Project[[@timestamp{r}#2, client_ip{f}#3, event_duration{f}#4, message{f}#5, $$@timestamp$converted_to$date_nanos{r}#6, does_not_exist{r}#7]]
+    |_Project[[@timestamp{r}#2, client_ip{f}#3, event_duration{f}#4, message{f}#5, $$@timestamp$converted_to$date_nanos{r$}#6, does_not_exist{r}#7]]
     | \_Filter[TODATENANOS(@timestamp{r}#2) > 1698066000000000000[DATE_NANOS]]
     |   \_Eval[[null[DATE_NANOS] AS $$@timestamp$converted_to$date_nanos#6, null[NULL] AS does_not_exist#7, TODATENANOS(@timestamp{f}#8) AS @timestamp#2]]
     |     \_EsRelation[sample_data][@timestamp{f}#8, client_ip{f}#3, event_duration{f}#4, message{f}#5]

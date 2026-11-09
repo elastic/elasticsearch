@@ -108,7 +108,7 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
     }
 
     @Override
-    public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+    public AshScorer<ScoringQuery> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
         throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);

@@ -635,6 +635,93 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
         }
     }
 
+    public void testSizeInBytesExcludingCopiedGenerationalFiles() throws IOException {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var noDeletionsCommits = fakeNode.generateIndexCommits(randomIntBetween(2, 5), false, false, generation -> {});
+            var noDeletionsVbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                noDeletionsCommits.getFirst().getGeneration(),
+                (fileName) -> {
+                    throw new AssertionError("Unexpected call");
+                },
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (StatelessCommitRef statelessCommitRef : noDeletionsCommits) {
+                assertTrue(noDeletionsVbcc.appendCommit(statelessCommitRef, randomBoolean(), null));
+            }
+
+            // Since there are no deletions and therefore no generational files, the sizes match.
+            assertEquals(noDeletionsVbcc.getTotalSizeInBytes(), noDeletionsVbcc.sizeInBytesExcludingCopiedGenerationalFiles());
+
+            var commitsWithDeletions = fakeNode.generateCommitsWithGenerationalFiles(randomIntBetween(3, 8));
+
+            // We add some commits to a new VBCC so that the first of them clears `isFirstCommit` check
+            // and forces a copy of generational files.
+            // Commits beyond the first one help to validate that we only consider the first commit.
+
+            // We need at least 2 commits to be able to produce generational files.
+            int intoNewVbcc = 2;
+
+            var intermediaryVbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commitsWithDeletions.getFirst().getGeneration(),
+                noDeletionsVbcc::getBlobLocation,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (int i = 0; i < intoNewVbcc; i++) {
+                assertTrue(intermediaryVbcc.appendCommit(commitsWithDeletions.get(i), randomBoolean(), null));
+            }
+
+            // Since there are no deletions and therefore no generational files, the sizes match.
+            assertEquals(intermediaryVbcc.getTotalSizeInBytes(), intermediaryVbcc.sizeInBytesExcludingCopiedGenerationalFiles());
+
+            var vbccWithCopiedGenerationalFiles = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commitsWithDeletions.get(intoNewVbcc).getGeneration(),
+                intermediaryVbcc::getBlobLocation,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (int i = intoNewVbcc; i < commitsWithDeletions.size(); i++) {
+                assertTrue(vbccWithCopiedGenerationalFiles.appendCommit(commitsWithDeletions.get(i), randomBoolean(), null));
+            }
+
+            // We don't always generate deletes so they can be equal.
+            assertTrue(
+                vbccWithCopiedGenerationalFiles.getTotalSizeInBytes() >= vbccWithCopiedGenerationalFiles
+                    .sizeInBytesExcludingCopiedGenerationalFiles()
+            );
+
+            // Only the first commit in the VBCC has copied generational files.
+            StatelessCommitRef firstCommit = commitsWithDeletions.get(intoNewVbcc);
+            StatelessCommitRef previousCommit = commitsWithDeletions.get(intoNewVbcc - 1);
+            long generationalFilesSize = 0;
+            for (String commitFile : firstCommit.getCommitFiles()) {
+                // And we are only interested in _copied_ generational files.
+                if (StatelessCompoundCommit.isGenerationalFile(commitFile) && previousCommit.getCommitFiles().contains(commitFile)) {
+                    generationalFilesSize += firstCommit.getDirectory().fileLength(commitFile);
+                }
+            }
+
+            assertEquals(
+                vbccWithCopiedGenerationalFiles.getTotalSizeInBytes() - generationalFilesSize,
+                vbccWithCopiedGenerationalFiles.sizeInBytesExcludingCopiedGenerationalFiles()
+            );
+        }
+    }
+
     public static BatchedCompoundCommit deserializeBatchedCompoundCommit(String blobName, BytesStreamOutput output) throws IOException {
         if (randomBoolean()) {
             return BatchedCompoundCommit.readFromStore(

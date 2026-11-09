@@ -74,7 +74,15 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
         SpanDocumentBuilder spanDocumentBuilder = new SpanDocumentBuilder(byteStringAccessor);
         SpanEventDocumentBuilder spanEventDocumentBuilder = new SpanEventDocumentBuilder(byteStringAccessor);
         List<ResourceSpans> resourceSpansList = tracesServiceRequest.getResourceSpansList();
-        long totalExpandedBytes = 0;
+        int totalSpansAndEvents = 0;
+        for (ResourceSpans resourceSpans : resourceSpansList) {
+            for (ScopeSpans scopeSpans : resourceSpans.getScopeSpansList()) {
+                for (Span span : scopeSpans.getSpansList()) {
+                    totalSpansAndEvents += 1 + span.getEventsCount();
+                }
+            }
+        }
+        ExpandedContentTracker expandedContentTracker = expandedContentTracker(request, totalSpansAndEvents);
         for (int i = 0, resourceSpansListSize = resourceSpansList.size(); i < resourceSpansListSize; i++) {
             ResourceSpans resourceSpans = resourceSpansList.get(i);
             Resource resource = resourceSpans.getResource();
@@ -109,7 +117,7 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                             indexRequest.id(documentId);
                         }
                         indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder);
-                        totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
+                        expandedContentTracker.add(indexRequest, 1);
                         bulkRequestBuilder.add(indexRequest);
                     }
                     List<Span.Event> eventsList = span.getEventsList();
@@ -139,7 +147,7 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                                 eventRequest.id(eventDocumentId);
                             }
                             eventRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder);
-                            totalExpandedBytes = accountExpandedContent(totalExpandedBytes, eventRequest);
+                            expandedContentTracker.add(eventRequest, 1);
                             bulkRequestBuilder.add(eventRequest);
                         }
                     }

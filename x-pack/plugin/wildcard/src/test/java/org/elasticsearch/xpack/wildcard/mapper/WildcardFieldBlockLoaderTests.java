@@ -47,7 +47,7 @@ public class WildcardFieldBlockLoaderTests extends BlockLoaderTestCase {
             .filter(Objects::nonNull);
 
         // Strictly columnar index modes store values in document order, keeping duplicates, instead of sorting and deduplicating them.
-        boolean preserveOrder = params.indexMode().isColumnar();
+        boolean preserveOrder = params.indexMode().isStrictColumnar();
         var resultList = preserveOrder
             ? convertValues.andThen(Stream::toList).apply(((List<String>) value).stream())
             : convertValues.andThen(Stream::distinct)

@@ -152,11 +152,14 @@ You can now use the Client ID, Tenant ID, and Client Secret you’ve noted to co
 `active_directory_server`
 :   (required if data source is outlook_server) IP address to fetch users from Exchange Active Directory to fetch data. Example: `127.0.0.1`
 
+`auth_method` {applies_to}`stack: ga 9.7`
+:   (optional, `outlook_server` only) `ntlm` (default) or `kerberos`. Kerberos is available for self-managed connectors only and is required when the connector service runs in FIPS mode. Refer to the [Exchange Server connector](/reference/search-connectors/es-connectors-exchange-server.md#es-connectors-exchange-server-client-kerberos) for requirements.
+
 `username`
-:   (required if data source is outlook_server) Username to authenticate with Exchange server.
+:   (required if data source is outlook_server and `auth_method` is `ntlm`) Username to authenticate with Exchange server.
 
 `password`
-:   (required if data source is outlook_server) Password to authenticate with Exchange server.
+:   (required if data source is outlook_server and `auth_method` is `ntlm`) Password to authenticate with Exchange server.
 
 `domain`
 :   (required if data source is outlook_server) Domain name for Exchange server users such as `gmail.com` or `exchange.local`.

@@ -14,6 +14,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -22,6 +23,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -30,12 +33,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -65,6 +70,10 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -76,6 +85,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -124,7 +134,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(TestPlugin.class);
+        return List.of(TestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     public void testLocalClusterAlias() throws ExecutionException, InterruptedException {
@@ -595,6 +605,68 @@ public class TransportSearchIT extends ESIntegTestCase {
         for (Exception exc : exceptions.asList()) {
             assertThat(exc.getCause().getMessage(), containsString("boom"));
         }
+        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+    }
+
+    public void testResponseOverNetworkPassesRequestBreaker() throws Exception {
+        indexSomeDocs("test", randomIntBetween(1, 3), 5);
+        String sender = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        String receiver = internalCluster().getRandomDataNodeName();
+        CircuitBreaker requestBreaker = internalCluster().getInstance(CircuitBreakerService.class, receiver)
+            .getBreaker(CircuitBreaker.REQUEST);
+
+        AtomicReference<CircuitBreaker> responseBreaker = new AtomicReference<>();
+        MockTransportService receiverTransport = MockTransportService.getInstance(receiver);
+        receiverTransport.addRequestHandlingBehavior(
+            TransportSearchAction.TYPE.name(),
+            (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                @Override
+                public String getProfileName() {
+                    return channel.getProfileName();
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response) {
+                    channel.sendResponse(response);
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response, CircuitBreaker circuitBreaker) {
+                    responseBreaker.set(circuitBreaker);
+                    channel.sendResponse(response, circuitBreaker);
+                }
+
+                @Override
+                public void sendResponse(Exception exception) {
+                    channel.sendResponse(exception);
+                }
+
+                @Override
+                public TransportVersion getVersion() {
+                    return channel.getVersion();
+                }
+            }, task)
+        );
+        try {
+            TransportService senderTransport = internalCluster().getInstance(TransportService.class, sender);
+            DiscoveryNode receiverNode = internalCluster().getInstance(ClusterService.class, receiver).localNode();
+            long totalHits = safeAwait(
+                l -> senderTransport.sendRequest(
+                    receiverNode,
+                    TransportSearchAction.TYPE.name(),
+                    new SearchRequest("test"),
+                    new ActionListenerResponseHandler<SearchResponse>(
+                        l.map(r -> r.getHits().getTotalHits().value()),
+                        SearchResponse::new,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                    )
+                )
+            );
+            assertThat(totalHits, equalTo(5L));
+        } finally {
+            receiverTransport.clearAllRules();
+        }
+        assertSame(requestBreaker, responseBreaker.get());
         assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
     }
 

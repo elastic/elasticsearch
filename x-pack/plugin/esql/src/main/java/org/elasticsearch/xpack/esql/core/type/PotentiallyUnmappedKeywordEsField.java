@@ -28,13 +28,20 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField implements
         this(name, new HashMap<>());
     }
 
+    /**
+     * Each shard resolves the field to what it holds, so the plan does not know whether it can be aggregated.
+     */
     // Visible for testing
     public PotentiallyUnmappedKeywordEsField(String name, Map<String, EsField> properties) {
-        super(name, properties, true, Short.MAX_VALUE, false, false, TimeSeriesFieldType.UNKNOWN);
+        super(name, properties, false, Short.MAX_VALUE, false, false, TimeSeriesFieldType.UNKNOWN);
     }
 
-    public PotentiallyUnmappedKeywordEsField(StreamInput in) throws IOException {
-        super(in);
+    /**
+     * Reads the field from its name and properties, which are all that tell two such fields apart.
+     */
+    public static PotentiallyUnmappedKeywordEsField readField(StreamInput in) throws IOException {
+        KeywordEsField field = new KeywordEsField(in);
+        return new PotentiallyUnmappedKeywordEsField(field.getName(), new HashMap<>(field.getProperties()));
     }
 
     @Override
@@ -45,8 +52,8 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField implements
 
     /**
      * Serializes this field, but writes {@code fullName} (the full dotted path) as the field name for nodes predating
-     * {@code esql_unmapped_keyword_leaf_name}: they match unmapped fields by the EsField name in
-     * {@code DefaultShardContextForUnmappedField}, whereas this field now holds only the leaf name. The caller supplies
+     * {@code esql_unmapped_keyword_leaf_name}: they match unmapped fields by the EsField name when loading them,
+     * whereas this field now holds only the leaf name. The caller supplies
      * {@code fullName} because the parent path lives on the enclosing {@code FieldAttribute}, not on the field.
      */
     public void writeTo(StreamOutput out, String fullName) throws IOException {

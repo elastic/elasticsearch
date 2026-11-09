@@ -6128,3 +6128,213 @@ emp_no:integer | c:long
 10002          | 5
 10003          | 5
 ;
+
+forkMarkJoinUnmappedInlineStatsShouldNotLeakMark
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: fork_v9
+required_capability: inline_stats
+required_capability: optional_fields_nullify_tech_preview
+required_capability: where_in_subquery_fork_mark_not_in_output
+
+SET unmapped_fields="nullify"\;
+ROW emp_no = 10001, name = "Georgi"
+| FORK
+    (WHERE emp_no IN (ROW x = 10001) OR false)
+    (WHERE name IN (ROW x = "Georgi") OR false)
+| INLINE STATS x = COUNT(unmapped_field_foo)
+| SORT _fork
+;
+
+emp_no:integer | name:keyword | _fork:keyword | unmapped_field_foo:null | x:long
+10001          | Georgi       | fork1         | null                    | 0
+10001          | Georgi       | fork2         | null                    | 0
+;
+
+forkMarkJoinUnmappedEvalShouldNotLeakMark
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: fork_v9
+required_capability: optional_fields_nullify_tech_preview
+required_capability: where_in_subquery_fork_mark_not_in_output
+
+SET unmapped_fields="nullify"\;
+ROW emp_no = 10001, name = "Georgi"
+| FORK
+    (WHERE emp_no IN (ROW x = 10001) OR false)
+    (WHERE name IN (ROW x = "Georgi") OR false)
+| EVAL y = unmapped_field_foo
+| SORT _fork
+;
+
+emp_no:integer | name:keyword | _fork:keyword | unmapped_field_foo:null | y:null
+10001          | Georgi       | fork1         | null                    | null
+10001          | Georgi       | fork2         | null                    | null
+;
+
+unionAllMarkJoinUnmappedInlineStatsShouldNotLeakMark
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: subquery_in_from_command
+required_capability: inline_stats
+required_capability: optional_fields_nullify_tech_preview
+required_capability: where_in_subquery_fork_mark_not_in_output
+
+SET unmapped_fields="nullify"\;
+FROM (ROW emp_no = 10001, name = "Georgi" | WHERE emp_no IN (ROW x = 10001) OR false),
+     (ROW emp_no = 10002, name = "Bezalel" | WHERE name IN (ROW x = "Bezalel") OR false)
+| INLINE STATS x = COUNT(unmapped_field_foo)
+| SORT emp_no
+;
+
+emp_no:integer | name:keyword | unmapped_field_foo:null | x:long
+10001          | Georgi       | null                    | 0
+10002          | Bezalel      | null                    | 0
+;
+
+unionAllMarkJoinUnmappedEvalShouldNotLeakMark
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: subquery_in_from_command
+required_capability: optional_fields_nullify_tech_preview
+required_capability: where_in_subquery_fork_mark_not_in_output
+
+SET unmapped_fields="nullify"\;
+FROM (ROW emp_no = 10001, name = "Georgi" | WHERE emp_no IN (ROW x = 10001) OR false),
+     (ROW emp_no = 10002, name = "Bezalel" | WHERE name IN (ROW x = "Bezalel") OR false)
+| EVAL y = unmapped_field_foo
+| SORT emp_no
+;
+
+emp_no:integer | name:keyword | unmapped_field_foo:null | y:null
+10001          | Georgi       | null                    | null
+10002          | Bezalel      | null                    | null
+;
+
+forkFoldableLHSUnmappedEvalShouldNotLeakConst
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: fork_v9
+required_capability: optional_fields_nullify_tech_preview
+required_capability: where_in_subquery_fork_mark_not_in_output
+
+SET unmapped_fields="nullify"\;
+ROW emp_no = 10001, name = "Georgi"
+| FORK
+    (WHERE 10001 IN (ROW x = 10001) OR false)
+    (WHERE "Georgi" IN (ROW x = "Georgi") OR false)
+| EVAL y = unmapped_field_foo
+| SORT _fork
+;
+
+emp_no:integer | name:keyword | _fork:keyword | unmapped_field_foo:null | y:null
+10001          | Georgi       | fork1         | null                    | null
+10001          | Georgi       | fork2         | null                    | null
+;
+
+unionAllFoldableLHSUnmappedEvalShouldNotLeakConst
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: subquery_in_from_command
+required_capability: optional_fields_nullify_tech_preview
+required_capability: where_in_subquery_fork_mark_not_in_output
+
+SET unmapped_fields="nullify"\;
+FROM (ROW emp_no = 10001, name = "Georgi" | WHERE 10001 IN (ROW x = 10001) OR false),
+     (ROW emp_no = 10002, name = "Bezalel" | WHERE "Bezalel" IN (ROW x = "Bezalel") OR false)
+| EVAL y = unmapped_field_foo
+| SORT emp_no
+;
+
+emp_no:integer | name:keyword | unmapped_field_foo:null | y:null
+10001          | Georgi       | null                    | null
+10002          | Bezalel      | null                    | null
+;
+
+forkMarkJoinUnmappedEvalLoadShouldNotLeakMark
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: fork_v9
+required_capability: optional_fields_v5
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: where_in_subquery_fork_mark_not_in_output
+
+SET unmapped_fields="load"\;
+FROM employees
+| WHERE emp_no == 10001
+| KEEP emp_no, first_name, unmapped_field_foo
+| FORK
+    (WHERE emp_no IN (ROW x = 10001) OR false)
+    (WHERE first_name IN (ROW x = "Georgi") OR false)
+| EVAL y = unmapped_field_foo
+| SORT _fork
+;
+
+emp_no:integer | first_name:keyword | unmapped_field_foo:keyword | _fork:keyword | y:keyword
+10001          | Georgi             | null                       | fork1         | null
+10001          | Georgi             | null                       | fork2         | null
+;
+
+unionAllMarkJoinUnmappedEvalLoadShouldNotLeakMark
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: subquery_in_from_command
+required_capability: optional_fields_v5
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: where_in_subquery_fork_mark_not_in_output
+
+SET unmapped_fields="load"\;
+FROM (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name, unmapped_field_foo | WHERE emp_no IN (ROW x = 10001) OR false),
+     (FROM employees | WHERE emp_no == 10002 | KEEP emp_no, first_name, unmapped_field_foo | WHERE first_name IN (ROW x = "Bezalel") OR false)
+| EVAL y = unmapped_field_foo
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | unmapped_field_foo:keyword | y:keyword
+10001          | Georgi             | null                       | null
+10002          | Bezalel            | null                       | null
+;
+
+forkFoldableLHSUnmappedEvalLoadShouldNotLeakConst
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: fork_v9
+required_capability: optional_fields_v5
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: where_in_subquery_fork_mark_not_in_output
+
+SET unmapped_fields="load"\;
+FROM employees
+| WHERE emp_no == 10001
+| KEEP emp_no, first_name, unmapped_field_foo
+| FORK
+    (WHERE 10001 IN (ROW x = 10001) OR false)
+    (WHERE "Georgi" IN (ROW x = "Georgi") OR false)
+| EVAL y = unmapped_field_foo
+| SORT _fork
+;
+
+emp_no:integer | first_name:keyword | unmapped_field_foo:keyword | _fork:keyword | y:keyword
+10001          | Georgi             | null                       | fork1         | null
+10001          | Georgi             | null                       | fork2         | null
+;
+
+unionAllFoldableLHSUnmappedEvalLoadShouldNotLeakConst
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: subquery_in_from_command
+required_capability: optional_fields_v5
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: where_in_subquery_fork_mark_not_in_output
+
+SET unmapped_fields="load"\;
+FROM (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name, unmapped_field_foo | WHERE 10001 IN (ROW x = 10001) OR false),
+     (FROM employees | WHERE emp_no == 10002 | KEEP emp_no, first_name, unmapped_field_foo | WHERE "Bezalel" IN (ROW x = "Bezalel") OR false)
+| EVAL y = unmapped_field_foo
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | unmapped_field_foo:keyword | y:keyword
+10001          | Georgi             | null                       | null
+10002          | Bezalel            | null                       | null
+;

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -86,14 +87,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private static final Logger notPreferredLogger = LogManager.getLogger(BalancedShardsAllocator.class.getName() + ".not_preferred");
 
     public enum MoveType {
-        CANNOT_REMAIN("move(cannot-remain)", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO),
-        NOT_PREFERRED("move(not-preferred)", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED),
-        REBALANCE("move(rebalance)", ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
+        CANNOT_REMAIN("move(cannot-remain)", RecoveryPriority.RELOCATION_CAN_REMAIN_NO),
+        NOT_PREFERRED("move(not-preferred)", RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED),
+        REBALANCE("move(rebalance)", RecoveryPriority.RELOCATE_REBALANCING);
 
         private final String reason;
-        private final ShardRouting.RecoveryPriority recoveryPriority;
+        private final RecoveryPriority recoveryPriority;
 
-        MoveType(String reason, ShardRouting.RecoveryPriority recoveryPriority) {
+        MoveType(String reason, RecoveryPriority recoveryPriority) {
             this.reason = reason;
             this.recoveryPriority = recoveryPriority;
         }
@@ -102,7 +103,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return reason;
         }
 
-        public ShardRouting.RecoveryPriority recoveryPriority() {
+        public RecoveryPriority recoveryPriority() {
             return recoveryPriority;
         }
     }
@@ -1735,9 +1736,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 shardSize,
                                 MoveType.REBALANCE.reason(),
                                 allocation.changes(),
-                                ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+                                RecoveryPriority.RELOCATE_REBALANCING
                             ).v1()
-                            : shard.relocate(minNode.getNodeId(), shardSize, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING)
+                            : shard.relocate(minNode.getNodeId(), shardSize, RecoveryPriority.RELOCATE_REBALANCING)
                     );
                     return true;
                 }

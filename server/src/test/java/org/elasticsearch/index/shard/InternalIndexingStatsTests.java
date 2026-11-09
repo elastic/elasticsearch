@@ -17,6 +17,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
@@ -69,7 +70,7 @@ public class InternalIndexingStatsTests extends ESTestCase {
 
     /**
      * The batch hooks must record the same stats as the equivalent sequence of per-operation hooks,
-     * for a mix of successes, document failures and version conflicts.
+     * for a mix of successes, document failures, version conflicts and too many documents failures.
      */
     public void testBatchHooksMatchPerOperationHooks() {
         AtomicLong currentTime = new AtomicLong(randomLongBetween(0, 1_000_000_000L));
@@ -77,14 +78,15 @@ public class InternalIndexingStatsTests extends ESTestCase {
         InternalIndexingStats batchStats = newStats(currentTime);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 0);
 
-        final int docCount = randomIntBetween(3, 16);
+        final int docCount = randomIntBetween(4, 16);
         final IndexOperationBatch batch = primaryBatch(docCount);
         final List<Engine.IndexResult> results = new ArrayList<>(docCount);
-        // guarantee at least one success, one document failure and one version conflict, then randomize the rest
+        // guarantee at least one of each kind of result, then randomize the rest
         results.add(successResult(randomLongBetween(1, 1_000_000)));
         results.add(failureResult(batch.id(1), new RuntimeException("doc failure")));
         results.add(failureResult(batch.id(2), new VersionConflictEngineException(shardId, "2", "conflict")));
-        for (int d = 3; d < docCount; d++) {
+        results.add(failureResult(batch.id(3), tooManyDocsFailure()));
+        for (int d = 4; d < docCount; d++) {
             results.add(randomResult(shardId, batch.id(d)));
         }
 
@@ -100,6 +102,13 @@ public class InternalIndexingStatsTests extends ESTestCase {
         batchStats.postIndexBatch(shardId, batch, results);
 
         assertStatsEqual(perOpStats, batchStats, currentTime.get());
+        final IndexingStats.Stats recorded = statsOf(batchStats, currentTime.get());
+        assertThat(recorded.getIndexFailedDueToVersionConflictCount(), greaterThan(0L));
+        assertThat(recorded.getIndexFailedDueToTooManyDocsCount(), greaterThan(0L));
+        assertThat(
+            recorded.getIndexFailedCount(),
+            greaterThan(recorded.getIndexFailedDueToVersionConflictCount() + recorded.getIndexFailedDueToTooManyDocsCount())
+        );
     }
 
     public void testBatchEngineFailureHookMatchesPerOperationHooks() {
@@ -146,12 +155,17 @@ public class InternalIndexingStatsTests extends ESTestCase {
     }
 
     private static Engine.IndexResult randomResult(ShardId shardId, String id) {
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 3)) {
             case 0 -> successResult(randomLongBetween(1, 1_000_000));
             case 1 -> failureResult(id, new RuntimeException("doc failure"));
             case 2 -> failureResult(id, new VersionConflictEngineException(shardId, id, "conflict"));
+            case 3 -> failureResult(id, tooManyDocsFailure());
             default -> throw new AssertionError("unexpected");
         };
+    }
+
+    private static IllegalArgumentException tooManyDocsFailure() {
+        return new IllegalArgumentException(InternalEngine.TOO_MANY_DOCS_MESSAGE_PREFIX + "10]; for more information, see [docs]");
     }
 
     /** Mocked because {@code Engine.Result#setTook}/{@code freeze} are package-private to the engine package. */
@@ -175,6 +189,7 @@ public class InternalIndexingStatsTests extends ESTestCase {
         assertThat(actualStats.getIndexCurrent(), equalTo(0L));
         assertThat(actualStats.getIndexFailedCount(), equalTo(expectedStats.getIndexFailedCount()));
         assertThat(actualStats.getIndexFailedDueToVersionConflictCount(), equalTo(expectedStats.getIndexFailedDueToVersionConflictCount()));
+        assertThat(actualStats.getIndexFailedDueToTooManyDocsCount(), equalTo(expectedStats.getIndexFailedDueToTooManyDocsCount()));
         assertEquals(expected.totalIndexingTimeInNanos(), actual.totalIndexingTimeInNanos());
         assertEquals(expected.totalIndexingExecutionTimeInNanos(), actual.totalIndexingExecutionTimeInNanos());
         // one summed EWMA increment vs N increments at the same instant: equal up to floating point rounding

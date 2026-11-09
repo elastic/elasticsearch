@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -1215,7 +1216,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
-        assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+        assertThat(mapperService.documentMapper().mappingSource().string(), containsString("""
             "properties":{"object":{"type":"nested","include_in_parent":true}}"""));
     }
 
@@ -1582,7 +1583,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                     }
                 }}}
                 """);
-            assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+            assertThat(mapperService.documentMapper().mappingSource().string(), containsString("""
                 {"type":"nested","include_in_parent":true,"properties":{"""));
         }
         {
@@ -1608,7 +1609,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                     }
                 }}}
                 """);
-            assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+            assertThat(mapperService.documentMapper().mappingSource().string(), containsString("""
                 {"type":"nested","include_in_parent":true,"properties":{"""));
         }
     }
@@ -1984,6 +1985,16 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             @Override
             public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
                 return incoming;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                throw new UnsupportedOperationException("this builder is only here to observe the context it is built under");
+            }
+
+            @Override
+            public void collectFieldBuilders(String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+                throw new UnsupportedOperationException("this builder is only here to observe the context it is built under");
             }
         });
         NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);

@@ -1,0 +1,85 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar_stored.source_filter_fix" ]
+      reason: "Strict columnar index modes are only available on builds where the columnar feature flag is enabled, and
+        loading fields from a columnar_stored _source with a filter requires the mapper.columnar_stored.source_filter_fix feature"
+
+  # A text field without doc values reads its value from _source, and ES|QL loads _source restricted to the field's source path.
+  # In columnar_stored that restriction used to drop the whole-document _source blob: a field returned null, and a text sub-field
+  # under a field with doc values failed with a NullPointerException.
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            dynamic: strict
+            properties:
+              txt:
+                type: text
+                doc_values: false
+              p:
+                type: long
+                fields:
+                  t:
+                    type: text
+                    doc_values: false
+              addr:
+                type: ip
+                fields:
+                  t:
+                    type: text
+                    doc_values: false
+              other:
+                type: long
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          txt: "hello world"
+          p: 42
+          addr: "10.0.0.1"
+          other: 7
+
+---
+"text field without doc values":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | KEEP txt, other | LIMIT 10'
+  - match: { values.0: [ "hello world", 7 ] }
+
+---
+"text sub-field without doc values under a long":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | KEEP p.t, p | LIMIT 10'
+  - match: { values.0: [ "42", 42 ] }
+
+---
+"text sub-field without doc values under an ip":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | KEEP addr.t, addr | LIMIT 10'
+  - match: { values.0: [ "10.0.0.1", "10.0.0.1" ] }
+
+---
+"several fields read from source at once":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | KEEP txt, p.t, addr.t | LIMIT 10'
+  - match: { values.0: [ "hello world", "42", "10.0.0.1" ] }

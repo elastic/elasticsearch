@@ -27,6 +27,8 @@ import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -43,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -57,6 +60,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -99,6 +103,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -847,6 +852,88 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(serviceA.transport().getStats().getRxSize().getBytes(), lessThan(bytesLength));
             assertThat(serviceC.transport().getStats().getRxSize().getBytes(), greaterThan(bytesLength));
         }
+    }
+
+    public void testResponseReservedWhileArriving() {
+        final String action = "internal:large_response";
+        // Several times what one network read can carry, so the response arrives in more than one piece
+        final String largeMessage = randomAlphaOfLength(between(256 * 1024, 1024 * 1024));
+        serviceA.registerRequestHandler(
+            action,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            StringMessageRequest::new,
+            (request, channel, task) -> channel.sendResponse(new StringMessageResponse(largeMessage))
+        );
+        final boolean compress = randomBoolean();
+        // A single channel, so the response after the rejected one arrives on the same channel
+        final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(
+            TransportRequestOptions.Type.REG,
+            null,
+            null,
+            null,
+            compress ? Compression.Enabled.TRUE : Compression.Enabled.FALSE,
+            compress ? randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4) : null
+        );
+        try (Transport.Connection connection = openConnection(serviceB, nodeA, profile)) {
+            for (int i = 0; i < 2; i++) {
+                final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+                final AtomicInteger pieces = new AtomicInteger();
+                final AtomicLong reservedWhenRead = new AtomicLong(-1);
+                final StringMessageResponse response = safeAwait(
+                    listener -> serviceB.sendRequest(
+                        connection,
+                        action,
+                        new StringMessageRequest(""),
+                        TransportRequestOptions.EMPTY,
+                        reservingResponseHandler(listener, breaker, pieces, reservedWhenRead)
+                    )
+                );
+                assertThat(response.message, equalTo(largeMessage));
+                assertThat("reserved piece by piece as the response arrived", pieces.get(), greaterThan(1));
+                assertThat("reserved while read", reservedWhenRead.get(), greaterThanOrEqualTo((long) largeMessage.length()));
+                assertThat("released once read", breaker.getUsed(), equalTo(0L));
+
+                if (i == 0) {
+                    // A trip drops the rest of the response unread and reaches the handler as a 429
+                    final CircuitBreaker smallBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(between(0, largeMessage.length() / 2)));
+                    final AtomicLong reservedWhenReadSmall = new AtomicLong(-1);
+                    final Exception e = safeAwaitFailure(
+                        StringMessageResponse.class,
+                        listener -> serviceB.sendRequest(
+                            connection,
+                            action,
+                            new StringMessageRequest(""),
+                            TransportRequestOptions.EMPTY,
+                            reservingResponseHandler(listener, smallBreaker, new AtomicInteger(), reservedWhenReadSmall)
+                        )
+                    );
+                    assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(CircuitBreakingException.class));
+                    assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                    assertThat("a rejected response is not read", reservedWhenReadSmall.get(), equalTo(-1L));
+                    assertThat(smallBreaker.getTrippedCount(), equalTo(1L));
+                    assertThat(smallBreaker.getUsed(), equalTo(0L));
+                }
+            }
+        }
+    }
+
+    private TransportResponseHandler<StringMessageResponse> reservingResponseHandler(
+        ActionListener<StringMessageResponse> listener,
+        CircuitBreaker breaker,
+        AtomicInteger pieces,
+        AtomicLong reservedWhenRead
+    ) {
+        return new ActionListenerResponseHandler<>(listener, in -> {
+            reservedWhenRead.set(breaker.getUsed());
+            return new StringMessageResponse(in);
+        }, randomFrom(threadPool.generic(), TransportResponseHandler.TRANSPORT_WORKER)) {
+            @Override
+            public Releasable reserveResponseBytes(int bytes) {
+                pieces.incrementAndGet();
+                breaker.addEstimateBytesAndMaybeBreak(bytes, "response");
+                return () -> breaker.addWithoutBreaking(-bytes);
+            }
+        };
     }
 
     public void testErrorMessage() throws InterruptedException {

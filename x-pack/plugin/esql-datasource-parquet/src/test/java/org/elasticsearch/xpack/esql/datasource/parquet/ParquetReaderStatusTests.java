@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -126,5 +127,15 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
                     + "\"columns\":{\"host\":{\"materialization\":\"late\"}}}"
             )
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileSchema() {
+        Map<String, Object> schema = ParquetReaderStatus.PROFILE_SCHEMA.schema();
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+        assertEquals(ProfileSchema.constant("parquet"), properties.get("format"));
+        assertEquals(ProfileSchema.dynamicObject(PerColumnStatus.PROFILE_SCHEMA.schema()), properties.get("columns"));
+        assertFalse(((List<String>) schema.get("required")).contains("columns"));
+        assertEquals(List.copyOf(properties.keySet()).subList(0, properties.size() - 1), schema.get("required"));
     }
 }

@@ -371,6 +371,52 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     }
 
     /**
+     * When the aliases of the snapshot are not restored, the aliases that exist are the ones in effect after the restore, like they are for
+     * an index that is restored over: the data stream that is restored over is put back in the aliases that it was in, with their filter
+     * and write flag, even though deleting it took it out of them, and the aliases that only the snapshot has do not come back.
+     */
+    public void testRestoreOverExistingDataStreamKeepsItsAliasesWhenTheAliasesOfTheSnapshotAreNotRestored() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotAlias = "snapshot-alias";
+        final String currentAlias = "current-alias";
+        createRepositoryAndSnapshottedDataStream(snapshotAlias);
+        // Move the aliases away from those of the snapshot
+        final IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        aliasesRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE).alias(snapshotAlias).index(DATA_STREAM_NAME));
+        aliasesRequest.addAliasAction(
+            new AliasActions(AliasActions.Type.ADD).alias(currentAlias)
+                .index(DATA_STREAM_NAME)
+                .filter("{\"term\":{\"field\":\"value\"}}")
+                .writeIndex(true)
+        );
+        assertAcked(indicesAdmin().aliases(aliasesRequest).actionGet());
+        final DataStreamAlias aliasBefore = currentDataStreamAliases().get(currentAlias);
+        assertThat(aliasBefore.getWriteDataStream(), equalTo(DATA_STREAM_NAME));
+        assertThat(aliasBefore.getFilter(DATA_STREAM_NAME), notNullValue());
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME)
+                .restoreOverExisting(true)
+                .includeAliases(false),
+            future
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        awaitRestoreCompleted();
+
+        final Map<String, DataStreamAlias> aliases = currentDataStreamAliases();
+        assertThat("the aliases of the snapshot must not come back", aliases, not(hasKey(snapshotAlias)));
+        final DataStreamAlias aliasAfter = aliases.get(currentAlias);
+        assertThat("the data stream must be back in the alias that it was in", aliasAfter, notNullValue());
+        assertThat(aliasAfter.getDataStreams(), contains(DATA_STREAM_NAME));
+        assertThat(aliasAfter.getWriteDataStream(), equalTo(DATA_STREAM_NAME));
+        assertThat(aliasAfter.getFilter(DATA_STREAM_NAME).string(), equalTo(aliasBefore.getFilter(DATA_STREAM_NAME).string()));
+    }
+
+    /**
      * The ordinary restore path passes every repository {@link IndexMetadata} through the configured
      * {@link IndexMetadataRestoreTransformer} before it is applied; the restore must do the same rather than inserting the raw
      * snapshot metadata directly, since a caller resolving a {@link RestoreService.DataStreamRestoreTarget} has no way to apply that

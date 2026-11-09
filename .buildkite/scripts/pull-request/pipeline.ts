@@ -171,6 +171,9 @@ export const generatePipelines = (
     const pipeline: EsPipeline = parse(yaml) || {};
 
     pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };
+    if (defaults.env) {
+      pipeline.env = { ...defaults.env, ...(pipeline.env || {}) };
+    }
 
     // '.../build-benchmark.yml' => 'build-benchmark'
     const name = basename(file).split(".", 2)[0];

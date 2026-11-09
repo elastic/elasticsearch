@@ -121,6 +121,25 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        /**
+         * Writes no multi-fields and no {@code copy_to}, and the relations as a map from parent to its children
+         * rather than through the parameters.
+         */
+        @Override
+        protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field("type", contentType());
+            builder.field("eager_global_ordinals", eagerGlobalOrdinals.get());
+            builder.startObject("relations");
+            for (Relations relation : relations.get()) {
+                if (relation.children().size() == 1) {
+                    builder.field(relation.parent(), relation.children().iterator().next());
+                } else {
+                    builder.field(relation.parent(), relation.children());
+                }
+            }
+            builder.endObject();
+        }
+
         @Override
         public ParentJoinFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
@@ -322,21 +341,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();
         return new ParseResult.Indexed();
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field("type", contentType());
-        builder.field("eager_global_ordinals", eagerGlobalOrdinals);
-        builder.startObject("relations");
-        for (Relations relation : relations) {
-            if (relation.children().size() == 1) {
-                builder.field(relation.parent(), relation.children().iterator().next());
-            } else {
-                builder.field(relation.parent(), relation.children());
-            }
-        }
-        builder.endObject();
     }
 
     @Override

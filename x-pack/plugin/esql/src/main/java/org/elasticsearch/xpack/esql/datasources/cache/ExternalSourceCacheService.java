@@ -603,6 +603,8 @@ public class ExternalSourceCacheService implements Closeable {
         FileList racedResult = listingStore.get(key);
         if (racedResult != null) {
             inFlightListings.remove(key, newFuture);
+            // Followers may have subscribed to newFuture since the putIfAbsent above; leaving it incomplete would strand them.
+            newFuture.onResponse(racedResult);
             listener.onResponse(racedResult);
             return;
         }

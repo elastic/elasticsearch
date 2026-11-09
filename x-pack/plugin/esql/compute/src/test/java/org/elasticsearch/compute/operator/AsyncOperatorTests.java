@@ -54,6 +54,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AsyncOperatorTests extends ESTestCase {
 
@@ -250,6 +251,114 @@ public class AsyncOperatorTests extends ESTestCase {
         page4.releaseBlocks();
 
         operator.close();
+    }
+
+    /**
+     * Once its input finished, the operator still blocks while a request is in flight, and the result unblocks it.
+     */
+    public void testBlockedAfterFinishUntilTheResultArrives() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        TestOp operator = new TestOp(driverContext, between(1, 3));
+        Page input = new Page(driverContext.blockFactory().newConstantNullBlock(1));
+        operator.addInput(input);
+        operator.finish();
+        SubscribableListener<Void> blocked = operator.isBlocked().listener();
+        assertFalse(blocked.isDone());
+        assertFalse(operator.isFinished());
+
+        Page result = new Page(driverContext.blockFactory().newConstantNullBlock(2));
+        operator.handlers.remove(input).onResponse(result);
+        input.releaseBlocks();
+        assertTrue(blocked.isDone());
+        assertTrue(operator.isBlocked().listener().isDone());
+        assertThat(operator.getOutput(), equalTo(result));
+        result.releaseBlocks();
+        assertTrue(operator.isFinished());
+        assertTrue(operator.isBlocked().listener().isDone());
+        operator.close();
+    }
+
+    /**
+     * A failed request unblocks the operator while an earlier request is still in flight, so the failure surfaces at once.
+     * The result that arrives later is released.
+     */
+    public void testFailureUnblocksWhileAnEarlierRequestIsInFlight() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        TestOp operator = new TestOp(driverContext, 2);
+        Page first = new Page(driverContext.blockFactory().newConstantNullBlock(1));
+        Page second = new Page(driverContext.blockFactory().newConstantNullBlock(2));
+        operator.addInput(first);
+        operator.addInput(second);
+        if (randomBoolean()) {
+            operator.finish();
+        }
+        SubscribableListener<Void> blocked = operator.isBlocked().listener();
+        assertFalse(blocked.isDone());
+
+        // the operator releases the input of a failed request
+        operator.handlers.remove(second).onFailure(new ElasticsearchException("simulated"));
+        assertTrue(blocked.isDone());
+        assertTrue(operator.isBlocked().listener().isDone());
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, operator::getOutput);
+        assertThat(e.getMessage(), equalTo("simulated"));
+
+        operator.handlers.remove(first).onResponse(new Page(driverContext.blockFactory().newConstantNullBlock(3)));
+        first.releaseBlocks();
+        operator.close();
+    }
+
+    /**
+     * Once its input finished, the driver waits for the last result instead of calling {@link Operator#getOutput} until
+     * it arrives. The input finishes while the request is in flight, because the operator takes more than one page, so
+     * the driver asks the source for another page.
+     */
+    public void testDriverWaitsForTheLastResult() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        SourceOperator sourceOperator = new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.range(0, 10));
+        AtomicInteger getOutputCalls = new AtomicInteger();
+        int maxOutstandingRequests = between(2, 10);
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), maxOutstandingRequests) {
+            @Override
+            protected void performAsync(Page inputPage, ActionListener<Page> listener) {
+                // a driver that polls would call getOutput thousands of times in the meantime
+                threadPool.schedule(
+                    () -> listener.onResponse(inputPage),
+                    TimeValue.timeValueMillis(100),
+                    threadPool.executor(ESQL_TEST_EXECUTOR)
+                );
+            }
+
+            @Override
+            public Page getOutput() {
+                getOutputCalls.incrementAndGet();
+                return fetchFromBuffer();
+            }
+
+            @Override
+            protected void releaseFetchedOnAnyThread(Page page) {
+                releasePageOnAnyThread(page);
+            }
+
+            @Override
+            protected void doClose() {
+
+            }
+        };
+        AtomicInteger rows = new AtomicInteger();
+        SinkOperator outputOperator = new PageConsumerOperator(page -> {
+            rows.addAndGet(page.getPositionCount());
+            page.releaseBlocks();
+        });
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(asyncOperator), outputOperator);
+        Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10_000), future);
+        future.actionGet(30, TimeUnit.SECONDS);
+        assertThat(rows.get(), equalTo(10));
+        // the source emits up to 10 pages, the driver calls getOutput at most once per page and once per result
+        assertThat(getOutputCalls.get(), lessThanOrEqualTo(20));
     }
 
     public void testFailure() throws Exception {

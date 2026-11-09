@@ -121,6 +121,61 @@ Copyright 2009-2018 Acme Coorp"""
                 "to be [Copyright 2009-2024 Elasticsearch] but was [Copyright 2009-2018 Acme Coorp]")
     }
 
+    def "fails when the source license file is missing"() {
+        given:
+        // deliberately do not create licenses/ELASTIC-LICENSE-2.0.txt so the source license read fails
+        elasticLicense(file("LICENSE.txt"))
+        file("NOTICE.txt").text = """Elasticsearch
+Copyright 2009-2024 Elasticsearch"""
+        buildFile << """
+            apply plugin:'base'
+            tasks.withType(AbstractArchiveTask).configureEach {
+                into("elasticsearch-${VersionProperties.getElasticsearch()}") {
+                    from 'LICENSE.txt'
+                    from 'SomeFile.txt'
+                    from 'NOTICE.txt'
+                }
+            }
+        """
+
+        when:
+        def result = gradleRunner(":darwin-tar:checkLicense").buildAndFail()
+        then:
+        result.task(":darwin-tar:checkLicense").outcome == TaskOutcome.FAILED
+    }
+
+    def "fails when the ml notice file is missing"() {
+        given:
+        elasticLicense()
+        elasticLicense(file("LICENSE.txt"))
+        file("NOTICE.txt").text = """Elasticsearch
+Copyright 2009-2024 Elasticsearch"""
+
+        // expect ml licenses but deliberately do not copy modules/x-pack-ml/NOTICE.txt into the distribution
+        file('darwin-tar/build.gradle') << """
+            distributionArchiveCheck {
+                expectedMlLicenses.add('foo license')
+            }
+        """
+        buildFile << """
+            apply plugin:'base'
+            tasks.withType(AbstractArchiveTask).configureEach {
+                into("elasticsearch-${VersionProperties.getElasticsearch()}") {
+                    from 'LICENSE.txt'
+                    from 'SomeFile.txt'
+                    from 'NOTICE.txt'
+                }
+            }
+        """
+
+        when:
+        def result = gradleRunner(":darwin-tar:checkMlCppNotice").buildAndFail()
+        then:
+        result.task(":darwin-tar:checkMlCppNotice").outcome == TaskOutcome.FAILED
+        result.output.contains("Unable to read from file")
+        result.output.contains("modules/x-pack-ml/NOTICE.txt")
+    }
+
     def "fails on unexpected ml notice content"() {
         given:
         elasticLicense()

@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.logs.Severity;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.common.export.RetryPolicy;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
@@ -34,6 +35,7 @@ import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -98,17 +100,16 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.get(settings));
     }
 
-    public void testInstallWithCustomTimeoutRetryAndQueueSizeDoesNotThrow() {
+    public void testInstallWithCustomConnectTimeoutAndQueueSizeDoesNotThrow() {
         Settings settings = Settings.builder()
             .put(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.getKey(), true)
             .put(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9")
-            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
             .put(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.getKey(), "1ms")
             .put(OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.getKey(), 42)
             .build();
         OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(settings, createTempDir());
         try {
-            supplier.install(); // must not throw despite the custom timeout/retry/queue-size settings
+            supplier.install();
         } finally {
             supplier.close();
         }
@@ -230,18 +231,11 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(OtelSdkSettings.TELEMETRY_LOGS_QUERYLOG_ENABLED.getKey(), true)
             .put(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9")
-            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
             .put(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.getKey(), "1ms")
             .build();
 
         Runnable removeQueryLogger = addQueryLogger();
-        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(
-            settings,
-            createTempDir(),
-            List.of(),
-            new TelemetryLogResourceProvider.Default(),
-            () -> meterProvider
-        );
+        OtelSdkExportLogsSupplier supplier = newSupplierWithShortRetry(settings, meterProvider);
         try {
             supplier.install();
             org.apache.logging.log4j.LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME).info("exporter metrics probe");
@@ -279,18 +273,11 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(OtelSdkSettings.TELEMETRY_LOGS_QUERYLOG_ENABLED.getKey(), true)
             .put(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9")
-            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
             .put(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.getKey(), "1ms")
             .put(OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.getKey(), 42)
             .build();
         Runnable removeQueryLogger = addQueryLogger();
-        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(
-            settings,
-            createTempDir(),
-            List.of(),
-            new TelemetryLogResourceProvider.Default(),
-            () -> meterProvider
-        );
+        OtelSdkExportLogsSupplier supplier = newSupplierWithShortRetry(settings, meterProvider);
         try {
             supplier.install();
             var queryLogger = org.apache.logging.log4j.LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
@@ -314,6 +301,26 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
             removeQueryLogger.run();
             meterProvider.close();
         }
+    }
+
+    /**
+     * Production retries wait at least 60s. Tests that actually export use a budget that fails immediately.
+     */
+    private OtelSdkExportLogsSupplier newSupplierWithShortRetry(Settings settings, SdkMeterProvider meterProvider) {
+        return new OtelSdkExportLogsSupplier(
+            settings,
+            createTempDir(),
+            List.of(),
+            new TelemetryLogResourceProvider.Default(),
+            () -> meterProvider,
+            Duration.ofMillis(500),
+            RetryPolicy.builder()
+                .setMaxAttempts(2)
+                .setInitialBackoff(Duration.ofMillis(1))
+                .setMaxBackoff(Duration.ofMillis(1))
+                .setBackoffMultiplier(1.5)
+                .build()
+        );
     }
 
     /**

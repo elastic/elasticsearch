@@ -14,6 +14,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -546,7 +547,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
 
         var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         var shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             for (var leaf : searcher.getDirectoryReader().leaves()) {
                 for (FieldInfo fieldInfo : leaf.reader().getFieldInfos()) {
                     if (fieldInfo.name.equals("labels")) {

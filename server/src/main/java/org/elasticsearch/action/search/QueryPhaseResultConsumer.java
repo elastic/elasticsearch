@@ -637,7 +637,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * tree expanded and {@code readFrom} wraps it in a referencing {@link DelayableWriteable} whose close does nothing,
      * so its pooled top_hits are dropped here. Not for a {@link #partialReduce} result: {@code topHitsToRelease} owns those.
      */
-    private static void releaseBatchedAggs(@Nullable DelayableWriteable<InternalAggregations> reducedAggs) {
+    static void releaseBatchedAggs(@Nullable DelayableWriteable<InternalAggregations> reducedAggs) {
         if (reducedAggs != null && reducedAggs.isSerialized() == false) {
             List<SearchHits> topHits = new ArrayList<>();
             InternalAggregations.addTopHitsToReleaseList(reducedAggs.expand(), topHits, false);

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -20,6 +22,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogOperationsUtils;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -1093,6 +1096,20 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
         assertThat(status.followerGlobalCheckpoint(), equalTo(63L));
+    }
+
+    /**
+     * A 503 returned because the leader shard is not available is retried.
+     */
+    public void testShouldRetryShardUnavailableExceptions() {
+        ShardId shardId = new ShardId("leader_index", "uuid", 0);
+        assertTrue(ShardFollowNodeTask.shouldRetry(new UnavailableShardsException(shardId, "primary shard is not active")));
+        assertTrue(ShardFollowNodeTask.shouldRetry(new NoShardAvailableActionException(shardId)));
+    }
+
+    public void testShouldRetryShardRestoringException() {
+        // Its FORBIDDEN status must not be treated as fatal: the shard becomes available once the restore completes.
+        assertTrue(ShardFollowNodeTask.shouldRetry(new ShardRestoringException("leader_index", randomUUID())));
     }
 
     public void testComputeDelay() {

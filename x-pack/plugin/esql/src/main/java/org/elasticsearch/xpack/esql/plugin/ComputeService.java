@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -116,6 +117,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -141,8 +143,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME;
@@ -217,10 +221,13 @@ public class ComputeService {
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Executor searchExecutor;
+    private final ComputeExecutor computeExecutor;
     private final ThreadPool threadPool;
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
+    /** Which nodes of the cluster state may be given external splits right now; see {@link #externalWorkers()}. */
+    private final ExternalWorkerReadiness externalWorkerReadiness;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -228,18 +235,22 @@ public class ComputeService {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         ThreadPool threadPool,
+        ComputeExecutor computeExecutor,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
         FormatReaderRegistry formatReaderRegistry,
-        Client client
+        Client client,
+        ExternalWorkerReadiness externalWorkerReadiness
     ) {
+        this.externalWorkerReadiness = externalWorkerReadiness;
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
@@ -472,6 +483,13 @@ public class ComputeService {
     }
 
     /**
+     * Nodes that can receive external splits now, excluding nodes that are still joining.
+     */
+    private DiscoveryNodes externalWorkers() {
+        return externalWorkerReadiness.readyNodes(clusterService.state().nodes());
+    }
+
+    /**
      * The minimum number of coalesced groups to keep for an external scan, so read parallelism is not collapsed
      * to a single unit. It is the per-node driver cap ({@code task_concurrency}) times the number of eligible
      * remote workers: after distribution each worker receives about {@code task_concurrency} groups and runs that
@@ -483,12 +501,13 @@ public class ComputeService {
      * split count. The value is held at or above one (a degenerate {@code task_concurrency} of zero or below still
      * leaves the scan coalescible) and at or below {@link Integer#MAX_VALUE} on an implausibly wide cluster.
      *
-     * <p>Deliberately counts the whole eligible cluster even for a scan that ends up staying local: coalescing
-     * runs before the distribution decision, and the group count is itself an input to that decision
-     * ({@code AdaptiveStrategy} weighs splits against nodes). When eligible remote workers exist, a local scan
-     * therefore gets more groups than its one node can occupy. That overshoot is harmless — the groups become slices
-     * in a shared queue and the driver count is still capped at {@code min(groupCount, task_concurrency)} — whereas
-     * undershooting would leave a distributable scan unable to fill the cluster.
+     * <p>Deliberately counts the whole eligible cluster, joining nodes included ({@link ExternalWorkerReadiness}), even
+     * for a scan that ends up staying local: coalescing runs before the distribution decision, and the group count is
+     * itself an input to that decision ({@code AdaptiveStrategy} weighs splits against nodes). When eligible remote
+     * workers exist, a local scan therefore gets more groups than its one node can occupy. That overshoot is harmless —
+     * the groups become slices in a shared queue and the driver count is still capped at
+     * {@code min(groupCount, task_concurrency)} — whereas undershooting would leave a distributable scan unable to fill
+     * the cluster, including one that waited for a joining worker to be released.
      */
     static int externalCoalesceFloor(int taskConcurrency, DiscoveryNodes availableNodes) {
         int eligibleNodeCount = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(availableNodes).size();
@@ -500,11 +519,14 @@ public class ComputeService {
         return (int) Math.max(1, Math.min(floor, Integer.MAX_VALUE));
     }
 
+    /** The {@link QueryPragmas#EXTERNAL_DISTRIBUTION} value that keeps every external split on the coordinator. */
+    static final String COORDINATOR_ONLY_DISTRIBUTION = "coordinator_only";
+
     static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {
         String value = pragmas.externalDistribution();
         return switch (value) {
             case "", "adaptive" -> new AdaptiveStrategy();
-            case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
+            case COORDINATOR_ONLY_DISTRIBUTION -> CoordinatorOnlyStrategy.INSTANCE;
             case "round_robin" -> new RoundRobinStrategy();
             case "weighted_round_robin" -> new WeightedRoundRobinStrategy();
             default -> {
@@ -512,6 +534,24 @@ public class ComputeService {
                 yield new AdaptiveStrategy();
             }
         };
+    }
+
+    /**
+     * Whether every eligible external worker has just joined and is still held back ({@link ExternalWorkerReadiness}), so
+     * there is nobody to distribute external splits over for now. False with a ready worker, and with no eligible worker
+     * at all, in which case the scan stays on the coordinator as it always has. Never true on a coordinator that is itself
+     * an eligible worker, which is never held back.
+     *
+     * @param ready the nodes less those held back, computed from {@code nodes}
+     */
+    static boolean allExternalWorkersJoining(DiscoveryNodes nodes, UnaryOperator<DiscoveryNodes> ready) {
+        return NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(ready.apply(nodes)).isEmpty()
+            && NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(nodes).isEmpty() == false;
+    }
+
+    /** Whether the query asked for its external splits to be read on the coordinator, so no worker is waited for. */
+    static boolean pinnedToCoordinator(QueryPragmas pragmas) {
+        return COORDINATOR_ONLY_DISTRIBUTION.equals(pragmas.externalDistribution());
     }
 
     /**
@@ -535,7 +575,7 @@ public class ComputeService {
         ExternalDistributionContext context = new ExternalDistributionContext(
             resolvedPlan,
             externalSplits,
-            clusterService.state().nodes(),
+            externalWorkers(),
             configuration.pragmas(),
             placement
         );
@@ -1233,32 +1273,44 @@ public class ComputeService {
         // Capture the inbound ThreadContext before Phase-2 hops to esql_external_io / SDK
         // threads. Those completions have no security user; SEARCH's executor would then
         // preserve the empty context into runCompute. Same pattern as ExternalSourceResolver.
-        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(
-            ActionListener.wrap(
-                collected -> runOnSearch(
-                    () -> executePlanAfterDiscovery(
-                        sessionId,
-                        rootTask,
-                        flags,
-                        collected,
-                        configuration,
-                        foldContext,
-                        execInfo,
-                        profileQualifier,
-                        releasing,
-                        exchangeSinkSupplier,
-                        initialClusterStatuses,
-                        planTimeProfile,
-                        warnIndexCoordinatorOnce,
-                        splitDiscoveryStart,
-                        placement
-                    ),
-                    releasing
+        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(ActionListener.wrap(collected -> {
+            // The discovery clock stops here: a wait for a worker below is not object-store time.
+            final long discoveryEnd = System.nanoTime();
+            final LongConsumer runAfterDiscovery = waitedNanos -> runOnSearch(
+                () -> executePlanAfterDiscovery(
+                    sessionId,
+                    rootTask,
+                    flags,
+                    collected,
+                    configuration,
+                    foldContext,
+                    execInfo,
+                    profileQualifier,
+                    releasing,
+                    exchangeSinkSupplier,
+                    initialClusterStatuses,
+                    planTimeProfile,
+                    warnIndexCoordinatorOnce,
+                    splitDiscoveryStart + waitedNanos,
+                    placement
                 ),
-                releasing::onFailure
-            ),
-            threadPool.getThreadContext()
-        );
+                releasing
+            );
+            final UnaryOperator<DiscoveryNodes> ready = externalWorkerReadiness::readyNodes;
+            if (collected.splits().isEmpty()
+                || pinnedToCoordinator(configuration.pragmas())
+                || allExternalWorkersJoining(clusterService.state().nodes(), ready) == false) {
+                runAfterDiscovery.accept(0L);
+                return;
+            }
+            // Every worker has just joined: wait for one rather than scan on a coordinator that may be thin.
+            externalWorkerReadiness.awaitEligibleWorker(
+                () -> allExternalWorkersJoining(clusterService.state().nodes(), ready) == false,
+                rootTask,
+                "distributing [" + collected.splits().size() + "] external splits, session [" + sessionId + "]",
+                ActionListener.wrap(ignored -> runAfterDiscovery.accept(System.nanoTime() - discoveryEnd), releasing::onFailure)
+            );
+        }, releasing::onFailure), threadPool.getThreadContext());
         // Skip-path: no footer/probe scheduling. SEARCH inbound stays inline (sync-fast).
         if (operatorFactoryRegistry == null) {
             afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
@@ -1941,7 +1993,8 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
-        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings));
+        Set<String> unmappedFieldNames = PlannerUtils.unmappedFieldNames(plan);
+        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings, unmappedFieldNames));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
@@ -1958,7 +2011,6 @@ public class ComputeService {
 
         try {
             var workerThreadPool = transportService.getThreadPool();
-            var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
@@ -1986,7 +2038,7 @@ public class ComputeService {
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 datasetConfigResolver.snapshotBuild(),
-                parallelWorkerExecutor,
+                computeExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion()
@@ -2001,8 +2053,10 @@ public class ComputeService {
             final String logicalPlanString;
             final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
+                // The contexts of the shards, so that planning sees the fields the plan reads as each shard resolves them
                 List<SearchExecutionContext> localContexts = new ArrayList<>();
-                context.searchExecutionContexts().iterable().forEach(localContexts::add);
+                shardContexts.iterable()
+                    .forEach(shardContext -> localContexts.add(((DefaultShardContext) shardContext).executionContext()));
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,
@@ -2063,7 +2117,8 @@ public class ComputeService {
                 plannerSettings,
                 planToExecute,
                 shardContexts,
-                context.singleNodeOptimizations()
+                context.singleNodeOptimizations(),
+                context.sortBound()
             );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
@@ -2125,19 +2180,14 @@ public class ComputeService {
                 planningBytesRead,
                 approximationApplied
             );
-            driverRunner.executeDrivers(
-                task,
-                drivers,
-                transportService.getThreadPool().executor(EsqlPlugin.computePool()),
-                ActionListener.releaseAfter(driverListener, () -> {
-                    if (hookExecInfo != null) {
-                        for (BooleanSupplier hook : registeredStopHooks) {
-                            hookExecInfo.removeStopHook(hook);
-                        }
+            driverRunner.executeDrivers(task, drivers, computeExecutor, ActionListener.releaseAfter(driverListener, () -> {
+                if (hookExecInfo != null) {
+                    for (BooleanSupplier hook : registeredStopHooks) {
+                        hookExecInfo.removeStopHook(hook);
                     }
-                    Releasables.close(drivers);
-                })
-            );
+                }
+                Releasables.close(drivers);
+            }));
         } catch (Exception e) {
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());

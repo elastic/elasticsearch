@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -204,7 +205,11 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                     continue;
                 }
 
-                if (names.contains(attr.name()) == false && attr != NO_FIELDS.getFirst()) {
+                // Keep union-type cast synthetics ($$field$converted_to$type): a conversion above the merge still references them. Drop
+                // only IN-subquery marks/consts, which are local to the rewrite and leak if FORK alignment null-fills them.
+                if (names.contains(attr.name()) == false
+                    && attr != NO_FIELDS.getFirst()
+                    && InSubqueryResolver.isInSubquerySynthetic(attr) == false) {
                     names.add(attr.name());
                     output.add(attr);
                 }

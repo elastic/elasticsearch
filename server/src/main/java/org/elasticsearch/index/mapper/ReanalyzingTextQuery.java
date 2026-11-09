@@ -323,6 +323,13 @@ public final class ReanalyzingTextQuery extends Query {
         return in;
     }
 
+    /**
+     * Returns a copy of this query that wraps {@code query} instead, reading the field's values the same way.
+     */
+    public ReanalyzingTextQuery withQuery(Query query) {
+        return new ReanalyzingTextQuery(query, valueFetcherProvider, indexAnalyzer, scansEveryDocument);
+    }
+
     @Override
     public String toString(String field) {
         return in.toString(field);

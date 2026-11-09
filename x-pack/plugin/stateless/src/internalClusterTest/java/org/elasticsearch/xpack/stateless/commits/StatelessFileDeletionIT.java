@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -72,6 +73,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -110,6 +112,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -1768,6 +1771,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         flush(indexName);
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/162175",
+        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction:DEBUG"
+    )
     public void testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts() throws Exception {
         var indexNode = startMasterAndIndexNode(
             Settings.builder()
@@ -1990,10 +1999,51 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         // the target pessimistically registered them for its recovery under its node id. Those registrations are only released once the
         // target, now started, replies to a "new commit notification". Rather than waiting for the periodic shard inactivity monitor to
         // emit that notification, we drive the monitor's poll directly on the indexing node on every assertBusy iteration.
-        assertBusy(() -> {
-            commitService.updateCommitUseTrackingForInactiveShards(() -> Long.MAX_VALUE);
-            assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob))));
-        }, 30, TimeUnit.SECONDS);
+        logBlobRetention("before the final convergence check", commitService, shardId, shardCommitsContainer);
+        try {
+            assertBusy(() -> {
+                commitService.updateCommitUseTrackingForInactiveShards(() -> Long.MAX_VALUE);
+                assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob))));
+            }, 30, TimeUnit.SECONDS);
+        } catch (AssertionError e) {
+            logBlobRetention("after the final convergence check failed", commitService, shardId, shardCommitsContainer);
+            throw e;
+        }
+    }
+
+    /**
+     * Logs what keeps every BCC blob of the shard alive: the index node's view of each blob (ref count, local commits and readers,
+     * search nodes, dependent blobs) and, for every node still hosting a copy, the shard's routing entry and the BCCs its search
+     * engine reports as in use, broken down by reader.
+     */
+    private void logBlobRetention(String when, StatelessCommitService commitService, ShardId shardId, BlobContainer shardCommitsContainer) {
+        try {
+            final var report = new StringBuilder();
+            report.append("blobs in the object store: ").append(new TreeSet<>(shardCommitsContainer.listBlobs(operationPurpose).keySet()));
+            report.append("\nindex node view: ").append(commitService.describeBlobRetention(shardId));
+            for (String node : internalCluster().getNodeNames()) {
+                var indexService = internalCluster().getInstance(IndicesService.class, node).indexService(shardId.getIndex());
+                if (indexService != null && indexService.hasShard(shardId.id())) {
+                    var shard = indexService.getShard(shardId.id());
+                    var engine = shard.getEngineOrNull();
+                    report.append("\nnode [")
+                        .append(node)
+                        .append("] routing [")
+                        .append(shard.routingEntry())
+                        .append("] state [")
+                        .append(shard.state())
+                        .append("] ")
+                        .append(
+                            engine instanceof SearchEngine searchEngine
+                                ? "search engine in use: " + searchEngine.describeAcquiredPrimaryTermAndGenerations()
+                                : "engine: " + (engine == null ? null : engine.getClass().getSimpleName())
+                        );
+                }
+            }
+            logger.info("BCC retention report {}:\n{}", when, report);
+        } catch (Exception e) {
+            logger.warn("failed to build the BCC retention report " + when, e);
+        }
     }
 
     private static void failSearchShard(String indexName, String searchNode) {

@@ -32,6 +32,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -628,6 +629,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             || actual instanceof IllegalIndexShardStateException
             || actual instanceof NoShardAvailableActionException
             || actual instanceof UnavailableShardsException
+            || actual instanceof ShardRestoringException
             || actual instanceof AlreadyClosedException
             || actual instanceof ElasticsearchSecurityException // If user does not have sufficient privileges
             || actual instanceof ClusterBlockException // If leader index is closed or no elected master

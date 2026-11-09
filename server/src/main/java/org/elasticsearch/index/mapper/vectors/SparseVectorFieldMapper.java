@@ -96,15 +96,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         private final IndexVersion indexVersionCreated;
         private final Parameter<Boolean> stored;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<SparseVectorIndexOptions> indexOptions = new Parameter<>(
-            SPARSE_VECTOR_INDEX_OPTIONS,
-            true,
-            () -> null,
-            (n, c, o) -> parseIndexOptions(c, o),
-            m -> toType(m).fieldType().indexOptions,
-            XContentBuilder::field,
-            Objects::toString
-        ).acceptsNull().setSerializerCheck(this::indexOptionsSerializerCheck);
+        private final Parameter<SparseVectorIndexOptions> indexOptions;
 
         private final boolean isExcludeSourceVectors;
 
@@ -113,6 +105,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
             this.stored = Parameter.boolParam("store", false, m -> toType(m).fieldType().isStored(), () -> isExcludeSourceVectors);
             this.indexVersionCreated = indexVersionCreated;
             this.isExcludeSourceVectors = isExcludeSourceVectors;
+            SparseVectorIndexOptions defaultIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
+            this.indexOptions = new Parameter<>(SPARSE_VECTOR_INDEX_OPTIONS, true, () -> defaultIndexOptions, (n, c, o) -> {
+                SparseVectorIndexOptions parsed = parseIndexOptions(c, o);
+                return parsed == null ? defaultIndexOptions : parsed;
+            }, m -> toType(m).fieldType().indexOptions, XContentBuilder::field, Objects::toString).acceptsNull()
+                .setSerializerCheck(this::indexOptionsSerializerCheck);
         }
 
         public Builder setStored(boolean value) {
@@ -132,11 +130,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
-            SparseVectorIndexOptions builderIndexOptions = indexOptions.getValue();
-            if (builderIndexOptions == null) {
-                builderIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
-            }
-
             final boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors
                 && (context.isSourceStored() || context.isSourceColumnarStored())
                 && stored.get();
@@ -147,7 +140,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     context.buildFullName(leafName()),
                     stored.get(),
                     meta.getValue(),
-                    builderIndexOptions
+                    indexOptions.getValue()
                 ),
                 builderParams(this, context),
                 isExcludeSourceVectors,
@@ -159,8 +152,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return includeDefaults || (SparseVectorIndexOptions.isDefaultOptions(value, indexVersionCreated) == false);
         }
 
+        /**
+         * The parameter always holds options, the version's default if none were given, so a null here is a bug in the caller.
+         */
         public void setIndexOptions(SparseVectorIndexOptions sparseVectorIndexOptions) {
-            indexOptions.setValue(sparseVectorIndexOptions);
+            indexOptions.setValue(Objects.requireNonNull(sparseVectorIndexOptions, "[index_options] must not be null"));
         }
     }
 

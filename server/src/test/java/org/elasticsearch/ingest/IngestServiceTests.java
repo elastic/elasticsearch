@@ -3044,7 +3044,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testCBORParsing() throws Exception {
         AtomicReference<Object> reference = new AtomicReference<>();
-        Consumer<IngestDocument> executor = doc -> reference.set(doc.getFieldValueAsBytes("data"));
+        Consumer<IngestDocument> executor = doc -> reference.set(doc.getFieldValue("data", byte[].class));
         final IngestService ingestService = createWithProcessors(
             Map.of("foo", (factories, tag, description, config, projectId) -> new FakeProcessor("foo", tag, description, executor))
         );

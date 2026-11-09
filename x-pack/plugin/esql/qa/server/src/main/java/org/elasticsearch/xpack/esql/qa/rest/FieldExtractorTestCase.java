@@ -846,6 +846,18 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"file": {"raw": "o2"}}""");
 
+        var capsName = EsqlCapabilities.Cap.OBJECTS_ARE_NOT_FIELDS.name().toLowerCase(Locale.ROOT);
+        if (clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false)) {
+            // An object is not a leaf, so the column is the keyword
+            Map<String, Object> result = runEsql("FROM test* | SORT file, file.raw | LIMIT 3");
+            assertResultMap(
+                result,
+                List.of(columnInfo("file", "keyword"), columnInfo("file.raw", "keyword")),
+                List.of(matchesList().item("f1").item(null), matchesList().item(null).item("o2"))
+            );
+            return;
+        }
+
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT file, file.raw | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(

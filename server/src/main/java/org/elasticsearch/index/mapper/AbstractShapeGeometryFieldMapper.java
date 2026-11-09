@@ -33,6 +33,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
      * our overestimate.
      */
     private static final long BLOCK_LOADER_ESTIMATED_SIZE = ByteSizeValue.ofKb(2).getBytes();
+    public static final String SOURCE_GEOMETRY_FIELD_NAME_SUFFIX = ".source_geometry";
 
     public static Parameter<Explicit<Boolean>> coerceParam(Function<FieldMapper, Explicit<Boolean>> initializer, boolean coerceByDefault) {
         return Parameter.explicitBoolParam("coerce", true, initializer, coerceByDefault);

@@ -185,7 +185,7 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
             .regexpLikeQuery(
                 pattern().asJavaRegex(),
                 RegExp.ALL,
-                caseInsensitive() ? RegExp.ASCII_CASE_INSENSITIVE : 0,
+                caseInsensitive() ? RegExp.CASE_INSENSITIVE : 0,
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                 constantScoreRewrite,
                 context

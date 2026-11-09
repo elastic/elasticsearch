@@ -222,6 +222,7 @@ public abstract class HeapPressureTestCase extends ESRestTestCase {
             }
             return shardCount;
         }
+        // Identical failures share one entry, so the list can be shorter than _shards.failed, but it has every distinct failure.
         List<?> failures = (List<?>) XContentMapValues.extractValue("_shards.failures", body);
         if (failures != null) {
             for (Object failure : failures) {

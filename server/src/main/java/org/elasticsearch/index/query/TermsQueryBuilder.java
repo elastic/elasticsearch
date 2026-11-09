@@ -9,10 +9,15 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
@@ -21,14 +26,18 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -38,6 +47,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.CharBuffer;
 import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -305,14 +315,66 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
 
     static List<Object> parseValues(XContentParser parser) throws IOException {
         List<Object> values = new ArrayList<>();
+        final TermEncoder encoder = new TermEncoder();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            Object value = maybeConvertToBytesRef(parser.objectBytes());
+            final Object parsed = parser.objectBytes();
+            // A term longer than the limit has more bytes than that however it is encoded, so it takes the general path, which rejects it,
+            // instead of growing the encoder's buffer for it.
+            final Object value = parsed instanceof CharBuffer chars && chars.length() <= IndexWriter.MAX_TERM_LENGTH
+                ? BytesRefs.checkIndexableLength(encoder.encode(chars))
+                : maybeConvertToBytesRef(parsed);
             if (value == null) {
                 throw new ParsingException(parser.getTokenLocation(), "No value specified for terms query");
             }
             values.add(value);
         }
         return values;
+    }
+
+    /**
+     * Encodes the terms of one list as UTF-8 into arrays of exactly their size.
+     * This allocates a temporary scratch buffer for the worst case of 3 bytes per char.
+     * The optimized route checks if the chars are all ASCII, and if so, encodes them directly.
+     */
+    private static final class TermEncoder {
+        private byte[] scratch = new byte[128];
+
+        BytesRef encode(CharBuffer value) {
+            final int length = value.length();
+            if (value.hasArray() == false) {
+                final int used = UnicodeUtil.UTF16toUTF8(value, 0, length, ensureScratch(length));
+                return new BytesRef(Arrays.copyOf(scratch, used));
+            }
+            final char[] chars = value.array();
+            final int from = value.arrayOffset() + value.position();
+            // Shortcut - check the first char for free before allocating
+            if (length > 0 && chars[from] > 0x7F) {
+                final int used = UnicodeUtil.UTF16toUTF8(chars, from, length, ensureScratch(length));
+                return new BytesRef(Arrays.copyOf(scratch, used));
+            }
+            final byte[] bytes = new byte[length];
+            int bits = 0;
+            for (int i = 0; i < length; i++) {
+                final char c = chars[from + i];
+                bits |= c;
+                bytes[i] = (byte) c;
+            }
+            if (bits < 0x80) {
+                // If the whole string is ASCII, we can avoid the UTF-8 conversion
+                return new BytesRef(bytes);
+            }
+            final int used = UnicodeUtil.UTF16toUTF8(chars, from, length, ensureScratch(length));
+            return new BytesRef(Arrays.copyOf(scratch, used));
+        }
+
+        // Ensure scratch is large enough to hold the UTF-8 encoded bytes
+        private byte[] ensureScratch(int charLength) {
+            final int max = UnicodeUtil.maxUTF8Length(charLength);
+            if (scratch.length < max) {
+                scratch = new byte[ArrayUtil.oversize(max, Byte.BYTES)];
+            }
+            return scratch;
+        }
     }
 
     @Override
@@ -335,6 +397,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
+        values.chargeDecodedBytes(context);
         return fieldType.termsQuery(values, context);
     }
 
@@ -496,6 +559,8 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     @SuppressWarnings("rawtypes")
     public static final class BinaryValues extends AbstractCollection implements Writeable {
 
+        private static final long BYTES_REF_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+
         @Nullable
         private BytesReference valueRef;
 
@@ -503,18 +568,82 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
 
         private final Collection<?> values;
 
+        /**
+         * Heap the values take after deserialization beyond their serialized size. The serialized size is already held by the
+         * in-flight requests breaker until the request that carried them responds, so only the difference is charged.
+         */
+        private final long decodedBytesOverWire;
+
+        // guarded by this
+        private int decodedBytesHolders;
+        @Nullable
+        private CircuitBreaker decodedBytesBreaker;
+
         private BinaryValues(StreamInput in) throws IOException {
             this.valueRef = null;
             this.convert = false;
-            int ignored = in.readVInt();
+            int serializedBytes = in.readVInt();
             int ignored2 = in.readByte();
             assert ignored2 == StreamOutput.GENERIC_LIST_HEADER;
-            values = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
+            List<Object> decoded = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
+            values = decoded;
+            decodedBytesOverWire = Math.max(0L, ramBytesUsed(decoded) - serializedBytes);
         }
 
         private BinaryValues(Collection<?> values, boolean convert) {
             this.convert = convert;
             this.values = values;
+            this.decodedBytesOverWire = 0L;
+        }
+
+        private static long ramBytesUsed(List<Object> values) {
+            long bytes = RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * values.size()
+            );
+            for (Object value : values) {
+                if (value instanceof BytesRef bytesRef) {
+                    bytes += BYTES_REF_SHALLOW_SIZE + RamUsageEstimator.sizeOf(bytesRef.bytes);
+                } else {
+                    bytes += RamUsageEstimator.sizeOfObject(value, 0);
+                }
+            }
+            return bytes;
+        }
+
+        /**
+         * Charges {@link #decodedBytesOverWire} to the request breaker once per deserialized copy, held while at least one search
+         * context that built a query from it is open. With the batched query phase every shard search of a node shares one copy,
+         * so a per-context charge would count the same memory once per shard.
+         */
+        private void chargeDecodedBytes(SearchExecutionContext context) {
+            CircuitBreaker breaker = context.getCircuitBreaker();
+            if (decodedBytesOverWire == 0L || breaker == null) {
+                return;
+            }
+            synchronized (this) {
+                if (decodedBytesHolders == 0) {
+                    breaker.addEstimateBytesAndMaybeBreak(decodedBytesOverWire, ChildMemoryCircuitBreaker.CATEGORY_TERMS);
+                    decodedBytesBreaker = breaker;
+                } else {
+                    assert decodedBytesBreaker == breaker : "decoded terms shared by contexts with different breakers";
+                }
+                decodedBytesHolders++;
+            }
+            context.addQueryConstructionReleasable(Releasables.releaseOnce(this::releaseDecodedBytes));
+        }
+
+        private synchronized void releaseDecodedBytes() {
+            assert decodedBytesHolders > 0 : "decoded terms released more often than charged";
+            if (--decodedBytesHolders == 0) {
+                assert decodedBytesBreaker != null : "charged decoded terms without a breaker";
+                decodedBytesBreaker.addWithoutBreaking(-decodedBytesOverWire, ChildMemoryCircuitBreaker.CATEGORY_TERMS);
+                decodedBytesBreaker = null;
+            }
+        }
+
+        // Package-private for testing.
+        long decodedBytesOverWire() {
+            return decodedBytesOverWire;
         }
 
         private static BytesReference serialize(Collection<?> values, boolean convert) {

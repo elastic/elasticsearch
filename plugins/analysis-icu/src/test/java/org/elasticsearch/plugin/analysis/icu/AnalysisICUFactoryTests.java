@@ -42,4 +42,58 @@ public class AnalysisICUFactoryTests extends AnalysisFactoryTestCase {
         return filters;
     }
 
+    private static final String UNICODE_SET_FILTER = "[^åäöÅÄÖ]";
+
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        return Map.of(
+            "icu_normalizer",
+            settings().affects("name", "nfc", "nfkc").affects("unicode_set_filter", UNICODE_SET_FILTER),
+            "icu_folding",
+            settings().affects("unicode_set_filter", UNICODE_SET_FILTER),
+            // No rules file resolves in the contract's config directory, so rules are parsed inline. Country is only read with a
+            // language and variant only with a country, so the base has both.
+            "icu_collation",
+            settings(Map.of("language", "de", "country", "DE")).affects("rules", "&a < b")
+                .affects("language", "fr")
+                .affects("country", "CH")
+                .affects("variant", "PHONEBOOK")
+                .affects("strength", "primary")
+                .affects("decomposition", "canonical")
+                .affects("alternate", "shifted")
+                .affects("caseLevel", "true")
+                .affects("caseFirst", "upper")
+                .affects("numeric", "true")
+                .affects("variableTop", " ")
+                .affects("hiraganaQuaternaryMode", "true"),
+            "icu_transform",
+            settings().affects("id", "Any-Latin").affects("ruleset", "a > b;").affects("dir", "reverse")
+        );
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenizerSettings() {
+        // rule_files are read from the config directory, which the contract does not have; IcuAnalyzerSharingTests covers them.
+        return Map.of("icu_tokenizer", settings());
+    }
+
+    @Override
+    protected Map<String, FactorySettings> charFilterSettings() {
+        // An unrecognized mode falls back to compose.
+        return Map.of(
+            "icu_normalizer",
+            settings().affects("name", "nfc")
+                .affects("mode", "decompose")
+                .ignored("mode", "compose", "unknown")
+                .affects("unicode_set_filter", UNICODE_SET_FILTER)
+        );
+    }
+
+    @Override
+    protected Map<String, FactorySettings> analyzerSettings() {
+        return Map.of(
+            "icu_analyzer",
+            settings().affects("method", "nfc").affects("mode", "decompose").affects("unicode_set_filter", UNICODE_SET_FILTER)
+        );
+    }
 }

@@ -68,7 +68,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlo
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
@@ -462,8 +461,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         final int docCount = ctx.docCount();
         // retainValues=false: every value is encoded within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-        try (EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+        try (EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler())) {
             encoded.lockScalar(EscfColumnKind.STRING);
 
             int doc;

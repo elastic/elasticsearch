@@ -260,7 +260,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
             ),
             new UnusedStateRemover(originClient, parentTaskId),
             new EmptyStateIndexRemover(originClient, parentTaskId),
-            new UnusedStatsRemover(originClient, parentTaskId),
+            new UnusedStatsRemover(originClient, clusterService, parentTaskId),
             new ExpiredAnnotationsRemover(
                 originClient,
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
@@ -285,7 +285,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
             ),
             new UnusedStateRemover(client, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
-            new UnusedStatsRemover(client, parentTaskId),
+            new UnusedStatsRemover(client, clusterService, parentTaskId),
             new ExpiredAnnotationsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, anomalyDetectionAuditor, threadPool)
         );
     }

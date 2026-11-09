@@ -15,6 +15,8 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
 $else$
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 $endif$
 
@@ -42,8 +44,8 @@ $else$
     $Type$VectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(initialSize);
-        values = new $type$[Math.max(estimatedSize, 2)];
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+        values = new $type$[initialSize];
     }
 $endif$
 
@@ -92,6 +94,21 @@ $else$
 $endif$
     }
 
+$if(BytesRef)$
+    @Override
+    public long estimatedBytes() {
+        if (isReleased()) {
+            return 0;
+        }
+        // values accounts for itself through BigArrays so the estimatedBytes field never includes it
+        return BytesRefArrayVector.ramBytesEstimated(
+            values,
+            blockFactory.bytesRefRamOverestimateThreshold(),
+            blockFactory.bytesRefRamOverestimateFactor()
+        );
+    }
+
+$endif$
     @Override
     public $Type$Vector build() {
         finish();

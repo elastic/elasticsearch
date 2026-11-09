@@ -710,6 +710,42 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         }
     }
 
+    /**
+     * Prometheus does not distinguish sample types: the count and presence functions over a counter return one value per
+     * series, whatever other metric shares the series' labels. {@code req_total} has five samples a minute apart per pod;
+     * {@code err_total} shares the {@code p1} labels and must neither fail nor count for it. Every series of a counter
+     * has samples, so {@code absent_over_time} has no element.
+     */
+    public void testInstantOverTimeFunctionsOverACounter() throws Exception {
+        ingestCounters(QUERY_TIME);
+        assertBinopInstantValues("count_over_time(req_total[5m])", 5, 5);
+        assertBinopInstantValues("count_over_time(err_total[5m])", 5);
+        assertBinopInstantValues("present_over_time(req_total[5m])", 1, 1);
+        assertBinopInstantValues("absent_over_time(req_total[5m])");
+        assertBinopInstantValues("absent_over_time(err_total[5m])");
+        assertBinopInstantValues("sum_over_time(req_total[5m])", 100, 100);
+    }
+
+    /** Five samples a minute apart ending at {@code at}: {@code req_total} for pods p1 and p2, {@code err_total} for p1. */
+    private void ingestCounters(Instant at) throws Exception {
+        RemoteWrite.WriteRequest.Builder request = RemoteWrite.WriteRequest.newBuilder();
+        for (int i = 0; i < 5; i++) {
+            long timestamp = at.minusSeconds(60L * (4 - i)).toEpochMilli();
+            request.addTimeseries(counterSample("req_total", "p1", 10.0 * i, timestamp));
+            request.addTimeseries(counterSample("req_total", "p2", 10.0 * i, timestamp));
+            request.addTimeseries(counterSample("err_total", "p1", i, timestamp));
+        }
+        ingestTestData(request.build(), at);
+    }
+
+    private static RemoteWrite.TimeSeries counterSample(String metric, String pod, double value, long timestamp) {
+        return RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(label("__name__", metric))
+            .addLabels(label("pod", pod))
+            .addSamples(RemoteWrite.Sample.newBuilder().setValue(value).setTimestamp(timestamp).build())
+            .build();
+    }
+
     /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */
     public void testInstantFractionalKIsTruncated() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
@@ -732,6 +768,30 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
     }
 
     /**
+     * A range function over a series without a matching sample is no element: {@code rx{host="a"}} has no {@code qa}
+     * series, so neither the count nor the sum of its {@code count_over_time} has a {@code qa} element, and the count
+     * covers host a alone rather than every series the operands share.
+     */
+    public void testInstantSamplesOverNothingIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups(
+            "count by (cluster) (count_over_time(tx[5m])) - count by (cluster) (count_over_time(rx{host=\"a\"}[5m]))",
+            "cluster",
+            Map.of("prod", 1.0)
+        );
+        assertBinopInstantGroups(
+            "sum by (cluster) (count_over_time(tx[5m])) - sum by (cluster) (count_over_time(rx{host=\"a\"}[5m]))",
+            "cluster",
+            Map.of("prod", 2.0)
+        );
+        assertBinopInstantGroups(
+            "count by (cluster) (present_over_time(tx[5m])) - count by (cluster) (present_over_time(rx{host=\"a\"}[5m]))",
+            "cluster",
+            Map.of("prod", 1.0)
+        );
+    }
+
+    /**
      * A series without a partner leaves the operator's result before an enclosing aggregate sees it: host c has no
      * {@code rx{host!="c"}} partner, so {@code count by (cluster)} has no {@code qa} group rather than a count of 0.
      */
@@ -740,5 +800,16 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         String pairs = "sum by (host, cluster) (tx) / sum by (host, cluster) (rx{host!=\"c\"})";
         assertBinopInstantGroups("count by (cluster) (" + pairs + ")", "cluster", Map.of("prod", 2.0));
         assertBinopInstantValues("count(sum by (host) (tx) / sum by (host) (rx{host=~\"nope\"}))");
+    }
+
+    /**
+     * {@code absent_over_time} has an element only for a series its selector selects that has no sample: every series of
+     * {@code tx} and of {@code rx{host="a"}} has samples, and the series of the other metric, or those the matchers reject,
+     * are not selected.
+     */
+    public void testInstantAbsentOverTimeOfFusedOperandsIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("max by (cluster) (absent_over_time(tx[5m])) - max by (cluster) (absent_over_time(rx{host=\"a\"}[5m]))");
+        assertBinopInstantValues("absent_over_time(rx{host=\"a\"}[5m])");
     }
 }

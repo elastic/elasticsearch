@@ -254,6 +254,43 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     }
 
     /**
+     * Deep copy this array and return a new independent instance
+     */
+    public BytesRefArray deepCopy() {
+        final BytesRefArray copy = new BytesRefArray(size, bigArrays, lastOffset);
+        boolean success = false;
+        try {
+            long remaining = bytes.size();
+            for (int p = 0; remaining > 0; p++) {
+                final int length = (int) Math.min(remaining, bytes.pages[p].length);
+                copy.bytes.append(bytes.pages[p], 0, length);
+                remaining -= length;
+            }
+            if (intOffsets != null) {
+                copy.intOffsets = new IntOffsets(bigArrays, intOffsets.size);
+                for (long i = 0; i < intOffsets.size; i++) {
+                    copy.intOffsets.append(intOffsets.get(i));
+                }
+            }
+            if (longOffsets != null) {
+                copy.longOffsets = new LongOffsets(bigArrays, longOffsets.size);
+                for (long i = 0; i < longOffsets.size; i++) {
+                    copy.longOffsets.append(longOffsets.get(i));
+                }
+            }
+            copy.fixedLength = fixedLength;
+            copy.lastOffset = lastOffset;
+            copy.size = size;
+            success = true;
+            return copy;
+        } finally {
+            if (success == false) {
+                copy.close();
+            }
+        }
+    }
+
+    /**
      * Truncates this array to {@code newSize} elements, discarding all elements at index
      * {@code >= newSize} and rolling the byte storage back to the end of element
      * {@code newSize - 1}. Subsequent appends overwrite the discarded bytes. No-op when
@@ -348,7 +385,10 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
 
     @Override
     protected void closeInternal() {
+        fixedLength = -1;
         Releasables.close(bytes, intOffsets, longOffsets);
+        intOffsets = null;
+        longOffsets = null;
     }
 
     @Override
@@ -503,10 +543,13 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
 
         @Override
         public void close() {
+            final long bytesUsed = ramBytesUsed();
+            pages = null;
+            currentPage = null;
             for (int i = 0; i < pageCount; i++) {
                 Releasables.close(caches[i]);
             }
-            bigArrays.adjustBreaker(-ramBytesUsed(), true);
+            bigArrays.adjustBreaker(-bytesUsed, true);
         }
 
         @Override
@@ -623,10 +666,13 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
 
         @Override
         public void close() {
+            final long bytesUsed = ramBytesUsed();
+            pages = null;
+            currentPage = null;
             for (int i = 0; i < pageCount; i++) {
                 Releasables.close(caches[i]);
             }
-            bigArrays.adjustBreaker(-ramBytesUsed(), true);
+            bigArrays.adjustBreaker(-bytesUsed, true);
         }
     }
 
@@ -651,7 +697,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             this.bigArrays = bigArrays;
             PageCacheRecycler r = bigArrays.recycler();
             this.recycler = r != null ? r : PageCacheRecycler.NON_RECYCLING_INSTANCE;
-            int numPages = Math.max(1, (int) ((initialSize + PAGE_SIZE - 1) >> PAGE_SHIFT));
+            int numPages = Math.max(1, Math.toIntExact(((initialSize + PAGE_SIZE - 1) >> PAGE_SHIFT)));
             bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), false);
             this.pages = new byte[numPages][];
             this.caches = new Recycler.V<?>[numPages];
@@ -907,20 +953,27 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
 
         @Override
         public long ramBytesUsed() {
-            long used = SHALLOW_SIZE + estimateUseByPagesArray(pages.length);
-            if (pageCount > 0) {
-                used += pages[0].length;
-                used += (long) (pageCount - 1) * PAGE_SIZE;
+            long used = SHALLOW_SIZE;
+            if (pages != null) {
+                used += estimateUseByPagesArray(pages.length);
+                if (pageCount > 0) {
+                    used += pages[0].length;
+                    used += (long) (pageCount - 1) * PAGE_SIZE;
+                }
             }
             return used;
         }
 
         @Override
         public void close() {
+            final long bytesUsed = ramBytesUsed();
+            pages = null;
+            currentPage = null;
             for (int i = 0; i < pageCount; i++) {
                 Releasables.close(caches[i]);
             }
-            bigArrays.adjustBreaker(-ramBytesUsed(), true);
+            pageCount = 0;
+            bigArrays.adjustBreaker(-bytesUsed, true);
         }
     }
 

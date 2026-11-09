@@ -1,0 +1,30 @@
+area: Mapping
+breaking:
+  area: Mapping
+  details: >-
+    The `norms` mapping parameter can no longer be changed on an existing field. Previously the update mapping API allowed changing
+    `norms` from `true` to `false`, but not back. Lucene requires a field to use the same index data structures in every document of an
+    index, so once such an update was applied to a field that already had indexed documents, every new document containing that field
+    was rejected with an error such as `Inconsistency of field data structures across documents for field [title] of doc [1]. omit
+    norms: expected 'false', but it has 'true'.` The update mapping API now rejects any change to `norms`, in either direction, with an error
+    such as `Cannot update parameter [norms] from [true] to [false]`, so the mapping can no longer reach that state. This applies to the `text`, `keyword`,
+    `search_as_you_type`, `annotated_text` and `icu_collation_keyword` field types, including when they are used as multi-fields. It also
+    applies when a single update mapping request defines the same field twice, for example once as `"a.b"` and once inside
+    `"a": {"properties": {"b": ...}}`. Both definitions must now have the same `norms` value, where a definition that omits `norms` uses
+    the default. Previously such a request was accepted when the first definition had norms enabled and the second had them disabled.
+    Creating an index and applying index templates are not affected.
+  impact: >-
+    An update mapping request that changes `norms` on an existing field now fails with an HTTP 400 error, even if no document has been
+    indexed into that field yet. Before this change, disabling norms on a field without data succeeded, and disabling norms on a field
+    with data succeeded but made later indexing of that field fail. Requests that resend an existing field definition must use the same
+    `norms` value as the current mapping. Take care when the request omits `norms` and the default differs from the current value. To
+    turn off norms, set `norms` to `false` when you create the index. For a field that already has data, update the index template and
+    roll over the data stream so that only new backing indices get the change, or reindex into a new index that has `norms` set to
+    `false`.
+  notable: false
+  title: Make norms non-updatable
+issues:
+ - 161534
+pr: 161601
+summary: Make norms non-updatable
+type: breaking

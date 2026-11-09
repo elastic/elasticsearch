@@ -667,6 +667,34 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         }
     }
 
+    public void testCreateDataStreamWithNullValueInTemplateMetadata() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("x", null);
+        meta.put("y", "z");
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .metadata(meta)
+            .build();
+        final var projectId = randomProjectIdOrDefault();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
+            .build();
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(
+            metadataCreateIndexService,
+            Settings.EMPTY,
+            cs,
+            true,
+            new CreateDataStreamClusterStateUpdateRequest(projectId, dataStreamName),
+            RerouteBehavior.PERFORM_REROUTE,
+            ActionListener.noop(),
+            false
+        );
+        assertThat(newState.metadata().getProject(projectId).dataStreams().get(dataStreamName).getMetadata(), equalTo(meta));
+    }
+
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         return getMetadataCreateIndexService(getSystemIndices());
     }

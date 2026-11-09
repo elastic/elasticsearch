@@ -2815,29 +2815,29 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     public void testAbstractWarmingTaskComparison() {
-        var typesOtherThanMergeAndBCCPrewarm = Arrays.stream(Type.values()).collect(Collectors.toSet());
-        typesOtherThanMergeAndBCCPrewarm.remove(Type.INDEXING_MERGE);
-        typesOtherThanMergeAndBCCPrewarm.remove(Type.INDEXING_BCC_HEADER_PREWARM);
+        var highPriorityTypes = Set.of(Type.INDEXING_BCC_HEADER_PREWARM, Type.INDEXING_EARLY, Type.INDEXING);
+        var normalPriorityTypes = Arrays.stream(Type.values()).collect(Collectors.toSet());
+        normalPriorityTypes.remove(Type.INDEXING_MERGE);
+        normalPriorityTypes.removeAll(highPriorityTypes);
 
         var queue = new PriorityQueue<MyTask>();
 
-        var task1 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), 500);
+        var task1 = new MyTask(randomFrom(normalPriorityTypes), 500);
         queue.add(task1);
-        var task2 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(0, 499));
+        var task2 = new MyTask(randomFrom(normalPriorityTypes), randomLongBetween(0, 499));
         queue.add(task2);
-        var task3 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(501, Long.MAX_VALUE));
+        var task3 = new MyTask(randomFrom(normalPriorityTypes), randomLongBetween(501, Long.MAX_VALUE));
         queue.add(task3);
         var task4 = new MyTask(Type.INDEXING_MERGE, randomLongBetween(1, Long.MAX_VALUE));
         queue.add(task4);
         var task5 = new MyTask(Type.INDEXING_MERGE, 0);
         queue.add(task5);
         // We don't explicitly handle overflow in position.
-        var task6 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(Long.MIN_VALUE, -1));
+        var task6 = new MyTask(randomFrom(normalPriorityTypes), randomLongBetween(Long.MIN_VALUE, -1));
         queue.add(task6);
-        // BCC header prewarming sorts before everything else, even with a larger position.
-        var task7 = new MyTask(Type.INDEXING_BCC_HEADER_PREWARM, randomLongBetween(1, Long.MAX_VALUE));
+        var task7 = new MyTask(randomFrom(highPriorityTypes), randomLongBetween(1, Long.MAX_VALUE));
         queue.add(task7);
-        var task8 = new MyTask(Type.INDEXING_BCC_HEADER_PREWARM, 0);
+        var task8 = new MyTask(randomFrom(highPriorityTypes), 0);
         queue.add(task8);
 
         assertEquals(

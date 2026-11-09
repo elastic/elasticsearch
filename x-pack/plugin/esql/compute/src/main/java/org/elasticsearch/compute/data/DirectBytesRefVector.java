@@ -58,6 +58,11 @@ public final class DirectBytesRefVector extends AbstractVector implements BytesR
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        return startOffsets[getPositionCount()] - startOffsets[0];
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,6 +44,19 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     /** Let us set a minimum chunk span of 1 minute */
     private static final long MIN_CHUNK_SPAN = 60000L;
+
+    /**
+     * Burst headroom when sizing an initial ES|QL chunk: target {@link #DEFAULT_ESQL_CHUNK_DOCS} rows per chunk, which is
+     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT} divided by this factor. A wrong estimate is corrected by shrinking the
+     * chunk when a result hits the injected limit (companion stack change).
+     */
+    private static final long CHUNK_HEADROOM_FACTOR = 5L;
+
+    /**
+     * Target rows per initial ES|QL chunk when chunk span is auto. ES|QL has no scroll; oversized chunks truncate at
+     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}.
+     */
+    private static final long DEFAULT_ESQL_CHUNK_DOCS = EsqlDataExtractor.INJECTED_ROW_LIMIT / CHUNK_HEADROOM_FACTOR;
 
     private final DataExtractorFactory dataExtractorFactory;
     private final ChunkedDataExtractorContext context;
@@ -104,7 +118,10 @@ public class ChunkedDataExtractor implements DataExtractor {
             throw e;
         }
         if (dataSummary.hasData()) {
-            currentStart = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            long earliestTime = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            // ES|QL summary MIN may precede the queried window (e.g. DATE_TRUNC). Jump forward so an
+            // unbounded range skips empty chunks.
+            currentStart = context.hasEsqlQuery() ? Math.max(currentStart, earliestTime) : earliestTime;
             currentEnd = currentStart;
 
             if (context.chunkSpan() != null) {
@@ -112,6 +129,14 @@ public class ChunkedDataExtractor implements DataExtractor {
             } else if (context.hasAggregations()) {
                 // This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
                 chunkSpan = DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * context.histogramInterval();
+            } else if (context.hasEsqlQuery()) {
+                long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
+                if (timeSpread <= 0) {
+                    chunkSpan = context.end() - currentEnd;
+                } else {
+                    // Same uniform-density heuristic as DSL below: totalHits over timeSpread, target DEFAULT_ESQL_CHUNK_DOCS rows.
+                    chunkSpan = Math.max(MIN_CHUNK_SPAN, DEFAULT_ESQL_CHUNK_DOCS * timeSpread / dataSummary.totalHits());
+                }
             } else {
                 long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
                 if (timeSpread <= 0) {

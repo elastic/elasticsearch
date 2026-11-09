@@ -34,6 +34,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.LongVectorFixedBuilder;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
+import org.elasticsearch.core.Releasable;
 
 import java.util.BitSet;
 import java.util.HashMap;
@@ -41,6 +42,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A block factory that tracks the creation of blocks, vectors, builders that it creates. The
@@ -69,7 +71,27 @@ public class MockBlockFactory extends BlockFactory {
         }
     }
 
+    /**
+     * Unreleased blocks and vectors. Each one removes itself when released, through a {@link Releasable} attached in
+     * {@link #track}.
+     */
     final ConcurrentMap<IdentityKey, Object> TRACKED_BLOCKS = new ConcurrentHashMap<>();
+
+    /**
+     * Builders, which have no release callback, so released ones are found by scanning in {@link #purgeReleasedBuilders}.
+     */
+    final ConcurrentMap<IdentityKey, Object> TRACKED_BUILDERS = new ConcurrentHashMap<>();
+
+    static final int MIN_PURGE_INTERVAL = 256;
+
+    /**
+     * Calls to {@link #track} and {@link #adjustBreaker} left until the next scan of {@link #TRACKED_BUILDERS}. Scanning
+     * on every call is quadratic when a test holds many live builders. Instead, each scan waits for as many calls as there
+     * were live builders after the previous scan, which keeps the amortized cost per call constant. Closing a builder
+     * calls {@link #adjustBreaker}, so a released builder is purged within
+     * {@code max(MIN_PURGE_INTERVAL, live builders at the last scan)} calls.
+     */
+    private final AtomicInteger callsUntilPurge = new AtomicInteger(MIN_PURGE_INTERVAL);
 
     public void ensureAllBlocksAreReleased() {
 
@@ -77,12 +99,15 @@ public class MockBlockFactory extends BlockFactory {
             arrowAllocator.close();
         }
 
-        purgeTrackBlocks();
+        purgeReleasedBuilders();
         final Map<Object, Object> copy = new HashMap<>(TRACKED_BLOCKS);
+        copy.putAll(TRACKED_BUILDERS);
         // we should really assert this, but not just yet, see comment below
         // assert breaker().getUsed() > 0 : "Expected some used in breaker if tracked blocks is not empty";
         if (breaker().getUsed() == 0) {
             TRACKED_BLOCKS.clear();
+            TRACKED_BUILDERS.clear();
+            callsUntilPurge.set(MIN_PURGE_INTERVAL);
             return; // this is a hack until we get better a mock tracking.
         }
         if (copy.isEmpty() == false) {
@@ -126,55 +151,59 @@ public class MockBlockFactory extends BlockFactory {
 
     @Override
     public void adjustBreaker(final long delta) {
-        purgeTrackBlocks();
+        maybePurgeReleasedBuilders();
         super.adjustBreaker(delta);
     }
 
-    void purgeTrackBlocks() {
-        for (var entries : TRACKED_BLOCKS.entrySet()) {
-            var key = entries.getKey();
-            var b = key.object();
-            if (b instanceof Block block) {
-                if (block.isReleased()) {
-                    TRACKED_BLOCKS.remove(key);
-                }
-            } else if (b instanceof AbstractBlockBuilder blockBuilder) {
-                if (blockBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(key);
-                }
-            } else if (b instanceof IntVectorFixedBuilder vecBuilder) {
-                if (vecBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(key);
-                }
-            } else if (b instanceof LongVectorFixedBuilder vecBuilder) {
-                if (vecBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(key);
-                }
-            } else if (b instanceof DoubleVectorFixedBuilder vecBuilder) {
-                if (vecBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(key);
-                }
-            } else if (b instanceof BooleanVectorFixedBuilder vecBuilder) {
-                if (vecBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(key);
-                }
-            } else if (b instanceof AbstractVectorBuilder vecBuilder) {
-                if (vecBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(key);
-                }
-            } else if (b instanceof Vector vector) {
-                if (vector.isReleased()) {
-                    TRACKED_BLOCKS.remove(key);
-                }
-            } else {
-                throw new RuntimeException("Unexpected: " + b);
-            }
+    private void maybePurgeReleasedBuilders() {
+        // Only the call that brings the countdown to exactly zero purges, so allocation and release paths never start
+        // overlapping scans. ensureAllBlocksAreReleased purges directly, which is why purgeReleasedBuilders is synchronized.
+        if (callsUntilPurge.decrementAndGet() == 0) {
+            purgeReleasedBuilders();
         }
     }
 
+    private synchronized void purgeReleasedBuilders() {
+        try {
+            TRACKED_BUILDERS.keySet().removeIf(key -> isReleased(key.object()));
+        } finally {
+            callsUntilPurge.set(Math.max(MIN_PURGE_INTERVAL, TRACKED_BUILDERS.size()));
+        }
+    }
+
+    private static boolean isReleased(Object tracked) {
+        return switch (tracked) {
+            case Block block -> block.isReleased();
+            case AbstractBlockBuilder blockBuilder -> blockBuilder.isReleased();
+            case IntVectorFixedBuilder vecBuilder -> vecBuilder.isReleased();
+            case LongVectorFixedBuilder vecBuilder -> vecBuilder.isReleased();
+            case DoubleVectorFixedBuilder vecBuilder -> vecBuilder.isReleased();
+            case BooleanVectorFixedBuilder vecBuilder -> vecBuilder.isReleased();
+            case AbstractVectorBuilder vecBuilder -> vecBuilder.isReleased();
+            case Vector vector -> vector.isReleased();
+            default -> throw new IllegalStateException("Unexpected tracked object: " + tracked);
+        };
+    }
+
     void track(Object obj, Object trackDetail) {
-        purgeTrackBlocks();
-        TRACKED_BLOCKS.put(new IdentityKey(obj), trackDetail);
+        if (isReleased(obj)) {
+            throw new IllegalStateException("Tracking an already released object: " + obj);
+        }
+        IdentityKey key = new IdentityKey(obj);
+        switch (obj) {
+            case Block block -> {
+                TRACKED_BLOCKS.put(key, trackDetail);
+                block.attachReleasable(() -> TRACKED_BLOCKS.remove(key));
+            }
+            case Vector vector -> {
+                TRACKED_BLOCKS.put(key, trackDetail);
+                vector.attachReleasable(() -> TRACKED_BLOCKS.remove(key));
+            }
+            default -> {
+                maybePurgeReleasedBuilders();
+                TRACKED_BUILDERS.put(key, trackDetail);
+            }
+        }
     }
 
     @Override

@@ -62,18 +62,15 @@ public abstract class AbstractBlockRefCounted implements RefCounted, Releasable 
 
     /**
      * Attaches a {@link Releasable} that is invoked exactly once when this object's reference count reaches zero,
-     * immediately after {@link #closeInternal()} completes. May be called at most once; throws
-     * {@link IllegalStateException} if called after release or a second time.
+     * immediately after {@link #closeInternal()} completes. May be called more than once; releasables run in the order
+     * they were attached. Throws {@link IllegalStateException} if called after release.
      */
     public final void attachReleasable(Releasable releasable) {
         Objects.requireNonNull(releasable, "releasable must not be null");
         if (hasReferences() == false) {
             throw new IllegalStateException("can't attach releasable to already released object [" + this + "]");
         }
-        if (this.onClose != null) {
-            throw new IllegalStateException("onClose already attached to [" + this + "]");
-        }
-        this.onClose = releasable;
+        this.onClose = onClose == null ? releasable : Releasables.wrap(onClose, releasable);
     }
 
     /**

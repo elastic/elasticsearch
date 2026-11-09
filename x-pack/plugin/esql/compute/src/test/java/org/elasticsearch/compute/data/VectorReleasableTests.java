@@ -20,6 +20,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -152,12 +154,14 @@ public class VectorReleasableTests extends ESTestCase {
         assertTrue(closed[0]);
     }
 
-    /** A second attachReleasable call must throw rather than silently overwrite the first. */
-    public void testDoubleAttachThrows() {
+    /** A second attachReleasable call must run both releasables, in order, rather than overwrite the first. */
+    public void testDoubleAttachRunsBoth() {
+        List<String> order = new ArrayList<>();
         IntVector v = blockFactory.newIntArrayVector(new int[] { 1 }, 1);
-        v.attachReleasable(() -> {});
-        expectThrows(IllegalStateException.class, () -> v.attachReleasable(() -> {}));
+        v.attachReleasable(() -> order.add("first"));
+        v.attachReleasable(() -> order.add("second"));
         v.close();
+        assertThat(order, equalTo(List.of("first", "second")));
     }
 
     /** Attaching after release must throw. */

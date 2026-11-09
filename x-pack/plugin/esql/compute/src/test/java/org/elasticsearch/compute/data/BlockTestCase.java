@@ -550,10 +550,12 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         block.close();
         assertThat(releases.get(), equalTo(1));
 
+        List<String> order = new ArrayList<>();
         B doubleAttach = buildBlock(blockFactory(), mixedExpectedValues());
-        doubleAttach.attachReleasable(() -> {});
-        expectThrows(IllegalStateException.class, () -> doubleAttach.attachReleasable(() -> {}));
+        doubleAttach.attachReleasable(() -> order.add("first"));
+        doubleAttach.attachReleasable(() -> order.add("second"));
         doubleAttach.close();
+        assertThat(order, equalTo(List.of("first", "second")));
 
         B attachNull = buildBlock(blockFactory(), mixedExpectedValues());
         expectThrows(NullPointerException.class, () -> attachNull.attachReleasable(null));

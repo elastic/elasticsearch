@@ -245,8 +245,8 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
 
     /**
      * Attaches a {@link Releasable} that is invoked exactly once when this block's reference count
-     * reaches zero, immediately after its resources are released. May be called at most once; throws
-     * {@link IllegalStateException} if called after release or a second time.
+     * reaches zero, immediately after its resources are released. May be called more than once; releasables
+     * run in the order they were attached. Throws {@link IllegalStateException} if called after release.
      */
     void attachReleasable(Releasable releasable);
 

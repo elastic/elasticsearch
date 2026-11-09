@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
@@ -425,6 +426,8 @@ public class BlockAccountingTests extends ComputeTestCase {
             for (var entry : fieldValues.entrySet()) {
                 if (entry.getKey().getType().equals(BigArrays.class) || entry.getKey().getType().equals(BlockFactory.class)) {
                     // skip BigArrays, as it is (correctly) not part of the ramBytesUsed for BytesRefArray
+                } else if (entry.getKey().getType().equals(Releasable.class)) {
+                    // skip releasables attached to run on close, which belong to whoever attached them
                 } else if (o instanceof BigArray bigArray) {
                     return bigArray.ramBytesUsed();
                 } else if (o instanceof Vector vector) {

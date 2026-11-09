@@ -16,6 +16,7 @@ import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -297,8 +298,12 @@ public class SearchAfterBuilderTests extends ESTestCase {
      */
     public void testBuildFieldDocKeepsKeywordValueThatLooksLikePlaceholderMissingValue() {
         for (boolean missingLast : new boolean[] { true, false }) {
-            SortedSetSortField sortField = new SortedSetSortField("field", false);
-            sortField.setMissingValue(missingLast ? SortField.STRING_LAST : SortField.STRING_FIRST);
+            SortedSetSortField sortField = new SortedSetSortField(
+                "field",
+                false,
+                SortedSetSelector.Type.MIN,
+                missingLast ? SortField.STRING_LAST : SortField.STRING_FIRST
+            );
             SortAndFormats sortAndFormats = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
             String value = missingLast ? "Infinity" : "-Infinity";
 
@@ -316,8 +321,12 @@ public class SearchAfterBuilderTests extends ESTestCase {
      */
     public void testBuildFieldDocMapsNumericMissingValueToNullOnUnmappedField() {
         for (boolean missingLast : new boolean[] { true, false }) {
-            SortedSetSortField sortField = new SortedSetSortField("field", false);
-            sortField.setMissingValue(missingLast ? SortField.STRING_LAST : SortField.STRING_FIRST);
+            SortedSetSortField sortField = new SortedSetSortField(
+                "field",
+                false,
+                SortedSetSelector.Type.MIN,
+                missingLast ? SortField.STRING_LAST : SortField.STRING_FIRST
+            );
             SortAndFormats sortAndFormats = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
             Object[] placeholders = missingLast
                 ? new Object[] { "Infinity", Long.MAX_VALUE, Integer.MAX_VALUE, Double.POSITIVE_INFINITY, Float.POSITIVE_INFINITY }

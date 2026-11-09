@@ -99,8 +99,9 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     /**
      * @param isUnmappedField whether a sort field is unmapped in the index being searched, i.e. sorted on through the
-     *                        {@code unmapped_type} placeholder. Only then can a numeric missing value in a STRING sort stand for "no value":
-     *                        on a mapped keyword field, values such as {@code "Infinity"} are real values and must be kept as they are.
+     *                        {@code unmapped_type} placeholder. Only then can a numeric missing value in a STRING sort stand for
+     *                        "no value": on a mapped keyword field, values such as {@code "Infinity"} are real values and must be
+     *                        kept as they are.
      */
     public static FieldDoc buildFieldDoc(
         SortAndFormats sort,

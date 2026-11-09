@@ -11,6 +11,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
@@ -181,7 +183,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     /**
      * Index:
      * <ul>
-     *     <li>One document with an array of 7M one-character strings: 28MB of {@code _source}</li>
+     *     <li>One document with an array of 7M one-character strings, indexed as CBOR: 14MB of {@code _source}</li>
      * </ul>
      * Query:
      * <ul>
@@ -189,10 +191,11 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
      * </ul>
      * Expected: circuit break while the values of the array are held
      * <p>
-     * An element of 4 bytes of {@code _source} is held as a {@code String} that takes about 50, so what is held is more than the
-     * reservation of 10 times the size of {@code _source} stands for. On the 512MB heap of this suite a document of this size, with
-     * the request breaker at its default limit, killed the node before the held values were charged. The cluster allows it to be
-     * indexed, see {@link Clusters}. The document and its reservation fit under the breaker, and what is held does not.
+     * An element of 2 bytes of CBOR {@code _source} is held as a {@code String} that takes about 50, so what is held is more than the
+     * reservation of 10 times the size of {@code _source} stands for. On the 512MB heap of this suite an array of this many strings,
+     * with the request breaker at its default limit, killed the node before the held values were charged. The cluster allows the
+     * document to be indexed, see {@link Clusters}, and CBOR keeps it small enough to be indexed on a larger heap as well, see
+     * {@link #indexCborDocument}. The document and its reservation fit under the breaker, and what is held does not.
      */
     public void testArrayOfShortStringsCircuitBreaksWhileItsValuesAreHeld() throws IOException {
         String index = "load_all_short_strings";
@@ -203,8 +206,8 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     /**
      * Index:
      * <ul>
-     *     <li>One document with {@code "a.b"} and {@code "a": {"b": ...}} each an array of 3M one-character strings: 24MB of
-     *     {@code _source}</li>
+     *     <li>One document with {@code "a.b"} and {@code "a": {"b": ...}} each an array of 3M one-character strings, indexed as CBOR:
+     *     12MB of {@code _source}</li>
      * </ul>
      * Query:
      * <ul>
@@ -223,16 +226,19 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     /** One document with the array {@code a} of {@code elements} one-character strings, or two arrays that are the field {@code a.b}. */
     private void indexDocumentWithArrays(String index, int elements, boolean spelledInTwoWays) throws IOException {
         createMostlyUnmappedIndex(index);
-        String array = "[" + "\"x\",".repeat(elements - 1) + "\"x\"]";
-        StringBuilder doc = new StringBuilder(array.length() * (spelledInTwoWays ? 2 : 1) + 64);
-        doc.append("{\"create\":{}}\n{\"").append(MAPPED_FIELD).append("\":\"0\"");
-        if (spelledInTwoWays) {
-            doc.append(",\"a.b\":").append(array).append(",\"a\":{\"b\":").append(array).append('}');
-        } else {
-            doc.append(",\"a\":").append(array);
+        try (XContentBuilder doc = XContentFactory.cborBuilder()) {
+            doc.startObject().field(MAPPED_FIELD, "0");
+            if (spelledInTwoWays) {
+                arrayOfShortStrings(doc, "a.b", elements);
+                doc.startObject("a");
+                arrayOfShortStrings(doc, "b", elements);
+                doc.endObject();
+            } else {
+                arrayOfShortStrings(doc, "a", elements);
+            }
+            doc.endObject();
+            indexCborDocument(index, doc);
         }
-        doc.append("}\n");
-        bulk(index, doc.toString());
         // Everything is indexed already; this only force-merges and refreshes.
         initIndex(index, "");
     }

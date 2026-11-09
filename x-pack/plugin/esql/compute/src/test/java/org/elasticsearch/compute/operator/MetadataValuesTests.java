@@ -61,14 +61,6 @@ public class MetadataValuesTests extends ComputeTestCase {
         }
     }
 
-    public void testSharedWithNullValueKeepsCurrentList() {
-        CircuitBreaker breaker = blockFactory().breaker();
-        try (MetadataValues values = new MetadataValues(breaker, "test")) {
-            List<String> current = values.sharedList(new TreeSet<>(Set.of("a")));
-            assertThat(values.sharedWithValue(current, null), sameInstance(current));
-        }
-    }
-
     public void testUnsharedUnionKeepsListWhenNothingIsNew() {
         CircuitBreaker breaker = blockFactory().breaker();
         try (MetadataValues values = new MetadataValues(breaker, "test")) {
@@ -76,6 +68,32 @@ public class MetadataValuesTests extends ComputeTestCase {
             long charged = breaker.getUsed();
             assertThat(values.unsharedUnion(current, Set.of("b")), sameInstance(current));
             assertThat(breaker.getUsed(), equalTo(charged));
+        }
+    }
+
+    public void testUnsharedWithKnownValueKeepsListWithoutCharging() {
+        CircuitBreaker breaker = blockFactory().breaker();
+        try (MetadataValues values = new MetadataValues(breaker, "test")) {
+            List<String> current = values.unsharedUnion(List.of(), Set.of("a", "b"));
+            long charged = breaker.getUsed();
+            assertThat(values.unsharedWithValue(current, "b"), sameInstance(current));
+            assertThat(breaker.getUsed(), equalTo(charged));
+        }
+    }
+
+    public void testUnsharedWithNullValueKeepsCurrentList() {
+        CircuitBreaker breaker = blockFactory().breaker();
+        try (MetadataValues values = new MetadataValues(breaker, "test")) {
+            List<String> current = values.unsharedUnion(List.of(), Set.of("a"));
+            assertThat(values.unsharedWithValue(current, null), sameInstance(current));
+        }
+    }
+
+    public void testUnsharedWithNewValueAddsItInOrder() {
+        CircuitBreaker breaker = blockFactory().breaker();
+        try (MetadataValues values = new MetadataValues(breaker, "test")) {
+            List<String> current = values.unsharedUnion(List.of(), Set.of("a", "c"));
+            assertThat(values.unsharedWithValue(current, "b"), equalTo(List.of("a", "b", "c")));
         }
     }
 

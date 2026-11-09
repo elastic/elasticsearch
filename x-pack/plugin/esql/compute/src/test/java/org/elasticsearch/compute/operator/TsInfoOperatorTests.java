@@ -1284,10 +1284,14 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         assertChargesRetainedState(true);
     }
 
-    /** Compares the breaker charge with a lower bound of the operator's reachable state. */
+    /**
+     * Compares the breaker charge with a lower bound of the operator's reachable state. The series table is charged by
+     * {@link org.elasticsearch.common.util.BigArrays} itself, so it uses another breaker, and only the operator's own
+     * charges are compared.
+     */
     private void assertChargesRetainedState(boolean finalMode) {
         BlockFactory factory = blockFactory();
-        try (Operator op = createOperator(factory, finalMode)) {
+        try (Operator op = createOperator(new DriverContext(blockFactory().bigArrays(), factory, null), finalMode)) {
             long retainedBefore = RetainedOperatorState.bytes(op);
             long chargedBefore = factory.breaker().getUsed();
             for (int i = 0; i < 512; i++) {
@@ -1300,7 +1304,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    /** Series of one metric share its metadata, so a large value is charged once instead of once per series. */
+    /** Series of one metric reference its metadata in the mappings, so a large value is not charged once per series. */
     public void testSeriesShareMetadataValues() {
         String unit = randomAlphaOfLength(4096);
         MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> fieldName.equals("cpu_usage")
@@ -1369,7 +1373,10 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     private Operator createOperator(BlockFactory factory, boolean finalMode) {
-        DriverContext context = new DriverContext(factory.bigArrays(), factory, null);
+        return createOperator(new DriverContext(factory.bigArrays(), factory, null), finalMode);
+    }
+
+    private Operator createOperator(DriverContext context, boolean finalMode) {
         return finalMode
             ? finalFactory(TsInfoOperator.NO_LIMIT).get(context)
             : initialFactory(SIMPLE_LOOKUP, Map.of(), TsInfoOperator.DEFAULT_PARTIAL_EMIT_THRESHOLD).get(context);

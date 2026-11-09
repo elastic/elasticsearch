@@ -10,7 +10,11 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.BlockFactory;
 
 import java.lang.reflect.Field;
@@ -46,6 +50,20 @@ final class RetainedOperatorState {
                     || object instanceof BigArrays
                     || object instanceof CircuitBreaker
                     || object instanceof MetricsInfoOperator.MetricFieldLookup) {
+                    return 0;
+                }
+                // BigArrays charges these itself, outside the operator's own accounting, so they are not counted. Give the
+                // operator a BigArrays on another breaker to compare like with like. The objects an ObjectArray holds
+                // belong to the operator, so they are still measured.
+                if (object instanceof BigArray || object instanceof BytesRefHash || object instanceof LongLongHash) {
+                    if (object instanceof ObjectArray<?> array) {
+                        for (long i = 0; i < array.size(); i++) {
+                            Object value = array.get(i);
+                            if (value != null) {
+                                queue.add(value);
+                            }
+                        }
+                    }
                     return 0;
                 }
                 return super.accumulateObject(object, shallowSize, fieldValues, queue);

@@ -21,14 +21,16 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * Names and value lists for {@link MetricsInfoOperator} and {@link TsInfoOperator}, charged to the breaker.
+ * Names and value lists for {@link MetricsInfoOperator} and the FINAL mode of {@link TsInfoOperator}, charged to the
+ * breaker.
  * <p>
- * Metric names, index abstraction names, dimension names and metadata lists repeat across many entries of these
- * operators. Each distinct string and each distinct shared list is kept once and charged once. Shared lists are
- * immutable, so entries replace them rather than mutate them.
+ * Names and metadata lists repeat across many entries of these operators. Each distinct string and each distinct
+ * shared list is kept once and charged once. Shared lists are immutable, so entries replace them rather than mutate
+ * them.
  * <p>
  * Lists that keep growing, like dimension keys merged from many documents, come from {@link #unsharedUnion} instead.
- * Sharing them would keep every intermediate version alive. All lists are sorted and hold canonical strings.
+ * So do lists of an operator with few entries, where sharing saves little. Sharing a growing list would keep every
+ * intermediate version alive. All lists are sorted and hold canonical strings.
  * <p>
  * Not thread-safe. Owned by one operator, which closes it to release the bytes charged here.
  */
@@ -82,16 +84,6 @@ final class MetadataValues implements Releasable {
         return shared;
     }
 
-    /** Returns the shared list of {@code current} plus {@code value}. A null value adds nothing. */
-    List<String> sharedWithValue(List<String> current, String value) {
-        if (value == null || Collections.binarySearch(current, value) >= 0) {
-            return current;
-        }
-        SortedSet<String> merged = new TreeSet<>(current);
-        merged.add(value);
-        return sharedList(merged);
-    }
-
     /** Returns the shared union of two shared lists. */
     List<String> sharedUnion(List<String> current, List<String> added) {
         if (current == added || added.isEmpty()) {
@@ -135,6 +127,14 @@ final class MetadataValues implements Releasable {
         return List.copyOf(merged);
     }
 
+    /** Returns {@code current} plus {@code value} as a list owned by one entry. A null or known value returns {@code current}. */
+    List<String> unsharedWithValue(List<String> current, String value) {
+        if (value == null || Collections.binarySearch(current, value) >= 0) {
+            return current;
+        }
+        return unsharedUnion(current, List.of(value));
+    }
+
     private List<String> canonicalCopy(SortedSet<String> values) {
         String[] canonical = new String[values.size()];
         int i = 0;
@@ -145,7 +145,7 @@ final class MetadataValues implements Releasable {
     }
 
     /** Bytes of an immutable list of {@code size} references, excluding the strings, which are charged once. */
-    private static long listBytes(int size) {
+    static long listBytes(int size) {
         return LIST_SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(
             RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * RamUsageEstimator.NUM_BYTES_OBJECT_REF
         );

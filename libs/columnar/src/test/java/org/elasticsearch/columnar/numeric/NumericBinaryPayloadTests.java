@@ -98,7 +98,8 @@ public class NumericBinaryPayloadTests extends ESTestCase {
     }
 
     private static List<Long> randomSlots() {
-        final int count = between(0, 70);
+        // Up to a few words of null bitmap, so slots land on both sides of word boundaries.
+        final int count = between(0, 200);
         final List<Long> slots = new ArrayList<>(count);
         final boolean withNulls = randomBoolean();
         for (int i = 0; i < count; i++) {

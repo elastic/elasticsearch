@@ -12,20 +12,21 @@ package org.elasticsearch.columnar.numeric;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 
 /**
  * Wire format for a document's numeric slots in a {@code BinaryDocValues} payload:
  *
  * <pre>
  * [vint slotCount][vint nullCount]
- * [ceil(slotCount / 8) bytes]            a bitmap of the null slots, only when nullCount &gt; 0
+ * [ceil(slotCount / 64) x 8 bytes]       the null slots, the words of a {@link FixedBitSet} as little-endian longs,
+ *                                        only when nullCount &gt; 0
  * (slotCount - nullCount) x [8 bytes]    the non-null values, little-endian longs, in slot order
  * </pre>
  *
@@ -34,7 +35,8 @@ import java.util.Arrays;
  * without the field: that writes no payload at all.
  *
  * <p>The payload only carries values between the mapper and the codec, and back out of the codec's
- * {@code binaryValue()}: the column stores the values themselves, never the payload.
+ * {@code binaryValue()}: the column stores the values themselves, never the payload. So the null bitmap is laid out
+ * as whole words, which a {@link FixedBitSet} reads and writes as they are, rather than packed into bytes.
  */
 public final class NumericBinaryPayload {
 
@@ -43,8 +45,25 @@ public final class NumericBinaryPayload {
 
     private NumericBinaryPayload() {}
 
-    private static int bitmapLength(int slotCount) {
-        return (slotCount + Byte.SIZE - 1) / Byte.SIZE;
+    /** The number of bytes the null bitmap of a payload with {@code slotCount} slots and {@code nullCount} nulls takes. */
+    private static int bitmapLength(int slotCount, int nullCount) {
+        return nullCount > 0 ? FixedBitSet.bits2words(slotCount) * Long.BYTES : 0;
+    }
+
+    /** Writes {@code src[0..count)} as little-endian longs at {@code pos}, returning the position after them. */
+    private static int writeLongs(long[] src, int count, byte[] dst, int pos) {
+        for (int i = 0; i < count; i++) {
+            LONG.set(dst, pos, src[i]);
+            pos += Long.BYTES;
+        }
+        return pos;
+    }
+
+    /** Reads {@code count} little-endian longs at {@code pos} into {@code dst[0..count)}. */
+    private static void readLongs(byte[] src, int pos, long[] dst, int count) {
+        for (int i = 0; i < count; i++) {
+            dst[i] = (long) LONG.get(src, pos + i * Long.BYTES);
+        }
     }
 
     /**
@@ -53,7 +72,8 @@ public final class NumericBinaryPayload {
      */
     public static final class Builder {
         private long[] values = new long[8];
-        private byte[] nullBits = new byte[1];
+        /** Which slots are null; holds no bit at or past {@link #slotCount}. */
+        private FixedBitSet nullSlots = new FixedBitSet(Long.SIZE);
         private int slotCount;
         private int nullCount;
         private final BytesRefBuilder out = new BytesRefBuilder();
@@ -64,23 +84,15 @@ public final class NumericBinaryPayload {
                 values = ArrayUtil.grow(values);
             }
             values[slotCount - nullCount] = value;
-            growNullBits();
             slotCount++;
         }
 
         /** Appends a null slot. */
         public void addNull() {
-            growNullBits();
-            nullBits[slotCount >>> 3] |= (byte) (1 << (slotCount & 7));
+            nullSlots = FixedBitSet.ensureCapacity(nullSlots, slotCount);
+            nullSlots.set(slotCount);
             slotCount++;
             nullCount++;
-        }
-
-        private void growNullBits() {
-            if ((slotCount >>> 3) >= nullBits.length) {
-                // The grown tail is zeroed, so new slots start out non-null.
-                nullBits = ArrayUtil.grow(nullBits, (slotCount >>> 3) + 1);
-            }
         }
 
         /**
@@ -108,24 +120,26 @@ public final class NumericBinaryPayload {
          */
         public BytesRef build() {
             final int valueCount = slotCount - nullCount;
-            final int bitmapLength = nullCount > 0 ? bitmapLength(slotCount) : 0;
+            final int bitmapLength = bitmapLength(slotCount, nullCount);
+            if (bitmapLength > 0) {
+                // The bitmap covers every slot, including values appended after the last null, which didn't grow it.
+                nullSlots = FixedBitSet.ensureCapacity(nullSlots, slotCount);
+            }
             out.grow(2 * ByteArrayInts.MAX_VINT_BYTES + bitmapLength + valueCount * Long.BYTES);
             final byte[] bytes = out.bytes();
             int pos = ByteArrayInts.writeVInt(slotCount, bytes, 0);
             pos += ByteArrayInts.writeVInt(nullCount, bytes, pos);
-            System.arraycopy(nullBits, 0, bytes, pos, bitmapLength);
-            pos += bitmapLength;
-            for (int i = 0; i < valueCount; i++) {
-                LONG.set(bytes, pos, values[i]);
-                pos += Long.BYTES;
-            }
+            pos = writeLongs(nullSlots.getBits(), bitmapLength / Long.BYTES, bytes, pos);
+            pos = writeLongs(values, valueCount, bytes, pos);
             out.setLength(pos);
             return out.get();
         }
 
         /** Empties the builder for the next document. */
         public void reset() {
-            Arrays.fill(nullBits, 0, Math.min(nullBits.length, bitmapLength(slotCount)), (byte) 0);
+            if (nullCount > 0) {
+                nullSlots.clear();
+            }
             slotCount = 0;
             nullCount = 0;
         }
@@ -139,7 +153,8 @@ public final class NumericBinaryPayload {
      */
     public static final class Decoder {
         private byte[] bytes;
-        private int bitmapOffset;
+        /** The current payload's null slots, read in by {@link #reset} when it has any; bits past its slots are stale. */
+        private FixedBitSet nullSlots = new FixedBitSet(Long.SIZE);
         private int valueOffset;
         private int slotCount;
         private int nullCount;
@@ -158,8 +173,12 @@ public final class NumericBinaryPayload {
             bytes = payload.bytes;
             slotCount = ByteArrayInts.readVInt(bytes, pos);
             nullCount = ByteArrayInts.readVInt(bytes, pos);
-            bitmapOffset = pos[0];
-            valueOffset = bitmapOffset + (nullCount > 0 ? bitmapLength(slotCount) : 0);
+            final int bitmapLength = bitmapLength(slotCount, nullCount);
+            if (bitmapLength > 0) {
+                nullSlots = FixedBitSet.ensureCapacity(nullSlots, slotCount);
+                readLongs(bytes, pos[0], nullSlots.getBits(), bitmapLength / Long.BYTES);
+            }
+            valueOffset = pos[0] + bitmapLength;
             slot = 0;
             value = 0;
             return slotCount;
@@ -184,16 +203,14 @@ public final class NumericBinaryPayload {
             if (valueBuffer.length < count) {
                 valueBuffer = new long[ArrayUtil.oversize(count, Long.BYTES)];
             }
-            for (int i = 0; i < count; i++) {
-                valueBuffer[i] = (long) LONG.get(bytes, valueOffset + i * Long.BYTES);
-            }
+            readLongs(bytes, valueOffset, valueBuffer, count);
             return valueBuffer;
         }
 
         /** Whether the next slot {@link #nextValue()} would read is null; advances past it if so. */
         public boolean nextIsNull() {
             assert slot < slotCount : "read past the last slot";
-            if (nullCount > 0 && (bytes[bitmapOffset + (slot >>> 3)] & (1 << (slot & 7))) != 0) {
+            if (nullCount > 0 && nullSlots.get(slot)) {
                 slot++;
                 return true;
             }

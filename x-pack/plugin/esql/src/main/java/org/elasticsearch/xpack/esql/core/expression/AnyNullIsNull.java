@@ -34,6 +34,10 @@ public interface AnyNullIsNull {
      * Folds the foldable arguments of an {@link AnyNullIsNull} expression, so it can fold to {@code null} if any of
      * them is {@code null}, even if they aren't {@code null} literals yet (like {@code CASE(false, 1)} or {@code 1/0}).
      * Arguments that aren't foldable, like options maps, are kept as they are.
+     * <p>
+     * All foldable arguments are folded, even after one folds to {@code null}, so their warnings don't depend on
+     * the order of the arguments.
+     * </p>
      *
      * @return {@code null} if any argument folds to {@code null};
      *         a copy of the expression with its foldable arguments replaced by their folded {@link Literal}s;
@@ -43,17 +47,19 @@ public interface AnyNullIsNull {
         List<Expression> arguments = expression.children();
         List<Expression> foldedArguments = new ArrayList<>(arguments.size());
         boolean changed = false;
+        boolean anyNull = false;
         for (Expression argument : arguments) {
             if (argument.foldable() == false) {
                 foldedArguments.add(argument);
                 continue;
             }
             Literal folded = Literal.of(ctx, argument);
-            if (folded.value() == null) {
-                return null;
-            }
+            anyNull |= folded.value() == null;
             changed |= folded != argument;
             foldedArguments.add(folded);
+        }
+        if (anyNull) {
+            return null;
         }
         return changed ? expression.replaceChildren(foldedArguments) : expression;
     }

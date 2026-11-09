@@ -144,6 +144,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -435,6 +436,15 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
 
         @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            super.collectFieldBuilders(parentPath, consumer);
+            String fullPath = fullPath(parentPath);
+            for (FieldMapper.Builder propertyBuilder : properties.getValue().values()) {
+                propertyBuilder.collectFieldBuilders(fullPath, consumer);
+            }
+        }
+
+        @Override
         public void normalize(MapperBuilderContext context) {
             super.normalize(context);
             MapperBuilderContext childContext = context.createChildContext(leafName(), null);
@@ -445,7 +455,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         /**
          * The {@code properties} parameter is never serialized with the others, so that its block follows the
-         * multi-fields, as {@link FlattenedFieldMapper#doXContentBody} writes it.
+         * multi-fields.
          */
         @Override
         protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
@@ -2285,18 +2295,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      */
     public void indexValueAtPath(DocumentParserContext context, String path) throws IOException {
         fieldParser.indexValueAtPath(context, arrayContext(context), path);
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder xContentBuilder, Params params) throws IOException {
-        super.doXContentBody(xContentBuilder, params);
-        if (mappedSubFields.isEmpty() == false) {
-            xContentBuilder.startObject("properties");
-            for (Map.Entry<String, FieldMapper> entry : mappedSubFields.entrySet()) {
-                entry.getValue().toXContent(xContentBuilder, params);
-            }
-            xContentBuilder.endObject();
-        }
     }
 
     @Override

@@ -833,8 +833,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             Set<IndexMode> indexModes
         ) {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
-            Set<String> localIndexNames = new HashSet<>();
             for (Map.Entry<String, Response> responseEntry : remoteResponses.entrySet()) {
+                Set<String> localIndexNames = new HashSet<>();
                 String clusterAlias = responseEntry.getKey();
                 Response response = responseEntry.getValue();
                 for (ResolvedIndex index : response.indices) {

@@ -471,3 +471,8 @@ tests:
   - :x-pack:plugin:encryption:internalClusterTest
   method: testRotationCycleWithNoHandlers
   issue: https://github.com/elastic/elasticsearch/issues/165098
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  tasks:
+  - :server:internalClusterTest
+  method: testKnnRetriever
+  issue: https://github.com/elastic/elasticsearch/issues/165103

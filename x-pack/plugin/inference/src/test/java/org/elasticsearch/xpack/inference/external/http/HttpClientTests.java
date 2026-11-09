@@ -38,6 +38,7 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -127,6 +128,118 @@ public class HttpClientTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequest().getUri().getPath()));
             assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+        }
+    }
+
+    /**
+     * The Apache client must not retry on its own: retries belong to {@code RetryingHttpSender}. Its default strategy would retry a
+     * 429 or 503 after sleeping for the server's {@code Retry-After} (hours for an exhausted quota), hiding the response from ES,
+     * re-sending the request after the caller gave up and keeping the pooled connection leased throughout. A successful response is
+     * queued behind the error so that any client-side retry would surface as a 200 and a second request.
+     */
+    public void testSend_RetryableStatusIsReturnedWithoutClientRetry() throws Exception {
+        int responseCode = randomFrom(429, 503);
+        String retryAfter = randomBoolean() ? null : Long.toString(randomLongBetween(1, TimeValue.timeValueHours(6).seconds()));
+        webServer.enqueue(createRetryableErrorResponse(responseCode, retryAfter));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+
+        var connectionManager = createConnectionManager();
+        try (
+            var httpClient = HttpClient.create(
+                emptyHttpSettings(),
+                threadPool,
+                connectionManager,
+                mockThrottlerManager(),
+                new TestCircuitBreaker()
+            )
+        ) {
+            httpClient.start();
+
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            httpClient.send(createHttpPost(webServer.getPort(), "a", "b"), HttpClientContext.create(), listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.response().getCode(), equalTo(responseCode));
+            if (retryAfter != null) {
+                assertThat(result.response().getFirstHeader(HttpHeaders.RETRY_AFTER).getValue(), equalTo(retryAfter));
+            }
+            assertThat(webServer.requests(), hasSize(1));
+            assertBusy(() -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(0)));
+        }
+    }
+
+    /**
+     * Same as {@link #testSend_RetryableStatusIsReturnedWithoutClientRetry()} for the streaming path used by chat completions.
+     */
+    public void testStream_RetryableStatusIsReturnedWithoutClientRetry() throws Exception {
+        int responseCode = randomFrom(429, 503);
+        String retryAfter = randomBoolean() ? null : Long.toString(randomLongBetween(1, TimeValue.timeValueHours(6).seconds()));
+        webServer.enqueue(createRetryableErrorResponse(responseCode, retryAfter));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+
+        try (
+            var httpClient = HttpClient.create(
+                emptyHttpSettings(),
+                threadPool,
+                createConnectionManager(),
+                mockThrottlerManager(),
+                new TestCircuitBreaker()
+            )
+        ) {
+            httpClient.start();
+
+            PlainActionFuture<StreamingHttpResult> listener = new PlainActionFuture<>();
+            httpClient.stream(createHttpPost(webServer.getPort(), "a", "b"), HttpClientContext.create(), listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.response().getCode(), equalTo(responseCode));
+            assertThat(webServer.requests(), hasSize(1));
+        }
+    }
+
+    private static MockResponse createRetryableErrorResponse(int responseCode, @Nullable String retryAfter) {
+        var response = new MockResponse().setResponseCode(responseCode).setBody("{\"error\":{\"message\":\"rate limit exceeded\"}}");
+        if (retryAfter != null) {
+            response.addHeader(HttpHeaders.RETRY_AFTER, retryAfter);
+        }
+        return response;
+    }
+
+    /**
+     * The 4.x client sent a {@code Content-Length} header for requests with a byte array body. Some third-party services (and
+     * proxies in front of them) require it and reject chunked bodies, so make sure the 5.x client keeps sending it.
+     */
+    public void testSend_SetsContentLengthHeaderAndDoesNotUseChunkedEncoding() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+
+        var body = randomAlphaOfLengthBetween(1, 8096).getBytes(StandardCharsets.UTF_8);
+        var uri = new URIBuilder().setScheme("http").setHost("localhost").setPort(webServer.getPort()).setPath("/path").build();
+        var httpRequest = new HttpRequest(
+            SimpleRequestBuilder.post(uri).setBody(body, ContentType.APPLICATION_JSON).build(),
+            "inferenceEntityId"
+        );
+
+        try (
+            var httpClient = HttpClient.create(
+                emptyHttpSettings(),
+                threadPool,
+                createConnectionManager(),
+                mockThrottlerManager(),
+                new TestCircuitBreaker()
+            )
+        ) {
+            httpClient.start();
+
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            httpClient.send(httpRequest, HttpClientContext.create(), listener);
+            listener.actionGet(TIMEOUT);
+
+            assertThat(webServer.requests(), hasSize(1));
+            var request = webServer.requests().get(0);
+            assertThat(request.getHeader(HttpHeaders.CONTENT_LENGTH), equalTo(String.valueOf(body.length)));
+            assertThat(request.getHeader(HttpHeaders.TRANSFER_ENCODING), is((String) null));
         }
     }
 

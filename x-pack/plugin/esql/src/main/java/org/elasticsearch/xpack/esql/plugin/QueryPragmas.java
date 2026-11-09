@@ -76,6 +76,10 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
+    public static final Setting<Boolean> TIME_SERIES_SINGLE_PASS = Setting.boolSetting("time_series_single_pass", true);
+
+    public static final Setting<Boolean> TIME_SERIES_REDUCE_PER_INDEX = Setting.boolSetting("time_series_reduce_per_index", false);
+
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
@@ -157,6 +161,13 @@ public final class QueryPragmas implements Writeable {
      * checks use this as the hard ceiling.
      */
     public static final int MAX_BRANCH_COUNT_PER_MERGE_MAX = 20;
+
+    /**
+     * Fixed ceiling on the leaf branches of a parsed plan, so that nested FORKs cannot blow up the plan before analysis. It is well above
+     * the default {@link #MAX_BRANCH_COUNT}, which is enforced after the logical optimizer prunes empty branches. A configured
+     * {@code max_branch_count} above this value has no effect on queries that exceed it at parse time.
+     */
+    public static final int MAX_PARSED_BRANCH_COUNT = 128;
 
     /**
      * Cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL {@code or}
@@ -279,8 +290,9 @@ public final class QueryPragmas implements Writeable {
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
-        SINGLE_NODE_OPTIMIZATIONS
-
+        SINGLE_NODE_OPTIMIZATIONS,
+        TIME_SERIES_SINGLE_PASS,
+        TIME_SERIES_REDUCE_PER_INDEX
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -385,6 +397,20 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Returns true if time-series single pass aggregation can be enabled when possible
+     */
+    public boolean timeSeriesSinglePass() {
+        return TIME_SERIES_SINGLE_PASS.get(settings);
+    }
+
+    /**
+     * Returns the query-level value when explicitly configured, or the cluster-level value otherwise.
+     */
+    public boolean timeSeriesReducePerIndex(boolean clusterDefault) {
+        return settings.hasValue(TIME_SERIES_REDUCE_PER_INDEX.getKey()) ? TIME_SERIES_REDUCE_PER_INDEX.get(settings) : clusterDefault;
+    }
+
+    /**
      * Disable or enable the single node optimizations in case the query executes against a single node
      */
     public boolean singleNodeOptimizations() {
@@ -452,6 +478,15 @@ public final class QueryPragmas implements Writeable {
      */
     public int maxCommandCount(int clusterDefault) {
         return settings.hasValue(MAX_COMMAND_COUNT.getKey()) ? MAX_COMMAND_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxCommandCount(int)}, used in verification messages.
+     */
+    public String maxCommandCountLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey())
+            ? "[" + MAX_COMMAND_COUNT.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
     }
 
     /**

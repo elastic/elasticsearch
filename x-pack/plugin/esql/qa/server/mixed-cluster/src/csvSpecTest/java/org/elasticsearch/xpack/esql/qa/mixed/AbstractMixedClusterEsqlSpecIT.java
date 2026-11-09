@@ -148,6 +148,13 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
             testCase.missingCapabilitiesRemoteCluster.isEmpty()
         );
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
+        // PromQL increase(expression) can disagree on values/timestamps across BWC even when both
+        // sides advertise the same rate/time-bucket capabilities (#164423). Skip until cross-version
+        // window semantics are aligned; same-version mixed clusters still run the expectation.
+        assumeFalse(
+            "k8s-timeseries-increase.increase_of_expression_promql is not stable across mixed-cluster BWC versions",
+            slicesSupportedOnBwcNode() == false && testName.contains("increase_of_expression_promql")
+        );
     }
 
     @Override

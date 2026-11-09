@@ -221,6 +221,20 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return this;
         }
 
+        /**
+         * Set model configuration inferred from a document.
+         *
+         * @throws IllegalArgumentException if the settings conflict with those already set
+         */
+        public void inferModelSettings(EndpointClusterState value) {
+            if (modelSettings.isSet()) {
+                Conflicts conflicts = new Conflicts(leafName());
+                canMergeModelSettings(modelSettings.getValue(), value, conflicts);
+                conflicts.check();
+            }
+            setModelSettings(value);
+        }
+
         public Builder setChunkingSettings(ChunkingSettings value) {
             this.chunkingSettings.setValue(value);
             return this;
@@ -926,15 +940,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             try {
                 conflicts.check();
             } catch (Exception exc) {
-                throw new DocumentParsingException(
-                    xContentLocation,
-                    "Incompatible model settings for field ["
-                        + fullPath()
-                        + "]. Check that the "
-                        + INFERENCE_ID_FIELD
-                        + " is not using different model settings",
-                    exc
-                );
+                throw incompatibleModelSettings(xContentLocation, exc);
             }
             mapper = this;
         }
@@ -1006,14 +1012,31 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
     }
 
+    private DocumentParsingException incompatibleModelSettings(XContentLocation location, Exception cause) {
+        return new DocumentParsingException(
+            location,
+            "Incompatible model settings for field ["
+                + fullPath()
+                + "]. Check that the "
+                + INFERENCE_ID_FIELD
+                + " is not using different model settings",
+            cause
+        );
+    }
+
     protected SemanticFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
         context.path().remove();
         try {
-            Builder update = (Builder) context.updateMapping(
-                fullPath(),
-                builder -> ((Builder) builder).setInferenceId(field.inference().inferenceId())
-                    .setModelSettings(field.inference().modelSettings())
-            );
+            Builder update;
+            try {
+                update = (Builder) context.updateMapping(
+                    fullPath(),
+                    builder -> ((Builder) builder).setInferenceId(field.inference().inferenceId())
+                        .inferModelSettings(field.inference().modelSettings())
+                );
+            } catch (IllegalArgumentException exc) {
+                throw incompatibleModelSettings(context.parser().getTokenLocation(), exc);
+            }
             if (context.mappingLookup().isMultiField(fullPath())) {
                 var fieldName = context.path().remove();
                 try {

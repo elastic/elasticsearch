@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -80,6 +81,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
@@ -784,6 +786,52 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             assertSemanticField(mapperService, fieldName, true, sparseModelSettings, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId);
         }
+    }
+
+    /**
+     * In the legacy format a document carries the inference results in the field, and each of them tells a field that has no model
+     * settings what its model settings are. They must agree before any of them is fixed in the mapping.
+     */
+    public void testConflictingModelSettingsInOneDocumentAreRejected() throws IOException {
+        assumeTrue("only the legacy format carries the inference results in the field", useLegacyFormat);
+        final String fieldName = "semantic";
+        final String inferenceId = "test_service";
+        MapperService mapperService = createSemanticMapperService(semanticMapping(fieldName, inferenceId));
+        EndpointClusterState threeDimensions = new EndpointClusterState(
+            "test_service",
+            TaskType.TEXT_EMBEDDING,
+            3,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        EndpointClusterState fourDimensions = new EndpointClusterState(
+            "test_service",
+            TaskType.TEXT_EMBEDDING,
+            4,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        SemanticTextField first = randomSemanticText(
+            true,
+            fieldName,
+            modelFromSettings(inferenceId, threeDimensions),
+            null,
+            List.of("a"),
+            XContentType.JSON
+        );
+        SemanticTextField second = randomSemanticText(
+            true,
+            fieldName,
+            modelFromSettings(inferenceId, fourDimensions),
+            null,
+            List.of("b"),
+            XContentType.JSON
+        );
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startArray(fieldName).value(first).value(second).endArray();
+        SourceToParse source = new SourceToParse("test", BytesReference.bytes(builder.endObject()), XContentType.JSON);
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapperService.documentMapper().parse(source));
+        assertThat(e.getCause().getMessage(), containsString("Incompatible model settings for field [" + fieldName + "]"));
     }
 
     public void testUpdateModelSettings() throws IOException {

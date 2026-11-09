@@ -99,7 +99,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Setting.Property.NodeScope
     );
 
-<<<<<<< HEAD
+    <<<<<<<HEAD
     /// how long the source waits for the prewarm to finish before acquiring permits
     public static final Setting<TimeValue> PREWARM_WAIT_TIMEOUT_SETTING = Setting.timeSetting(
         "stateless.cluster.primary_relocation.prewarm_wait_timeout",
@@ -175,8 +175,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING, value -> this.preFlushSlowUploadQueueThreshold = value);
-        clusterService.getClusterSettings()
-            .initializeAndWatch(PREWARM_WAIT_TIMEOUT_SETTING, value -> this.prewarmWaitTimeout = value);
+        clusterService.getClusterSettings().initializeAndWatch(PREWARM_WAIT_TIMEOUT_SETTING, value -> this.prewarmWaitTimeout = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING, value -> this.transferHollowCommitMetadata = value);
     }

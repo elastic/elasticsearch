@@ -184,7 +184,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         // Sharing a cutoff only helps when more than one leaf can search.
         final SharedMinCompetitiveScore sharedScore = leavesWithField > 1 ? new SharedMinCompetitiveScore() : null;
-        final int maxLeafBudget = IvfSegmentConfig.leafCollectorBudget(k, maxRescoreOversampleAcrossLeaves);
+        final int maxLeafBudget = leafCollectorBudget(maxRescoreOversampleAcrossLeaves);
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (int i = 0; i < leafReaderContexts.size(); i++) {
@@ -199,9 +199,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             }
 
             // A leaf's cutoff is only safe to share if at least mergeK unique docs score above it. Overspill duplicates can fill
-            // half a queue, so only leaves with the largest budget guarantee that. A smaller leaf's cutoff would make other leaves
+            // part of a queue, so only leaves with the largest budget guarantee that. A smaller leaf's cutoff would make other leaves
             // drop docs that belong in the merged top mergeK, so those leaves only read the shared cutoff.
-            int leafBudget = IvfSegmentConfig.leafCollectorBudget(k, resolved.rescoreOversample());
+            int leafBudget = leafCollectorBudget(resolved.rescoreOversample());
             SharedMinCompetitiveScore leafSharedScore = sharedScore == null || leafBudget >= maxLeafBudget
                 ? sharedScore
                 : sharedScore.readOnly();
@@ -418,6 +418,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
         return new IVFCollectorManager(k, sharedScore);
+    }
+
+    /** Per-leaf collector size for a segment with the given rescore oversample. */
+    int leafCollectorBudget(float segmentOversample) {
+        return IvfSegmentConfig.leafCollectorBudget(k, segmentOversample);
     }
 
     @Override

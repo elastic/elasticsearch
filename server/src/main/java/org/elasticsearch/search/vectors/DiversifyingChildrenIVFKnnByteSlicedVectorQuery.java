@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 
 import java.util.Objects;
 
@@ -71,6 +72,12 @@ public class DiversifyingChildrenIVFKnnByteSlicedVectorQuery extends IVFKnnByteS
     @Override
     protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
         return new DiversifiedIVFKnnCollectorManager(k, sharedScore, parentsFilter);
+    }
+
+    @Override
+    int leafCollectorBudget(float segmentOversample) {
+        // The parent-keyed heap absorbs overspill duplicates, so no extra headroom is needed.
+        return IvfSegmentConfig.shardMergeBudget(k, segmentOversample);
     }
 
     @Override

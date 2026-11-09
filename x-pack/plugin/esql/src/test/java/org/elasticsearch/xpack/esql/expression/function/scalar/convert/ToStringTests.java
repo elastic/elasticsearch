@@ -167,16 +167,18 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         );
         TestCaseSupplier.forUnaryStrings(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
         TestCaseSupplier.forUnaryFlattened(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
-        // A typed label container is already its JSON display form.
-        suppliers.add(new TestCaseSupplier("_timeseries", List.of(DataType.TSMD_DATA_TYPE), () -> {
-            BytesRef labels = new BytesRef("{\"job\":\"api\",\"pod\":\"a\"}");
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(labels, DataType.TSMD_DATA_TYPE, "labels")),
-                read,
-                DataType.KEYWORD,
-                is(labels)
-            );
-        }));
+        if (DataType.TSMD_DATA_TYPE.supportedVersion().supportedLocally()) {
+            // A typed label container is already its JSON display form.
+            suppliers.add(new TestCaseSupplier("_timeseries", List.of(DataType.TSMD_DATA_TYPE), () -> {
+                BytesRef labels = new BytesRef("{\"job\":\"api\",\"pod\":\"a\"}");
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(labels, DataType.TSMD_DATA_TYPE, "labels")),
+                    read,
+                    DataType.KEYWORD,
+                    is(labels)
+                );
+            }));
+        }
         TestCaseSupplier.forUnaryVersion(
             suppliers,
             "ToStringFromVersionEvaluator[version=" + read + "]",

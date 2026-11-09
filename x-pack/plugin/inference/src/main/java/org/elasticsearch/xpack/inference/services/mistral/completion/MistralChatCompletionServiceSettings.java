@@ -22,9 +22,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MODEL_FIELD;
+import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.REASONING_EFFORT_FIELD;
 
 /**
  * Represents the settings for the Mistral chat completion service.
@@ -36,8 +38,14 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
         "ml_inference_mistral_chat_completion_added"
     );
 
+    private static final TransportVersion MISTRAL_REASONING_EFFORT_ADDED = TransportVersion.fromName(
+        "inference_api_mistral_reasoning_effort"
+    );
+
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
+    @Nullable
+    private final String reasoningEffort;
 
     // default for Mistral is 5 requests / sec
     // setting this to 240 (4 requests / sec) is a sane default for us
@@ -48,10 +56,11 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
 
         var modelId = extractRequiredString(map, MODEL_FIELD, SERVICE_SETTINGS, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
+        var reasoningEffort = extractOptionalString(map, REASONING_EFFORT_FIELD, SERVICE_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new MistralChatCompletionServiceSettings(modelId, rateLimitSettings);
+        return new MistralChatCompletionServiceSettings(modelId, rateLimitSettings, reasoningEffort);
     }
 
     @Override
@@ -67,17 +76,27 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
 
         validationException.throwIfValidationErrorsExist();
 
-        return new MistralChatCompletionServiceSettings(this.modelId, extractedRateLimitSettings);
+        return new MistralChatCompletionServiceSettings(this.modelId, extractedRateLimitSettings, this.reasoningEffort);
     }
 
     public MistralChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.rateLimitSettings = new RateLimitSettings(in);
+        this.reasoningEffort = in.getTransportVersion().supports(MISTRAL_REASONING_EFFORT_ADDED) ? in.readOptionalString() : null;
     }
 
     public MistralChatCompletionServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+        this(modelId, rateLimitSettings, null);
+    }
+
+    public MistralChatCompletionServiceSettings(
+        String modelId,
+        @Nullable RateLimitSettings rateLimitSettings,
+        @Nullable String reasoningEffort
+    ) {
         this.modelId = modelId;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.reasoningEffort = reasoningEffort;
     }
 
     @Override
@@ -105,10 +124,22 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
         return this.rateLimitSettings;
     }
 
+    /**
+     * The reasoning effort sent to Mistral when the request does not carry its own {@code reasoning.effort}.
+     * The value is not validated here: Mistral reports unsupported values itself.
+     */
+    @Nullable
+    public String reasoningEffort() {
+        return this.reasoningEffort;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
         rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().supports(MISTRAL_REASONING_EFFORT_ADDED)) {
+            out.writeOptionalString(reasoningEffort);
+        }
     }
 
     @Override
@@ -124,6 +155,9 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
         builder.field(MODEL_FIELD, this.modelId);
 
         rateLimitSettings.toXContent(builder, params);
+        if (reasoningEffort != null) {
+            builder.field(REASONING_EFFORT_FIELD, reasoningEffort);
+        }
 
         return builder;
     }
@@ -133,12 +167,14 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MistralChatCompletionServiceSettings that = (MistralChatCompletionServiceSettings) o;
-        return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+        return Objects.equals(modelId, that.modelId)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && Objects.equals(reasoningEffort, that.reasoningEffort);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, rateLimitSettings);
+        return Objects.hash(modelId, rateLimitSettings, reasoningEffort);
     }
 
 }

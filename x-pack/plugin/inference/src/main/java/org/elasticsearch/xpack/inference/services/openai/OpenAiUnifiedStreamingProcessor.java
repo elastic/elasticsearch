@@ -30,7 +30,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
     StreamingUnifiedChatCompletionResults.Results> {
 
     private static final Logger logger = LogManager.getLogger(OpenAiUnifiedStreamingProcessor.class);
-    private static final String DONE_MESSAGE = "[done]";
+    protected static final String DONE_MESSAGE = "[done]";
 
     private final BiFunction<String, Exception, Exception> errorParser;
 
@@ -48,7 +48,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 throw errorParser.apply(event.data(), null);
             } else if (event.hasData()) {
                 try {
-                    var delta = parse(parserConfig, event);
+                    var delta = parseEvent(parserConfig, event);
                     delta.forEach(results::offer);
                 } catch (Exception e) {
                     logger.warn("Failed to parse event from inference provider: {}", event);
@@ -62,6 +62,14 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
         } else {
             downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(results));
         }
+    }
+
+    /**
+     * Parses one event. Providers whose payloads differ from the OpenAI shape override this.
+     */
+    protected Stream<ChatCompletionChunkResponse> parseEvent(XContentParserConfiguration parserConfig, ServerSentEvent event)
+        throws IOException {
+        return parse(parserConfig, event);
     }
 
     public static Stream<ChatCompletionChunkResponse> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)

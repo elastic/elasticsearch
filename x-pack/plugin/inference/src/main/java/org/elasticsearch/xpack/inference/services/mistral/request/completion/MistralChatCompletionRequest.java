@@ -45,8 +45,13 @@ public class MistralChatCompletionRequest implements OutboundUnifiedCompletionRe
         SimpleHttpRequest httpPost = SimpleRequestBuilder.post(model.uri()).build();
 
         httpPost.setBody(
-            Strings.toString(new MistralChatCompletionRequestEntity(chatInput, model.getServiceSettings().modelId()))
-                .getBytes(StandardCharsets.UTF_8),
+            Strings.toString(
+                new MistralChatCompletionRequestEntity(
+                    chatInput,
+                    model.getServiceSettings().modelId(),
+                    model.getServiceSettings().reasoningEffort()
+                )
+            ).getBytes(StandardCharsets.UTF_8),
             ContentType.APPLICATION_JSON
         );
 

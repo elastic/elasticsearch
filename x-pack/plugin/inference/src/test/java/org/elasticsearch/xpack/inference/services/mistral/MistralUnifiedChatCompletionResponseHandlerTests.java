@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.inference.services.mistral;
 import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
@@ -21,9 +23,13 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -97,6 +103,64 @@ public class MistralUnifiedChatCompletionResponseHandlerTests extends ESTestCase
             [{\\"object\\":\\"error\\",\\"message\\":\\"Invalid model: mistral-small-l2atest\\",\\"type\\":\\"invalid_model\\",\\"par\
             am\\":null,\\"code\\":\\"1500\\"}]",
                 "type" : "mistral_error"
+              }
+            }""")));
+    }
+
+    public void testStreamingFinishReasonErrorKeepsCraftedException() throws Exception {
+        var chunkJson = "{\"id\":\"c\",\"object\":\"chat.completion.chunk\",\"model\":\"mistral-reasoning-test\","
+            + "\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial\"},\"finish_reason\":\"error\"}]}";
+        var sse = ("data: " + chunkJson + "\n\ndata: [DONE]\n\n").getBytes(StandardCharsets.UTF_8);
+
+        var upstreamSubscriber = new AtomicReference<Flow.Subscriber<? super HttpResult>>();
+        Flow.Publisher<HttpResult> publisher = subscriber -> {
+            upstreamSubscriber.set(subscriber);
+            subscriber.onSubscribe(new Flow.Subscription() {
+                @Override
+                public void request(long n) {}
+
+                @Override
+                public void cancel() {}
+            });
+        };
+        var results = responseHandler.parseResult(mockRequest(), publisher);
+
+        var error = new AtomicReference<Throwable>();
+        var completed = new AtomicBoolean();
+        results.publisher().subscribe(new Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.request(1);
+            }
+
+            @Override
+            public void onNext(StreamingUnifiedChatCompletionResults.Results item) {}
+
+            @Override
+            public void onError(Throwable throwable) {
+                error.set(throwable);
+            }
+
+            @Override
+            public void onComplete() {
+                completed.set(true);
+            }
+        });
+
+        upstreamSubscriber.get().onNext(new HttpResult(mockErrorResponse(200), sse));
+        upstreamSubscriber.get().onComplete();
+
+        assertThat(completed.get(), is(false));
+        assertThat(error.get(), instanceOf(UnifiedChatCompletionException.class));
+        var exception = (UnifiedChatCompletionException) error.get();
+        assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(exception.getMessage().contains("finish reason [error]"), is(true));
+        assertThat(toJson(exception), is(XContentHelper.stripWhitespace("""
+            {
+              "error" : {
+                "code" : "stream_error",
+                "message" : "Mistral ended the stream with finish reason [error], the response is incomplete",
+                "type" : "stream_error"
               }
             }""")));
     }

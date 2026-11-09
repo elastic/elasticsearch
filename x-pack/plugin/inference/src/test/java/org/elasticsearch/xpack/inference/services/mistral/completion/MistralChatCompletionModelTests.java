@@ -83,6 +83,31 @@ public class MistralChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getServiceSettings().modelId(), is("different_model"));
     }
 
+    public void testOverrideWith_UnifiedCompletionRequest_KeepsReasoningEffortOfTheEndpoint() {
+        var model = new MistralChatCompletionModel(
+            "id",
+            TaskType.CHAT_COMPLETION,
+            "service",
+            new MistralChatCompletionServiceSettings("model_name", null, "high"),
+            new DefaultSecretSettings(new SecureString("api_key".toCharArray()))
+        );
+        var request = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
+            "different_model",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var overriddenModel = MistralChatCompletionModel.of(model, request);
+
+        assertThat(overriddenModel.getServiceSettings().modelId(), is("different_model"));
+        assertThat(overriddenModel.getServiceSettings().reasoningEffort(), is("high"));
+    }
+
     public void testOverrideWith_UnifiedCompletionRequest_OverridesNullModelId() {
         var model = createCompletionModel("api_key", null);
         var request = new UnifiedCompletionRequestBody(

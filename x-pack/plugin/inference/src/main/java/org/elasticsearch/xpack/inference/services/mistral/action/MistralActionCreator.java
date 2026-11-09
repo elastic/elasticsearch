@@ -25,9 +25,9 @@ import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChat
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.mistral.request.embeddings.MistralEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.mistral.response.MistralCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.mistral.response.MistralEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 
 import java.util.Objects;
 
@@ -45,7 +45,7 @@ public class MistralActionCreator implements MistralActionVisitor {
     public static final String USER_ROLE = "user";
     public static final ResponseHandler COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
         "mistral completions",
-        OpenAiCompletionResponseEntity::fromResponse,
+        MistralCompletionResponseEntity::fromResponse,
         ErrorResponse::fromResponse
     );
     private static final ResponseHandler EMBEDDINGS_HANDLER = new AzureMistralOpenAiExternalResponseHandler(

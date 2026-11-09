@@ -181,7 +181,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     /**
      * Index:
      * <ul>
-     *     <li>One document with an array of 1.5M one-character strings: 6MB of {@code _source}</li>
+     *     <li>One document with an array of 7M one-character strings: 28MB of {@code _source}</li>
      * </ul>
      * Query:
      * <ul>
@@ -190,21 +190,20 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
      * Expected: circuit break while the values of the array are held
      * <p>
      * An element of 4 bytes of {@code _source} is held as a {@code String} that takes about 50, so what is held is more than the
-     * reservation of 10 times the size of {@code _source} stands for. A document that is large enough for that to exhaust the heap
-     * cannot be indexed on the small node of this suite, so the request breaker is lowered instead, as above, to stand in for the
-     * headroom of a normally provisioned node. The document and its reservation fit under it, and what is held does not.
+     * reservation of 10 times the size of {@code _source} stands for. On the 512MB heap of this suite a document of this size, with
+     * the request breaker at its default limit, killed the node before the held values were charged. The cluster allows it to be
+     * indexed, see {@link Clusters}. The document and its reservation fit under the breaker, and what is held does not.
      */
     public void testArrayOfShortStringsCircuitBreaksWhileItsValuesAreHeld() throws IOException {
         String index = "load_all_short_strings";
-        indexDocumentWithArrays(index, scaleToHeap(1_500_000), false);
-        setRequestBreakerLimit("15%");
+        indexDocumentWithArrays(index, scaleToHeap(7_000_000), false);
         assertCircuitBreaks(attempt -> loadAllOneRow(index), HELD_VALUES_BREAK);
     }
 
     /**
      * Index:
      * <ul>
-     *     <li>One document with {@code "a.b"} and {@code "a": {"b": ...}} each an array of 750k one-character strings: 6MB of
+     *     <li>One document with {@code "a.b"} and {@code "a": {"b": ...}} each an array of 3M one-character strings: 24MB of
      *     {@code _source}</li>
      * </ul>
      * Query:
@@ -217,8 +216,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
      */
     public void testFieldSpelledInTwoWaysCircuitBreaksWhileItsValuesAreHeld() throws IOException {
         String index = "load_all_two_spellings";
-        indexDocumentWithArrays(index, scaleToHeap(750_000), true);
-        setRequestBreakerLimit("15%");
+        indexDocumentWithArrays(index, scaleToHeap(3_000_000), true);
         assertCircuitBreaks(attempt -> loadAllOneRow(index), HELD_VALUES_BREAK);
     }
 

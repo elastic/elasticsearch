@@ -315,7 +315,7 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
     /**
      * Index:
      * <ul>
-     *     <li>One document with an array of 1.2M one-character strings, which is unmapped: 4.8MB of {@code _source}</li>
+     *     <li>One document with an array of 7M one-character strings, which is unmapped: 28MB of {@code _source}</li>
      * </ul>
      * Query:
      * <ul>
@@ -324,9 +324,9 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
      * Expected: circuit break while the values of the field are held
      * <p>
      * Loading a field by name reserves nothing before it reads {@code _source}, and for each value it keeps a copy and a copy of the
-     * position of the value in the document: about 90 bytes for an element of 4 bytes. The request breaker is lowered, as above, to
-     * stand in for the headroom of a normally provisioned node, since a document large enough to exhaust the heap of the small node of
-     * this suite cannot be indexed on it.
+     * position of the value in the document: about 90 bytes for an element of 4 bytes. On the 512MB heap of this suite a document of
+     * this size, with the request breaker at its default limit, killed the node before the held values were charged. The cluster
+     * allows it to be indexed, see {@link Clusters}.
      */
     public void testArrayOfShortStringsCircuitBreaksWhileTheValuesOfAFieldAreHeld() throws IOException {
         String index = "unmapped_load_short_strings";
@@ -340,13 +340,12 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
               }
             }""");
         assertTrue(response.isAcknowledged());
-        int elements = scaleToHeap(1_200_000);
+        int elements = scaleToHeap(7_000_000);
         String array = "[" + "\"x\",".repeat(elements - 1) + "\"x\"]";
         bulk(index, "{\"create\":{}}\n{\"sort_key\":0,\"a\":" + array + "}\n");
         // Everything is indexed already; this only force-merges and refreshes.
         initIndex(index, "");
 
-        setRequestBreakerLimit("15%");
         assertCircuitBreaks(attempt -> {
             StringBuilder query = startQuery();
             query.append("SET unmapped_fields=\\\"load\\\";\n");

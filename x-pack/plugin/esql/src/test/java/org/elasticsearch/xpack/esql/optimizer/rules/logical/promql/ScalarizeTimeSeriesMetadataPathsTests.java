@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -42,6 +43,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -141,6 +143,46 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         assertThat(ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG), sameInstance(plan));
     }
 
+    /** Where a node before 9.7 takes part, what is left of the container is the source's keyword _timeseries, rendered as it is. */
+    public void testKeywordContainerIsTheSourceField() {
+        Alias labels = sourceLabels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        Expression without = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), true);
+        Alias rendered = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToString(SOURCE, without, EsqlTestUtils.TEST_CFG));
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(
+            new Eval(SOURCE, aggregate, List.of(rendered)),
+            EsqlTestUtils.TEST_CFG,
+            false
+        );
+
+        assertThat(expressions(plan, TimeSeriesWithout.class), hasSize(1));
+        assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
+        assertThat(expressions(plan, ToString.class), empty());
+        assertThat(as(plan, Eval.class).fields().getFirst().dataType(), sameInstance(DataType.KEYWORD));
+    }
+
+    /**
+     * A use that leaves out more than every other use keeps its TS_UNSET over the loaded container. A keyword container cannot
+     * change after it is loaded, so that use reads it as it is, as the keyword translation did.
+     */
+    public void testKeywordUseThatLeavesOutMoreReadsTheLoadedContainer() {
+        Alias labels = sourceLabels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        Source withoutPod = new Source(1, 1, "without (pod)");
+        Expression without = new TimeSeriesMetadataFilter(withoutPod, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), true);
+        Alias narrow = new Alias(SOURCE, "narrow", new ToString(SOURCE, without, EsqlTestUtils.TEST_CFG));
+        Alias whole = new Alias(SOURCE, "whole", new ToString(SOURCE, labels.toAttribute(), EsqlTestUtils.TEST_CFG));
+        LogicalPlan plan = new Eval(SOURCE, aggregate, List.of(narrow, whole));
+
+        assertThat(
+            expressions(ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG, true), TimeSeriesMetadataFilter.class),
+            hasSize(1)
+        );
+        Eval keyword = as(ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG, false), Eval.class);
+        assertThat(expressions(keyword, TimeSeriesMetadataFilter.class), empty());
+        assertThat(keyword.fields().get(0).child(), equalTo(keyword.fields().get(1).child()));
+    }
+
     /** A label read by name is needed off its container, and nothing uses the container as a whole. */
     public void testDemandOfLabelReadByName() {
         Alias labels = sourceLabels();
@@ -220,10 +262,30 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG));
     }
 
+    /** A keyword container cannot change after it is loaded: a label written into a container that is then rendered fails. */
+    public void testKeywordContainerCannotBeWritten() {
+        Alias labels = sourceLabels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        Expression written = new TimeSeriesMetadataSet(
+            SOURCE,
+            labels.toAttribute(),
+            Literal.keyword(SOURCE, "pod"),
+            Literal.keyword(SOURCE, "p")
+        );
+        Alias rendered = new Alias(SOURCE, "tags", new ToString(SOURCE, written, EsqlTestUtils.TEST_CFG));
+        LogicalPlan plan = new Eval(SOURCE, aggregate, List.of(rendered));
+
+        assertThat(
+            expressions(ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG, true), TimeSeriesMetadataSet.class),
+            hasSize(1)
+        );
+        expectThrows(VerificationException.class, () -> ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG, false));
+    }
+
     /** Step 1 of the rule alone, over the given fields evaluated above a time-series aggregate keyed by {@code labels}. */
     private ScalarizeTimeSeriesMetadataPaths.Pushdown demand(Alias labels, Alias... fields) {
         TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
-        var pushdown = new ScalarizeTimeSeriesMetadataPaths.Pushdown(EsqlTestUtils.TEST_CFG);
+        var pushdown = new ScalarizeTimeSeriesMetadataPaths.Pushdown(EsqlTestUtils.TEST_CFG, true);
         pushdown.demand(new Eval(SOURCE, aggregate, List.of(fields)));
         return pushdown;
     }

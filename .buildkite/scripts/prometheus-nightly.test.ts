@@ -4,13 +4,13 @@ import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-const SCRIPT = resolve(import.meta.dirname, "periodic-promcheck.sh");
+const SCRIPT = resolve(import.meta.dirname, "prometheus-nightly.sh");
 const VERDICT = "6 inspected: 1 match, 1 mismatch, 1 4xx, 1 5xx, 1 error, 1 flaky";
 
-describe("periodic-promcheck.sh", () => {
+describe("prometheus-nightly.sh", () => {
   let dir: string;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "periodic-promcheck-"));
+    dir = mkdtempSync(join(tmpdir(), "prometheus-nightly-"));
     mkdirSync(join(dir, "bin"));
     // Only external services and the downloaded executable are replaced. Real jq parses the verdict
     // and builds the indexed document; no Elasticsearch build or remote writes occur in these tests.

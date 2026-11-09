@@ -40,9 +40,9 @@ You should always make changes to the template files, and run the above command 
 
 Node (technically `bun`), TypeScript, and related files are currently used to generate pipelines for pull request CI. See [scripts/pull-request](scripts/pull-request) for details.
 
-## Periodic promcheck
+## Prometheus nightly
 
-[`periodic-promcheck.yml`](pipelines/periodic-promcheck.yml) runs the pinned promcheck
+[`prometheus-nightly.yml`](pipelines/prometheus-nightly.yml) runs the pinned promcheck
 release against the checked-out Elasticsearch revision using the `grafanalabs-top100`
 release corpus. The pipeline and its daily `main` schedule are declared in
 [`catalog-info.yaml`](../catalog-info.yaml); the schedule becomes active when the
@@ -77,5 +77,5 @@ To verify the runner without building Elasticsearch or contacting remote service
 
 ```bash
 cd .buildkite
-node node_modules/vitest/vitest.mjs run scripts/periodic-promcheck.test.ts
+node node_modules/vitest/vitest.mjs run scripts/prometheus-nightly.test.ts
 ```

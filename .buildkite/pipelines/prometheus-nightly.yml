@@ -6,12 +6,12 @@ env:
   PROMCHECK_RESULTS_INDEX: promcheck-results
   PROMCHECK_RESULTS_SECRET: secret/ci/elastic-elasticsearch/promcheck-results
 steps:
-  - label: periodic-promcheck
-    key: periodic-promcheck
-    command: .buildkite/scripts/periodic-promcheck.sh
+  - label: prometheus-nightly
+    key: prometheus-nightly
+    command: .buildkite/scripts/prometheus-nightly.sh
     timeout_in_minutes: 120
     artifact_paths:
-      - "/tmp/periodic-promcheck-output/*"
+      - "/tmp/prometheus-nightly-output/*"
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

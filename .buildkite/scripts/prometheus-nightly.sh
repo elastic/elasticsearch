@@ -23,7 +23,7 @@ if [[ -z "${PROMCHECK_RESULTS_URL:-}" || -z "${PROMCHECK_RESULTS_API_KEY:-}" ]];
 fi
 [[ "$PROMCHECK_RESULTS_URL" == https://* ]] || { echo "Results URL must use HTTPS" >&2; exit 1; }
 
-readonly OUTPUT_DIR="${PROMCHECK_OUTPUT_DIR:-/tmp/periodic-promcheck-output}"
+readonly OUTPUT_DIR="${PROMCHECK_OUTPUT_DIR:-/tmp/prometheus-nightly-output}"
 mkdir -p "$OUTPUT_DIR"
 work_dir=$(mktemp -d)
 trap 'rm -rf "$work_dir"' EXIT

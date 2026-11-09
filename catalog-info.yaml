@@ -428,11 +428,11 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: buildkite-pipeline-elasticsearch-periodic-promcheck
+  name: buildkite-pipeline-elastic-prometheus-nightly
   description: Runs PromQL compliance checks and indexes results in Elasticsearch
   links:
     - title: Pipeline
-      url: https://buildkite.com/elastic/elasticsearch-periodic-promcheck
+      url: https://buildkite.com/elastic/elastic-prometheus-nightly
 spec:
   type: buildkite-pipeline
   system: buildkite
@@ -442,10 +442,10 @@ spec:
     kind: Pipeline
     metadata:
       description: ":elasticsearch: Runs promcheck nightly and reports results to remote Elasticsearch"
-      name: elasticsearch / periodic / promcheck
+      name: elastic / prometheus / nightly
     spec:
       repository: elastic/elasticsearch
-      pipeline_file: .buildkite/pipelines/periodic-promcheck.yml
+      pipeline_file: .buildkite/pipelines/prometheus-nightly.yml
       branch_configuration: main
       teams:
         elasticsearch-team: {}

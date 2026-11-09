@@ -1019,8 +1019,7 @@ public class EvalBenchmark {
             DoubleVector shippingFee = page.<DoubleBlock>getBlock(2).asVector();
             try (DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(page.getPositionCount())) {
                 for (int p = 0; p < page.getPositionCount(); p++) {
-                    double discountedPrice = Mul.processDoubles(price.getDouble(p),
-                        Sub.processDoubles(1.0, 0.15, true), true);
+                    double discountedPrice = Mul.processDoubles(price.getDouble(p), Sub.processDoubles(1.0, 0.15, true), true);
                     double taxAmount = discountedPrice * taxRate.getDouble(p);
                     double amountCharged = Add.processDoubles(
                         Add.processDoubles(discountedPrice, taxAmount, true),

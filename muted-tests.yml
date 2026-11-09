@@ -575,3 +575,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
   method: test {yaml=esql/317_unmapped_fields_mapped_later/LOAD returns null for a document indexed before the field was mapped}
   issue: https://github.com/elastic/elasticsearch/issues/165055
+- class: org.elasticsearch.xpack.sql.qa.single_node.FieldExtractorIT
+  tasks:
+  - :x-pack:plugin:sql:qa:server:single-node:javaRestTest
+  method: testNestedFieldsHierarchy
+  issue: https://github.com/elastic/elasticsearch/issues/165099

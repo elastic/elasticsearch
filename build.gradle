@@ -566,6 +566,15 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
     'distribution-closure-assignment': [
       'distribution/build.gradle::6',
     ],
+    // Measured on main ff3ed1ce5a62. Counts are direct model references, not action counts.
+    'execution-closure-project-reference': [
+      'build.gradle::6',
+      'docs/build.gradle::1', // Temporary until #164877 merges.
+      'modules/lang-painless/build.gradle::4',
+      'qa/vector/build.gradle::1',
+      'x-pack/plugin/esql-datasource-orc/qa/build.gradle::1', // Temporary until #164877 merges.
+      'x-pack/plugin/stack/build.gradle::4', // Temporary until #164877 merges.
+    ],
   ])
 }
 

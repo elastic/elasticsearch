@@ -2252,7 +2252,13 @@ public class LocalExecutionPlanner {
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
 
         return sourceWithMetadata.with(
-            new TsInfoOperator.Factory(fieldLookup, createDataStreamLookup(context.shardContexts), metadataSourceChannel, indexChannel),
+            new TsInfoOperator.Factory(
+                fieldLookup,
+                createDataStreamLookup(context.shardContexts),
+                metadataSourceChannel,
+                indexChannel,
+                context.plannerSettings().tsInfoPartialEmitThreshold()
+            ),
             layoutBuilder.build()
         );
     }

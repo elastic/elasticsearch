@@ -1427,7 +1427,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V7(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V8(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -4718,6 +4718,18 @@ public class EsqlCapabilities {
          * See: <a href="https://github.com/elastic/elasticsearch/issues/164599">#164599</a>
          */
         FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
+
+        /**
+         * Run time-series aggregation single pass on data nodes when possible
+         */
+        TIME_SERIES_SINGLE_PASS,
+
+        /**
+         * {@code COUNT}, {@code PRESENT}, {@code ABSENT} and their {@code *_OVER_TIME} variants accept counter fields, since they only
+         * look at whether values exist. In {@code PROMQL}, {@code count_over_time}, {@code present_over_time} and
+         * {@code absent_over_time} read a counter as is.
+         */
+        COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

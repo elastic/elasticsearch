@@ -53,27 +53,11 @@ UNQUOTED_SOURCE
 FROM_UNQUOTED_SOURCE : UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
 FROM_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 
-// A table function in the source list: FROM DATASET(my_source, {"resource": "..."}).
-//
-// Matches `name(` as lookahead but emits only `name`, rewinding so the '(' is re-lexed in
-// TABLE_FUNCTION_MODE. The trailing '(' has to be part of the match because nothing else
-// distinguishes a function name from an index pattern -- UNQUOTED_SOURCE matches both -- and a lexer
-// rule cannot look at the token it emitted last. Placed after FROM_UNQUOTED_SOURCE for readability
-// only: ANTLR picks the longest match, and `name(` is always one character longer than the
-// UNQUOTED_SOURCE that `name` alone would produce.
-//
-// The DEV_ prefix is load-bearing beyond convention: the rule carries no {isDevVersion()}? predicate --
-// one on a token starting with LETTER would poison the DFA transition for the first character of
-// UNQUOTED_SOURCE, the hottest token in this mode -- so the parser rule does the gating, and
-// EsqlParser's error listener strips a DEV_-named token out of a release build's "expecting {...}"
-// message by that prefix alone. Without it a GA user would be told the parser expected a token for a
-// feature that does not exist on their build.
-//
-// The name admits fewer characters than UNQUOTED_SOURCE_PART, which also takes index-pattern characters
-// such as '*', '-' and '+'. None of those is in UNQUOTED_ID_BODY, so a pattern containing one cannot
-// match this rule at all: `foo*(` stays what it was, a source pattern followed by a '(' that opens
-// nothing, rather than becoming a call to an unknown function named `foo*`. LETTER also excludes '_',
-// so `_a(b)` is likewise not a call.
+// The '(' is matched and then rewound so it is re-lexed in TABLE_FUNCTION_MODE: nothing else separates
+// a function name from an index pattern, and a lexer rule cannot look at the token it emitted last.
+// No {isDevVersion()}? predicate -- one on a rule starting with LETTER would poison the DFA transition
+// for UNQUOTED_SOURCE, this mode's hottest token -- so the parser rule gates the feature and the DEV_
+// prefix is what EsqlParser's error listener strips from a release build's "expecting {...}".
 DEV_TABLE_FUNCTION_NAME
     : LETTER UNQUOTED_ID_BODY* '(' { this.rewindToTokenStart(this.getText().length() - 1); }
       -> pushMode(TABLE_FUNCTION_MODE)

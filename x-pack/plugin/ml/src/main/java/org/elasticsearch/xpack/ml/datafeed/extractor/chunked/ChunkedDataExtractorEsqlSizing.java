@@ -18,9 +18,11 @@ final class ChunkedDataExtractorEsqlSizing {
 
     /**
      * Burst headroom when sizing an initial ES|QL chunk: target {@link #DEFAULT_ESQL_CHUNK_DOCS} rows per chunk, which is
-     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT} divided by this factor.
+     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT} divided by this factor. Shrinks divide interval length by this factor too.
+     * Factor 2 with {@link #MAX_ESQL_SHRINK_ATTEMPTS} yields up to a 64x span reduction (640k rows at the injected 10k cap), above
+     * the ~50k rows per time bucket seen in production (~10x+ margin).
      */
-    static final long CHUNK_HEADROOM_FACTOR = 5L;
+    static final long CHUNK_HEADROOM_FACTOR = 2L;
 
     /**
      * Target rows per initial ES|QL chunk when chunk span is auto. ES|QL has no scroll; oversized chunks truncate at
@@ -32,7 +34,7 @@ final class ChunkedDataExtractorEsqlSizing {
      * Maximum ES|QL shrink retries per chunk after a result hits {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}; the interval shrinks by
      * at least {@link #CHUNK_HEADROOM_FACTOR} except where the one-grouping-interval floor applies.
      */
-    private static final int MAX_ESQL_SHRINK_ATTEMPTS = 5;
+    static final int MAX_ESQL_SHRINK_ATTEMPTS = 6;
 
     private final ChunkedDataExtractorContext.TimeAligner timeAligner;
     private final boolean injectsEsqlRowLimit;

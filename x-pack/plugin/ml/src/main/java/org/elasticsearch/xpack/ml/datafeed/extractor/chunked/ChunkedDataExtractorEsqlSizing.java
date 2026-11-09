@@ -18,7 +18,7 @@ final class ChunkedDataExtractorEsqlSizing {
 
     /**
      * Burst headroom when sizing an initial ES|QL chunk: target {@link #DEFAULT_ESQL_CHUNK_DOCS} rows per chunk, which is
-     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT} divided by this factor. 
+     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT} divided by this factor.
      */
     static final long CHUNK_HEADROOM_FACTOR = 2L;
 

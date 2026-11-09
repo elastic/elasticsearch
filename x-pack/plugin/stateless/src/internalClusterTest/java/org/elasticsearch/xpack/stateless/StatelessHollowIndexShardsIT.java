@@ -1522,7 +1522,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         logger.info("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        internalCluster().awaitNodeVacated(indexName, indexNodeA);
+        // Closing the old shards on node A is what decrements its hollow shards counter, so wait for that, not just the routing table.
+        internalCluster().awaitNodeVacatedAndShardsClosed(indexName, indexNodeA);
         ensureGreen(indexName);
         logger.info("--> relocated");
 
@@ -1537,19 +1538,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             assertTrue(commitAfterRelocation.hollow());
             assertThat(commitAfterRelocation.nodeEphemeralId(), is(emptyString()));
         }
-        // awaitVacated reads the routing table to say that indexNodeA is no longer listed.
-        // Node A closes its old shards afterwards, and that close is what decrements its hollow shards counter,
-        // so the telemetry on A can still show the shards for a short while.
-        assertBusy(() -> {
-            telemetryPluginA.collect();
-            assertThat(
-                getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA),
-                equalTo((long) numberOfShards)
-            );
-            assertThat(getTotalLongHistogramValue(HollowShardsMetrics.HOLLOW_TIME_MILLIS, telemetryPluginA), greaterThan(0L));
-            assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
-            assertThat(getLastLongAsyncGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
-        });
+        telemetryPluginA.collect();
+        assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
+        assertThat(getTotalLongHistogramValue(HollowShardsMetrics.HOLLOW_TIME_MILLIS, telemetryPluginA), greaterThan(0L));
+        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+        assertThat(getLastLongAsyncGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
 
         var telemetryPluginB = getTelemetryPlugin(indexNodeB);
         telemetryPluginB.collect();

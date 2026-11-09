@@ -590,3 +590,8 @@ tests:
   - :x-pack:plugin:ccr:test
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/issues/165114
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testNoConflictsOrLostUpdatesDuringRefreshes
+  issue: https://github.com/elastic/elasticsearch/issues/165117

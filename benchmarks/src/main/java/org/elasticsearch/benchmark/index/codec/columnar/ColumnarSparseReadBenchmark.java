@@ -168,9 +168,8 @@ public class ColumnarSparseReadBenchmark {
         for (int doc : presentDocs) {
             if (dv.advanceExact(doc)) {
                 decoder.reset(dv.binaryValue());
-                final long[] values = decoder.values();
                 for (int i = 0; i < decoder.valueCount(); i++) {
-                    bh.consume(values[i]);
+                    bh.consume(decoder.nextValue());
                 }
             }
         }
@@ -202,9 +201,8 @@ public class ColumnarSparseReadBenchmark {
         final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
         for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
             decoder.reset(dv.binaryValue());
-            final long[] values = decoder.values();
             for (int i = 0; i < decoder.valueCount(); i++) {
-                final long value = values[i];
+                final long value = decoder.nextValue();
                 if (value >= RANGE_LOW && value <= RANGE_HIGH) {
                     matches.set(doc);
                     break;

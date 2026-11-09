@@ -470,7 +470,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         return new NumericColumnValues() {
             private final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
             /** The current document's values, copied out of its payload, which the next advance may overwrite. */
-            private long[] values;
+            private long[] values = new long[8];
             private int count;
             private int upto;
 
@@ -514,8 +514,13 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
             private int position(int doc) throws IOException {
                 while (doc != DocIdSetIterator.NO_MORE_DOCS) {
                     decoder.reset(binary.binaryValue());
-                    values = decoder.values();
                     count = decoder.valueCount();
+                    if (values.length < count) {
+                        values = new long[ArrayUtil.oversize(count, Long.BYTES)];
+                    }
+                    for (int i = 0; i < count; i++) {
+                        values[i] = decoder.nextValue();
+                    }
                     upto = 0;
                     if (count > 0) {
                         break;

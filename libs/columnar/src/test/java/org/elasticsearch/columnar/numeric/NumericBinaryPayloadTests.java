@@ -14,14 +14,13 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class NumericBinaryPayloadTests extends ESTestCase {
 
     /**
-     * Slots built one at a time come back in order, nulls in place, and {@link NumericBinaryPayload.Decoder#values()} keeps
-     * only the values.
+     * Slots built one at a time come back in order, nulls in place, and
+     * {@link NumericBinaryPayload.Decoder#nextValue()} alone reads only the values.
      */
     public void testBuilderRoundTrip() throws IOException {
         final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
@@ -43,7 +42,11 @@ public class NumericBinaryPayloadTests extends ESTestCase {
             assertEquals(slots.stream().filter(s -> s == null).count(), decoder.nullSlotCount());
 
             decoder.reset(payload);
-            assertEquals(slots.stream().filter(s -> s != null).toList(), toList(decoder.values(), decoder.valueCount()));
+            final List<Long> values = new ArrayList<>(decoder.valueCount());
+            for (int i = 0; i < decoder.valueCount(); i++) {
+                values.add(decoder.nextValue());
+            }
+            assertEquals(slots.stream().filter(s -> s != null).toList(), values);
         }
     }
 
@@ -115,9 +118,5 @@ public class NumericBinaryPayloadTests extends ESTestCase {
             slots.add(decoder.nextIsNull() ? null : decoder.nextValue());
         }
         return slots;
-    }
-
-    private static List<Long> toList(long[] values, int count) {
-        return Arrays.stream(values, 0, count).boxed().toList();
     }
 }

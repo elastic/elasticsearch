@@ -143,10 +143,9 @@ public class NumericColumnMergeTests extends ESTestCase {
                 } else {
                     assertTrue("doc " + (base + doc) + " has a value", dv.advanceExact(doc));
                     decoder.reset(dv.binaryValue());
-                    final long[] values = decoder.values();
                     final List<Long> actual = new ArrayList<>(decoder.valueCount());
                     for (int i = 0; i < decoder.valueCount(); i++) {
-                        actual.add(values[i]);
+                        actual.add(decoder.nextValue());
                     }
                     assertEquals(want, actual);
                 }
@@ -207,9 +206,8 @@ public class NumericColumnMergeTests extends ESTestCase {
                     final List<Long> actual = new ArrayList<>();
                     for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
                         decoder.reset(dv.binaryValue());
-                        final long[] decoded = decoder.values();
                         for (int i = 0; i < decoder.valueCount(); i++) {
-                            actual.add(decoded[i]);
+                            actual.add(decoder.nextValue());
                         }
                     }
                     assertEquals("merged column holds the surviving values in order", expected, actual);

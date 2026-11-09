@@ -75,9 +75,9 @@ public final class ColumnarNumericRangeQuery extends Query {
                     @Override
                     public boolean matches() throws IOException {
                         decoder.reset(values.binaryValue());
-                        final long[] decoded = decoder.values();
-                        for (int i = 0; i < decoder.valueCount(); i++) {
-                            final long value = decoded[i];
+                        final int count = decoder.valueCount();
+                        for (int i = 0; i < count; i++) {
+                            final long value = decoder.nextValue();
                             if (value >= lowerValue && value <= upperValue) {
                                 return true;
                             }

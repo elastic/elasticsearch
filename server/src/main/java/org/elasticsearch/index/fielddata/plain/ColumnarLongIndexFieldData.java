@@ -196,7 +196,10 @@ public class ColumnarLongIndexFieldData extends IndexNumericFieldData {
                 if (count == 0) {
                     return false;
                 }
-                System.arraycopy(decoder.values(), 0, grow(count), 0, count);
+                final long[] values = grow(count);
+                for (int i = 0; i < count; i++) {
+                    values[i] = decoder.nextValue();
+                }
                 sort(count);
                 return true;
             }

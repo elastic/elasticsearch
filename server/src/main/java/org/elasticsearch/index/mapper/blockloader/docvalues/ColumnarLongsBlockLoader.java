@@ -135,17 +135,16 @@ public class ColumnarLongsBlockLoader extends BlockDocValuesReader.DocValuesBloc
                 return;
             }
             decoder.reset(binary.binaryValue());
-            final long[] values = decoder.values();
             final int count = decoder.valueCount();
             if (count == 0) {
                 // Only null slots, or an empty array.
                 builder.appendNull();
             } else if (count == 1) {
-                builder.appendLong(values[0]);
+                builder.appendLong(decoder.nextValue());
             } else {
                 builder.beginPositionEntry();
                 for (int i = 0; i < count; i++) {
-                    builder.appendLong(values[i]);
+                    builder.appendLong(decoder.nextValue());
                 }
                 builder.endPositionEntry();
             }

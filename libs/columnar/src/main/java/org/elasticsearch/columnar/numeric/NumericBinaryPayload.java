@@ -149,7 +149,7 @@ public final class NumericBinaryPayload {
      * Reads one payload. Reusable: {@link #reset} points it at the next payload.
      *
      * <p>A caller that needs the slots, nulls included, walks them with {@link #nextIsNull()} and {@link #nextValue()}. One
-     * that only needs the values takes them all at once with {@link #values()}, since they sit back to back in the payload.
+     * that only needs the values reads {@link #valueCount()} of them with {@link #nextValue()} alone.
      */
     public static final class Decoder {
         private byte[] bytes;
@@ -160,8 +160,6 @@ public final class NumericBinaryPayload {
         private int nullCount;
         private int slot;
         private int value;
-        /** Holds the values {@link #values()} hands out; grown as needed, never shrunk. */
-        private long[] valueBuffer = new long[8];
 
         /**
          * Points the decoder at {@code payload}, which must stay unchanged while it is read.
@@ -195,35 +193,23 @@ public final class NumericBinaryPayload {
         }
 
         /**
-         * The payload's non-null values in the order they were written, in the first {@link #valueCount()} entries of the
-         * returned array. The array belongs to this decoder and is only valid until the next {@link #reset}.
+         * Moves to the next slot and says whether it is null. A caller walking the slots asks this once per slot, and reads
+         * the slot's value with {@link #nextValue()} when it isn't null.
          */
-        public long[] values() {
-            final int count = valueCount();
-            if (valueBuffer.length < count) {
-                valueBuffer = new long[ArrayUtil.oversize(count, Long.BYTES)];
-            }
-            readLongs(bytes, valueOffset, valueBuffer, count);
-            return valueBuffer;
-        }
-
-        /** Whether the next slot {@link #nextValue()} would read is null; advances past it if so. */
         public boolean nextIsNull() {
             assert slot < slotCount : "read past the last slot";
-            if (nullCount > 0 && nullSlots.get(slot)) {
-                slot++;
-                return true;
-            }
-            return false;
+            final int current = slot++;
+            return nullCount > 0 && nullSlots.get(current);
         }
 
-        /** Reads the next slot, which must not be null: call {@link #nextIsNull()} first. */
+        /**
+         * Reads the next non-null value. The values sit apart from the null slots, so this never looks at them: a caller that
+         * only wants the values calls this {@link #valueCount()} times, and one walking the slots calls it for each slot
+         * {@link #nextIsNull()} says isn't null.
+         */
         public long nextValue() {
-            assert slot < slotCount : "read past the last slot";
-            final long v = (long) LONG.get(bytes, valueOffset + value * Long.BYTES);
-            value++;
-            slot++;
-            return v;
+            assert value < valueCount() : "read past the last value";
+            return (long) LONG.get(bytes, valueOffset + value++ * Long.BYTES);
         }
     }
 }

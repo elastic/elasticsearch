@@ -518,7 +518,7 @@ public class HashAggregationOperator implements Operator {
         final boolean toEmit;
         boolean success = false;
         try {
-            toEmit = shouldEmitPartialResultsPeriodically(page);
+            toEmit = canEmitCurrentBatchPeriodically() && periodicEmitThresholdReached() && prepareForPeriodicEmit(page);
             success = true;
         } finally {
             if (success == false) {
@@ -745,12 +745,23 @@ public class HashAggregationOperator implements Operator {
     }
 
     /**
-     * Whether to emit the current batch before {@code incomingPage} is added to it.
+     * Whether the current batch may be emitted before the incoming page is added to it. Partial output can always be
+     * emitted early because the final aggregation re-merges groups that span batches.
      */
-    protected boolean shouldEmitPartialResultsPeriodically(Page incomingPage) {
-        if (aggregatorMode.isOutputPartial() == false) {
-            return false;
+    protected boolean canEmitCurrentBatchPeriodically() {
+        return aggregatorMode.isOutputPartial();
+    }
+
+    private boolean prepareForPeriodicEmit(Page incomingPage) {
+        for (GroupingAggregator aggregator : aggregators) {
+            if (aggregator.aggregatorFunction().prepareForPeriodicEmit(incomingPage) == false) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    private boolean periodicEmitThresholdReached() {
         if (rowsAddedInCurrentBatch == 0) {
             return false;
         }

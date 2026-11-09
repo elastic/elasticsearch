@@ -183,7 +183,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, resolvedPerLeaf[i].rescoreOversample());
             }
         }
-        final int mergeK = leafReaderContexts.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
+        final int maxLeafBudget = IvfSegmentConfig.leafCollectorBudget(k, maxRescoreOversampleAcrossLeaves);
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (int i = 0; i < leafReaderContexts.size(); i++) {
@@ -195,9 +195,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             float segmentOversample = resolved != null ? resolved.rescoreOversample() : 1f;
             int leafBudget = IvfSegmentConfig.leafCollectorBudget(k, segmentOversample);
 
-            // A leaf collecting fewer than mergeK candidates would publish a cutoff that prunes other leaves' candidates
-            // still inside the merge window, so it only reads the shared cutoff.
-            SharedMinCompetitiveScore leafSharedScore = sharedScore == null || leafBudget >= mergeK ? sharedScore : sharedScore.readOnly();
+            // A leaf's cutoff is only safe to share if at least mergeK unique docs score above it. Overspill duplicates can fill
+            // half a queue, so only leaves with the largest budget guarantee that. A smaller leaf's cutoff would make other leaves
+            // drop docs that belong in the merged top mergeK, so those leaves only read the shared cutoff.
+            SharedMinCompetitiveScore leafSharedScore = sharedScore == null || leafBudget >= maxLeafBudget
+                ? sharedScore
+                : sharedScore.readOnly();
             IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(leafBudget, leafSharedScore);
 
             // Preconditioning might differ per segment when they are calibrated, so, potentially,
@@ -213,6 +216,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             this.rawPerLeafResults = perLeafResults;
         }
 
+        final int mergeK = leafReaderContexts.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
         TopDocs topK = mergeLeafResults(mergeK, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {

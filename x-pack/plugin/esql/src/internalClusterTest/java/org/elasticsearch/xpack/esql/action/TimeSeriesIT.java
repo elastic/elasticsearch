@@ -1716,6 +1716,88 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * label_replace and label_join may overwrite a label of a by() aggregation or of the source series: two series left with
+     * one label set fail the query, as in Prometheus, before an aggregation reads them. A label the source does not map
+     * is only ever added.
+     */
+    public void testPromqlRelabelOverwritingLabelFailsOnRepeatedLabelSets() {
+        String index = "promql-relabel-overwrite";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "region", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "region", "east", "tx", 3.0);
+        refresh(index);
+
+        assertPromqlColumns(
+            index,
+            "label_replace(sum by (host) (tx), \"host\", \"h-$1\", \"host\", \"(.*)\")",
+            "host",
+            List.of(List.of(1.0, "h-a"), List.of(3.0, "h-b"))
+        );
+        assertPromqlColumns(
+            index,
+            "label_join(sum by (host, region) (tx), \"host\", \"-\", \"host\", \"region\")",
+            "host",
+            List.of(List.of(1.0, "a-east"), List.of(3.0, "b-east"))
+        );
+        assertPromqlColumns(
+            index,
+            "topk(1, label_replace(sum by (host) (tx), \"host\", \"h-$1\", \"host\", \"(.*)\"))",
+            "host",
+            List.of(List.of(3.0, "h-b"))
+        );
+        for (String merging : List.of(
+            "label_replace(sum by (host) (tx), \"host\", \"x\", \"host\", \".*\")",
+            "sum by (region) (label_replace(tx, \"host\", \"x\", \"host\", \".*\"))"
+        )) {
+            var error = expectThrows(Exception.class, () -> run(promqlQuery(index, merging)));
+            assertThat(error.getMessage(), containsString("input must not have duplicates"));
+        }
+        assertPromqlColumns(
+            index,
+            "sum by (tier) (label_replace(tx, \"tier\", \"t-$1\", \"host\", \"(.*)\"))",
+            "tier",
+            List.of(List.of(1.0, "t-a"), List.of(3.0, "t-b"))
+        );
+    }
+
+    /** A relabel over an aggregated result keeps its series, whether or not the regex matches, and composes under operators. */
+    public void testPromqlLabelReplaceOverAggregatesKeepsSeries() {
+        String index = "promql-relabel-aggregates";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 20.0);
+        refresh(index);
+
+        assertPromqlColumns(
+            index,
+            "label_replace(sum by (cluster)(tx), \"role\", \"$1\", \"cluster\", \"(.+)\")",
+            "cluster, role",
+            List.of(List.of(30.0, "prod", "prod"))
+        );
+        assertPromqlColumns(
+            index,
+            "label_replace(sum by (cluster)(tx), \"role\", \"v\", \"cluster\", \"nomatch\")",
+            "cluster",
+            List.of(List.of(30.0, "prod"))
+        );
+        // "$1" with no capture group expands to empty, which deletes the destination: the result still matches the left side.
+        assertPromqlColumns(
+            index,
+            "(sum by (cluster)(tx)) / label_replace(sum by (cluster)(tx), \"role\", \"$1\", \"cluster\", \".+\")",
+            "cluster",
+            List.of(List.of(1.0, "prod"))
+        );
+        for (String collapsed : List.of(
+            "label_replace(min(sum by (cluster)(tx)), \"role\", \"v\", \"host\", \"nomatch\")",
+            "label_replace(min(ceil(avg(tx))), \"role\", \"v\", \"host\", \"nomatch\")"
+        )) {
+            try (EsqlQueryResponse response = run(promqlQuery(index, collapsed) + " | KEEP result")) {
+                assertThat(EsqlTestUtils.getValuesList(response), hasSize(1));
+            }
+        }
+    }
+
     private void createOptionalLabelMetricsIndex(String index) {
         assertAcked(
             indicesAdmin().prepareCreate(index)
@@ -1734,6 +1816,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     "host",
                     "type=keyword,time_series_dimension=true",
                     "optional",
+                    "type=keyword,time_series_dimension=true",
+                    "region",
                     "type=keyword,time_series_dimension=true",
                     "tx",
                     "type=double,time_series_metric=gauge"
@@ -1787,6 +1871,12 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             + "\" step=1m result=("
             + expression
             + ")";
+    }
+
+    private void assertPromqlColumns(String index, String expression, String columns, List<List<Object>> expected) {
+        try (EsqlQueryResponse response = run(promqlQuery(index, expression) + " | KEEP result, " + columns + " | SORT result")) {
+            assertThat(EsqlTestUtils.getValuesList(response), equalTo(expected));
+        }
     }
 
     private void assertPromqlRows(String index, String expression, List<List<Object>> expected) {

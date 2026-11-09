@@ -390,3 +390,18 @@ bytes:double | step:datetime            | cluster:keyword | dst:keyword
 612.0        | 2024-05-10T00:03:00.000Z | prod            | c-prod
 749.0        | 2024-05-10T00:03:00.000Z | qa              | c-qa
 ;
+
+instant_label_replace_overwrites_grouping_label
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort
+required_capability: promql_label_functions_overwrite
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s time="2024-05-10T00:03:00.000Z" bytes=(sort(label_replace(avg by (cluster) (last_over_time(network.bytes_in[1m])), "cluster", "c-$1", "cluster", "(.*)")));
+
+bytes:double | step:datetime            | cluster:keyword
+382.5        | 2024-05-10T00:03:00.000Z | c-staging
+612.0        | 2024-05-10T00:03:00.000Z | c-prod
+749.0        | 2024-05-10T00:03:00.000Z | c-qa
+;

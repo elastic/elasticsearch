@@ -238,6 +238,8 @@ public class PromqlGoldenTests extends GoldenTestCase {
     // Uses the flat-dimension k8s index (rather than the labels.* passthrough index) so the stored dimension being
     // overwritten is materialized as a supported column - a passthrough dimension is unsupported in this static analyzer.
     public void testLabelReplaceOverwritesStoredLabel() {
+        // typed _timeseries tells the series apart without the overwritten label, so the relabel fails on repeated label sets
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
         builder("""
@@ -247,12 +249,15 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
             .run();
     }
 
     // No-match preserves the existing destination: the outer COALESCE falls back to the stored pod rather than "".
     // Uses the flat-dimension k8s index so the preserved stored destination is materialized as a supported column.
     public void testLabelReplaceNoMatchPreservesExisting() {
+        // typed _timeseries tells the series apart without the overwritten label, so the relabel fails on repeated label sets
+        assumeTrue("requires typed _timeseries", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
         builder("""
@@ -262,6 +267,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(TIMESERIES_TYPE)
             .run();
     }
 }

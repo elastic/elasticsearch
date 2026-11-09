@@ -4295,6 +4295,12 @@ public class EsqlCapabilities {
         PROMQL_NESTED_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL {@code label_replace} and {@code label_join} overwriting a label of a {@code by(...)} aggregation they are
+         * applied over. Two series left with one label set fail the query, as in Prometheus.
+         */
+        PROMQL_LABEL_FUNCTIONS_OVERWRITE(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
          * and {@code count} over a group without a valued series: like Prometheus, they emit no element rather than
          * {@code 0}. {@code absent_over_time} likewise emits no element for a series with a sample, nor for a series its

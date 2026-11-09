@@ -16,6 +16,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -42,7 +43,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
     private final NumericColumnMetadata.Skipper skipperMeta;
     private final IndexInput skipIndex;
 
-    private final NumericBinaryPayload.Builder payload = new NumericBinaryPayload.Builder();
+    private final BytesRefBuilder payload = new BytesRefBuilder();
     private long[] values = new long[8];
     /** Reused across {@link #bulkLongs} calls; grown to the batch size, never to the column size. */
     private int[] ranks = new int[8];
@@ -79,7 +80,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         for (int i = 0; i < count; i++) {
             values[i] = reader.valueAt(first + i);
         }
-        return payload.encode(values, (int) count);
+        return NumericBinaryPayload.encode(values, (int) count, payload);
     }
 
     /** Whether every document in the column holds exactly one value. */
@@ -468,9 +469,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
      */
     public static NumericColumnValues decodePayloads(BinaryDocValues binary) {
         return new NumericColumnValues() {
-            private final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
-            /** The current document's values, copied out of its payload, which the next advance may overwrite. */
-            private long[] values = new long[8];
+            private final long[][] buffer = { new long[8] };
             private int count;
             private int upto;
 
@@ -481,7 +480,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
 
             @Override
             public long nextValue() {
-                return values[upto++];
+                return buffer[0][upto++];
             }
 
             @Override
@@ -504,28 +503,10 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
                 return binary.cost();
             }
 
-            /**
-             * Lands on {@code doc} or the first document after it that has a value. A document holding only null slots, or an
-             * empty array, is skipped: the column records a document as present by the values it holds, and one with none
-             * would read as a single-valued column's value.
-             */
-            // TODO: keep null slots and empty arrays in the column. Until then they are dropped here, so a document reads
-            // back with only its non-null values, in order, and one with none reads back as missing the field.
             private int position(int doc) throws IOException {
-                while (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    decoder.reset(binary.binaryValue());
-                    count = decoder.valueCount();
-                    if (values.length < count) {
-                        values = new long[ArrayUtil.oversize(count, Long.BYTES)];
-                    }
-                    for (int i = 0; i < count; i++) {
-                        values[i] = decoder.nextValue();
-                    }
+                if (doc != DocIdSetIterator.NO_MORE_DOCS) {
+                    count = NumericBinaryPayload.decode(binary.binaryValue(), buffer);
                     upto = 0;
-                    if (count > 0) {
-                        break;
-                    }
-                    doc = binary.nextDoc();
                 }
                 return doc;
             }

@@ -70,14 +70,13 @@ public final class ColumnarNumericRangeQuery extends Query {
                 }
 
                 // Fallback: a per-document scan of the decoded payloads, correct for every shape.
-                final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
+                final long[][] decoded = { new long[8] };
                 final TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
                     @Override
                     public boolean matches() throws IOException {
-                        decoder.reset(values.binaryValue());
-                        final int count = decoder.valueCount();
+                        final int count = NumericBinaryPayload.decode(values.binaryValue(), decoded);
                         for (int i = 0; i < count; i++) {
-                            final long value = decoder.nextValue();
+                            final long value = decoded[0][i];
                             if (value >= lowerValue && value <= upperValue) {
                                 return true;
                             }

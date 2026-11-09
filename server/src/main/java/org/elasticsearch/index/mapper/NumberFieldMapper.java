@@ -2998,12 +2998,6 @@ public class NumberFieldMapper extends FieldMapper {
         return arrayValuesInOrder;
     }
 
-    @Override
-    public void recordEmptyArrayInOrder(LuceneDocument doc) {
-        assert fieldType.diskFormat == DocValuesDiskFormat.COLUMNAR : "only a ColumNAR field keeps array order inline";
-        ColumnarNumericDocValuesField.recordEmptyArray(doc, fieldType.name());
-    }
-
     boolean coerce() {
         return coerce.value();
     }
@@ -3230,10 +3224,8 @@ public class NumberFieldMapper extends FieldMapper {
             value = fieldType.nullValue;
         }
         if (arrayValuesInOrder) {
-            // Values join the payload in indexValue, in document order; a null keeps its place as a null slot.
-            if (value == null && MultiValuedBinaryDocValuesField.keepsNullSlot(context, indexSettings.getMode())) {
-                ColumnarNumericDocValuesField.recordNull(context.doc(), fieldType.name());
-            }
+            // Values join the payload in indexValue, in document order.
+            // TODO: keep null slots; until then they are dropped.
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (value != null) {
                 // We cannot simply cast value to Comparable<> because we need to also capture the potential loss of precision that occurs

@@ -24,6 +24,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.test.ESTestCase;
 
@@ -47,7 +48,7 @@ public class NumericColumnMergeTests extends ESTestCase {
     public void testANumericColumnWritesNoTemporaryFile() throws IOException {
         final int numDocs = 3000;
         final FieldType type = columnarBinaryFieldType();
-        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
+        final BytesRefBuilder builder = new BytesRefBuilder();
         try (Directory real = newDirectory()) {
             final ColumnarTestUtils.TempOutputRecorder dir = new ColumnarTestUtils.TempOutputRecorder(real);
             final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG))
@@ -56,7 +57,7 @@ public class NumericColumnMergeTests extends ESTestCase {
                 for (int d = 0; d < numDocs; d++) {
                     final Document doc = new Document();
                     final long[] values = d % 3 == 0 ? new long[] { d, d * 7L } : new long[] { randomLong() };
-                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(builder.encode(values, values.length)), type));
+                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(NumericBinaryPayload.encode(values, values.length, builder)), type));
                     writer.addDocument(doc);
                     if ((d + 1) % 1000 == 0) {
                         writer.commit();
@@ -75,85 +76,6 @@ public class NumericColumnMergeTests extends ESTestCase {
     private static final String FIELD = "value";
     private static final String ID = "id";
 
-    /**
-     * Null slots are dropped on the way into the column, and a document left with no value reads back as missing the
-     * field, on flush and on merge alike. Pairing such a document with multi-valued ones also checks that it doesn't
-     * throw off how the column is addressed.
-     */
-    // TODO: update once the column keeps null slots and empty arrays.
-    public void testNullSlotsAndEmptyArraysAreDropped() throws IOException {
-        final int numDocs = between(10, 3000);
-        final FieldType type = columnarBinaryFieldType();
-        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
-        final List<List<Long>> expected = new ArrayList<>();
-        try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG))
-                .setMergePolicy(new LogDocMergePolicy());
-            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
-                for (int d = 0; d < numDocs; d++) {
-                    builder.reset();
-                    final List<Long> values = new ArrayList<>();
-                    switch (d % 4) {
-                        case 0 -> {
-                        } // an empty array
-                        case 1 -> builder.addNull();
-                        case 2 -> {
-                            builder.addValue(d);
-                            builder.addNull();
-                            builder.addValue(-d);
-                            values.add((long) d);
-                            values.add((long) -d);
-                        }
-                        case 3 -> {
-                            builder.addValue(d);
-                            values.add((long) d);
-                        }
-                        default -> throw new AssertionError();
-                    }
-                    expected.add(values.isEmpty() ? null : values);
-                    final Document doc = new Document();
-                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(builder.build()), type));
-                    writer.addDocument(doc);
-                    if (rarely()) {
-                        writer.commit();
-                    }
-                }
-                writer.commit();
-                try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                    assertColumn(reader, expected);
-                }
-                writer.forceMerge(1);
-            }
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                assertEquals(1, reader.leaves().size());
-                assertColumn(reader, expected);
-            }
-        }
-    }
-
-    private static void assertColumn(DirectoryReader reader, List<List<Long>> expected) throws IOException {
-        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
-        int base = 0;
-        for (var leaf : reader.leaves()) {
-            final BinaryDocValues dv = leaf.reader().getBinaryDocValues(FIELD);
-            for (int doc = 0; doc < leaf.reader().maxDoc(); doc++) {
-                final List<Long> want = expected.get(base + doc);
-                if (want == null) {
-                    assertTrue("doc " + (base + doc) + " has no value", dv == null || dv.advanceExact(doc) == false);
-                } else {
-                    assertTrue("doc " + (base + doc) + " has a value", dv.advanceExact(doc));
-                    decoder.reset(dv.binaryValue());
-                    final List<Long> actual = new ArrayList<>(decoder.valueCount());
-                    for (int i = 0; i < decoder.valueCount(); i++) {
-                        actual.add(decoder.nextValue());
-                    }
-                    assertEquals(want, actual);
-                }
-            }
-            base += leaf.reader().maxDoc();
-        }
-    }
-
     public void testMergePreservesValues() throws IOException {
         for (int iter = 0; iter < 8; iter++) {
             final int numDocs = between(200, 5000);
@@ -170,13 +92,15 @@ public class NumericColumnMergeTests extends ESTestCase {
                 // and the ordered check below also verifies per-document association.
                 final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG))
                     .setMergePolicy(new LogDocMergePolicy());
-                final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
+                final BytesRefBuilder builder = new BytesRefBuilder();
                 final int batch = Math.max(1, numDocs / between(2, 6));
                 try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                     for (int d = 0; d < numDocs; d++) {
                         final Document doc = new Document();
                         doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
-                        doc.add(new Field(FIELD, BytesRef.deepCopyOf(builder.encode(new long[] { values[d] }, 1)), type));
+                        doc.add(
+                            new Field(FIELD, BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { values[d] }, 1, builder)), type)
+                        );
                         writer.addDocument(doc);
                         if ((d + 1) % batch == 0) {
                             writer.commit(); // force a segment boundary so the merge has real work
@@ -202,12 +126,12 @@ public class NumericColumnMergeTests extends ESTestCase {
                     assertEquals("force-merged to one segment", 1, reader.leaves().size());
                     final LeafReader leaf = reader.leaves().get(0).reader();
                     final BinaryDocValues dv = leaf.getBinaryDocValues(FIELD);
-                    final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
+                    final long[][] decoded = { new long[8] };
                     final List<Long> actual = new ArrayList<>();
                     for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
-                        decoder.reset(dv.binaryValue());
-                        for (int i = 0; i < decoder.valueCount(); i++) {
-                            actual.add(decoder.nextValue());
+                        final int count = NumericBinaryPayload.decode(dv.binaryValue(), decoded);
+                        for (int i = 0; i < count; i++) {
+                            actual.add(decoded[0][i]);
                         }
                     }
                     assertEquals("merged column holds the surviving values in order", expected, actual);

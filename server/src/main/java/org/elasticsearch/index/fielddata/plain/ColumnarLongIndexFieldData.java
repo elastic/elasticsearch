@@ -182,24 +182,16 @@ public class ColumnarLongIndexFieldData extends IndexNumericFieldData {
     }
 
     private static SortedNumericLongValues fromPayloads(BinaryDocValues binary) {
-        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
-        // A payload of only null slots holds no value, so the documents the binary doc values visit aren't the ones that
-        // have a value: no iterator is offered.
-        return new SortedValues(null) {
+        final long[][] decoded = { new long[8] };
+        return new SortedValues(binary) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 if (binary.advanceExact(target) == false) {
                     return false;
                 }
-                decoder.reset(binary.binaryValue());
-                final int count = decoder.valueCount();
-                if (count == 0) {
-                    return false;
-                }
+                final int count = NumericBinaryPayload.decode(binary.binaryValue(), decoded);
                 final long[] values = grow(count);
-                for (int i = 0; i < count; i++) {
-                    values[i] = decoder.nextValue();
-                }
+                System.arraycopy(decoded[0], 0, values, 0, count);
                 sort(count);
                 return true;
             }

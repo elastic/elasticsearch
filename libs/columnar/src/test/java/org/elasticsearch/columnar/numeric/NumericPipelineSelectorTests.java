@@ -19,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.FormatVersion;
@@ -98,13 +99,13 @@ public class NumericPipelineSelectorTests extends ESTestCase {
         final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(capturingSelector, field -> ColumnarFieldType.LONG, blockSize);
 
         final FieldType fieldType = columnarBinaryFieldType();
-        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
+        final BytesRefBuilder builder = new BytesRefBuilder();
         try (
             Directory dir = newDirectory();
             IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(format)))
         ) {
             final Document doc = new Document();
-            doc.add(new Field("value", BytesRef.deepCopyOf(builder.encode(new long[] { 42L }, 1)), fieldType));
+            doc.add(new Field("value", BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { 42L }, 1, builder)), fieldType));
             writer.addDocument(doc);
             writer.commit();
         }

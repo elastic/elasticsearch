@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -21,21 +20,18 @@ import java.util.Objects;
 
 /**
  * Loads {@code _source} for a numeric field whose doc values are a {@link ColumnarNumericDocValuesField} payload.
- * The payload keeps the document's array in order, nulls and empty arrays included, so there is no
- * {@code .offsets} companion to read. Once the ColumNAR codec has stored the field, though, it holds only the
- * non-null values: null slots and empty arrays are dropped until the column learns to keep them.
+ * The payload keeps the document's non-null values in the order they were written.
  */
+// TODO: put null slots back from the .offsets companion.
 public class ColumnarNumericPayloadSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
     private final String name;
     private final SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer.NumericValueWriter writer;
-    private final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
+    private final long[][] decoded = { new long[8] };
 
     private BinaryDocValues values;
 
     // Per-document decoded state.
-    private boolean hasField;
-    private BytesRef payload;
-    private int slotCount;
+    private int count;
 
     public ColumnarNumericPayloadSyntheticFieldLoaderLayer(
         String name,
@@ -57,47 +53,24 @@ public class ColumnarNumericPayloadSyntheticFieldLoaderLayer implements Composit
     }
 
     private boolean advanceToDoc(int docId) throws IOException {
-        hasField = values.advanceExact(docId);
-        if (hasField == false) {
-            return false;
-        }
-        // The payload stays valid until the next advance, and nothing touches it between here and write().
-        payload = values.binaryValue();
-        slotCount = decoder.reset(payload);
-        return true;
+        count = values.advanceExact(docId) ? NumericBinaryPayload.decode(values.binaryValue(), decoded) : 0;
+        return count > 0;
     }
 
     @Override
     public boolean hasValue() {
-        return hasField;
+        return count > 0;
     }
 
     @Override
     public long valueCount() {
-        if (hasField == false) {
-            return 0;
-        }
-        if (slotCount == 0 || (slotCount == 1 && decoder.nullSlotCount() == 1)) {
-            // An empty array, or one holding a lone null, still has to render as an array. Two is simply "more than one"
-            // to CompositeSyntheticFieldLoader, which is all it takes to get the brackets.
-            return 2;
-        }
-        // One slot renders as a scalar, more than one as an array.
-        return slotCount;
+        return count;
     }
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        if (hasField == false) {
-            return;
-        }
-        decoder.reset(payload);
-        for (int slot = 0; slot < slotCount; slot++) {
-            if (decoder.nextIsNull()) {
-                b.nullValue();
-            } else {
-                writer.writeLongValue(b, decoder.nextValue());
-            }
+        for (int i = 0; i < count; i++) {
+            writer.writeLongValue(b, decoded[0][i]);
         }
     }
 }

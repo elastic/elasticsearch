@@ -30,6 +30,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
@@ -103,10 +104,12 @@ public enum NumericFormat {
         };
     }
 
-    void addField(Document doc, String field, long value, NumericBinaryPayload.Builder builder) {
+    void addField(Document doc, String field, long value, BytesRefBuilder builder) {
         switch (this) {
             case LUCENE, ES819, ES95 -> doc.add(SortedNumericDocValuesField.indexedField(field, value));
-            case COLUMNAR -> doc.add(new Field(field, BytesRef.deepCopyOf(builder.encode(new long[] { value }, 1)), COLUMNAR_FIELD_TYPE));
+            case COLUMNAR -> doc.add(
+                new Field(field, BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { value }, 1, builder)), COLUMNAR_FIELD_TYPE)
+            );
         }
     }
 
@@ -163,7 +166,7 @@ public enum NumericFormat {
         final Path tempPath = Files.createTempDirectory(tempDirPrefix);
         final FSDirectory fsDir = FSDirectory.open(tempPath);
         final IndexWriterConfig config = new IndexWriterConfig().setCodec(codec(workload, blockSize));
-        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
+        final BytesRefBuilder builder = new BytesRefBuilder();
         try (IndexWriter writer = new IndexWriter(fsDir, config)) {
             for (long value : values) {
                 final Document doc = new Document();

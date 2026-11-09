@@ -23,6 +23,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
@@ -108,14 +109,16 @@ public class ColumnarSparseReadBenchmark {
         tempPath = Files.createTempDirectory("columnar-sparse-");
         directory = FSDirectory.open(tempPath);
         final IndexWriterConfig config = new IndexWriterConfig().setCodec(NumericFormat.COLUMNAR.codec("RANDOM_FULL", blockSize));
-        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
+        final BytesRefBuilder builder = new BytesRefBuilder();
         int presentCount = 0;
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int doc = 0; doc < docCount; doc++) {
                 final Document document = new Document();
                 if (random.nextDouble() < density) {
                     final long value = random.nextInt(1000);
-                    document.add(new Field(FIELD, BytesRef.deepCopyOf(builder.encode(new long[] { value }, 1)), fieldType));
+                    document.add(
+                        new Field(FIELD, BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { value }, 1, builder)), fieldType)
+                    );
                     presentCount++;
                 }
                 writer.addDocument(document);
@@ -164,12 +167,12 @@ public class ColumnarSparseReadBenchmark {
     @Benchmark
     public void perDocPayload(Blackhole bh) throws IOException {
         final BinaryDocValues dv = leafReader.getBinaryDocValues(FIELD);
-        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
+        final long[][] decoded = { new long[8] };
         for (int doc : presentDocs) {
             if (dv.advanceExact(doc)) {
-                decoder.reset(dv.binaryValue());
-                for (int i = 0; i < decoder.valueCount(); i++) {
-                    bh.consume(decoder.nextValue());
+                final int count = NumericBinaryPayload.decode(dv.binaryValue(), decoded);
+                for (int i = 0; i < count; i++) {
+                    bh.consume(decoded[0][i]);
                 }
             }
         }
@@ -198,11 +201,11 @@ public class ColumnarSparseReadBenchmark {
     public void rangePayloadBitSet(Blackhole bh) throws IOException {
         final BinaryDocValues dv = leafReader.getBinaryDocValues(FIELD);
         final FixedBitSet matches = new FixedBitSet(docCount);
-        final NumericBinaryPayload.Decoder decoder = new NumericBinaryPayload.Decoder();
+        final long[][] decoded = { new long[8] };
         for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
-            decoder.reset(dv.binaryValue());
-            for (int i = 0; i < decoder.valueCount(); i++) {
-                final long value = decoder.nextValue();
+            final int count = NumericBinaryPayload.decode(dv.binaryValue(), decoded);
+            for (int i = 0; i < count; i++) {
+                final long value = decoded[0][i];
                 if (value >= RANGE_LOW && value <= RANGE_HIGH) {
                     matches.set(doc);
                     break;

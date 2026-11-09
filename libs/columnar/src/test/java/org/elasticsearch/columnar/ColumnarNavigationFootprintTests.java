@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.logging.LogManager;
@@ -97,7 +98,7 @@ public class ColumnarNavigationFootprintTests extends ESTestCase {
         );
         final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(format)).setUseCompoundFile(false);
         iwc.getMergePolicy().setNoCFSRatio(0.0);
-        final NumericBinaryPayload.Builder builder = new NumericBinaryPayload.Builder();
+        final BytesRefBuilder builder = new BytesRefBuilder();
         long values = 0;
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (int d = 0; d < DOCS; d++) {
@@ -108,7 +109,9 @@ public class ColumnarNavigationFootprintTests extends ESTestCase {
                 values += slots.size() + 1;
                 final Document doc = new Document();
                 doc.add(new Field("text", BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(slots)), type));
-                doc.add(new Field("number", BytesRef.deepCopyOf(builder.encode(new long[] { randomLong() }, 1)), type));
+                doc.add(
+                    new Field("number", BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { randomLong() }, 1, builder)), type)
+                );
                 writer.addDocument(doc);
             }
             writer.forceMerge(1);

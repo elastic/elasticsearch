@@ -62,8 +62,22 @@ def remoteDatasetInvisibleTest = tasks.register("remoteDatasetInvisibleTest", St
     includeTestsMatching remoteDatasetInvisibleTestPattern
   }
 }
+// The fetch phase suite checks with clusters of every version pair that the coordinator fetches from a remote cluster
+// only when both have the fetch phase. The bwc tasks cover the older pairs, this runner the current one.
+def fetchPhaseTestPattern = "org.elasticsearch.xpack.esql.ccq.MultiClusterFetchPhaseIT"
+def fetchPhaseCurrentToCurrent = tasks.register("fetchPhaseCurrentToCurrent", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching fetchPhaseTestPattern
+  }
+}
 tasks.named("check").configure {
   dependsOn remoteDatasetInvisibleTest
+  dependsOn fetchPhaseCurrentToCurrent
   dependsOn currentToCurrent
 }
 

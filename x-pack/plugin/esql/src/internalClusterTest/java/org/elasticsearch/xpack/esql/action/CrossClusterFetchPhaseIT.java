@@ -8,18 +8,24 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
@@ -39,16 +45,22 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The fetch phase over remote clusters: the data nodes of each remote cluster keep their reader contexts for the querying
@@ -60,6 +72,11 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class CrossClusterFetchPhaseIT extends AbstractCrossClusterTestCase {
     private static final String INDEX = "fetch_ccs";
+    /**
+     * The index of a node that a test starts and stops between the phases.
+     */
+    private static final String LOST_INDEX = "fetch_ccs_lost";
+    private static final String LOST_PREFIX = "lost-";
     private static final int DOCS_PER_CLUSTER = 30;
     private static final List<String> CLUSTERS = List.of(LOCAL_CLUSTER, REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
 
@@ -84,13 +101,13 @@ public class CrossClusterFetchPhaseIT extends AbstractCrossClusterTestCase {
         for (int c = 0; c < CLUSTERS.size(); c++) {
             String clusterAlias = CLUSTERS.get(c);
             Client client = client(clusterAlias);
-            int nodes = cluster(clusterAlias).size();
-            // two shards per node, so every node holds documents
+            int dataNodes = cluster(clusterAlias).numDataNodes();
+            // two shards per data node, so every data node holds documents
             assertAcked(
                 client.admin()
                     .indices()
                     .prepareCreate(INDEX)
-                    .setSettings(Settings.builder().put("index.number_of_shards", nodes * 2).put("index.number_of_replicas", 0))
+                    .setSettings(Settings.builder().put("index.number_of_shards", dataNodes * 2).put("index.number_of_replicas", 0))
                     .setMapping("ts", "type=long", "a", "type=keyword", "b", "type=long")
             );
             BulkRequestBuilder bulk = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -104,20 +121,23 @@ public class CrossClusterFetchPhaseIT extends AbstractCrossClusterTestCase {
             fetchRequests.put(clusterAlias, new AtomicInteger());
             forwardedFetchRequests.put(clusterAlias, new AtomicInteger());
             for (TransportService transportService : cluster(clusterAlias).getInstances(TransportService.class)) {
-                MockTransportService mock = (MockTransportService) transportService;
-                mock.<TransportRequest>addRequestHandlingBehavior(FetchService.FETCH_ACTION_NAME, (handler, request, channel, task) -> {
-                    fetchRequests.get(clusterAlias).incrementAndGet();
-                    handler.messageReceived(request, channel, task);
-                });
-                mock.<TransportRequest>addRequestHandlingBehavior(
-                    TransportActionProxy.getProxyAction(FetchService.FETCH_ACTION_NAME),
-                    (handler, request, channel, task) -> {
-                        forwardedFetchRequests.get(clusterAlias).incrementAndGet();
-                        handler.messageReceived(request, channel, task);
-                    }
-                );
+                countFetches(clusterAlias, (MockTransportService) transportService);
             }
         }
+    }
+
+    private void countFetches(String clusterAlias, MockTransportService transportService) {
+        transportService.<TransportRequest>addRequestHandlingBehavior(FetchService.FETCH_ACTION_NAME, (handler, request, channel, task) -> {
+            fetchRequests.get(clusterAlias).incrementAndGet();
+            handler.messageReceived(request, channel, task);
+        });
+        transportService.<TransportRequest>addRequestHandlingBehavior(
+            TransportActionProxy.getProxyAction(FetchService.FETCH_ACTION_NAME),
+            (handler, request, channel, task) -> {
+                forwardedFetchRequests.get(clusterAlias).incrementAndGet();
+                handler.messageReceived(request, channel, task);
+            }
+        );
     }
 
     @After
@@ -138,7 +158,12 @@ public class CrossClusterFetchPhaseIT extends AbstractCrossClusterTestCase {
         }
         for (String clusterAlias : CLUSTERS) {
             // the clusters serve every test of the class, and a test that was skipped created no index
-            assertAcked(client(clusterAlias).admin().indices().prepareDelete(INDEX).setIndicesOptions(IndicesOptions.lenientExpandOpen()));
+            assertAcked(
+                client(clusterAlias).admin()
+                    .indices()
+                    .prepareDelete(INDEX, LOST_INDEX)
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            );
         }
     }
 
@@ -296,16 +321,222 @@ public class CrossClusterFetchPhaseIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    private void assertTheGatewayForwardsTheFetchesOfTheOtherNodes() {
+    /**
+     * The branches of a {@code FORK} read the local cluster and a remote one, and share one execution of the lease, which
+     * holds the contexts of every branch on every cluster. One fetch after the final cut loads the rows of both clusters.
+     */
+    public void testAForkFetchesTheRowsOfEveryBranchAndCluster() {
+        String query = "FROM "
+            + INDEX
+            + ","
+            + REMOTE_CLUSTER_1
+            + ":"
+            + INDEX
+            + " | FORK (WHERE ts % 2 == 0 | SORT ts DESC | LIMIT 6) (WHERE ts % 5 == 0 | SORT ts DESC | LIMIT 6)"
+            + " | SORT ts DESC, _fork | LIMIT 8 | KEEP ts, a, _fork";
+
+        List<List<Object>> fetched = assertSameRowsAsTheEagerQuery(query, 8);
+
+        assertThat(rowsOf(fetched, LOCAL_CLUSTER), greaterThan(0));
+        assertThat(rowsOf(fetched, REMOTE_CLUSTER_1), greaterThan(0));
+        assertThat(fetchRequests.get(REMOTE_CLUSTER_1).get(), greaterThan(0));
+    }
+
+    /**
+     * {@code FUSE} groups the rows of the branches by {@code _id} and {@code _index}, and the {@code _index} of a remote
+     * document names its cluster, so a document of each cluster is a group of its own.
+     */
+    public void testAFuseOverTheLocalAndARemoteClusterFetchesTheFinalWinners() {
+        String query = "FROM "
+            + INDEX
+            + ","
+            + REMOTE_CLUSTER_1
+            + ":"
+            + INDEX
+            + " METADATA _id, _index, _score"
+            + " | FORK (WHERE ts % 2 == 0 | SORT ts DESC | LIMIT 10) (WHERE ts % 3 == 0 | SORT ts DESC | LIMIT 10)"
+            + " | FUSE | SORT _score DESC, ts DESC | LIMIT 6 | KEEP ts, a";
+
+        List<List<Object>> fetched = assertSameRowsAsTheEagerQuery(query, 6);
+
+        assertThat(rowsOf(fetched, LOCAL_CLUSTER), greaterThan(0));
+        assertThat(rowsOf(fetched, REMOTE_CLUSTER_1), greaterThan(0));
+    }
+
+    /**
+     * A remote data node that leaves after it received a fetch, before it answers, drops the rows of its shards when the
+     * query skips its cluster on failure. The rows of the other shards and clusters come back in the order of the sort.
+     */
+    public void testARemoteNodeThatLeavesWhileItServesAFetchDropsTheRowsOfItsShards() throws Exception {
+        String lost = startNodeWithWinners(REMOTE_CLUSTER_2);
+        String query = "FROM "
+            + INDEX
+            + ","
+            + REMOTE_CLUSTER_2
+            + ":"
+            + INDEX
+            + ","
+            + REMOTE_CLUSTER_2
+            + ":"
+            + LOST_INDEX
+            + " | SORT ts DESC | LIMIT 12 | KEEP ts, a, b";
+        List<List<Object>> eager = rows(query, false);
+        CountDownLatch fetchArrived = neverAnswerFetches(REMOTE_CLUSTER_2, lost);
+
+        ActionFuture<EsqlQueryResponse> fetching = client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request(query, true, false));
+        safeAwait(fetchArrived);
+        cluster(REMOTE_CLUSTER_2).stopNode(lost);
+
+        try (EsqlQueryResponse response = fetching.actionGet(30, TimeUnit.SECONDS)) {
+            List<List<Object>> kept = eager.stream().filter(row -> ((String) row.get(1)).startsWith(LOST_PREFIX) == false).toList();
+            assertThat(EsqlTestUtils.getValuesList(response), equalTo(kept));
+            assertTrue(response.isPartial());
+            EsqlExecutionInfo.Cluster remote = response.getExecutionInfo().getCluster(REMOTE_CLUSTER_2);
+            assertThat(remote.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+            assertThat(remote.getFailures(), not(empty()));
+            for (ShardSearchFailure failure : remote.getFailures()) {
+                assertThat(failure.index(), equalTo(REMOTE_CLUSTER_2 + ":" + LOST_INDEX));
+                assertThat(failure.getCause(), instanceOf(ConnectTransportException.class));
+            }
+        }
+    }
+
+    /**
+     * A remote data node that leaves while it serves a fetch fails the query when the query doesn't skip its cluster on
+     * failure and doesn't allow partial results.
+     */
+    public void testARemoteNodeThatLeavesWhileItServesAFetchFailsTheQueryOfAClusterNotSkipped() throws Exception {
+        String lost = startNodeWithWinners(REMOTE_CLUSTER_1);
+        String query = "FROM " + REMOTE_CLUSTER_1 + ":" + INDEX + "," + REMOTE_CLUSTER_1 + ":" + LOST_INDEX + " | SORT ts DESC | LIMIT 12";
+        CountDownLatch fetchArrived = neverAnswerFetches(REMOTE_CLUSTER_1, lost);
+
+        ActionFuture<EsqlQueryResponse> fetching = client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request(query, true, false));
+        safeAwait(fetchArrived);
+        cluster(REMOTE_CLUSTER_1).stopNode(lost);
+
+        Exception e = expectThrows(Exception.class, () -> fetching.actionGet(30, TimeUnit.SECONDS).close());
+        assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ConnectTransportException.class));
+    }
+
+    /**
+     * A remote cluster that the coordinator can no longer reach after the query phase drops its rows when the query skips
+     * it on failure, like a fetch it refuses.
+     */
+    public void testARemoteClusterThatCanNoLongerBeReachedDropsItsRows() {
+        String query = "FROM " + INDEX + "," + REMOTE_CLUSTER_2 + ":" + INDEX + " | SORT ts DESC | LIMIT 12 | KEEP ts, a, b";
+        List<List<Object>> eager = rows(query, false);
+        cannotReachTheFetchesOf(REMOTE_CLUSTER_2);
+
+        try (EsqlQueryResponse response = run(query, true, false)) {
+            List<List<Object>> localRows = eager.stream().filter(row -> ((String) row.get(1)).startsWith(prefix(LOCAL_CLUSTER))).toList();
+            assertThat(EsqlTestUtils.getValuesList(response), equalTo(localRows));
+            EsqlExecutionInfo.Cluster remote = response.getExecutionInfo().getCluster(REMOTE_CLUSTER_2);
+            assertThat(remote.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+            assertThat(remote.getFailures().getFirst().getCause(), instanceOf(ConnectTransportException.class));
+        }
+    }
+
+    /**
+     * Starts a data node in {@code clusterAlias} that holds {@link #LOST_INDEX} alone, whose documents sort above every
+     * other, so they are among the winners of every cut. The other indices never move to it, so stopping it loses only
+     * {@link #LOST_INDEX}.
+     */
+    private String startNodeWithWinners(String clusterAlias) {
+        Client client = client(clusterAlias);
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareUpdateSettings(INDEX)
+                .setSettings(Settings.builder().put("index.routing.allocation.exclude.fetch_lost", true))
+        );
+        String lost = cluster(clusterAlias).startNode(Settings.builder().put("node.attr.fetch_lost", true));
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(LOST_INDEX)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.routing.allocation.require._name", lost)
+                )
+                .setMapping("ts", "type=long", "a", "type=keyword", "b", "type=long")
+        );
+        BulkRequestBuilder bulk = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 4; i++) {
+            bulk.add(client.prepareIndex(LOST_INDEX).setSource(Map.of("ts", 10_000 + i, "a", LOST_PREFIX + i, "b", i)));
+        }
+        assertFalse(bulk.get().hasFailures());
+        return lost;
+    }
+
+    /**
+     * Swallows every fetch that {@code node} of {@code clusterAlias} receives, as if the node stopped answering, and counts
+     * down once one arrives.
+     */
+    private CountDownLatch neverAnswerFetches(String clusterAlias, String node) {
+        CountDownLatch fetchArrived = new CountDownLatch(1);
+        ((MockTransportService) cluster(clusterAlias).getInstance(TransportService.class, node)).<
+            TransportRequest>addRequestHandlingBehavior(
+                FetchService.FETCH_ACTION_NAME,
+                (handler, request, channel, task) -> fetchArrived.countDown()
+            );
+        return fetchArrived;
+    }
+
+    /**
+     * Every node of the local cluster fails to send a fetch to a node of {@code clusterAlias}, directly or through a gateway,
+     * as if the cluster went away after the query phase. The frees still go out, so no context waits for its keep-alive.
+     */
+    private void cannotReachTheFetchesOf(String clusterAlias) {
+        Set<String> fetchActions = Set.of(
+            FetchService.FETCH_ACTION_NAME,
+            TransportActionProxy.getProxyAction(FetchService.FETCH_ACTION_NAME)
+        );
+        for (TransportService local : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
+            for (TransportService remote : cluster(clusterAlias).getInstances(TransportService.class)) {
+                ((MockTransportService) local).addSendBehavior(remote, (connection, requestId, action, request, options) -> {
+                    if (fetchActions.contains(action)) {
+                        throw new ConnectTransportException(connection.getNode(), "the remote cluster went away");
+                    }
+                    connection.sendRequest(requestId, action, request, options);
+                });
+            }
+        }
+    }
+
+    private void assertTheGatewayForwardsTheFetchesOfTheOtherNodes() throws Exception {
+        spreadTheShardsOverTwoDataNodes(REMOTE_CLUSTER_1);
         String query = "FROM " + INDEX + "," + REMOTE_CLUSTER_1 + ":" + INDEX + " | SORT ts DESC | LIMIT 1000 | KEEP ts, a, b";
         int rows = DOCS_PER_CLUSTER * 2;
 
         assertSameRowsAsTheEagerQuery(query, rows);
 
-        if (cluster(REMOTE_CLUSTER_1).size() > 1) {
-            // every node holds winners, and the coordinator is connected to one of them
-            assertThat(forwardedFetchRequests.get(REMOTE_CLUSTER_1).get(), greaterThan(0));
+        // two data nodes hold winners, and the coordinator is connected to one node only
+        assertThat(forwardedFetchRequests.get(REMOTE_CLUSTER_1).get(), greaterThan(0));
+    }
+
+    /**
+     * Starts a data node in {@code clusterAlias} when it has only one, and waits until the shards of {@link #INDEX} are on
+     * two data nodes or more. The random clusters of the suite can have a single data node.
+     */
+    private void spreadTheShardsOverTwoDataNodes(String clusterAlias) throws Exception {
+        InternalTestCluster cluster = cluster(clusterAlias);
+        if (cluster.numDataNodes() < 2) {
+            String node = cluster.startDataOnlyNode();
+            countFetches(clusterAlias, (MockTransportService) cluster.getInstance(TransportService.class, node));
         }
+        assertBusy(() -> {
+            List<ShardRouting> shards = client(clusterAlias).admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .routingTable()
+                .allShards(INDEX);
+            assertThat(shards, everyItem(transformedMatch(ShardRouting::state, equalTo(ShardRoutingState.STARTED))));
+            assertThat(shards.stream().map(ShardRouting::currentNodeId).distinct().count(), greaterThan(1L));
+        });
     }
 
     /**
@@ -338,13 +569,17 @@ public class CrossClusterFetchPhaseIT extends AbstractCrossClusterTestCase {
     }
 
     private EsqlQueryResponse run(String query, boolean fetchPhase, boolean allowPartialResults) {
+        return runQuery(request(query, fetchPhase, allowPartialResults));
+    }
+
+    private static EsqlQueryRequest request(String query, boolean fetchPhase, boolean allowPartialResults) {
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(query)
             .acceptedPragmaRisks(true)
             .pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), fetchPhase).build()))
             .profile(true)
             .allowPartialResults(allowPartialResults);
         request.includeCCSMetadata(true);
-        return runQuery(request);
+        return request;
     }
 
     /**

@@ -39,6 +39,8 @@ dependencies {
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
   // exposes /_flush_telemetry for RemoteClusterSecurityWithApmTracingRestIT
   clusterModules project(':test:external-modules:test-apm-integration')
+  // stalls the query phase of one index, so the ES|QL fetch suites change a role between the phases
+  clusterModules project(':test:external-modules:test-error-query')
   // RemoteClusterSecurityWithApmTracingRestIT reuses RecordingApmServer to receive spans over OTLP/gRPC
   javaRestTestImplementation(testArtifact(project(':test:external-modules:test-apm-integration'), 'javaRestTest'))
 }

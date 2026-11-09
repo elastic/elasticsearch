@@ -33,12 +33,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -127,6 +129,10 @@ public final class AnalysisRegistry implements Closeable {
         // Written once by the builder thread before completing the future, so it is safely visible
         // to every thread that joins the future (and to shutdown, which runs after all builds).
         volatile NamedAnalyzer evictable;
+        // Set by the builder, before completing the future, when the build is degraded (see
+        // AnalysisRegistry#isDegraded). The entry is then removed from the cache, so its holders
+        // release it themselves rather than through the cache.
+        volatile boolean detached;
 
         /**
          * Acquire one additional reference if the entry is still live. Returns false if it has
@@ -154,6 +160,10 @@ public final class AnalysisRegistry implements Closeable {
 
     private final LongAdder cacheHits = new LongAdder();
     private final LongAdder cacheMisses = new LongAdder();
+
+    // Entries removed from their cache because their build was degraded (CacheEntry#detached) but still held by indices.
+    // Tracked so close() and assertNoCachedEntries() still see them. Whoever removes an entry from here closes it.
+    private final Set<CacheEntry> detachedEntries = ConcurrentHashMap.newKeySet();
 
     private final Environment environment;
     private final Map<String, AnalysisProvider<CharFilterFactory>> charFilters;
@@ -296,7 +306,7 @@ public final class AnalysisRegistry implements Closeable {
     /**
      * @return number of unique cached analyzer instances (sharing target). Together with the total
      *         live references across {@code IndexAnalyzers} this gives the per-node sharing factor
-     *         (references / unique).
+     *         (references / unique). Excludes detached entries, which are not shared (see CacheEntry#detached).
      */
     public int analyzerCacheSize() {
         return analyzerCache.size();
@@ -319,7 +329,8 @@ public final class AnalysisRegistry implements Closeable {
      *         reference per analyzer cache entry it uses, so this is the numerator of the analyzer
      *         sharing factor (total references / {@link #analyzerCacheSize() unique entries}); a ratio
      *         of 1.0 means no sharing, higher means more indices share each instance. Keeping the
-     *         numerator and denominator over the same cache makes that ratio meaningful.
+     *         numerator and denominator over the same cache makes that ratio meaningful. Excludes detached
+     *         entries, like {@link #analyzerCacheSize()}.
      */
     public long totalReferences() {
         long total = 0;
@@ -347,17 +358,20 @@ public final class AnalysisRegistry implements Closeable {
      * should invoke it in {@code @After} to guard against regressions in their own setup or in
      * the code under test.
      *
-     * @throws AssertionError if any of the three caches still contains entries, with a message
-     *         enumerating the leaked recipes.
+     * @throws AssertionError if any of the three caches still contains entries, or a detached entry
+     *         is still held, with a message enumerating the leaked recipes.
      */
     public void assertNoCachedEntries() {
-        if (analyzerCache.isEmpty() && normalizerCache.isEmpty() && whitespaceNormalizerCache.isEmpty()) {
+        if (analyzerCache.isEmpty() && normalizerCache.isEmpty() && whitespaceNormalizerCache.isEmpty() && detachedEntries.isEmpty()) {
             return;
         }
         StringBuilder msg = new StringBuilder("AnalysisRegistry has cached entries that were never released:\n");
         leakedEntries(msg, "  analyzer", analyzerCache);
         leakedEntries(msg, "  normalizer", normalizerCache);
         leakedEntries(msg, "  whitespace-normalizer", whitespaceNormalizerCache);
+        for (CacheEntry e : detachedEntries) {
+            msg.append("  detached refCount=").append(e.refCount.get()).append('\n');
+        }
         throw new AssertionError(msg.toString());
     }
 
@@ -400,6 +414,11 @@ public final class AnalysisRegistry implements Closeable {
                             toClose.add(a);
                         }
                     }
+                }
+            }
+            for (CacheEntry entry : detachedEntries) {
+                if (detachedEntries.remove(entry) && entry.evictable != null) {
+                    toClose.add(entry.evictable);
                 }
             }
             IOUtils.close(toClose);
@@ -997,6 +1016,10 @@ public final class AnalysisRegistry implements Closeable {
         // fresh per-index analyzer.
         if (indexSettings != null && SHARED_ANALYZERS_ENABLED) {
             AnalyzerKey key = computeAnalyzerKey(analyzerFactory, analyzerSettings, tokenizers, charFilters, tokenFilters);
+            if (key == null) {
+                // Reloadable chain with a component whose key does not survive an in-place reload.
+                return buildNamedAnalyzer(context, name, analyzerFactory, tokenFilters, charFilters, tokenizers);
+            }
             CacheEntry cached = analyzerCache.get(key);
             if (cached != null) {
                 InternedAnalyzer acquired = acquireIfLive(key, cached, analyzerCache);
@@ -1144,6 +1167,13 @@ public final class AnalysisRegistry implements Closeable {
             // analyzers `raw` is INDEX-scoped so its close() cascades to the underlying analyzer,
             // whereas the INDICES `scoped` wrapper we hand out would not.
             entry.evictable = raw;
+            if (isDegraded(raw)) {
+                // A lenient fallback (e.g. a synonym map that tripped the circuit breaker) must not be served to
+                // indices built later, which may build the full analyzer. Concurrent joiners of this build keep it.
+                entry.detached = true;
+                detachedEntries.add(entry);
+                cache.remove(key, entry);
+            }
             entry.futureAnalyzer.complete(scoped);
         } else {
             // We adopted a sibling's entry — count as a coalesced hit, not a build.
@@ -1158,7 +1188,7 @@ public final class AnalysisRegistry implements Closeable {
      * entry has been retired. Used by the fast-path cache hit where the entry is already
      * (typically) materialized.
      */
-    private static InternedAnalyzer acquireIfLive(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
+    private InternedAnalyzer acquireIfLive(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
         if (entry.tryAcquire() == false) {
             return null;
         }
@@ -1172,7 +1202,7 @@ public final class AnalysisRegistry implements Closeable {
      * RuntimeException — the cache entry has already been removed by the failing builder, so a
      * retry will rebuild.
      */
-    private static InternedAnalyzer materialize(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
+    private InternedAnalyzer materialize(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
         NamedAnalyzer analyzer;
         try {
             analyzer = entry.futureAnalyzer.join();
@@ -1191,7 +1221,33 @@ public final class AnalysisRegistry implements Closeable {
             }
             throw new RuntimeException(cause);
         }
+        if (entry.detached) {
+            return new InternedAnalyzer(analyzer, () -> releaseDetached(key, entry));
+        }
         return new InternedAnalyzer(analyzer, () -> releaseFromCache(key, entry, cache));
+    }
+
+    /**
+     * Whether a freshly built analyzer holds a filter that fell back after a lenient load failed. A
+     * {@link ReloadableCustomAnalyzer} retries such a load itself and must stay shared so reloads reach
+     * every sharer, so only other analyzers count.
+     */
+    private static boolean isDegraded(NamedAnalyzer analyzer) {
+        return analyzer.analyzer() instanceof CustomAnalyzer custom
+            && Arrays.stream(custom.getComponents().getTokenFilters()).anyMatch(TokenFilterFactory::isDegraded);
+    }
+
+    /** Releases a reference on an entry no longer in the cache, closing its analyzer with the last one. */
+    private void releaseDetached(AnalyzerKey key, CacheEntry entry) {
+        // Skip the close if close() already claimed the entry.
+        if (entry.refCount.decrementAndGet() > 0 || detachedEntries.remove(entry) == false) {
+            return;
+        }
+        try {
+            entry.evictable.close();
+        } catch (Exception e) {
+            logger.debug(() -> "failed to close detached analyzer [" + key + "]", e);
+        }
     }
 
     /**
@@ -1234,6 +1290,11 @@ public final class AnalysisRegistry implements Closeable {
         });
     }
 
+    /**
+     * Derives the cache key for one analyzer recipe, or {@code null} when the analyzer must not be
+     * shared at all (a reloadable chain containing a filter whose key does not survive an in-place
+     * reload).
+     */
     private static AnalyzerKey computeAnalyzerKey(
         AnalyzerProvider<?> provider,
         Settings analyzerSettings,
@@ -1253,10 +1314,18 @@ public final class AnalysisRegistry implements Closeable {
                 .stream()
                 .map(n -> sharingKey(charFilterFactories.get(n)))
                 .toList();
-            List<Object> tokenFilterKeys = recipeSettings.getAsList("filter")
+            List<TokenFilterFactory> chainTokenFilters = recipeSettings.getAsList("filter")
                 .stream()
-                .map(n -> sharingKey(tokenFilterFactories.get(n)))
+                .map(tokenFilterFactories::get)
                 .toList();
+            // A chain with any SEARCH_TIME filter becomes a ReloadableCustomAnalyzer, rebuilt in place from
+            // current resource state on reload. Sharing one is only sound when every filter's key stays true
+            // across that rebuild (see TokenFilterFactory#sharingKeyStableOnReload); otherwise build privately.
+            if (chainTokenFilters.stream().anyMatch(f -> f != null && f.getAnalysisMode() == AnalysisMode.SEARCH_TIME)
+                && chainTokenFilters.stream().anyMatch(f -> f != null && f.sharingKeyStableOnReload() == false)) {
+                return null;
+            }
+            List<Object> tokenFilterKeys = chainTokenFilters.stream().map(AnalysisRegistry::sharingKey).toList();
             int gap = recipeSettings.getAsInt("position_increment_gap", TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
             // offset_gap is baked per-index into the (Reloadable)CustomAnalyzer just like the
             // position gap, so it must be part of the key or indices differing only in offset_gap
@@ -1355,6 +1424,11 @@ public final class AnalysisRegistry implements Closeable {
         // flag is disabled we build a fresh per-index normalizer and never touch the cache.
         if (indexSettings != null && SHARED_ANALYZERS_ENABLED) {
             AnalyzerKey key = computeAnalyzerKey(normalizerFactory, normalizerSettings, Map.of(), charFilters, tokenFilters);
+            if (key == null) {
+                // Unreachable for normalizers today (no SEARCH_TIME normalizer filters), but mirror produceAnalyzer.
+                normalizers.put(name, buildNamedNormalizer(name, normalizerFactory, tokenizerFactory, tokenFilters, charFilters));
+                return;
+            }
             CacheEntry cached = cache.get(key);
             if (cached != null) {
                 InternedAnalyzer acquired = acquireIfLive(key, cached, cache);

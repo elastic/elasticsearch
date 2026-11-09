@@ -133,6 +133,10 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE = new NodeFeature(
         "search.vectors.knn_nested_alias_filter_root_scope"
     );
+    /**
+     * Test-only gate for REST tests asserting that kNN filters are evaluated at the nested level of the fields they read.
+     */
+    public static final NodeFeature KNN_FILTER_NESTED_LEVELS = new NodeFeature("search.vectors.knn_filter_nested_levels");
 
     /**
      * Test-only gate for REST tests sorting on a field that is mapped in some of the searched indices only, with an
@@ -181,6 +185,7 @@ public final class SearchFeatures implements FeatureSpecification {
                 COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
                 COLUMNAR_DEFAULT_FIELD_LENIENCY,
                 KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE,
+                KNN_FILTER_NESTED_LEVELS,
                 PROFILE_RESCORE,
                 SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE
             )

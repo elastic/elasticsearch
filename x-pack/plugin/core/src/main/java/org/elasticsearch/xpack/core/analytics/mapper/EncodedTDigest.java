@@ -117,11 +117,6 @@ public final class EncodedTDigest implements TDigestReadView {
                 return centroid.mean();
             }
 
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
         }, out);
     }
 
@@ -150,11 +145,6 @@ public final class EncodedTDigest implements TDigestReadView {
                 public double currentMean() {
                     assert index >= 0 : "next() must be called and return true before accessing current centroid";
                     return means.get(index);
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return index + 1 < means.size();
                 }
             }, out);
             return out.bytes().toBytesRef();
@@ -259,11 +249,6 @@ public final class EncodedTDigest implements TDigestReadView {
         long currentCount();
 
         double currentMean();
-
-        /**
-         * Returns {@code true} iff a call to {@link #next()} would return {@code false}.
-         */
-        boolean hasNext();
     }
 
     private static final class EncodedCentroidIterator implements CentroidIterator {
@@ -279,7 +264,7 @@ public final class EncodedTDigest implements TDigestReadView {
 
         @Override
         public boolean next() {
-            if (hasNext()) {
+            if (input.available() > 0) {
                 try {
                     count = input.readVLong();
                     mean = input.readDouble();
@@ -301,11 +286,6 @@ public final class EncodedTDigest implements TDigestReadView {
         public double currentMean() {
             assert count != -1 : "next() must be called and return true before accessing current centroid";
             return mean;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return input.available() > 0;
         }
     }
 }

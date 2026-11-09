@@ -61,7 +61,7 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     }
 
     @Override
-    public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim) {
+    public AshScorer<ScoringQuery> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim) {
         return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(input, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim)));
     }
 

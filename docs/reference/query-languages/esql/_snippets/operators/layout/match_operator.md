@@ -17,11 +17,12 @@ The match operator performs a [match query](/reference/query-languages/query-dsl
 
 The match operator is equivalent to the [match function](../../../functions-operators/search-functions/match.md), which is the standard function for performing full-text search in ES|QL.
 
-{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+{applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
 The match operator can also search expressions that are not backed by an index,
 such as computed columns produced by `EVAL` or `STATS`.
 When the target is not an indexed field, the search evaluates by scanning values
 row by row, which may be slower on large datasets.
+To learn more, refer to [runtime search](/reference/query-languages/esql/esql-runtime-search.md).
 
 For using the function syntax, or adding [match query parameters](/reference/query-languages/query-dsl/query-dsl-match-query.md#match-field-params), you can use the [match function](../../../functions-operators/search-functions/match.md).
 

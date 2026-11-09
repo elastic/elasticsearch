@@ -1,0 +1,6 @@
+area: Inference
+issues: []
+pr: 162016
+summary: Fix Amazon Bedrock streaming requests hanging on failure, and skip reasoning
+  content deltas from models such as Claude Sonnet 5
+type: bug

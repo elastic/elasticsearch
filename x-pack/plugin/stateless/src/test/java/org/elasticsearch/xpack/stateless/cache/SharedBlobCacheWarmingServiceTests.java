@@ -511,6 +511,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 lastCommit,
                 fakeNode.searchDirectory,
+                mock(WarmingRatioProvider.class),
                 null,
                 false,
                 refillCacheCompletionListener
@@ -576,7 +577,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider,
                         searchRecoveryTimeoutCalculationService
                     );
                 }
@@ -1062,7 +1062,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
@@ -1185,7 +1184,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
@@ -1218,7 +1216,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            node.warmingService.warmCache(SEARCH, indexShard, commit, node.searchDirectory, null, false, future);
+            node.warmingService.warmCache(
+                SEARCH,
+                indexShard,
+                commit,
+                node.searchDirectory,
+                mock(WarmingRatioProvider.class),
+                null,
+                false,
+                future
+            );
 
             // All tasks are enqueued (captured) but none has run yet.
             assertThat("expect at least one warming task to be enqueued", capturedTasks.isEmpty(), is(false));
@@ -1269,7 +1276,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(512))
                         .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean())
                         .put(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING.getKey(), randomBoolean())
-                        .put(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING.getKey(), randomDoubleBetween(0, 1, true))
                         .build();
                 }
 
@@ -1403,6 +1409,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 frozenBcc.lastCompoundCommit(),
                 fakeNode.searchDirectory,
+                mock(WarmingRatioProvider.class),
                 null,
                 false,
                 refillCacheCompletionListener
@@ -1479,6 +1486,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 mockIndexShard(node),
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
+                mock(WarmingRatioProvider.class),
                 Map.of(), // don't do any warming besides the regular shard recovery kind
                 false,
                 future
@@ -1532,6 +1540,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     indexShard,
                     commit,
                     node.indexingDirectory.getBlobStoreCacheDirectory(),
+                    mock(WarmingRatioProvider.class),
                     null,
                     false,
                     future
@@ -1596,6 +1605,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
+                mock(WarmingRatioProvider.class),
                 Map.of(), // don't do any warming besides the regular shard recovery kind
                 false,
                 future
@@ -1626,11 +1636,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     public void testIdLookupPreWarming() throws Exception {
         final boolean preWarmEnabled = usually();
         final boolean preWarmRequested = usually();
-        final double ratio = randomDoubleBetween(0.0, 1.0, true);
         final boolean shouldPreWarmForIdLookup = preWarmEnabled && preWarmRequested;
         final long regionSize = SharedBytes.PAGE_SIZE;
 
-        try (var node = createFakeNodeForPreWarming(ByteSizeValue.ofMb(4), regionSize, SharedBytes.PAGE_SIZE, preWarmEnabled, ratio)) {
+        try (var node = createFakeNodeForPreWarming(ByteSizeValue.ofMb(4), regionSize, SharedBytes.PAGE_SIZE, preWarmEnabled)) {
             final IndexShard indexShard = mockIndexShard(node);
             final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
             final var blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen);
@@ -1664,6 +1673,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
+                mock(WarmingRatioProvider.class),
                 null,
                 preWarmRequested,
                 future
@@ -1677,11 +1687,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 randomRegionTimestampMillis()
             );
 
-            // For each file, verify the expected caching behavior based on shouldPreWarmForIdLookup and ratio.
+            // For each file, verify the expected caching behavior based on shouldPreWarmForIdLookup.
             // When shouldPreWarmForIdLookup:
             // .tip/.bfi: fully cached
-            // .tim: header = max(ratio * fileLength, 1024)
-            // .dvd: header = 1024
+            // .tim/.dvd: header = 1024
             // When disabled:
             // all files: header = 1024 only
             for (var entry : commitFiles.entrySet()) {
@@ -1705,17 +1714,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         );
                     }
                 } else {
-                    // Only the header portion should be cached.
-                    // For .tim with id lookup pre-warm: header = max(ratio * fileLength, 1024)
-                    // Otherwise: header = 1024 (BUFFER_SIZE)
-                    long headerPreWarmSize;
-                    if (shouldPreWarmForIdLookup && ext == LuceneFilesExtensions.TIM) {
-                        headerPreWarmSize = Math.max((long) (ratio * loc.fileLength()), BUFFER_SIZE);
-                    } else {
-                        headerPreWarmSize = BUFFER_SIZE;
-                    }
+                    // Only the header portion (BUFFER_SIZE) should be cached.
                     int startRegion = node.sharedCacheService.getRegion(loc.offset());
-                    int lastHeaderRegion = node.sharedCacheService.getEndingRegion(loc.offset() + headerPreWarmSize);
+                    int lastHeaderRegion = node.sharedCacheService.getEndingRegion(loc.offset() + BUFFER_SIZE);
                     // All regions covering the header should be cached
                     for (int r = startRegion; r <= lastHeaderRegion; r++) {
                         long rStart = (long) r * regionSize;
@@ -1745,21 +1746,14 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     private FakeStatelessNode createFakeNodeForMinimisingRange(long rangeSize, long stepSize) throws IOException {
-        return createFakeNodeForPreWarming(
-            ByteSizeValue.ofBytes(2L * rangeSize),
-            rangeSize,
-            stepSize,
-            false,
-            randomDoubleBetween(0, 1, true)
-        );
+        return createFakeNodeForPreWarming(ByteSizeValue.ofBytes(2L * rangeSize), rangeSize, stepSize, false);
     }
 
     private FakeStatelessNode createFakeNodeForPreWarming(
         ByteSizeValue cacheSize,
         long rangeSize,
         long stepSize,
-        boolean preWarmForIdLookupEnabled,
-        double idLookupPreWarmRatio
+        boolean preWarmForIdLookupEnabled
     ) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override
@@ -1776,7 +1770,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.getKey(), "false")
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), "false")
                     .put(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING.getKey(), preWarmForIdLookupEnabled)
-                    .put(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING.getKey(), idLookupPreWarmRatio)
                     .build();
             }
 
@@ -1911,6 +1904,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 lastCommit,
                 fakeNode.searchDirectory,
+                mock(WarmingRatioProvider.class),
                 Map.of(
                     vbcc.getFrozenBatchedCompoundCommit().toBlobFile(),
                     SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(
@@ -2100,7 +2094,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider,
                         searchRecoveryTimeoutCalculationService
                     );
                 }
@@ -2296,7 +2289,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider,
                         searchRecoveryTimeoutCalculationService
                     ) {
                         // Capture tasks instead of submitting them so we control exactly when each starts.
@@ -2502,7 +2494,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
             // Offline warming is disabled in the node settings, so SEARCH warmCache runs only the ShardWarmer recovery prewarming, which
             // warms region 0 of every segment via maybeFetchRange (the call we capture).
-            fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, false, warmListener);
+            fakeNode.warmingService.warmCache(
+                SEARCH,
+                indexShard,
+                lastCommit,
+                fakeNode.searchDirectory,
+                mock(WarmingRatioProvider.class),
+                null,
+                false,
+                warmListener
+            );
             safeGet(warmListener);
             assertWarmingDurationMetricRecorded(
                 recordingMeterRegistry,
@@ -2557,7 +2558,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider(recordingMeterRegistry),
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 );
             }
@@ -2642,7 +2642,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider(recordingMeterRegistry),
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 );
             }
@@ -2765,7 +2764,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider,
                         searchRecoveryTimeoutCalculationService
                     );
                 }
@@ -2817,29 +2815,29 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     public void testAbstractWarmingTaskComparison() {
-        var typesOtherThanMergeAndBCCPrewarm = Arrays.stream(Type.values()).collect(Collectors.toSet());
-        typesOtherThanMergeAndBCCPrewarm.remove(Type.INDEXING_MERGE);
-        typesOtherThanMergeAndBCCPrewarm.remove(Type.INDEXING_BCC_HEADER_PREWARM);
+        var highPriorityTypes = Set.of(Type.INDEXING_BCC_HEADER_PREWARM, Type.INDEXING_EARLY, Type.INDEXING);
+        var normalPriorityTypes = Arrays.stream(Type.values()).collect(Collectors.toSet());
+        normalPriorityTypes.remove(Type.INDEXING_MERGE);
+        normalPriorityTypes.removeAll(highPriorityTypes);
 
         var queue = new PriorityQueue<MyTask>();
 
-        var task1 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), 500);
+        var task1 = new MyTask(randomFrom(normalPriorityTypes), 500);
         queue.add(task1);
-        var task2 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(0, 499));
+        var task2 = new MyTask(randomFrom(normalPriorityTypes), randomLongBetween(0, 499));
         queue.add(task2);
-        var task3 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(501, Long.MAX_VALUE));
+        var task3 = new MyTask(randomFrom(normalPriorityTypes), randomLongBetween(501, Long.MAX_VALUE));
         queue.add(task3);
         var task4 = new MyTask(Type.INDEXING_MERGE, randomLongBetween(1, Long.MAX_VALUE));
         queue.add(task4);
         var task5 = new MyTask(Type.INDEXING_MERGE, 0);
         queue.add(task5);
         // We don't explicitly handle overflow in position.
-        var task6 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(Long.MIN_VALUE, -1));
+        var task6 = new MyTask(randomFrom(normalPriorityTypes), randomLongBetween(Long.MIN_VALUE, -1));
         queue.add(task6);
-        // BCC header prewarming sorts before everything else, even with a larger position.
-        var task7 = new MyTask(Type.INDEXING_BCC_HEADER_PREWARM, randomLongBetween(1, Long.MAX_VALUE));
+        var task7 = new MyTask(randomFrom(highPriorityTypes), randomLongBetween(1, Long.MAX_VALUE));
         queue.add(task7);
-        var task8 = new MyTask(Type.INDEXING_BCC_HEADER_PREWARM, 0);
+        var task8 = new MyTask(randomFrom(highPriorityTypes), 0);
         queue.add(task8);
 
         assertEquals(
@@ -2967,6 +2965,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     indexShard,
                     lastCommit,
                     fakeNode.indexingDirectory.getBlobStoreCacheDirectory(),
+                    mock(WarmingRatioProvider.class),
                     null,
                     false,
                     l
@@ -3103,7 +3102,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
@@ -3389,7 +3387,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
@@ -3506,7 +3503,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider(recordingMeterRegistry),
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 );
             }

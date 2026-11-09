@@ -81,11 +81,11 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testSinglePage() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
+
+        List<Map<String, Object>> lines = drainStream(s, List.of(buildSimplePage(42, "alice")), 100L, List.of());
         assertNotNull(s.response());
         assertThat(s.response().status(), equalTo(RestStatus.OK));
         assertThat(s.response().contentType(), equalTo("application/x-ndjson"));
-
-        List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(buildSimplePage(42, "alice")), 100L, List.of());
         assertThat(lines.size(), equalTo(3));
 
         List<Map<String, Object>> cols = (List<Map<String, Object>>) lines.get(0).get("columns");
@@ -104,7 +104,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     public void testMultiplePages() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
         List<Page> pages = List.of(buildSimplePage(1, "a"), buildSimplePage(2, "b"), buildSimplePage(3, "c"));
-        List<Map<String, Object>> lines = drainStream(s.response(), s, pages, 50L, List.of());
+        List<Map<String, Object>> lines = drainStream(s, pages, 50L, List.of());
         assertThat(lines.size(), equalTo(5));
 
         for (int i = 0; i < 3; i++) {
@@ -117,7 +117,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testFooterWithWarnings() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
-        List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(), 42L, List.of("warning1", "warning2"));
+        List<Map<String, Object>> lines = drainStream(s, List.of(), 42L, List.of("warning1", "warning2"));
         assertThat(lines.size(), equalTo(2));
 
         Map<String, Object> footer = lines.get(1);
@@ -140,16 +140,15 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
             params -> List.<ToXContent>of((b, p) -> b.startObject("profile").field("k", "v").endObject()).iterator()
         );
 
-        // Subscribe, complete the publisher, and drain.
+        // The response is only sent once the footer arrives, so complete the publisher first and then drain.
+        s.producer().finish();
+        s.publisher().completeWithFooter(footer);
         assertTrue("expected a chunked response", s.response().isChunked());
         ChunkedRestResponseBodyPart currentPart = s.response().chunkedContent();
         List<Map<String, Object>> lines = new ArrayList<>();
         lines.add(decodeLine(currentPart));
 
-        ChunkedRestResponseBodyPart footerPart = nextPart(currentPart, () -> {
-            s.producer().finish();
-            s.publisher().completeWithFooter(footer);
-        });
+        ChunkedRestResponseBodyPart footerPart = nextPart(currentPart, () -> {});
         assertTrue("footer must be the last part", footerPart.isLastPart());
         lines.add(decodeLine(footerPart));
 
@@ -195,15 +194,15 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         );
 
         Subscribed s = subscribe(simpleColumns(), null);
+        // The response is only sent once the footer arrives, so complete the publisher first.
+        s.producer().finish();
+        s.publisher().completeWithFooter(footer);
         assertTrue("expected a chunked response", s.response().isChunked());
         ChunkedRestResponseBodyPart currentPart = s.response().chunkedContent();
         // Consume the columns part.
         encodeBodyPart(currentPart);
 
-        ChunkedRestResponseBodyPart footerPart = nextPart(currentPart, () -> {
-            s.producer().finish();
-            s.publisher().completeWithFooter(footer);
-        });
+        ChunkedRestResponseBodyPart footerPart = nextPart(currentPart, () -> {});
         assertTrue("footer must be the last part", footerPart.isLastPart());
 
         // Encode with a tiny sizeHint to force multiple chunks.
@@ -230,7 +229,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testFooterIsPartial() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
-        List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(), 10L, List.of(), true);
+        List<Map<String, Object>> lines = drainStream(s, List.of(), 10L, List.of(), true);
         assertThat(lines.size(), equalTo(2));
 
         Map<String, Object> footer = lines.get(1);
@@ -239,7 +238,8 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testEmptyResults() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
-        List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(), 10L, List.of());
+        List<Map<String, Object>> lines = drainStream(s, List.of(), 10L, List.of());
+        assertThat(s.response().status(), equalTo(RestStatus.OK));
         assertThat(lines.size(), equalTo(2));
         assertThat(lines.get(0), hasKey("columns"));
         assertThat(lines.get(1).get("took"), equalTo(10));
@@ -255,6 +255,16 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         boolean[] nullColumns = { false, true, false };
         Subscribed s = subscribe(allColumns, nullColumns);
 
+        Block idBlock = blockFactory.newIntArrayVector(new int[] { 7 }, 1).asBlock();
+        BytesRefBlock.Builder tagsBuilder = blockFactory.newBytesRefBlockBuilder(1);
+        tagsBuilder.appendNull();
+        Block tagsBlock = tagsBuilder.build();
+        BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(1);
+        nameBuilder.appendBytesRef(new BytesRef("bob"));
+        Block nameBlock = nameBuilder.build();
+        Page page = new Page(idBlock, tagsBlock, nameBlock);
+        s.producer().addPage(page);
+
         ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
         Map<String, Object> columnsMap = decodeLine(columnsPart);
         List<Map<String, Object>> allCols = (List<Map<String, Object>>) columnsMap.get("all_columns");
@@ -265,16 +275,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertThat(visibleCols.get(0).get("name"), equalTo("id"));
         assertThat(visibleCols.get(1).get("name"), equalTo("name"));
 
-        Block idBlock = blockFactory.newIntArrayVector(new int[] { 7 }, 1).asBlock();
-        BytesRefBlock.Builder tagsBuilder = blockFactory.newBytesRefBlockBuilder(1);
-        tagsBuilder.appendNull();
-        Block tagsBlock = tagsBuilder.build();
-        BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(1);
-        nameBuilder.appendBytesRef(new BytesRef("bob"));
-        Block nameBlock = nameBuilder.build();
-        Page page = new Page(idBlock, tagsBlock, nameBlock);
-
-        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.producer().addPage(page));
+        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> {});
 
         Map<String, Object> valuesMap = decodeLine(pagePart);
         List<List<Object>> values = (List<List<Object>>) valuesMap.get("values");
@@ -330,15 +331,9 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testFailStreamMidStream() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
-        ChunkedRestResponseBodyPart currentPart = s.response().chunkedContent();
-
-        encodeBodyPart(currentPart);
-        currentPart = nextPart(currentPart, () -> s.producer().addPage(buildSimplePage(1, "first")));
-        encodeBodyPart(currentPart);
-        ChunkedRestResponseBodyPart errorPart = nextPart(
-            currentPart,
-            () -> s.publisher().failStream(new RuntimeException("compute failed"))
-        );
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(1, "first"));
+        encodeBodyPart(pagePart);
+        ChunkedRestResponseBodyPart errorPart = nextPart(pagePart, () -> s.publisher().failStream(new RuntimeException("compute failed")));
 
         assertErrorLine(errorPart, 500, "runtime_exception", "compute failed");
         assertTrue("error part should be the last part", errorPart.isLastPart());
@@ -346,10 +341,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testFailStreamNoContinuationOutstanding() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
-        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
-        encodeBodyPart(columnsPart);
-
-        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.producer().addPage(buildSimplePage(1, "first")));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(1, "first"));
         assertFalse("page part must not be the last part before the error arrives", pagePart.isLastPart());
         s.publisher().failStream(new RuntimeException("compute failed mid-write"));
         assertFalse("page part must still not be the last part after failStream", pagePart.isLastPart());
@@ -361,10 +353,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testDoubleTerminalEmitsOnce() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
-        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
-        encodeBodyPart(columnsPart);
-
-        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.producer().addPage(buildSimplePage(1, "first")));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(1, "first"));
         encodeBodyPart(pagePart);
         ChunkedRestResponseBodyPart errorPart = nextPart(pagePart, () -> s.publisher().failStream(new RuntimeException("first failure")));
         assertErrorLine(errorPart, 500, "runtime_exception", "first failure");
@@ -375,10 +364,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testInFlightPageIsReleasedWhenChannelDies() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
-        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
-        encodeBodyPart(columnsPart);
-
-        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.producer().addPage(buildSimplePage(1, "first")));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(1, "first"));
         assertNotNull(pagePart);
         s.response().close();
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
@@ -386,10 +372,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testInFlightPageNotDoubleReleasedAfterEncode() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
-        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
-        encodeBodyPart(columnsPart);
-
-        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.producer().addPage(buildSimplePage(2, "bob")));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(2, "bob"));
         assertNotNull(pagePart);
         encodeBodyPart(pagePart);
         s.response().close();
@@ -400,12 +383,10 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     public void testLargePageSplitsAcrossChunks() throws IOException {
         final int rowCount = 50;
         Subscribed s = subscribe(simpleColumns(), null, rowCount);
-        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
-        encodeBodyPart(columnsPart);
 
         final int valueLength = 300;
         Page page = buildLargePage(rowCount, valueLength);
-        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.producer().addPage(page));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, page);
 
         List<ReleasableBytesReference> refs = new ArrayList<>();
         int chunkCount = 0;
@@ -435,11 +416,9 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     public void testReleaseAfterPartialEncodeThrows() throws IOException {
         final int rowCount = 50;
         Subscribed s = subscribe(simpleColumns(), null, rowCount);
-        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
-        encodeBodyPart(columnsPart);
 
         Page page = buildLargePage(rowCount, 300);
-        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.producer().addPage(page));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, page);
         assertFalse("page part must not be complete before any encoding", pagePart.isPartComplete());
 
         pagePart.encodeChunk(1024, BytesRefRecycler.NON_RECYCLING_INSTANCE).close();
@@ -459,34 +438,41 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
         listener.resultStreamListener()
             .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC));
-        assertThat(channel.okResponses, equalTo(1));
+        assertThat("no response before the first page", channel.okResponses, equalTo(0));
         assertThat(channel.errorResponses, equalTo(0));
         assertTrue("publisher should be unblocked after early demand", publisher.waitForWriting().listener().isDone());
         assertNull("no part should be delivered before a page is added", channel.earlyPart.get());
 
         Page page = buildSimplePage(7, "carol");
         producer.addPage(page);
+        assertThat("first page must send the response", channel.okResponses, equalTo(1));
+        assertThat(channel.errorResponses, equalTo(0));
         ChunkedRestResponseBodyPart pagePart = channel.earlyPart.get();
-        assertNotNull("adding a page must satisfy the parked continuation", pagePart);
+        assertNotNull("a getNextPart issued inside sendResponse must receive the stashed first page", pagePart);
         encodeBodyPart(pagePart);
     }
 
-    public void testFailedInitMustNotLeaveTheProducerBlocked() {
+    public void testFailedFirstSendMustNotLeaveTheProducerBlocked() {
         PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         ThrowingOkChannel channel = new ThrowingOkChannel();
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
 
         listener.resultStreamListener()
             .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC));
+        assertThat("no 200 OK before the first page", channel.okAttempts, equalTo(0));
+
+        producer.addPage(buildSimplePage(1, "first"));
+        assertThat("the 200 OK write must be attempted exactly once", channel.okAttempts, equalTo(1));
+        assertThat("exactly one error response must be sent", channel.errorResponses, equalTo(1));
+        assertNotNull("publisher must be terminalized after a failed send", publisher.failure());
         assertTrue(
-            "publisher gate must be open after a failed init so the driver is not stuck",
+            "publisher gate must be open after a failed send so the driver is not stuck",
             publisher.waitForWriting().listener().isDone()
         );
-        assertNotNull("publisher must be terminalized after a failed init", publisher.failure());
-        assertThat("exactly one error response must be sent", channel.errorResponses, equalTo(1));
-        assertThat("the 200 OK write must be attempted exactly once", channel.okAttempts, equalTo(1));
+        assertThat("all blocks must be released after a failed send", blockFactory.breaker().getUsed(), equalTo(0L));
 
-        listener.onFailure(new RuntimeException("compute failed after bad init"));
+        listener.onFailure(new RuntimeException("compute failed after bad send"));
         assertThat(channel.errorResponses, equalTo(1));
     }
 
@@ -535,9 +521,13 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         PageStreamPublisher publisher,
         PageStreamPublisher.Producer producer,
         FakeRestChannel channel,
-        RestResponse response,
         EsqlStreamResponseListener listener
-    ) {}
+    ) {
+        /** Null until the first page, footer or error has been delivered. */
+        RestResponse response() {
+            return channel.capturedResponse();
+        }
+    }
 
     private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns) {
         return subscribe(columns, nullColumns, 1);
@@ -553,7 +543,17 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
         listener.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
-        return new Subscribed(publisher, producer, channel, channel.capturedResponse(), listener);
+        return new Subscribed(publisher, producer, channel, listener);
+    }
+
+    private ChunkedRestResponseBodyPart sendFirstPage(Subscribed s, Page page) throws IOException {
+        s.producer().addPage(page);
+        RestResponse response = s.response();
+        assertNotNull("the first page must send the response", response);
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        ChunkedRestResponseBodyPart columnsPart = response.chunkedContent();
+        encodeBodyPart(columnsPart);
+        return nextPart(columnsPart, () -> {});
     }
 
     private static ChunkedRestResponseBodyPart nextPart(ChunkedRestResponseBodyPart current, Runnable trigger) {
@@ -582,6 +582,58 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         }
     }
 
+    public void testNoResponseBeforeFirstPage() {
+        Subscribed s = subscribe(simpleColumns(), null);
+        assertNull("initializing the stream alone must not send the response", s.response());
+        assertTrue("init must request the first page", s.publisher().waitForWriting().listener().isDone());
+    }
+
+    public void testFailStreamBeforeFirstPageSendsHttpError() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        s.publisher().failStream(new ElasticsearchStatusException("not allowed", RestStatus.FORBIDDEN));
+        RestResponse response = s.response();
+        assertNotNull(response);
+        assertThat(response.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(s.channel().responses().get(), equalTo(0));
+        assertErrorLine(response.chunkedContent(), 403, "status_exception", null);
+        assertTrue("the error footer must be the only part", response.chunkedContent().isLastPart());
+    }
+
+    public void testFailStreamBeforeFirstPageUsesTransportFooter() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        ElasticsearchStatusException e = new ElasticsearchStatusException("too many", RestStatus.TOO_MANY_REQUESTS);
+        s.publisher().failStream(e, new PageStreamPublisher.StreamFooter(429, 17L, false, List.of("w1"), null, null, e, null));
+        RestResponse response = s.response();
+        assertThat(response.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        Map<String, Object> line = decodeLine(response.chunkedContent());
+        assertThat(line.get("status"), equalTo(429));
+        assertThat(line.get("took"), equalTo(17));
+        assertThat(line.get("warnings"), equalTo(List.of("w1")));
+        assertThat(line, hasKey("error"));
+    }
+
+    public void testFailStreamWhileFirstPageIsStashed() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        s.producer().addPage(buildSimplePage(1, "first"));
+        s.publisher().failStream(new RuntimeException("compute failed"));
+        RestResponse response = s.response();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        ChunkedRestResponseBodyPart columnsPart = response.chunkedContent();
+        assertThat(decodeLine(columnsPart), hasKey("columns"));
+        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> {});
+        assertThat(decodeLine(pagePart), hasKey("values"));
+        ChunkedRestResponseBodyPart errorPart = nextPart(pagePart, () -> {});
+        assertErrorLine(errorPart, 500, "runtime_exception", "compute failed");
+        assertTrue(errorPart.isLastPart());
+    }
+
+    public void testChannelClosedWithStashedPageReleasesBlocks() {
+        Subscribed s = subscribe(simpleColumns(), null);
+        s.producer().addPage(buildSimplePage(1, "first"));
+        s.response().close();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
     @SuppressWarnings("unchecked")
     public void testFooterWithClusters() throws IOException {
         ToXContent clusters = (builder, params) -> {
@@ -592,13 +644,12 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         };
 
         Subscribed s = subscribe(simpleColumns(), null);
+        s.producer().finish();
+        s.publisher().completeWithFooter(new PageStreamPublisher.StreamFooter(200, 50L, false, List.of(), null, clusters, null, null));
         ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
         encodeBodyPart(columnsPart);
 
-        ChunkedRestResponseBodyPart footerPart = nextPart(columnsPart, () -> {
-            s.producer().finish();
-            s.publisher().completeWithFooter(new PageStreamPublisher.StreamFooter(200, 50L, false, List.of(), null, clusters, null, null));
-        });
+        ChunkedRestResponseBodyPart footerPart = nextPart(columnsPart, () -> {});
         assertTrue("footer must be the last part", footerPart.isLastPart());
         Map<String, Object> footer = decodeLine(footerPart);
 
@@ -610,9 +661,20 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testFooterWithoutClusters() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
-        List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(), 5L, List.of());
+        List<Map<String, Object>> lines = drainStream(s, List.of(), 5L, List.of());
         Map<String, Object> footer = lines.get(lines.size() - 1);
         assertThat("footer must not contain _clusters when metadata is absent", footer, not(hasKey("_clusters")));
+    }
+
+    public void testFailStreamBeforeFirstPageCopiesHeaders() {
+        Subscribed s = subscribe(simpleColumns(), null);
+        ElasticsearchSecurityException e = new ElasticsearchSecurityException("no", RestStatus.UNAUTHORIZED);
+        e.addBodyHeader("WWW-Authenticate", "Basic realm=\"security\"");
+        s.publisher().failStream(e);
+        RestResponse response = s.response();
+        assertNotNull(response);
+        assertThat(response.status(), equalTo(RestStatus.UNAUTHORIZED));
+        assertThat(response.getHeaders().get("WWW-Authenticate"), equalTo(List.of("Basic realm=\"security\"")));
     }
 
     public void testDatetimeValuesUseTheQueryTimeZone() throws IOException {
@@ -624,7 +686,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         LongBlock longBlock = blockFactory.newLongArrayVector(new long[] { epochMillis }, 1).asBlock();
         Page page = new Page(longBlock);
 
-        List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(page), 0L, List.of());
+        List<Map<String, Object>> lines = drainStream(s, List.of(page), 0L, List.of());
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) lines.get(1).get("values");
         assertNotNull("values line must be present", rows);
@@ -641,7 +703,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         LongBlock longBlock = blockFactory.newLongArrayVector(new long[] { epochNanos }, 1).asBlock();
         Page page = new Page(longBlock);
 
-        List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(page), 0L, List.of());
+        List<Map<String, Object>> lines = drainStream(s, List.of(page), 0L, List.of());
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) lines.get(1).get("values");
         assertNotNull("values line must be present", rows);
@@ -689,24 +751,24 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         return CompositeBytesReference.of(refs.toArray(new BytesReference[0]));
     }
 
-    private List<Map<String, Object>> drainStream(
-        RestResponse restResponse,
-        Subscribed s,
-        List<Page> pages,
-        long tookMillis,
-        List<String> warnings
-    ) throws IOException {
-        return drainStream(restResponse, s, pages, tookMillis, warnings, false);
+    private List<Map<String, Object>> drainStream(Subscribed s, List<Page> pages, long tookMillis, List<String> warnings)
+        throws IOException {
+        return drainStream(s, pages, tookMillis, warnings, false);
     }
 
-    private List<Map<String, Object>> drainStream(
-        RestResponse restResponse,
-        Subscribed s,
-        List<Page> pages,
-        long tookMillis,
-        List<String> warnings,
-        boolean isPartial
-    ) throws IOException {
+    private List<Map<String, Object>> drainStream(Subscribed s, List<Page> pages, long tookMillis, List<String> warnings, boolean isPartial)
+        throws IOException {
+        Runnable finish = () -> {
+            s.producer().finish();
+            s.publisher().completeWithFooter(tookMillis, warnings, isPartial);
+        };
+        if (pages.isEmpty()) {
+            finish.run();
+        } else {
+            s.producer().addPage(pages.get(0));
+        }
+        RestResponse restResponse = s.response();
+        assertNotNull("the response must be sent once the first page or the footer arrives", restResponse);
         assertTrue("expected a chunked response", restResponse.isChunked());
         ChunkedRestResponseBodyPart currentPart = restResponse.chunkedContent();
 
@@ -714,16 +776,18 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         lines.add(decodeLine(currentPart));
         assertFalse("columns part must not be the last part", currentPart.isLastPart());
 
-        for (Page page : pages) {
-            currentPart = nextPart(currentPart, () -> s.producer().addPage(page));
+        if (pages.isEmpty() == false) {
+            currentPart = nextPart(currentPart, () -> {});
             lines.add(decodeLine(currentPart));
             assertFalse("page body part must not be the last part yet", currentPart.isLastPart());
+            for (Page page : pages.subList(1, pages.size())) {
+                currentPart = nextPart(currentPart, () -> s.producer().addPage(page));
+                lines.add(decodeLine(currentPart));
+                assertFalse("page body part must not be the last part yet", currentPart.isLastPart());
+            }
         }
 
-        ChunkedRestResponseBodyPart footerPart = nextPart(currentPart, () -> {
-            s.producer().finish();
-            s.publisher().completeWithFooter(tookMillis, warnings, isPartial);
-        });
+        ChunkedRestResponseBodyPart footerPart = nextPart(currentPart, pages.isEmpty() ? () -> {} : finish);
         assertTrue("footer must be the last part", footerPart.isLastPart());
         lines.add(decodeLine(footerPart));
 

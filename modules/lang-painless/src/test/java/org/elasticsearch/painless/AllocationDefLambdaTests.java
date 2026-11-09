@@ -11,6 +11,8 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.api.Augmentation;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -1184,6 +1186,17 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             Need.NEVER
         ),
         new Body(
+            "for-each over doc values",
+            "",
+            "",
+            "int n = 0; for (def v : params.kw) { n++; } return n;",
+            "1",
+            "int n = params.kw.size(); return n;",
+            "1",
+            AllocSizes.ITERATOR_BYTES + AllocationEstimators.termDecodeBytes(5),
+            Need.NEVER
+        ),
+        new Body(
             "user function call",
             "def g(def s) { return s.substring(0, 3); } ",
             "def s = 'abcdef';",
@@ -1945,11 +1958,18 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         }
     }
 
+    /** One lookup for every shape cell. Building it reads all the allowlists, which costs far more than compiling a cell. */
+    private PainlessLookup matrixLookup;
+
     private String matrixBytecode(Mode mode, String source) {
+        if (matrixLookup == null) {
+            List<Whitelist> whitelists = scriptContexts().get(PainlessTestScript.CONTEXT);
+            matrixLookup = PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>());
+        }
         CompilerSettings settings = new CompilerSettings();
         settings.setMaxAllocationBytes(mode.limit ? 1024 * 1024L : -1L);
         settings.setAllocationMetricsEnabled(mode.metrics);
-        return Debugger.toString(mode.context.scriptClass, source, settings, scriptContexts().get(PainlessTestScript.CONTEXT));
+        return Debugger.toString(mode.context.scriptClass, source, settings, matrixLookup);
     }
 
     /**

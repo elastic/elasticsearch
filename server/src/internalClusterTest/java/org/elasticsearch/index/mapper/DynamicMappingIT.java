@@ -138,18 +138,20 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertThat(msg.containsKey("fields"), is(false));
     }
 
-    public void testSimpleDynamicMappingsSuccessful() {
+    public void testSimpleDynamicMappingsSuccessful() throws Exception {
         createIndex("index");
         client().prepareIndex("index").setId("1").setSource("a.x", 1).get();
         client().prepareIndex("index").setId("2").setSource("a.y", 2).get();
 
-        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
-            .get()
-            .mappings()
-            .get("index")
-            .sourceAsMap();
-        assertTrue(new WriteField("properties.a", () -> mappings).exists());
-        assertTrue(new WriteField("properties.a.properties.x", () -> mappings).exists());
+        assertBusy(() -> {
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+                .get()
+                .mappings()
+                .get("index")
+                .sourceAsMap();
+            assertTrue(new WriteField("properties.a", () -> mappings).exists());
+            assertTrue(new WriteField("properties.a.properties.x", () -> mappings).exists());
+        });
     }
 
     public void testConflictingDynamicMappingsBulk() {
@@ -186,23 +188,24 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
     public void testConcurrentDynamicUpdates() throws Throwable {
         int numberOfFieldsToCreate = 32;
-        Map<String, Object> properties = indexConcurrently(numberOfFieldsToCreate, Settings.builder());
-        assertThat(properties, aMapWithSize(numberOfFieldsToCreate));
-        for (int i = 0; i < numberOfFieldsToCreate; i++) {
-            assertThat(properties, hasKey("field" + i));
-        }
+        indexConcurrently(numberOfFieldsToCreate, Settings.builder(), properties -> {
+            assertThat(properties, aMapWithSize(numberOfFieldsToCreate));
+            for (int i = 0; i < numberOfFieldsToCreate; i++) {
+                assertThat(properties, hasKey("field" + i));
+            }
+        });
     }
 
     public void testConcurrentDynamicIgnoreBeyondLimitUpdates() throws Throwable {
         int numberOfFieldsToCreate = 32;
-        Map<String, Object> properties = indexConcurrently(
+        indexConcurrently(
             numberOfFieldsToCreate,
             Settings.builder()
                 .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsToCreate)
-                .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+                .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true),
+            // every field is a multi-field (text + keyword)
+            properties -> assertThat(properties, aMapWithSize(16))
         );
-        // every field is a multi-field (text + keyword)
-        assertThat(properties, aMapWithSize(16));
         assertResponse(
             prepareSearch("index").setQuery(new MatchAllQueryBuilder()).setSize(numberOfFieldsToCreate).addFetchField("*"),
             response -> {
@@ -212,7 +215,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
         );
     }
 
-    private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings) throws Throwable {
+    private void indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings, Consumer<Map<String, Object>> assertProperties)
+        throws Throwable {
         indicesAdmin().prepareCreate("index").setSettings(settings).get();
         ensureGreen("index");
         final AtomicReference<Throwable> error = new AtomicReference<>();
@@ -234,13 +238,15 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfFieldsToCreate; ++i) {
             assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
-        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index").get();
-        MappingMetadata indexMappings = mappings.getMappings().get("index");
-        assertNotNull(indexMappings);
-        Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
-        return properties;
+        assertBusy(() -> {
+            GetMappingsResponse mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index").get();
+            MappingMetadata indexMappings = mappings.getMappings().get("index");
+            assertNotNull(indexMappings);
+            Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
+            assertProperties.accept(properties);
+        });
     }
 
     public void testConcurrentDynamicMappingsWithConflictingType() throws Throwable {
@@ -265,15 +271,17 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfDocsToCreate; ++i) {
             assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
-        Map<String, Object> index = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
-            .get()
-            .getMappings()
-            .get("index")
-            .getSourceAsMap();
-        for (int i = 0, j = 1; i < numberOfDocsToCreate; i++, j++) {
-            assertThat(new WriteField("properties.field" + i + ".type", () -> index).get(null), is(oneOf("long", "float")));
-            assertThat(new WriteField("properties.field" + j + ".type", () -> index).get(null), is(oneOf("long", "float")));
-        }
+        assertBusy(() -> {
+            Map<String, Object> index = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+                .get()
+                .getMappings()
+                .get("index")
+                .getSourceAsMap();
+            for (int i = 0, j = 1; i < numberOfDocsToCreate; i++, j++) {
+                assertThat(new WriteField("properties.field" + i + ".type", () -> index).get(null), is(oneOf("long", "float")));
+                assertThat(new WriteField("properties.field" + j + ".type", () -> index).get(null), is(oneOf("long", "float")));
+            }
+        });
     }
 
     public void testPreflightCheckAvoidsMaster() throws InterruptedException, IOException {
@@ -606,17 +614,21 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-        assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(2 + previousVersion));
-        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
-            .get()
-            .mappings()
-            .get("test")
-            .sourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(properties, hasKey("field_" + i));
-        }
+        assertBusy(
+            () -> assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(2 + previousVersion))
+        );
+        assertBusy(() -> {
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .mappings()
+                .get("test")
+                .sourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            for (int i = 0; i < numDocs; i++) {
+                assertThat(properties, hasKey("field_" + i));
+            }
+        });
         assertHitCount(prepareSearch("test"), numDocs);
     }
 
@@ -640,9 +652,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
             }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-            assertThat(
-                clusterService.state().metadata().getProject().index("test").getMappingVersion(),
-                equalTo(previousVersion + (enabled ? 2 : numDocs))
+            final long expectedVersion = previousVersion + (enabled ? 2 : numDocs);
+            assertBusy(
+                () -> assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(expectedVersion))
             );
             round++;
         }
@@ -689,10 +701,12 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 assertThat(operation, combinedResponses[i].getResponse().getResult(), equalTo(separate.get(i).getResponse().getResult()));
             }
         }
-        Map<String, MappingMetadata> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "combined", "separate")
-            .get()
-            .mappings();
-        assertThat(mappings.get("combined").sourceAsMap(), equalTo(mappings.get("separate").sourceAsMap()));
+        assertBusy(() -> {
+            Map<String, MappingMetadata> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "combined", "separate")
+                .get()
+                .mappings();
+            assertThat(mappings.get("combined").sourceAsMap(), equalTo(mappings.get("separate").sourceAsMap()));
+        });
         refresh("combined", "separate");
         assertResponse(
             prepareSearch("separate"),
@@ -739,18 +753,20 @@ public class DynamicMappingIT extends ESIntegTestCase {
         if (error.get() != null) {
             throw new AssertionError(error.get());
         }
-        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
-            .get()
-            .mappings()
-            .get("index")
-            .sourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-        if (limited) {
-            assertThat(properties.size(), lessThanOrEqualTo(limit));
-        } else {
-            assertThat(properties, aMapWithSize(numDocs + numRequests * numDocs));
-        }
+        assertBusy(() -> {
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+                .get()
+                .mappings()
+                .get("index")
+                .sourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            if (limited) {
+                assertThat(properties.size(), lessThanOrEqualTo(limit));
+            } else {
+                assertThat(properties, aMapWithSize(numDocs + numRequests * numDocs));
+            }
+        });
         refresh("index");
         assertHitCount(prepareSearch("index"), numRequests * numDocs);
     }
@@ -835,65 +851,66 @@ public class DynamicMappingIT extends ESIntegTestCase {
         refresh("test");
         assertHitCount(prepareSearch("test"), numRequests * numDocs);
 
-        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
-            .get()
-            .mappings()
-            .get("test")
-            .sourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-        @SuppressWarnings("unchecked")
-        Map<String, Map<String, Object>> attributes = (Map<String, Map<String, Object>>) ((Map<String, Object>) properties.get(
-            "attributes"
-        )).get("properties");
-        for (Map.Entry<String, Map<String, Object>> attribute : attributes.entrySet()) {
-            String expectedType = switch (attribute.getKey().substring(0, attribute.getKey().indexOf('_'))) {
-                case "keyword" -> "keyword";
-                case "ip" -> "ip";
-                case "long" -> "long";
-                default -> throw new AssertionError(attribute.getKey());
-            };
-            assertThat(attribute.getKey(), attribute.getValue().get("type"), equalTo(expectedType));
-        }
-        @SuppressWarnings("unchecked")
-        Map<String, Map<String, Object>> metrics = (Map<String, Map<String, Object>>) ((Map<String, Object>) properties.get("metrics")).get(
-            "properties"
-        );
-        for (Map.Entry<String, Map<String, Object>> metric : metrics.entrySet()) {
-            assertThat(metric.getKey(), metric.getValue().get("type"), equalTo("double"));
-            assertThat(
-                metric.getKey(),
-                metric.getValue().get("time_series_metric"),
-                equalTo(metric.getKey().endsWith("_total") ? "counter" : "gauge")
-            );
-        }
-        // every attribute and metric of every document is mapped
-        assertResponse(prepareSearch("test").setSize(numRequests * numDocs), response -> {
-            for (SearchHit hit : response.getHits()) {
-                Map<String, Object> source = hit.getSourceAsMap();
-                @SuppressWarnings("unchecked")
-                Map<String, Object> attributeSource = (Map<String, Object>) source.get("attributes");
-                for (String attribute : attributeSource.keySet()) {
-                    assertThat(attributes, hasKey(attribute));
+        assertBusy(() -> {
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .mappings()
+                .get("test")
+                .sourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Object>> attributes = (Map<String, Map<String, Object>>) ((Map<String, Object>) properties.get(
+                "attributes"
+            )).get("properties");
+            for (Map.Entry<String, Map<String, Object>> attribute : attributes.entrySet()) {
+                String expectedType = switch (attribute.getKey().substring(0, attribute.getKey().indexOf('_'))) {
+                    case "keyword" -> "keyword";
+                    case "ip" -> "ip";
+                    case "long" -> "long";
+                    default -> throw new AssertionError(attribute.getKey());
+                };
+                assertThat(attribute.getKey(), attribute.getValue().get("type"), equalTo(expectedType));
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Object>> metrics = (Map<String, Map<String, Object>>) ((Map<String, Object>) properties.get("metrics"))
+                .get("properties");
+            for (Map.Entry<String, Map<String, Object>> metric : metrics.entrySet()) {
+                assertThat(metric.getKey(), metric.getValue().get("type"), equalTo("double"));
+                assertThat(
+                    metric.getKey(),
+                    metric.getValue().get("time_series_metric"),
+                    equalTo(metric.getKey().endsWith("_total") ? "counter" : "gauge")
+                );
+            }
+            // every attribute and metric of every document is mapped
+            assertResponse(prepareSearch("test").setSize(numRequests * numDocs), response -> {
+                for (SearchHit hit : response.getHits()) {
+                    Map<String, Object> source = hit.getSourceAsMap();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> attributeSource = (Map<String, Object>) source.get("attributes");
+                    for (String attribute : attributeSource.keySet()) {
+                        assertThat(attributes, hasKey(attribute));
+                    }
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> metricSource = (Map<String, Object>) source.get("metrics");
+                    for (String metric : metricSource.keySet()) {
+                        assertThat(metrics, hasKey(metric));
+                    }
                 }
-                @SuppressWarnings("unchecked")
-                Map<String, Object> metricSource = (Map<String, Object>) source.get("metrics");
-                for (String metric : metricSource.keySet()) {
-                    assertThat(metrics, hasKey(metric));
+            });
+            FieldCapabilitiesResponse fieldCaps = client().prepareFieldCaps("test").setFields("attributes.*", "metrics.*").get();
+            for (String attribute : attributes.keySet()) {
+                for (FieldCapabilities caps : fieldCaps.getField("attributes." + attribute).values()) {
+                    assertTrue(attribute, caps.isDimension());
+                }
+            }
+            for (String metric : metrics.keySet()) {
+                for (FieldCapabilities caps : fieldCaps.getField("metrics." + metric).values()) {
+                    assertThat(metric, caps.getMetricType(), notNullValue());
                 }
             }
         });
-        FieldCapabilitiesResponse fieldCaps = client().prepareFieldCaps("test").setFields("attributes.*", "metrics.*").get();
-        for (String attribute : attributes.keySet()) {
-            for (FieldCapabilities caps : fieldCaps.getField("attributes." + attribute).values()) {
-                assertTrue(attribute, caps.isDimension());
-            }
-        }
-        for (String metric : metrics.keySet()) {
-            for (FieldCapabilities caps : fieldCaps.getField("metrics." + metric).values()) {
-                assertThat(metric, caps.getMetricType(), notNullValue());
-            }
-        }
     }
 
     public void testBulkRequestWithDynamicTemplates() throws Exception {

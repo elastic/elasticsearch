@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
       reason: "under SET unmapped_fields=\"load_all\", a source field that is null, [] or [null] contributes nothing to the _unmapped_fields object"
 
   # dynamic:false keeps every field but id unmapped no matter what the documents write to it, so those are only ever discoverable

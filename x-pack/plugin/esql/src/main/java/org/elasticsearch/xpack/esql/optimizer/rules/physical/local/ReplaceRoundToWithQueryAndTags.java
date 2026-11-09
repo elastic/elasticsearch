@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
@@ -368,8 +368,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 return null;
             }
             // prefer partitioning by tsid prefixes
-            var partitioning = ctx.configuration().pragmas().dataPartitioning(ctx.plannerSettings().defaultDataPartitioning());
-            if (partitioning != DataPartitioning.SHARD && ctx.searchStats().canPartitionByTsidPrefix()) {
+            if (ctx.searchStats().canPartitionByTsidPrefix()) {
                 return null;
             }
         }
@@ -446,14 +445,21 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         List<EsQueryExec.QueryBuilderAndTags> queries = new ArrayList<>(count);
 
         Object tag = points.get(0);
-        if (points.size() == 1) { // if there is only one rounding point, just tag the main query
-            EsQueryExec.QueryBuilderAndTags queryBuilderAndTags = tagOnlyBucket(queryExec, tag);
-            queries.add(queryBuilderAndTags);
+        Source source = roundTo.source();
+        Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
+        if (points.size() == 1) {
+            // A single rounding point covers every document that has a value: the rounding points are
+            // derived from the min/max of the existing values, so all of them round down to this point.
+            // Documents without a value must still produce null, so the point tags only the documents
+            // where the field exists, and the null bucket is added just like in the multi-point branch.
+            // Tagging the main query directly would stamp the rounding point onto documents whose field
+            // is null, turning e.g. top(date_trunc(1 month, @timestamp), ...) of an all-null group into
+            // the bucket value.
+            queries.add(existsBucket(source, field, tag, queryExec, pushdownPredicates, clause));
+            queries.add(nullBucket(source, field, queryExec, pushdownPredicates, clause));
         } else {
-            Source source = roundTo.source();
             Object lower = null;
             Object upper = null;
-            Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
             ZoneId zoneId = QuerySettings.TIME_ZONE.get(ctx.configuration().resolvedSettings());
             for (int i = 1; i < count; i++) {
                 upper = points.get(i);
@@ -512,8 +518,20 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         }
     }
 
-    private static EsQueryExec.QueryBuilderAndTags tagOnlyBucket(EsQueryExec queryExec, Object tag) {
-        return new EsQueryExec.QueryBuilderAndTags(queryExec.query(), List.of(tag));
+    /**
+     * The bucket for the documents that have a value for the rounded field. Used when there is a
+     * single rounding point, where no range filter is needed: every existing value rounds to it.
+     */
+    private static EsQueryExec.QueryBuilderAndTags existsBucket(
+        Source source,
+        Expression field,
+        Object tag,
+        EsQueryExec queryExec,
+        LucenePushdownPredicates pushdownPredicates,
+        Queries.Clause clause
+    ) {
+        IsNotNull isNotNull = new IsNotNull(source, field);
+        return buildCombinedQueryAndTags(queryExec, pushdownPredicates, isNotNull, clause, List.of(tag));
     }
 
     private static EsQueryExec.QueryBuilderAndTags nullBucket(

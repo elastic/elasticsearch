@@ -159,7 +159,8 @@ public class ParallelTopNOperator implements Operator, Accountable {
         this.pendingTasks = new PendingTasks(() -> {
             allWorkersDone.onResponse(null);
             if (closed) {
-                releaseWorkers();
+                // Can run on the worker that finished last, after its own measurement closed.
+                driverContext.meteredCpu(() -> releaseWorkers());
             }
             driverContext.removeAsyncAction();
         });
@@ -177,15 +178,18 @@ public class ParallelTopNOperator implements Operator, Accountable {
                 // Safe because `finish` draining the buffer with `processPagesWithCurrentThread` before calling `pendingTasks#finishTask`
                 pendingTasks.newTask();
                 try {
-                    Page page;
-                    while ((page = in.pollPage()) != null) {
-                        worker.addInput(page);
-                    }
-                    // Buffer temporarily empty; reschedule when more pages arrive or buffer finishes.
-                    if (in.isFinished() == false) {
-                        in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker)));
-                    }
+                    driverContext.meteredCpu(() -> {
+                        Page page;
+                        while ((page = in.pollPage()) != null) {
+                            worker.addInput(page);
+                        }
+                        // Buffer temporarily empty; reschedule when more pages arrive or buffer finishes.
+                        if (in.isFinished() == false) {
+                            in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker)));
+                        }
+                    });
                 } finally {
+                    // Outside the measurement: the last task to finish removes the driver's async action.
                     pendingTasks.finishTask();
                 }
             }

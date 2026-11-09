@@ -108,7 +108,7 @@ public final class PlanBuilder {
                     // silently drop it.
                     unresolved.add(
                         new Unresolved(
-                            new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, t.fqcn(), null, null),
+                            new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, t.fqcn(), null, null, null, null),
                             FlakinessPlan.REASON_ABSTRACT_NO_CONCRETE_SUBCLASS
                         )
                     );

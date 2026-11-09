@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -67,6 +68,48 @@ public class AllocationActionListenerTests extends ESTestCase {
         }
 
         assertThat(completed.get(), equalTo(true));
+    }
+
+    /**
+     * A master that steps down after the cluster state update task executed but before it was committed fails the
+     * cluster state update with a publish failure and the pending reroute with {@code NotMasterException}. The delegate
+     * must still be failed only once, otherwise e.g. {@code TransportMasterNodeAction} schedules two retries.
+     */
+    public void testShouldDelegateFailureOnceWhenBothFail() {
+        var failures = new AtomicInteger();
+        var listener = new AllocationActionListener<AcknowledgedResponse>(
+            ActionListener.assertOnce(ActionTestUtils.assertNoSuccessListener(exception -> failures.incrementAndGet())),
+            createEmptyThreadContext()
+        );
+
+        startInParallel(
+            () -> listener.clusterStateUpdate().onFailure(new RuntimeException("cluster-state-update-failed")),
+            () -> listener.reroute().onFailure(new RuntimeException("reroute-failed"))
+        );
+
+        assertThat(failures.get(), equalTo(1));
+    }
+
+    public void testShouldDelegateFailureOnceWhenOneFailsAndOtherSucceeds() {
+        var failures = new AtomicInteger();
+        var listener = new AllocationActionListener<AcknowledgedResponse>(
+            ActionListener.assertOnce(ActionTestUtils.assertNoSuccessListener(exception -> failures.incrementAndGet())),
+            createEmptyThreadContext()
+        );
+
+        if (randomBoolean()) {
+            startInParallel(
+                () -> listener.clusterStateUpdate().onFailure(new RuntimeException("cluster-state-update-failed")),
+                () -> listener.reroute().onResponse(null)
+            );
+        } else {
+            startInParallel(
+                () -> listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE),
+                () -> listener.reroute().onFailure(new RuntimeException("reroute-failed"))
+            );
+        }
+
+        assertThat(failures.get(), equalTo(1));
     }
 
     public void testShouldExecuteWithCorrectContext() {

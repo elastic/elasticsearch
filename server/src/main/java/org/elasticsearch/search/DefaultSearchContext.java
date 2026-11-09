@@ -245,9 +245,8 @@ final class DefaultSearchContext extends SearchContext {
             );
             searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
             if (searchExecutionContext != null) {
-                final SliceSelection slices = SliceSelection.fromSearchSlice(request.sliceRouting());
-                // a search request that names no slice reads every slice
-                searchExecutionContext.setSliceSelection(slices.isSpecified() ? slices : SliceSelection.ALL);
+                // The slices the request names, for the field mappers that build its queries.
+                searchExecutionContext.setSliceSelection(SliceSelection.fromSearchSlice(request.sliceRouting()));
             }
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;

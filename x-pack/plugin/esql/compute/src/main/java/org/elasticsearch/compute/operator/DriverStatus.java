@@ -32,7 +32,14 @@ import java.util.Locale;
  * @param nodeName The name of the node this driver is running on.
  * @param started When this {@link Driver} was started.
  * @param lastUpdated When this status was generated.
- * @param cpuNanos Nanos this {@link Driver} has been running on the cpu. Does not include async or waiting time.
+ * @param cpuNanos Thread CPU nanos this {@link Driver} has used. Does not include async or waiting time, time spent
+ *                 waiting for a core, or time blocked inside an operator. 0 if the JVM can't measure thread CPU time.
+ *                 Includes the thread CPU time its operators used on other threads
+ *                 ({@link DriverContext#meteredCpu}) and the driver's own work just outside the span
+ *                 {@code driverNanos} covers, such as finishing after its loop, so it can exceed {@code driverNanos}.
+ * @param driverNanos Nanos this {@link Driver} has held a thread. Unlike {@code cpuNanos} this includes time the thread
+ *                    waited for a core, GC pauses and time blocked inside an operator. Does not include async or
+ *                    waiting time.
  * @param iterations The number of times the driver has moved a single page up the chain of operators as far as it'll go.
  * @param status The state of the overall driver - queue, starting, running, finished.
  * @param completedOperators Status of each completed {@link Operator} in the driver.
@@ -47,6 +54,7 @@ public record DriverStatus(
     long started,
     long lastUpdated,
     long cpuNanos,
+    long driverNanos,
     long iterations,
     Status status,
     List<OperatorStatus> completedOperators,
@@ -63,6 +71,7 @@ public record DriverStatus(
     private static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = TransportVersion.fromName("esql_driver_node_description");
     private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");
     private static final TransportVersion ESQL_DRIVER_STATUS_THREAD_NAME = TransportVersion.fromName("esql_driver_status_thread_name");
+    public static final TransportVersion ESQL_DRIVER_NANOS = TransportVersion.fromName("esql_driver_nanos");
 
     public static DriverStatus readFrom(StreamInput in) throws IOException {
         return new DriverStatus(
@@ -74,6 +83,7 @@ public record DriverStatus(
             in.readLong(),
             in.readLong(),
             in.readVLong(),
+            in.getTransportVersion().supports(ESQL_DRIVER_NANOS) ? in.readVLong() : 0,
             in.readVLong(),
             Status.read(in),
             in.readCollectionAsImmutableList(OperatorStatus::readFrom),
@@ -98,6 +108,9 @@ public record DriverStatus(
         out.writeLong(started);
         out.writeLong(lastUpdated);
         out.writeVLong(cpuNanos);
+        if (out.getTransportVersion().supports(ESQL_DRIVER_NANOS)) {
+            out.writeVLong(driverNanos);
+        }
         out.writeVLong(iterations);
         status.writeTo(out);
         out.writeCollection(completedOperators);
@@ -123,6 +136,10 @@ public record DriverStatus(
         builder.field("cpu_nanos", cpuNanos);
         if (builder.humanReadable()) {
             builder.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
+        }
+        builder.field("driver_nanos", driverNanos);
+        if (builder.humanReadable()) {
+            builder.field("driver_time", TimeValue.timeValueNanos(driverNanos));
         }
         builder.field("documents_found", documentsFound());
         builder.field("values_loaded", valuesLoaded());

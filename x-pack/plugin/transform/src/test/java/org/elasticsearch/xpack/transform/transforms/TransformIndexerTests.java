@@ -867,7 +867,8 @@ public class TransformIndexerTests extends ESTestCase {
             mock(CrossProjectModeDecider.class),
             projectId -> false,
             multiProjectResolver,
-            mock(TransformCloudCredentialManager.class)
+            mock(TransformCloudCredentialManager.class),
+            Clock.systemUTC()
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -907,7 +908,8 @@ public class TransformIndexerTests extends ESTestCase {
             mock(CrossProjectModeDecider.class),
             projectId -> false,
             mock(ProjectResolver.class),
-            mock(TransformCloudCredentialManager.class)
+            mock(TransformCloudCredentialManager.class),
+            Clock.systemUTC()
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

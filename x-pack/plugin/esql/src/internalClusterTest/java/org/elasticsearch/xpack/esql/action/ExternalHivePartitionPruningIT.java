@@ -559,6 +559,16 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         assertPruneRegion(dataset, "WHERE region == \"US\"", 1, List.of(US_ID));
     }
 
+    public void testParquetMatchOnKeywordPartitionScansAll() throws Exception {
+        // Pruning does not understand MATCH, so every folder is scanned and the runtime match filters the rows.
+        String dataset = registerRegionTree("pq_kw_match", "parquet");
+        assertPruneRegion(dataset, "WHERE MATCH(region, \"US\")", 3, List.of(US_ID));
+    }
+
+    public void testCsvMatchOnIntegerPartitionScansAll() throws Exception {
+        assertPrune("csv_match", "csv", "WHERE MATCH(year, 2025)", TOTAL_FILES, idsWhere((y, m, d) -> y == 2025));
+    }
+
     public void testCsvKeywordPartitionEqualityIsCaseSensitive() throws Exception {
         // Lowercase "us" must NOT match the uppercase US folder: keyword equality is byte-exact. Every folder pruned
         // -> 0 files, 0 rows.

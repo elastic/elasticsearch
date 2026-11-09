@@ -9,12 +9,15 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
@@ -26,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
@@ -192,7 +196,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 StringColumnOptions.DEFAULT_SUMMARY,
                 chunkCodec,
                 sizes,
-                StringColumnOptions.DEFAULT_SINGLE_VALUED
+                StringColumnOptions.DEFAULT_SINGLE_VALUED,
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
             ),
             check
         );
@@ -213,12 +218,59 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
 
     /** As above, with every choice named at once, for a test that cares about one the overloads do not reach. */
     protected void withColumn(final BytesRef[][] docSlots, final StringColumnOptions options, final ColumnCheck check) throws IOException {
+        withColumn(docSlots, () -> cursor(docSlots), options, check);
+    }
+
+    /** As above, writing the column from {@code cursors} rather than from a plain cursor over {@code docSlots}. */
+    protected void withColumn(
+        final BytesRef[][] docSlots,
+        final IOSupplier<StringColumnValues> cursors,
+        final StringColumnOptions options,
+        final ColumnCheck check
+    ) throws IOException {
+        withColumnAndSkipIndex(
+            docSlots,
+            cursors,
+            options,
+            UnaryOperator.identity(),
+            (metadata, reader, skipIndex) -> check.check(metadata, reader)
+        );
+    }
+
+    /** What a test does with the column it asked for and the file its skip index was written to. */
+    protected interface SkipIndexCheck {
+        void check(StringColumnMetadata metadata, StringColumnReader reader, IndexInput skipIndex) throws IOException;
+    }
+
+    /** As above, for a test that reads the skip index itself. */
+    protected void withColumnAndSkipIndex(final BytesRef[][] docSlots, final StringColumnOptions options, final SkipIndexCheck check)
+        throws IOException {
+        withColumnAndSkipIndex(docSlots, options, UnaryOperator.identity(), check);
+    }
+
+    /** As above, reading the column back through {@code readThrough}, for a test that watches what the reader asks of the files. */
+    protected void withColumnAndSkipIndex(
+        final BytesRef[][] docSlots,
+        final StringColumnOptions options,
+        final UnaryOperator<Directory> readThrough,
+        final SkipIndexCheck check
+    ) throws IOException {
+        withColumnAndSkipIndex(docSlots, () -> cursor(docSlots), options, readThrough, check);
+    }
+
+    private void withColumnAndSkipIndex(
+        final BytesRef[][] docSlots,
+        final IOSupplier<StringColumnValues> cursors,
+        final StringColumnOptions options,
+        final UnaryOperator<Directory> readThrough,
+        final SkipIndexCheck check
+    ) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, options);
-            try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(dir, COLUMN_FILES, segmentId)) {
-                check.check(metadata, StringColumnReader.open(metadata, inputs.inputs()));
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, cursors, options);
+            try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(readThrough.apply(dir), COLUMN_FILES, segmentId)) {
+                check.check(metadata, StringColumnReader.open(metadata, inputs.inputs(), inputs.skipIndex()), inputs.skipIndex());
             }
         }
     }
@@ -324,6 +376,17 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return numValues;
     }
 
+    /** The documents of {@code docSlots} that have at least one slot, as the consumer's counting pass collects them. */
+    protected static DocsWithFieldSet docsWithField(final BytesRef[][] docSlots) {
+        final DocsWithFieldSet docsWithField = new DocsWithFieldSet();
+        for (int doc = 0; doc < docSlots.length; doc++) {
+            if (docSlots[doc] != null) {
+                docsWithField.add(doc);
+            }
+        }
+        return docsWithField;
+    }
+
     /** What the consumer counts before writing a column: documents, slots, nulls and the value lengths. */
     protected static StringColumnValues.Totals totals(final BytesRef[][] docSlots) {
         int minLength = -1;
@@ -374,6 +437,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final Directory dir,
         final byte[] segmentId,
         final BytesRef[][] docSlots,
+        final IOSupplier<StringColumnValues> cursors,
         final StringColumnOptions options
     ) throws IOException {
         final StringColumnMetadata written;
@@ -381,12 +445,15 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             written = StringColumnWriter.write(
                 docSlots.length,
                 totals(docSlots),
-                () -> cursor(docSlots),
+                cursors,
                 options,
                 null,
+                // Either way the presence comes out the same: collected by a counting pass, or walked by the writer.
+                randomBoolean() ? docsWithField(docSlots) : null,
                 dir,
                 IOContext.DEFAULT,
-                out.outputs()
+                out.outputs(),
+                out.skipIndex()
             );
         }
         try (IndexOutput meta = dir.createOutput(META_FILE, IOContext.DEFAULT)) {

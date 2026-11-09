@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.gradle.internal.nativelibs;
 
+import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
@@ -38,6 +39,13 @@ public class NativeLibraryBuildPluginTests {
         extension().getModeEnvironmentVariable().set("A_VARIABLE_THAT_IS_NOT_SET");
 
         assertEquals(BuildNativeLibraryTask.PUBLISHED_MODE, buildTask().getMode().get());
+    }
+
+    @Test
+    public void testRegistersItselfAsANativeLibraryProducer() {
+        var subscribeService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService().get();
+
+        assertTrue(subscribeService.getProjectsByTopic(NativeLibraries.TOPIC).get().contains(project.getPath()));
     }
 
     @Test

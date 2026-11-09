@@ -64,6 +64,7 @@ public class ComputeListenerTests extends ESTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomList(
                 0,
                 2,
@@ -71,6 +72,7 @@ public class ComputeListenerTests extends ESTestCase {
                     randomIdentifier(),
                     randomIdentifier(),
                     randomIdentifier(),
+                    randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),

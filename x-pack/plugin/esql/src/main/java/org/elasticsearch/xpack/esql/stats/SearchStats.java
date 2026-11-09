@@ -11,8 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Map;
 
@@ -29,6 +31,14 @@ public interface SearchStats {
 
     boolean hasDocValues(FieldName field);
 
+    /**
+     * Whether every shard here can query {@code field}, read as {@code type}: see
+     * {@link SearchContextStats#isQueryable(SearchExecutionContext, String, DataType, boolean)}. At least one must hold the field.
+     */
+    default boolean isQueryable(FieldName field, DataType type, boolean comparesValuesAsRead) {
+        return hasDocValues(field);
+    }
+
     boolean hasExactSubfield(FieldName field);
 
     long count();
@@ -44,6 +54,15 @@ public interface SearchStats {
     boolean isSingleValue(FieldName field);
 
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
+
+    /**
+     * Whether every index this reads holds no empty string for {@code field}, because one given at index time was
+     * read as a null. A comparison against an empty string is then a question about whether the field holds a
+     * value at all.
+     */
+    default boolean emptyStringReadsAsNull(FieldName field) {
+        return false;
+    }
 
     /**
      * Do all fields with the matching name answer a query over the values their doc values hold? Such a query matches a
@@ -70,17 +89,16 @@ public interface SearchStats {
     /**
      * Whether a document of any shard behind these stats may hold, in {@code _source}, a field that the shard's mapping does
      * not declare. When this returns {@code false}, {@code unmapped_fields="LOAD_ALL"} has nothing to discover on this node.
-     * See {@code SearchExecutionContext#mayHoldUnmappedFields} for what decides it.
+     * See {@code UnmappedFields#mayExist()} for what decides it.
      */
     default boolean mayHoldUnmappedFields() {
         return true;
     }
 
     /**
-     * Whether reading {@code name} from {@code _source} can return a value on a shard behind these stats that does not map
-     * it. That takes either a shard that {@link #mayHoldUnmappedFields() may hold unmapped fields}, or one that maps a
-     * field above {@code name}: a mapped field keeps its whole value under its own name, so the keys of an object-valued
-     * one are read from {@code _source} without being fields of their own.
+     * Whether {@code name} may be an unmapped field of a document of a shard behind these stats that does not map it. A
+     * key of the value of a field a shard maps is not one on that shard. See
+     * {@code UnmappedFields#mayExist(String)}.
      */
     default boolean mayHoldUnmappedField(FieldName name) {
         return true;

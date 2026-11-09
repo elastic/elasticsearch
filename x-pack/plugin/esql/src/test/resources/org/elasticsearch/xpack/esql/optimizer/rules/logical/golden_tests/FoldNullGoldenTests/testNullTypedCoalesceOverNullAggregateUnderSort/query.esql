@@ -1,0 +1,5 @@
+FROM employees
+| STATS m = MAX(null) BY languages
+| EVAL x = COALESCE(m, m) * 2
+| SORT languages
+| LIMIT 20

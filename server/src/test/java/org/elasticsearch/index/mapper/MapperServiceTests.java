@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -23,12 +24,16 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -37,15 +42,36 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MapperServiceTests extends MapperServiceTestCase {
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new FeatureProbeFieldMapper.Plugin());
+    }
+
+    /**
+     * A mapping restored from a legacy index can carry parameters the parser accepts and ignores, such as {@code include_in_all}.
+     * What the mapper service keeps as the mapping source is written from what the builder holds, so they are gone from it.
+     */
+    public void testMappingSourceDropsParametersTheParserIgnores() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        mapperService.merge("_doc", new CompressedXContent("""
+            { "_doc": { "include_in_all": true, "properties": { "field": { "type": "keyword" } } } }
+            """), MergeReason.MAPPING_RECOVERY);
+
+        String source = mapperService.documentMapper().mappingSource().string();
+        assertThat(source, not(containsString("include_in_all")));
+        assertThat(source, containsString("keyword"));
+        assertWarnings("[include_in_all] is deprecated, the _all field have been removed in this version");
+    }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
@@ -236,6 +262,65 @@ public class MapperServiceTests extends MapperServiceTestCase {
             b.endObject();
         }))));
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] has been exceeded"));
+    }
+
+    /**
+     * Data nodes apply a mapping the master already validated and persisted through {@link MapperService#updateMapping}, parsing it as
+     * a recovered mapping. That deliberately enforces no parse-time field limits: the master enforced them when it wrote the mapping, and
+     * a data node must not fail to apply it because a limit was lowered afterwards.
+     */
+    public void testUpdateMappingDoesNotEnforceTotalFieldsLimit() throws IOException {
+        MapperService totalFieldsLimited = createMapperService(
+            Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build(),
+            mapping(b -> {})
+        );
+        updateMapping(totalFieldsLimited, mapping(b -> {
+            b.startObject("a").field("type", "keyword").endObject();
+            b.startObject("b").field("type", "keyword").endObject();
+            b.startObject("c").field("type", "keyword").endObject();
+        }));
+        assertNotNull(totalFieldsLimited.mappingLookup().getFieldType("a"));
+        assertNotNull(totalFieldsLimited.mappingLookup().getFieldType("b"));
+        assertNotNull(totalFieldsLimited.mappingLookup().getFieldType("c"));
+    }
+
+    /** See {@link #testUpdateMappingDoesNotEnforceTotalFieldsLimit}. */
+    public void testUpdateMappingDoesNotEnforceFieldNameLengthLimit() throws IOException {
+        MapperService nameLengthLimited = createMapperService(
+            Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), 3).build(),
+            mapping(b -> {})
+        );
+        updateMapping(nameLengthLimited, mapping(b -> b.startObject("much_longer_than_three").field("type", "keyword").endObject()));
+        assertNotNull(nameLengthLimited.mappingLookup().getFieldType("much_longer_than_three"));
+    }
+
+    /**
+     * {@link MapperService#updateMapping} runs on the cluster applier thread, where the cluster state cannot be read to answer
+     * a feature check. The master node already checked features before persisting the mapping, so parsing in
+     * {@link MapperService#updateMapping} must not perform another feature check.
+     */
+    public void testUpdateMappingDoesNotCheckClusterFeatures() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> {
+            throw new AssertionError("cluster feature [" + f.id() + "] must not be checked while applying a persisted mapping");
+        }).build();
+
+        updateMapping(
+            mapperService,
+            mapping(b -> b.startObject("p").field("type", FeatureProbeFieldMapper.CONTENT_TYPE).field("gated", true).endObject())
+        );
+
+        Mapper mapper = mapperService.documentMapper().mappers().getMapper("p");
+        assertThat(mapper, instanceOf(FeatureProbeFieldMapper.class));
+        assertTrue(((FeatureProbeFieldMapper) mapper).gated());
+    }
+
+    private static void updateMapping(MapperService mapperService, XContentBuilder mapping) throws IOException {
+        IndexMetadata current = mapperService.getIndexSettings().getIndexMetadata();
+        IndexMetadata updated = IndexMetadata.builder(current)
+            .mappingVersion(current.getMappingVersion() + 1)
+            .putMapping(new MappingMetadata(new CompressedXContent(BytesReference.bytes(mapping))))
+            .build();
+        mapperService.updateMapping(current, updated);
     }
 
     public void testPartitionedConstraints() throws IOException {
@@ -524,8 +609,12 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 // _slice_key is mapped only on slice-enabled indices, like the time-series fields on time-series indices.
                 boolean isSliceOnlyField = builtIn.equals(SliceKeyFieldMapper.NAME);
                 boolean isSliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
+                boolean isAbsentUnmappedSink = builtIn.equals(FlattenedFieldMapper.UNMAPPED_SINK_NAME)
+                    && UnmappedSinkFieldMapper.isEnabled(mapperService.getIndexSettings()) == false;
 
-                if ((isTimeSeriesField && isTimeSeriesMode == false) || (isSliceOnlyField && isSliceEnabled == false)) {
+                if ((isTimeSeriesField && isTimeSeriesMode == false)
+                    || (isSliceOnlyField && isSliceEnabled == false)
+                    || isAbsentUnmappedSink) {
                     assertFalse(
                         "Expected "
                             + builtIn
@@ -654,7 +743,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
 
         // check that with the resulting mappings a new document has the previously merged field indexed properly
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("""
@@ -999,7 +1088,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
     }
 
     public void testSameTypeMerge() throws IOException {
@@ -1101,7 +1190,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
     }
 
     public void testNestedContradictingProperties() throws IOException {
@@ -1286,7 +1375,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
 
         mapperService = createMapperService(mapping(b -> {}));
         mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
@@ -1417,7 +1506,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
     }
 
     public void testPropertiesFieldSingleChildMerge() throws IOException {
@@ -1471,7 +1560,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
 
         Mapper propertiesMapper = mapperService.documentMapper().mapping().getRoot().getMapper("properties");
         assertThat(propertiesMapper, instanceOf(ObjectMapper.class));
@@ -1500,7 +1589,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
 
         propertiesMapper = mapperService.documentMapper().mapping().getRoot().getMapper("properties");
         assertThat(propertiesMapper, instanceOf(ObjectMapper.class));
@@ -1590,7 +1679,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
 
         Mapper propertiesMapper = mapperService.documentMapper().mapping().getRoot().getMapper("properties");
         assertThat(propertiesMapper, instanceOf(ObjectMapper.class));
@@ -2168,12 +2257,12 @@ public class MapperServiceTests extends MapperServiceTestCase {
         final MapperService mapperServiceBulk = createMapperService(mapping(b -> {}));
         // simulates multiple component templates being merged in a composable index template
         mapperServiceBulk.merge("_doc", mappingSources, MergeReason.INDEX_TEMPLATE);
-        assertEquals(expected, Strings.toString(mapperServiceBulk.documentMapper().mapping(), true, true));
+        assertEquals(expected, Strings.toString(parsedMapping(mapperServiceBulk), true, true));
 
         MapperService mapperServiceSequential = createMapperService(mapping(b -> {}));
         // simulates a series of mapping updates
         mappingSources.forEach(m -> mapperServiceSequential.merge("_doc", m, MergeReason.INDEX_TEMPLATE));
-        assertEquals(expected, Strings.toString(mapperServiceSequential.documentMapper().mapping(), true, true));
+        assertEquals(expected, Strings.toString(parsedMapping(mapperServiceSequential), true, true));
     }
 
     public void testColumnarModesRejectSyntheticSourceKeepOnField() {
@@ -2255,5 +2344,76 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 )
             );
         }
+    }
+
+    public void testRecoveredMappingIgnoresDepthLimitLoweredAfterwards() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(mapping(b -> {
+            b.startObject("obj").startObject("properties");
+            b.startObject("leaf").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        })));
+
+        DocumentMapper recovered = mapperService.merge("_doc", source, MergeReason.MAPPING_RECOVERY);
+        assertNotNull(recovered.mappers().getMapper("obj.leaf"));
+    }
+
+    private static XContentBuilder deepDynamicTemplateMapping(int depth) throws IOException {
+        return topMapping(b -> {
+            b.startArray("dynamic_templates").startObject().startObject("deep");
+            b.field("match", "deep_*");
+            b.startObject("mapping").field("type", "object");
+            for (int i = 0; i < depth; i++) {
+                b.startObject("properties").startObject("o" + i).field("type", "object");
+            }
+            for (int i = 0; i < depth; i++) {
+                b.endObject().endObject();
+            }
+            b.endObject().endObject().endObject().endArray();
+        });
+    }
+
+    public void testDynamicTemplateDepthLimitEnforcedOnUpdate() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 3).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(deepDynamicTemplateMapping(5)));
+        expectThrows(MapperParsingException.class, () -> mapperService.merge("_doc", source, MergeReason.MAPPING_UPDATE));
+    }
+
+    public void testDynamicTemplateDepthLimitEnforcedOnIndexTemplate() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 3).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(deepDynamicTemplateMapping(5)));
+        expectThrows(MapperParsingException.class, () -> mapperService.merge("_doc", source, MergeReason.INDEX_TEMPLATE));
+    }
+
+    public void testDynamicTemplateDepthLimitIgnoredOnRecovery() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 3).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(deepDynamicTemplateMapping(5)));
+        assertNotNull(mapperService.merge("_doc", source, MergeReason.MAPPING_RECOVERY));
+    }
+
+    public void testDynamicTemplateAtDocumentTimeUsesLatestNestedLimit() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates").startObject().startObject("nested");
+            b.field("match", "nested_*");
+            b.startObject("mapping").field("type", "nested").endObject();
+            b.endObject().endObject().endArray();
+        }));
+        mapperService.documentMapper().parse(source(b -> b.startObject("nested_a").endObject()));
+
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        Settings lowered = Settings.builder()
+            .put(indexSettings.getSettings())
+            .put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0)
+            .build();
+        assertTrue(indexSettings.updateIndexMetadata(IndexMetadata.builder(indexSettings.getIndexMetadata()).settings(lowered).build()));
+
+        expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.startObject("nested_b").endObject()))
+        );
     }
 }

@@ -127,7 +127,8 @@ template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     int batches = 4,
-    int unroll_dim = 1
+    int unroll_dim = 1,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void dot7u_bulk_avx512(
     const TData* a, const int8_t* b, const int32_t dims,
@@ -211,7 +212,7 @@ static inline void dot7u_bulk_avx512(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)_mm512_reduce_add_epi32(acc[I]);
+            results[out_mapper(offsets, c + I)] = (f32_t)_mm512_reduce_add_epi32(acc[I]);
         });
 
         if (has_next) {
@@ -221,7 +222,7 @@ static inline void dot7u_bulk_avx512(
 
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = (f32_t)dot7u_inner(a0, b, dims);
+        results[out_mapper(offsets, c)] = (f32_t)dot7u_inner(a0, b, dims);
     }
 }
 
@@ -229,15 +230,16 @@ EXPORT void vec_doti7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t di
     dot7u_bulk_avx512<int8_t, sequential_mapper, 4, 1>(a, b, dims, dims, NULL, count, results);
 }
 
-EXPORT void vec_doti7u_bulk_offsets_2(
+EXPORT void vec_doti7u_bulk_masked_2(
     const int8_t* a,
     const int8_t* b,
     const int32_t dims,
     const int32_t pitch,
-    const int32_t* offsets,
+    const int32_t mask,
     const int32_t count,
     f32_t* results) {
-    dot7u_bulk_avx512<int8_t, offsets_mapper, 4, 1>(a, b, dims, pitch, offsets, count, results);
+    dot7u_bulk_avx512<int8_t, masked_mapper, 4, 1, masked_output>(
+        a, b, dims, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
 }
 
 EXPORT void vec_doti7u_bulk_sparse_2(
@@ -354,7 +356,8 @@ EXPORT int32_t vec_sqri7u_2(const int8_t* a, const int8_t* b, const int32_t dims
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int batches = 4
+    int batches = 4,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void sqr7u_bulk_avx512(
     const TData* a, const int8_t* b, const int32_t dims,
@@ -407,7 +410,7 @@ static inline void sqr7u_bulk_avx512(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)_mm512_reduce_add_epi32(acc[I]);
+            results[out_mapper(offsets, c + I)] = (f32_t)_mm512_reduce_add_epi32(acc[I]);
         });
 
         if (has_next) {
@@ -417,23 +420,12 @@ static inline void sqr7u_bulk_avx512(
 
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = (f32_t)sqr7u_inner(a0, b, dims);
+        results[out_mapper(offsets, c)] = (f32_t)sqr7u_inner(a0, b, dims);
     }
 }
 
 EXPORT void vec_sqri7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     sqr7u_bulk_avx512<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
-}
-
-EXPORT void vec_sqri7u_bulk_offsets_2(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    sqr7u_bulk_avx512<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_sqri7u_bulk_sparse_2(

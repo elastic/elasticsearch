@@ -42,8 +42,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
 
     private static final List<DataType> RETURN_TYPES = Arrays.stream(DataType.values())
         .filter(t -> t.supportedVersion().supportedLocally())
-        .filter(DataType::isRepresentable)
-        .filter(t -> t != DataType.DOC_DATA_TYPE)
+        .filter(DataType::isRepresentableInExpression)
         .filter(t -> t != DataType.TSID_DATA_TYPE)
         .filter(t -> t != DataType.DATE_RANGE || EsqlCapabilities.Cap.CASE_DATE_RANGE.isEnabled())
         .toList();
@@ -721,11 +720,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         if (returnType == DataType.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
-        return decorate.apply(
-            new TestCaseSupplier.TestCase(typedData, evaluatorToString, returnType, equalTo(result)).withExtra(
+        if (returnType == DataType.NULL) {
+            // With only null-typed values, FoldNull folds the CASE to null before its conditions run, so no warnings are emitted.
+            return new TestCaseSupplier.TestCase(typedData, equalTo("LiteralsEvaluator[lit=null]"), returnType, equalTo(result)).withExtra(
                 new Extra(foldable, partialFold)
-            )
-        );
+            );
+        } else {
+            return decorate.apply(
+                new TestCaseSupplier.TestCase(typedData, evaluatorToString, returnType, equalTo(result)).withExtra(
+                    new Extra(foldable, partialFold)
+                )
+            );
+        }
     }
 
     public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -766,6 +772,10 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testFancyFolding() {
+        if (testCase.expectedType() == DataType.NULL) {
+            // The all-null CASE is never folded directly: FoldNull replaces it first.
+            return;
+        }
         Expression e = buildFieldExpression(testCase);
         if (extra().foldable == false) {
             assertThat(e.foldable(), equalTo(false));
@@ -786,6 +796,10 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testPartialFold() {
+        if (testCase.expectedType() == DataType.NULL) {
+            // The all-null CASE is never partially folded: FoldNull replaces it first.
+            return;
+        }
         if (extra().foldable()) {
             // Nothing to do
             return;

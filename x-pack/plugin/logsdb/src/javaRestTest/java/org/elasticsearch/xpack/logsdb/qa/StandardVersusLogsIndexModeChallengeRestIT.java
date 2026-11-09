@@ -390,6 +390,8 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
         final Map<String, Object> fields = (Map<String, Object>) map.get("fields");
         assertThat(fields.size(), greaterThan(0));
+        // Only a strict columnar index has the _unmapped sink, so it is a difference of index mode, not of the data indexed.
+        fields.remove("_unmapped");
         return new TreeMap<>(fields);
     }
 

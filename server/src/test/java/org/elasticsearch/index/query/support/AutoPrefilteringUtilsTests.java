@@ -23,6 +23,8 @@ import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -287,6 +289,38 @@ public class AutoPrefilteringUtilsTests extends ESTestCase {
 
         assertThat(pruned.isPresent(), is(true));
         assertThat(pruned.get(), equalTo(new FunctionScoreQueryBuilder(boolQuery(new BoolClause(nonPrunedClause, nonPrunedOccur)))));
+    }
+
+    public void testPruneQuery_GivenScriptScoreQuery_NonPrunedType() {
+        ScriptScoreQueryBuilder query = new ScriptScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), new Script("1"));
+
+        Optional<QueryBuilder> pruned = pruneQuery(query, Set.of(NestedQueryBuilder.class));
+
+        assertThat(pruned.isPresent(), is(true));
+        assertThat(pruned.get(), sameInstance(query.query()));
+    }
+
+    public void testPruneQuery_GivenScriptScoreQuery_PrunedType() {
+        ScriptScoreQueryBuilder query = new ScriptScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), new Script("1"));
+
+        Optional<QueryBuilder> pruned = pruneQuery(query, Set.of(query.query().getClass()));
+
+        assertThat(pruned.isEmpty(), is(true));
+    }
+
+    public void testPruneQuery_GivenScriptScoreQuery_WithBoolQueryWithTwoClauses_OneShouldBePruned() {
+        QueryBuilder prunedClause = RandomQueryBuilder.createQuery(random());
+        BooleanClause.Occur prunedOccur = randomFrom(BooleanClause.Occur.values());
+        QueryBuilder nonPrunedClause = randomQueryOfDifferentType(prunedClause.getClass());
+        BooleanClause.Occur nonPrunedOccur = randomFrom(BooleanClause.Occur.values());
+
+        BoolQueryBuilder boolQuery = boolQuery(new BoolClause(prunedClause, prunedOccur), new BoolClause(nonPrunedClause, nonPrunedOccur));
+        ScriptScoreQueryBuilder query = new ScriptScoreQueryBuilder(boolQuery, new Script("1"));
+
+        Optional<QueryBuilder> pruned = pruneQuery(query, Set.of(prunedClause.getClass()));
+
+        assertThat(pruned.isPresent(), is(true));
+        assertThat(pruned.get(), equalTo(boolQuery(new BoolClause(nonPrunedClause, nonPrunedOccur))));
     }
 
     public void testPruneQuery_GivenInterceptedQuery_NonPrunedType() {

@@ -601,3 +601,8 @@ tests:
   - :modules:data-streams:yamlRestCompatTest
   method: test {yaml=data_stream/240_data_stream_settings/Test dry run}
   issue: https://github.com/elastic/elasticsearch/issues/165096
+- class: org.elasticsearch.xpack.stateless.reshard.SplitSourceServiceTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testRefCountedAcquirer
+  issue: https://github.com/elastic/elasticsearch/issues/165107

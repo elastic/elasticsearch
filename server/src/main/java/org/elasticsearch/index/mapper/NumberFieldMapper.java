@@ -3337,7 +3337,7 @@ public class NumberFieldMapper extends FieldMapper {
                     if (indexType.hasPoints()) {
                         document.add(new LongPoint(name, l));
                     }
-                    dvFactory.addColumnarNumericField(document, name, l);
+                    ColumnarNumericDocValuesField.recordValue(document, name, l);
                 }
                 case SORTED_NUMERIC, NONE -> {
                     if (indexType.hasPoints() && indexType.hasDocValues()) {

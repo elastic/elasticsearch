@@ -60,16 +60,6 @@ public class DocValuesFieldFactory {
     }
 
     /**
-     * Adds a numeric value for a field whose doc values the ColumNAR codec stores: the value joins the document's
-     * {@link ColumnarNumericDocValuesField} payload after the values already recorded, keeping the order they arrive in.
-     * Such a field is never an index sort field.
-     */
-    public void addColumnarNumericField(LuceneDocument doc, String name, long value) {
-        assert hasSkipper == false : "ColumNAR numeric doc values are binary and can't carry a skipper";
-        ColumnarNumericDocValuesField.recordValue(doc, name, value);
-    }
-
-    /**
      * Adds a sorted bytes doc values field as {@link SortedSetDocValuesField}. Always uses the multi-valued Lucene type
      * regardless of the {@code multi_value} setting, so that index-sort ({@code SortedSetSortField}) works correctly
      * at segment-merge time for {@code multi_value=false} fields.

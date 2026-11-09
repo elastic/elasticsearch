@@ -239,6 +239,62 @@ public class RenameProcessorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Unlike an empty field, an empty target field is not treated as a missing one, so it is an error whether or not ignore_missing is
+     * set (which is only about the field that is being renamed). It is reported before the field that is being renamed is removed, so
+     * that the document is left as it was.
+     */
+    public void testEmptyTargetFieldIsInvalid() throws Exception {
+        TemplateScript.Factory constantEmpty = ConfigurationUtils.compileTemplate(
+            RenameProcessor.TYPE,
+            "tag",
+            "target_field",
+            "",
+            TestTemplateService.instance()
+        );
+        // a constant template, which is empty for every document, and one that really is rendered for every document
+        for (TemplateScript.Factory emptyTarget : List.of(constantEmpty, new TestTemplateService.MockTemplateScript.Factory(""))) {
+            for (boolean ignoreMissing : new boolean[] { true, false }) {
+                IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+                ingestDocument.setFieldValue("foo", "bar");
+                RenameProcessor processor = new RenameProcessor(
+                    "tag",
+                    null,
+                    new TestTemplateService.MockTemplateScript.Factory("foo"),
+                    emptyTarget,
+                    ignoreMissing,
+                    randomBoolean()
+                );
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+                assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
+                assertThat(ingestDocument.getSource(), equalTo(Map.of("foo", "bar")));
+            }
+        }
+    }
+
+    /**
+     * A target field that can't be used is reported before the field that is being renamed is removed, so that field is not lost. That
+     * matters most for an element of an array: removing it shifts the elements after it down, so (unlike for a field of an object)
+     * putting the value back where it came from is not the same as never having removed it.
+     */
+    public void testMalformedTargetFieldDoesNotLoseTheField() throws Exception {
+        // a field of an object
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("foo", "bar");
+        Processor processor = createRenameProcessor("foo", "a..b", false, randomBoolean());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+        assertThat(ingestDocument.getSource(), equalTo(Map.of("foo", "bar")));
+
+        // an element of an array
+        IngestDocument arrayDocument = TestIngestDocument.emptyIngestDocument();
+        arrayDocument.setFieldValue("list", new ArrayList<>(List.of("item1", "item2", "item3")));
+        Processor arrayProcessor = createRenameProcessor("list.0", "a..b", false, randomBoolean());
+        e = expectThrows(IllegalArgumentException.class, () -> arrayProcessor.execute(arrayDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+        assertThat(arrayDocument.getFieldValue("list", List.class), equalTo(List.of("item1", "item2", "item3")));
+    }
+
     private RenameProcessor createRenameProcessor(String field, String targetField, boolean ignoreMissing, boolean overrideEnabled) {
         return new RenameProcessor(
             randomAlphaOfLength(10),

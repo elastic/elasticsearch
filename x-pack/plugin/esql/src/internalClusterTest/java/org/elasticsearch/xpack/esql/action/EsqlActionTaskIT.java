@@ -535,14 +535,19 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     foundTasks.addAll(tasks);
                 });
                 assertTrue(fetchingStarted.await(1, TimeUnit.MINUTES));
-                List<String> sinkKeys = exchangeService.sinkKeys()
-                    .stream()
-                    .filter(
-                        // exclude the node-level reduction sink
-                        s -> s.endsWith("[n]") == false
-                    )
-                    .toList();
-                assertThat(sinkKeys.toString(), sinkKeys.size(), equalTo(1));
+                // The data node request creates the sink, and the first fetch can get here before that request does.
+                List<String> sinkKeys = new ArrayList<>();
+                assertBusy(() -> {
+                    sinkKeys.clear();
+                    exchangeService.sinkKeys()
+                        .stream()
+                        .filter(
+                            // exclude the node-level reduction sink
+                            s -> s.endsWith("[n]") == false
+                        )
+                        .forEach(sinkKeys::add);
+                    assertThat(sinkKeys.toString(), sinkKeys.size(), equalTo(1));
+                });
                 exchangeId = sinkKeys.get(0);
                 ExchangeSinkHandler exchangeSink = exchangeService.getSinkHandler(exchangeId);
                 waitedForPages = randomBoolean();

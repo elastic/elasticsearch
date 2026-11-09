@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -126,9 +125,11 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
 
         var shouldMove = new AtomicBoolean(true);
 
+        // The shard moves away once the data node request has reached the node the coordinator planned it for, so that
+        // request fails for the shard and the sender has to retry it where the shard now is.
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             as(transportService, MockTransportService.class).addRequestHandlingBehavior(
-                ExchangeService.OPEN_EXCHANGE_ACTION_NAME,
+                ComputeService.DATA_ACTION_NAME,
                 (handler, request, channel, task) -> {
                     // move index shard
                     if (shouldMove.compareAndSet(true, false)) {

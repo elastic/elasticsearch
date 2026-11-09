@@ -404,8 +404,12 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         assertNotEquals("error type must not be remote_transport_exception", "remote_transport_exception", outcome.errorType());
     }
 
-    public void testOpenExchangeFaultBeforeFirstPageYieldsHttpError() throws Exception {
-        assertFaultBeforeFirstPageYieldsHttpError(ExchangeService.OPEN_EXCHANGE_ACTION_NAME);
+    /**
+     * The data node request fails before it created its exchange sink. The coordinator's first page fetch is parked on
+     * the data node waiting for that sink and must be released by the cancellation that follows the failure.
+     */
+    public void testDataNodeRequestFaultBeforeFirstPageYieldsHttpError() throws Exception {
+        assertFaultBeforeFirstPageYieldsHttpError(ComputeService.DATA_ACTION_NAME);
     }
 
     public void testExchangeFaultBeforeFirstPageYieldsHttpError() throws Exception {

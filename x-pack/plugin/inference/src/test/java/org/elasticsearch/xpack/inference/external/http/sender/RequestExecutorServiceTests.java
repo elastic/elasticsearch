@@ -51,7 +51,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_CIRCUIT_BREAKER_NAME;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.noopReleasable;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettings;
@@ -72,7 +71,7 @@ import static org.mockito.Mockito.when;
 public class RequestExecutorServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private static final String INFERENCE_ID = "id";
-    private static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker(INFERENCE_CIRCUIT_BREAKER_NAME);
+    private static final CircuitBreaker NOOP_BREAKER = NoopCircuitBreaker.INSTANCE;
     private static final InferenceInputs EMBEDDING_INPUT = new EmbeddingsInput(List.of(), InputType.UNSPECIFIED);
 
     private ThreadPool threadPool;

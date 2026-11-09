@@ -135,9 +135,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
+        assertThat(ingestDocument.getSource().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getSource().get("target_field");
         assertThat(data, notNullValue());
         assertThat(data.get("ip"), equalTo(ip));
         assertThat(data.get("city_name"), equalTo("Homestead"));
@@ -163,9 +163,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
+        assertThat(ingestDocument.getSource().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getSource().get("target_field");
         assertThat(data, notNullValue());
         assertThat(data.get("ip"), equalTo(ip));
         assertThat(data.get("city_name"), equalTo("Chicago"));
@@ -267,7 +267,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         document.put("source_field", "127.0.0.1");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
+        assertThat(ingestDocument.getSource().containsKey("target_field"), is(false));
     }
 
     /**
@@ -312,7 +312,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> data = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
+        List<Map<String, Object>> data = (List<Map<String, Object>>) ingestDocument.getSource().get("target_field");
         assertThat(data, notNullValue());
         assertThat(data.size(), equalTo(2));
         assertThat(data.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
@@ -338,7 +338,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> data = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
+        List<Map<String, Object>> data = (List<Map<String, Object>>) ingestDocument.getSource().get("target_field");
         assertThat(data, notNullValue());
         assertThat(data.size(), equalTo(2));
         assertThat(data.get(0).get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
@@ -385,7 +385,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getSource().get("target_field");
         assertThat(data, notNullValue());
         assertThat(data.get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
     }
@@ -408,7 +408,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
+        assertThat(ingestDocument.getSource().containsKey("target_field"), is(false));
     }
 
     // -- Tests that require mocks (no real DB can simulate these states) --
@@ -436,8 +436,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
-        assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_expired_database")));
+        assertThat(ingestDocument.getSource().containsKey("target_field"), is(false));
+        assertThat(ingestDocument.getSource(), hasEntry("tags", List.of("_geoip_expired_database")));
     }
 
     public void testNoDatabase() throws Exception {
@@ -464,8 +464,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
-        assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City")));
+        assertThat(ingestDocument.getSource().containsKey("target_field"), is(false));
+        assertThat(ingestDocument.getSource(), hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City")));
     }
 
     public void testNoDatabase_ignoreMissing() throws Exception {
@@ -571,20 +571,20 @@ public class GeoIpProcessorTests extends ESTestCase {
         ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
 
         // Verify that individual dotted fields were created (check in source map directly)
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        assertThat(sourceAndMetadata.containsKey("my.target.ip"), is(true));
-        assertThat(sourceAndMetadata.get("my.target.ip"), equalTo(ip));
-        assertThat(sourceAndMetadata.containsKey("my.target.city_name"), is(true));
-        assertThat(sourceAndMetadata.get("my.target.city_name"), equalTo("Homestead"));
-        assertThat(sourceAndMetadata.containsKey("my.target.country_name"), is(true));
-        assertThat(sourceAndMetadata.containsKey("my.target.country_iso_code"), is(true));
-        assertThat(sourceAndMetadata.containsKey("my.target.continent_name"), is(true));
-        assertThat(sourceAndMetadata.containsKey("my.target.region_name"), is(true));
-        assertThat(sourceAndMetadata.containsKey("my.target.region_iso_code"), is(true));
+        Map<String, Object> source = ingestDocument.getSource();
+        assertThat(source.containsKey("my.target.ip"), is(true));
+        assertThat(source.get("my.target.ip"), equalTo(ip));
+        assertThat(source.containsKey("my.target.city_name"), is(true));
+        assertThat(source.get("my.target.city_name"), equalTo("Homestead"));
+        assertThat(source.containsKey("my.target.country_name"), is(true));
+        assertThat(source.containsKey("my.target.country_iso_code"), is(true));
+        assertThat(source.containsKey("my.target.continent_name"), is(true));
+        assertThat(source.containsKey("my.target.region_name"), is(true));
+        assertThat(source.containsKey("my.target.region_iso_code"), is(true));
 
         // Verify that location is written as an array [lon, lat] in flexible mode
-        assertThat(sourceAndMetadata.containsKey("my.target.location"), is(true));
-        Object location = sourceAndMetadata.get("my.target.location");
+        assertThat(source.containsKey("my.target.location"), is(true));
+        Object location = source.get("my.target.location");
         assertThat(location, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Double> locationArray = (List<Double>) location;
@@ -593,7 +593,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(locationArray.get(1), equalTo(25.4573));
 
         // Verify that the nested "my.target" object was NOT created
-        assertThat(sourceAndMetadata.containsKey("my.target"), is(false));
+        assertThat(source.containsKey("my.target"), is(false));
     }
 
     public void testMaxmindCityWithClassicFieldAccessMode() throws Exception {
@@ -656,16 +656,16 @@ public class GeoIpProcessorTests extends ESTestCase {
         ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
 
         // Verify that individual dotted fields were created (check in source map directly)
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        assertThat(sourceAndMetadata.containsKey("my.geo.ip"), is(true));
-        assertThat(sourceAndMetadata.get("my.geo.ip"), equalTo(ip));
-        assertThat(sourceAndMetadata.containsKey("my.geo.city_name"), is(true));
-        assertThat(sourceAndMetadata.get("my.geo.city_name"), equalTo("Chicago"));
-        assertThat(sourceAndMetadata.containsKey("my.geo.country_iso_code"), is(true));
+        Map<String, Object> source = ingestDocument.getSource();
+        assertThat(source.containsKey("my.geo.ip"), is(true));
+        assertThat(source.get("my.geo.ip"), equalTo(ip));
+        assertThat(source.containsKey("my.geo.city_name"), is(true));
+        assertThat(source.get("my.geo.city_name"), equalTo("Chicago"));
+        assertThat(source.containsKey("my.geo.country_iso_code"), is(true));
 
         // Verify that location is written as an array [lon, lat] in flexible mode
-        assertThat(sourceAndMetadata.containsKey("my.geo.location"), is(true));
-        Object location = sourceAndMetadata.get("my.geo.location");
+        assertThat(source.containsKey("my.geo.location"), is(true));
+        Object location = source.get("my.geo.location");
         assertThat(location, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Double> locationArray = (List<Double>) location;
@@ -674,7 +674,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(locationArray.get(1), equalTo(41.8798));
 
         // Verify that the nested "my.geo" object was NOT created
-        assertThat(sourceAndMetadata.containsKey("my.geo"), is(false));
+        assertThat(source.containsKey("my.geo"), is(false));
     }
 
     public void testIpinfoGeolocationWithClassicFieldAccessMode() throws Exception {
@@ -732,11 +732,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
 
         // Verify that individual dotted fields were created for the first IP only (check in source map directly)
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        assertThat(sourceAndMetadata.containsKey("my.target.ip"), is(true));
-        assertThat(sourceAndMetadata.get("my.target.ip"), equalTo(ip1));
-        assertThat(sourceAndMetadata.containsKey("my.target.city_name"), is(true));
-        assertThat(sourceAndMetadata.get("my.target.city_name"), equalTo("Homestead"));
+        Map<String, Object> source = ingestDocument.getSource();
+        assertThat(source.containsKey("my.target.ip"), is(true));
+        assertThat(source.get("my.target.ip"), equalTo(ip1));
+        assertThat(source.containsKey("my.target.city_name"), is(true));
+        assertThat(source.get("my.target.city_name"), equalTo("Homestead"));
     }
 
     public void testIpLocationAsnWithFlexibleFieldAccessMode() throws Exception {
@@ -761,15 +761,15 @@ public class GeoIpProcessorTests extends ESTestCase {
         ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
 
         // Verify that individual dotted fields were created (check in source map directly)
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        assertThat(sourceAndMetadata.containsKey("ip.asn.ip"), is(true));
-        assertThat(sourceAndMetadata.get("ip.asn.ip"), equalTo(ip));
-        assertThat(sourceAndMetadata.containsKey("ip.asn.asn"), is(true));
-        assertThat(sourceAndMetadata.containsKey("ip.asn.organization_name"), is(true));
-        assertThat(sourceAndMetadata.containsKey("ip.asn.network"), is(true));
+        Map<String, Object> source = ingestDocument.getSource();
+        assertThat(source.containsKey("ip.asn.ip"), is(true));
+        assertThat(source.get("ip.asn.ip"), equalTo(ip));
+        assertThat(source.containsKey("ip.asn.asn"), is(true));
+        assertThat(source.containsKey("ip.asn.organization_name"), is(true));
+        assertThat(source.containsKey("ip.asn.network"), is(true));
 
         // Verify that the nested "ip.asn" object was NOT created
-        assertThat(sourceAndMetadata.containsKey("ip.asn"), is(false));
+        assertThat(source.containsKey("ip.asn"), is(false));
     }
 
     public void testIpLocationCountryWithFlexibleFieldAccessMode() throws Exception {
@@ -794,18 +794,18 @@ public class GeoIpProcessorTests extends ESTestCase {
         ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
 
         // Verify that individual dotted fields were created (check in source map directly)
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        assertThat(sourceAndMetadata.containsKey("geo.country.ip"), is(true));
-        assertThat(sourceAndMetadata.get("geo.country.ip"), equalTo(ip));
-        assertThat(sourceAndMetadata.containsKey("geo.country.country_iso_code"), is(true));
-        assertThat(sourceAndMetadata.get("geo.country.country_iso_code"), equalTo("NL"));
-        assertThat(sourceAndMetadata.containsKey("geo.country.country_name"), is(true));
-        assertThat(sourceAndMetadata.get("geo.country.country_name"), equalTo("Netherlands"));
-        assertThat(sourceAndMetadata.containsKey("geo.country.continent_name"), is(true));
-        assertThat(sourceAndMetadata.get("geo.country.continent_name"), equalTo("Europe"));
+        Map<String, Object> source = ingestDocument.getSource();
+        assertThat(source.containsKey("geo.country.ip"), is(true));
+        assertThat(source.get("geo.country.ip"), equalTo(ip));
+        assertThat(source.containsKey("geo.country.country_iso_code"), is(true));
+        assertThat(source.get("geo.country.country_iso_code"), equalTo("NL"));
+        assertThat(source.containsKey("geo.country.country_name"), is(true));
+        assertThat(source.get("geo.country.country_name"), equalTo("Netherlands"));
+        assertThat(source.containsKey("geo.country.continent_name"), is(true));
+        assertThat(source.get("geo.country.continent_name"), equalTo("Europe"));
 
         // Verify that the nested "geo.country" object was NOT created
-        assertThat(sourceAndMetadata.containsKey("geo.country"), is(false));
+        assertThat(source.containsKey("geo.country"), is(false));
     }
 
     // Test that both geoip and ip_location processors work correctly with flexible mode
@@ -831,11 +831,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, geoipProcessor);
 
         // Verify geoip processor created dotted fields (check in source map directly)
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        assertThat(sourceAndMetadata.containsKey("geoip.result.city_name"), is(true));
-        assertThat(sourceAndMetadata.get("geoip.result.city_name"), equalTo("Homestead"));
-        assertThat(sourceAndMetadata.containsKey("geoip.result.location"), is(true));
-        assertThat(sourceAndMetadata.containsKey("geoip.result"), is(false));
+        Map<String, Object> source = ingestDocument.getSource();
+        assertThat(source.containsKey("geoip.result.city_name"), is(true));
+        assertThat(source.get("geoip.result.city_name"), equalTo("Homestead"));
+        assertThat(source.containsKey("geoip.result.location"), is(true));
+        assertThat(source.containsKey("geoip.result"), is(false));
 
         // Test with IP_LOCATION_TYPE
         GeoIpProcessor ipLocationProcessor = new GeoIpProcessor(
@@ -856,11 +856,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, ipLocationProcessor);
 
         // Verify ip_location processor created dotted fields (check in source map directly)
-        sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        assertThat(sourceAndMetadata.containsKey("ip_location.result.city_name"), is(true));
-        assertThat(sourceAndMetadata.get("ip_location.result.city_name"), equalTo("Homestead"));
-        assertThat(sourceAndMetadata.containsKey("ip_location.result.location"), is(true));
-        assertThat(sourceAndMetadata.containsKey("ip_location.result"), is(false));
+        source = ingestDocument.getSource();
+        assertThat(source.containsKey("ip_location.result.city_name"), is(true));
+        assertThat(source.get("ip_location.result.city_name"), equalTo("Homestead"));
+        assertThat(source.containsKey("ip_location.result.location"), is(true));
+        assertThat(source.containsKey("ip_location.result"), is(false));
     }
 
     public void testListWithFlexibleFieldAccessMode() throws Exception {
@@ -884,11 +884,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
 
         // Verify that individual dotted fields contain lists (one value per IP)
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        Map<String, Object> source = ingestDocument.getSource();
 
         // Check that location is a list of arrays
-        assertThat(sourceAndMetadata.containsKey("my.target.location"), is(true));
-        Object location = sourceAndMetadata.get("my.target.location");
+        assertThat(source.containsKey("my.target.location"), is(true));
+        Object location = source.get("my.target.location");
         assertThat(location, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<List<Double>> locationList = (List<List<Double>>) location;
@@ -901,8 +901,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(locationList.get(1).get(1), equalTo(50.9118d));
 
         // Check that city_name is a list of strings
-        assertThat(sourceAndMetadata.containsKey("my.target.city_name"), is(true));
-        Object cityName = sourceAndMetadata.get("my.target.city_name");
+        assertThat(source.containsKey("my.target.city_name"), is(true));
+        Object cityName = source.get("my.target.city_name");
         assertThat(cityName, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<String> cityNameList = (List<String>) cityName;
@@ -910,8 +910,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(cityNameList.get(1), equalTo("Hoensbroek"));
 
         // Check that ip is a list of strings
-        assertThat(sourceAndMetadata.containsKey("my.target.ip"), is(true));
-        Object ip = sourceAndMetadata.get("my.target.ip");
+        assertThat(source.containsKey("my.target.ip"), is(true));
+        Object ip = source.get("my.target.ip");
         assertThat(ip, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<String> ipList = (List<String>) ip;
@@ -920,7 +920,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ipList.get(1), equalTo("82.171.64.0"));
 
         // Verify that the nested "my.target" object was NOT created
-        assertThat(sourceAndMetadata.containsKey("my.target"), is(false));
+        assertThat(source.containsKey("my.target"), is(false));
     }
 
     public void testListPartiallyValidWithFlexibleFieldAccessMode() throws Exception {
@@ -944,11 +944,11 @@ public class GeoIpProcessorTests extends ESTestCase {
         ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);
 
         // Verify that individual dotted fields contain lists with nulls for non-matching IPs
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        Map<String, Object> source = ingestDocument.getSource();
 
         // Check that location is a list with one valid location and one null
-        assertThat(sourceAndMetadata.containsKey("my.target.location"), is(true));
-        Object location = sourceAndMetadata.get("my.target.location");
+        assertThat(source.containsKey("my.target.location"), is(true));
+        Object location = source.get("my.target.location");
         assertThat(location, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> locationList = (List<Object>) location;
@@ -957,8 +957,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(locationList.get(1), nullValue());
 
         // Check that ip list has the successful IP and null for the failed one
-        assertThat(sourceAndMetadata.containsKey("my.target.ip"), is(true));
-        Object ip = sourceAndMetadata.get("my.target.ip");
+        assertThat(source.containsKey("my.target.ip"), is(true));
+        Object ip = source.get("my.target.ip");
         assertThat(ip, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<String> ipList = (List<String>) ip;

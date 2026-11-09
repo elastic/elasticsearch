@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 161863
+summary: "[Inference API] Add new decision task type to Elasticsearch"
+type: feature

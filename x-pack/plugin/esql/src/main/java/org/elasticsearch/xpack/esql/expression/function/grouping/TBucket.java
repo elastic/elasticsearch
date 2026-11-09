@@ -142,6 +142,15 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
                 description = "The bucket size can also be provided as a string:",
                 file = "tbucket",
                 tag = "docsTBucketByOneHourDurationAsString"
+            ),
+            @Example(
+                description = """
+                    By default, `TBUCKET` only returns buckets that contain at least one row. Set the
+                    `include_empty_buckets` option to `true` to also return the empty buckets in the `from`..`to` range,
+                    filled with default aggregate values:""",
+                file = "bucket_include_empty_buckets",
+                tag = "docsTBucketIncludeEmptyBuckets",
+                applies_to = "stack: ga 9.6.0"
             ) },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
         type = FunctionType.GROUPING
@@ -181,7 +190,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
                     type = "boolean",
                     valueHint = { "true", "false" },
                     description = "When `true`, empty buckets (filled with default aggregate values) are output across the "
-                        + "`from`..`to` range (`from` inclusive, `to` exclusive). Requires the four-argument (range) form of `BUCKET`. "
+                        + "`from`..`to` range (`from` inclusive, `to` exclusive). Requires the `from` and `to` arguments. "
                         + "Defaults to `false`.",
                     applies_to = OPTIONS_APPLIES_TO
                 ) },

@@ -45,7 +45,7 @@ ext.serverProject = project(xpackModule('esql:qa:server'))
 ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'employees_no_mv']
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'employees_no_mv', 'wide_schema']
 // Capture into locals so task configuration closures can reference them without going through ext.
 def serverProj = ext.serverProject
 def testFixturesProj = ext.testFixturesProject
@@ -143,6 +143,10 @@ restResources {
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  filter {
+    // Runs on a schedule instead, via the generativeTests task below.
+    excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT'
+  }
 }
 
 // Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes this by name.

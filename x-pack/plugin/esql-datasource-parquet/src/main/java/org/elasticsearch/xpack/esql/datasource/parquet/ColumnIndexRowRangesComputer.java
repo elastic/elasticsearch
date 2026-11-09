@@ -38,7 +38,7 @@ import java.util.List;
  * can be pruned because every row on such a page fails {@code != value}.
  *
  * <p>Comparisons never use {@link Comparable#compareTo} directly: for an unsigned physical
- * column (e.g. a Parquet {@code uint32} widened to ESQL {@code LONG} — esql-planning#1030),
+ * column (e.g. a Parquet {@code uint32} widened to ESQL {@code LONG} — ),
  * {@code Integer}/{@code Long}'s natural ordering is signed and would misread a raw value
  * above {@code Integer.MAX_VALUE}/{@code Long.MAX_VALUE} as negative, causing this
  * conservative page-pruning visitor to actually drop matching pages instead of over-keeping

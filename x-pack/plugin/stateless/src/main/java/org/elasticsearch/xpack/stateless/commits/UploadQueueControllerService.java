@@ -122,7 +122,12 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
     // visible for tests
     void runNow() {
-        task.runInternal();
+        task.calculateNewState();
+    }
+
+    // visible for tests
+    Map<ShardId, ThrottleState> currentState() {
+        return task.currentState();
     }
 
     @Override
@@ -142,11 +147,19 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         private volatile boolean enabled;
 
         private final StatelessCommitService statelessCommitService;
+        private final IndicesService indicesService;
+        private final boolean throttlingEnabled;
 
+        private final Metrics metrics;
         private final ThrottleCalculator indexingThrottleCalculator;
 
         private volatile ThrottleSettings indexingThrottleSettings;
-        private volatile Map<ShardId, ThrottleState> indexingThrottleState = Map.of();
+
+        // Written under a lock so not volatile.
+        private Throttler throttler;
+        private Map<ShardId, ThrottleState> indexingThrottleState;
+
+        private final Object resetLock = new Object();
 
         UploadQueueControllerMonitor(
             ThreadPool threadPool,
@@ -161,18 +174,27 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
             super(logger, threadPool, executor, interval, true);
 
             this.statelessCommitService = statelessCommitService;
+            this.indicesService = indicesService;
+            this.throttlingEnabled = throttlingEnabled;
 
-            var indexingThrottler = throttlingEnabled ? new IndexingThrottler(indicesService) : new NoopThrottler();
+            this.metrics = new Metrics(telemetryProvider, "indexing");
             this.indexingThrottleCalculator = new ThrottleCalculator(
                 threadPool::relativeTimeInMillis,
-                new MonitoringThrottler(indexingThrottler, telemetryProvider, "indexing"),
                 telemetryProvider.getMeterRegistry()
             );
 
+            this.throttler = createThrottler();
+            this.indexingThrottleState = Map.of();
+
             ClusterSettings clusterSettings = clusterService.getClusterSettings();
             clusterSettings.initializeAndWatch(STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED, enabled -> {
+                // The most interesting case here is when the service is enabled and then disabled as an override.
+                // In this case first we remove scheduling of new tasks.
                 this.enabled = enabled;
                 rescheduleIfNecessary();
+                // And then we remove all throttling applied by the latest task and clear the state.
+                // See comments inside `reset()` as well.
+                reset();
             });
             clusterSettings.addSettingsUpdateConsumer(STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL, this::setInterval);
             this.indexingThrottleSettings = new ThrottleSettings(
@@ -201,12 +223,50 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
         @Override
         protected void runInternal() {
-            var currentState = indexingThrottleState;
+            synchronized (resetLock) {
+                if (enabled == false) {
+                    return;
+                }
+
+                calculateNewState();
+            }
+        }
+
+        private void calculateNewState() {
             indexingThrottleState = indexingThrottleCalculator.newState(
-                currentState,
+                indexingThrottleState,
                 statelessCommitService.getShardCommitStats(),
+                throttler,
                 indexingThrottleSettings
             );
+        }
+
+        private void reset() {
+            /// This synchronization is needed to prevent a currently running task from applying throttles
+            /// during/after the reset.
+            /// The task can run concurrently because we don't interrupt running scheduled tasks
+            /// per [org.elasticsearch.threadpool.ScheduledCancellableAdapter].
+            ///
+            /// This method does get called from settings update callback and we don't want to block that thread.
+            /// But the lock should be rarely contested, and it simplifies the implementation quite a bit.
+            /// First of all, an operator changing the "enabled" setting leading to reset should be rare to begin with.
+            /// Then, this lock is only contested if there is a running task and with an interval of 5 seconds that's not that likely.
+            /// Finally, we don't do that much work under this lock.
+            synchronized (resetLock) {
+                throttler.close();
+                throttler = createThrottler();
+                indexingThrottleState = Map.of();
+            }
+        }
+
+        private Throttler createThrottler() {
+            return throttlingEnabled ? new IndexingThrottler(indicesService, metrics) : new NoopThrottler(metrics);
+        }
+
+        private Map<ShardId, ThrottleState> currentState() {
+            synchronized (resetLock) {
+                return Map.copyOf(indexingThrottleState);
+            }
         }
     }
 
@@ -220,12 +280,10 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         private static final String OLDEST_COMMIT_AGE_HISTOGRAM_METRIC = "es.stateless.upload_queue.oldest_commit_age.histogram";
 
         private final Supplier<Long> relativeTimeMillis;
-        private final Throttler throttler;
         private final LongHistogram oldestCommitAgeSecondsHistogram;
 
-        ThrottleCalculator(Supplier<Long> relativeTimeMillis, Throttler throttler, MeterRegistry meterRegistry) {
+        ThrottleCalculator(Supplier<Long> relativeTimeMillis, MeterRegistry meterRegistry) {
             this.relativeTimeMillis = relativeTimeMillis;
-            this.throttler = throttler;
             this.oldestCommitAgeSecondsHistogram = meterRegistry.registerLongHistogram(
                 OLDEST_COMMIT_AGE_HISTOGRAM_METRIC,
                 "Age of the oldest commit in the upload queue",
@@ -236,6 +294,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         Map<ShardId, ThrottleState> newState(
             Map<ShardId, ThrottleState> currentState,
             Stream<? extends ShardCommitUploadStats> commitStats,
+            Throttler throttler,
             ThrottleSettings settings
         ) {
             // Rebuilding a map allows us to drop entries for all shards that were closed.
@@ -320,18 +379,37 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         void activate(ShardId shardId);
 
         void deactivate(ShardId shardId);
+
+        /// Removes all currently applied throttling and marks this instance as closed.
+        void close();
     }
 
-    record NoopThrottler() implements Throttler {
-        @Override
-        public void activate(ShardId shardId) {}
+    static final class NoopThrottler implements Throttler {
+        private final Metrics metrics;
+
+        NoopThrottler(Metrics metrics) {
+            this.metrics = metrics;
+        }
 
         @Override
-        public void deactivate(ShardId shardId) {}
+        public void activate(ShardId shardId) {
+            metrics.notifyActivated(shardId, true);
+        }
+
+        @Override
+        public void deactivate(ShardId shardId) {
+            metrics.notifyDeactivated(shardId, DeactivationMode.NOOP);
+        }
+
+        @Override
+        public void close() {}
     }
 
-    static class IndexingThrottler implements Throttler {
+    static final class IndexingThrottler implements Throttler {
         private final IndicesService indicesService;
+        private final Metrics metrics;
+
+        private boolean closed = false;
 
         // Throttling methods in `IndexEngine` are not idempotent so we need to make sure
         // we don't remove throttle if it was never applied.
@@ -339,27 +417,46 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         // and there can be weird cases like shard relocating to a different node and then relocating back to the current node.
         private final Set<IndexShard> throttledShards = ConcurrentHashMap.newKeySet();
 
-        IndexingThrottler(IndicesService indicesService) {
+        IndexingThrottler(IndicesService indicesService, Metrics metrics) {
             this.indicesService = indicesService;
+            this.metrics = metrics;
         }
 
         @Override
         public void activate(ShardId shardId) {
+            assert closed == false : "already closed";
+
             IndexShard shard = indicesService.getShardOrNull(shardId);
             if (shard != null) {
                 // This would imply that StatelessCommitService has re-created commit state for this shardId
                 // without closeShard() ever being called which shouldn't happen.
                 assert throttledShards.contains(shard) == false;
-                shard.activateThrottling();
-                throttledShards.add(shard);
+
+                shard.tryWithEngineOrNull(engine -> {
+                    if (engine != null) {
+                        engine.activateThrottling();
+                        throttledShards.add(shard);
+                        metrics.notifyActivated(shardId, false);
+                    }
+
+                    return null;
+                });
             }
         }
 
         @Override
         public void deactivate(ShardId shardId) {
+            assert closed == false : "already closed";
+
             IndexShard shard = indicesService.getShardOrNull(shardId);
             if (shard != null && throttledShards.remove(shard)) {
-                shard.deactivateThrottling();
+                shard.tryWithEngineOrNull(engine -> {
+                    if (engine != null) {
+                        engine.deactivateThrottling();
+                        metrics.notifyDeactivated(shardId, DeactivationMode.NORMAL);
+                    }
+                    return null;
+                });
             }
         }
 
@@ -371,19 +468,29 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         Set<IndexShard> getThrottledShards() {
             return throttledShards;
         }
+
+        @Override
+        public void close() {
+            closed = true;
+
+            for (IndexShard shard : throttledShards) {
+                // deactivateThrottling() is noop for closed shards so shouldn't throw.
+                shard.deactivateThrottling();
+                metrics.notifyDeactivated(shard.shardId(), DeactivationMode.SERVICE_DISABLED);
+            }
+            throttledShards.clear();
+        }
     }
 
-    static class MonitoringThrottler implements Throttler {
-        private static final Logger logger = LogManager.getLogger(MonitoringThrottler.class);
+    static final class Metrics {
+        private static final Logger logger = LogManager.getLogger(Metrics.class);
 
-        private final Throttler delegate;
         private final String throttlerType;
 
         private final LongCounter activatedCount;
         private final LongCounter deactivatedCount;
 
-        MonitoringThrottler(Throttler delegate, TelemetryProvider telemetryProvider, String throttlerType) {
-            this.delegate = delegate;
+        Metrics(TelemetryProvider telemetryProvider, String throttlerType) {
             this.throttlerType = throttlerType;
 
             String METRIC_NAME_FORMAT = "es.stateless.upload_queue.%s_throttling.%s.total";
@@ -401,19 +508,33 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
                 );
         }
 
-        @Override
-        public void activate(ShardId shardId) {
-            logger.info("Activating {} throttling for shard {}", throttlerType, shardId);
-            delegate.activate(shardId);
+        public static final Metrics NOOP = new Metrics(TelemetryProvider.NOOP, "noop");
+
+        public void notifyActivated(ShardId shardId, boolean noop) {
+            if (noop) {
+                logger.info("[METRICS ONLY] Activating {} throttling for shard {}", throttlerType, shardId);
+            } else {
+                logger.info("Activating {} throttling for shard {}", throttlerType, shardId);
+            }
             activatedCount.increment();
         }
 
-        @Override
-        public void deactivate(ShardId shardId) {
-            logger.info("Deactivating {} throttling for shard {}", throttlerType, shardId);
-            delegate.deactivate(shardId);
+        public void notifyDeactivated(ShardId shardId, DeactivationMode note) {
+            if (note == DeactivationMode.NOOP) {
+                logger.info("[METRICS ONLY] Deactivating {} throttling for shard {}", throttlerType, shardId);
+            } else if (note == DeactivationMode.SERVICE_DISABLED) {
+                logger.info("Deactivating {} throttling for shard {} because the service is disabled", throttlerType, shardId);
+            } else {
+                logger.info("Deactivating {} throttling for shard {}", throttlerType, shardId);
+            }
             deactivatedCount.increment();
         }
+    }
+
+    enum DeactivationMode {
+        NOOP,
+        SERVICE_DISABLED,
+        NORMAL
     }
 
     enum Type {

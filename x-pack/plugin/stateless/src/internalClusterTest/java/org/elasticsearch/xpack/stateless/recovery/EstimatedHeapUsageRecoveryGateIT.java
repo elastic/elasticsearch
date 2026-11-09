@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
@@ -52,11 +51,9 @@ import static org.hamcrest.Matchers.not;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginIntegTestCase {
 
-    /// Recovery gates are disabled by default; [InternalSettingsPlugin] registers the enable flag so tests can turn it on.
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(InternalSettingsPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
@@ -308,6 +305,6 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
     }
 
     private static double getLastDoubleGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
-        return telemetryPlugin.getDoubleAsyncGaugeMeasurement(name).getLast().getDouble();
+        return telemetryPlugin.getDoubleGaugeMeasurement(name).getLast().getDouble();
     }
 }

@@ -22,11 +22,13 @@ public class KuromojiIterationMarkCharFilterFactory extends AbstractCharFilterFa
 
     private final boolean normalizeKanji;
     private final boolean normalizeKana;
+    private final Object sharingKey;
 
     public KuromojiIterationMarkCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         normalizeKanji = settings.getAsBoolean("normalize_kanji", JapaneseIterationMarkCharFilter.NORMALIZE_KANJI_DEFAULT);
         normalizeKana = settings.getAsBoolean("normalize_kana", JapaneseIterationMarkCharFilter.NORMALIZE_KANA_DEFAULT);
+        this.sharingKey = new Key(normalizeKanji, normalizeKana);
     }
 
     @Override
@@ -34,4 +36,10 @@ public class KuromojiIterationMarkCharFilterFactory extends AbstractCharFilterFa
         return new JapaneseIterationMarkCharFilter(reader, normalizeKanji, normalizeKana);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(boolean normalizeKanji, boolean normalizeKana) {}
 }

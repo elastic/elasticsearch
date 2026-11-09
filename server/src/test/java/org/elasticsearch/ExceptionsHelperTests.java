@@ -10,6 +10,7 @@
 package org.elasticsearch;
 
 import org.apache.commons.codec.DecoderException;
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -22,10 +23,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.ExceptionsHelper.maybeError;
@@ -493,5 +497,81 @@ public class ExceptionsHelperTests extends ESTestCase {
         StringBuilder s = new StringBuilder();
         ExceptionsHelper.compressPackages(s, className);
         return s.toString();
+    }
+
+    public void testStackTraceWithAdditionalSuppressedMatchesAddSuppressed() {
+        Throwable innerCause = new IllegalStateException("inner cause");
+        Throwable ownSuppressed = new IllegalArgumentException("own suppressed");
+        Throwable[] additionalSuppressed = randomArray(
+            1,
+            3,
+            Throwable[]::new,
+            () -> randomBoolean() ? new ElasticsearchException(randomAlphaOfLength(5)) : new IllegalStateException(randomAlphaOfLength(5))
+        );
+        Throwable shared = newCauseWithSuppressed(innerCause, ownSuppressed);
+        Throwable mutated = newCauseWithSuppressed(innerCause, ownSuppressed);
+        mutated.setStackTrace(shared.getStackTrace());
+        for (Throwable suppressed : additionalSuppressed) {
+            mutated.addSuppressed(suppressed);
+        }
+
+        assertThat(ExceptionsHelper.stackTrace(shared, additionalSuppressed), equalTo(ExceptionsHelper.stackTrace(mutated)));
+        assertThat(shared.getSuppressed(), equalTo(new Throwable[] { ownSuppressed }));
+    }
+
+    public void testStackTraceWithoutAdditionalSuppressedMatchesStackTrace() {
+        Throwable shared = newCauseWithSuppressed(new IllegalStateException("inner cause"), new IllegalArgumentException("suppressed"));
+
+        assertThat(ExceptionsHelper.stackTrace(shared, new Throwable[0]), equalTo(ExceptionsHelper.stackTrace(shared)));
+    }
+
+    private static Throwable newCauseWithSuppressed(Throwable cause, Throwable suppressed) {
+        Throwable throwable = new ElasticsearchException("outer", cause);
+        throwable.addSuppressed(suppressed);
+        return throwable;
+    }
+
+    private static final String BUG_LOGGER = "org.elasticsearch.BugLogger";
+
+    public void testLogIfUnexpectedBug() {
+        for (RuntimeException e : List.of(
+            new NullPointerException("npe"),
+            new IndexOutOfBoundsException("ioobe"),
+            new ArrayIndexOutOfBoundsException("aioobe"),
+            new ClassCastException("cce"),
+            new UnsupportedOperationException("uoe")
+        )) {
+            assertLoggedAsBug(e, e);
+        }
+    }
+
+    public void testLogIfUnexpectedBugUnwrapsCause() {
+        var npe = new NullPointerException("npe");
+        assertLoggedAsBug(new RemoteTransportException("wrapper", npe), npe);
+    }
+
+    public void testLogIfUnexpectedBugIgnoresOtherExceptions() {
+        MockLog.assertThatLogger(() -> {
+            ExceptionsHelper.logIfUnexpectedBug(null);
+            ExceptionsHelper.logIfUnexpectedBug(new IllegalArgumentException("iae"));
+            ExceptionsHelper.logIfUnexpectedBug(new IllegalStateException("ise"));
+            ExceptionsHelper.logIfUnexpectedBug(new ElasticsearchException("ee"));
+            ExceptionsHelper.logIfUnexpectedBug(new RemoteTransportException("wrapper", new IOException("io")));
+        }, BUG_LOGGER, new MockLog.UnseenEventExpectation("no bug logged", BUG_LOGGER, Level.ERROR, "*"));
+    }
+
+    private static void assertLoggedAsBug(Throwable toLog, RuntimeException expectedLogged) {
+        MockLog.assertThatLogger(
+            () -> ExceptionsHelper.logIfUnexpectedBug(toLog),
+            BUG_LOGGER,
+            new MockLog.ExceptionSeenEventExpectation(
+                "bug logged",
+                BUG_LOGGER,
+                Level.ERROR,
+                "Exception indicating a bug was thrown: *",
+                expectedLogged.getClass(),
+                expectedLogged.getMessage()
+            )
+        );
     }
 }

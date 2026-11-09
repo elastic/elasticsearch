@@ -24,4 +24,4 @@ absent_over_time(nonexistent_metric[5m])
 
 **Differences from Prometheus**
 
-Evaluated per series and per time bucket: returns `true` (PromQL `1`) when the bucket has no samples and `false` (PromQL `0`) otherwise. This differs from Prometheus in two ways: Prometheus returns an empty result when samples exist (rather than `0`), and it reports a fully missing series by synthesizing a single `1` from the selector labels. {{es}} evaluates only series that already exist in the data, so it cannot flag a metric that is entirely absent.
+Evaluated per series: returns `1` for a series that has documents in the range but no value of the field. Prometheus instead reports a selector without any sample by synthesizing a single `1` from the selector labels. {{es}} evaluates only series that already exist in the data, so it cannot flag a metric that is entirely absent, nor a gap in a field mapped as a time series metric, because only documents with a value of such a field are read.

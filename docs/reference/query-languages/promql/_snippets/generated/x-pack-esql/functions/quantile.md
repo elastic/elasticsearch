@@ -27,4 +27,4 @@ quantile(0.9, http_request_duration_seconds)
 
 **Differences from Prometheus**
 
-Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly from Prometheus's exact linear interpolation, particularly for small sample sets.
+Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly from Prometheus's exact linear interpolation, particularly for small sample sets. Non-finite values are ranked as `NaN` < `-Inf` < finite < `+Inf`, the same order Prometheus sorts by. A rank landing exactly on a sample returns that sample, whereas Prometheus still averages in the neighbouring sample weighted by zero, so it returns `NaN` wherever that neighbour is an infinity.

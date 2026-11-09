@@ -14,10 +14,12 @@ import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.Template;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolChoice;
 
 import java.util.List;
+import java.util.Map;
 
 public class UnifiedCompletionRequestBodyTests extends InferenceObjectRamBytesUsedTest<UnifiedCompletionRequestBody> {
 
@@ -29,6 +31,7 @@ public class UnifiedCompletionRequestBodyTests extends InferenceObjectRamBytesUs
     private static final Reasoning REASONING = new Reasoning(Reasoning.ReasoningEffort.HIGH, Reasoning.ReasoningSummary.AUTO, true, false);
     private static final CacheControl CACHE_CONTROL = new CacheControl("ephemeral", TimeValue.ONE_HOUR);
     private static final String SESSION_ID = "session";
+    private static final Template TEMPLATE = new Template(".summarize", 1, Map.of("time_range", "24h"));
 
     @Override
     public UnifiedCompletionRequestBody objectToEstimate() {
@@ -45,6 +48,11 @@ public class UnifiedCompletionRequestBodyTests extends InferenceObjectRamBytesUs
             CACHE_CONTROL,
             SESSION_ID
         );
+    }
+
+    public void testRamBytesUsed_TemplateOnlyBody_DoesNotRequireMessages() {
+        var body = new UnifiedCompletionRequestBody(null, null, null, null, null, null, null, null, null, null, null, TEMPLATE);
+        assertTrue(body.ramBytesUsed() > TEMPLATE.ramBytesUsed());
     }
 
     @Override
@@ -119,6 +127,36 @@ public class UnifiedCompletionRequestBodyTests extends InferenceObjectRamBytesUs
                 REASONING,
                 CACHE_CONTROL,
                 SESSION_ID.repeat(5)
+            ),
+            // With template
+            new UnifiedCompletionRequestBody(
+                MESSAGES,
+                MODEL,
+                null,
+                STOP,
+                null,
+                TOOL_CHOICE,
+                TOOLS,
+                null,
+                REASONING,
+                CACHE_CONTROL,
+                SESSION_ID,
+                TEMPLATE
+            ),
+            // Larger template variables
+            new UnifiedCompletionRequestBody(
+                MESSAGES,
+                MODEL,
+                null,
+                STOP,
+                null,
+                TOOL_CHOICE,
+                TOOLS,
+                null,
+                REASONING,
+                CACHE_CONTROL,
+                SESSION_ID,
+                new Template(".summarize", 1, Map.of("time_range", "24h", "alerts", List.of("a".repeat(100), "b".repeat(100))))
             )
         );
     }

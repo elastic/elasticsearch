@@ -1,0 +1,7 @@
+SET unmapped_fields="nullify";
+FROM (FROM (FROM employees), (FROM employees, employees_incompatible)
+      | EVAL emp_no = TO_STRING(emp_no)),
+     (FROM employees)
+| WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
+| KEEP emp_no, does_not_exist
+| EVAL e = TO_STRING(emp_no)

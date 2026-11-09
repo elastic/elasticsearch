@@ -22,6 +22,10 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToGeohash;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeohash;
 
 @FunctionName("to_geohash")
 public class ToGeohashTests extends AbstractScalarFunctionTestCase {
@@ -33,12 +37,31 @@ public class ToGeohashTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         final String attribute = "Attribute[channel=0]";
         final String evaluator = "ToGeohashFromStringEvaluator[in=Attribute[channel=0]]";
+        final String fromLong = "ToGeohashFromLongEvaluator[in=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.GEOHASH, DataType.GEOHASH, v -> v, List.of());
-        TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.LONG, DataType.GEOHASH, v -> v, List.of());
+        TestCaseSupplier.forUnaryGeoGrid(suppliers, fromLong, DataType.LONG, DataType.GEOHASH, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.KEYWORD, DataType.GEOHASH, ToGeohashTests::valueOf, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.TEXT, DataType.GEOHASH, ToGeohashTests::valueOf, List.of());
+
+        // Invalid values produce a warning and null, instead of failing later when rendering the results
+        TestCaseSupplier.forUnaryGeoGridInvalid(
+            suppliers,
+            fromLong,
+            DataType.LONG,
+            DataType.GEOHASH,
+            List.of(0L, 13L, (1L << 10) | 1L, -1L, -8753118198750035589L),
+            v -> expectThrows(IllegalArgumentException.class, () -> longToGeohash((Long) v))
+        );
+        TestCaseSupplier.forUnaryGeoGridInvalid(
+            suppliers,
+            evaluator,
+            DataType.KEYWORD,
+            DataType.GEOHASH,
+            Stream.of("", "a", "U3BU", "u3buryfgx0rdu").<Object>map(BytesRef::new).toList(),
+            v -> expectThrows(IllegalArgumentException.class, () -> stringToGeohash(((BytesRef) v).utf8ToString()))
+        );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

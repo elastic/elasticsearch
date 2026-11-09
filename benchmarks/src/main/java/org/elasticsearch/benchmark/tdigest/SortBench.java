@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class SortBench {
     private final int size = 100000;
-    private final TDigestArrays arrays = new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
+    private final TDigestArrays arrays = new MemoryTrackingTDigestArrays(NoopCircuitBreaker.INSTANCE);
     private final TDigestDoubleArray values = arrays.newDoubleArray(size);
 
     @Param({ "0", "1", "-1" })

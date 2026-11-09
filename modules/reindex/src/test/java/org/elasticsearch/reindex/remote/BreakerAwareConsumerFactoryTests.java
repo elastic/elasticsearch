@@ -11,7 +11,6 @@ package org.elasticsearch.reindex.remote;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,7 +21,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class BreakerAwareConsumerFactoryTests extends ESTestCase {
 
     public void testCreateReturnsNewConsumerEachCall() {
-        var factory = new BreakerAwareConsumerFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        var factory = new BreakerAwareConsumerFactory(NoopCircuitBreaker.INSTANCE);
         HttpAsyncResponseConsumer<HttpResponse> first = factory.createHttpAsyncResponseConsumer();
         HttpAsyncResponseConsumer<HttpResponse> second = factory.createHttpAsyncResponseConsumer();
 

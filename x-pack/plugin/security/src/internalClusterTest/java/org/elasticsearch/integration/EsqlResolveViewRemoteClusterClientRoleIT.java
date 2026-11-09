@@ -71,7 +71,7 @@ public class EsqlResolveViewRemoteClusterClientRoleIT extends SecurityIntegTestC
             .filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING)));
 
         // Call EsqlResolveViewAction directly on the data-only node with a CCS index pattern.
-        var req = new EsqlResolveViewAction.Request(TEST_REQUEST_TIMEOUT, false);
+        var req = new EsqlResolveViewAction.Request(TEST_REQUEST_TIMEOUT, false, false);
         req.indices("remote*:logs-*");
         EsqlResolveViewAction.Response response = nodeClient.execute(EsqlResolveViewAction.TYPE, req).actionGet(TEST_REQUEST_TIMEOUT);
         assertNotNull(response.views());

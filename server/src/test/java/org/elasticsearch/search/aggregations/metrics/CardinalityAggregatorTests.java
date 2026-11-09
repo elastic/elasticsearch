@@ -37,6 +37,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -243,6 +244,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     public void testVectorValueThrows() {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("card_agg_name").field("vector_value");
         final MappedFieldType mappedFieldTypes;
+        final MappingParserContext mappingParserContext = createMappingParserContext(createIndexSettings());
+
         boolean isDense = randomBoolean();
         if (isDense) {
             mappedFieldTypes = new DenseVectorFieldMapper.DenseVectorFieldType(
@@ -252,12 +255,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 64,
                 true,
                 DenseVectorFieldMapper.VectorSimilarity.COSINE,
-                DenseVectorFieldMapper.VectorIndexType.FLAT.parseIndexOptions(
-                    "vector_value",
-                    new HashMap<>(),
-                    IndexVersion.current(),
-                    false
-                ),
+                DenseVectorFieldMapper.VectorIndexType.FLAT.parseIndexOptions("vector_value", new HashMap<>(), mappingParserContext, false),
                 new HashMap<>(),
                 false
             );

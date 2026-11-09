@@ -30,6 +30,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.PlaceHolderFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.MatchBoolPrefixQueryBuilder;
@@ -268,12 +270,16 @@ public class MatchQueryParser {
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(resolvedFieldName, stringValue);
+            final Query keywordAnalyzed;
             if (type == Type.BOOLEAN_PREFIX
                 && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
-                return builder.newPrefixQuery(term);
+                keywordAnalyzed = builder.newPrefixQuery(term);
             } else {
-                return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
+                keywordAnalyzed = builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
             }
+            return answersFromValues(fieldType)
+                ? ((TextFamilyFieldType) fieldType).toReanalyzingQuery(keywordAnalyzed, context)
+                : keywordAnalyzed;
         }
 
         Query query = switch (type) {
@@ -282,6 +288,11 @@ public class MatchQueryParser {
             case PHRASE -> builder.createPhraseQuery(resolvedFieldName, stringValue, phraseSlop);
             case PHRASE_PREFIX -> builder.createPhrasePrefixQuery(resolvedFieldName, stringValue, phraseSlop);
         };
+        if (query != null && answersFromValues(fieldType)) {
+            // One wrap for the whole clause, so every term it holds is answered from one read of a document's
+            // values. A phrase the field built has wrapped itself already, which this leaves alone.
+            query = ((TextFamilyFieldType) fieldType).toReanalyzingQuery(query, context);
+        }
         if (query == null) {
             query = zeroTermsQuery.asQuery();
             if (query != null) {
@@ -289,6 +300,19 @@ public class MatchQueryParser {
             }
         }
         return query;
+    }
+
+    /**
+     * Whether {@code fieldType} answers a query about positions by reading its values. A word a synonym replaces
+     * with several is then asked for as a phrase of those, as it is for a field that indexed positions of its own.
+     */
+    private boolean answersPositionsFromValues(MappedFieldType fieldType) {
+        return fieldType instanceof TextFamilyFieldType textFamily && textFamily.answersPositionsFromValues(context);
+    }
+
+    /** Whether {@code fieldType} answers a text query by reading its values rather than an index. */
+    boolean answersFromValues(MappedFieldType fieldType) {
+        return fieldType instanceof TextFamilyFieldType textFamily && textFamily.answersTextQueryFromValues(context);
     }
 
     private Query newLenientFieldQuery(String fieldName, RuntimeException e) {
@@ -330,7 +354,8 @@ public class MatchQueryParser {
             super(analyzer);
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
-            if (fieldType.getTextSearchInfo().hasPositions()) {
+            // a field answering from its values reads their positions, so it answers a phrase as an indexed one does
+            if (fieldType.getTextSearchInfo().hasPositions() || answersPositionsFromValues(fieldType)) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
@@ -338,6 +363,10 @@ public class MatchQueryParser {
             this.queryVisitor = queryVisitor;
         }
 
+        /**
+         * Whether {@code fieldType} answers a query about positions by reading its values. A word a synonym replaces
+         * with several is then asked for as a phrase of those, as it is for a field that indexed positions of its own.
+         */
         @Override
         protected Query createFieldQuery(
             Analyzer analyzer,
@@ -534,7 +563,12 @@ public class MatchQueryParser {
         @Override
         protected Query newTermQuery(Term term, float boost) {
             final Supplier<Query> querySupplier;
-            if (fuzziness != null) {
+            if (answersFromValues(fieldType)) {
+                // The clause only names what it looks for; the wrapper reads the field's values to find it.
+                querySupplier = fuzziness != null
+                    ? () -> new FuzzyQuery(term, fuzziness.asDistance(term.text()), fuzzyPrefixLength, maxExpansions, transpositions)
+                    : () -> new TermQuery(term);
+            } else if (fuzziness != null) {
                 querySupplier = () -> fieldType.fuzzyQuery(
                     term.text(),
                     fuzziness,

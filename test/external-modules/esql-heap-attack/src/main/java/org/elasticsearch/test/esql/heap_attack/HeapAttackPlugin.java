@@ -16,25 +16,16 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class HeapAttackPlugin extends Plugin implements ActionPlugin, ScriptPlugin {
-
-    @Override
-    public Collection<ActionHandler> getActions() {
-        return List.of(new ActionHandler(TransportPauseFieldAction.TYPE, TransportPauseFieldAction.class));
-    }
+/**
+ * The pausable field these tests also rely on lives in the {@code test-pausable-field} module.
+ */
+public class HeapAttackPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(
@@ -42,7 +33,7 @@ public class HeapAttackPlugin extends Plugin implements ActionPlugin, ScriptPlug
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestTriggerOutOfMemoryAction(), new RestPauseFieldAction());
+        return List.of(new RestTriggerOutOfMemoryAction());
     }
 
     // Deliberately unregistered, only used in unit tests. Copied to AbstractSimpleTransportTestCase#IGNORE_DESERIALIZATION_ERRORS_SETTING
@@ -61,44 +52,5 @@ public class HeapAttackPlugin extends Plugin implements ActionPlugin, ScriptPlug
     @Override
     public Settings additionalSettings() {
         return Settings.builder().put(super.additionalSettings()).put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true).build();
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-        return new ScriptEngine() {
-            @Override
-            public String getType() {
-                return "pause";
-            }
-
-            @Override
-            public <FactoryType> FactoryType compile(
-                String name,
-                String code,
-                ScriptContext<FactoryType> context,
-                Map<String, String> params
-            ) {
-                if (context == LongFieldScript.CONTEXT) {
-                    return (FactoryType) (LongFieldScript.Factory) (
-                        fieldName,
-                        p,
-                        searchLookup,
-                        onScriptError) -> ctx -> new LongFieldScript(fieldName, p, searchLookup, onScriptError, ctx) {
-                            @Override
-                            public void execute() {
-                                PausableField.waitForExecutionPermit();
-                                emit(1);
-                            }
-                        };
-                }
-                throw new IllegalStateException("unsupported type " + context);
-            }
-
-            @Override
-            public Set<ScriptContext<?>> getSupportedContexts() {
-                return Set.of(LongFieldScript.CONTEXT);
-            }
-        };
     }
 }

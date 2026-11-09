@@ -270,8 +270,8 @@ This query searches the title field to match at least 2 of the 3 terms: "fluffy"
 ### Search computed values
 
 ```{applies_to}
-stack: preview 9.5
-serverless: preview
+stack: preview =9.5, ga 9.6+
+serverless: ga
 ```
 
 `MATCH` can search expressions that are not backed by an index. For example,
@@ -291,7 +291,7 @@ slower than searching an indexed field on large datasets. This example
 also demonstrates the `TO_TEXT` function, which converts the `keyword`-type
 output from `CONCAT` to `text`.
 
-{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
 `MATCH_PHRASE` can search computed values the same way, requiring the query
 terms to appear together in order:
 

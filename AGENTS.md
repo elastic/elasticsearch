@@ -174,6 +174,13 @@ and `LIMIT` is pushed to `k`, so membership is not unique. Pin results with a
 filter on a uniquely nearest document, or assert counts / `{any}`. See
 `x-pack/plugin/esql/qa/testFixtures/src/main/resources/_README.md` (Approximate knn).
 
+In ES|QL YAML REST tests (`x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/esql/`),
+do not rely on dynamic mapping from `index` or `bulk` being immediately visible
+to a subsequent `esql.query`, as the write can return before every node applies
+the new mapping. Instead, define explicit `mappings` in `indices.create`, or if
+the test specifically exercises dynamic mapping or `dynamic_templates`, add
+`cluster.health: { wait_for_events: languid }` before `esql.query`.
+
 ## Backwards compatibility
 - For changes to a `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName("<unique_descriptive_name>")` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`. On the `patch/serverless-fix` branch use `./gradlew generateTransportVersion --patch`, which generates a patch id rather than one `main` may already have taken.
 - Never hand-edit transport version resource files; always use the Gradle tasks. See `docs/internal/Versioning.md` for the full workflow.

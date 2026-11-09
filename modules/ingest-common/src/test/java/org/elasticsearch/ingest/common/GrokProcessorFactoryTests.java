@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -32,7 +33,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         GrokProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getMatchField(), equalTo("_field"));
+        assertThat(processor.getMatchField(), hasToString("_field"));
         assertThat(processor.getGrok(), notNullValue());
         assertThat(processor.isIgnoreMissing(), is(false));
     }
@@ -47,7 +48,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         GrokProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getMatchField(), equalTo("_field"));
+        assertThat(processor.getMatchField(), hasToString("_field"));
         assertThat(processor.getGrok(), notNullValue());
         assertThat(processor.isIgnoreMissing(), is(true));
     }
@@ -94,7 +95,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         config.put("patterns", List.of("%{MY_PATTERN:name}!"));
         config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
         GrokProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getMatchField(), equalTo("_field"));
+        assertThat(processor.getMatchField(), hasToString("_field"));
         assertThat(processor.getGrok(), notNullValue());
         assertThat(processor.getGrok().match("foo!"), equalTo(true));
     }

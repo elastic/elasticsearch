@@ -165,6 +165,34 @@ public class BoundedParallelGatherTests extends ESTestCase {
         }
     }
 
+    /**
+     * Items can fail with the same shared instance (e.g. waiters on one failed load). Offering it again must neither
+     * throw out of the error handler ({@link Throwable#addSuppressed} rejects self-suppression) nor attach it twice.
+     */
+    public void testSameExceptionFromSeveralItemsIsRecordedOnce() throws Exception {
+        // at least two items must throw the shared instance
+        int itemCount = between(3, 8);
+        ExecutorService executor = Executors.newFixedThreadPool(itemCount);
+        try {
+            IllegalStateException shared = new IllegalStateException("shared");
+            IllegalStateException other = new IllegalStateException("other");
+            CountDownLatch allStarted = new CountDownLatch(itemCount);
+            List<Integer> items = new ArrayList<>();
+            for (int i = 0; i < itemCount; i++) {
+                items.add(i);
+            }
+            Exception thrown = expectThrows(IllegalStateException.class, () -> BoundedParallelGather.gather(items, item -> {
+                // every item must start before any fails, or fast-fail would skip the later ones
+                allStarted.countDown();
+                safeAwait(allStarted);
+                throw item == 0 ? other : shared;
+            }, itemCount, executor));
+            assertArrayEquals(new Throwable[] { thrown == shared ? other : shared }, thrown.getSuppressed());
+        } finally {
+            terminate(executor);
+        }
+    }
+
     public void testInvalidMaxConcurrency() {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {

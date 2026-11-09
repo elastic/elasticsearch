@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -22,9 +23,11 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.FakeCpuClock;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -37,7 +40,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -137,6 +142,20 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         assertThat(operatorStatus.operator(), equalTo("ParallelHashAggregationOperator"));
     }
 
+    public void testMemoryThresholdPromotes() {
+        HashAggregationOperator.ParallelConfig config = new HashAggregationOperator.ParallelConfig(
+            randomWorkerExecutor(),
+            randomIntBetween(1, 32),
+            randomIntBetween(1, 1024),
+            Integer.MAX_VALUE,
+            1
+        );
+        DriverContext driverContext = driverContext();
+        var status = runTest(4096, true, randomBoolean(), driverContext.blockFactory(), driverContext, config);
+        assertThat(status.completedOperators(), hasSize(3));
+        assertThat(status.completedOperators().get(1).operator(), equalTo("ParallelHashAggregationOperator"));
+    }
+
     public void testTwoPassesStatus() {
         HashAggregationOperator.ParallelConfig config = new HashAggregationOperator.ParallelConfig(
             randomWorkerExecutor(),
@@ -152,6 +171,99 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         HashAggregationOperator.Status hashStatus = (HashAggregationOperator.Status) operatorStatus.status();
         var partitioningStatus = (ParallelHashAggregationOperator.PartitioningStatus) hashStatus.extraFields.get(0);
         assertThat(partitioningStatus.partitionedBlocksReceived(), greaterThan(0));
+    }
+
+    public void testWorkerCpuIsInDriverCpu() {
+        HashAggregationOperator.ParallelConfig config = new HashAggregationOperator.ParallelConfig(
+            threadPool.generic(),
+            randomIntBetween(2, 32),
+            1,
+            randomIntBetween(256, 4 * 1024)
+        );
+        // Only the workers' threads advance this clock, by a fixed step per reading, so any CPU time in the driver's status
+        // is CPU time the workers measured, however coarse the real thread CPU clock is.
+        AtomicLong workerClock = new AtomicLong();
+        CpuTracker cpuTracker = new CpuTracker(
+            () -> Thread.currentThread().getName().contains("[generic]") ? workerClock.addAndGet(1000) : 0
+        );
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(
+            blockFactory.bigArrays(),
+            blockFactory,
+            null,
+            null,
+            DriverContext.WarningsMode.COLLECT,
+            cpuTracker
+        );
+        driverContexts.add(driverContext);
+        var status = runTest(between(10 * 1024, 50 * 1000), true, randomBoolean(), blockFactory, driverContext, config);
+        assertThat(status.cpuNanos(), greaterThan(0L));
+    }
+
+    /**
+     * A worker that holds its lock when the driver closes the operator closes itself once its task ends, on its own
+     * thread. The driver context parks the worker inside its first measurement until the operator is closed, and the
+     * worker's release is the only CPU time that passes on the fake clock.
+     */
+    public void testWorkerClosedAfterOperatorIsInDriverCpu() {
+        FakeCpuClock clock = new FakeCpuClock();
+        CountDownLatch workerMetering = new CountDownLatch(1);
+        CountDownLatch operatorClosed = new CountDownLatch(1);
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(
+            blockFactory.bigArrays(),
+            blockFactory,
+            null,
+            null,
+            DriverContext.WarningsMode.COLLECT,
+            new CpuTracker(clock)
+        ) {
+            @Override
+            public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+                return super.meteredCpu(() -> {
+                    if (Thread.currentThread().getName().contains("[generic]") && workerMetering.getCount() > 0) {
+                        workerMetering.countDown();
+                        safeAwait(operatorClosed);
+                    }
+                    return work.get();
+                });
+            }
+
+            @Override
+            public void releaseChildBlockFactory(BlockFactory childFactory) {
+                clock.burn(1000);
+                super.releaseChildBlockFactory(childFactory);
+            }
+        };
+        driverContexts.add(driverContext);
+        HashAggregationOperator.ParallelConfig config = new HashAggregationOperator.ParallelConfig(threadPool.generic(), 1, 1, 1024);
+        var groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
+        HashAggregationOperator hash = new HashAggregationOperator(
+            AggregatorMode.SINGLE,
+            aggregatorFactories(AggregatorMode.SINGLE, 0),
+            dc -> BlockHash.build(groupSpecs, dc.blockFactory(), 128, false),
+            1024,
+            0.5,
+            1024,
+            null,
+            driverContext,
+            config,
+            false
+        );
+        ParallelHashAggregationOperator op = new ParallelHashAggregationOperator(config, hash);
+        hash.close();
+        op.finish();
+        try {
+            safeAwait(workerMetering);
+            op.close();
+        } finally {
+            operatorClosed.countDown();
+        }
+        driverContext.finish();
+        PlainActionFuture<Void> asyncActionsDone = new PlainActionFuture<>();
+        driverContext.waitForAsyncActions(asyncActionsDone);
+        safeGet(asyncActionsDone);
+        assertThat(driverContext.cpuNanos(), equalTo(1000L));
     }
 
     record Key(Long longValue, Integer intValue) {}

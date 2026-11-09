@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import junit.framework.AssertionFailedError;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
@@ -220,6 +221,37 @@ public class ApplicationPrivilegeTests extends ESTestCase {
             privilege,
             original -> createPrivilege(original.getApplication(), getPrivilegeName(original), original.getPatterns()),
             mutate
+        );
+    }
+
+    public void testRamBytesUsed() {
+        final String application = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(2, 10);
+        final String[] patterns = randomArray(
+            1,
+            50,
+            String[]::new,
+            () -> randomAlphaOfLengthBetween(5, 30) + ":" + randomAlphaOfLength(10)
+        );
+        final ApplicationPrivilege privilege = createPrivilege(application, "read", patterns);
+
+        // a plain privilege over the same names and patterns accounts for everything but the application privilege's own fields,
+        // whose reference slots make the application privilege's shallow size larger
+        final Privilege plain = new Privilege(privilege.name(), patterns);
+        final long ownShallowSize = RamUsageEstimator.shallowSizeOf(privilege) - RamUsageEstimator.shallowSizeOf(plain);
+        assertThat(ownShallowSize, Matchers.greaterThan(0L));
+        assertThat(
+            privilege.ramBytesUsed(),
+            equalTo(plain.ramBytesUsed() + ownShallowSize + RamUsageEstimator.sizeOf(application) + RamUsageEstimator.sizeOf(patterns))
+        );
+
+        // more patterns, more bytes
+        final String[] morePatterns = Arrays.copyOf(patterns, patterns.length + 100);
+        for (int i = patterns.length; i < morePatterns.length; i++) {
+            morePatterns[i] = "action:" + i;
+        }
+        assertThat(
+            createPrivilege(application, "read", morePatterns).ramBytesUsed(),
+            Matchers.greaterThan(privilege.ramBytesUsed() + RamUsageEstimator.sizeOf(morePatterns) - RamUsageEstimator.sizeOf(patterns))
         );
     }
 

@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 162157
+summary: "[Inference API] Replace css with parameters in EIS `document_extraction`"
+type: enhancement

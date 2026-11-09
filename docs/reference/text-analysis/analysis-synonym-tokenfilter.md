@@ -108,7 +108,7 @@ Use `synonyms_path` to provide a synonym file :
   }
 ```
 
-The above configures a `synonym` filter, with a path of `analysis/synonym-set.txt` (relative to the `config` location).
+The above configures a `synonym` filter, with a path of `analysis/synonym-set.txt` (relative to the `config` location). The file must be available on every node in the cluster. How you add it depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 
 Use `synonyms` to define inline synonyms:
 

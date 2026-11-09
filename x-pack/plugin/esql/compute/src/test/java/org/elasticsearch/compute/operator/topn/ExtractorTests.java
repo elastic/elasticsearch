@@ -11,18 +11,19 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.DocOriginTable;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
@@ -180,6 +181,27 @@ public class ExtractorTests extends ESTestCase {
                                 }
                             ) }
                     );
+                    cases.add(
+                        new Object[] {
+                            new TestCase(
+                                "doc that left its node",
+                                e,
+                                DocVectorEncoder.detached().withOrigins(new DocOriginTable(NoopCircuitBreaker.INSTANCE)),
+                                false,
+                                () -> RandomBlock.randomDetachedDocBlock(blockFactory, 1, between(1, 3)).block(),
+                                b -> {
+                                    // the result names only the origin its row references, and rows compare by origin
+                                    DocVector v = (DocVector) b.asVector();
+                                    return new DocVector(
+                                        AlwaysReferencedIndexedByShardId.INSTANCE,
+                                        v.shards(),
+                                        v.segments(),
+                                        v.docs(),
+                                        DocVector.config().origins(v.origins()).mayContainDuplicates()
+                                    ).asBlock();
+                                }
+                            ) }
+                    );
                 }
                 case TDIGEST, EXPONENTIAL_HISTOGRAM ->
                     // multi values are not supported
@@ -276,7 +298,7 @@ public class ExtractorTests extends ESTestCase {
     }
 
     static BreakingBytesRefBuilder nonBreakingBytesRefBuilder() {
-        return new BreakingBytesRefBuilder(new NoopCircuitBreaker(CircuitBreaker.REQUEST), "topn");
+        return new BreakingBytesRefBuilder(NoopCircuitBreaker.INSTANCE, "topn");
     }
 
     public void testNotInKey() {

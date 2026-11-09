@@ -273,7 +273,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
          * <p>Behaviour:
          * <ul>
          *   <li>If the user did not supply {@code similarity} and the cluster supports the field, it defaults to
-         *       {@link SimilarityMeasure#COSINE} (see <a href="https://github.com/elastic/elasticsearch/issues/153028">#153028</a>).
+         *       {@link SimilarityMeasure#DEFAULT} (see <a href="https://github.com/elastic/elasticsearch/issues/153028">#153028</a>).
          *   <li>If the user did not supply {@code similarity} and the cluster is in a mixed state, it defaults to
          *       {@link SimilarityMeasure#DOT_PRODUCT} so that older nodes compute the same value for this endpoint.
          *   <li>If the user supplied {@code similarity} but the cluster is in a mixed state, a 400 is thrown.
@@ -287,7 +287,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
                 // Until every node can store and read similarity, keep the legacy dot_product so that older nodes
                 // compute the same similarity for this endpoint.
                 var resolved = inferenceFeatureService.hasFeature(InferenceFeatures.INFERENCE_SAGEMAKER_OPENAI_SIMILARITY)
-                    ? SimilarityMeasure.COSINE
+                    ? SimilarityMeasure.DEFAULT
                     : SimilarityMeasure.DOT_PRODUCT;
                 return new ApiServiceSettings(dimensions, dimensionsSetByUser, resolved);
             }

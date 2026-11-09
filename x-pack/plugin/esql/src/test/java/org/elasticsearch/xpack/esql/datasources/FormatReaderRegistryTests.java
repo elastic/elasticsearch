@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -132,10 +133,12 @@ public class FormatReaderRegistryTests extends ESTestCase {
         StorageObject highlyCompressibleGzip = mock(StorageObject.class);
         when(highlyCompressibleGzip.newStream()).thenAnswer(inv -> new java.io.ByteArrayInputStream(gzipCompressed));
         when(highlyCompressibleGzip.knownLength()).thenReturn((long) gzipCompressed.length);
+        when(highlyCompressibleGzip.path()).thenReturn(StoragePath.of("memory://data.csv.gz"));
 
         StorageObject highlyCompressibleZstd = mock(StorageObject.class);
         when(highlyCompressibleZstd.newStream()).thenAnswer(inv -> new java.io.ByteArrayInputStream(zstdCompressed));
         when(highlyCompressibleZstd.knownLength()).thenReturn((long) zstdCompressed.length);
+        when(highlyCompressibleZstd.path()).thenReturn(StoragePath.of("memory://data.csv.zst"));
 
         DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
         codecs.register(new GzipDecompressionCodec());

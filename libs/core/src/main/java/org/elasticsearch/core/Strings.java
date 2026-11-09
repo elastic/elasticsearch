@@ -16,6 +16,24 @@ import java.util.Locale;
  */
 public class Strings {
 
+    /** Maximum number of input chars kept in an error message. */
+    public static final int MAX_INPUT_LENGTH_IN_ERROR = 1024;
+
+    /**
+     * Cuts user input echoed in an error message to {@link #MAX_INPUT_LENGTH_IN_ERROR} chars, adding "..." when it is cut. Does not split
+     * a surrogate pair.
+     */
+    public static String truncateForError(String input) {
+        if (input == null || input.length() <= MAX_INPUT_LENGTH_IN_ERROR) {
+            return input;
+        }
+        int end = MAX_INPUT_LENGTH_IN_ERROR;
+        if (Character.isHighSurrogate(input.charAt(end - 1))) {
+            end--;
+        }
+        return input.substring(0, end) + "...";
+    }
+
     /**
      * Returns a formatted string using the specified format string and
      * arguments.

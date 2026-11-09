@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161912
+summary: Keep TEXT type on TS non-dimension groupings
+type: bug

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.mock;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -57,6 +58,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.xpack.core.inference.results.CompletionResults.COMPLETION;
@@ -274,8 +276,28 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             };
         }
 
+        /**
+         * Echoes the request so tests can assert what reached the service: each message's content upper-cased, or a single
+         * rendering of the template when the request carries one instead of messages. The top level variable keys are sorted so
+         * the rendering is stable; nested objects should hold a single key for the same reason.
+         */
+        private static List<String> echoedContent(UnifiedCompletionRequestBody request) {
+            if (request.template() != null) {
+                var template = request.template();
+                return List.of(
+                    Strings.format(
+                        "template [%s] version [%d] variables [%s]",
+                        template.id(),
+                        template.version(),
+                        new TreeMap<>(template.variables())
+                    )
+                );
+            }
+            return request.messages().stream().map(message -> message.content().toString().toUpperCase(Locale.ROOT)).toList();
+        }
+
         private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequestBody request) {
-            var responseIter = request.messages().stream().map(message -> message.content().toString().toUpperCase(Locale.ROOT)).iterator();
+            var responseIter = echoedContent(request).iterator();
             return new StreamingUnifiedChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
                     @Override
@@ -294,7 +316,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         private ChatCompletionChunkResponse makeNonStreamingUnifiedResults(UnifiedCompletionRequestBody request) {
-            var content = request.messages().get(0).content().toString().toUpperCase(Locale.ROOT);
+            var content = echoedContent(request).getFirst();
             return new ChatCompletionChunkResponse(
                 "test-id",
                 List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse(content, null, "assistant", null), "stop", 0)),

@@ -22,6 +22,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class FingerprintProcessorFactoryTests extends ESTestCase {
 
@@ -51,7 +52,7 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(fingerprintProcessor.getTag(), equalTo(processorTag));
         assertThat(fingerprintProcessor.getFields(), equalTo(sortedFieldList));
-        assertThat(fingerprintProcessor.getTargetField(), equalTo(targetField));
+        assertThat(fingerprintProcessor.getTargetField(), hasToString(targetField));
         assertThat(fingerprintProcessor.getSalt(), equalTo(salt.getBytes(StandardCharsets.UTF_8)));
         assertThat(fingerprintProcessor.getThreadLocalHasher().get().getAlgorithm(), equalTo(method));
         assertThat(fingerprintProcessor.isIgnoreMissing(), equalTo(ignoreMissing));
@@ -118,7 +119,7 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(fingerprintProcessor.getTag(), equalTo(processorTag));
         assertThat(fingerprintProcessor.getFields(), equalTo(sortedFieldList));
-        assertThat(fingerprintProcessor.getTargetField(), equalTo(FingerprintProcessor.Factory.DEFAULT_TARGET));
+        assertThat(fingerprintProcessor.getTargetField(), hasToString(FingerprintProcessor.Factory.DEFAULT_TARGET));
         assertThat(fingerprintProcessor.getSalt(), equalTo(new byte[0]));
         assertThat(fingerprintProcessor.getThreadLocalHasher().get().getAlgorithm(), equalTo(FingerprintProcessor.Factory.DEFAULT_METHOD));
         assertThat(fingerprintProcessor.isIgnoreMissing(), equalTo(false));

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.metadata;
 
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -105,15 +106,9 @@ public final class DataSource implements Writeable, ToXContentObject {
         return PARSER.parse(parser, null);
     }
 
-    /**
-     * Emits the in-memory plaintext representation, including secret values as-is. Used for cluster-state
-     * persistence (GATEWAY context only) and is not reached from the API or SNAPSHOT contexts because
-     * {@link DataSourceMetadata#context()} excludes both. Callers producing REST responses should route
-     * through {@link DataSourceSettings#toPresentationMap()}. See {@link DataSourceSetting} for the
-     * encryption-boundary contract.
-     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean isSnapshot = params != null && Metadata.CONTEXT_MODE_SNAPSHOT.equals(params.param(Metadata.CONTEXT_MODE_PARAM));
         builder.startObject();
         builder.field(NAME.getPreferredName(), name);
         builder.field(TYPE_FIELD.getPreferredName(), type);
@@ -122,8 +117,10 @@ public final class DataSource implements Writeable, ToXContentObject {
         }
         builder.startObject(SETTINGS.getPreferredName());
         for (var entry : settings) {
-            builder.field(entry.getKey());
-            entry.getValue().toXContent(builder, params);
+            if (isSnapshot == false || entry.getValue().secret() == false) {
+                builder.field(entry.getKey());
+                entry.getValue().toXContent(builder, params);
+            }
         }
         builder.endObject();
         builder.endObject();

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.Alib
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModelTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettingsTests;
-import org.junit.Assume;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -553,7 +552,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
                 is(Strings.format("Bearer %s", API_KEY_VALUE))
@@ -843,12 +842,6 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             null,
             ConfigurationParseContext.REQUEST
         );
-    }
-
-    // TODO: https://github.com/elastic/elasticsearch/issues/146306
-    @Override
-    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_KeepsSimilarity() {
-        Assume.assumeTrue("Skipped due to https://github.com/elastic/elasticsearch/issues/146306", false);
     }
 
     @Override

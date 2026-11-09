@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -30,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RangeStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     private static final byte[] FILE_BYTES = "Hello, World! This is test data for range reads.".getBytes(StandardCharsets.UTF_8);
 
@@ -361,6 +362,26 @@ public class RangeStorageObjectTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals(Integer.valueOf(-1), bytesRead.get());
+    }
+
+    public void testBindRowGroupAndAdmissionTimeoutForward() {
+        AtomicReference<RowGroupIo> bound = new AtomicReference<>();
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES) {
+            @Override
+            public void bindRowGroup(RowGroupIo io) {
+                bound.set(io);
+            }
+
+            @Override
+            public long admissionWaitTimeoutMs() {
+                return 50L;
+            }
+        };
+        RangeStorageObject range = new RangeStorageObject(delegate, 0, 10);
+        RowGroupIo lease = new RowGroupIo();
+        range.bindRowGroup(lease);
+        assertSame(lease, bound.get());
+        assertEquals(50L, range.admissionWaitTimeoutMs());
     }
 
     /**

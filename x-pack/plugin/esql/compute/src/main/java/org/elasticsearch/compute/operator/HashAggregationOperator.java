@@ -168,11 +168,23 @@ public class HashAggregationOperator implements Operator {
 
     public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
+    public static final long DEFAULT_PARTITIONING_MEMORY_THRESHOLD = 16L * 1024 * 1024;
+    public static final int DEFAULT_PARTITIONING_NUM_KEYS_THRESHOLD = 400_000;
 
     // TODO: Push down LIMIT only
     public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
 
-    public record ParallelConfig(Executor executor, int numWorkers, int pagesPerWorker, int partitionKeysThreshold) {}
+    public record ParallelConfig(
+        Executor executor,
+        int numWorkers,
+        int pagesPerWorker,
+        int partitionKeysThreshold,
+        long partitioningMemoryThreshold
+    ) {
+        public ParallelConfig(Executor executor, int numWorkers, int pagesPerWorker, int partitionKeysThreshold) {
+            this(executor, numWorkers, pagesPerWorker, partitionKeysThreshold, Long.MAX_VALUE);
+        }
+    }
 
     /**
      * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},
@@ -332,12 +344,14 @@ public class HashAggregationOperator implements Operator {
     protected final DriverContext driverContext;
     private final boolean supportPartitioning;
     private final int partitioningRowThreshold;
+    private final long partitioningMemoryThreshold;
     private final ParallelConfig parallelConfig;
 
     // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
     protected BlockHash blockHash;
     private boolean finished;
     protected ReleasableIterator<Page> output;
+    private Page pendingInputPage;
 
     /**
      * Maximum number of rows per output page.
@@ -410,6 +424,7 @@ public class HashAggregationOperator implements Operator {
         this.topAggregation = topAggregation;
         this.parallelConfig = parallelConfig;
         this.partitioningRowThreshold = parallelConfig != null ? parallelConfig.partitionKeysThreshold : Integer.MAX_VALUE;
+        this.partitioningMemoryThreshold = parallelConfig != null ? parallelConfig.partitioningMemoryThreshold : Long.MAX_VALUE;
         boolean success = false;
         try {
             this.blockHash = blockHashSupplier.apply(driverContext);
@@ -476,7 +491,7 @@ public class HashAggregationOperator implements Operator {
     @Override
     public Operator tryPromote(DriverContext driverContext) {
         if (partitionedAggregationBlocks.isEmpty() == false
-            || (supportPartitioning && aggregatorMode.isOutputPartial() == false && blockHash.numKeys() >= partitioningRowThreshold)) {
+            || (supportPartitioning && aggregatorMode.isOutputPartial() == false && partitioningThresholdReached())) {
             var parallelOp = new ParallelHashAggregationOperator(parallelConfig, this);
             Releasables.close(this);
             return parallelOp;
@@ -486,7 +501,7 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return output == null && finished == false;
+        return output == null && pendingInputPage == null && finished == false;
     }
 
     @Override
@@ -498,6 +513,27 @@ public class HashAggregationOperator implements Operator {
             page.close();
             return;
         }
+        checkState(needsInput(), "Operator is already finishing");
+        requireNonNull(page, "page is null");
+        final boolean toEmit;
+        boolean success = false;
+        try {
+            toEmit = shouldEmitPartialResultsPeriodically(page);
+            success = true;
+        } finally {
+            if (success == false) {
+                page.releaseBlocks();
+            }
+        }
+        if (toEmit) {
+            pendingInputPage = page;
+            emit();
+        } else {
+            processInputPage(page);
+        }
+    }
+
+    private void processInputPage(Page page) {
         try {
             maybeReinitializeAfterPeriodicallyEmitted();
             List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(aggregators.size());
@@ -549,9 +585,6 @@ public class HashAggregationOperator implements Operator {
                 }
             }
             try (AddInput add = new AddInput()) {
-                checkState(needsInput(), "Operator is already finishing");
-                requireNonNull(page, "page is null");
-
                 for (GroupingAggregator aggregator : aggregators) {
                     GroupingAggregatorFunction.AddInput p = aggregator.prepareProcessPage(blockHash, page);
                     if (p != null) {
@@ -564,18 +597,33 @@ public class HashAggregationOperator implements Operator {
                 hashNanos += System.nanoTime() - add.hashStart;
             }
             rowsAddedInCurrentBatch += page.getPositionCount();
-            if (shouldEmitPartialResultsPeriodically()) {
-                emit();
-            }
         } finally {
-            page.releaseBlocks();
             pagesProcessed++;
             rowsReceived += page.getPositionCount();
+            page.releaseBlocks();
         }
     }
 
     @Override
     public Page getOutput() {
+        Page out = nextOutputPage();
+        if (out == null) {
+            if (pendingInputPage != null) {
+                try {
+                    processInputPage(pendingInputPage);
+                } finally {
+                    this.pendingInputPage = null;
+                }
+                if (finished) {
+                    emit();
+                    out = nextOutputPage();
+                }
+            }
+        }
+        return out;
+    }
+
+    private Page nextOutputPage() {
         if (output == null) {
             return null;
         }
@@ -595,7 +643,9 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         finished = true;
-        emit();
+        if (pendingInputPage == null) {
+            emit();
+        }
     }
 
     private void maybeReinitializeAfterPeriodicallyEmitted() {
@@ -606,7 +656,10 @@ public class HashAggregationOperator implements Operator {
 
     void clearCurrentBatch() {
         rowsAddedInCurrentBatch = 0;
-        if (blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
+        // Only reuse via clear() when partitioning is active. TimeSeriesBlockHash may share its
+        // BytesRefArray with emitted ordinal dictionaries (incRef); clear()/truncate would corrupt
+        // those keys. Close+recreate drops the hash's ref and leaves emitted keys intact (#164417).
+        if (supportPartitioning && blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
             partitionedBlockHash.clear();
         } else {
             blockHash.close();
@@ -656,11 +709,13 @@ public class HashAggregationOperator implements Operator {
             return true;
         }
         // Partition when the current batch reaches the threshold.
-        if (blockHash.numKeys() >= partitioningRowThreshold) {
+        if (partitioningThresholdReached()) {
             return true;
         }
         // For the final batch, partition at 75% of the threshold.
-        return finished && blockHash.numKeys() >= Math.toIntExact((partitioningRowThreshold * 3L + 3L) / 4L);
+        return finished
+            && (blockHash.numKeys() >= Math.toIntExact((partitioningRowThreshold * 3L + 3L) / 4L)
+                || estimatedBytesForPartitioning() >= partitioningMemoryThreshold - partitioningMemoryThreshold / 4);
     }
 
     /**
@@ -692,7 +747,10 @@ public class HashAggregationOperator implements Operator {
         return allKeys;
     }
 
-    protected boolean shouldEmitPartialResultsPeriodically() {
+    /**
+     * Whether to emit the current batch before {@code incomingPage} is added to it.
+     */
+    protected boolean shouldEmitPartialResultsPeriodically(Page incomingPage) {
         if (aggregatorMode.isOutputPartial() == false) {
             return false;
         }
@@ -701,7 +759,7 @@ public class HashAggregationOperator implements Operator {
         }
         final int numKeys = blockHash.numKeys();
         if (partitionedPartialOutput) {
-            return numKeys >= partitioningRowThreshold;
+            return partitioningThresholdReached();
         } else {
             if (numKeys < partialEmitKeysThreshold) {
                 return false;
@@ -714,19 +772,38 @@ public class HashAggregationOperator implements Operator {
         return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
+    boolean partitioningThresholdReached() {
+        return blockHash.numKeys() >= partitioningRowThreshold || estimatedBytesForPartitioning() >= partitioningMemoryThreshold;
+    }
+
+    private long estimatedBytesForPartitioning() {
+        if (blockHash instanceof PartitionedBlockHash partitioned) {
+            return partitioned.estimatedBytesForPartitioning();
+        } else {
+            assert false : "expected a partitioned block hash; got " + blockHash;
+            return -1;
+        }
+    }
+
     @Override
     public boolean isFinished() {
-        return finished && output == null;
+        return finished && output == null && pendingInputPage == null;
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return output != null;
+        return output != null || pendingInputPage != null;
     }
 
     @Override
     public void close() {
-        Releasables.close(blockHash, () -> Releasables.close(aggregators), output, Releasables.wrap(partitionedAggregationBlocks));
+        Releasables.close(
+            blockHash,
+            () -> Releasables.close(aggregators),
+            output,
+            pendingInputPage,
+            Releasables.wrap(partitionedAggregationBlocks)
+        );
     }
 
     @Override

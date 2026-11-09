@@ -345,10 +345,15 @@ public class WriteLoadMetricsTests extends ESTestCase {
         final int[] trackedPercentiles = testInfrastructure.writeLoadMetrics.getTrackedPercentiles();
         for (int i = 0; i < metricsToCollect; i++) {
             switch (randomInt(3)) {
-                case 0 -> testInfrastructure.writeLoadMetrics.getWriteLoadDistributionMetrics(randomInt(trackedPercentiles.length - 1));
-                case 1 -> testInfrastructure.writeLoadMetrics.getWriteLoadSumMetrics();
-                case 2 -> testInfrastructure.writeLoadMetrics.getWriteLoadPrioritisationThresholdMetrics();
-                case 3 -> testInfrastructure.writeLoadMetrics.getWriteLoadPrioritisationThresholdPercentileRankMetrics();
+                case 0 -> testInfrastructure.writeLoadMetrics.recordWriteLoadDistributionMetrics(
+                    randomInt(trackedPercentiles.length - 1),
+                    (value, attributes) -> {}
+                );
+                case 1 -> testInfrastructure.writeLoadMetrics.recordWriteLoadSumMetrics((value, attributes) -> {});
+                case 2 -> testInfrastructure.writeLoadMetrics.recordWriteLoadPrioritisationThresholdMetrics((value, attributes) -> {});
+                case 3 -> testInfrastructure.writeLoadMetrics.recordWriteLoadPrioritisationThresholdPercentileRankMetrics(
+                    (value, attributes) -> {}
+                );
                 default -> fail("Unexpected random value");
             }
         }

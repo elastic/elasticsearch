@@ -191,9 +191,16 @@ public abstract class SlicedInputStream extends InputStream {
                     currentStream = null;
                 }
                 currentSliceOffset = markedSliceOffset;
+                onReset();
             }
         } else {
             throw new IOException("mark/reset not supported");
         }
     }
+
+    /**
+     * Called at the end of {@link #reset()} once the stream has been repositioned at the marked slice and offset. Not called when the
+     * stream is already positioned at the mark.
+     */
+    protected void onReset() {}
 }

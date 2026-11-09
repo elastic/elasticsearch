@@ -11,6 +11,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
@@ -108,7 +109,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     private Stage stage;
-    private int localRetries;
+    private final int localRetries;
 
     private final Index index;
     private final Translog translog;
@@ -116,7 +117,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final Timer timer;
 
     private final RecoverySource recoverySource;
-    private final ShardRouting.RecoveryPriority recoveryPriority;
+    private final RecoveryPriority recoveryPriority;
     private final ShardId shardId;
     @Nullable
     private final DiscoveryNode sourceNode;
@@ -124,10 +125,20 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final boolean primary;
 
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
-        this(shardRouting, targetNode, sourceNode, new Index());
+        this(shardRouting, targetNode, sourceNode, 0);
     }
 
-    public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, Index index) {
+    public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, int localRetries) {
+        this(shardRouting, targetNode, sourceNode, new Index(), localRetries);
+    }
+
+    public RecoveryState(
+        ShardRouting shardRouting,
+        DiscoveryNode targetNode,
+        @Nullable DiscoveryNode sourceNode,
+        Index index,
+        int localRetries
+    ) {
         this(
             shardRouting.shardId(),
             shardRouting.primary(),
@@ -136,7 +147,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             sourceNode,
             targetNode,
             index,
-            new Timer()
+            new Timer(),
+            localRetries
         );
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
         assert shardRouting.recoverySource().getType() != RecoverySource.Type.PEER || sourceNode != null
@@ -150,11 +162,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         ShardId shardId,
         boolean primary,
         RecoverySource recoverySource,
-        ShardRouting.RecoveryPriority recoveryPriority,
+        RecoveryPriority recoveryPriority,
         @Nullable DiscoveryNode sourceNode,
         DiscoveryNode targetNode,
         Index index,
-        Timer timer
+        Timer timer,
+        int localRetries
     ) {
         this.shardId = shardId;
         this.primary = primary;
@@ -163,7 +176,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         stage = Stage.CREATED;
-        localRetries = 0;
+        this.localRetries = localRetries;
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
@@ -181,9 +194,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         if (in.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
-            recoveryPriority = ShardRouting.RecoveryPriority.readFrom(in);
+            recoveryPriority = RecoveryPriority.readFrom(in);
         } else {
-            recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
+            recoveryPriority = RecoveryPriority.UNKNOWN;
         }
         targetNode = new DiscoveryNode(in);
         sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
@@ -311,10 +324,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             sourceNode,
             targetNode,
             new Index(),
-            timer
+            timer,
+            localRetries
         );
         freshState.setStage(Stage.INIT);
-        freshState.setLocalRetries(getLocalRetries());
         return freshState;
     }
 
@@ -331,13 +344,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     /// Non-locally-retryable failures will not be counted here. They will be sent back to the master, which update the cluster state to
     /// increment the [org.elasticsearch.cluster.routing.UnassignedInfo]'s `failedAllocations` value instead. Then the master should trigger
     /// a new recovery, with this field starting again from zero.
-    public synchronized int getLocalRetries() {
+    public int getLocalRetries() {
         return this.localRetries;
-    }
-
-    public synchronized RecoveryState setLocalRetries(int localRetries) {
-        this.localRetries = localRetries;
-        return this;
     }
 
     public Index getIndex() {
@@ -360,7 +368,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return recoverySource;
     }
 
-    public ShardRouting.RecoveryPriority getRecoveryPriority() {
+    public RecoveryPriority getRecoveryPriority() {
         return recoveryPriority;
     }
 

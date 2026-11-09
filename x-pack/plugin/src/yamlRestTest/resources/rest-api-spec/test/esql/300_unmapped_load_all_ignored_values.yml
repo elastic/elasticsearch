@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
       reason: >
         A family of mapping parameters leaves a value present in _source but absent from the index: a keyword
         longer than ignore_above, a value that fails ignore_malformed parsing, a value a normalizer rewrote.
@@ -148,20 +148,22 @@ teardown:
         ignore_unavailable: true
 
 ---
-'ignore_above: the mapped index returns null and LOAD_ALL adds no column for the mapped name':
+'ignore_above: the mapped index returns null and LOAD_ALL leaves the mapped name out of _unmapped_fields':
   # kw is mapped here, so it is excluded from the unmapped set even though _source holds "toolong". The
   # over-length row reads null while the short row reads normally - and the column count proves LOAD_ALL
-  # did not quietly fabricate a second kw column from _source.
+  # did not quietly put kw into the _unmapped_fields object from _source.
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_above_mapped | SORT id | LIMIT 5'
-  - length: { columns: 2 }
+  - length: { columns: 3 }
   - match: { columns.0.name: id }
   - match: { columns.1.name: kw }
   - match: { columns.1.type: keyword }
-  - match: { values.0: [ "m1", null ] }
-  - match: { values.1: [ "m2", "ok" ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
+  - match: { values.0: [ "m1", null, null ] }
+  - match: { values.1: [ "m2", "ok", null ] }
 
 ---
 'ignore_above: the same value is served from _source by an index that does not map the field':
@@ -172,12 +174,14 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_above_mapped, la_above_unmapped | SORT id | LIMIT 5'
-  - length: { columns: 2 }
+  # kw is a real column (mapped in one index), so it is not repeated in _unmapped_fields.
+  - length: { columns: 3 }
   - match: { columns.1.name: kw }
   - match: { columns.1.type: keyword }
-  - match: { values.0: [ "m1", null ] }
-  - match: { values.1: [ "m2", "ok" ] }
-  - match: { values.2: [ "u1", "toolong" ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { values.0: [ "m1", null, null ] }
+  - match: { values.1: [ "m2", "ok", null ] }
+  - match: { values.2: [ "u1", "toolong", null ] }
 
 ---
 'ignore_malformed: the malformed value is kept aside but is not reachable through the mapped name':
@@ -192,10 +196,10 @@ teardown:
   - match: { columns.0.name: id }
   - match: { columns.1.name: num }
   - match: { columns.1.type: integer }
-  - match: { columns.2.name: shadow }
-  - match: { columns.2.type: keyword }
-  - match: { values.0: [ "1", null, "abc" ] }
-  - match: { values.1: [ "2", 12, "12" ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
+  - match: { values.0: [ "1", null, { shadow: abc } ] }
+  - match: { values.1: [ "2", 12, { shadow: "12" } ] }
 
 ---
 'doc_values:false and index:false do not make a field unmapped':
@@ -205,11 +209,12 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_no_docvalues | LIMIT 5'
-  - length: { columns: 3 }
+  - length: { columns: 4 }
   - match: { columns.0.name: id }
   - match: { columns.1.name: no_dv }
   - match: { columns.2.name: no_index }
-  - match: { values.0: [ "1", "dv_value", "idx_value" ] }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { values.0: [ "1", "dv_value", "idx_value", null ] }
 
 ---
 'normalizer: the mapped field reads the normalized form while an unmapped twin keeps the original':
@@ -226,6 +231,6 @@ teardown:
   - match: { columns.0.name: id }
   - match: { columns.1.name: name }
   - match: { columns.1.type: keyword }
-  - match: { columns.2.name: name_raw }
-  - match: { columns.2.type: keyword }
-  - match: { values.0: [ "1", "mixedcase", "MixedCase" ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
+  - match: { values.0: [ "1", "mixedcase", { name_raw: MixedCase } ] }

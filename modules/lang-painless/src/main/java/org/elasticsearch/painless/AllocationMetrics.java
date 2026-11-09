@@ -10,7 +10,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.lang.invoke.MethodHandles;
@@ -68,7 +67,7 @@ public final class AllocationMetrics {
                 metricName(scriptContextName, bucket),
                 "Painless script executions allocating " + bucketDescription(bucket),
                 "count",
-                () -> new LongWithAttributes(recorder.count(observed))
+                () -> recorder.count(observed)
             );
         }
 

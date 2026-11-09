@@ -28,7 +28,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -151,7 +150,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> {
             assertEquals(expected, v);
             called.set(true);
-        }, e -> fail(), e -> fail()), threadPool, client, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1024L);
+        }, e -> fail(), e -> fail()), threadPool, client, NoopCircuitBreaker.INSTANCE, 1024L);
         assertTrue("listener was not called", called.get());
     }
 
@@ -183,7 +182,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 ),
                 threadPool,
                 client,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 1024L
             );
         } catch (RuntimeException e) {
@@ -215,7 +214,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("onRejection was not called", rejected.get());
@@ -240,7 +239,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> fail(), ex -> {
             assertTrue(ex instanceof ElasticsearchException);
             assertEquals(RestStatus.BAD_REQUEST, ((ElasticsearchStatusException) ex).status());
-        }, ex -> fail()), threadPool, client, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1024L);
+        }, ex -> fail()), threadPool, client, NoopCircuitBreaker.INSTANCE, 1024L);
     }
 
     /**
@@ -252,7 +251,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> fail(), ex -> {
             assertTrue(ex instanceof IllegalArgumentException);
             assertThat(ex.getMessage(), containsString("Remote responded with a chunk that was too large"));
-        }, ex -> fail()), threadPool, client, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1024L);
+        }, ex -> fail()), threadPool, client, NoopCircuitBreaker.INSTANCE, 1024L);
     }
 
     public void testInvalidJsonThrowsElasticsearchException() {
@@ -264,7 +263,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> fail(), ex -> {
             assertTrue(ex instanceof ElasticsearchException);
             assertThat(ex.getMessage(), containsString("remote is likely not an Elasticsearch instance"));
-        }, ex -> fail()), threadPool, client, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1024L);
+        }, ex -> fail()), threadPool, client, NoopCircuitBreaker.INSTANCE, 1024L);
     }
 
     /**
@@ -280,7 +279,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> fail(), ex -> {
             assertTrue(ex instanceof ElasticsearchException);
             assertThat(ex.getMessage(), containsString("Error deserializing response"));
-        }, ex -> fail()), threadPool, client, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1024L);
+        }, ex -> fail()), threadPool, client, NoopCircuitBreaker.INSTANCE, 1024L);
     }
 
     public void testWrapExceptionToPreserveStatus() throws IOException {
@@ -386,7 +385,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 assertEquals(Version.fromString("1.7.5"), v);
                 success.set(true);
             }, e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
 
@@ -416,7 +415,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 assertEquals(RestStatus.TOO_MANY_REQUESTS, ((ElasticsearchStatusException) e).status());
                 failed.set(true);
             }, e -> fail("should have propagated as failure after retries exhausted")),
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
 
@@ -448,7 +447,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 assertTrue(e instanceof ElasticsearchStatusException);
                 assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ((ElasticsearchStatusException) e).status());
             }, e -> fail()),
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
 
@@ -473,7 +472,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 assertEquals(Version.fromString("2.3.3"), v);
                 success.set(true);
             }, e -> fail(), e -> fail()),
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
 
@@ -507,7 +506,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             }, e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("listener should have received success", success.get());
@@ -541,7 +540,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             }, e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("listener should have received success", success.get());
@@ -575,7 +574,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("onRejection should have been called", rejected.get());
@@ -611,7 +610,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             }, e -> fail("unexpected rejection")),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("onFailure should have been called", failed.get());
@@ -641,7 +640,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             }, e -> fail("unexpected rejection")),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("onFailure should have been called", failed.get());
@@ -671,7 +670,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             }, e -> fail("unexpected rejection")),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("onFailure should have been called", failed.get());
@@ -697,7 +696,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 ),
                 threadPool,
                 client,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 1024L
             )
         );
@@ -724,7 +723,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 ),
                 threadPool,
                 client,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 1024L
             )
         );
@@ -752,7 +751,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 ),
                 threadPool,
                 client,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 1024L
             )
         );
@@ -775,7 +774,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             RejectAwareActionListener.wrap(v -> success.set(true), e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("listener should have received success", success.get());
@@ -793,7 +792,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("onRejection should have been called", rejected.get());
@@ -824,7 +823,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             }, e -> fail("unexpected rejection")),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("onFailure should have been called", failed.get());
@@ -849,7 +848,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             }, e -> fail("unexpected rejection")),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
         assertTrue("onFailure should have been called", failed.get());
@@ -866,7 +865,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             RejectAwareActionListener.wrap(v -> success.set(true), e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
 
@@ -899,7 +898,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> failed.set(true), e -> fail("unexpected rejection")),
             threadPool,
             client,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             1024L
         );
 

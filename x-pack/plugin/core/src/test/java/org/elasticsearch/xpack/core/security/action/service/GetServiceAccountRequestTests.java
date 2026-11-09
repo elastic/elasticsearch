@@ -28,29 +28,59 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected GetServiceAccountRequest createTestInstance() {
-        return new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull(), randomType());
+        return new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull(), randomType(), randomBoolean());
     }
 
     @Override
     protected GetServiceAccountRequest mutateInstance(GetServiceAccountRequest instance) {
-        return switch (between(0, 2)) {
+        return switch (between(0, 3)) {
             case 0 -> new GetServiceAccountRequest(
                 randomValueOtherThan(instance.getNamespace(), GetServiceAccountRequestTests::randomNameOrNull),
                 instance.getServiceName(),
-                instance.getType()
+                instance.getType(),
+                instance.withProfileUid()
             );
             case 1 -> new GetServiceAccountRequest(
                 instance.getNamespace(),
                 randomValueOtherThan(instance.getServiceName(), GetServiceAccountRequestTests::randomNameOrNull),
-                instance.getType()
+                instance.getType(),
+                instance.withProfileUid()
             );
             case 2 -> new GetServiceAccountRequest(
                 instance.getNamespace(),
                 instance.getServiceName(),
-                randomValueOtherThan(instance.getType(), GetServiceAccountRequestTests::randomType)
+                randomValueOtherThan(instance.getType(), GetServiceAccountRequestTests::randomType),
+                instance.withProfileUid()
             );
-            default -> throw new AssertionError("between(0, 2) returned something outside its own bounds");
+            case 3 -> new GetServiceAccountRequest(
+                instance.getNamespace(),
+                instance.getServiceName(),
+                instance.getType(),
+                instance.withProfileUid() == false
+            );
+            default -> throw new AssertionError("between(0, 3) returned something outside its own bounds");
         };
+    }
+
+    public void testProfileUidsAreNotAskedForByDefault() {
+        assertFalse(new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull()).withProfileUid());
+        assertFalse(new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull(), randomType()).withProfileUid());
+    }
+
+    /**
+     * A node that does not know attribution has no authors to look profiles up for, so the flag is dropped rather
+     * than the request refused: the reply is the same accounts without the fields the flag would have enriched.
+     */
+    public void testTheProfileUidFlagIsDroppedForNodesThatDoNotKnowAttribution() throws IOException {
+        final GetServiceAccountRequest request = new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull(), randomType(), true);
+        final TransportVersion beforeAttribution = TransportVersionUtils.getPreviousVersion(
+            ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION
+        );
+        assertTrue(beforeAttribution.supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO));
+        assertThat(
+            copyInstance(request, beforeAttribution),
+            equalTo(new GetServiceAccountRequest(request.getNamespace(), request.getServiceName(), request.getType(), false))
+        );
     }
 
     public void testDefaultsToBuiltInAccountsOnly() {

@@ -77,7 +77,8 @@ public final class DirectReadBuffer implements Releasable {
 
     /**
      * Bridge used by {@link DirectBufferFactory#forBreaker(CircuitBreaker)}: allocates a heap
-     * {@code byte[]} of {@code length} bytes, charges {@code breaker}, and wraps it as a
+     * {@code byte[]} of {@code length} bytes, charges {@code breaker} the array's
+     * {@linkplain HeapFootprint#byteArrayBytes(long) heap footprint}, and wraps it as a
      * {@link DirectReadBuffer}. {@link #close()} releases the charge. Backends should call
      * {@link DirectBufferFactory#allocate(int)} instead of this method directly.
      *
@@ -97,18 +98,19 @@ public final class DirectReadBuffer implements Releasable {
             throw new IllegalArgumentException("length must be non-negative, got: " + length);
         }
         CircuitBreaker ioBreaker = LocalCircuitBreaker.forAsyncIo(breaker);
-        ioBreaker.addEstimateBytesAndMaybeBreak(length, STORAGE_READ_BREAKER_LABEL);
+        long charge = HeapFootprint.byteArrayBytes(length);
+        ioBreaker.addEstimateBytesAndMaybeBreak(charge, STORAGE_READ_BREAKER_LABEL);
         final byte[] bytes;
         try {
             bytes = UninitializedArrays.newByteArray(length);
         } catch (Throwable t) {
-            ioBreaker.addWithoutBreaking(-length);
+            ioBreaker.addWithoutBreaking(-charge);
             throw t;
         }
         AtomicBoolean chargeReleased = new AtomicBoolean();
         return new DirectReadBuffer(ByteBuffer.wrap(bytes), () -> {
             if (chargeReleased.compareAndSet(false, true)) {
-                ioBreaker.addWithoutBreaking(-length);
+                ioBreaker.addWithoutBreaking(-charge);
             }
         });
     }

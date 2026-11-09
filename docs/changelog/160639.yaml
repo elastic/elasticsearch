@@ -1,0 +1,5 @@
+pr: 160639
+summary: Speed up CSV record-boundary discovery on files without quote characters
+area: ES|QL
+type: enhancement
+issues: []

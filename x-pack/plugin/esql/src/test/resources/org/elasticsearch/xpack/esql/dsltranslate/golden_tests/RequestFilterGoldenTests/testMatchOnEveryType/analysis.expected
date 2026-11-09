@@ -1,3 +1,3 @@
 Limit[1000[INTEGER],false,false]
 \_Filter[MVCONTAINS(kw{r}#0,b[KEYWORD]) AND MVCONTAINS(i{r}#1,5[INTEGER]) AND MVCONTAINS(l{r}#2,5[LONG]) AND MVCONTAINS(d{r}#3,1.5[DOUBLE]) AND MVCONTAINS(b{r}#4,true[BOOLEAN]) AND MVINRANGE(dt{r}#5,1577923200000[DATETIME],1578009599999[DATETIME]) AND MVINRANGE(dn{r}#6,1577923200000000000[DATE_NANOS],1578009599999999999[DATE_NANOS])]
-  \_ExternalRelation[s3://bucket/every_type.parquet][parquet][kw{r}#0, txt{r}#7, i{r}#1, l{r}#2, d{r}#3, b{r}#4, dt{r}#5, dn{r}#6, ul{r}#8, ip{r}#9, v{r}#10]
+  \_ExternalRelation[every_type.parquet][parquet][kw{r}#0, txt{r}#7, i{r}#1, l{r}#2, d{r}#3, b{r}#4, dt{r}#5, dn{r}#6, ul{r}#8, ip{r}#9, v{r}#10]

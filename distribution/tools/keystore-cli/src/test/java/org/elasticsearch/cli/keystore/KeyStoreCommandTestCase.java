@@ -123,10 +123,6 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
     }
 
     String getPossibleKeystorePassword() {
-        if (inFipsJvm()) {
-            // FIPS Mode JVMs require a password for the ES keystore
-            return "keystorepassword";
-        }
         return randomFrom("", "keystorepassword");
     }
 }

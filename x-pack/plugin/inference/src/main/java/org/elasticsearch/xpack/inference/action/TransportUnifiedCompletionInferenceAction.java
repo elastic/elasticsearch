@@ -20,6 +20,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -79,13 +80,14 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         Model model,
         UnifiedCompletionAction.Request request,
         InferenceService service,
+        TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (request.isStreaming() == false && service.supportsNonStreamingChatCompletion() == false) {
             listener.onFailure(createUnsupportedNonStreamingChatCompletionException(service.name()));
             return;
         }
-        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.getTimeout(), listener);
+        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.getTimeout(), taskId, listener);
     }
 
     @Override

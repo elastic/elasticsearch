@@ -246,7 +246,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         return position;
     }
 
-    protected abstract void readWithoutBlobCache(ByteBuffer b) throws Exception;
+    protected abstract void readWithoutBlobCache(ByteBuffer b, long position) throws Exception;
 
     private ByteRange rangeToReadFromBlobCache(long position, int readLength) {
         final long end = position + readLength;
@@ -258,8 +258,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         return ByteRange.EMPTY;
     }
 
-    private void readWithBlobCache(ByteBuffer b, ByteRange blobCacheByteRange) throws Exception {
-        final long position = getAbsolutePosition();
+    private void readWithBlobCache(ByteBuffer b, long position, ByteRange blobCacheByteRange) throws Exception {
         final int length = b.remaining();
         final CacheFile cacheFile = cacheFileReference.get();
 
@@ -593,15 +592,22 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
 
     @Override
     protected final void readInternal(ByteBuffer b) throws IOException {
+        readAt(b, getAbsolutePosition());
+    }
+
+    /**
+     * Fills {@code b} with the bytes of the file starting at the absolute {@code position}.
+     * {@link #readInternal(ByteBuffer)} delegates here with the position of the file pointer.
+     */
+    protected final void readAt(ByteBuffer b, long position) throws IOException {
         assert assertCurrentThreadIsNotCacheFetchAsync();
 
         final int bytesToRead = b.remaining();
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
-        if (maybeReadChecksumFromFileInfo(fileInfo, getAbsolutePosition(), isClone, b)) {
+        if (maybeReadChecksumFromFileInfo(fileInfo, position, isClone, b)) {
             logger.trace("read footer of file [{}], bypassing all caches", fileInfo.physicalName());
         } else {
-            final long position = getAbsolutePosition();
             if (logger.isTraceEnabled()) {
                 logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + bytesToRead, bytesToRead, this);
             }
@@ -609,9 +615,9 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             try {
                 final ByteRange blobCacheByteRange = rangeToReadFromBlobCache(position, bytesToRead);
                 if (blobCacheByteRange.isEmpty()) {
-                    readWithoutBlobCache(b);
+                    readWithoutBlobCache(b, position);
                 } else {
-                    readWithBlobCache(b, blobCacheByteRange);
+                    readWithBlobCache(b, position, blobCacheByteRange);
                 }
             } catch (final Exception e) {
                 // may have partially filled the buffer before the exception was thrown, so try and get the remainder directly.

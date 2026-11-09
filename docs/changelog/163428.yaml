@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 163428
+summary: Rewrite numeric inequality to open ranges
+type: enhancement

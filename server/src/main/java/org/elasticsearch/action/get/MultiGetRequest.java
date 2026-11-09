@@ -52,7 +52,7 @@ public class MultiGetRequest extends UntypedActionRequest
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
-    private static final ParseField SLICE = new ParseField(SliceIndexing.PARAM_NAME);
+    private static final ParseField SLICE = new ParseField(SliceIndexing.FIELD_NAME);
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
     private static final ParseField FIELDS = new ParseField("fields");
@@ -569,7 +569,7 @@ public class MultiGetRequest extends UntypedActionRequest
             }
             if (slice != null) {
                 if (routingFromSlice == false && routing != null) {
-                    throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+                    throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.FIELD_NAME + "]");
                 }
                 SliceIndexing.validateUserSliceValue(slice);
                 routing = slice;

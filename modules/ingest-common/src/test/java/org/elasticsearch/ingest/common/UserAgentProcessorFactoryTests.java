@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class UserAgentProcessorFactoryTests extends ESTestCase {
 
@@ -84,8 +85,8 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
 
         UserAgentProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("user_agent"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("user_agent"));
         assertNotNull(processor.getUaParser());
         assertThat(processor.getProperties(), equalTo(EnumSet.allOf(UserAgentProcessor.Property.class)));
         assertFalse(processor.isExtractDeviceType());
@@ -103,8 +104,8 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
 
         UserAgentProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("user_agent"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("user_agent"));
         assertNotNull(processor.getUaParser());
         assertThat(processor.getProperties(), equalTo(EnumSet.allOf(UserAgentProcessor.Property.class)));
         assertTrue(processor.isIgnoreMissing());
@@ -118,8 +119,8 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("target_field", "_target_field");
 
         UserAgentProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("_target_field"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("_target_field"));
     }
 
     public void testBuildRegexFile() throws Exception {
@@ -130,7 +131,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("regex_file", regexWithoutDevicesFilename);
 
         UserAgentProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
         assertNotNull(processor.getUaParser());
     }
 
@@ -143,7 +144,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("extract_device_type", extractDeviceType);
 
         UserAgentProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
         assertThat(processor.isExtractDeviceType(), equalTo(extractDeviceType));
     }
 
@@ -178,7 +179,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("properties", fieldNames);
 
         UserAgentProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
     }
 

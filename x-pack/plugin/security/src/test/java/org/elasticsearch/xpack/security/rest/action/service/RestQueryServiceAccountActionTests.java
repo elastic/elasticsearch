@@ -38,7 +38,9 @@ import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountA
 import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountResponse;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.contains;
@@ -124,6 +126,17 @@ public class RestQueryServiceAccountActionTests extends ESTestCase {
         });
     }
 
+    public void testProfileUidsAreAskedForOnlyWithTheParameter() throws Exception {
+        handle(null, Map.of(), request -> assertFalse(request.withProfileUid()));
+        handle(null, Map.of("with_profile_uid", "false"), request -> assertFalse(request.withProfileUid()));
+        handle(null, Map.of("with_profile_uid", "true"), request -> assertTrue(request.withProfileUid()));
+        handle("""
+            { "query": { "term": { "username": "apps/worker_1" } } }""", Map.of("with_profile_uid", "true"), request -> {
+            assertTrue(request.withProfileUid());
+            assertThat(request.getQueryBuilder(), notNullValue());
+        });
+    }
+
     public void testTheCapabilityIsReportedOnlyWhereUserManagedAccountsAreAvailable() {
         assertThat(
             new RestQueryServiceAccountAction(Settings.EMPTY, mockLicenseState, true).supportedCapabilities(),
@@ -133,9 +146,13 @@ public class RestQueryServiceAccountActionTests extends ESTestCase {
     }
 
     private void handle(String body, Consumer<QueryServiceAccountRequest> requestAssertions) throws Exception {
+        handle(body, Map.of(), requestAssertions);
+    }
+
+    private void handle(String body, Map<String, String> params, Consumer<QueryServiceAccountRequest> requestAssertions) throws Exception {
         final FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry()).withMethod(
             randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
-        ).withPath("/_security/_query/service");
+        ).withPath("/_security/_query/service").withParams(new HashMap<>(params));
         if (body != null) {
             requestBuilder.withContent(new BytesArray(body), XContentType.JSON);
         }

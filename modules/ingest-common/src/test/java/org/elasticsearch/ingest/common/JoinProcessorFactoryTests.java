@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class JoinProcessorFactoryTests extends ESTestCase {
 
@@ -27,9 +28,9 @@ public class JoinProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         JoinProcessor joinProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(joinProcessor.getTag(), equalTo(processorTag));
-        assertThat(joinProcessor.getField(), equalTo("field1"));
+        assertThat(joinProcessor.getField(), hasToString("field1"));
         assertThat(joinProcessor.getSeparator(), equalTo("-"));
-        assertThat(joinProcessor.getTargetField(), equalTo("field1"));
+        assertThat(joinProcessor.getTargetField(), hasToString("field1"));
     }
 
     public void testCreateNoFieldPresent() throws Exception {
@@ -65,8 +66,8 @@ public class JoinProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         JoinProcessor joinProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(joinProcessor.getTag(), equalTo(processorTag));
-        assertThat(joinProcessor.getField(), equalTo("field1"));
+        assertThat(joinProcessor.getField(), hasToString("field1"));
         assertThat(joinProcessor.getSeparator(), equalTo("-"));
-        assertThat(joinProcessor.getTargetField(), equalTo("target"));
+        assertThat(joinProcessor.getTargetField(), hasToString("target"));
     }
 }

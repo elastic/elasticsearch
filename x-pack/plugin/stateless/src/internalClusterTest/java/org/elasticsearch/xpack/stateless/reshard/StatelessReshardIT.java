@@ -145,6 +145,7 @@ import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAc
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -1778,7 +1779,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureStableCluster(3);
 
         final String indexName = "test-realtime-multiget";
-        createIndex(indexName, indexSettings(1, 1).build());
+        createIndex(indexName, indexSettings(1, 1).put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
         ensureGreen(indexName);
 
         final var index = resolveIndex(indexName);
@@ -1804,16 +1805,17 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         final var mgetPrepared = new CountDownLatch(1);
         final var atSplit = new CountDownLatch(1);
+        final var docUpdated = new CountDownLatch(1);
 
         final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         final var searchNodeTransportService = MockTransportService.getInstance(searchNode);
 
         searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            // block ShardMultiGetFromTranslog until resharding reaches SPLIT
+            // block ShardMultiGetFromTranslog until resharding reaches SPLIT and the moved doc has been updated on the target
             if ((TransportShardMultiGetFomTranslogAction.NAME).equals(action)) {
                 // signal that multiget has been prepared so resharding can start
                 mgetPrepared.countDown();
-                safeAwait(atSplit);
+                safeAwait(docUpdated);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -1830,33 +1832,45 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        // expect item-level failures for docs that route to different shards after HANDOFF
-        final var mgetThread = new Thread(() -> {
-            MultiGetResponse mgetResponse = client(searchNode).prepareMultiGet()
-                .add(indexName, shard0docId)
-                .add(indexName, shard1docId)
-                .setRealtime(true)
-                .execute()
-                .actionGet(SAFE_AWAIT_TIMEOUT);
-
-            // Check that we have results for both documents
-            assertThat(mgetResponse.getResponses().length, equalTo(2));
-
-            MultiGetItemResponse item0 = mgetResponse.getResponses()[0];
-            assertThat("Document on source shard should succeed", item0.isFailed(), is(false));
-            assertThat(item0.getResponse().isExists(), is(true));
-
-            MultiGetItemResponse item1 = mgetResponse.getResponses()[1];
-            assertThat("Document moved to target shard should succeed after retry", item1.isFailed(), is(false));
-            assertThat(item1.getResponse().isExists(), is(true));
-
-        });
+        final var mgetResponseRef = new AtomicReference<MultiGetResponse>();
+        final var mgetThread = new Thread(
+            () -> mgetResponseRef.set(
+                client(searchNode).prepareMultiGet()
+                    .add(indexName, shard0docId)
+                    .add(indexName, shard1docId)
+                    .setRealtime(true)
+                    .execute()
+                    .actionGet(SAFE_AWAIT_TIMEOUT)
+            )
+        );
         mgetThread.start();
 
         // don't start resharding until multiget is waiting on search shard
         safeAwait(mgetPrepared);
         final var reshardRequest = new ReshardIndexRequest(indexName, 2);
         client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        safeAwait(atSplit);
+        indexDoc(indexName, shard1docId, "field", "shard1_v1");
+        docUpdated.countDown();
+        safeJoin(mgetThread);
+
+        final var mgetResponse = mgetResponseRef.get();
+        assertThat(mgetResponse.getResponses().length, equalTo(2));
+
+        MultiGetItemResponse item0 = mgetResponse.getResponses()[0];
+        assertThat("Document on source shard should succeed", item0.isFailed(), is(false));
+        assertThat(item0.getResponse().isExists(), is(true));
+        assertThat(item0.getResponse().getSource().get("field"), equalTo("shard0_v0"));
+
+        MultiGetItemResponse item1 = mgetResponse.getResponses()[1];
+        assertThat("Document moved to target shard should succeed after retry", item1.isFailed(), is(false));
+        assertThat(item1.getResponse().isExists(), is(true));
+        assertThat(
+            "Stale source shard must not serve the moved document",
+            item1.getResponse().getSource().get("field"),
+            equalTo("shard1_v1")
+        );
+
         waitForReshardCompletion(indexName);
     }
 
@@ -2716,6 +2730,121 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         );
 
         // After the target shard recovery tries again it will synchronize its primary term with the source and come online.
+        ensureGreen(indexName);
+    }
+
+    /**
+     * A source shard that has moved to DONE but never heard back about it (the response is lost) retries its workflow from the start. If
+     * it was the last source of the split, the resharding metadata is gone by then, which means there is nothing left for it to do. It
+     * must recognize that and finish, not be left monitoring a split that no longer exists.
+     */
+    public void testSourceFinishesWhenItsDoneResponseIsLostAndTheSplitIsGone() throws Exception {
+        var masterNode = startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        var lostResponses = new AtomicInteger();
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(TransportUpdateSplitSourceShardStateAction.TYPE.name(), (handler, request, channel, task) -> {
+                var actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                if (actualRequest instanceof TransportUpdateSplitSourceShardStateAction.Request sourceStateRequest
+                    && sourceStateRequest.getState() == IndexReshardingState.Split.SourceShardState.DONE
+                    && lostResponses.get() == 0) {
+                    // The master applies the change, but the source only hears that it failed
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            lostResponses.incrementAndGet();
+                            channel.sendResponse(new ElasticsearchException("simulated lost response"));
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+                    }, task);
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        awaitClusterState(state -> indexMetadata(state, index).getReshardingMetadata() == null);
+        assertBusy(() -> assertEquals(1, lostResponses.get()));
+
+        // The source's retry has nothing to do, so its state machine must have been dropped
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        assertBusy(() -> assertThat("source state left behind", splitSourceService.getShardsWithActiveSplitState(), empty()));
+    }
+
+    /**
+     * The state machine that a source shard left behind after a split whose last DONE response it never heard about would be found by
+     * the next split of the same shard (state machines are tracked per shard, and one that exists is reused), and so the next split would
+     * never get its source shard through the cleanup. The source shard stays open, so nothing would ever remove it.
+     */
+    public void testNextSplitCompletesAfterSourceLostItsDoneResponse() throws Exception {
+        var masterNode = startMasterOnlyNode();
+        startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        var lostResponses = new AtomicInteger();
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(TransportUpdateSplitSourceShardStateAction.TYPE.name(), (handler, request, channel, task) -> {
+                var actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                if (actualRequest instanceof TransportUpdateSplitSourceShardStateAction.Request sourceStateRequest
+                    && sourceStateRequest.getState() == IndexReshardingState.Split.SourceShardState.DONE
+                    && lostResponses.get() == 0) {
+                    // The master applies the change, but the source only hears that it failed
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            lostResponses.incrementAndGet();
+                            channel.sendResponse(new ElasticsearchException("simulated lost response"));
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+                    }, task);
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        awaitClusterState(state -> indexMetadata(state, index).getReshardingMetadata() == null);
+        assertBusy(() -> assertEquals(1, lostResponses.get()));
+        ensureGreen(indexName);
+
+        // Split the two shards again. The shard that lost its response is a source again.
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        awaitClusterState(state -> {
+            var metadata = indexMetadata(state, index);
+            return metadata.getReshardingMetadata() == null && metadata.getNumberOfShards() == 4;
+        });
         ensureGreen(indexName);
     }
 
@@ -3914,12 +4043,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // Wait until old source shard is stuck copying
         safeAwait(relocateLatch);
 
-        var targetShardNodeId = new AtomicReference<String>();
-        awaitClusterState(state -> {
-            targetShardNodeId.set(state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId());
-            return targetShardNodeId.get() != null;
-        });
-        var targetShardNode = nodeIdsToNames().get(targetShardNodeId.get());
+        var state = waitForClusterState(s -> s.routingTable().index(indexName).shard(1).primaryShard().currentNodeId() != null).actionGet(
+            SAFE_AWAIT_TIMEOUT
+        );
+        var targetShardNodeId = state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId();
+        var targetShardNode = nodeIdsToNames().get(targetShardNodeId);
         assertNotEquals(sourceShardOldNode, targetShardNode);
         var sourceShardNewNode = indexNodes.stream()
             .filter(node -> node.equals(sourceShardOldNode) == false && node.equals(targetShardNode) == false)
@@ -5608,9 +5736,9 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     /**
      * Verifies that the search shard for a reshard split target has cache warming triggered during recovery. Before the
      * {@link SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING} feature, the new shard had no prior
-     * active copy, so {@link SharedBlobCacheWarmingService#searchRecoveryTimeout} returned skip() (fire-and-forget). Now it blocks until
-     * warming completes. This test asserts WARMING_COMPLETE is recorded, and that post-reshard searches trigger no blob-store reads due
-     * to cache misses on the SEARCH executor.
+     * active copy, so {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} returned skip() (fire-and-forget).
+     * Now it blocks until warming completes. This test asserts WARMING_COMPLETE is recorded, and that post-reshard searches trigger no
+     * blob-store reads due to cache misses on the SEARCH executor.
      * <p>
      * After SPLIT, {@code delete-unowned} on the split target creates new {@code .liv} (live-docs) segment files. Those are fetched from
      * the indexing node ({@link CachePopulationSource#Peer}), not from the object store, so they are excluded from the assertion by

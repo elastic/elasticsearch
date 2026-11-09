@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 149964
+pr: 161392
+summary: Unmute mixed-cluster WHERE LIKE test
+type: enhancement

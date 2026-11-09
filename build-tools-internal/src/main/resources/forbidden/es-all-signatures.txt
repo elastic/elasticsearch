@@ -87,6 +87,11 @@ org.apache.lucene.search.SortField#setMissingValue(java.lang.Object)
 org.apache.lucene.search.SortedSetSortField#setMissingValue(java.lang.Object)
 org.apache.lucene.search.SortedNumericSortField#setMissingValue(java.lang.Object)
 
+@defaultMessage Use IndexSearcher#search(Query, CollectorManager) instead
+org.apache.lucene.search.IndexSearcher#search(org.apache.lucene.search.Query, org.apache.lucene.search.Collector)
+org.elasticsearch.search.internal.ContextIndexSearcher#search(org.apache.lucene.search.Query, org.apache.lucene.search.Collector)
+org.elasticsearch.index.engine.Engine$Searcher#search(org.apache.lucene.search.Query, org.apache.lucene.search.Collector)
+
 @defaultMessage Do not use java.util.logging.Logger, use ES Logger instead
 java.util.logging.Logger#getLogger(java.lang.String)
 java.util.logging.Logger#getLogger(java.lang.String, java.lang.String)

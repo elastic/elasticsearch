@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -30,9 +31,11 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -71,6 +74,59 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
     }
 
+    /** Settings of a {@code columnar_stored} index, optionally forcing the stored-field layout of {@code _ignored_source}. */
+    private static Settings columnarStoredSettings(boolean docValuesFormat) {
+        return Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), docValuesFormat)
+            .build();
+    }
+
+    public void testColumnarStoredSourceIsSupported() throws IOException {
+        Settings settings = columnarStoredSettings(true);
+        MapperService ms = columnarMapperService(settings, mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
+            schemaOf("host"),
+            ms.mappingLookup(),
+            columnarIndexSettings(settings)
+        );
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
+    }
+
+    /**
+     * Without the time-series doc values format {@code _ignored_source} is a stored field, but the batch path writes the
+     * {@code columnar_stored} blob as doc values. Batching it would make the blob unreadable, so the batch has to fall back.
+     */
+    public void testColumnarStoredSourceWithStoredIgnoredSourceFallsBack() throws IOException {
+        Settings settings = columnarStoredSettings(false);
+        MapperService ms = columnarMapperService(settings, mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), columnarIndexSettings(settings)));
+    }
+
+    /**
+     * An object with {@code synthetic_source_keep: all} is copied whole into {@code _ignored_source} by the sequential path, whatever
+     * its leaves' own mappers do, so a leaf beneath it, however deep, has to fall back. A sibling object without it stays batched.
+     */
+    public void testLeafUnderKeepAllObjectFallsBack() throws IOException {
+        final MapperService ms = tsdbMapperService(Settings.EMPTY, mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("kept").field("type", "object").field("synthetic_source_keep", "all");
+            b.startObject("properties").startObject("f").field("type", "long").endObject();
+            b.startObject("inner").field("type", "object").startObject("properties");
+            b.startObject("g").field("type", "long").endObject();
+            b.endObject().endObject().endObject().endObject();
+            b.startObject("plain").field("type", "object").startObject("properties");
+            b.startObject("f").field("type", "long").endObject();
+            b.endObject().endObject();
+        }));
+        final IndexSettings tsdbSettings = ms.getIndexSettings();
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("kept.f"), ms.mappingLookup(), tsdbSettings));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("kept.inner.g"), ms.mappingLookup(), tsdbSettings));
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("plain.f"), ms.mappingLookup(), tsdbSettings));
+    }
+
     public void testNumberMapperIsSupported() throws IOException {
         MapperService ms = columnarMapperService(mapping(b -> { b.startObject("v").field("type", "long").endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);
@@ -98,6 +154,58 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
         assertNotNull(resolution);
         assertNotNull(resolution.columnMappers()[schema.findLeaf("known", 0)]);
+        assertNull(resolution.columnMappers()[schema.findLeaf("unknown", 0)]);
+    }
+
+    /**
+     * A TSDB mapping with a mapped {@code known} leaf at the root and under {@code obj}. {@code rootDynamic} and {@code objDynamic}
+     * set {@code dynamic} on the root and on {@code obj}, so a test can make exactly one of them {@code false}.
+     */
+    private static XContentBuilder tsdbMapping(String rootDynamic, String objDynamic) throws IOException {
+        return topMapping(b -> {
+            b.field("dynamic", rootDynamic);
+            b.startObject("properties");
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("known").field("type", "long").endObject();
+            b.startObject("obj").field("type", "object").field("dynamic", objDynamic);
+            b.startObject("properties").startObject("known").field("type", "long").endObject().endObject();
+            b.endObject();
+            b.endObject();
+        });
+    }
+
+    /**
+     * With synthetic source the sequential path copies an unmapped value under {@code dynamic: false} into {@code _ignored_source}
+     * so that it survives in the reconstructed {@code _source}. The batch path writes no such entry, so the batch must fall back.
+     */
+    public void testMissingLeafUnderDynamicFalseFallsBackWithSyntheticSource() throws IOException {
+        final MapperService ms = tsdbMapperService(Settings.EMPTY, tsdbMapping("false", "false"));
+        assertTrue(ms.mappingLookup().isSourceSynthetic());
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("known", "unknown"), ms.mappingLookup(), ms.getIndexSettings()));
+        // The same mapping resolves when every leaf is mapped, so the fallback above is for the unmapped leaf alone.
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.known"), ms.mappingLookup(), ms.getIndexSettings()));
+    }
+
+    /** As above, when only a parent object sets {@code dynamic: false} and the root does not. */
+    public void testMissingLeafUnderDynamicFalseParentObjectFallsBackWithSyntheticSource() throws IOException {
+        final MapperService ms = tsdbMapperService(Settings.EMPTY, tsdbMapping("true", "false"));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.unknown"), ms.mappingLookup(), ms.getIndexSettings()));
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.known"), ms.mappingLookup(), ms.getIndexSettings()));
+    }
+
+    /**
+     * When the sequential path does not write {@code _ignored_source} (here the escape-hatch setting that skips the write), nothing
+     * is captured, so dropping an unmapped leaf under {@code dynamic: false} is correct and the batch stays on the batch path.
+     */
+    public void testMissingLeafUnderDynamicFalseIsIgnoredWhenIgnoredSourceIsNotWritten() throws IOException {
+        final MapperService ms = tsdbMapperService(
+            Settings.builder().put(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey(), true).build(),
+            tsdbMapping("false", "false")
+        );
+        final SourceSchema schema = schemaOf("known", "unknown");
+        final BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), ms.getIndexSettings());
+        assertNotNull(resolution);
         assertNull(resolution.columnMappers()[schema.findLeaf("unknown", 0)]);
     }
 
@@ -744,7 +852,7 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     /**
-     * The sink is keyed by the leaf's <em>full</em> dotted path, matching {@code DynamicFieldsBuilder.FlattenedSink},
+     * The sink is keyed by the leaf's <em>full</em> dotted path, matching {@code UnmappedSinkFieldMapper.absorb},
      * which calls {@code indexValueAtPath(context, context.path().pathAsText(name))}. This differs from a real
      * flattened field, whose relative keys have the owner prefix stripped.
      */
@@ -763,6 +871,32 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertNotNull(resolution);
         assertEquals(1, resolution.columnGroups().length);
         assertArrayEquals(new String[] { "a.b" }, resolution.columnGroups()[0].relativeKeys());
+    }
+
+    /**
+     * The sink is a metadata field, so a document key under {@code _unmapped} must reach the sequential parser, which rejects it. Both
+     * {@code {"_unmapped":{"a":..}}} and the dotted {@code {"_unmapped.a":..}} become the batch leaf {@code _unmapped.a}, and neither may
+     * be silently written into the sink as key {@code a}.
+     */
+    public void testLeafUnderSinkNameFallsBack() throws IOException {
+        assumeUnmappedSinkAvailable();
+        MapperService ms = columnarMapperService(unmappedSinkEnabled(), mapping(b -> {}));
+        String key = randomAlphaOfLength(5);
+        String json = randomBoolean() ? "{\"_unmapped\":{\"" + key + "\":\"x\"}}" : "{\"_unmapped." + key + "\":\"x\"}";
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), columnarIndexSettings(unmappedSinkEnabled())));
+    }
+
+    /**
+     * A document key {@code _unmapped} holding a value resolves to the sink itself rather than to a leaf under it. The sink never maps a
+     * column of its own, so the batch must fall back at resolve time and let the sequential parser reject the key, instead of assigning the
+     * sink to the column and failing later inside {@code mapColumnBatch}.
+     */
+    public void testSinkNameAsLeafFallsBack() throws IOException {
+        assumeUnmappedSinkAvailable();
+        MapperService ms = columnarMapperService(unmappedSinkEnabled(), mapping(b -> {}));
+        String value = randomAlphaOfLength(5);
+        String json = randomBoolean() ? "{\"_unmapped\":\"" + value + "\"}" : "{\"_unmapped\":[\"" + value + "\"]}";
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), columnarIndexSettings(unmappedSinkEnabled())));
     }
 
     /**

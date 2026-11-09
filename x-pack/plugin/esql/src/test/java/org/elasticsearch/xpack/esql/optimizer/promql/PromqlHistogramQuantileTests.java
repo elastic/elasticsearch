@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
@@ -218,6 +220,17 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         assertThat(percentiles.getFirst().dataType(), equalTo(DataType.DOUBLE));
 
         assertThat(outputColumns(translated), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+    }
+
+    public void testChangesSupportsExpHistogramInput() {
+        assumeTrue("Requires PROMQL_CHANGES capability", EsqlCapabilities.Cap.PROMQL_CHANGES.isEnabled());
+        LogicalPlan translated = planExpHistogramPromql("PROMQL index=exp_histo step=1m result=(changes(responseTime[5m]))");
+        List<Changes> changes = new ArrayList<>();
+        translated.forEachExpressionDown(Changes.class, changes::add);
+
+        assertThat(changes, hasSize(1));
+        assertThat(changes.getFirst().field().dataType(), equalTo(DataType.EXPONENTIAL_HISTOGRAM));
+        assertThat(changes.getFirst().dataType(), equalTo(DataType.LONG));
     }
 
     public void testExpHistogramQuantileWithSumAcrossSeries() {

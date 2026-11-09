@@ -31,6 +31,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.LeafExecutionScope;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -99,8 +101,9 @@ public class MinCompetitiveQuery implements Releasable {
         return index.perMinValue.perLeaf(leaf).disi();
     }
 
-    private PerIndex perIndex(ShardContext ctx) {
+    private PerIndex perIndex(ShardContext ctx) throws IOException {
         if (perIndex == null || perIndex.ctx != ctx) {
+            Releasables.close(perIndex);
             perIndex = new PerIndex(ctx);
         }
         return perIndex;
@@ -120,11 +123,13 @@ public class MinCompetitiveQuery implements Releasable {
 
     private class PerIndex implements Releasable {
         private final ShardContext ctx;
+        private final IndexSearcher uncachedSearcher;
         private long cachedGeneration = -1;
         private PerMinValue perMinValue;
 
-        private PerIndex(ShardContext ctx) {
+        private PerIndex(ShardContext ctx) throws IOException {
             this.ctx = ctx;
+            this.uncachedSearcher = uncachedSearcher(ctx);
         }
 
         @Override
@@ -148,7 +153,7 @@ public class MinCompetitiveQuery implements Releasable {
                 Query query = buildMinCompetitiveQuery(value);
                 log.debug("updating min competitive to {} using {}", query, value);
                 changedValue++;
-                Weight weight = uncachedWeight(ctx, query);
+                Weight weight = uncachedSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0F);
                 PerMinValue result = new PerMinValue(value, weight);
                 value = null;
                 return result;
@@ -175,16 +180,22 @@ public class MinCompetitiveQuery implements Releasable {
         }
     }
 
-    private static Weight uncachedWeight(ShardContext ctx, Query query) throws IOException {
+    /** A searcher that never caches. It shares the circuit breaker of the shard's searcher, when it has one. */
+    private static IndexSearcher uncachedSearcher(ShardContext ctx) throws IOException {
+        if (ctx.searcher() instanceof ContextIndexSearcher shardSearcher) {
+            return shardSearcher.withQueryCache(null);
+        }
         IndexSearcher searcher = new IndexSearcher(ctx.searcher().getIndexReader());
         searcher.setQueryCache(null);
-        return query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 0.0F);
+        return searcher;
     }
 
     private class PerMinValue implements Releasable {
         @Nullable
         private final Page value;
         private final Weight weight;
+        /** Owns the execution memory charged for the scorer behind {@link #perLeaf}. */
+        private final LeafExecutionScope executionScope = new LeafExecutionScope();
         private PerLeaf perLeaf;
 
         private PerMinValue(Page value, Weight weight) {
@@ -194,7 +205,8 @@ public class MinCompetitiveQuery implements Releasable {
 
         public PerLeaf perLeaf(LeafReaderContext leaf) throws IOException {
             if (perLeaf == null || perLeaf.createdThread != Thread.currentThread() || perLeaf.leaf != leaf) {
-                Scorer scorer = weight.scorer(leaf);
+                executionScope.release();
+                Scorer scorer = executionScope.capture(() -> weight.scorer(leaf));
                 DocIdSetIterator competitive = scorer == null ? DocIdSetIterator.empty() : scorer.iterator();
                 perLeaf = new PerLeaf(Thread.currentThread(), leaf, competitive);
             }
@@ -203,6 +215,7 @@ public class MinCompetitiveQuery implements Releasable {
 
         @Override
         public void close() {
+            executionScope.release();
             Releasables.close(value);
         }
     }

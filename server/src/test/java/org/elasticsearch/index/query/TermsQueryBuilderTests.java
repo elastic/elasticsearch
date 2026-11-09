@@ -16,19 +16,30 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,19 +47,27 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
     private List<Object> randomTerms;
     private String termsPath;
+    private final AtomicInteger lookupGetCount = new AtomicInteger();
+    private List<Object> lookupTermsOverride;
 
     @Before
     public void randomTerms() {
@@ -197,11 +216,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     public GetResponse executeGet(GetRequest getRequest) {
+        lookupGetCount.incrementAndGet();
+        List<Object> terms = lookupTermsOverride != null ? lookupTermsOverride : randomTerms;
         String json;
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
-            builder.array(termsPath, randomTerms.toArray(Object[]::new));
+            builder.array(termsPath, terms.toArray(Object[]::new));
             builder.endObject();
             json = Strings.toString(builder);
         } catch (IOException ex) {
@@ -279,6 +300,48 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals(expected, rewriteAndFetch(termsQueryBuilder, createSearchExecutionContext()));
     }
 
+    public void testIdenticalTermsLookupsAreFetchedOnce() throws IOException {
+        // Several clauses referencing the same document (same index, id, path and routing) must resolve the lookup with a
+        // single get request, rather than one fetch per clause.
+        TermsLookup lookup = new TermsLookup("lookup_index", "1", termsPath);
+        BoolQueryBuilder query = new BoolQueryBuilder();
+        int clauses = randomIntBetween(2, 8);
+        for (int i = 0; i < clauses; i++) {
+            query.should(new TermsQueryBuilder(TEXT_FIELD_NAME, lookup));
+        }
+        lookupGetCount.set(0);
+        rewriteAndFetch(query, createSearchExecutionContext());
+        assertEquals("identical terms lookups must be fetched once", 1, lookupGetCount.get());
+
+        // Lookups that differ (here by id) are resolved independently.
+        BoolQueryBuilder distinctLookups = new BoolQueryBuilder().should(
+            new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("lookup_index", "1", termsPath))
+        ).should(new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("lookup_index", "2", termsPath)));
+        lookupGetCount.set(0);
+        rewriteAndFetch(distinctLookups, createSearchExecutionContext());
+        assertEquals("distinct terms lookups must be fetched separately", 2, lookupGetCount.get());
+    }
+
+    public void testTermsLookupExceedingMaxTermsCountIsRejectedDuringRewrite() {
+        // A lookup that resolves to more values than index.max_terms_count must be rejected while it is resolved on the
+        // coordinating node, before the values are expanded across clauses and serialized to the data nodes.
+        int maxTermsCount = IndexSettings.MAX_TERMS_COUNT_SETTING.get(Settings.EMPTY);
+        List<Object> tooManyTerms = new ArrayList<>(maxTermsCount + 1);
+        for (int i = 0; i <= maxTermsCount; i++) {
+            tooManyTerms.add(i);
+        }
+        lookupTermsOverride = tooManyTerms;
+
+        TermsQueryBuilder query = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rewriteAndFetch(query, createQueryRewriteContext())
+        );
+        assertThat(e.getMessage(), containsString("The number of terms [" + (maxTermsCount + 1) + "]"));
+        assertThat(e.getMessage(), containsString("exceeded the allowed maximum of [" + maxTermsCount + "]"));
+        assertThat(e.getMessage(), containsString(IndexSettings.MAX_TERMS_COUNT_SETTING.getKey()));
+    }
+
     public void testGeo() throws Exception {
         TermsQueryBuilder query = new TermsQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         SearchExecutionContext context = createSearchExecutionContext();
@@ -352,6 +415,252 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
         QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testFieldTypeTermsQueryPreChargesBreaker() throws IOException {
+        List<String> values = List.of("a", "b", "c");
+        for (String field : List.of(KEYWORD_FIELD_NAME, IdFieldMapper.NAME)) {
+            CircuitBreaker cb = createCircuitBreakerService();
+            SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+            long before = cb.getUsed();
+            try {
+                MappedFieldType fieldType = context.getFieldType(field);
+                Query query = fieldType.termsQuery(values, context);
+                long expected = new TermsQueryCostEstimator(((TermInSetQuery) query).ramBytesUsed()).estimate();
+                assertEquals(field, expected, cb.getUsed() - before);
+                assertEquals(field, expected, context.getQueryConstructionMemoryUsed());
+                assertTrue(field, context.isQueryMemoryPreCharged(query));
+
+                fieldType.termsQuery(values, null);
+                assertEquals("without a context nothing is charged for " + field, expected, cb.getUsed() - before);
+            } finally {
+                context.releaseQueryConstructionMemory();
+            }
+            assertEquals(field, before, cb.getUsed());
+        }
+    }
+
+    public void testTermsQueryNotChargedTwice() throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            long before = cb.getUsed();
+            Query query = new TermsQueryBuilder(KEYWORD_FIELD_NAME, "a", "b", "c").toQuery(context);
+            long expected = new TermsQueryCostEstimator(((TermInSetQuery) query).ramBytesUsed()).estimate();
+            assertEquals("the clause visitor must skip the pre-charged query", expected, cb.getUsed() - before);
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    /**
+     * With the batched query phase, every shard search on a data node builds its query from the same deserialized builder. The heap the
+     * decoded terms take beyond their serialized size is charged once, while any of those shard contexts is open.
+     */
+    public void testDeserializedTermsChargedOncePerCopy() throws IOException {
+        TermsQueryBuilder original = new TermsQueryBuilder(KEYWORD_FIELD_NAME, randomTermsList(5_000));
+        assertEquals("terms parsed on this node are not charged", 0L, original.getValues().decodedBytesOverWire());
+        TermsQueryBuilder deserialized = copyQuery(original);
+        long decodedBytes = deserialized.getValues().decodedBytesOverWire();
+        assertThat(decodedBytes, greaterThan(0L));
+
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext firstShard = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        SearchExecutionContext secondShard = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        SearchExecutionContext parsedShard = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        long before = cb.getUsed();
+        try {
+            original.toQuery(parsedShard);
+            assertFalse("parsed terms register no shared charge", parsedShard.hasQueryConstructionReleasables());
+
+            deserialized.toQuery(firstShard);
+            assertTrue("deserialized terms register a shared charge", firstShard.hasQueryConstructionReleasables());
+            long firstShardQuery = firstShard.getQueryConstructionMemoryUsed();
+            long parsedShardQuery = parsedShard.getQueryConstructionMemoryUsed();
+            assertEquals(decodedBytes + firstShardQuery + parsedShardQuery, cb.getUsed() - before);
+
+            deserialized.toQuery(secondShard);
+            assertTrue("every context using the copy registers its own release", secondShard.hasQueryConstructionReleasables());
+            long secondShardQuery = secondShard.getQueryConstructionMemoryUsed();
+            assertEquals(
+                "the shared copy is charged once",
+                decodedBytes + firstShardQuery + secondShardQuery + parsedShardQuery,
+                cb.getUsed() - before
+            );
+
+            firstShard.releaseQueryConstructionMemory();
+            assertFalse("release drops the context's shared charge", firstShard.hasQueryConstructionReleasables());
+            assertEquals(
+                "still charged while a context uses it",
+                decodedBytes + secondShardQuery + parsedShardQuery,
+                cb.getUsed() - before
+            );
+        } finally {
+            firstShard.releaseQueryConstructionMemory();
+            secondShard.releaseQueryConstructionMemory();
+            parsedShard.releaseQueryConstructionMemory();
+        }
+        assertEquals(before, cb.getUsed());
+    }
+
+    public void testDeserializedTermsTripBreaker() throws IOException {
+        TermsQueryBuilder deserialized = copyQuery(new TermsQueryBuilder(KEYWORD_FIELD_NAME, randomTermsList(5_000)));
+        long decodedBytes = deserialized.getValues().decodedBytesOverWire();
+
+        CircuitBreaker small = createCircuitBreakerService(Long.toString(decodedBytes / 2) + "b");
+        SearchExecutionContext tripped = new SearchExecutionContext(createSearchExecutionContext(), small);
+        try {
+            expectThrows(CircuitBreakingException.class, () -> deserialized.toQuery(tripped));
+        } finally {
+            tripped.releaseQueryConstructionMemory();
+        }
+        assertEquals(0L, small.getUsed());
+
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        long before = cb.getUsed();
+        try {
+            deserialized.toQuery(context);
+            assertEquals(
+                "a failed charge must not count as held",
+                decodedBytes + context.getQueryConstructionMemoryUsed(),
+                cb.getUsed() - before
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+        assertEquals(before, cb.getUsed());
+    }
+
+    public void testDeserializedTermsChargedAgainAfterRelease() throws IOException {
+        TermsQueryBuilder deserialized = copyQuery(new TermsQueryBuilder(KEYWORD_FIELD_NAME, randomTermsList(5_000)));
+        long decodedBytes = deserialized.getValues().decodedBytesOverWire();
+
+        CircuitBreaker cb = createCircuitBreakerService();
+        long before = cb.getUsed();
+        for (int round = 0; round < 2; round++) {
+            SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+            try {
+                deserialized.toQuery(context);
+                // building again on the same context still holds the shared copy once
+                deserialized.toQuery(context);
+                assertEquals(decodedBytes + context.getQueryConstructionMemoryUsed(), cb.getUsed() - before);
+            } finally {
+                context.releaseQueryConstructionMemory();
+            }
+            assertEquals(before, cb.getUsed());
+        }
+    }
+
+    public void testDeserializedTermsReleasedWhenQueryBuildFails() throws IOException {
+        // the values are charged before the date field fails to parse them
+        TermsQueryBuilder deserialized = copyQuery(new TermsQueryBuilder(DATE_FIELD_NAME, randomTermsList(100)));
+        long decodedBytes = deserialized.getValues().decodedBytesOverWire();
+
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        long before = cb.getUsed();
+        try {
+            expectThrows(ElasticsearchParseException.class, () -> deserialized.toQuery(context));
+            assertEquals(decodedBytes + context.getQueryConstructionMemoryUsed(), cb.getUsed() - before);
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+        assertEquals(before, cb.getUsed());
+    }
+
+    public void testDecodedBytesOverWireMatchesHeap() throws IOException {
+        // roughly the 60k ids measured in #162788, plus numeric terms that take the non-BytesRef estimate
+        List<TermsQueryBuilder> builders = List.of(
+            new TermsQueryBuilder(KEYWORD_FIELD_NAME, randomTermsList(60_000)),
+            new TermsQueryBuilder(INT_FIELD_NAME, randomList(60_000, 60_000, ESTestCase::randomInt))
+        );
+        for (TermsQueryBuilder original : builders) {
+            long serializedBytes;
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                original.getValues().writeTo(out);
+                serializedBytes = out.size();
+            }
+            TermsQueryBuilder deserialized = copyQuery(original);
+            // RamUsageTester cannot look inside JDK lists and leaves out their reference array
+            long listReferences = (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * deserialized.getValues().size();
+            long heapOverWire = RamUsageTester.ramUsed(deserialized.getValues()) + listReferences - serializedBytes;
+            assertEquals(original.fieldName(), heapOverWire, deserialized.getValues().decodedBytesOverWire(), heapOverWire * 0.05);
+        }
+    }
+
+    /**
+     * A {@code terms} list parsed from a request is held by the coordinator for as long as the search, while the request body it came
+     * from is charged to the in-flight requests breaker. The parsed form must therefore stay close to the size of that body, or the
+     * breaker undercounts what the coordinator retains (#162788).
+     */
+    public void testParsedTermsStayCloseToRequestBodySize() throws IOException {
+        List<String> terms = randomTermsList(60_000);
+        String json = "{\"terms\": {\"" + KEYWORD_FIELD_NAME + "\": [\"" + String.join("\",\"", terms) + "\"]}}";
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+        // RamUsageTester cannot look inside JDK lists and leaves out their reference array
+        long retained = RamUsageTester.ramUsed(parsed.getValues()) + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * terms.size();
+        long bodyBytes = json.getBytes(StandardCharsets.UTF_8).length;
+        assertThat("parsed [" + retained + "] bytes from a [" + bodyBytes + "] byte body", retained, lessThan(3 * bodyBytes));
+    }
+
+    /**
+     * A parsed list mixes ASCII terms, which are narrowed straight from the chars, with terms of every other width, which go through the
+     * list's shared buffer. Each must come out as the same UTF-8 as {@code new BytesRef(String)}, in an array of exactly its size.
+     */
+    public void testParsedTermsAreExactSizedUtf8() throws IOException {
+        List<String> terms = new ArrayList<>();
+        for (int i = 0; i < 500; i++) {
+            terms.add(switch (i % 5) {
+                case 0 -> randomAlphaOfLengthBetween(1, 100);
+                case 1 -> randomRealisticUnicodeOfLengthBetween(1, 100);
+                case 2 -> new String(Character.toChars(0x1F600 + randomIntBetween(0, 0x3F))).repeat(randomIntBetween(1, 30));
+                case 3 -> String.valueOf((char) randomIntBetween(0x4E00, 0x9FFF)).repeat(randomIntBetween(1, 30));
+                case 4 -> randomAlphaOfLengthBetween(1, 10) + randomFrom("\u00E9", "\u65E5", "\uD83D\uDE00");
+                default -> throw new AssertionError();
+            });
+        }
+        XContentBuilder json = XContentFactory.jsonBuilder().startObject().startObject("terms");
+        json.array(KEYWORD_FIELD_NAME, terms.toArray(String[]::new));
+        json.endObject().endObject();
+
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(Strings.toString(json));
+
+        Iterator<?> actual = parsed.getValues().iterator();
+        for (String term : terms) {
+            BytesRef expected = new BytesRef(term);
+            BytesRef bytes = (BytesRef) actual.next();
+            assertEquals(term, expected, bytes);
+            assertEquals(term, 0, bytes.offset);
+            assertEquals(term, bytes.length, bytes.bytes.length);
+        }
+        assertFalse(actual.hasNext());
+    }
+
+    /** The limit is on bytes, so a term that fits in chars can still be too long once it is encoded. */
+    public void testParsedTermLongerThanIndexableLengthInBytesIsRejected() throws IOException {
+        String asciiAtLimit = "a".repeat(IndexWriter.MAX_TERM_LENGTH);
+        assertThat(parseSingleTerm(asciiAtLimit).length, equalTo(IndexWriter.MAX_TERM_LENGTH));
+
+        // 3 bytes per char: 10,922 chars fit in 32,766 bytes and 10,923 do not
+        String cjkAtLimit = "中".repeat(IndexWriter.MAX_TERM_LENGTH / 3);
+        assertThat(parseSingleTerm(cjkAtLimit).length, equalTo(IndexWriter.MAX_TERM_LENGTH));
+        expectThrows(IllegalArgumentException.class, () -> parseSingleTerm(cjkAtLimit + "中"));
+
+        expectThrows(IllegalArgumentException.class, () -> parseSingleTerm(asciiAtLimit + "a"));
+    }
+
+    private BytesRef parseSingleTerm(String term) throws IOException {
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery("{\"terms\": {\"" + KEYWORD_FIELD_NAME + "\": [\"" + term + "\"]}}");
+        return (BytesRef) parsed.getValues().iterator().next();
+    }
+
+    private static List<String> randomTermsList(int count) {
+        List<String> terms = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            terms.add(randomAlphaOfLength(20) + i);
+        }
+        return terms;
     }
 
     @Override

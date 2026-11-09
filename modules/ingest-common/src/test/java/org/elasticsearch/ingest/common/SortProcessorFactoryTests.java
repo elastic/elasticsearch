@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class SortProcessorFactoryTests extends ESTestCase {
 
@@ -30,9 +31,9 @@ public class SortProcessorFactoryTests extends ESTestCase {
         SortProcessor.Factory factory = new SortProcessor.Factory();
         SortProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo(fieldName));
+        assertThat(processor.getField(), hasToString(fieldName));
         assertThat(processor.getOrder(), equalTo(SortProcessor.SortOrder.ASCENDING));
-        assertThat(processor.getTargetField(), equalTo(fieldName));
+        assertThat(processor.getTargetField(), hasToString(fieldName));
     }
 
     public void testCreateWithOrder() throws Exception {
@@ -46,9 +47,9 @@ public class SortProcessorFactoryTests extends ESTestCase {
         SortProcessor.Factory factory = new SortProcessor.Factory();
         SortProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo(fieldName));
+        assertThat(processor.getField(), hasToString(fieldName));
         assertThat(processor.getOrder(), equalTo(SortProcessor.SortOrder.DESCENDING));
-        assertThat(processor.getTargetField(), equalTo(fieldName));
+        assertThat(processor.getTargetField(), hasToString(fieldName));
     }
 
     public void testCreateWithTargetField() throws Exception {
@@ -63,9 +64,9 @@ public class SortProcessorFactoryTests extends ESTestCase {
         SortProcessor.Factory factory = new SortProcessor.Factory();
         SortProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo(fieldName));
+        assertThat(processor.getField(), hasToString(fieldName));
         assertThat(processor.getOrder(), equalTo(SortProcessor.SortOrder.ASCENDING));
-        assertThat(processor.getTargetField(), equalTo(targetFieldName));
+        assertThat(processor.getTargetField(), hasToString(targetFieldName));
     }
 
     public void testCreateWithInvalidOrder() throws Exception {

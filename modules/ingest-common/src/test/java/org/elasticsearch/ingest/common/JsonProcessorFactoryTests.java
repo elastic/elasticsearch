@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class JsonProcessorFactoryTests extends ESTestCase {
 
@@ -33,8 +34,8 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         config.put("target_field", randomTargetField);
         JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, null, config, null);
         assertThat(jsonProcessor.getTag(), equalTo(processorTag));
-        assertThat(jsonProcessor.getField(), equalTo(randomField));
-        assertThat(jsonProcessor.getTargetField(), equalTo(randomTargetField));
+        assertThat(jsonProcessor.getField(), hasToString(randomField));
+        assertThat(jsonProcessor.getTargetField(), hasToString(randomTargetField));
     }
 
     public void testCreateWithAddToRoot() throws Exception {
@@ -45,8 +46,8 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         config.put("add_to_root", true);
         JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, null, config, null);
         assertThat(jsonProcessor.getTag(), equalTo(processorTag));
-        assertThat(jsonProcessor.getField(), equalTo(randomField));
-        assertThat(jsonProcessor.getTargetField(), equalTo(randomField));
+        assertThat(jsonProcessor.getField(), hasToString(randomField));
+        assertThat(jsonProcessor.getTargetField(), hasToString(randomField));
         assertTrue(jsonProcessor.isAddToRoot());
     }
 
@@ -57,8 +58,8 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         config.put("field", randomField);
         JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, null, config, null);
         assertThat(jsonProcessor.getTag(), equalTo(processorTag));
-        assertThat(jsonProcessor.getField(), equalTo(randomField));
-        assertThat(jsonProcessor.getTargetField(), equalTo(randomField));
+        assertThat(jsonProcessor.getField(), hasToString(randomField));
+        assertThat(jsonProcessor.getTargetField(), hasToString(randomField));
     }
 
     public void testCreateWithMissingField() throws Exception {

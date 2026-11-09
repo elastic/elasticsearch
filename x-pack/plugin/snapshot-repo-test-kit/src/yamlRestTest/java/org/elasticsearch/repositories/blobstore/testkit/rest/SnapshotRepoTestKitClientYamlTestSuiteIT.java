@@ -7,6 +7,7 @@
 
 package org.elasticsearch.repositories.blobstore.testkit.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.core.SuppressForbidden;
@@ -31,7 +32,7 @@ public class SnapshotRepoTestKitClientYamlTestSuiteIT extends ESClientYamlSuiteT
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
-    public SnapshotRepoTestKitClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public SnapshotRepoTestKitClientYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

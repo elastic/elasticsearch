@@ -1,0 +1,8 @@
+area: ES|QL
+issues:
+ - 161623
+ - 161413
+ - 161642
+pr: 161699
+summary: Drop Parquet hold on early close
+type: enhancement

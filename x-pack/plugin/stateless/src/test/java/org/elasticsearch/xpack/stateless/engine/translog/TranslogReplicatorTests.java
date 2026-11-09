@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -65,6 +66,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.zip.CRC32;
@@ -738,6 +740,79 @@ public class TranslogReplicatorTests extends ESTestCase {
             operations[1],
             operations[3],
             operations[2]
+        );
+    }
+
+    public void testTranslogUploadRecordsAttemptsAndTotalDuration() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+        int failedAttempts = between(0, 3);
+        long attemptMillis = randomLongBetween(1, 1_000);
+
+        // create a new thread pool to that has specific time so we can check the total duration histogram
+        AtomicLong time = new AtomicLong(0);
+        ThreadPool newThreadPool = new ThreadPool(
+            Settings.builder().put("node.name", TranslogReplicatorTests.class.getSimpleName()).build(),
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
+            @Override
+            public long relativeTimeInMillis() {
+                return time.get();
+            }
+        };
+        ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
+        threadPool = newThreadPool;
+
+        AtomicInteger attempt = new AtomicInteger(0);
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        doAnswer(invocation -> {
+            time.addAndGet(attemptMillis);
+            if (attempt.incrementAndGet() <= failedAttempts) {
+                invocation.<ActionListener<Void>>getArgument(2).onFailure(new IOException("test"));
+            } else {
+                invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            }
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            mockConsistencyService(),
+            false,
+            (sId) -> primaryTerm,
+            meterRegistry
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+
+        Translog.Serialized[] serialized = serializeOperations(generateRandomOperations(1));
+        Translog.Location location = new Translog.Location(0, 0, serialized[0].length());
+        translogReplicator.add(shardId, serialized[0], 0, location);
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.sync(shardId, location, future);
+        safeGet(future);
+
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, TranslogReplicator.TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM)
+                .stream()
+                .map(Measurement::getLong)
+                .toList(),
+            equalTo(List.of(failedAttempts + 1L))
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, TranslogReplicator.TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM)
+                .stream()
+                .map(Measurement::getLong)
+                .toList(),
+            equalTo(List.of((failedAttempts + 1) * attemptMillis))
         );
     }
 

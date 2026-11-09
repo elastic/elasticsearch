@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -84,11 +85,20 @@ public class ParquetLimitIoClipTests extends ESTestCase {
      */
     private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
 
+    /**
+     * Footer byte cache budget that admits no entry, for a test that observes the scan's own GETs on a file
+     * that fits the footer prefetch: with the default cache the footer parse stores such a file whole and the
+     * scan reads nothing.
+     */
+    private static final Settings NO_FOOTER_BYTE_CACHE = Settings.builder()
+        .put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b")
+        .build();
+
     private BlockFactory blockFactory;
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     public void testRangeReadContextDefaultsToNoLimit() {
@@ -381,7 +391,7 @@ public class ParquetLimitIoClipTests extends ESTestCase {
         assertThat(blocks.size(), greaterThan(k));
 
         RecordingStorageObject filtered = new RecordingStorageObject(parquetData);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(
+        ParquetFormatReader reader = new ParquetFormatReader(NO_FOOTER_BYTE_CACHE, blockFactory).withPushedFilter(
             FilterCompat.get(FilterApi.gtEq(FilterApi.longColumn("id"), 0L))
         );
         try (
@@ -734,6 +744,15 @@ public class ParquetLimitIoClipTests extends ESTestCase {
 
         RecordingStorageObject(byte[] data) {
             this.data = data;
+        }
+
+        /**
+         * A version, so this object's footer cache key is non-null. Without one the key is null, nothing is ever
+         * stored or read, and NO_FOOTER_BYTE_CACHE stops being what keeps the cache out of these tests.
+         */
+        @Override
+        public String version() {
+            return "v1";
         }
 
         @Override

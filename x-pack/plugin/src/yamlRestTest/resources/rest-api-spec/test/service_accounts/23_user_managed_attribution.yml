@@ -1,0 +1,501 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_security/service/{namespace}/{service}
+          capabilities: [user_managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "User-managed service accounts are unavailable in multi-project clusters"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "attribution_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  # Writing a user-managed service account takes manage_security.
+  - do:
+      security.put_role:
+        name: "attribution_manager"
+        body: >
+          {
+            "cluster": ["manage_security"]
+          }
+
+  - do:
+      security.put_user:
+        username: "sa_creator"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["attribution_manager"],
+            "full_name": "Sa Creator",
+            "email": "sa_creator@example.com"
+          }
+
+  - do:
+      security.put_user:
+        username: "sa_editor"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["attribution_manager"]
+          }
+
+---
+teardown:
+  - do:
+      security.invalidate_api_key:
+        body: >
+          {
+            "name": "service-account-creator"
+          }
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: attributed
+        service: worker_2
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "sa_creator"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "sa_editor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "attribution_monitor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "attribution_manager"
+        ignore: 404
+
+---
+"Test the creator is recorded on creation and the updater on replacement":
+  - do:
+      headers:
+        Authorization: "Basic c2FfY3JlYXRvcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_creator
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"],
+            "description": "Created by sa_creator"
+          }
+  - match: { created: true }
+
+  - do:
+      security.get_service_accounts:
+        namespace: attributed
+        service: worker_1
+  - match:
+      "attributed/worker_1.created_by":
+        username: "sa_creator"
+        realm: "default_native"
+        realm_type: "native"
+  # sa_creator has a full name and an email, but neither is reported, as neither is for an API key's creator.
+  - is_false: "attributed/worker_1.created_by.full_name"
+  - is_false: "attributed/worker_1.created_by.email"
+  - is_true: "attributed/worker_1.created_at"
+  - set: { "attributed/worker_1.created_at": created_at }
+  # Nothing has replaced the account yet.
+  - is_false: "attributed/worker_1.updated_by"
+  - is_false: "attributed/worker_1.updated_at"
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZWRpdG9yOngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_editor
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"],
+            "enabled": false
+          }
+  - match: { created: false }
+
+  - do:
+      security.get_service_accounts:
+        namespace: attributed
+        service: worker_1
+  - match: { "attributed/worker_1.enabled": false }
+  # A replacement is wholesale: the description the creator gave is gone.
+  - is_false: "attributed/worker_1.description"
+  # The creator is what it was; the updater is who replaced the account.
+  - match: { "attributed/worker_1.created_by.username": "sa_creator" }
+  - match: { "attributed/worker_1.created_at": $created_at }
+  - match:
+      "attributed/worker_1.updated_by":
+        username: "sa_editor"
+        realm: "default_native"
+        realm_type: "native"
+  - is_true: "attributed/worker_1.updated_at"
+
+  # Attribution is for administrators: authenticating as the account does not surface it.
+  - do:
+      security.create_service_token:
+        namespace: attributed
+        service: worker_1
+        name: token-1
+  - set: { "token.value": attributed_service_token }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfY3JlYXRvcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_creator
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: false }
+
+  - do:
+      headers:
+        Authorization: Bearer ${attributed_service_token}
+      security.authenticate: {}
+  - match: { username: "attributed/worker_1" }
+  - is_false: metadata.created_by
+  - is_false: metadata.updated_by
+
+---
+"Test query by created_by and updated_by and sort by created_at":
+  - do:
+      headers:
+        Authorization: "Basic c2FfY3JlYXRvcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_creator
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZWRpdG9yOngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_editor
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_2
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZWRpdG9yOngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_editor
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"],
+            "enabled": false
+          }
+  - match: { created: false }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "created_by.username": "sa_creator" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "attributed/worker_1" }
+  - match: { service_accounts.0.created_by.username: "sa_creator" }
+  - match: { service_accounts.0.updated_by.username: "sa_editor" }
+  - is_true: service_accounts.0.created_at
+  - is_true: service_accounts.0.updated_at
+
+  # sa_editor created worker_2 and replaced worker_1.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "created_by.username": "sa_editor" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "attributed/worker_2" }
+  - is_false: service_accounts.0.updated_by
+  - is_false: service_accounts.0.updated_at
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "updated_by.username": "sa_editor" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "attributed/worker_1" }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "exists": { "field": "updated_at" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "attributed/worker_1" }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "created_by.realm": "default_native" } },
+            "sort": [ { "created_at": { "order": "desc" } } ]
+          }
+  - match: { total: 2 }
+  - match: { service_accounts.0.username: "attributed/worker_2" }
+  - match: { service_accounts.1.username: "attributed/worker_1" }
+  - is_true: service_accounts.0._sort.0
+
+  # The realm domain is stored with the author, as it is for API keys, but is neither reported nor queryable.
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "created_by.realm_domain": "corp" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Field [created_by.realm_domain] is not allowed for querying or aggregation" }
+
+  # The author's full name and email are likewise stored but neither reported nor queryable.
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "match": { "created_by.full_name": "Sa Creator" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Field [created_by.full_name] is not allowed for querying or aggregation" }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "match": { "updated_by.email": "someone@example.com" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Field [updated_by.email] is not allowed for querying or aggregation" }
+
+  # Fields stored under the same object that are not part of the author stay outside the allowlist.
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "created_by.metadata.foo": "bar" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Field [created_by.metadata.foo] is not allowed for querying or aggregation" }
+
+---
+"Test with_profile_uid reports the profile uid of an author who has one":
+  - do:
+      headers:
+        Authorization: "Basic c2FfY3JlYXRvcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_creator
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZWRpdG9yOngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_editor
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: false }
+
+  # Only the creator has a profile.
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "sa_creator",
+            "password" : "x-pack-test-password"
+          }
+  - is_true: uid
+  - match: { "user.username": "sa_creator" }
+  - set: { uid: created_by_profile_uid }
+
+  - do:
+      security.get_service_accounts:
+        namespace: attributed
+        service: worker_1
+        with_profile_uid: true
+  - match: { "attributed/worker_1.created_by.username": "sa_creator" }
+  - match: { "attributed/worker_1.created_by_profile_uid": $created_by_profile_uid }
+  - match: { "attributed/worker_1.updated_by.username": "sa_editor" }
+  - is_false: "attributed/worker_1.updated_by_profile_uid"
+
+  # Off by default, as for API keys.
+  - do:
+      security.get_service_accounts:
+        namespace: attributed
+        service: worker_1
+  - match: { "attributed/worker_1.created_by.username": "sa_creator" }
+  - is_false: "attributed/worker_1.created_by_profile_uid"
+
+  - do:
+      security.query_service_accounts:
+        with_profile_uid: true
+        body: >
+          {
+            "query": { "term": { "username": "attributed/worker_1" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.created_by_profile_uid: $created_by_profile_uid }
+  - is_false: service_accounts.0.updated_by_profile_uid
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "username": "attributed/worker_1" } }
+          }
+  - match: { total: 1 }
+  - is_false: service_accounts.0.created_by_profile_uid
+
+---
+"Test with_profile_uid resolves the owner of an API key used to create a service account":
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "sa_creator",
+            "password": "x-pack-test-password"
+          }
+  - is_true: uid
+  - match: { user.username: "sa_creator" }
+  - set: { uid: created_by_profile_uid }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfY3JlYXRvcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_creator
+      security.create_api_key:
+        body: >
+          {
+            "name": "service-account-creator",
+            "role_descriptors": {
+              "account_manager": { "cluster": ["manage_security"] }
+            }
+          }
+  - set: { encoded: creator_api_key }
+  - set: { id: creator_api_key_id }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${creator_api_key}
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: true }
+
+  # The author identifies the key's owner in the native realm, not the synthetic API key realm.
+  - do:
+      security.get_service_accounts:
+        namespace: attributed
+        service: worker_1
+        with_profile_uid: true
+  - match: { "attributed/worker_1.created_by.username": "sa_creator" }
+  - match: { "attributed/worker_1.created_by.realm": "default_native" }
+  - match: { "attributed/worker_1.created_by.realm_type": "native" }
+  - match: { "attributed/worker_1.created_by_profile_uid": $created_by_profile_uid }
+  # The key is recorded too, so a write through a key can be told apart from one made directly.
+  - match: { "attributed/worker_1.created_by.api_key.id": $creator_api_key_id }
+  - match: { "attributed/worker_1.created_by.api_key.name": "service-account-creator" }
+
+  - do:
+      security.query_service_accounts:
+        with_profile_uid: true
+        body: >
+          {
+            "query": { "term": { "username": "attributed/worker_1" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "attributed/worker_1" }
+  - match: { service_accounts.0.created_by.username: "sa_creator" }
+  - match: { service_accounts.0.created_by.realm: "default_native" }
+  - match: { service_accounts.0.created_by.realm_type: "native" }
+  - match: { service_accounts.0.created_by_profile_uid: $created_by_profile_uid }
+  - match: { service_accounts.0.created_by.api_key.id: $creator_api_key_id }
+
+  # Accounts written through a given key can be found by it.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "created_by.api_key.name": "service-account-creator" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "attributed/worker_1" }
+
+  # A write made directly records no key.
+  - do:
+      headers:
+        Authorization: "Basic c2FfZWRpdG9yOngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_editor
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: false }
+
+  - do:
+      security.get_service_accounts:
+        namespace: attributed
+        service: worker_1
+  - match: { "attributed/worker_1.created_by.api_key.id": $creator_api_key_id }
+  - match: { "attributed/worker_1.updated_by.username": "sa_editor" }
+  - is_false: "attributed/worker_1.updated_by.api_key"

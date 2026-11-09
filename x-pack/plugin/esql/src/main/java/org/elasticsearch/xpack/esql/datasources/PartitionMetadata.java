@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Collections;
@@ -438,6 +439,107 @@ public final class PartitionMetadata {
             return Map.of();
         }
         return Collections.unmodifiableMap(new LinkedHashMap<>(source));
+    }
+
+    /**
+     * These partition columns, valued over the files a query actually reads.
+     * <p>
+     * The columns are the dataset's schema: which they are, and what type each holds, is decided once at
+     * resolution, and the plan's output attributes already carry that answer. The values are per file, so they
+     * belong to whichever listing named the files being read - and when resolution answered the schema from a
+     * prefix of the dataset, that is not the listing resolution held.
+     * <p>
+     * Values are read from the file set's own paths rather than from anything the scan's listing parsed. That is
+     * what lets a <em>bounded</em> scan listing work at all: a truncated list carries no per-file evidence to copy,
+     * but it still names its files, and a path is the lossless record of what its folders say.
+     * <p>
+     * One row per file, in listing order, which is the layout {@link #columnar} documents for a detector.
+     */
+    public PartitionMetadata valuedOver(@Nullable FileList files, @Nullable PartitionConfig partitionConfig) {
+        if (partitionColumns.isEmpty() || files == null || files.isResolved() == false || files.fileCount() == 0) {
+            return this;
+        }
+        int fileCount = files.fileCount();
+        String[] names = partitionColumns.keySet().toArray(String[]::new);
+        Object[][] byColumn = new Object[names.length][fileCount];
+        for (int file = 0; file < fileCount; file++) {
+            StoragePath path = files.path(file);
+            for (int column = 0; column < names.length; column++) {
+                byColumn[column][file] = under(tokenFor(path, names[column], partitionConfig), partitionColumns.get(names[column]));
+            }
+        }
+        return columnar(partitionColumns, byColumn, fileCount);
+    }
+
+    /** Whether every row is already empty, so there is nothing left to strip and stripping is a no-op. */
+    private boolean carriesNoEvidence() {
+        for (Object[] column : valuesByColumn) {
+            for (Object value : column) {
+                if (value != null) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * These partition columns with no per-file values.
+     * <p>
+     * A truncated listing saw only part of what its pattern matches, so its per-file values are evidence about a
+     * prefix rather than about the dataset. The columns still stand; the values do not travel.
+     */
+    public PartitionMetadata withoutPerFileEvidence() {
+        if (partitionColumns.isEmpty() || fileCount == 0 || carriesNoEvidence()) {
+            return this;
+        }
+        // The rows stay and their values go. Dropping the rows instead would leave metadata that no longer covers
+        // the listing it hangs off (coversFileCount), and would turn a harmless absent value into an index out of
+        // bounds for anything that asks a stripped listing what a file's partition value is.
+        return columnar(partitionColumns, new Object[partitionColumns.size()][fileCount], fileCount);
+    }
+
+    /**
+     * The raw token {@code path} carries for {@code column}, under the dataset's detection strategy, or
+     * {@code null} when the path binds no value for it.
+     */
+    @Nullable
+    static String tokenFor(StoragePath path, String column, @Nullable PartitionConfig partitionConfig) {
+        PartitionConfig.Strategy strategy = partitionConfig == null ? PartitionConfig.Strategy.HIVE : partitionConfig.strategy();
+        String template = partitionConfig == null ? null : partitionConfig.pathTemplate();
+        if (strategy == PartitionConfig.Strategy.TEMPLATE) {
+            return template == null ? null : TemplatePartitionDetector.columnValue(path.path(), column, template);
+        }
+        String hive = HivePartitionDetector.extractPartitions(path).get(column);
+        if (hive != null || strategy != PartitionConfig.Strategy.AUTO || template == null) {
+            return hive;
+        }
+        // AUTO tries hive first and falls back to the template, the order AutoPartitionDetector detects in.
+        return TemplatePartitionDetector.columnValue(path.path(), column, template);
+    }
+
+    /**
+     * One value under the type the dataset's schema declares for its column, read from the path itself.
+     * <p>
+     * The path is the only lossless record of a partition value. Everything else is a parse of it under whichever
+     * type <em>that</em> listing inferred, and a parse is not reversible: {@code unsigned_long} is held
+     * sign-flip-encoded so its {@code long} is not the number, a double has already rounded, and {@code 0} cannot
+     * say whether the folder read {@code 0} or {@code 00}. Re-parsing the token under the declared type asks the
+     * same question the detector asked and gets the same answer, for every type.
+     * <p>
+     * A token the declared type cannot hold has no value under it, which is confined to the values that genuinely
+     * do not fit rather than falling on every file the schema's listing did not reach.
+     */
+    @Nullable
+    private static Object under(@Nullable String token, DataType declared) {
+        if (token == null) {
+            return null;
+        }
+        try {
+            return HivePartitionDetector.castValue(token, declared);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     @Override

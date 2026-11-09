@@ -37,7 +37,7 @@ final class ScanningBinaryDocValuesQueries implements BinaryDocValuesQueries {
      */
     private static final Map<BinaryDocValuesFormat, ScanningBinaryDocValuesQueries> BY_FORMAT = new EnumMap<>(
         Arrays.stream(BinaryDocValuesFormat.values())
-            .filter(format -> format != BinaryDocValuesFormat.COLUMNAR_PAYLOAD)
+            .filter(format -> format != BinaryDocValuesFormat.COLUMNAR_PAYLOAD && format != BinaryDocValuesFormat.PLAIN)
             .collect(Collectors.toMap(Function.identity(), ScanningBinaryDocValuesQueries::new))
     );
 
@@ -86,8 +86,8 @@ final class ScanningBinaryDocValuesQueries implements BinaryDocValuesQueries {
     }
 
     @Override
-    public Query wildcard(String field, String pattern, boolean caseInsensitive) {
-        return ScanningBinaryDocValuesAutomatonQuery.forWildcard(field, pattern, caseInsensitive, format);
+    public Query wildcard(String field, String pattern, boolean caseInsensitive, @Nullable CircuitBreaker breaker) {
+        return ScanningBinaryDocValuesAutomatonQuery.forWildcard(field, pattern, caseInsensitive, format, breaker);
     }
 
     @Override

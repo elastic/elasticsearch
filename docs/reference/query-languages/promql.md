@@ -29,6 +29,7 @@ When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} q
 
 ## In this section
 
+* [Get started](promql/promql-tutorial.md): Ingest sample Prometheus metrics and query them with PromQL through the HTTP API and {{esql}}.
 * [HTTP API](promql/promql-http-api.md): Prometheus-compatible `/_prometheus/` endpoints for queries and discovery.
 * [Functions](promql/functions.md): PromQL function reference organized by category, including {{es}}-specific differences from Prometheus.
 * [Operators](promql/operators.md): PromQL operator reference organized by category, including {{es}}-specific differences from Prometheus.

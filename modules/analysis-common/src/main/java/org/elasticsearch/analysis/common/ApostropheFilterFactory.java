@@ -29,4 +29,8 @@ public class ApostropheFilterFactory extends AbstractTokenFilterFactory {
         return new ApostropheFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

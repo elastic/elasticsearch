@@ -28,11 +28,12 @@ import java.io.IOException;
  * {@link ColumnarFieldType} is resolved by the injected {@link ColumnarFieldTypeSelector}, served through
  * this library's own range-query and block-loader APIs. The typed doc-values shapes are rejected.
  *
- * <p>Pipeline selection is delegated to the injected {@link NumericPipelineSelector}, and the column type to
- * the injected {@link ColumnarFieldTypeSelector}. Both are supplied by the caller rather than read from a
+ * <p>Pipeline selection is delegated to the injected {@link NumericPipelineSelector}, the column type to
+ * the injected {@link ColumnarFieldTypeSelector}, and the string options, framing included, to the injected
+ * {@link StringColumnOptionsSelector}. All are supplied by the caller rather than read from a
  * {@link org.apache.lucene.index.FieldInfo} attribute, so the codec decision stays in the integration's
  * wiring and never leaks into the mapping layer. The no-arg SPI constructor is read-only (the producer reads
- * the type from column metadata); its selector fails fast if a write path ever reaches it.
+ * the type and the framing from column metadata); its selector fails fast if a write path ever reaches it.
  */
 public class ColumNARDocValuesFormat extends DocValuesFormat {
 
@@ -74,6 +75,9 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     /** What is kept per block or per chunk and locates everything else; small, and read up front. */
     static final String NAVIGATION_CODEC = "ColumNARNavigation";
     static final String NAVIGATION_EXTENSION = "cnn";
+
+    static final byte COLUMNAR_PAYLOAD = 0;
+    static final byte PLAIN = 1;
 
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;

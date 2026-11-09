@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -38,7 +39,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
 
         DissectProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.field, equalTo(fieldName));
+        assertThat(processor.field, hasToString(fieldName));
         assertThat(processor.pattern, equalTo(pattern));
         assertThat(processor.appendSeparator, equalTo(appendSeparator));
         assertThat(processor.dissectParser, is(notNullValue()));

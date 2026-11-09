@@ -11,6 +11,31 @@ cd .buildkite
 # Exported so smart-retry.sh can detect the declared skip vs an unexpected failure.
 export SKIP_NODE_SETUP=false
 
+# Node.js, pnpm (via corepack) and the packages in pnpm-lock.yaml are pre-warmed
+# in the elasticsearch-* CI agent images (ci-agent-images
+# vm-images/elasticsearch/scripts/node.sh + node-cache.sh). Prefer those caches
+# and only go to the network for whatever is missing, with retries, so a short
+# registry/CDN blip doesn't fail the pre-command hook.
+# See https://github.com/elastic/elasticsearch-team/issues/5544
+_setup_node_retry() {
+  local attempt
+  for attempt in 1 2 3; do
+    if "$@"; then
+      return 0
+    fi
+    if [[ $attempt -lt 3 ]]; then
+      echo "'$*' failed (attempt ${attempt}/3), retrying in $((attempt * 10))s..." >&2
+      sleep $((attempt * 10))
+    fi
+  done
+  echo "'$*' failed after 3 attempts" >&2
+  return 1
+}
+
+_install_nvm() {
+  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
+}
+
 # Don't do this part on Windows
 if ! command -v choco > /dev/null; then
   if [[ "$(uname -s)" == "Linux" ]]; then
@@ -37,13 +62,24 @@ if ! command -v choco > /dev/null; then
   fi
 
   if [[ "$SKIP_NODE_SETUP" != "true" ]]; then
-    if ! command -v nvm > /dev/null; then
-      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
-      export NVM_DIR="$HOME/.nvm"
-      source "$HOME/.nvm/nvm.sh" --install
+    # nvm is a shell function, so `command -v nvm` can't detect a baked install;
+    # check for nvm.sh instead and only run the installer when it's missing.
+    export NVM_DIR="$HOME/.nvm"
+    if [[ ! -s "$NVM_DIR/nvm.sh" ]]; then
+      _setup_node_retry _install_nvm
     fi
+    # --no-use: sourcing nvm.sh otherwise fails under `set -e` when no Node.js
+    # is installed yet; the version is selected explicitly below.
+    # shellcheck source=/dev/null
+    source "$NVM_DIR/nvm.sh" --no-use
 
-    nvm install
+    # Use an installed Node.js matching .nvmrc (e.g. baked into the image) and
+    # only download one if none is installed. A plain `nvm install` resolves the
+    # .nvmrc version against the newest remote release on every job.
+    if ! nvm use > /dev/null 2>&1; then
+      echo "No installed Node.js matches .buildkite/.nvmrc ($(cat .nvmrc)); installing it"
+      _setup_node_retry nvm install
+    fi
     command -v node > /dev/null || { echo "ERROR: 'node' not on PATH after nvm install"; exit 1; }
   fi
 fi
@@ -54,7 +90,11 @@ if [[ "$SKIP_NODE_SETUP" != "true" ]]; then
   if ! command -v pnpm > /dev/null; then
     corepack enable pnpm
   fi
-  pnpm install
+  # Retrying also covers corepack's first-use download of pnpm itself, which is
+  # a single attempt with a 30s timeout.
+  _setup_node_retry pnpm install --frozen-lockfile --prefer-offline
 fi
+
+unset -f _setup_node_retry _install_nvm
 
 cd -

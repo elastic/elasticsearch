@@ -61,38 +61,50 @@ setup:
           - { "id": 4, "note": 7 }
 
 ---
-"load unmapped field referenced inside one view branch":
-  # Branching view (expands to ViewUnionAll): note is referenced inside the idx2 branch only, so it is loaded from _source there
-  # ("n3") and null-filled in the idx1 branch.
+"load reference inside a view branch fails resolution":
+  # note is referenced inside the view body (the idx2 branch's KEEP). The caller's unmapped_fields setting stops at
+  # the view boundary, so the reference fails resolution exactly as it would without the setting.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ settings_scoped_at_view_boundaries ]
+      reason: "the caller's query settings no longer reach inside view bodies"
   - do:
       esql.put_view:
         name: v_branch_ref
         body:
           query: 'FROM idx1, (FROM idx2 | KEEP id, note)'
   - do:
+      catch: bad_request
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM v_branch_ref | KEEP id, note | SORT id | LIMIT 10'
-  - match: { columns.0.name: id }
-  - match: { columns.0.type: integer }
-  - match: { columns.1.name: note }
-  - match: { columns.1.type: keyword }
-  - length: { values: 3 }
-  - match: { values.0: [1, null] }
-  - match: { values.1: [2, null] }
-  - match: { values.2: [3, "n3"] }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/(?s).*in.view.\\[v_branch_ref\\]...Unknown.column.\\[note\\].*/" }
 
 ---
 "load unmapped field referenced only above a branching view":
-  # The view branches over independent sources (idx1 and the idx2 subquery), so it expands to a ViewUnionAll. note is referenced only
-  # in the outer query, above the union, and is unmapped in every branch source. Because it is mentioned only after the union, it is
-  # loaded from _source in all branches, exactly as a plain multi-index pattern (FROM idx1, idx2) would load it.
+  # note is referenced only in the outer query. The caller's setting does not reach inside the view, and the virtual
+  # index the view presents has no _source to load from, so the view answers the reference with null at its output —
+  # unlike a plain multi-index pattern (FROM idx1, idx2), which would load it from _source.
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ settings_scoped_at_view_boundaries ]
+      reason: "the caller's query settings no longer reach inside view bodies"
   - do:
       esql.put_view:
         name: v_union
         body:
           query: 'FROM idx1, (FROM idx2)'
   - do:
+      allowed_warnings:
+        - 'SET unmapped_fields="load" does not affect the contents of view [v_union], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM v_union | KEEP id, color, note | SORT id | LIMIT 10'
@@ -103,14 +115,48 @@ setup:
   - match: { columns.2.name: note }
   - match: { columns.2.type: keyword }
   - length: { values: 3 }
-  - match: { values.0: [1, "red", "n1"] }
-  - match: { values.1: [2, "blue", "n2"] }
-  - match: { values.2: [3, "green", "n3"] }
+  - match: { values.0: [1, "red", null] }
+  - match: { values.1: [2, "blue", null] }
+  - match: { values.2: [3, "green", null] }
 
 ---
-"cross-branch type conflict fails when the column is used":
-  # note is mapped as integer in idx3 but loaded as keyword from _source in the idx1 subquery branch. Keeping the column is tolerated,
-  # but using it (EVAL) forces type resolution and the conflict is rejected.
+"load warns when a view's output null-fills a field the view would have loaded":
+  # Had the caller's setting reached inside the pass-through view, note would have been loaded from idx1's _source.
+  - requires:
+      test_runner_features: [ capabilities, warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ warn_unmapped_fields_stopped_at_view ]
+      reason: "warns when the caller's unmapped_fields stops at a view boundary"
+  - do:
+      esql.put_view:
+        name: v_pass_through
+        body:
+          query: 'FROM idx1'
+  - do:
+      warnings:
+        - 'SET unmapped_fields="load" does not affect the contents of view [v_pass_through], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_pass_through | KEEP id, note | SORT id | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [1, null] }
+  - match: { values.1: [2, null] }
+
+---
+"in-view reference fails even when a sibling branch maps the column":
+  # note is mapped as integer in idx3, but the idx1 subquery branch inside the view also references it, where it is
+  # unmapped. The caller's setting cannot load it there, so resolution fails inside the view — the cross-branch type
+  # conflict this shape used to produce can no longer arise through a view.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ settings_scoped_at_view_boundaries ]
+      reason: "the caller's query settings no longer reach inside view bodies"
   - do:
       esql.put_view:
         name: v_conflict
@@ -122,32 +168,31 @@ setup:
         body:
           query: 'SET unmapped_fields="load"; FROM v_conflict | EVAL x = note + 1 | KEEP id, note, x | LIMIT 10'
   - match: { error.type: verification_exception }
-  - match: { error.reason: "/(?s).*Column.\\[note\\].has.conflicting.data.types.in.subqueries..\\[integer,.keyword\\].*/" }
+  - match: { error.reason: "/(?s).*in.view.\\[v_conflict\\]...Unknown.column.\\[note\\].*/" }
 
 ---
-"loading an unmapped field in one view does not cross-pollinate a sibling view":
+"load does not reach inside a view body":
+  # The view's own KEEP references the unmapped note. The caller's setting stops at the view boundary, so the body
+  # fails resolution — a view produces the same rows whatever the caller's query settings say.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ settings_scoped_at_view_boundaries ]
+      reason: "the caller's query settings no longer reach inside view bodies"
   - do:
       esql.put_view:
         name: v_loads_note
         body:
           query: 'FROM idx1 | KEEP id, color, note'
   - do:
-      esql.put_view:
-        name: v_plain
-        body:
-          query: 'FROM idx2 | KEEP id, color'
-  - do:
+      catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM v_loads_note, v_plain | KEEP id, note | SORT id | LIMIT 10'
-  - match: { columns.0.name: id }
-  - match: { columns.0.type: integer }
-  - match: { columns.1.name: note }
-  - match: { columns.1.type: keyword }
-  - length: { values: 3 }
-  - match: { values.0: [1, "n1"] }
-  - match: { values.1: [2, "n2"] }
-  - match: { values.2: [3, null] }
+          query: 'SET unmapped_fields="load"; FROM v_loads_note | KEEP id, note | SORT id | LIMIT 10'
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/(?s).*in.view.\\[v_loads_note\\]...Unknown.column.\\[note\\].*/" }
 
 ---
 "loading an unmapped field in a subquery does not cross-pollinate a sibling view":
@@ -192,3 +237,101 @@ setup:
   - match: { values.0: [1, "abc", "idx1"] }
   - match: { values.1: [2, "abc", "idx1"] }
   - match: { values.2: [3, "n3", "idx2"] }
+
+---
+"FILLNULL inside a view without SET fills the view's columns under a load caller":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_fillnull, settings_scoped_at_view_boundaries ]
+      reason: "FILLNULL under unmapped_fields load and view-scoped settings require these capabilities"
+  - do:
+      esql.put_view:
+        name: v_fill_color
+        body:
+          query: 'FROM idx1 | EVAL color = CASE(id == 1, null, color) | KEEP id, color | FILLNULL "filled" ON color'
+  - do:
+      allowed_warnings:
+        - 'SET unmapped_fields="load" does not affect the contents of view [v_fill_color], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_fill_color | KEEP id, color, note | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: color }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: note }
+  - match: { values: [ [ 1, "filled", null ], [ 2, "blue", null ] ] }
+
+---
+"FILLNULL ON * inside a view without SET fills the view's columns under a load caller":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_fillnull, settings_scoped_at_view_boundaries ]
+      reason: "FILLNULL under unmapped_fields load and view-scoped settings require these capabilities"
+  - do:
+      esql.put_view:
+        name: v_fill_all
+        body:
+          query: 'FROM idx1 | EVAL color = CASE(id == 1, null, color) | KEEP color | FILLNULL "filled" ON *'
+  - do:
+      allowed_warnings:
+        - 'SET unmapped_fields="load" does not affect the contents of view [v_fill_all], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_fill_all | KEEP color, note | SORT color | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: color }
+  - match: { columns.1.name: note }
+  - match: { values: [ [ "blue", null ], [ "filled", null ] ] }
+
+---
+"FILLNULL inside a view that sets load fills a column computed from a loaded field":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_fillnull, set_in_view_definitions ]
+      reason: "FILLNULL under unmapped_fields load and SET inside view definitions require these capabilities"
+  - do:
+      esql.put_view:
+        name: v_fill_note
+        body:
+          query: 'SET unmapped_fields="load"; FROM idx1 | EVAL note = CASE(id == 1, null, note) | KEEP id, note | FILLNULL "filled" ON note'
+  - do:
+      esql.query:
+        body:
+          query: 'FROM v_fill_note | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: note }
+  - match: { columns.1.type: keyword }
+  - match: { values: [ [ 1, "filled" ], [ 2, "n2" ] ] }
+
+---
+"FILLNULL ON * inside a view that sets load fills a column computed from a loaded field":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_fillnull, set_in_view_definitions ]
+      reason: "FILLNULL under unmapped_fields load and SET inside view definitions require these capabilities"
+  - do:
+      esql.put_view:
+        name: v_fill_note_all
+        body:
+          query: 'SET unmapped_fields="load"; FROM idx1 | EVAL note = CASE(id == 1, null, note) | KEEP note | FILLNULL "filled" ON *'
+  - do:
+      esql.query:
+        body:
+          query: 'FROM v_fill_note_all | SORT note | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: note }
+  - match: { values: [ [ "filled" ], [ "n2" ] ] }

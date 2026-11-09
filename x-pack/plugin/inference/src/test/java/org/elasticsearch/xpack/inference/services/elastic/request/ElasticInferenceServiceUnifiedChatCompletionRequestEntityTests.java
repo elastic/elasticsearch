@@ -14,6 +14,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Template;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.inference.services.openai.request.OpenAiUnifiedCh
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.assertJsonEquals;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
@@ -117,6 +119,52 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
                     "ttl": "1h"
                 },
                 "session_id": "123"
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
+    }
+
+    public void testSerializesTemplate_Streaming() throws IOException {
+        var unifiedRequest = new UnifiedCompletionRequestBody(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new Template(".attack-discovery", 2, Map.of("time_range", "24h"))
+        );
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
+        ElasticInferenceServiceUnifiedChatCompletionRequestEntity entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            "model"
+        );
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "model": "model",
+                "template": {
+                    "id": ".attack-discovery",
+                    "version": 2,
+                    "variables": {
+                        "time_range": "24h"
+                    }
+                },
+                "n": 1,
+                "stream": true,
+                "stream_options": {
+                    "include_usage": true
+                }
             }
             """;
         assertJsonEquals(jsonString, expectedJson);

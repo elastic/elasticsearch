@@ -11,14 +11,18 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -84,9 +88,14 @@ public final class RequestFilterRewriter {
             return analyzed;
         }
         // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
+        // A dataset read inside a view's body is not a target either: the filter belongs on the view's output, where
+        // ViewRequestFilterRewriter installs it (same version gate, so exactly one of the two applies). Binding it to
+        // the dataset's own schema instead would resolve a field the view computes (via EVAL/STATS/RENAME) to NULL
+        // and silently drop every row before the view's own processing runs.
+        Set<LogicalPlan> datasetsInsideViews = datasetsInsideViews(analyzed);
         FilterRewriter.RewriteResult result = FilterRewriter.rewrite(
             analyzed,
-            ExternalRelation.class::isInstance,
+            node -> node instanceof ExternalRelation && datasetsInsideViews.contains(node) == false,
             requestFilter,
             configuration,
             minimumVersion
@@ -117,6 +126,27 @@ public final class RequestFilterRewriter {
             }
         }
         return result.plan();
+    }
+
+    /**
+     * The {@link ExternalRelation} leaves of {@code plan} that sit under a view branch of <em>any</em> {@link BranchPlan},
+     * by identity. This is exactly the set {@link ViewRequestFilterRewriter} covers: a view nested inside another view's
+     * body is wholly contained in the outer view's branch, and a view nested inside a non-view branch (a user-written
+     * subquery) is reached by that rewriter's walk and filtered at its own output. Bare-index and literal-subquery
+     * branches are not view branches, so a dataset read directly in a user-written subquery remains a target here.
+     * Identity matters: the same dataset read both inside a view and outside it yields two {@code equals()} nodes, of
+     * which only the inner one is excluded.
+     */
+    private static Set<LogicalPlan> datasetsInsideViews(LogicalPlan plan) {
+        Set<LogicalPlan> inside = Collections.newSetFromMap(new IdentityHashMap<>());
+        plan.forEachDown(BranchPlan.class, vua -> {
+            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+                if (vua.isViewBranch(entry.getKey())) {
+                    inside.addAll(entry.getValue().collect(ExternalRelation.class::isInstance));
+                }
+            }
+        });
+        return inside;
     }
 
     /** Warns about unsupported clauses dropped in partial mode, naming each construct and its dataset. */

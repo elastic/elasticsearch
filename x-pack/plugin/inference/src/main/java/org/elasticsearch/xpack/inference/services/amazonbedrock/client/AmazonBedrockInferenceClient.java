@@ -32,6 +32,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockExceptions;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.reactivestreams.FlowAdapters;
 import org.slf4j.LoggerFactory;
@@ -39,8 +40,6 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
 
 /**
@@ -65,7 +64,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         try {
             return new AmazonBedrockInferenceClient(model, timeout, threadPool);
         } catch (Exception e) {
-            throw new ElasticsearchException("Failed to create Amazon Bedrock Client", e);
+            throw AmazonBedrockExceptions.wrap("Failed to create Amazon Bedrock Client", e);
         }
     }
 
@@ -119,22 +118,10 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
 
     private void onFailure(ActionListener<?> listener, Throwable t, String method) {
         ExceptionsHelper.maybeDieOnAnotherThread(t);
-        var unwrappedException = t;
-        if (t instanceof CompletionException || t instanceof ExecutionException) {
-            unwrappedException = t.getCause() != null ? t.getCause() : t;
-        }
-
-        if (unwrappedException instanceof BedrockRuntimeException amazonBedrockRuntimeException) {
-            listener.onFailure(
-                new ElasticsearchException(
-                    Strings.format("AmazonBedrock %s failure: [%s]", method, amazonBedrockRuntimeException.getMessage()),
-                    amazonBedrockRuntimeException
-                )
-            );
-        } else if (unwrappedException instanceof ElasticsearchException elasticsearchException) {
+        if (ExceptionsHelper.unwrap(t, ElasticsearchException.class) instanceof ElasticsearchException elasticsearchException) {
             listener.onFailure(elasticsearchException);
         } else {
-            listener.onFailure(new ElasticsearchException(Strings.format("Amazon Bedrock %s call failed", method), unwrappedException));
+            listener.onFailure(AmazonBedrockExceptions.wrap(Strings.format("Amazon Bedrock %s call failed", method), t));
         }
     }
 
@@ -176,7 +163,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
                 .overrideConfiguration(override)
                 .build();
         } catch (BedrockRuntimeException amazonBedrockRuntimeException) {
-            throw new ElasticsearchException(
+            throw AmazonBedrockExceptions.fromBedrockException(
                 Strings.format("failed to create AmazonBedrockRuntime client: [%s]", amazonBedrockRuntimeException.getMessage()),
                 amazonBedrockRuntimeException
             );

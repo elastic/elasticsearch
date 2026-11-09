@@ -1096,7 +1096,6 @@ public class BlockHashTests extends BlockHashTestCase {
                             : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=4, size="
                     )
                 );
-                assertThat(ordsAndKeys.description(), endsWith("b}"));
                 assertOrds(ordsAndKeys.ords(), 0, 1, 0, 2, 3, 2);
                 assertKeys(ordsAndKeys.keys(), expectedKeys);
                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
@@ -1126,7 +1125,6 @@ public class BlockHashTests extends BlockHashTestCase {
                             : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=5, size="
                     )
                 );
-                assertThat(ordsAndKeys.description(), endsWith("b}"));
                 assertOrds(ordsAndKeys.ords(), 0, 1, 2, 3, 4);
                 assertKeys(
                     ordsAndKeys.keys(),
@@ -1201,7 +1199,6 @@ public class BlockHashTests extends BlockHashTestCase {
                             : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=10, size="
                     )
                 );
-                assertThat(ordsAndKeys.description(), endsWith("b}"));
                 assertOrds(
                     ordsAndKeys.ords(),
                     new int[] { 0, 1, 2, 3 },
@@ -1907,6 +1904,42 @@ public class BlockHashTests extends BlockHashTestCase {
             } finally {
                 Releasables.close(keys);
             }
+        }
+    }
+
+    /**
+     * Regression for #164417: the full-dictionary path shares the hash's {@code BytesRefArray} via
+     * {@code incRef}. {@code HashAggregationOperator.clearCurrentBatch} must close+recreate (not
+     * {@link TimeSeriesBlockHash#clear()}) when partitioning is inactive, so emitted keys stay valid.
+     */
+    public void testTimeSeriesBlockHashKeysSurviveHashClose() {
+        BytesRef tsidA = new BytesRef("id-a");
+        BytesRef tsidB = new BytesRef("id-b");
+        TimeSeriesBlockHash hash = new TimeSeriesBlockHash(0, 1, false, false, blockFactory);
+        Block[] keys = null;
+        try {
+            addSingleTsidRow(hash, tsidA, 1L);
+            addSingleTsidRow(hash, tsidB, 2L);
+            addSingleTsidRow(hash, tsidA, 3L);
+            try (IntVector selected = blockFactory.newIntRangeVector(0, 3)) {
+                keys = hash.getKeys(selected);
+            }
+            BytesRefBlock tsids = (BytesRefBlock) keys[0];
+            BytesRef scratch = new BytesRef();
+            assertThat(tsids.getBytesRef(0, scratch), equalTo(tsidA));
+            assertThat(tsids.getBytesRef(1, scratch), equalTo(tsidB));
+            assertThat(tsids.getBytesRef(2, scratch), equalTo(tsidA));
+
+            // Simulate clearCurrentBatch when supportPartitioning is false.
+            hash.close();
+            hash = null;
+
+            assertThat(tsids.getBytesRef(0, scratch), equalTo(tsidA));
+            assertThat(tsids.getBytesRef(1, scratch), equalTo(tsidB));
+            assertThat(tsids.getBytesRef(2, scratch), equalTo(tsidA));
+        } finally {
+            Releasables.close(hash);
+            Releasables.close(keys);
         }
     }
 

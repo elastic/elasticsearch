@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -23,6 +24,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -53,6 +56,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
@@ -172,6 +176,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.IndexScope,
         Property.ServerlessPublic
     );
+    /**
+     * Whether a bulk request that needs several dynamic mapping updates sends the updates of consecutive documents together
+     * instead of one update per document.
+     */
+    public static final Setting<Boolean> INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING = Setting.boolSetting(
+        "index.mapping.combine_dynamic_updates",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
         20L,
@@ -221,12 +235,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final MapperMetrics mapperMetrics;
     private final BooleanSupplier idFieldDataEnabled;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
     private volatile DocumentMapper mapper;
     private volatile long mappingVersion;
 
     public MapperService(
         ClusterService clusterService,
+        FeatureService featureService,
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
         XContentParserConfiguration parserConfiguration,
@@ -242,6 +258,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
+            clusterHasFeature(clusterService, featureService),
             indexSettings,
             indexAnalyzers,
             parserConfiguration,
@@ -260,6 +277,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     @SuppressWarnings("this-escape")
     public MapperService(
         Supplier<TransportVersion> clusterTransportVersion,
+        Predicate<NodeFeature> clusterSupportsFeature,
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
         XContentParserConfiguration parserConfiguration,
@@ -274,6 +292,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         @Nullable Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         super(indexSettings);
+        this.clusterSupportsFeature = clusterSupportsFeature;
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         // We parse the setting in this way to avoid any index settings validations which are not relevant here.
         this.indexMode = IndexMode.fromIndexSettingsWithoutValidation(indexSettings.getSettings());
@@ -285,6 +304,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexVersionCreated,
             clusterTransportVersion,
+            clusterSupportsFeature(clusterSupportsFeature, reason),
             searchExecutionContextSupplier,
             scriptCompiler,
             indexAnalyzers,
@@ -404,7 +424,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (newMappingMetadata != null) {
             String type = newMappingMetadata.type();
             CompressedXContent incomingMappingSource = newMappingMetadata.source();
-            MappingBuilder incomingBuilder = mappingParser.parseToBuilder(type, MergeReason.MAPPING_UPDATE, incomingMappingSource);
+            /*
+             * The master already validated this mapping before saving it in the cluster state, so we don't validate it again here.
+             * Parsing it as a recovered mapping skips two checks that the master already ran:
+             * - Field limits, such as the maximum field name length and the maximum number of nested fields.
+             * - Cluster feature checks. These need to read the cluster state, which can't be done here because this runs on the
+             *   cluster applier thread.
+             */
+            MappingBuilder incomingBuilder = mappingParser.parseToBuilder(type, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
@@ -593,8 +620,62 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT,
             MappingParser.convertToMap(update)
         );
-        Mapping mapping = mergeBuilders(mappingParser, indexSettings, updateBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, existing);
+        MergeReason reason = MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
+        Mapping mapping = mergeBuilders(
+            mappingParser,
+            indexSettings,
+            updateBuilder,
+            reason,
+            existing,
+            clusterSupportsFeature(clusterSupportsFeature, reason)
+        );
         return mapping.toCompressedXContent().equals(existing.mappingSource());
+    }
+
+    /**
+     * Returns the document mapper that applying a dynamic mapping update would give. The mappings are left unchanged.
+     *
+     * @throws RuntimeException if the update can't be applied
+     */
+    public DocumentMapper previewDynamicMappingUpdate(CompressedXContent update) {
+        MergeReason reason = MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
+        MappingBuilder updateBuilder = mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(update));
+        Mapping mapping = mergeBuilders(
+            mappingParser,
+            indexSettings,
+            updateBuilder,
+            reason,
+            documentMapper(),
+            clusterSupportsFeature(clusterSupportsFeature, reason)
+        );
+        return newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
+    }
+
+    /**
+     * Creates a merger that combines the dynamic mapping update of a document with the ones of the documents that follow it.
+     */
+    public DynamicMappingUpdateMerger dynamicMappingUpdateMerger(CompressedXContent update) {
+        DocumentMapper existing = documentMapper();
+        long totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
+        if (existing == null) {
+            return new DynamicMappingUpdateMerger(
+                mappingParser,
+                path -> false,
+                update,
+                totalFieldsLimit,
+                totalFieldsLimit,
+                clusterSupportsFeature
+            );
+        }
+        MappingLookup mappers = existing.mappers();
+        return new DynamicMappingUpdateMerger(
+            mappingParser,
+            path -> mappers.getFieldType(path) != null,
+            update,
+            mappers.remainingFieldsUntilLimit(totalFieldsLimit),
+            totalFieldsLimit,
+            clusterSupportsFeature
+        );
     }
 
     public MappingBuilder parseMappings(CompressedXContent mappingSource) {
@@ -621,7 +702,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
-        return mergeBuilders(mappingParser, indexSettings, incomingBuilder, reason, this.mapper);
+        return mergeBuilders(
+            mappingParser,
+            indexSettings,
+            incomingBuilder,
+            reason,
+            this.mapper,
+            clusterSupportsFeature(clusterSupportsFeature, reason)
+        );
     }
 
     private static Mapping mergeBuilders(
@@ -629,12 +717,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         IndexSettings indexSettings,
         MappingBuilder incomingBuilder,
         MergeReason reason,
-        DocumentMapper currentMapper
+        DocumentMapper currentMapper,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         NewFieldsBudget budget = getBudget(currentMapper, indexSettings, reason);
         if (currentMapper == null) {
             try {
-                return buildMapping(applyFieldsBudget(incomingBuilder, budget, reason), reason);
+                return buildMapping(applyFieldsBudget(incomingBuilder, budget, reason, clusterSupportsFeature), reason);
             } catch (MapperParsingException e) {
                 throw e;
             } catch (Exception e) {
@@ -645,13 +734,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         long existingNestedCount = currentMapper.mappers().nestedLookup().getNestedMappers().size();
         ParseFieldLimits fieldLimits = ParseFieldLimits.forMerge(nestedFieldsLimit, existingNestedCount, budget);
         MappingBuilder existingBuilder = mappingParser.parseToBuilder(currentMapper.type(), reason, currentMapper.mappingSource());
-        existingBuilder.merge(incomingBuilder, reason, fieldLimits);
+        existingBuilder.merge(incomingBuilder, reason, fieldLimits, clusterSupportsFeature);
         return buildMapping(existingBuilder, reason);
     }
 
-    private static MappingBuilder applyFieldsBudget(MappingBuilder builder, NewFieldsBudget budget, MergeReason reason) {
+    private static MappingBuilder applyFieldsBudget(
+        MappingBuilder builder,
+        NewFieldsBudget budget,
+        MergeReason reason,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         MappingBuilder shallowBuilder = builder.withoutMappers();
-        shallowBuilder.merge(builder, reason, ParseFieldLimits.withBudget(budget));
+        shallowBuilder.merge(builder, reason, ParseFieldLimits.withBudget(budget), clusterSupportsFeature);
         return shallowBuilder;
     }
 
@@ -661,6 +755,22 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
+    }
+
+    private static Predicate<NodeFeature> clusterSupportsFeature(Predicate<NodeFeature> clusterSupportsFeature, MergeReason reason) {
+        // Cluster state isn't available in MAPPING_RECOVERY, so we can't check if the cluster actually supports a feature.
+        // Assume all features are supported. If an unsupported feature is in use by a mapper, which would indicate an invalid mapping,
+        // parsing will fail downstream. However, we should never reach this state because the cluster feature check should prevent
+        // invalid mappings from being written to (and therefore recovered from) cluster state.
+        return reason == MergeReason.MAPPING_RECOVERY ? f -> true : clusterSupportsFeature;
+    }
+
+    private static Predicate<NodeFeature> clusterHasFeature(ClusterService clusterService, FeatureService featureService) {
+        return f -> {
+            ClusterState state = clusterService.state();
+            assert state.clusterRecovered() : "Cluster state should always be recovered when clusterHasFeature is called";
+            return featureService.clusterHasFeature(state, f);
+        };
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
@@ -725,11 +835,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     Mapping mergeMappings(CompressedXContent incomingMappingSource, MergeReason reason, long newFieldsBudget) {
         MappingBuilder incomingBuilder = mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, incomingMappingSource);
         NewFieldsBudget budget = NewFieldsBudget.dropping(newFieldsBudget);
+        Predicate<NodeFeature> featurePredicate = clusterSupportsFeature(clusterSupportsFeature, reason);
         if (this.mapper == null) {
-            return applyFieldsBudget(incomingBuilder, budget, reason).build(reason);
+            return applyFieldsBudget(incomingBuilder, budget, reason, featurePredicate).build(reason);
         }
         MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
-        existingBuilder.merge(incomingBuilder, reason, ParseFieldLimits.withBudget(budget));
+        existingBuilder.merge(incomingBuilder, reason, ParseFieldLimits.withBudget(budget), featurePredicate);
         return existingBuilder.build(reason);
     }
 

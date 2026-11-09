@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class SplitProcessorFactoryTests extends ESTestCase {
 
@@ -27,10 +28,10 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SplitProcessor splitProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(splitProcessor.getTag(), equalTo(processorTag));
-        assertThat(splitProcessor.getField(), equalTo("field1"));
+        assertThat(splitProcessor.getField(), hasToString("field1"));
         assertThat(splitProcessor.getSeparator(), equalTo("\\."));
         assertFalse(splitProcessor.isIgnoreMissing());
-        assertThat(splitProcessor.getTargetField(), equalTo("field1"));
+        assertThat(splitProcessor.getTargetField(), hasToString("field1"));
     }
 
     public void testCreateNoFieldPresent() throws Exception {
@@ -66,11 +67,11 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SplitProcessor splitProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(splitProcessor.getTag(), equalTo(processorTag));
-        assertThat(splitProcessor.getField(), equalTo("field1"));
+        assertThat(splitProcessor.getField(), hasToString("field1"));
         assertThat(splitProcessor.getSeparator(), equalTo("\\."));
         assertFalse(splitProcessor.isIgnoreMissing());
         assertFalse(splitProcessor.isPreserveTrailing());
-        assertThat(splitProcessor.getTargetField(), equalTo("target"));
+        assertThat(splitProcessor.getTargetField(), hasToString("target"));
     }
 
     public void testCreateWithPreserveTrailing() throws Exception {
@@ -83,10 +84,10 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SplitProcessor splitProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(splitProcessor.getTag(), equalTo(processorTag));
-        assertThat(splitProcessor.getField(), equalTo("field1"));
+        assertThat(splitProcessor.getField(), hasToString("field1"));
         assertThat(splitProcessor.getSeparator(), equalTo("\\."));
         assertFalse(splitProcessor.isIgnoreMissing());
-        assertThat(splitProcessor.getTargetField(), equalTo("target"));
+        assertThat(splitProcessor.getTargetField(), hasToString("target"));
     }
 
 }

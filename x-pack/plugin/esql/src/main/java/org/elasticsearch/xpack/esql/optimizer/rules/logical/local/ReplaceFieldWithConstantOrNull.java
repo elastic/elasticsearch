@@ -32,8 +32,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.HashMap;
 import java.util.List;
@@ -43,6 +45,11 @@ import java.util.function.Predicate;
 /**
  * Look for any fields used in the plan that are missing and replaces them with null or look for fields that are constant.
  * This should minimize the plan execution, in the best scenario skipping its execution all together.
+ * <p>
+ * The {@code _unmapped_fields} column of {@code SET unmapped_fields="LOAD_ALL"} ({@link UnmappedFieldsAttribute}) is missing in
+ * the same way when no shard on this node may hold an unmapped field (see {@link SearchStats#mayHoldUnmappedFields}), which saves
+ * reading {@code _source} for every row. The column stays in the plan and returns a {@code null}, which is the expected output when
+ * there is no unmapped field to return.
  */
 public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 
@@ -89,8 +96,9 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices and external sources because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> f instanceof TimeSeriesMetadataAttribute
-            // We should still attempt to load potentially unmapped fields if they're unmapped; that's the whole point!
-            || f.isPotentiallyUnmapped()
+            // We should still attempt to load potentially unmapped fields if they're unmapped; that's the whole point! Unless no
+            // shard here can hold a value for it outside of its mapping, in which case it is as missing as any other field.
+            || (f.isPotentiallyUnmapped() && localLogicalOptimizerContext.searchStats().mayHoldUnmappedField(f.fieldName()))
             // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
             || EsQueryExec.isDocAttribute(f)
             // MissingEsField means the coordinator explicitly nullified this field (unmapped_fields="nullify").
@@ -100,12 +108,15 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || lookupFields.contains(f)
             || externalFields.contains(f);
 
-        return plan.transformUp(p -> replaceWithNullOrConstant(p, shouldBeRetained, attrToConstant));
+        boolean nullifyUnmappedFields = localLogicalOptimizerContext.searchStats().mayHoldUnmappedFields() == false;
+
+        return plan.transformUp(p -> replaceWithNullOrConstant(p, shouldBeRetained, nullifyUnmappedFields, attrToConstant));
     }
 
     private LogicalPlan replaceWithNullOrConstant(
         LogicalPlan plan,
         Predicate<FieldAttribute> shouldBeRetained,
+        boolean nullifyUnmappedFields,
         Map<Attribute, Expression> attrToConstant
     ) {
         if (plan instanceof EsRelation || plan instanceof ParameterizedQuery) {
@@ -119,7 +130,8 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             List<Attribute> relationOutput = plan.output();
             var aliasedNulls = RuleUtils.aliasedNulls(
                 relationOutput,
-                attr -> attr instanceof FieldAttribute f && shouldBeRetained.test(f) == false
+                attr -> (attr instanceof FieldAttribute f && shouldBeRetained.test(f) == false)
+                    || (attr instanceof UnmappedFieldsAttribute && nullifyUnmappedFields)
             );
             var nullLiterals = aliasedNulls.v1();
             var newProjections = aliasedNulls.v2();

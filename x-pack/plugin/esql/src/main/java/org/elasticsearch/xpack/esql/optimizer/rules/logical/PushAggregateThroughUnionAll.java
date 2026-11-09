@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -225,7 +226,11 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                 );
             }
         }
-        UnionAll newUnionAll = new UnionAll(unionAll.source(), newBranches, unionOutput);
+        // Rebuild through replaceSubPlansAndOutput rather than `new UnionAll(...)`: a BranchPlan input keeps its
+        // branch keys and identities (carried positionally), so wrapping each branch in a partial aggregate does not
+        // downgrade identified branches to anonymous ones. Nothing downstream consumes identity for the leaf-only
+        // shapes this rule accepts today, but that is a coincidence of isLeafUnionAll, not a contract.
+        MergePlan newUnionAll = unionAll.replaceSubPlansAndOutput(newBranches, unionOutput);
 
         // Build the outer combiner Aggregate.
         // Groupings reference the shared grouping IDs from the UnionAll output.

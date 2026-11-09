@@ -257,12 +257,22 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
         requestConsumer.apply(request);
     }
 
+    /**
+     * The two documents land in different backing indices (the data stream is rolled over in between), so DLS and FLS
+     * granted on the data stream name are verified against every backing index, not only the write index.
+     */
     private static void createDataStreamDocuments(CheckedFunction<Request, Response, Exception> requestConsumer) throws Exception {
         Request request = new Request("POST", "logs-foo/_bulk");
         request.addParameter("refresh", "");
         request.setJsonEntity("""
             { "create" : {} }
             { "@timestamp": "2099-05-06T16:21:15.000Z", "data_stream": {"namespace": "16", "environment": "dev"} }
+            """);
+        assertMap(entityAsMap(requestConsumer.apply(request)), matchesMap().extraOk().entry("errors", false));
+        assertOK(requestConsumer.apply(new Request("POST", "logs-foo/_rollover")));
+        request = new Request("POST", "logs-foo/_bulk");
+        request.addParameter("refresh", "");
+        request.setJsonEntity("""
             { "create" : {} }
             { "@timestamp": "2001-05-06T16:21:15.000Z", "data_stream": {"namespace": "17", "environment": "prod"} }
             """);

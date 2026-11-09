@@ -28,6 +28,7 @@ public class FieldCapabilitiesBuilder {
     private boolean isInference;
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
+    private @Nullable Boolean isPassthrough;
 
     private @Nullable String[] indices;
     private @Nullable String[] nonSearchableIndices;
@@ -35,6 +36,7 @@ public class FieldCapabilitiesBuilder {
     private @Nullable String[] nonInferenceIndices;
     private @Nullable String[] nonDimensionIndices;
     private @Nullable String[] metricConflictsIndices;
+    private @Nullable String[] nonPassthroughIndices;
 
     private Map<String, Set<String>> meta;
 
@@ -78,6 +80,12 @@ public class FieldCapabilitiesBuilder {
         return this;
     }
 
+    /** Passthrough status; {@code null} (the default) when the field type cannot be a passthrough source or it is unknown. */
+    public FieldCapabilitiesBuilder isPassthrough(@Nullable Boolean isPassthrough) {
+        this.isPassthrough = isPassthrough;
+        return this;
+    }
+
     public FieldCapabilitiesBuilder indices(String... indices) {
         this.indices = copyStringArray(indices);
         return this;
@@ -108,6 +116,11 @@ public class FieldCapabilitiesBuilder {
         return this;
     }
 
+    public FieldCapabilitiesBuilder nonPassthroughIndices(String... nonPassthroughIndices) {
+        this.nonPassthroughIndices = copyStringArray(nonPassthroughIndices);
+        return this;
+    }
+
     private static String[] copyStringArray(@Nullable String[] strings) {
         return strings != null ? Arrays.copyOf(strings, strings.length) : null;
     }
@@ -127,12 +140,14 @@ public class FieldCapabilitiesBuilder {
             isInference,
             isDimension,
             metricType,
+            isPassthrough,
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
             nonInferenceIndices,
             nonDimensionIndices,
             metricConflictsIndices,
+            nonPassthroughIndices,
             meta
         );
     }

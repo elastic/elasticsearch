@@ -20,14 +20,13 @@ import org.elasticsearch.core.Tuple;
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctFloatGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new CountDistinctFloatAggregatorFunctionSupplier(40000);
+        return new CountDistinctFloatAggregatorFunctionSupplier(CountDistinctTestUtils.PRECISION);
     }
 
     @Override
@@ -45,12 +44,10 @@ public class CountDistinctFloatGroupingAggregatorFunctionTests extends GroupingA
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        long distinct = input.stream().flatMap(p -> allFloats(p, group)).distinct().count();
-        long count = ((LongBlock) result).getLong(position);
-        // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
-        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
-        // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
-        assertThat((double) count, closeTo(distinct, distinct * 0.1));
+        CountDistinctTestUtils.assertCount(
+            ((LongBlock) result).getLong(position),
+            input.stream().flatMap(p -> allFloats(p, group)).distinct().mapToLong(CountDistinctTestUtils::hash)
+        );
     }
 
     @Override

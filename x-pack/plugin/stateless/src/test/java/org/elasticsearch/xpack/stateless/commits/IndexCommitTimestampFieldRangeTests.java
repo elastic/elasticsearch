@@ -108,6 +108,22 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         testFieldValueRange(false, IndexMode.LOGSDB_COLUMNAR);
     }
 
+    public void testFieldValueRangeForDocumentVectordbModeWithCFS() throws Exception {
+        testFieldValueRange(true, IndexMode.VECTORDB_DOCUMENT);
+    }
+
+    public void testFieldValueRangeForDocumentVectordbModeWithNoCFS() throws Exception {
+        testFieldValueRange(false, IndexMode.VECTORDB_DOCUMENT);
+    }
+
+    public void testFieldValueRangeForColumnarVectordbModeWithCFS() throws Exception {
+        testFieldValueRange(true, IndexMode.VECTORDB_COLUMNAR);
+    }
+
+    public void testFieldValueRangeForColumnarVectordbModeWithNoCFS() throws Exception {
+        testFieldValueRange(false, IndexMode.VECTORDB_COLUMNAR);
+    }
+
     public void testSoftDeletesAreAlmostAlwaysDisregardedForTimestampRange() throws Exception {
         IndexMode indexMode = randomFrom(IndexMode.availableModes());
         DocumentMapper mapper = getDocumentMapper(indexMode);
@@ -188,7 +204,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                     () -> randomLongBetween(10_000L, 1_000_000L) // make sure timestamp doesn't look like a year (has more than 4 digits)
                 );
                 IndexWriterConfig indexWriterConfig = getIndexWriterConfig(useCFS, false);
-                var indexCommits = fakeNode.generateIndexCommits(numberOfNewCommits, false, false, generation -> {}, (commitId) -> {
+                var indexCommits = fakeNode.generateIndexCommits(numberOfNewCommits, false, null, generation -> {}, (commitId) -> {
                     try {
                         return List.of(
                             mapper.parse(

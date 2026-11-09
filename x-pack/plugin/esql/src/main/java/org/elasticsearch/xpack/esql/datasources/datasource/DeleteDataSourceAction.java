@@ -16,9 +16,12 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -32,7 +35,7 @@ public class DeleteDataSourceAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements DataSourceRequestInfo {
+    public static class Request extends AcknowledgedRequest<Request> implements DataSourceRequestInfo, SecurityConfigChangeRequest {
         private String[] names;
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names) {
@@ -71,6 +74,11 @@ public class DeleteDataSourceAction extends ActionType<AcknowledgedResponse> {
         @Override
         public String dataSourceClusterActionName() {
             return NAME;
+        }
+
+        @Override
+        public Map<String, Object> auditFields() {
+            return Map.of("names", List.of(names));
         }
 
         @Override

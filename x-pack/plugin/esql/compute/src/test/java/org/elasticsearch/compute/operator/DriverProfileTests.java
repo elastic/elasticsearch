@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatusTes
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,6 +36,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             123413243214L,
             10012,
             10000,
+            10005,
             12,
             List.of(
                 new OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
@@ -58,6 +61,8 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
               "took_time" : "10micros",
               "cpu_nanos" : 10000,
               "cpu_time" : "10micros",
+              "driver_nanos" : 10005,
+              "driver_time" : "10micros",
               "documents_found" : 222,
               "values_loaded" : 1000,
               "rows_emitted" : 444,
@@ -107,6 +112,18 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             }""".replace("$$THREAD", Thread.currentThread().getName())));
     }
 
+    /**
+     * {@code driver_nanos} is not sent to nodes that predate it. They see 0, and {@code cpu_nanos} still round-trips.
+     */
+    public void testDriverNanosNotSentToOlderNodes() throws IOException {
+        DriverProfile original = createTestInstance();
+        TransportVersion beforeDriverNanos = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_driver_nanos"));
+        DriverProfile copy = copyInstance(original, beforeDriverNanos);
+        assertThat(copy.cpuNanos(), equalTo(original.cpuNanos()));
+        assertThat(copy.driverNanos(), equalTo(0L));
+        assertThat(copy.iterations(), equalTo(original.iterations()));
+    }
+
     @Override
     protected Writeable.Reader<DriverProfile> instanceReader() {
         return DriverProfile::readFrom;
@@ -118,6 +135,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             randomIdentifier(),
             randomIdentifier(),
             randomIdentifier(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -137,10 +155,11 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
         long stopMillis = instance.stopMillis();
         long tookNanos = instance.tookNanos();
         long cpuNanos = instance.cpuNanos();
+        long driverNanos = instance.driverNanos();
         long iterations = instance.iterations();
         var operators = instance.operators();
         var sleeps = instance.sleeps();
-        switch (between(0, 9)) {
+        switch (between(0, 10)) {
             case 0 -> shortDescription = randomValueOtherThan(shortDescription, DriverStatusTests::randomIdentifier);
             case 1 -> clusterName = randomValueOtherThan(clusterName, DriverStatusTests::randomIdentifier);
             case 2 -> nodeName = randomValueOtherThan(nodeName, DriverStatusTests::randomIdentifier);
@@ -151,6 +170,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             case 7 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
             case 8 -> operators = randomValueOtherThan(operators, DriverStatusTests::randomOperatorStatuses);
             case 9 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
+            case 10 -> driverNanos = randomValueOtherThan(driverNanos, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new DriverProfile(
@@ -161,6 +181,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             stopMillis,
             tookNanos,
             cpuNanos,
+            driverNanos,
             iterations,
             operators,
             sleeps

@@ -50,6 +50,8 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final String YELLOW_OPT_OUT = "Cluster state encryption is disabled; secrets are stored unencrypted.";
     static final String YELLOW_DECRYPTION_FAILED =
         "Cluster state encryption is degraded: the encryption key could not be decrypted on startup.";
+    static final String YELLOW_KEY_LOAD_FAILED =
+        "Cluster state encryption is degraded: the encryption key could not be loaded from cluster state on this node.";
     static final String YELLOW_MISSING_PASSWORD = "Cluster state encryption is degraded: no active password is configured on this node.";
 
     static final List<HealthIndicatorImpact> WRAP_FAILURE_IMPACTS = List.of(
@@ -94,6 +96,14 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         "decryption_failed",
         "The cluster state encryption key could not be decrypted on startup, likely due to a wrong or missing password.",
         "Fix the password configuration and restart the node, or reset encryption via POST /_encryption/_reset?accept_data_loss=true.",
+        HELP_URL
+    );
+    static final Diagnosis.Definition KEY_LOAD_FAILED_DEFINITION = new Diagnosis.Definition(
+        NAME,
+        "key_load_failed",
+        "The cluster state encryption key could not be loaded from the cluster state on this node.",
+        "Check the node logs for the cause and restart the node. If the failure persists, reset encryption via"
+            + " POST /_encryption/_reset?accept_data_loss=true.",
         HELP_URL
     );
     static final Diagnosis.Definition MISSING_PASSWORD_DEFINITION = new Diagnosis.Definition(
@@ -180,6 +190,13 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
                 detailsBuilder(metadata, serviceState),
                 ENCRYPTION_UNAVAILABLE_IMPACTS,
                 List.of(new Diagnosis(DECRYPTION_FAILED_DEFINITION, List.of()))
+            );
+            case UNAVAILABLE_KEY_LOAD_FAILED -> createIndicator(
+                YELLOW,
+                YELLOW_KEY_LOAD_FAILED,
+                detailsBuilder(metadata, serviceState),
+                ENCRYPTION_UNAVAILABLE_IMPACTS,
+                List.of(new Diagnosis(KEY_LOAD_FAILED_DEFINITION, List.of()))
             );
             case UNAVAILABLE_MISSING_PASSWORD -> createIndicator(
                 YELLOW,

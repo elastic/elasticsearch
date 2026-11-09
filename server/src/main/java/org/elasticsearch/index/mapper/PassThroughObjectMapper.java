@@ -167,6 +167,11 @@ public final class PassThroughObjectMapper extends ObjectMapper implements PassT
     }
 
     @Override
+    public boolean isPassthrough() {
+        return true;
+    }
+
+    @Override
     public int priority() {
         return priority;
     }

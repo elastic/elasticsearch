@@ -17,7 +17,13 @@ public class UnresolvedNamePatternTests extends AbstractNamedExpressionSerializa
     @Override
     protected UnresolvedNamePattern createTestInstance() {
         // No automaton, this is normally injected during parsing and is derived from the pattern.
-        return new UnresolvedNamePattern(Source.EMPTY, null, randomAlphaOfLength(3), randomAlphaOfLength(3));
+        return new UnresolvedNamePattern(
+            Source.EMPTY,
+            null,
+            randomAlphaOfLength(3),
+            randomAlphaOfLength(3),
+            randomBoolean() ? null : randomAlphaOfLength(3)
+        );
     }
 
     @Override
@@ -25,17 +31,19 @@ public class UnresolvedNamePatternTests extends AbstractNamedExpressionSerializa
         Source source = instance.source();
         String name = instance.name();
         String pattern = instance.pattern();
-        switch (between(0, 1)) {
+        String glob = instance.glob();
+        switch (between(0, 2)) {
             case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(4));
             case 1 -> pattern = randomValueOtherThan(pattern, () -> randomAlphaOfLength(4));
+            case 2 -> glob = randomValueOtherThan(glob, () -> randomAlphaOfLength(4));
         }
-        return new UnresolvedNamePattern(source, null, pattern, name);
+        return new UnresolvedNamePattern(source, null, pattern, name, glob);
     }
 
     @Override
     protected UnresolvedNamePattern mutateNameId(UnresolvedNamePattern instance) {
         // Creating a new instance is enough as the NameId is generated automatically.
-        return new UnresolvedNamePattern(instance.source(), null, instance.pattern(), instance.name());
+        return new UnresolvedNamePattern(instance.source(), null, instance.pattern(), instance.name(), instance.glob());
     }
 
     @Override
@@ -46,7 +54,7 @@ public class UnresolvedNamePatternTests extends AbstractNamedExpressionSerializa
     @Override
     protected UnresolvedNamePattern copyInstance(UnresolvedNamePattern instance, TransportVersion version) throws IOException {
         // Doesn't escape the node
-        return new UnresolvedNamePattern(instance.source(), null, instance.pattern(), instance.name());
+        return new UnresolvedNamePattern(instance.source(), null, instance.pattern(), instance.name(), instance.glob());
     }
 
     public void testRewriteWildcardPatternKeepsStarsTokenizesRuns() {

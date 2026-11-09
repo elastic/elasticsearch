@@ -41,7 +41,7 @@ public class HllStatesGroupingStatePartitionTests extends ComputeTestCase {
     private void runTest(int precisionThreshold, int numGroups, long pagedThresholdBytes) {
         BlockFactory blockFactory = blockFactory();
         var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        var partitionBreaker = new NoopCircuitBreaker("partition");
+        var partitionBreaker = NoopCircuitBreaker.INSTANCE;
 
         try (var state = new HllStates.GroupingState(driverContext, precisionThreshold)) {
             long[] expectedCardinalities = new long[numGroups];

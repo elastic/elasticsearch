@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class CircleProcessorFactoryTests extends ESTestCase {
 
@@ -32,8 +33,8 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         CircleProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.field(), equalTo("field1"));
-        assertThat(processor.targetField(), equalTo("field1"));
+        assertThat(processor.field(), hasToString("field1"));
+        assertThat(processor.targetField(), hasToString("field1"));
         assertThat(processor.errorDistance(), equalTo(0.002));
         assertThat(processor.shapeType(), equalTo(CircleProcessor.CircleShapeFieldType.GEO_SHAPE));
     }
@@ -46,8 +47,8 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         CircleProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.field(), equalTo("field1"));
-        assertThat(processor.targetField(), equalTo("field1"));
+        assertThat(processor.field(), hasToString("field1"));
+        assertThat(processor.targetField(), hasToString("field1"));
         assertThat(processor.errorDistance(), equalTo(0.002));
         assertThat(processor.shapeType(), equalTo(CircleProcessor.CircleShapeFieldType.SHAPE));
     }
@@ -84,8 +85,8 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         CircleProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.field(), equalTo("field1"));
-        assertThat(processor.targetField(), equalTo("other"));
+        assertThat(processor.field(), hasToString("field1"));
+        assertThat(processor.targetField(), hasToString("other"));
         assertThat(processor.errorDistance(), equalTo(0.002));
         assertThat(processor.shapeType(), equalTo(CircleProcessor.CircleShapeFieldType.GEO_SHAPE));
     }

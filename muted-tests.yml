@@ -514,11 +514,6 @@ tests:
   - :test:framework:integTest
   method: testLeakingRecyclerBackedByteArrayIsDetected
   issue: https://github.com/elastic/elasticsearch/issues/164889
-- class: org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldTypeTests
-  tasks:
-  - :x-pack:plugin:spatial:test
-  method: testFetchVectorTile
-  issue: https://github.com/elastic/elasticsearch/issues/164908
 - class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
   tasks:
   - :x-pack:plugin:esql:compute:test

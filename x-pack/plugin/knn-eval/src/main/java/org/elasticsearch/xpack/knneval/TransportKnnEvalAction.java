@@ -61,6 +61,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -91,6 +92,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     private static final Class<?>[] EVALUATION_FAILURES = {
         SearchContextMissingException.class,
         NoShardAvailableActionException.class,
+        ShardRestoringException.class,
         NodeClosedException.class,
         ConnectTransportException.class,
         EsRejectedExecutionException.class,

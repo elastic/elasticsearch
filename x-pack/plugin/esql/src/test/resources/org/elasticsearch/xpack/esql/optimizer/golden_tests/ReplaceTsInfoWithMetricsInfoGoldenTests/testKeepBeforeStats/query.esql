@@ -1,0 +1,5 @@
+TS k8s
+| TS_INFO
+| KEEP metric_name, metric_type, dimension_fields
+| WHERE metric_type == "counter"
+| STATS dims = VALUES(dimension_fields) BY metric_name

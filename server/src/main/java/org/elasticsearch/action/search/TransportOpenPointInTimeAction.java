@@ -343,7 +343,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     searchResponseMetrics,
                     searchRequestAttributes,
-                    false
+                    false,
+                    clusterState
                 ).addListener(listener.delegateFailureAndWrap((searchResponseActionListener, canMatchResult) -> {
                     skippedByClusterAlias.forEach(
                         (cluster, count) -> canMatchResult.skippedByClusterAlias().merge(cluster, count, Integer::sum)

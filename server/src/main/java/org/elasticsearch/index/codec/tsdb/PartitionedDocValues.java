@@ -52,8 +52,8 @@ public interface PartitionedDocValues {
     static boolean canPartitionByTsidPrefix(IndexSearcher searcher) throws IOException {
         for (LeafReaderContext leafContext : searcher.getLeafContexts()) {
             var sortedDV = leafContext.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
-            // empty segment
-            if (sortedDV == null) {
+            // empty segment or fully deleted segment
+            if (sortedDV == null || sortedDV.getValueCount() == 0) {
                 continue;
             }
             if (sortedDV instanceof PartitionedDocValues partition && partition.prefixPartitionBits() > 0) {

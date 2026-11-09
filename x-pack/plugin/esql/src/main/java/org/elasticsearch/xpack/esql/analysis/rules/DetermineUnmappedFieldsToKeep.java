@@ -13,16 +13,12 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -63,17 +59,17 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * their columns up by name.
  *
  * <p>A view is a boundary this setting does not reach into: nothing inside a view branch is stamped or otherwise looked at, as a view
- * is a virtual index with no {@code _source} of its own. A view has no {@code _unmapped_fields} column, so a union that has one
- * from another branch null-fills it for the view, like for any branch that cannot surface it.
+ * is a virtual index with no {@code _source} of its own. A view has no {@code _unmapped_fields} column, so where a union has one
+ * from another branch, the view contributes nulls to it, like any branch that cannot surface it.
  *
  * <p>{@link MergePlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
  * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
  * name is excluded from {@code _unmapped_fields}. Extra fields that a branch does not keep (literal
- * {@code KEEP}, {@code STATS}) are not loaded there; a null {@code _unmapped_fields} is appended so the
- * coordinator can still return extras from siblings.
+ * {@code KEEP}, {@code STATS}) are not loaded there; such a branch contributes nulls to the merge's
+ * {@code _unmapped_fields} so the coordinator can still return extras from siblings.
  *
- * <p>Alignment {@link Project}s created during analysis snapshot their projections before this rule runs, so
- * the attribute is re-appended there and {@link MergePlan#refreshOutput()} unions it for the coordinator.
+ * <p>Projects in the plan were resolved before this rule adds the attribute, so it is re-appended there, and the merge's output
+ * is refreshed to pick it up from its branches.
  *
  * <p>The rule runs in the Finish Analysis batch <em>before</em> {@link ResolvedProjects}, so
  * {@link ResolvingProject} nodes — which carry the original wildcard patterns — are still present.
@@ -107,8 +103,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
             result = stampAll(plan).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         } else if (pattern.isNone()) {
-            // Exact KEEP/STATS above a merge must not stamp or pass _unmapped_fields through: alignment
-            // Projects snapshot before this rule, and replaceChild on a ResolvingProject would re-append it.
+            // Exact KEEP/STATS above a merge must not stamp or pass _unmapped_fields through: replaceChild on a
+            // ResolvingProject would re-append it.
             return plan;
         } else {
             // Project pass before merge finish keeps _unmapped_fields on branch Projects. The pass after
@@ -198,8 +194,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                     // _unmapped_fields column, and where a sibling has one, finishMergeUnmappedFields null-fills the view's.
                     newChildren.add(child);
                 } else {
-                    LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern));
-                    newChildren.add(annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated);
+                    newChildren.add(annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern)));
                 }
             }
             return merge.replaceChildren(newChildren);
@@ -226,9 +221,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Union alignment {@link Project}s snapshot their projections before this rule adds
-     * {@code _unmapped_fields}. {@link ResolvingProject} already re-appends it; other Projects
-     * would otherwise drop the column before it is returned.
+     * Projects were resolved before this rule adds {@code _unmapped_fields}. {@link ResolvingProject} already re-appends it;
+     * other Projects would otherwise drop the column before it is returned.
      */
     private static Project passThroughUnmappedFields(Project project) {
         if (project instanceof ResolvingProject rp && rp.unmappedFieldsPattern().isNone()) {
@@ -254,8 +248,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
 
     /**
      * Branches whose pattern is {@link UnmappedFieldsPattern#NONE} never get {@code _unmapped_fields} on the relation. If a sibling did,
-     * append a null column so union layouts match, then refresh union output so the coordinator sees the {@link UnmappedFieldsAttribute}
-     * subtype. In other words, we only pad if at least one child has the attribute and at least one does not.
+     * the merge's output gains the column, so the coordinator sees the {@link UnmappedFieldsAttribute} subtype; the branches without it
+     * contribute nulls.
      */
     private static LogicalPlan finishMergeUnmappedFields(MergePlan merge) {
         return switch (merge) {
@@ -266,45 +260,22 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     private static LogicalPlan finishForkUnmappedFields(Fork fork) {
-        List<LogicalPlan> children = fork.children();
-        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
-        boolean hasChildWithUnmappedFields = false;
-        boolean hasChildWithoutUnmappedFields = false;
-        for (LogicalPlan child : children) {
-            boolean hasUnmappedField = Expressions.names(child.output()).contains(UnmappedFieldsAttribute.ATTRIBUTE_NAME);
-            hasChildWithUnmappedFields |= hasUnmappedField;
-            hasChildWithoutUnmappedFields |= hasUnmappedField == false;
-            newChildren.add(hasUnmappedField ? child : padNullUnmappedFields(child));
-        }
-        MergePlan result = hasChildWithoutUnmappedFields && hasChildWithUnmappedFields ? fork.replaceSubPlans(newChildren) : fork;
-        return hasChildWithUnmappedFields ? result.refreshOutput() : result;
-    }
-
-    private static Eval padNullUnmappedFields(LogicalPlan child) {
-        Alias alias = new Alias(Source.EMPTY, UnmappedFieldsAttribute.ATTRIBUTE_NAME, new Literal(Source.EMPTY, null, DataType.SOURCE));
-        return new Eval(Source.EMPTY, child, List.of(alias));
+        boolean hasChildWithUnmappedFields = fork.children()
+            .stream()
+            .anyMatch(child -> Expressions.names(child.output()).contains(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        return hasChildWithUnmappedFields ? fork.refreshOutput() : fork;
     }
 
     /**
-     * Null-fills {@code _unmapped_fields} in branches that cannot surface it and rebuilds the
-     * {@link UnionAll} output, appending the {@link UnmappedFieldsAttribute} after conversion.
-     * {@link MergePlan#refreshOutput()} unions through the pre-annotation output snapshot, which
-     * does not yet contain the attribute, so it would be dropped.
+     * Rebuilds the {@link UnionAll} output from its branches, appending the {@link UnmappedFieldsAttribute} that unions the
+     * branches' patterns; the branches that cannot surface {@code _unmapped_fields} contribute nulls to it.
      */
     private static UnionAll alignUnmappedFields(UnionAll unionAll) {
         UnmappedFieldsAttribute unmapped = unionFrom(unionAll);
         if (unmapped == null) {
             return unionAll;
         }
-        List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
-        boolean childrenChanged = false;
-        for (LogicalPlan child : unionAll.children()) {
-            var pad = child.outputSet().names().contains(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false;
-            newChildren.add(pad ? padNullUnmappedFields(child) : child);
-            childrenChanged |= pad;
-        }
-        UnionAll withChildren = childrenChanged ? unionAll.replaceSubPlans(newChildren) : unionAll;
-        List<Attribute> withoutUnmapped = MergePlan.outputUnion(withChildren.children())
+        List<Attribute> withoutUnmapped = MergePlan.mergeColumns(unionAll.children(), unionAll.output())
             .stream()
             .filter(attr -> attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false)
             .toList();
@@ -312,9 +283,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             keepExistingUnsupportedAttributes(toReferenceAttributesPreservingIds(withoutUnmapped, unionAll.output()), unionAll.output()),
             unmapped
         );
-        return childrenChanged == false && newOutput.equals(unionAll.output())
-            ? unionAll
-            : withChildren.replaceSubPlansAndOutput(withChildren.children(), newOutput);
+        return newOutput.equals(unionAll.output()) ? unionAll : unionAll.replaceSubPlansAndOutput(unionAll.children(), newOutput);
     }
 
     /** {@code null} when no branch exposes {@code _unmapped_fields}. */

@@ -51,7 +51,7 @@ setup:
   - is_false: hits.hits.0._routing
 
 ---
-"Reindex all source slices with _all into a non-sliced index":
+"Reindex all source slices into a non-sliced index when no source slice is given":
   - do:
       indices.create:
         index: sliced_source_all
@@ -83,7 +83,6 @@ setup:
         body:
           source:
             index: sliced_source_all
-            _slice: _all
           dest:
             index: non_sliced_dest_all
   - match: {created: 2}
@@ -288,7 +287,6 @@ setup:
         body:
           source:
             index: sliced_source_3
-            _slice: _all
           dest:
             index: sliced_dest_3
   - match: {created: 2}
@@ -334,6 +332,18 @@ setup:
           dest:
             index: plain_dest_reject
             _slice: tenant-a
+
+---
+"Source slice _all is rejected":
+  - do:
+      catch: bad_request
+      reindex:
+        body:
+          source:
+            index: some_source
+            _slice: _all
+          dest:
+            index: some_dest
 
 ---
 "Destination slice _all is rejected":

@@ -223,7 +223,7 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
         if (indexMode != IndexMode.STANDARD) {
             sb.append('[').append(indexMode.name()).append(']');
         }
-        if (slices.isSpecified()) {
+        if (slices.isRestricted()) {
             sb.append("[slice=").append(slices.toSearchSlice()).append(']');
         }
         // The concrete indices a pattern resolved to, each routed through the index mapper. Rendered

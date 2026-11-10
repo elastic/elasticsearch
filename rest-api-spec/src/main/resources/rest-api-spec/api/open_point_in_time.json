@@ -73,7 +73,7 @@
       },
       "_slice": {
         "type": "string",
-        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the point in time to that slice. Defaults to `_all` (all slices) when omitted on slice-enabled indices.",
+        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the point in time to that slice. Covers all slices when omitted on slice-enabled indices.",
         "visibility": "feature_flag",
         "feature_flag": "es.slice_indexing_feature_flag_enabled"
       }

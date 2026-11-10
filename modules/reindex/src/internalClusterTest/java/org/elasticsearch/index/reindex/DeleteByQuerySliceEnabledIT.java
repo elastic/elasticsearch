@@ -12,6 +12,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -54,7 +55,7 @@ public class DeleteByQuerySliceEnabledIT extends ESIntegTestCase {
         assertThat(response.evaluate("failures"), empty());
         assertHitCount(prepareSearch(index).setSize(0), 1L);
 
-        response = deleteByQuery(index, SliceIndexing.SLICE_ALL);
+        response = deleteByQuery(index, null);
         assertThat(response.evaluate("deleted"), equalTo(1));
         assertThat(response.evaluate("failures"), empty());
         assertHitCount(prepareSearch(index).setSize(0), 0L);
@@ -97,8 +98,8 @@ public class DeleteByQuerySliceEnabledIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh(index).get();
     }
 
-    private ObjectPath deleteByQuery(String index, String slice) throws IOException {
-        Request request = new Request("POST", "/" + index + "/" + slice + "/_delete_by_query");
+    private ObjectPath deleteByQuery(String index, @Nullable String slice) throws IOException {
+        Request request = new Request("POST", "/" + index + (slice == null ? "" : "/" + slice) + "/_delete_by_query");
         request.addParameter("refresh", "true");
         request.setJsonEntity("""
             {"query": {"match_all": {}}}""");

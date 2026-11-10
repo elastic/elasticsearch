@@ -101,10 +101,6 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
             prepareSearch(index).setQuery(knnQuery),
             prepareSearch(index).setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.matchAllQuery()).should(knnQuery))
         )) {
-            if (randomBoolean()) {
-                // selecting every slice does not name the slices to search
-                search.request().searchSlice(SliceIndexing.SLICE_ALL);
-            }
             final Exception e = expectThrows(Exception.class, search);
             assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
             assertThat(ExceptionsHelper.stackTrace(e), containsString(SLICES_REQUIRED));
@@ -170,9 +166,6 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
 
         for (QueryBuilder query : List.of(QueryBuilders.matchAllQuery(), QueryBuilders.existsQuery("vector"))) {
             final SearchRequestBuilder search = prepareSearch(index).setQuery(query).setSize(0);
-            if (randomBoolean()) {
-                search.request().searchSlice(SliceIndexing.SLICE_ALL);
-            }
             assertHitCount(search, NEAR_DOCS + FAR_DOCS);
         }
     }

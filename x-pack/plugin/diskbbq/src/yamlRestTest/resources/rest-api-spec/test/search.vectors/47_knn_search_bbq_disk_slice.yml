@@ -134,15 +134,8 @@ setup:
 
 ---
 "KNN search with _all is rejected":
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ knn_requires_slice_selection ]
-      test_runner_features: [ capabilities ]
-      reason: "knn search requires the slices to be selected by name on a slice-enabled index"
   - do:
-      catch: /to perform knn search on field \[vector\], the slices to search must be selected by name/
+      catch: /invalid \[_slice\] value \[_all\]/
       search:
         index: bbq_disk_slice
         _slice: _all

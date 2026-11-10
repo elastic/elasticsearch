@@ -75,11 +75,10 @@ setup:
   - match: {count: 3}
 
 ---
-"Update by query with _all in the path":
+"Update by query without a slice updates every slice":
   - do:
       update_by_query:
         index:   sliced
-        _slice:  _all
         refresh: true
   - match: {updated: 3}
   - match: {failures: []}
@@ -88,6 +87,14 @@ setup:
       count:
         index: sliced
   - match: {count: 3}
+
+---
+"Update by query with _all in the path is rejected":
+  - do:
+      catch: bad_request
+      update_by_query:
+        index:   sliced
+        _slice:  _all
 
 ---
 "Update by query with a slice in the path matches nothing on a non-sliced index":

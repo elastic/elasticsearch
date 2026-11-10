@@ -554,11 +554,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals("s1,s2", request.searchSlice());
         assertEquals("s1,s2", request.routing());
         assertTrue(request.isRoutingFromSlice());
-
-        request.searchSlice(SliceIndexing.SLICE_ALL);
-        assertEquals(SliceIndexing.SLICE_ALL, request.searchSlice());
-        assertNull(request.routing());
-        assertTrue(request.isRoutingFromSlice());
     }
 
     public void testSearchSliceRejectsNull() {

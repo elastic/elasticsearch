@@ -430,9 +430,10 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
 
         /**
          * The aggregate keyed by the parts of its label containers. A collapse keeping one row per series keys by the series id,
-         * every view read above it and the labels; any other aggregate keys by the residual container leaving out every label its class removes
-         * or writes, so the parts above it need no residual container of their own. The time-series collapse keys by the labels as
-         * they are and its translation packs them; any other aggregate packs them itself: a label of several values keys as a whole.
+         * every view read above it and the labels; any other aggregate keys by the residual container leaving out every label its
+         * class removes or writes, so the parts above it need no residual container of their own. The time-series collapse keys by
+         * the labels as they are and its translation packs them; any other aggregate packs them itself: a label of several values
+         * keys as a whole.
          */
         private LogicalPlan aggregate(Aggregate aggregate) {
             boolean collapse = aggregate instanceof TimeSeriesAggregate;

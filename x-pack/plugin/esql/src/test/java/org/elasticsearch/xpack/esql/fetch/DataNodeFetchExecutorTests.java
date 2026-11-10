@@ -25,12 +25,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverProfile;
@@ -47,6 +49,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -73,6 +76,7 @@ import org.elasticsearch.xpack.esql.planner.FetchSourceProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerServices;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.QueryDriverExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.junit.After;
@@ -87,16 +91,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -628,6 +637,146 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
      * Opens a context on every shard the way a data node request does, finds where each document is, and responds, so
      * the contexts stay open for the fetch.
      */
+    /**
+     * The time a fetch spends is charged to the search load of the shards it loads, like the time of the query phase, and
+     * nothing to the other shards.
+     */
+    public void testChargesItsTimeToTheShardsItLoads() throws Exception {
+        List<OpenShard> shards = openEveryShard();
+        List<OpenShard> loaded = randomSubsetOf(between(1, SHARDS - 1), shards);
+        Map<ShardId, Long> before = new HashMap<>();
+        for (OpenShard shard : shards) {
+            before.put(shard.shardId(), searchLoadNanos(shard.shardId()));
+        }
+
+        try (Fetched fetched = fetch(request(loaded, allNs()))) {
+            assertThat(fetched.results().stream().map(ShardResult::failure).toList(), everyItem(nullValue()));
+        }
+
+        // the pools charge a task once it completes
+        awaitTheRelease();
+        for (OpenShard shard : shards) {
+            if (loaded.contains(shard)) {
+                assertThat(shard.shardId().toString(), searchLoadNanos(shard.shardId()), greaterThan(before.get(shard.shardId())));
+            } else {
+                assertThat(shard.shardId().toString(), searchLoadNanos(shard.shardId()), equalTo(before.get(shard.shardId())));
+            }
+        }
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * The drivers of a fetch run as the query of the parent of the request, the task of the query on its coordinator,
+     * which the drivers of its query phase run as too.
+     */
+    public void testDriversRunAsTheQueryOfTheParentTask() throws Exception {
+        List<OpenShard> shards = openEveryShard();
+        List<ScheduledQuery> scheduled = new ArrayList<>();
+        CancellableTask task = newTask();
+
+        try (Fetched fetched = fetch(request(shards, allNs()), task, between(1, 10), SourceWrapper.NONE, recording(scheduled))) {
+            assertThat(fetched.results().stream().map(ShardResult::failure).toList(), everyItem(nullValue()));
+        }
+
+        assertThat(scheduled, not(empty()));
+        assertThat(scheduled.stream().map(ScheduledQuery::queryId).toList(), everyItem(equalTo(task.getParentTaskId())));
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * The query scheduler gets each shard once, also when the request reads a shard through several contexts, like the
+     * contexts of the branches of a {@code FORK}.
+     */
+    public void testEachShardReachesTheQuerySchedulerOnce() throws Exception {
+        List<OpenShard> firstBranch = openEveryShard();
+        List<OpenShard> secondBranch = openEveryShard();
+        List<OpenShard> shards = new ArrayList<>(firstBranch);
+        shards.addAll(secondBranch);
+        List<ScheduledQuery> scheduled = new ArrayList<>();
+
+        try (Fetched fetched = fetch(request(shards, allNs()), recording(scheduled))) {
+            assertThat(fetched.results().stream().map(ShardResult::failure).toList(), everyItem(nullValue()));
+        }
+
+        List<ShardId> scheduledShards = driversOf(scheduled).shards().stream().map(s -> s.shard().shardId()).toList();
+        assertThat(scheduledShards, containsInAnyOrder(firstBranch.stream().map(OpenShard::shardId).toArray()));
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * A shard has work for the query scheduler from the start of the fetch until its last piece finished, so it stops
+     * accumulating waiting once the fetch ended.
+     */
+    public void testAShardHasWorkUntilItsPiecesFinish() throws Exception {
+        List<OpenShard> shards = openEveryShard();
+        List<ScheduledQuery> scheduled = new ArrayList<>();
+
+        try (Fetched fetched = fetch(request(shards, allNs()), recording(scheduled))) {
+            assertThat(fetched.results().stream().map(ShardResult::failure).toList(), everyItem(nullValue()));
+        }
+
+        ScheduledQuery drivers = driversOf(scheduled);
+        assertThat(drivers.hadWork(), everyItem(equalTo(true)));
+        assertThat(drivers.shards().stream().map(s -> s.hasWork().getAsBoolean()).toList(), everyItem(equalTo(false)));
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * The drivers of a fetch that queue behind busy worker threads wait as one query, and the shards they load report the
+     * waiting once the drivers run.
+     */
+    public void testQueuedDriversWaitAsOneQuery() throws Exception {
+        List<OpenShard> shards = openEveryShard();
+        ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
+        ExecutorService worker = EsExecutors.newFixed(
+            "fetch-worker",
+            1,
+            -1,
+            EsExecutors.daemonThreadFactory(Settings.EMPTY, "fetch-worker"),
+            threadPool.getThreadContext(),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        try {
+            CountDownLatch blocked = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            worker.execute(() -> {
+                blocked.countDown();
+                safeAwait(release);
+            });
+            safeAwait(blocked);
+
+            PlainActionFuture<Fetched> future = startFetch(
+                request(shards, allNs()),
+                newTask(),
+                between(1, 10),
+                SourceWrapper.NONE,
+                throughTheQueryScheduler(worker)
+            );
+            try {
+                assertBusy(() -> assertThat(searchService().queryScheduler().queries(), equalTo(1)));
+            } finally {
+                release.countDown();
+            }
+            try (Fetched fetched = future.actionGet(TimeValue.timeValueSeconds(30))) {
+                assertThat(fetched.results().stream().map(ShardResult::failure).toList(), everyItem(nullValue()));
+            }
+            assertBusy(() -> assertThat(searchService().queryScheduler().queries(), equalTo(0)));
+
+            double waiting = indicesAdmin().prepareStats(FETCHED)
+                .setSearch(true)
+                .get()
+                .getIndex(FETCHED)
+                .getTotal()
+                .getSearch()
+                .getTotal()
+                .getSearchWaitingRate();
+            assertThat(waiting, greaterThan(0.0));
+        } finally {
+            terminate(worker);
+        }
+        freeAndAssertAllFreed(shards);
+    }
+
     private List<OpenShard> openEveryShard() throws IOException {
         NodeFetchContexts contexts = newNodeContexts();
         List<SearchContext> opened = openEveryShard(contexts, FETCHED);
@@ -858,12 +1007,39 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
      * Runs the request on the search pool, where the transport layer runs fetch requests.
      */
     private Fetched fetch(FetchRequest request, CancellableTask task, int maxConcurrentShardTasks, SourceWrapper sources) {
+        return fetch(request, task, maxConcurrentShardTasks, sources, throughTheQueryScheduler(genericPool()));
+    }
+
+    private Fetched fetch(FetchRequest request, FetchDriverExecutors driverExecutors) {
+        return fetch(request, newTask(), between(1, 10), SourceWrapper.NONE, driverExecutors);
+    }
+
+    private Fetched fetch(
+        FetchRequest request,
+        CancellableTask task,
+        int maxConcurrentShardTasks,
+        SourceWrapper sources,
+        FetchDriverExecutors driverExecutors
+    ) {
+        return startFetch(request, task, maxConcurrentShardTasks, sources, driverExecutors).actionGet(TimeValue.timeValueSeconds(30));
+    }
+
+    /**
+     * Starts the request on the search pool, where the transport layer runs fetch requests.
+     */
+    private PlainActionFuture<Fetched> startFetch(
+        FetchRequest request,
+        CancellableTask task,
+        int maxConcurrentShardTasks,
+        SourceWrapper sources,
+        FetchDriverExecutors driverExecutors
+    ) {
         DataNodeFetchExecutor executor = new DataNodeFetchExecutor(
             getInstanceFromNode(TransportService.class),
             getInstanceFromNode(ClusterService.class),
             searchService(),
             blockFactory,
-            getInstanceFromNode(ThreadPool.class).executor(ThreadPool.Names.GENERIC),
+            driverExecutors,
             () -> PlannerSettings.DEFAULTS,
             plannerFactory(sources),
             () -> maxConcurrentShardTasks
@@ -873,7 +1049,49 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             .execute(
                 () -> executor.execute(request, task, future.map(r -> new Fetched(r.shardResults(), r.takePages(), r.completionInfo())))
             );
-        return future.actionGet(TimeValue.timeValueSeconds(30));
+        return future;
+    }
+
+    private Executor genericPool() {
+        return getInstanceFromNode(ThreadPool.class).executor(ThreadPool.Names.GENERIC);
+    }
+
+    /**
+     * Runs the drivers on {@code executor} through the query scheduler of the node, like a data node does on its worker pool.
+     */
+    private FetchDriverExecutors throughTheQueryScheduler(Executor executor) {
+        ComputeExecutor computeExecutor = new ComputeExecutor(executor, getInstanceFromNode(ThreadPool.class).getThreadContext());
+        return (queryId, shards) -> new QueryDriverExecutor(searchService().queryScheduler(), computeExecutor, queryId, shards);
+    }
+
+    /**
+     * Each query and its shards the executor asked for, at the time it asked, and whether each shard had work then.
+     */
+    private record ScheduledQuery(TaskId queryId, List<QueryScheduler.SearchedShard> shards, List<Boolean> hadWork) {}
+
+    private FetchDriverExecutors recording(List<ScheduledQuery> scheduled) {
+        FetchDriverExecutors delegate = throughTheQueryScheduler(genericPool());
+        return (queryId, shards) -> {
+            scheduled.add(new ScheduledQuery(queryId, shards, shards.stream().map(s -> s.hasWork().getAsBoolean()).toList()));
+            return delegate.forQuery(queryId, shards);
+        };
+    }
+
+    /**
+     * The scheduled query whose executor runs the drivers, the one that names shards. The workers of parallel operators
+     * get one without shards.
+     */
+    private static ScheduledQuery driversOf(List<ScheduledQuery> scheduled) {
+        List<ScheduledQuery> withShards = scheduled.stream().filter(q -> q.shards().isEmpty() == false).toList();
+        assertThat(withShards, hasSize(1));
+        return withShards.getFirst();
+    }
+
+    private long searchLoadNanos(ShardId shardId) {
+        return getInstanceFromNode(IndicesService.class).indexServiceSafe(shardId.getIndex())
+            .getShard(shardId.id())
+            .shardSearchStats()
+            .totalSearchLoadNanos();
     }
 
     /**
@@ -883,41 +1101,49 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         Settings settings = getInstanceFromNode(ClusterService.class).getSettings();
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
-        return (sessionId, clusterAlias, task, configuration, foldCtx, shardContexts, fetchSources) -> new LocalExecutionPlanner(
+        return (
             sessionId,
             clusterAlias,
             task,
-            bigArrays,
-            blockFactory,
-            settings,
             configuration,
-            () -> {
-                throw new AssertionError("a fetch plan reads no exchange");
-            },
-            () -> { throw new AssertionError("a fetch plan writes no exchange"); },
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
-            new EsPhysicalOperationProviders(
-                foldCtx,
-                shardContexts,
-                indicesService.getAnalysis(),
-                PlannerSettings.DEFAULTS,
-                () -> 0L,
-                QueryWarnings.EMIT
-            ),
-            null,
-            randomBoolean(),
-            PlannerServices.forFetchPlan(wrap(fetchSources, sources)),
-            null,
-            0,
-            MatcherWatchdog.noop(),
-            TransportVersion.current()
-        );
+            foldCtx,
+            shardContexts,
+            fetchSources,
+            parallelWorkers) -> new LocalExecutionPlanner(
+                sessionId,
+                clusterAlias,
+                task,
+                bigArrays,
+                blockFactory,
+                settings,
+                configuration,
+                () -> {
+                    throw new AssertionError("a fetch plan reads no exchange");
+                },
+                () -> { throw new AssertionError("a fetch plan writes no exchange"); },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
+                new EsPhysicalOperationProviders(
+                    foldCtx,
+                    shardContexts,
+                    indicesService.getAnalysis(),
+                    PlannerSettings.DEFAULTS,
+                    () -> 0L,
+                    QueryWarnings.EMIT
+                ),
+                null,
+                randomBoolean(),
+                PlannerServices.forFetchPlan(wrap(fetchSources, sources)),
+                parallelWorkers,
+                0,
+                MatcherWatchdog.noop(),
+                TransportVersion.current()
+            );
     }
 
     /**

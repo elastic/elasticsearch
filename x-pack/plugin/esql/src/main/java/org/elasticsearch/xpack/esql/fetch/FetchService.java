@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
-import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 /**
@@ -67,7 +66,7 @@ public final class FetchService {
      * @param blockFactory           the root block factory of the node, which accounts the responses while they are
      *                               serialized, and while a gateway node reads one it forwards to a node of another version
      * @param namedWriteableRegistry reads a response that a gateway node forwards to a node of another version
-     * @param driverExecutor         runs the drivers that load the documents, next to the drivers of the query phase
+     * @param driverExecutors        runs the drivers that load the documents, next to the drivers of the query phase
      * @param plannerFactory         builds the planner of each fetch request
      */
     public FetchService(
@@ -76,7 +75,7 @@ public final class FetchService {
         SearchService searchService,
         BlockFactory blockFactory,
         NamedWriteableRegistry namedWriteableRegistry,
-        Executor driverExecutor,
+        FetchDriverExecutors driverExecutors,
         Supplier<PlannerSettings> plannerSettings,
         FetchPlannerFactory plannerFactory
     ) {
@@ -88,7 +87,7 @@ public final class FetchService {
             clusterService,
             searchService,
             blockFactory,
-            driverExecutor,
+            driverExecutors,
             plannerSettings,
             plannerFactory,
             () -> maxConcurrentShardTasks

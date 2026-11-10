@@ -15,14 +15,17 @@ import org.elasticsearch.xpack.esql.planner.FetchSourceProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.util.concurrent.Executor;
+
 /**
  * Builds the planner of one fetch request with the services of this node, the way the query phase builds its planners.
  */
 @FunctionalInterface
 public interface FetchPlannerFactory {
     /**
-     * @param shardContexts the shards of the request, which the operators that load fields read from
-     * @param fetchSources  the source of the fetch plan
+     * @param shardContexts   the shards of the request, which the operators that load fields read from
+     * @param fetchSources    the source of the fetch plan
+     * @param parallelWorkers runs the workers of parallel operators, charged to the shards of the request
      */
     LocalExecutionPlanner create(
         String sessionId,
@@ -31,6 +34,7 @@ public interface FetchPlannerFactory {
         Configuration configuration,
         FoldContext foldCtx,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        FetchSourceProvider fetchSources
+        FetchSourceProvider fetchSources,
+        Executor parallelWorkers
     );
 }

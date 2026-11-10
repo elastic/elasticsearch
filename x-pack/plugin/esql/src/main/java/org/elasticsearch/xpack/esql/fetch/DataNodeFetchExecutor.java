@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -19,12 +20,15 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverExecutor;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -33,6 +37,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -53,11 +58,14 @@ import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -86,7 +94,7 @@ final class DataNodeFetchExecutor {
     private final ClusterService clusterService;
     private final SearchService searchService;
     private final BlockFactory blockFactory;
-    private final Executor driverExecutor;
+    private final FetchDriverExecutors driverExecutors;
     private final Supplier<PlannerSettings> plannerSettings;
     private final FetchPlannerFactory plannerFactory;
     private final IntSupplier maxConcurrentShardTasks;
@@ -96,7 +104,7 @@ final class DataNodeFetchExecutor {
         ClusterService clusterService,
         SearchService searchService,
         BlockFactory blockFactory,
-        Executor driverExecutor,
+        FetchDriverExecutors driverExecutors,
         Supplier<PlannerSettings> plannerSettings,
         FetchPlannerFactory plannerFactory,
         IntSupplier maxConcurrentShardTasks
@@ -105,7 +113,7 @@ final class DataNodeFetchExecutor {
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.blockFactory = blockFactory;
-        this.driverExecutor = driverExecutor;
+        this.driverExecutors = driverExecutors;
         this.plannerSettings = plannerSettings;
         this.plannerFactory = plannerFactory;
         this.maxConcurrentShardTasks = maxConcurrentShardTasks;
@@ -131,6 +139,10 @@ final class DataNodeFetchExecutor {
          * The context of each shard of the request, {@code null} for a shard that failed to open.
          */
         private final List<DefaultShardContext> contexts;
+        /**
+         * The shard of each open context of the request, {@code null} for a shard that failed to open.
+         */
+        private final IndexShard[] indexShards;
         /**
          * The fields the fetch plan reads that some shards may not map. Each shard resolves them to what it holds, like in
          * the query phase, so a fetched column has the values the query phase would have loaded.
@@ -158,6 +170,7 @@ final class DataNodeFetchExecutor {
             int shards = request.shards().size();
             this.results = new ShardResult[shards];
             this.contexts = new ArrayList<>(Arrays.asList(new DefaultShardContext[shards]));
+            this.indexShards = new IndexShard[shards];
             this.unmappedFieldNames = PlannerUtils.unmappedFieldNames(request.fetchPlan());
         }
 
@@ -197,7 +210,53 @@ final class DataNodeFetchExecutor {
                     results[position] = ShardResult.failed(shard.shardId(), e);
                 }
             }
+            if (open.isEmpty() == false) {
+                // opening the contexts, checking their access and planning are work for the shards, like in the query phase
+                TaskLoadAttribution.attribute(openShardsLoad());
+            }
             return open;
+        }
+
+        /**
+         * Charges the shards the request opened equally, each once. The request can name a shard more than once, with the
+         * context of each execution that read it, like the branches of a {@code FORK}.
+         */
+        private TaskLoadAttribution.Target openShardsLoad() {
+            Map<IndexShard, ShardSearchStats> stats = new LinkedHashMap<>();
+            for (int position = 0; position < contexts.size(); position++) {
+                DefaultShardContext context = contexts.get(position);
+                if (context != null) {
+                    stats.putIfAbsent(indexShards[position], context.stats());
+                }
+            }
+            return ShardSearchStats.target(new ArrayList<>(stats.values()));
+        }
+
+        /**
+         * The shards the drivers load from, each once, for the search waiting of the query. A shard has work while one of its
+         * pieces hasn't finished.
+         */
+        private List<QueryScheduler.SearchedShard> searchedShards(
+            List<FetchDocsSourceOperator.ShardDocs> pieces,
+            AtomicIntegerArray piecesLeft
+        ) {
+            Map<IndexShard, List<Integer>> positionsOfShard = new LinkedHashMap<>();
+            for (FetchDocsSourceOperator.ShardDocs piece : pieces) {
+                List<Integer> positions = positionsOfShard.computeIfAbsent(indexShards[piece.shard()], shard -> new ArrayList<>());
+                if (positions.contains(piece.shard()) == false) {
+                    positions.add(piece.shard());
+                }
+            }
+            List<QueryScheduler.SearchedShard> searched = new ArrayList<>(positionsOfShard.size());
+            positionsOfShard.forEach((shard, positions) -> searched.add(new QueryScheduler.SearchedShard(shard, () -> {
+                for (int position : positions) {
+                    if (piecesLeft.get(position) > 0) {
+                        return true;
+                    }
+                }
+                return false;
+            })));
+            return searched;
         }
 
         private DefaultShardContext openShard(int position, FetchRequest.ShardDocs shard) throws Exception {
@@ -226,6 +285,7 @@ final class DataNodeFetchExecutor {
                 searchContext.addReleasable(executionContext::releaseQueryConstructionMemory);
                 // the request's reference, the first on the context. The search context closes once every reference is gone.
                 DefaultShardContext context = new DefaultShardContext(position, searchContext, executionContext, AliasFilter.EMPTY);
+                indexShards[position] = readerContext.indexShard();
                 success = true;
                 return context;
             } finally {
@@ -245,6 +305,15 @@ final class DataNodeFetchExecutor {
             pieceFailures = new AtomicReferenceArray<>(pieces.size());
             FetchShardContexts<DefaultShardContext> shardContexts = new FetchShardContexts<>(contexts);
             FetchShardAssignment assignment = new FetchShardAssignment(pieces, shardContexts);
+            AtomicIntegerArray piecesLeft = new AtomicIntegerArray(request.shards().size());
+            for (FetchDocsSourceOperator.ShardDocs piece : pieces) {
+                piecesLeft.incrementAndGet(piece.shard());
+            }
+            // a fetch request is a child of the task of the query on its coordinator, which names the query everywhere
+            TaskId queryId = task.getParentTaskId();
+            DriverExecutor drivers = driverExecutors.forQuery(queryId, searchedShards(pieces, piecesLeft));
+            // the workers of parallel operators read no shard of their own, like in the query phase
+            Executor parallelWorkers = TaskLoadAttribution.charging(driverExecutors.forQuery(queryId, List.of()), openShardsLoad());
             FoldContext foldCtx = request.configuration().newFoldContext();
             LocalExecutionPlanner planner = plannerFactory.create(
                 request.sessionId(),
@@ -253,7 +322,8 @@ final class DataNodeFetchExecutor {
                 request.configuration(),
                 foldCtx,
                 shardContexts,
-                assignment
+                assignment,
+                parallelWorkers
             );
             shardPages = new ShardPages(pieces.size());
             LocalExecutionPlanner.LocalExecutionPlan plan = planner.plan(
@@ -269,7 +339,10 @@ final class DataNodeFetchExecutor {
             boolean success = false;
             try {
                 for (Driver driver : created) {
-                    byPiece.add(new PieceDriver(driver, assignment.pieceOf(driver.driverContext())));
+                    int piece = assignment.pieceOf(driver.driverContext());
+                    // the source of a fetch reports no shard load, and each piece loads the documents of one shard
+                    driver.loadTarget(contexts.get(pieces.get(piece).shard()).stats().searchLoadTarget());
+                    byPiece.add(new PieceDriver(driver, piece));
                 }
                 success = true;
             } finally {
@@ -287,13 +360,11 @@ final class DataNodeFetchExecutor {
                 // runs at once when the task is already cancelled, and the driver fails on its first iteration
                 task.addListener(() -> driver.cancel(Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled")));
                 ActionListener<Void> driverListener = ActionListener.wrap(ignored -> {}, e -> pieceFailures.set(pieceDriver.piece(), e));
-                Driver.start(
-                    threadContext,
-                    driverExecutor,
-                    driver,
-                    Driver.DEFAULT_MAX_ITERATIONS,
-                    ActionListener.runAfter(driverListener, releasable::close)
-                );
+                int position = pieces.get(pieceDriver.piece()).shard();
+                Driver.start(threadContext, drivers, driver, Driver.DEFAULT_MAX_ITERATIONS, ActionListener.runAfter(driverListener, () -> {
+                    piecesLeft.decrementAndGet(position);
+                    releasable.close();
+                }));
             }, maxConcurrentDrivers, this::onDriversDone);
         }
 

@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -41,7 +40,6 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.compute.operator.DriverExecutor;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
@@ -333,7 +331,7 @@ public class ComputeService {
             searchService,
             blockFactory,
             namedWriteableRegistry,
-            threadPool.executor(EsqlPlugin.computePool()),
+            (queryId, shards) -> new QueryDriverExecutor(searchService.queryScheduler(), computeExecutor, queryId, shards),
             plannerSettings::get,
             this::fetchPlanner
         );
@@ -2322,6 +2320,8 @@ public class ComputeService {
                 approximationApplied
             );
             QueryDriverExecutor driverExecutor = new QueryDriverExecutor(
+                searchService.queryScheduler(),
+                computeExecutor,
                 context.queryId(),
                 // only data drivers read the slices of the shards; the node reduce shares the search contexts
                 context.description().equals(DATA_DESCRIPTION) ? searchedShards(context.searchContexts()) : List.of()
@@ -2398,7 +2398,8 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldCtx,
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
-        FetchSourceProvider fetchSources
+        FetchSourceProvider fetchSources,
+        Executor parallelWorkers
     ) {
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             foldCtx,
@@ -2432,7 +2433,7 @@ public class ComputeService {
             operatorFactoryRegistry,
             Build.current().isSnapshot(),
             PlannerServices.forFetchPlan(fetchSources),
-            workerThreadPool.executor(EsqlPlugin.computePool()),
+            parallelWorkers,
             workerThreadPool.info(EsqlPlugin.computePool()).getMax(),
             grokMatcherWatchdog.get(),
             clusterService.state().getMinTransportVersion()
@@ -2549,30 +2550,6 @@ public class ComputeService {
      */
     TaskId queryId(Task coordinatorTask) {
         return new TaskId(transportService.getLocalNode().getId(), coordinatorTask.getId());
-    }
-
-    /**
-     * Runs the drivers of a query on the node's {@link ComputeExecutor}, through the query scheduler both when they start
-     * and when they resume.
-     */
-    private final class QueryDriverExecutor implements DriverExecutor {
-        private final QueryScheduler.QueryExecutor executor;
-        /** The scheduler passes a wrapped {@link AbstractRunnable} on as an {@link AbstractRunnable}, so the cast holds. */
-        private final Executor resumed = task -> computeExecutor.executeResumed((AbstractRunnable) task);
-
-        QueryDriverExecutor(TaskId queryId, List<QueryScheduler.SearchedShard> shards) {
-            this.executor = searchService.queryScheduler().executor(queryId, computeExecutor, shards);
-        }
-
-        @Override
-        public void execute(Runnable task) {
-            executor.execute(task);
-        }
-
-        @Override
-        public void executeResumed(AbstractRunnable task) {
-            executor.execute(task, resumed);
-        }
     }
 
     /**

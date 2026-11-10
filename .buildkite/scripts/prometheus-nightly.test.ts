@@ -1,4 +1,4 @@
-import { spawnSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
@@ -9,12 +9,34 @@ const PROMCHECK_ENV = parse(readFileSync(resolve(import.meta.dirname, "../pipeli
 const SCRIPT = resolve(import.meta.dirname, "validate-prometheus-compliance.sh");
 const COUNTS = { type: "summary", total: 6, inspected: 6, match: 1, mismatch: 1, es_4xx: 1, es_5xx: 1, error: 1, request_filtered: 0, response_filtered: 0, flaky: 1 };
 const VERDICT = JSON.stringify(COUNTS);
+const GRAFANA_QUERIES = ["up", "rate(x[5m])", "sum(y)"];
+const DASHBOARD_REV = "d4e61b3980b62715ebedbf92a986350a2cf1e3f2";
+function dashboardLog() {
+  const rows = GRAFANA_QUERIES.flatMap((query, index) => [false, true].map((instant) => ({
+    type: "query", query, instant, status: index < 2 ? "match" : "mismatch", points: 1,
+  })));
+  return [...rows.map((row) => JSON.stringify(row)), JSON.stringify({
+    ...COUNTS, match: 4, mismatch: 2, es_4xx: 0, es_5xx: 0, error: 0, flaky: 0,
+  })].join("\n");
+}
 
 describe("validate-prometheus-compliance.sh nightly", () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "prometheus-nightly-"));
     mkdirSync(join(dir, "bin"));
+    mkdirSync(join(dir, "bundle"));
+    writeFileSync(join(dir, "source.json"), JSON.stringify(Array.from({ length: 100 }, (_, index) => ({
+      id: index + 1, name: `Dashboard ${index + 1}`,
+      queries: index === 0 ? GRAFANA_QUERIES.slice(0, 2) : index === 1 ? [GRAFANA_QUERIES[0], GRAFANA_QUERIES[2]] : [],
+    }))));
+    writeFileSync(join(dir, "legacy.jsonl"), "// @set job promcheck\n");
+    writeFileSync(join(dir, "bundle", "queries.jsonl"), GRAFANA_QUERIES.flatMap((query) => [
+      JSON.stringify({ query, start: -3600, end: 0, step: 60 }), JSON.stringify({ query, time: 0 }),
+    ]).join("\n"));
+    writeFileSync(join(dir, "bundle", "dataset.csv.gz"), "dataset");
+    writeFileSync(join(dir, "bundle", "NOTICE"), "license");
+    execFileSync("tar", ["-czf", join(dir, "bundle.tar.gz"), "-C", join(dir, "bundle"), "dataset.csv.gz", "queries.jsonl", "NOTICE"], { env: { ...process.env, COPYFILE_DISABLE: "1" } });
     // Only external services and the downloaded executable are replaced. Real jq parses the verdict
     // and builds the indexed document; no Elasticsearch build or remote writes occur in these tests.
     writeFileSync(join(dir, "promcheck"), '#!/bin/bash\nprintf "%s\\n" "$*" > "$TEST_DIR/args.log"\nprintf "nightly diagnostics\\n" >&2\nprintf "%s\\n" "$TEST_LOG"\nexit "$TEST_RC"\n', { mode: 0o755 });
@@ -27,16 +49,22 @@ while (($#)); do
   case "$1" in
     -H) [[ $2 == @- ]] && cat >/dev/null; shift ;;
     -o) out=$2; shift ;;
-    --data-binary) cp "\${2#@}" "$TEST_DIR/upload.json"; shift ;;
+    --data-binary) cp "\${2#@}" "$TEST_DIR/upload.json"; cat "\${2#@}" >> "$TEST_DIR/uploads.jsonl"; shift ;;
     https://*) url=$1 ;;
   esac
   shift
 done
 case "$url" in
-  */releases/tags/*) printf '{"assets":[{"name":"promcheck-linux-amd64","url":"https://assets/binary"},{"name":"promcheck-linux-arm64","url":"https://assets/binary"},{"name":"grafanalabs-top100.tar.gz","url":"https://assets/corpus"}]}' ;;
+  */releases/tags/*) printf '{"assets":[{"name":"promcheck-linux-amd64","url":"https://assets/binary"},{"name":"promcheck-linux-arm64","url":"https://assets/binary"},{"name":"grafanalabs-top100.tar.gz","url":"https://assets/corpus"},{"name":"compliance-tester.tar.gz","url":"https://assets/corpus"}]}' ;;
   https://assets/binary) cp "$TEST_DIR/promcheck" "$out" ;;
-  https://assets/corpus) touch "$out" ;;
-  */_create/*) printf '%s' "$url" > "$TEST_DIR/upload.url"; printf '%s' "$TEST_RESPONSE" > "$out"; printf '%s' "$TEST_HTTP_STATUS"; exit "$TEST_UPLOAD_RC" ;;
+  https://assets/corpus) cp "$TEST_DIR/bundle.tar.gz" "$out" ;;
+  */contents/data/results/grafana_dashboards_100.json*) cp "$TEST_DIR/source.json" "$out" ;;
+  */contents/data/results/promql_test_queries-grafana.jsonl*) cp "$TEST_DIR/legacy.jsonl" "$out" ;;
+  */_create/*)
+    if [[ -n "\${TEST_FAIL_THRESHOLD:-}" && $url == *-dashboards-"$TEST_FAIL_THRESHOLD" ]]; then
+      printf '{"error":"failed bucket"}' > "$out"; printf '500'; exit 0
+    fi
+    printf '%s' "$url" > "$TEST_DIR/upload.url"; printf '%s' "$TEST_RESPONSE" > "$out"; printf '%s' "$TEST_HTTP_STATUS"; exit "$TEST_UPLOAD_RC" ;;
   *) exit 99 ;;
 esac
 `, { mode: 0o755 });
@@ -50,6 +78,8 @@ esac
         ...process.env,
         PATH: `${join(dir, "bin")}:${process.env.PATH}`,
         ...PROMCHECK_ENV,
+        PROMCHECK_WORKLOAD: "compliance-tester",
+        PROMCHECK_DASHBOARD_SOURCE_REV: DASHBOARD_REV,
         GH_TOKEN: "fake-github-token",
         GRADLEW: "./gradlew --build-cache --scan",
         PROMCHECK_RESULTS_NAMESPACE: "experimental",
@@ -78,15 +108,55 @@ esac
     const result = JSON.parse(readFileSync(join(dir, "upload.json"), "utf8"));
     expect(JSON.parse(readFileSync(join(dir, "output", "counts.json"), "utf8"))).toEqual({ ...COUNTS, errors: 3 });
     expect(result).toMatchObject({
-      status: "ok", dataset: "grafanalabs-top100",
+      status: "ok", dataset: "compliance-tester", metric: "query_compliance",
       data_stream: { type: "synthetics", dataset: "promql.support", namespace: "experimental" },
       git: { branch: "main" }, promcheck: { version: PROMCHECK_ENV.PROMCHECK_VER },
       buildkite: { build_id: "build-123", build_number: 123, pipeline: "elasticsearch-pull-request-validate-prometheus-compliance" },
       compliance: { input_total: 6, executed_total: 6, executed_success: 1, executed_failure: 1, executed_error: 3, executed_skip: 1, success_pct: 16.7 },
     });
     expect(result.git.commit).toMatch(/^[a-f0-9]{40}$/);
-    expect(readFileSync(join(dir, "upload.url"), "utf8")).toBe("https://results.example/synthetics-promql.support-experimental/_create/build-123-grafanalabs-top100");
+    expect(readFileSync(join(dir, "upload.url"), "utf8")).toBe("https://results.example/synthetics-promql.support-experimental/_create/build-123-compliance-tester");
     expect(r.stdout + r.stderr).not.toContain("fake-results-key");
+  });
+
+  test("reports dashboard thresholds from the Grafana run with separate stable document IDs", () => {
+    const r = run({ PROMCHECK_WORKLOAD: "grafanalabs-top100", TEST_LOG: dashboardLog() });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const documents = readFileSync(join(dir, "uploads.jsonl"), "utf8").trim().split("\n").map((row) => JSON.parse(row));
+    expect(documents).toHaveLength(12);
+    expect(documents[0]).toMatchObject({
+      metric: "query_compliance", dataset: "grafanalabs-top100",
+      compliance: { success_pct: 66.7 },
+      promcheck: { dashboard_source_revision: DASHBOARD_REV },
+      corpus_audit: { dashboards: 100, empty_dashboards: 98, missing_queries: 0, unattributed_queries: 0 },
+    });
+    const coverage = documents.slice(1);
+    expect(coverage.map((doc) => doc.dashboard_coverage.threshold_pct)).toEqual([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    expect(coverage[5]).toMatchObject({
+      metric: "dashboard_coverage", dataset: "grafanalabs-top100",
+      dashboard_coverage: { dashboard_count: 2, dashboard_pct: 2, dashboard_total: 100 },
+      data_stream: { namespace: "experimental" },
+    });
+    expect(coverage[10].dashboard_coverage.dashboard_count).toBe(1);
+    expect(coverage[10].compliance).toBeUndefined();
+    expect(readFileSync(join(dir, "upload.url"), "utf8")).toContain("/_create/build-123-grafanalabs-top100-dashboards-100");
+    expect(JSON.parse(readFileSync(join(dir, "output", "dashboards.json"), "utf8"))[0].support_pct).toBe(100);
+  });
+
+  test("refuses to publish any metrics if a dashboard verdict is missing", () => {
+    const r = run({ PROMCHECK_WORKLOAD: "grafanalabs-top100", TEST_LOG: VERDICT });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain("Missing query verdicts");
+    expect(existsSync(join(dir, "uploads.jsonl"))).toBe(false);
+  });
+
+  test("fails if a later dashboard bucket cannot be uploaded", () => {
+    const r = run({ PROMCHECK_WORKLOAD: "grafanalabs-top100", TEST_LOG: dashboardLog(), TEST_FAIL_THRESHOLD: "50" });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain("Results upload failed (HTTP 500)");
+    const documents = readFileSync(join(dir, "uploads.jsonl"), "utf8").trim().split("\n").map((row) => JSON.parse(row));
+    expect(documents.at(-1).dashboard_coverage.threshold_pct).toBe(50);
+    expect(documents).toHaveLength(7);
   });
 
   test("uses the shared JSON runner, agent sizing, and CI Gradle options", () => {

@@ -516,6 +516,8 @@ run_oneshot() (
 # The scheduled mode records one real run without the PR comparison or comment workflow.
 # A subshell keeps the temporary directory available to its EXIT trap on failure.
 run_nightly() (
+  local metrics_script="${BASH_SOURCE[0]%/*}/promcheck-dashboard-metrics.py"
+  local bundle document_id document_file
   for var in PROMCHECK_RESULTS_NAMESPACE BUILDKITE_BUILD_ID; do
     [[ -n "${!var:-}" ]] || { echo "$var must be set" >&2; exit 1; }
   done
@@ -540,11 +542,25 @@ run_nightly() (
   trap 'rm -rf "$work_dir"' EXIT
   echo "--- Downloading promcheck v$PROMCHECK_VER"
   promcheck_download "$work_dir/promcheck" "$work_dir/$PROMCHECK_WORKLOAD.tar.gz"
+  bundle="$work_dir/$PROMCHECK_WORKLOAD.tar.gz"
+  if [[ "$PROMCHECK_WORKLOAD" == grafanalabs-top100 ]]; then
+    : "${PROMCHECK_DASHBOARD_SOURCE_REV:?Set the pinned dashboard source revision}"
+    echo "--- Recovering dashboard ownership and missing queries"
+    for source_file in grafana_dashboards_100.json promql_test_queries-grafana.jsonl; do
+      promcheck_github_curl -H 'Accept: application/vnd.github.raw+json' \
+        -o "$work_dir/$source_file" \
+        -- "https://api.github.com/repos/elastic/promcheck/contents/data/results/$source_file?ref=$PROMCHECK_DASHBOARD_SOURCE_REV"
+    done
+    python3 "$metrics_script" prepare --source "$work_dir/grafana_dashboards_100.json" \
+      --legacy "$work_dir/promql_test_queries-grafana.jsonl" --bundle "$bundle" \
+      --output "$work_dir/recovered.tar.gz" --manifest "$work_dir/dashboards.json" --audit "$OUTPUT_DIR/corpus-audit.json"
+    bundle="$work_dir/recovered.tar.gz"
+  fi
 
   revision=$(git rev-parse HEAD)
   started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   echo "--- Running promcheck"
-  promcheck_run "$PWD" "$work_dir/promcheck" "$work_dir/$PROMCHECK_WORKLOAD.tar.gz" "$OUTPUT_DIR/promcheck.log" \
+  promcheck_run "$PWD" "$work_dir/promcheck" "$bundle" "$OUTPUT_DIR/promcheck.log" \
     || { echo "promcheck failed to complete; see run artifacts" >&2; exit 1; }
   promcheck_summary "$OUTPUT_DIR/promcheck.log" > "$OUTPUT_DIR/counts.json"
   jq -n --slurpfile counts "$OUTPUT_DIR/counts.json" \
@@ -554,7 +570,7 @@ run_nightly() (
     --arg pipeline "${BUILDKITE_PIPELINE_SLUG:-elasticsearch-pull-request-validate-prometheus-compliance}" \
     --argjson build_number "${BUILDKITE_BUILD_NUMBER:-0}" \
     '$counts[0] as $c | {
-      "@timestamp": $timestamp, status: "ok", dataset: $corpus,
+      "@timestamp": $timestamp, status: "ok", dataset: $corpus, metric: "query_compliance",
       data_stream: {type: "synthetics", dataset: "promql.support", namespace: $namespace},
       git: {commit: $commit, branch: $branch}, promcheck: {version: $version},
       buildkite: {build_id: $build_id, build_number: $build_number, build_url: $build_url, pipeline: $pipeline},
@@ -564,19 +580,40 @@ run_nightly() (
         executed_skip: ($c.response_filtered + $c.flaky), success_pct: ((1000 * $c.match / $c.total | round) / 10)
       }}' > "$OUTPUT_DIR/result.json"
 
+  if [[ "$PROMCHECK_WORKLOAD" == grafanalabs-top100 ]]; then
+    python3 "$metrics_script" report --manifest "$work_dir/dashboards.json" --log "$OUTPUT_DIR/promcheck.log" \
+      --output "$OUTPUT_DIR/dashboard-coverage.json" --details "$OUTPUT_DIR/dashboards.json"
+    jq --arg revision "$PROMCHECK_DASHBOARD_SOURCE_REV" --slurpfile audit "$OUTPUT_DIR/corpus-audit.json" \
+      '.promcheck.dashboard_source_revision = $revision | .corpus_audit = $audit[0]' \
+      "$OUTPUT_DIR/result.json" > "$work_dir/result.json"
+    mv "$work_dir/result.json" "$OUTPUT_DIR/result.json"
+    jq --slurpfile coverage "$OUTPUT_DIR/dashboard-coverage.json" \
+      '. as $result | [$result] + [$coverage[0][] | . as $bucket |
+        $result | del(.compliance) | .metric = "dashboard_coverage" | .dashboard_coverage = $bucket]' \
+      "$OUTPUT_DIR/result.json" > "$OUTPUT_DIR/documents.json"
+  else
+    jq '[.]' "$OUTPUT_DIR/result.json" > "$OUTPUT_DIR/documents.json"
+  fi
+
   echo "--- Indexing promcheck results"
   # Overview stores compliance history in a data stream, which requires create operations.
-  # A stable build/corpus ID lets an upload retry recognize an already-created result.
-  doc_id=$(jq -rn --arg id "$BUILDKITE_BUILD_ID-$PROMCHECK_WORKLOAD" '$id | @uri')
-  http_status=$(curl -sS --retry 3 --connect-timeout 30 --max-time 120 -X PUT \
-    -H "Authorization: ApiKey $PROMCHECK_RESULTS_API_KEY" -H 'Content-Type: application/json' \
-    --data-binary "@$OUTPUT_DIR/result.json" -o "$OUTPUT_DIR/index-response.json" --write-out '%{http_code}' \
-    "${PROMCHECK_RESULTS_URL%/}/$PROMCHECK_RESULTS_INDEX/_create/$doc_id")
-  case "$http_status" in
-    201) jq -e '.result == "created"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
-    409) jq -e '.error.type == "version_conflict_engine_exception"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
-    *) echo "Results upload failed (HTTP $http_status); see index-response.json" >&2; exit 1 ;;
-  esac
+  # Stable build/workload/bucket IDs allow a partially uploaded run to resume on retry.
+  while IFS= read -r document; do
+    document_id=$(jq -r --arg base "$BUILDKITE_BUILD_ID-$PROMCHECK_WORKLOAD" \
+      '($base + (if .metric == "dashboard_coverage" then "-dashboards-" + (.dashboard_coverage.threshold_pct | tostring) else "" end)) | @uri' \
+      <<< "$document")
+    document_file="$work_dir/document.json"
+    printf '%s\n' "$document" > "$document_file"
+    http_status=$(curl -sS --retry 3 --connect-timeout 30 --max-time 120 -X PUT \
+      -H "Authorization: ApiKey $PROMCHECK_RESULTS_API_KEY" -H 'Content-Type: application/json' \
+      --data-binary "@$document_file" -o "$OUTPUT_DIR/index-response.json" --write-out '%{http_code}' \
+      "${PROMCHECK_RESULTS_URL%/}/$PROMCHECK_RESULTS_INDEX/_create/$document_id")
+    case "$http_status" in
+      201) jq -e '.result == "created"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
+      409) jq -e '.error.type == "version_conflict_engine_exception"' "$OUTPUT_DIR/index-response.json" >/dev/null ;;
+      *) echo "Results upload failed (HTTP $http_status); see index-response.json" >&2; exit 1 ;;
+    esac
+  done < <(jq -c '.[]' "$OUTPUT_DIR/documents.json")
   echo "Indexed $PROMCHECK_WORKLOAD results for $revision"
 )
 

@@ -30,14 +30,20 @@ steps:
       docker: "true"
       diskType: pd-ssd
       buildDirectory: /dev/shm/bk
-  - label: elastic / prometheus / nightly
+  - label: "elastic / prometheus / nightly — {{matrix}}"
     key: prometheus-nightly
     if: build.source == "schedule"
+    matrix:
+      - grafanalabs-top100
+      - compliance-tester
     command: .buildkite/scripts/validate-prometheus-compliance.sh nightly
     timeout_in_minutes: *promcheck-timeout
     artifact_paths:
       - "/tmp/prometheus-nightly-output/*"
     env:
+      PROMCHECK_WORKLOAD: "{{matrix}}"
+      # Last Python-era source export and fixture defaults, before the Go conversion.
+      PROMCHECK_DASHBOARD_SOURCE_REV: d4e61b3980b62715ebedbf92a986350a2cf1e3f2
       PROMCHECK_RESULTS_URL: https://overview-elastic-cloud-com.es.us-east-1.aws.found.io
       PROMCHECK_RESULTS_NAMESPACE: experimental
       PROMCHECK_RESULTS_SECRET: secret/ci/elastic-elasticsearch/promcheck-results

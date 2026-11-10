@@ -342,7 +342,9 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
             false
         );
-        return analyzer().externalSourceResolution(resource, schema, FileList.UNRESOLVED).buildAnalyzer().analyze(rewritten);
+        return analyzer().externalSourceResolution(datasetMetadata, resource, schema, FileList.UNRESOLVED)
+            .buildAnalyzer()
+            .analyze(rewritten);
     }
 
     /**

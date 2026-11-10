@@ -25,12 +25,12 @@ import java.util.Map;
  *                 so {@code TransportEsqlQueryAction#toResponse} can emit them as client {@code Warning}
  *                 headers. Empty when nothing was shadowed.
  */
-public record ExternalSourceResolution(Map<String, ResolvedSource> resolved, List<String> warnings) {
+public record ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> resolved, List<String> warnings) {
 
     public static final ExternalSourceResolution EMPTY = new ExternalSourceResolution(Map.of());
 
     /** Compact overload defaulting {@link #warnings} to empty. */
-    public ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
+    public ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> resolved) {
         this(resolved, List.of());
     }
 
@@ -62,8 +62,33 @@ public record ExternalSourceResolution(Map<String, ResolvedSource> resolved, Lis
         warnings = warnings == null || warnings.isEmpty() ? List.of() : List.copyOf(warnings);
     }
 
-    public ResolvedSource resolvedSource(String path) {
-        return resolved.get(path);
+    /**
+     * The resolution for one spec, or {@code null} when nothing resolved it.
+     */
+    public ResolvedSource resolvedSource(ExternalSourceSpec spec) {
+        return resolved.get(spec);
+    }
+
+    /**
+     * The resolution of the <b>only</b> spec over {@code path}, for the path-keyed {@code resolve} forms. No
+     * production caller; a plan resolves through {@link #resolvedSource(ExternalSourceSpec)}. Throws rather than
+     * guess when a path has two specs.
+     *
+     * @throws IllegalStateException if more than one spec over {@code path} resolved
+     */
+    public ResolvedSource soleResolvedSource(String path) {
+        ResolvedSource found = null;
+        for (Map.Entry<ExternalSourceSpec, ResolvedSource> entry : resolved.entrySet()) {
+            if (entry.getKey().path().equals(path)) {
+                if (found != null) {
+                    throw new IllegalStateException(
+                        "path [" + path + "] was read more than one way; ask for a ResolvedSource by its ExternalSourceSpec"
+                    );
+                }
+                found = entry.getValue();
+            }
+        }
+        return found;
     }
 
     public boolean isEmpty() {

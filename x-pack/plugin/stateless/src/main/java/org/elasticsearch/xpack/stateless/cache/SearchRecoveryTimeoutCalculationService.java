@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -79,6 +80,7 @@ public class SearchRecoveryTimeoutCalculationService {
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private volatile int maxConcurrentRelocationRecoveries;
+    private volatile int masterConcurrentIncomingRecoveries;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
@@ -106,6 +108,10 @@ public class SearchRecoveryTimeoutCalculationService {
             nodeSettings,
             maxHeap,
             limits -> this.maxConcurrentRelocationRecoveries = limits.maxConcurrentNonCriticalRecoveries()
+        );
+        clusterSettings.initializeAndWatch(
+            ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+            value -> this.masterConcurrentIncomingRecoveries = value
         );
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
@@ -309,8 +315,9 @@ public class SearchRecoveryTimeoutCalculationService {
     ///
     /// with `deadline = start + min(metadata grace, cap)`. The timeout is capped at the remaining grace period.
     ///
-    /// `concurrentRelocations` is this source's share of the target's, split between all relocations to the target from
-    /// any shutting-down source. It may be below one slot, so the timeout may round down to zero (skipping warming). This
+    /// `concurrentRelocations` is this source's share of the target's configured incoming recovery slots, see
+    /// [#maxRelocationSlotsPerTarget], split between all relocations to the target from any shutting-down source, and not more than the
+    /// shards of this source. It may be below one slot, so the timeout may round down to zero (skipping warming). This
     /// is a rough estimate, and an upper bound: it ignores the other recoveries competing for the target's slots.
     ///
     /// The heuristics above decide the first plan of the shutdown phase. Only equal-share plans are
@@ -356,10 +363,10 @@ public class SearchRecoveryTimeoutCalculationService {
         final int relocationsFromSourceToTarget = Math.max(1, countRelocationsBetween(state, sourceNodeId, targetNodeId));
         final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
 
-        // Share the target's cap between shutting-down sources, preserving fractional shares below one slot.
+        // Share the target's slots between shutting-down sources, preserving fractional shares below one slot.
         final double concurrentRelocations = Math.min(
-            relocationsFromSourceToTarget,
-            (double) maxConcurrentRelocationRecoveries * relocationsFromSourceToTarget / allRelocationsToTarget
+            shardsOnSource,
+            (double) maxRelocationSlotsPerTarget() * relocationsFromSourceToTarget / allRelocationsToTarget
         );
 
         if (previousPlan != null && previousPlan.isEqualSharePlan() && previousPlan.perShardShareMs() > 0) {
@@ -398,6 +405,12 @@ public class SearchRecoveryTimeoutCalculationService {
                 equalShareMs
             );
         }
+    }
+
+    /// The limit, not the free count, of incoming recoveries a node accepts at once: the lower of the data node limit (unbounded unless
+    /// configured) and the master's per node limit. At least one, as zero would stop relocations altogether.
+    private int maxRelocationSlotsPerTarget() {
+        return Math.max(1, Math.min(maxConcurrentRelocationRecoveries, masterConcurrentIncomingRecoveries));
     }
 
     /// Counts relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating

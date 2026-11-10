@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -28,6 +30,9 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -66,6 +71,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -790,6 +796,98 @@ public class RestoreServiceTests extends ESTestCase {
         RestoreInProgress.Entry entry = updated.get(restoreUuid);
         assertThat("the entry was rebuilt", entry.shards().get(s.primary().shardId()).state(), equalTo(RestoreInProgress.State.SUCCESS));
         assertTrue(entry.reportShardRestoring());
+    }
+
+    /**
+     * With no data nodes, allocation correctly cannot place restore primaries. That wait must not permanently fail the restore: once a
+     * data node returns, allocation should proceed. Today {@code failAllocationOfNewPrimaries} synthesizes
+     * {@link UnassignedInfo.AllocationStatus#DECIDERS_NO} so cluster health turns red,
+     * {@link RestoreService.RestoreInProgressUpdater} treats that as a terminal restore failure, and
+     * {@link org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider} then blocks the shard forever —
+     * forcing a manual retry.
+     */
+    public void testRestoreContinuesAfterTemporaryAbsenceOfDataNodes() {
+        final Snapshot snapshot = new Snapshot("repository", new SnapshotId("snapshot", UUIDs.randomBase64UUID(random())));
+        final IndexId indexId = new IndexId("test", UUIDs.randomBase64UUID(random()));
+        final String restoreUUID = UUIDs.randomBase64UUID(random());
+        final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
+            restoreUUID,
+            snapshot,
+            IndexVersion.current(),
+            indexId
+        );
+
+        // Snapshotted indices carry their in-sync allocation IDs into the restored IndexMetadata.
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID(random())))
+            .build();
+        final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
+
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.builder("master").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .addAsNewRestore(indexMetadata, recoverySource, Set.of())
+            )
+            .putCustom(
+                RestoreInProgress.TYPE,
+                new RestoreInProgress.Builder().add(
+                    new RestoreInProgress.Entry(
+                        restoreUUID,
+                        snapshot,
+                        RestoreInProgress.State.STARTED,
+                        false,
+                        List.of(indexMetadata.getIndex().getName()),
+                        Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(masterNode.getId()))
+                    )
+                ).build()
+            )
+            .build();
+
+        final long shardSize = randomNonNegativeLong();
+        final AllocationService allocationService = ESAllocationTestCase.createAllocationService(
+            Settings.EMPTY,
+            new TestGatewayAllocator(),
+            EmptyClusterInfoService.INSTANCE,
+            () -> new SnapshotShardSizeInfo(
+                Map.of(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shardId), shardSize)
+            )
+        );
+
+        // Allocation with zero data nodes: shards stay unassigned, but the restore must remain in progress.
+        clusterState = allocationService.reroute(clusterState, "reroute with no data nodes", ActionListener.noop());
+        ShardRouting primary = clusterState.routingTable().index("test").shard(0).primaryShard();
+        assertThat(primary.state(), equalTo(ShardRoutingState.UNASSIGNED));
+        assertThat(primary.recoverySource().getType(), equalTo(RecoverySource.Type.SNAPSHOT));
+
+        RestoreInProgress.Entry restoreAfterNoDataNodes = RestoreInProgress.get(clusterState).get(restoreUUID);
+        assertNotNull(restoreAfterNoDataNodes);
+        assertThat(
+            "temporary absence of data nodes must not permanently fail the restore",
+            restoreAfterNoDataNodes.shards().get(shardId).state(),
+            not(equalTo(RestoreInProgress.State.FAILURE))
+        );
+        assertFalse("restore must remain in progress while waiting for data nodes", restoreAfterNoDataNodes.state().completed());
+
+        // Data node returns: restore should be able to allocate the primary.
+        final DiscoveryNode dataNode = DiscoveryNodeUtils.builder("data").roles(Set.of(DiscoveryNodeRole.DATA_ROLE)).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(dataNode))
+            .build();
+        clusterState = allocationService.reroute(clusterState, "reroute after data node joins", ActionListener.noop());
+
+        primary = clusterState.routingTable().index("test").shard(0).primaryShard();
+        assertThat(
+            "restore primary must allocate once a data node is available again",
+            primary.state(),
+            equalTo(ShardRoutingState.INITIALIZING)
+        );
+        assertThat(primary.currentNodeId(), equalTo(dataNode.getId()));
     }
 
     /**

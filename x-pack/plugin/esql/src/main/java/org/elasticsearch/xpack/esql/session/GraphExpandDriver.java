@@ -34,9 +34,11 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -82,6 +84,7 @@ public final class GraphExpandDriver {
     private static final Set<String> ALLOWED_OPTIONS = Set.of(
         "max_hops",
         "direction",
+        "closing_edges",
         "hub_degree",
         "max_edges_per_node",
         "max_edges_per_hop",
@@ -599,38 +602,63 @@ public final class GraphExpandDriver {
         // the frontier list translates to the same terms query without that restriction. The IN
         // kept above the expands still trims per value either way.
         Attribute pointerField = leg == Leg.OUT ? targetField : matchField;
-        List<Expression> indexPredicates = new ArrayList<>(2);
+        // Targets this hop never admits: excluded ids always, and with closing_edges false the
+        // visited ids too. Edges onto them are removed inside the query rather than after the
+        // fetch, so they are neither grouped nor shipped. On an inbound leg the reached node is
+        // the document's own id, single-valued, so a NOT IN on it is a Lucene filter; on an
+        // outbound leg they are taken out of the pointer array below, before it is exploded.
+        List<Object> skipped = new ArrayList<>(excluded);
+        if (closingEdges() == false) {
+            skipped.addAll(visited);
+        }
+        List<Expression> indexPredicates = new ArrayList<>(3);
         if (leg == Leg.OUT) {
             indexPredicates.add(new In(source, frontierField, literals));
         } else {
             Literal frontierList = new Literal(source, List.copyOf(frontierValues), nodeType);
             indexPredicates.add(new MvIntersects(source, frontierField, frontierList));
+            if (skipped.isEmpty() == false) {
+                List<Expression> skippedLiterals = new ArrayList<>(skipped.size());
+                for (Object value : skipped) {
+                    skippedLiterals.add(new Literal(source, value, nodeType));
+                }
+                indexPredicates.add(new Not(source, new In(source, pointerField, skippedLiterals)));
+            }
         }
         indexPredicates.add(new IsNotNull(source, pointerField));
         LogicalPlan edges = new Filter(source, graphExpand.edgeRelation(), Predicates.combineAnd(indexPredicates));
-        // Hub guard, outbound legs: a frontier node with more pointers than hub_degree is
-        // refused after the fetch. Counting the pointer array on the matched document, before it
-        // is exploded, and slicing it to hub_degree + 1 values keeps a hub to just enough rows
-        // for that refusal to see it, instead of every pointer it holds being expanded, joined
-        // and shipped. The true count rides along in `dropped` so the refusal stub reports it.
+        // Outbound pointer array, rewritten on the matched document before it is exploded.
+        // Skipped targets are taken out first (MV_DIFFERENCE), so what follows only sees edges
+        // the hop can admit. Hub guard: a frontier node with more remaining pointers than
+        // hub_degree is refused after the fetch; counting the array here and slicing it to
+        // hub_degree + 1 values keeps a hub to just enough rows for that refusal to see it,
+        // instead of every pointer it holds being expanded, joined and shipped. The count rides
+        // along in `dropped` so the refusal stub reports it; applyHubDegree clears it on kept rows.
         Integer hubDegree = leg == Leg.OUT ? optionInt("hub_degree") : null;
         Attribute degreeAttr = null;
         Attribute expandSource = pointerField;
         LogicalPlan beforeExpand = edges;
-        if (hubDegree != null) {
-            Alias degree = new Alias(source, HUB_DEGREE_COLUMN, new MvCount(source, pointerField));
-            Alias capped = new Alias(
-                source,
-                pointerField.name(),
-                new MvSlice(
+        if (leg == Leg.OUT && (hubDegree != null || skipped.isEmpty() == false)) {
+            Expression pointers = skipped.isEmpty()
+                ? pointerField
+                : new MvDifference(source, pointerField, new Literal(source, List.copyOf(skipped), nodeType));
+            List<Alias> rewritten = new ArrayList<>(2);
+            Expression kept = pointers;
+            if (hubDegree != null) {
+                Alias degree = new Alias(source, HUB_DEGREE_COLUMN, new MvCount(source, pointers));
+                rewritten.add(degree);
+                degreeAttr = degree.toAttribute();
+                // MV_SLICE bounds are inclusive: 0..hub_degree is hub_degree + 1 values.
+                kept = new MvSlice(
                     source,
-                    pointerField,
+                    pointers,
                     new Literal(source, 0, DataType.INTEGER),
                     new Literal(source, hubDegree, DataType.INTEGER)
-                )
-            );
-            beforeExpand = new Eval(source, edges, List.of(degree, capped));
-            degreeAttr = degree.toAttribute();
+                );
+            }
+            Alias capped = new Alias(source, pointerField.name(), kept);
+            rewritten.add(capped);
+            beforeExpand = new Eval(source, edges, rewritten);
             expandSource = capped.toAttribute();
         }
         LogicalPlan scanned = new MvExpand(source, beforeExpand, frontierField, expandedFrontier);
@@ -989,19 +1017,26 @@ public final class GraphExpandDriver {
                 refused.add(entry.getKey());
             }
         }
-        if (refused.isEmpty()) {
-            return;
-        }
         int droppedIdx = indexOf(resultAttributes, "dropped");
-        // The hub guard slices a hub's pointers to hub_degree + 1 in the subplan and reports the
-        // full count in `dropped`; the stub carries that count rather than the sliced one.
+        // The hub guard in the subplan reports a document's remaining pointer count in `dropped`
+        // on every row. The stub of a refused node carries that count rather than the sliced
+        // one; rows of a node that is not refused get it cleared, since only a stub reports a
+        // degree.
         Map<Object, Integer> reportedDegree = new HashMap<>();
         if (droppedIdx >= 0) {
             for (List<Object> row : rows) {
                 if (row.get(droppedIdx) instanceof Number reported) {
-                    reportedDegree.merge(frontierNode(row), reported.intValue(), Math::max);
+                    Object via = frontierNode(row);
+                    if (refused.contains(via)) {
+                        reportedDegree.merge(via, reported.intValue(), Math::max);
+                    } else {
+                        row.set(droppedIdx, null);
+                    }
                 }
             }
+        }
+        if (refused.isEmpty()) {
+            return;
         }
         List<List<Object>> kept = new ArrayList<>(rows.size());
         Set<Object> stubEmitted = new HashSet<>();
@@ -1145,6 +1180,19 @@ public final class GraphExpandDriver {
             return to;
         }
         return from;
+    }
+
+    /**
+     * {@code closing_edges}, default true: whether an edge onto a node admitted on an earlier hop
+     * is reported (with {@code node_reached} null). False drops such edges inside the hop query.
+     */
+    private boolean closingEdges() {
+        MapExpression options = graphExpand.options();
+        if (options == null) {
+            return true;
+        }
+        Expression value = options.keyFoldedMap().get("closing_edges");
+        return value == null || Boolean.TRUE.equals(value.fold(FoldContext.small()));
     }
 
     private Integer optionInt(String key) {

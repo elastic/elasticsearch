@@ -58,6 +58,7 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
         "max_nodes",
         "max_frontier",
         "direction",
+        "closing_edges",
         "exclude",
         "hop_fields"
     );
@@ -373,6 +374,8 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
             }
             if (key.equals("direction")) {
                 verifyDirection(failures, value);
+            } else if (key.equals("closing_edges")) {
+                verifyBoolean(failures, key, value);
             } else if (key.equals("exclude") || key.equals("hop_fields")) {
                 verifyStringList(failures, key, value);
             } else if (INTEGER_CAP_OPTIONS.contains(key)) {
@@ -414,6 +417,13 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
         String direction = BytesRefs.toString(folded).toLowerCase(Locale.ROOT);
         if (DIRECTION_VALUES.contains(direction) == false) {
             failures.add(fail(this, "GRAPH EXPAND direction must be one of [in, out, both], got [" + value.sourceText() + "]"));
+        }
+    }
+
+    /** {@code closing_edges} is a boolean literal; true (the default) reports edges onto visited nodes. */
+    private void verifyBoolean(Failures failures, String key, Expression value) {
+        if ((value instanceof Literal) == false || value.dataType() != DataType.BOOLEAN) {
+            failures.add(fail(this, "expected " + key + " to be a boolean literal, got [" + value.sourceText() + "]"));
         }
     }
 

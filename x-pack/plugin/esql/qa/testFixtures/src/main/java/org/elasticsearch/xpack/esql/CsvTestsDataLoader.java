@@ -475,6 +475,7 @@ public class CsvTestsDataLoader {
         new TestDataset("graph_expand_labeled").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("graph_expand_ranked").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("graph_expand_fanout").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
+        new TestDataset("graph_expand_hub").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("graph_expand_pointers").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("graph_expand_stops").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("graph_expand_associates").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),

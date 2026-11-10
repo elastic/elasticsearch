@@ -30,6 +30,7 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -628,6 +629,23 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         // Datenanos random
         testCaseSuppliers.addAll(dateNanosRandomTestCases());
+
+        // Day-based periods: distance 3.5 days minus a 1 day offset, scale 7 days, so (14 - 2.5) / 14
+        long periodOrigin = LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
+        long periodValue = LocalDateTime.of(2023, 1, 4, 12, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
+        testCaseSuppliers.addAll(
+            temporalPeriodTestCase(DataType.DATETIME, periodValue, periodOrigin, Period.ofWeeks(1), Period.ofDays(1), 0.8214285714285714)
+        );
+        testCaseSuppliers.addAll(
+            temporalPeriodTestCase(
+                DataType.DATE_NANOS,
+                periodValue * 1_000_000L,
+                periodOrigin * 1_000_000L,
+                Period.ofDays(7),
+                Period.ofDays(1),
+                0.8214285714285714
+            )
+        );
 
         return parameterSuppliersFromTypedData(testCaseSuppliers);
     }
@@ -1320,6 +1338,32 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
     }
 
+    private static List<TestCaseSupplier> temporalPeriodTestCase(
+        DataType type,
+        long value,
+        long origin,
+        Period scale,
+        Period offset,
+        double expected
+    ) {
+        return List.of(
+            new TestCaseSupplier(
+                List.of(type, type, DataType.DATE_PERIOD, DataType.SOURCE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(value, type, "value"),
+                        new TestCaseSupplier.TypedData(origin, type, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.DATE_PERIOD, "scale").forceLiteral(),
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, 0.5, "linear"), DataType.SOURCE, "options").forceLiteral()
+                    ),
+                    startsWith(type == DataType.DATETIME ? "DecayDatetimeEvaluator[" : "DecayDateNanosEvaluator["),
+                    DataType.DOUBLE,
+                    closeTo(expected, Math.ulp(expected))
+                )
+            )
+        );
+    }
+
     private static double expectedDateNanosTemporalDecay(
         long valueNanos,
         long originNanos,
@@ -1361,6 +1405,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 case Double value -> keyValuePairs.add(Literal.fromDouble(Source.EMPTY, value));
                 case String value -> keyValuePairs.add(Literal.text(Source.EMPTY, value));
                 case Duration value -> keyValuePairs.add(Literal.timeDuration(Source.EMPTY, value));
+                case Period value -> keyValuePairs.add(new Literal(Source.EMPTY, value, DataType.DATE_PERIOD));
                 default -> {
                 }
             }

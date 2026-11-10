@@ -96,12 +96,14 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * An indexed field writes points beside its payload. A document whose array holds only nulls has no point to write, and
-     * Lucene requires every document to present a field the same way, so it must not present the payload alone either.
+     * An indexed field writes points, or terms with {@code index_terms}, beside its payload. A document whose array holds only
+     * nulls has nothing to index, and Lucene requires every document to present a field the same way, so it must not present
+     * the payload alone either.
      */
     public void testIndexedFieldWithOnlyNullsInAnArray() throws IOException {
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, "type=long,index=true");
+        final String mapping = "type=long,index=true,index_terms=" + randomBoolean();
+        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, mapping);
         final List<String> arrays = randomBoolean() ? List.of("[1, 2]", "[null]") : List.of("[null]", "[1, 2]");
         for (int i = 0; i < arrays.size(); i++) {
             prepareIndex(WITH_CODEC).setId(Integer.toString(i))
@@ -134,8 +136,10 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
      */
     public void testSearchesAgreeWithSortedNumeric() throws IOException {
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final boolean indexed = randomBoolean();
         final String mapping = Strings.format("""
-            {"properties":{"@timestamp":{"type":"date"},"id":{"type":"keyword"},"l":{"type":"long","index":%s}}}""", randomBoolean());
+            {"properties":{"@timestamp":{"type":"date"},"id":{"type":"keyword"},"l":{"type":"long","index":%s,"index_terms":%s}}}\
+            """, indexed, indexed && randomBoolean());
         for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
             indicesAdmin().prepareCreate(index).setSettings(settings(mode, index.equals(WITH_CODEC))).setMapping(mapping).get();
         }
@@ -205,7 +209,8 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
      */
     public void testSourceKeepsArrayOrder() throws IOException {
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        final String mapping = "type=long,index=" + randomBoolean();
+        final boolean indexed = randomBoolean();
+        final String mapping = "type=long,index=" + indexed + ",index_terms=" + (indexed && randomBoolean());
         createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, mapping);
         createIndex(WITHOUT_CODEC, settings(mode, false), "@timestamp", "type=date", FIELD, mapping);
         final Map<String, String> arrays = new LinkedHashMap<>();

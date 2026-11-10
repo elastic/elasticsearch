@@ -461,19 +461,16 @@ public class NumberFieldMapper extends FieldMapper {
 
         /**
          * How the field's doc values are laid out on disk. {@code long} fields of an index that opts into the ColumNAR
-         * numeric codec are written with it, except for those it can't serve yet: an {@code index_terms} field, whose
-         * terms and doc values share one {@code SORTED_NUMERIC} field type, and an index sort field, which Lucene's index
-         * sort reads as {@code SORTED_NUMERIC}.
+         * numeric codec are written with it, except for an index sort field, which Lucene's index sort reads as
+         * {@code SORTED_NUMERIC}.
          */
         // TODO: store the other numeric types with ColumNAR too.
         // TODO: sort an index by a ColumNAR numeric field, as keyword fields can be.
-        // TODO: store index_terms fields with ColumNAR too, writing their terms beside separate binary doc values.
         private DocValuesDiskFormat diskFormat(String fullName) {
             if (docValuesParameters.getValue().enabled() == false) {
                 return DocValuesDiskFormat.NONE;
             }
             if (type == NumberType.LONG
-                && indexTerms.getValue() == false
                 && ColumnarDocValuesFormatSelector.useColumnarNumericCodec(indexSettings)
                 && indexSettings.getIndexSortConfig().hasSortOnField(fullName) == false) {
                 return DocValuesDiskFormat.COLUMNAR;
@@ -1914,6 +1911,10 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
                     Query dvQuery = new ColumnarNumericRangeQuery(field, l, u);
+                    if (indexType.hasTerms()) {
+                        Query termsQuery = new TermRangeQuery(field, encodeLongIndexTerm(l), encodeLongIndexTerm(u), true, true);
+                        return new IndexOrDocValuesQuery(termsQuery, dvQuery);
+                    }
                     return indexType.hasPoints() ? new IndexOrDocValuesQuery(LongPoint.newRangeQuery(field, l, u), dvQuery) : dvQuery;
                 });
             }
@@ -3324,30 +3325,28 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void addLongFields(LuceneDocument document, String name, long l) {
         final var indexType = fieldType.indexType();
-        if (indexTerms) {
+        if (fieldType.diskFormat == DocValuesDiskFormat.COLUMNAR) {
+            // LongField and IndexTermsLongField write SORTED_NUMERIC doc values, so a ColumNAR field writes its index and doc values
+            // apart.
+            if (indexTerms) {
+                document.add(new Field(name, encodeLongIndexTerm(l), INDEX_TERMS_FIELD_TYPE_INDEX_ONLY));
+            } else if (indexType.hasPoints()) {
+                document.add(new LongPoint(name, l));
+            }
+            ColumnarNumericDocValuesField.recordValue(document, name, l);
+        } else if (indexTerms) {
             if (indexType.hasDocValues()) {
                 document.add(new IndexTermsLongField(name, l, encodeLongIndexTerm(l)));
             } else {
                 document.add(new Field(name, encodeLongIndexTerm(l), INDEX_TERMS_FIELD_TYPE_INDEX_ONLY));
             }
         } else {
-            switch (fieldType.diskFormat) {
-                case COLUMNAR -> {
-                    // LongField writes SORTED_NUMERIC doc values, so a ColumNAR field writes its points and doc values apart.
-                    if (indexType.hasPoints()) {
-                        document.add(new LongPoint(name, l));
-                    }
-                    ColumnarNumericDocValuesField.recordValue(document, name, l);
-                }
-                case SORTED_NUMERIC, NONE -> {
-                    if (indexType.hasPoints() && indexType.hasDocValues()) {
-                        document.add(new LongField(name, l, Field.Store.NO));
-                    } else if (indexType.hasDocValues()) {
-                        dvFactory.addNumericField(document, name, l);
-                    } else if (indexType.hasPoints()) {
-                        document.add(new LongPoint(name, l));
-                    }
-                }
+            if (indexType.hasPoints() && indexType.hasDocValues()) {
+                document.add(new LongField(name, l, Field.Store.NO));
+            } else if (indexType.hasDocValues()) {
+                dvFactory.addNumericField(document, name, l);
+            } else if (indexType.hasPoints()) {
+                document.add(new LongPoint(name, l));
             }
         }
         if (stored) {

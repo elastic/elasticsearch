@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -43,6 +44,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.ingest.IngestMemoryAccountant;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -162,20 +164,53 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             final long requestContextBytes = threadPool.getThreadContext().estimatedRequestContextBytes();
             releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes + requestContextBytes, isOnlySystem);
         }
+        // Accounts for documents growing in ingest pipelines. Released once both the bulk and all of its pipelines completed.
+        final IngestExpansionAccounting expansionAccounting = new IngestExpansionAccounting(trackIngestExpansion(isOnlySystem));
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(
             listener,
-            () -> Releasables.close(releasable, bulkRequest::releasePreBuiltBatches)
+            () -> Releasables.close(releasable, bulkRequest::releasePreBuiltBatches, expansionAccounting::decRef)
         );
         // Use coordinationExecutor for dispatching coordination tasks
         final Executor executor = isOnlySystem ? systemCoordinationExecutor : coordinationExecutor;
-        ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);
+        ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener, expansionAccounting);
+    }
+
+    /**
+     * Creates the tracker that accounts for the growth of documents in ingest pipelines. Simulated bulks do not retain anything, so
+     * they override this.
+     */
+    protected IndexingPressure.CoordinatingExpansionTracker trackIngestExpansion(boolean forceExecution) {
+        return indexingPressure.trackCoordinatingOperationExpansion(forceExecution);
+    }
+
+    /**
+     * Closes the expansion tracker once the bulk listener and the ingest of the bulk are both done with it.
+     */
+    private static final class IngestExpansionAccounting extends AbstractRefCounted implements IngestMemoryAccountant {
+
+        private final IndexingPressure.CoordinatingExpansionTracker tracker;
+
+        private IngestExpansionAccounting(IndexingPressure.CoordinatingExpansionTracker tracker) {
+            this.tracker = tracker;
+        }
+
+        @Override
+        public void add(long bytes) {
+            tracker.add(bytes);
+        }
+
+        @Override
+        protected void closeInternal() {
+            tracker.close();
+        }
     }
 
     private void ensureClusterStateThenForkAndExecute(
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
-        ActionListener<BulkResponse> releasingListener
+        ActionListener<BulkResponse> releasingListener,
+        IngestExpansionAccounting expansionAccounting
     ) {
         final ClusterState initialState = clusterService.state();
         ProjectId projectId = projectResolver.getProjectId();
@@ -196,7 +231,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    forkAndExecute(task, bulkRequest, executor, releasingListener);
+                    forkAndExecute(task, bulkRequest, executor, releasingListener, expansionAccounting);
                 }
 
                 @Override
@@ -210,15 +245,21 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(projectId, ClusterBlockLevel.WRITE));
         } else {
-            forkAndExecute(task, bulkRequest, executor, releasingListener);
+            forkAndExecute(task, bulkRequest, executor, releasingListener, expansionAccounting);
         }
     }
 
-    private void forkAndExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> releasingListener) {
+    private void forkAndExecute(
+        Task task,
+        BulkRequest bulkRequest,
+        Executor executor,
+        ActionListener<BulkResponse> releasingListener,
+        IngestExpansionAccounting expansionAccounting
+    ) {
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() throws IOException {
-                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener, false);
+                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener, false, expansionAccounting);
             }
         });
     }
@@ -228,7 +269,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        boolean haveRunIngestService
+        boolean haveRunIngestService,
+        IngestExpansionAccounting expansionAccounting
     ) throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         ClusterState state = clusterService.state();
@@ -319,7 +361,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executor, project, l);
+                    processBulkIndexIngestRequest(task, bulkRequest, executor, project, expansionAccounting, l);
                 } else {
                     ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
                 }
@@ -334,11 +376,15 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequest original,
         Executor executor,
         ProjectMetadata metadata,
+        IngestExpansionAccounting expansionAccounting,
         ActionListener<BulkResponse> listener
     ) {
         final long ingestStartTimeInNanos = relativeTimeNanos();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         final Thread originalThread = Thread.currentThread();
+        // Held until every document finished its pipeline, which is when the ingest service completes its listener successfully. That
+        // also holds when it fails early with documents still in their pipelines, in which case it completes the listener later again.
+        expansionAccounting.incRef();
         getIngestService(original).executeBulkRequest(
             metadata.id(),
             original.numberOfActions(),
@@ -347,7 +393,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             (indexName) -> resolveFailureStore(indexName, metadata, threadPool.absoluteTimeInMillis()),
             bulkRequestModifier::markItemForFailureStore,
             bulkRequestModifier::markItemAsFailed,
-            listener.delegateFailureAndWrap((l, unused) -> {
+            expansionAccounting,
+            releasingOnSuccess(expansionAccounting, listener.delegateFailureAndWrap((l, unused) -> {
                 long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - ingestStartTimeInNanos);
                 BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
                 ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, l);
@@ -360,7 +407,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                         @Override
                         protected void doRun() throws IOException {
-                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener, true);
+                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener, true, expansionAccounting);
                         }
 
                         @Override
@@ -382,8 +429,27 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     }
                 }
 
-            })
+            }))
         );
+    }
+
+    /**
+     * Releases the ingest's reference on the accounting when the ingest service reports that every document finished its pipeline. A
+     * failure is passed on without releasing as it can be reported while documents are still in their pipelines.
+     */
+    private static ActionListener<Void> releasingOnSuccess(IngestExpansionAccounting expansionAccounting, ActionListener<Void> delegate) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                expansionAccounting.decRef();
+                delegate.onResponse(unused);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                delegate.onFailure(e);
+            }
+        };
     }
 
     /**
@@ -441,7 +507,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        boolean haveRunIngestService
+        boolean haveRunIngestService,
+        IngestExpansionAccounting expansionAccounting
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
 
@@ -459,7 +526,14 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
 
         var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
 
-        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, haveRunIngestService) == false) {
+        if (applyPipelines(
+            task,
+            bulkRequestModifier.getBulkRequest(),
+            executor,
+            wrappedListener,
+            haveRunIngestService,
+            expansionAccounting
+        ) == false) {
             doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
         }
     }

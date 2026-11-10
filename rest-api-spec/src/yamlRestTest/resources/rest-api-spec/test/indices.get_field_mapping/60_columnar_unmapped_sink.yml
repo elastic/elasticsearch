@@ -6,7 +6,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+          capabilities: [ columnar_index_modes, dynamic_flattened ]
       reason: "columnar index modes and the flattened _unmapped sink are required"
 
   - do:
@@ -15,8 +15,8 @@
         body:
           settings:
             index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
+            dynamic: flattened
             properties:
               mapped:
                 type: long

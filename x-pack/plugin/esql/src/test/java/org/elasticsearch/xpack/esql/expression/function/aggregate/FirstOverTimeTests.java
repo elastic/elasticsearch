@@ -40,6 +40,7 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
         var suppliers = new ArrayList<TestCaseSupplier>();
         FunctionAppliesTo expHistogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo booleanGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.7.0", "", true);
 
         var valuesSuppliers = List.of(
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
@@ -50,6 +51,7 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
                 .map(s -> s.withAppliesTo(expHistogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
                 .toList(),
             MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramGaAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.booleanCases(1, 1000).stream().map(s -> s.withAppliesTo(booleanGaAppliesTo)).toList(),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),

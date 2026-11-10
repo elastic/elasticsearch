@@ -63,7 +63,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
-import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -201,7 +201,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final ActivityLogger<SearchLogContext> activityLogger;
+    private final QueryInterceptor<SearchCaptureContext> queryInterceptor;
 
     @Inject
     public TransportSearchAction(
@@ -269,13 +269,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.usageService = usageService;
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = crossProjectModeDecider;
-        this.activityLogger = new QueryLogger<>(
+        var queryLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
             new SearchLogProducer(),
             logWriterProvider,
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
+        this.queryInterceptor = new QueryInterceptor<>(List.of(queryLogger));
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -422,10 +423,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        SearchLogContextBuilder searchLogContextBuilder = new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest);
-        activityLogger.wrapAndRun(
+        SearchCaptureContextBuilder searchCaptureContextBuilder = new SearchCaptureContextBuilder(
+            task,
+            namedWriteableRegistry,
+            searchRequest
+        );
+        queryInterceptor.wrapAndRun(
             listener,
-            searchLogContextBuilder,
+            searchCaptureContextBuilder,
             l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
         );
     }
@@ -1193,29 +1198,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * the cluster's failure, but no {@link SearchResponse} reader charges a breaker today.
      */
     static final class RemoteResponseHandler extends ActionListenerResponseHandler<SearchResponse> {
-        private final CircuitBreaker circuitBreaker;
-        private volatile CircuitBreakingException reservationTrip;
+        private final ShardResponseReservation reservation;
 
         RemoteResponseHandler(ActionListener<? super SearchResponse> listener, Executor executor, CircuitBreaker circuitBreaker) {
             super(listener, SearchResponse::new, executor);
-            this.circuitBreaker = circuitBreaker;
+            this.reservation = new ShardResponseReservation(circuitBreaker, SearchResponseMerger.BREAKER_LABEL, listener::onFailure);
         }
 
         @Override
         public Releasable reserveResponseBytes(int bytes) {
-            try {
-                circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, SearchResponseMerger.BREAKER_LABEL);
-            } catch (CircuitBreakingException e) {
-                reservationTrip = e;
-                throw e;
-            }
-            return Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, SearchResponseMerger.BREAKER_LABEL));
+            return reservation.reserve(bytes);
         }
 
         @Override
         public void handleException(TransportException e) {
-            CircuitBreakingException trip = reservationTrip;
-            listener.onFailure(trip != null ? trip : e);
+            if (reservation.reportTrip() == false) {
+                listener.onFailure(e);
+            }
         }
     }
 
@@ -2323,7 +2322,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     searchResponseMetrics,
                     searchRequestAttributes,
-                    false
+                    false,
+                    clusterState
                 ).addListener(listener.delegateFailureAndWrap((l, canMatchResult) -> {
                     skippedByClusterAlias.forEach(
                         (cluster, count) -> canMatchResult.skippedByClusterAlias().merge(cluster, count, Integer::sum)

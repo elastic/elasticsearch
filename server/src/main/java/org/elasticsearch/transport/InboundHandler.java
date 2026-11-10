@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -23,6 +24,8 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.function.Supplier;
 
 /**
  * Handles inbound messages by first deserializing a {@link TransportRequest} or {@link TransportResponse} from an {@link InboundMessage}
@@ -47,6 +51,7 @@ public class InboundHandler {
     private final Transport.ResponseHandlers responseHandlers;
     private final Transport.RequestHandlers requestHandlers;
     private final HandlingTimeTracker handlingTimeTracker;
+    private final Supplier<CircuitBreaker> requestBreaker;
     private final boolean ignoreDeserializationErrors;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
@@ -62,6 +67,7 @@ public class InboundHandler {
         Transport.RequestHandlers requestHandlers,
         Transport.ResponseHandlers responseHandlers,
         HandlingTimeTracker handlingTimeTracker,
+        Supplier<CircuitBreaker> requestBreaker,
         boolean ignoreDeserializationErrors
     ) {
         this.threadPool = threadPool;
@@ -72,6 +78,7 @@ public class InboundHandler {
         this.requestHandlers = requestHandlers;
         this.responseHandlers = responseHandlers;
         this.handlingTimeTracker = handlingTimeTracker;
+        this.requestBreaker = requestBreaker;
         this.ignoreDeserializationErrors = ignoreDeserializationErrors;
     }
 
@@ -231,12 +238,20 @@ public class InboundHandler {
         }
     }
 
-    private void verifyResponseReadFully(Header header, TransportResponseHandler<?> responseHandler, StreamInput streamInput)
-        throws IOException {
+    private void verifyResponseReadFully(
+        Header header,
+        TransportResponseHandler<?> responseHandler,
+        StreamInput streamInput,
+        @Nullable RefCounted response
+    ) throws IOException {
         // Check the entire message has been read
         final int nextByte = streamInput.read();
         // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
         if (nextByte != -1) {
+            if (response != null) {
+                // The handler never gets this response, so nothing else releases it.
+                response.decRef();
+            }
             final IllegalStateException exception = new IllegalStateException(
                 "Message not fully read (response) for requestId ["
                     + header.getRequestId()
@@ -267,6 +282,11 @@ public class InboundHandler {
         final long requestId = header.getRequestId();
         final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
         assert message.isShortCircuit() || reg != null : action;
+        final DecodedRequestBytes decodedBytes = new DecodedRequestBytes(
+            requestBreaker,
+            reg != null && reg.canTripCircuitBreaker(),
+            message.takeBreakerReleaseControl()
+        );
         final TransportChannel transportChannel = new TcpTransportChannel(
             outboundHandler,
             channel,
@@ -276,7 +296,7 @@ public class InboundHandler {
             header.getCompressionScheme(),
             reg == null ? ResponseStatsConsumer.NONE : reg,
             false,
-            Releasables.assertOnce(message.takeBreakerReleaseControl())
+            Releasables.assertOnce(decodedBytes)
         );
 
         try {
@@ -292,7 +312,7 @@ public class InboundHandler {
             }
 
             assert reg != null;
-            final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
+            final StreamInput stream = decodedBytes.streamInput(message.openOrGetStreamInput(), namedWriteableRegistry);
             assert assertRemoteVersion(stream, header.getVersion());
             T request;
             try {
@@ -310,6 +330,7 @@ public class InboundHandler {
                 assert requestId > 0;
                 request.setRequestId(requestId);
                 verifyRequestReadFully(stream, requestId, action);
+                decodedBytes.checkRead();
                 if (reg.getExecutor() == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                         doHandleRequest(reg, request, transportChannel);
@@ -472,7 +493,7 @@ public class InboundHandler {
         final T response;
         try (inboundMessage) {
             response = handler.read(stream);
-            verifyResponseReadFully(inboundMessage.getHeader(), handler, stream);
+            verifyResponseReadFully(inboundMessage.getHeader(), handler, stream, response);
         } catch (Exception e) {
             // Reading a message reserves memory for the structures it builds, so a breaker can trip part-way through reading a message
             // that is itself perfectly well-formed. That is rejected work rather than a deserialization defect, so deliver the breaker
@@ -513,7 +534,7 @@ public class InboundHandler {
         Exception error;
         try (message) {
             error = stream.readException();
-            verifyResponseReadFully(message.getHeader(), handler, stream);
+            verifyResponseReadFully(message.getHeader(), handler, stream, null);
         } catch (Exception e) {
             error = new TransportSerializationException(
                 "Failed to deserialize exception response from stream for handler [" + handler + "]",

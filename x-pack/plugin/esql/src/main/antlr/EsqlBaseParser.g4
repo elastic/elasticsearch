@@ -133,9 +133,8 @@ indexPatternOrSubquery
 // The name is not resolved here and the parser never consults the registry, so any name followed by '('
 // parses. An unknown one is refused during analysis, at the position it was written.
 //
-// Shaped after functionExpression, including the trailing optional mapExpression: the map stays a separate
-// alternative here -- so it can only be written last, and writing it elsewhere is a parse error -- and the
-// builder folds it into the one argument list. Why, on TableFunctionArgument.
+// Narrower than functionExpression's arguments, and with no slot of its own for a trailing map: a map is one
+// alternative of tableFunctionArgument, so it may be written in any position. Why, on TableFunctionArgument.
 tableFunction
     : {this.isDevVersion()}? name=DEV_TABLE_FUNCTION_NAME (tableFunctionArgument (COMMA tableFunctionArgument)*)? RP
     ;

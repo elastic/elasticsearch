@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -341,6 +342,43 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         spec.emitListingNotices(Set.of("year", "month"), List.of(hint("ts", Operator.GREATER_THAN, MARCH_15_2024)), notices::add);
         assertThat(notices, empty());
         assertFalse(spec.overlaps(Map.of("year", 2024, "month", 2), List.of(hint("ts", Operator.GREATER_THAN, MARCH_15_2024))));
+    }
+
+    /**
+     * The merge branch of the single-spec form, which the map form's own tests never reach because all three pass
+     * empty hints. The two bounds come first, in GTE-then-LTE order, with the query's own hints after them.
+     */
+    public void testWithTimestampBoundsPrependsBoundsToExistingHints() {
+        Instant start = Instant.parse("2024-06-01T00:00:00Z");
+        Instant end = Instant.parse("2025-01-01T00:00:00Z");
+        PartitionSpec spec = PartitionSpec.parse("year(@timestamp)");
+        PartitionFilterHint existing = hint("region", Operator.EQUALS, "emea");
+
+        List<PartitionFilterHint> merged = spec.withTimestampBounds(List.of(existing), start, end);
+
+        assertEquals(3, merged.size());
+        assertEquals(MetadataAttribute.TIMESTAMP_FIELD, merged.get(0).columnName());
+        assertEquals(Operator.GREATER_THAN_OR_EQUAL, merged.get(0).operator());
+        assertEquals(List.of(start), merged.get(0).values());
+        assertEquals(MetadataAttribute.TIMESTAMP_FIELD, merged.get(1).columnName());
+        assertEquals(Operator.LESS_THAN_OR_EQUAL, merged.get(1).operator());
+        assertEquals(List.of(end), merged.get(1).values());
+        assertEquals(existing, merged.get(2));
+    }
+
+    /** A spec that does not bind {@code @timestamp} gets its hints back by identity, bounds or no bounds. */
+    public void testWithTimestampBoundsLeavesAnUnboundSpecAlone() {
+        List<PartitionFilterHint> hints = List.of(hint("region", Operator.EQUALS, "emea"));
+        PartitionSpec spec = PartitionSpec.parse("year(ts)");
+
+        Instant start = Instant.parse("2024-06-01T00:00:00Z");
+        Instant end = Instant.parse("2025-01-01T00:00:00Z");
+
+        assertSame(hints, spec.withTimestampBounds(hints, start, end));
+        assertNull(spec.withTimestampBounds(null, start, end));
+        // The absent-bounds arm, which is what EsqlSession passes for every spec when the request carries no filter.
+        assertSame(hints, spec.withTimestampBounds(hints, null, null));
+        assertSame(hints, spec.withTimestampBounds(hints, end, start));
     }
 
     public void testTimestampBoundsBecomeYearInForAtTimestamp() {

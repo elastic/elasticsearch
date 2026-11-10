@@ -12,6 +12,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,6 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -298,6 +303,63 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         query.append("| KEEP big_unmapped\n");
         query.append("| LIMIT ").append(limit).append("\"}");
         return responseAsMap(query(query.toString(), "columns,values"));
+    }
+
+    /** The circuit break of the values held while a field is read, not a break of another request. */
+    private static final MapMatcher HELD_VALUES_BREAK = matchesMap().entry("status", 429)
+        .entry(
+            "error",
+            matchesMap().extraOk()
+                .entry("type", "circuit_breaking_exception")
+                .entry("reason", containsString("[unmapped fields held values]"))
+        );
+
+    /**
+     * Index:
+     * <ul>
+     *     <li>One document with an array of 7M one-character strings, which is unmapped, indexed as CBOR: 14MB of {@code _source}</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>Keep that field</li>
+     * </ul>
+     * Expected: circuit break while the values of the field are held
+     * <p>
+     * Loading a field by name reserves nothing before it reads {@code _source}, and for each value it keeps a copy and a copy of the
+     * position of the value in the document: about 90 bytes for an element of 2 bytes of CBOR. On the 512MB heap of this suite an
+     * array of this many strings, with the request breaker at its default limit, killed the node before the held values were
+     * charged. The cluster allows the document to be indexed, see {@link Clusters}, and CBOR keeps it small enough to be indexed on a
+     * larger heap as well, see {@link #indexCborDocument}.
+     */
+    public void testArrayOfShortStringsCircuitBreaksWhileTheValuesOfAFieldAreHeld() throws IOException {
+        String index = "unmapped_load_short_strings";
+        CreateIndexResponse response = createIndex(index, Settings.EMPTY, """
+            {
+              "dynamic": false,
+              "properties": {
+                "sort_key": {
+                  "type": "long"
+                }
+              }
+            }""");
+        assertTrue(response.isAcknowledged());
+        try (XContentBuilder doc = XContentFactory.cborBuilder()) {
+            doc.startObject().field("sort_key", 0);
+            arrayOfShortStrings(doc, "a", scaleToHeap(7_000_000));
+            doc.endObject();
+            indexCborDocument(index, doc);
+        }
+        // Everything is indexed already; this only force-merges and refreshes.
+        initIndex(index, "");
+
+        assertCircuitBreaks(attempt -> {
+            StringBuilder query = startQuery();
+            query.append("SET unmapped_fields=\\\"load\\\";\n");
+            query.append("FROM ").append(index).append("\n");
+            query.append("| KEEP a\n");
+            query.append("| LIMIT 1\"}");
+            return responseAsMap(query(query.toString(), "columns"));
+        }, HELD_VALUES_BREAK);
     }
 
     private static String fieldName(int field) {

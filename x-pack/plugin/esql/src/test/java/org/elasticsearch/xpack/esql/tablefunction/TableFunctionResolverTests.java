@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -165,13 +164,8 @@ public class TableFunctionResolverTests extends ESTestCase {
     /** The shape is checked by the shared signature, so a function writes no arity code of its own. */
     public void testWrongArityIsRefusedBeforeTheFunctionIsAsked() {
         Numbers function = new Numbers();
-        LogicalPlan plan = new UnresolvedTableFunctionRelation(
-            Source.EMPTY,
-            new TableFunctionInvocation(Source.EMPTY, "numbers", List.of()),
-            List.of()
-        );
 
-        expectThrows(ParsingException.class, () -> resolve(function, plan));
+        expectThrows(ParsingException.class, () -> resolve(function, callWithNoArguments()));
         assertThat("the function must not have been asked to bind", function.bindings.get(), equalTo(0));
     }
 
@@ -346,6 +340,72 @@ public class TableFunctionResolverTests extends ESTestCase {
         }
     }
 
+    /** Completes its listener with nothing, which is the one way a leaf can be left unbound. */
+    private static class Nulling implements TableFunction {
+
+        @Override
+        public String name() {
+            return "nulling";
+        }
+
+        @Override
+        public TableFunctionSignature signature() {
+            return TableFunctionSignature.of(TableFunctionSignature.name("x"));
+        }
+
+        @Override
+        public void toRelation(
+            TableFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
+            listener.onResponse(null);
+        }
+    }
+
+    /** Hands back another call rather than a relation, which the rewrite would otherwise leave in the plan. */
+    private static class Recursing implements TableFunction {
+
+        @Override
+        public String name() {
+            return "recursing";
+        }
+
+        @Override
+        public TableFunctionSignature signature() {
+            return TableFunctionSignature.of(TableFunctionSignature.name("x"));
+        }
+
+        @Override
+        public void toRelation(
+            TableFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
+            listener.onResponse(new UnresolvedTableFunctionRelation(call.source(), call, metadataFields));
+        }
+    }
+
+    /**
+     * A function completing with nothing is refused by name. Unguarded the rewrite leaves the leaf in place and the
+     * query fails further on as an NPE naming no function, which is a bug report nobody can act on.
+     */
+    public void testAFunctionBindingNoRelationIsRefusedByName() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> resolve(new Nulling(), named("nulling")));
+        assertThat(e.getMessage(), containsString("[nulling] bound no relation for a call in this query"));
+    }
+
+    /**
+     * And a function handing back another call is refused too, rather than the leaf surviving the rewrite and being
+     * reported to the user as their own syntax being unresolved.
+     */
+    public void testAFunctionReturningAnotherCallIsRefusedByName() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> resolve(new Recursing(), named("recursing")));
+        assertThat(e.getMessage(), containsString("[recursing] returned another table function call"));
+    }
+
     private static UnresolvedTableFunctionRelation named(String function) {
         Source source = Source.EMPTY;
         return new UnresolvedTableFunctionRelation(
@@ -451,17 +511,6 @@ public class TableFunctionResolverTests extends ESTestCase {
         assertThat(children.get(0), instanceOf(LocalRelation.class));
         assertThat(children.get(1), instanceOf(LocalRelation.class));
         assertThat(children.get(0) == children.get(1), equalTo(false));
-    }
-
-    /**
-     * One row holding one cell, so a test names the cell it hands over instead of counting brackets. The three
-     * levels - rows, row, cell - are easy to be one out on, and being one out turns a nested list into an ordinary
-     * multivalue, which is exactly the thing under test.
-     */
-    private static List<List<Object>> oneCell(Object cell) {
-        List<Object> row = new ArrayList<>(1);
-        row.add(cell);
-        return List.of(row);
     }
 
     /** A call of the same function with nothing in the parentheses, which its signature refuses. */

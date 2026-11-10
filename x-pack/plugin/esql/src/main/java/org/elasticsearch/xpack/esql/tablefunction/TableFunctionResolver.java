@@ -27,8 +27,8 @@ import java.util.concurrent.Executor;
  * <p>
  * The whole of what is common to every table function lives here, and it is four things: resolve the name, check
  * the shape, run the function's own validation, and bind. Everything else a particular function needs — a
- * privilege, a round-trip, a collaborator — belongs to that function or to the base class it extends, not here.
- * Nothing here reads a function's arguments, holds a collaborator, or checks a privilege.
+ * privilege, a round-trip, a collaborator — belongs to that function, not here. Nothing here reads a function's
+ * arguments, holds a collaborator, or checks a privilege.
  * <p>
  * Resolution of the <i>name</i> happens before any of it, so a misspelled function is answered by its own
  * diagnostic at its own position rather than by whatever the next stage would have made of it.

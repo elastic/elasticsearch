@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.AlignMergeBranches;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -552,8 +555,35 @@ public class TestAnalyzer {
      * External metadata columns are request-driven now — they reach the relation only through the
      * METADATA clause (FROM path) or the temporary EXTERNAL-command shim that injects {@code _file.*}
      * into the relation's metadataFields at parse time.
+     * <p>
+     * Keyed under an <b>empty</b> configuration, which only matches a relation built by hand with one — see
+     * {@link #externalSourceResolution(ProjectMetadata, String, List, FileList)} for a plan the
+     * {@code DatasetRewriter} produced, whose relations carry the dataset's config and so key on it.
      */
     public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
+        return externalSourceResolution(
+            new ExternalSourceResolution(Map.of(new ExternalSourceSpec(path, Map.of()), source(path, schema, fileSet)))
+        );
+    }
+
+    /**
+     * As {@link #externalSourceResolution(String, List, FileList)}, for a plan rewritten from {@code projectMetadata}
+     * by {@code DatasetRewriter}: the resolution is keyed on the configuration that rewrite puts on the relation, so
+     * the analyzer's lookup hits. Builds the keys through {@link EsqlTestUtils#externalResolutionFor}.
+     */
+    public TestAnalyzer externalSourceResolution(
+        ProjectMetadata projectMetadata,
+        String resource,
+        List<Attribute> schema,
+        FileList fileSet
+    ) {
+        return externalSourceResolution(
+            EsqlTestUtils.externalResolutionFor(projectMetadata, Map.of(resource, source(resource, schema, fileSet)))
+        );
+    }
+
+    /** A resolved source over {@code schema} and {@code fileSet}, reporting {@code path} as its location. */
+    private static ExternalSourceResolution.ResolvedSource source(String path, List<Attribute> schema, FileList fileSet) {
         var metadata = new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -570,15 +600,20 @@ public class TestAnalyzer {
                 return "parquet";
             }
         };
-        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet, java.util.Map.of());
-        return externalSourceResolution(new ExternalSourceResolution(Map.of(path, resolvedSource)));
+        return new ExternalSourceResolution.ResolvedSource(metadata, fileSet, Map.of());
     }
 
     /**
-     * Sets an "unresolved" external source.
+     * Sets an "unresolved" external source. Keyed under an empty configuration; see
+     * {@link #externalSourceResolution(String, List, FileList)}.
      */
     public TestAnalyzer externalSourceUnresolved(String path, List<Attribute> schema) {
         return externalSourceResolution(path, schema, FileList.UNRESOLVED);
+    }
+
+    /** As {@link #externalSourceUnresolved(String, List)}, keyed for a plan rewritten from {@code projectMetadata}. */
+    public TestAnalyzer externalSourceUnresolved(ProjectMetadata projectMetadata, String resource, List<Attribute> schema) {
+        return externalSourceResolution(projectMetadata, resource, schema, FileList.UNRESOLVED);
     }
 
     /**
@@ -896,7 +931,9 @@ public class TestAnalyzer {
         wildcardsMatchDatasets = statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS);
         var analyzed = buildAnalyzer().analyze(resolveViewsAndInSubqueries(statement.plan()));
         var failures = new Failures();
-        analyzed.forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
+        // The analyzer leaves merge branches unaligned with the merge's output; the optimizer aligns them first thing. Check the
+        // plan as the optimizer will see it, which also checks that the merge outputs the analyzer computed can be aligned with.
+        new AlignMergeBranches().apply(analyzed).forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

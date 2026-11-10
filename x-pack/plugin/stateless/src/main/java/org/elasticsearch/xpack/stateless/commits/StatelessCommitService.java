@@ -72,7 +72,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -1662,7 +1662,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.splitTargetCopyExecutor = new ThrottledTaskRunner(
                 "copy-to-split-targets[" + shardId + "]",
                 1,
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
             ).asExecutor();
             this.allocationPrimaryTerm = allocationPrimaryTerm;
             this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;

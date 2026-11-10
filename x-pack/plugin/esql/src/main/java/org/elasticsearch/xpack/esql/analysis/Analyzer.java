@@ -2400,10 +2400,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Either adds what the relation needs to {@code toLoad} (and, to convert it, an alias to {@code aliases}) and returns
          * {@code true}, or leaves the branch contributing nulls and returns {@code false}.
          * <ul>
-         *   <li>A {@code LOAD_ALL} sibling column: a sibling branch of a union has the column, with the same type in every branch that
-         *   has it, and this branch does not, so the keyword read from {@code _source} is cast to that type when a cast exists, and
-         *   otherwise null-filled with a warning. How the sibling got the column (a mapping, an {@code EVAL}, a {@code RENAME}, a
-         *   union nested in it) makes no difference, and neither does the order of the branches. A column with no single type, such as
+         *   <li>A {@code LOAD_ALL} sibling column: a sibling branch of a union or a {@code FORK} has the column, with the same type in
+         *   every branch that has it, and this branch does not, so the keyword read from {@code _source} is cast to that type when a
+         *   cast exists, and otherwise null-filled with a warning. How the sibling got the column (a mapping, an {@code EVAL}, a
+         *   {@code RENAME}, a union or {@code FORK} nested in it) makes no difference, and neither does the order of the branches. A column with no single type, such as
          *   one that the siblings disagree on, is not loaded. A field this branch already named stays a keyword and conflicts further
          *   down, same as load.</li>
          *   <li>A field materialized in a sibling branch is materialized here too (rather than null-filled), unless this branch
@@ -2431,13 +2431,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             UnmappedResolution unmappedResolution = context.unmappedResolution();
             LogicalPlan branch = mergePlan.children().get(branchIndex);
-            if (mergePlan instanceof UnionAll
+            if ((mergePlan instanceof UnionAll || mergePlan instanceof Fork)
                 && unmappedResolution.loadsAllUnmappedFields()
                 && siblingColumnMayBeInSource(attr)
                 && branchCanSurfaceLoadedField(branch, attr.name())) {
                 // A sibling has the column, and has it with one type in every branch that does (otherwise the merged column is
                 // unsupported). The branch does not, so read it from its own _source and cast it to that type. What the sibling does
-                // to get the column (a mapping, an EVAL, a RENAME, a nested union) makes no difference.
+                // to get the column (a mapping, an EVAL, a RENAME, a nested union or FORK) makes no difference.
                 FieldAttribute loaded = unmappedKeyword(attr);
                 AbstractConvertFunction cast = implicitCastFromKeyword(attr.dataType(), loaded, context.configuration());
                 if (cast != null) {

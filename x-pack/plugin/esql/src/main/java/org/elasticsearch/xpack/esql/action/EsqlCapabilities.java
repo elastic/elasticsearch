@@ -4753,11 +4753,11 @@ public class EsqlCapabilities {
         COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
 
         /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch that lacks a column which a sibling branch has, with
-         * one type in every branch that has it, reads that column from its own {@code _source}, cast to that type, instead of
-         * null-filling it. It makes no difference how the sibling got the column: a mapping, an {@code EVAL}, a {@code RENAME} or a
-         * union nested in it. A branch that drops the column still null-fills it. Only meaningful when
-         * {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} is available. See
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which
+         * a sibling branch has, with one type in every branch that has it, reads that column from its own {@code _source}, cast to
+         * that type, instead of null-filling it. It makes no difference how the sibling got the column: a mapping, an {@code EVAL}, a
+         * {@code RENAME} or a union or {@code FORK} nested in it. A branch that drops the column still null-fills it. Only meaningful
+         * when {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} and {@link #OPTIONAL_FIELDS_LOAD_ALL_FORK} are available. See
          * <a href="https://github.com/elastic/elasticsearch/issues/162512">#162512</a> and
          * <a href="https://github.com/elastic/elasticsearch/issues/164545">#164545</a>.
          */

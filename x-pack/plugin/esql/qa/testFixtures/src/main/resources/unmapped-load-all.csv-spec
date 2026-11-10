@@ -8267,3 +8267,57 @@ FROM (FROM no_mapping_sample_data | INLINE STATS c = COUNT(*) BY client_ip), (FR
 from_source:long | computed:long | null_rows:long
 7                | 1             | 0
 ;
+
+// The sibling that has the column is a branch with a FORK in it.
+loadAllSubquerySiblingColumnFromBranchWithFork
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_fork
+required_capability: subquery_in_from_command
+required_capability: fork_v9
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data, (FROM no_mapping_sample_data | FORK (EVAL message = "sub" | LIMIT 1) (EVAL message = "sub2" | LIMIT 1))
+| STATS from_source = COUNT(*) WHERE message NOT IN ("sub", "sub2"), computed = COUNT(*) WHERE message IN ("sub", "sub2"), null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 2             | 0
+;
+
+// Under FORK too, a branch that lacks a column that another branch computes reads it from _source.
+loadAllForkBranchLoadsColumnThatAnotherBranchComputes
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data
+| FORK (EVAL message = "sub" | LIMIT 1) (WHERE true)
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 1             | 0
+;
+
+// The column the FORK branch loads is not left in the _unmapped_fields object of its row.
+loadAllForkRowOfBranchThatLacksColumnHasItAsAColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data
+| WHERE unmapped_message == "43"
+| FORK (EVAL message = "sub") (WHERE true)
+| WHERE _fork == "fork2"
+| DROP @timestamp, client_ip, event_duration
+;
+
+unmapped_message:keyword | message:keyword | _fork:keyword | _unmapped_fields:_source
+43                       | 42              | fork2         | "{""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
+;

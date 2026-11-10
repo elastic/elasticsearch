@@ -252,6 +252,10 @@ tests:
   - :x-pack:plugin:transform:qa:multi-node-tests:javaRestTest
   method: testTransformLifecycleInALoop
   issue: https://github.com/elastic/elasticsearch/issues/155844
+- class: org.elasticsearch.search.MultiClusterSearchYamlTestSuiteIT
+  tasks:
+  - :qa:multi-cluster-search:v9.4.10#multi-cluster
+  issue: https://github.com/elastic/elasticsearch/issues/165287
 
 # Examples:
 #

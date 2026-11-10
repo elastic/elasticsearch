@@ -159,6 +159,11 @@ tests:
   - :qa:mixed-cluster:v8.18.8#yamlRestTest
   method: test {yaml=update/100_synthetic_source/stored text}
   issue: https://github.com/elastic/elasticsearch/issues/165274
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v8.18.8#yamlRestTest
+  method: test {yaml=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/165276
 
 # Examples:
 #

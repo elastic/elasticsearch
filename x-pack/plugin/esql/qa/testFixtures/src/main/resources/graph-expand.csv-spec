@@ -500,6 +500,36 @@ b                 | a               | b                    | 1
 ;
 
 
+inbound hub guard refuses a node pointed at by more documents than hub_degree
+required_capability: graph_expand
+
+ROW node_id = "b"
+| GRAPH EXPAND graph_expand_hub ON node_id == id TO ptr
+  WITH { "max_hops": 1, "direction": "in", "hub_degree": 3 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | dropped:integer
+b                 | null            | null                 | 1           | 4
+;
+
+
+inbound hub guard keeps a node within hub_degree
+required_capability: graph_expand
+
+ROW node_id = "b"
+| GRAPH EXPAND graph_expand_hub ON node_id == id TO ptr
+  WITH { "max_hops": 1, "direction": "in", "hub_degree": 4 }
+| SORT node_from
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | dropped:integer
+a                 | b               | a                    | 1           | null
+f                 | b               | f                    | 1           | null
+g                 | b               | g                    | 1           | null
+h                 | b               | h                    | 1           | null
+;
+
+
 LOOKUP JOIN enriches reached nodes from the same lookup index
 required_capability: graph_expand
 

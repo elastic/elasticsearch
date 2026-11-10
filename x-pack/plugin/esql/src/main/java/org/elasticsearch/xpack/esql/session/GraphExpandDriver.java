@@ -31,8 +31,11 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
@@ -82,6 +85,8 @@ public final class GraphExpandDriver {
 
     /** Column carrying a frontier document's pointer count through a hop subplan, for the hub guard. */
     private static final String HUB_DEGREE_COLUMN = "__degree";
+    /** Column holding the ids an inbound hub guard kept for one frontier node, before they are exploded. */
+    private static final String HUB_REACHED_COLUMN = "__reached";
 
     private static final Set<String> ALLOWED_OPTIONS = Set.of(
         "max_hops",
@@ -656,7 +661,7 @@ public final class GraphExpandDriver {
         // hub_degree + 1 values keeps a hub to just enough rows for that refusal to see it,
         // instead of every pointer it holds being expanded, joined and shipped. The count rides
         // along in `dropped` so the refusal stub reports it; applyHubDegree clears it on kept rows.
-        Integer hubDegree = leg == Leg.OUT ? optionInt("hub_degree") : null;
+        Integer hubDegree = optionInt("hub_degree");
         Attribute degreeAttr = null;
         Attribute expandSource = pointerField;
         LogicalPlan beforeExpand = edges;
@@ -721,7 +726,34 @@ public final class GraphExpandDriver {
         Attribute seenTarget = retarget(retarget(targetField, frontierField, expandedFrontier), pointerField, expandedPointer);
         Attribute evalFrom = seenMatch;
         Attribute evalTo = seenTarget;
-        if (graphExpand.aggregates() != null) {
+        boolean inboundGuard = leg == Leg.IN && hubDegree != null && countOnlyAggregates();
+        if (inboundGuard) {
+            // Inbound hub guard. The node reached is the document holding the pointer, one row per
+            // document, so there is no array to slice; instead the rows are grouped by the frontier
+            // value they point at, counted, and at most hub_degree + 1 of their ids kept with TOP.
+            // A hub thus ships just enough rows for the refusal after the fetch to see it, with its
+            // true in-degree in `dropped`, and max_edges_per_hop no longer cuts its neighbours' edges.
+            // Per-edge STATS values cannot survive the regrouping, so this form runs only when the
+            // statement has none or counts rows; each row here is one holder document, so COUNT(*)
+            // is 1 (Kibana's statement).
+            Alias degree = new Alias(source, HUB_DEGREE_COLUMN, new Count(source, Literal.keyword(source, "*")));
+            Alias reachedTop = new Alias(
+                source,
+                HUB_REACHED_COLUMN,
+                new Top(source, expandedPointer, new Literal(source, hubDegree + 1, DataType.INTEGER), Literal.keyword(source, "asc"), null)
+            );
+            Aggregate perFrontier = new Aggregate(
+                source,
+                hopChild,
+                List.of(expandedFrontier),
+                List.<NamedExpression>of(degree, reachedTop, expandedFrontier)
+            );
+            Attribute reachedExpanded = new ReferenceAttribute(source, null, HUB_REACHED_COLUMN, nodeType, Nullability.TRUE, null, false);
+            hopChild = new MvExpand(source, perFrontier, reachedTop.toAttribute(), reachedExpanded);
+            evalFrom = reachedExpanded;
+            evalTo = expandedFrontier;
+            degreeAttr = degree.toAttribute();
+        } else if (graphExpand.aggregates() != null) {
             Aggregate aggregate = buildHopAggregate(
                 source,
                 hopChild,
@@ -748,6 +780,11 @@ public final class GraphExpandDriver {
         evalFields.add(new Alias(source, nodeTo.name(), evalTo, nodeTo.id(), false));
         evalFields.add(new Alias(source, nodeReached.name(), reachedExpr, nodeReached.id(), false));
         evalFields.add(new Alias(source, hopAttr.name(), new Literal(source, hop, DataType.INTEGER), hopAttr.id(), false));
+        if (inboundGuard && graphExpand.aggregates() != null) {
+            for (NamedExpression aggregate : graphExpand.aggregates()) {
+                evalFields.add(new Alias(source, aggregate.name(), new Literal(source, 1L, DataType.LONG), aggregate.id(), false));
+            }
+        }
         // Multi-field TO only: relation = the pointer field name that fired this leg.
         Attribute relationAttr = findNamed(resultAttributes, "relation");
         if (relationAttr != null) {
@@ -761,6 +798,10 @@ public final class GraphExpandDriver {
             if (degreeAttr != null) {
                 // The guard counted the pointers: a count past hub_degree is the refused degree.
                 Expression degree = graphExpand.aggregates() != null ? attributeByName(hopChild.output(), HUB_DEGREE_COLUMN) : degreeAttr;
+                if (inboundGuard) {
+                    // COUNT(*) is a long; `dropped` is an integer column.
+                    degree = new ToInteger(source, degree);
+                }
                 droppedValue = new Case(
                     source,
                     new GreaterThan(source, degree, new Literal(source, hubDegree, DataType.INTEGER)),
@@ -787,6 +828,27 @@ public final class GraphExpandDriver {
             hopPlan = new Limit(source, new Literal(source, maxEdgesPerHop, DataType.INTEGER), hopPlan);
         }
         return hopPlan;
+    }
+
+    /** True when the statement has no STATS, or only unfiltered, ungrouped row counts (`COUNT(*)`). */
+    private boolean countOnlyAggregates() {
+        List<? extends NamedExpression> aggregates = graphExpand.aggregates();
+        if (aggregates == null) {
+            return true;
+        }
+        if ((graphExpand.groupings() != null && graphExpand.groupings().isEmpty() == false) || graphExpand.aggregateFilter() != null) {
+            return false;
+        }
+        for (NamedExpression aggregate : aggregates) {
+            boolean rowCount = aggregate instanceof Alias alias
+                && alias.child() instanceof Count count
+                && count.hasFilter() == false
+                && count.field().foldable();
+            if (rowCount == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

@@ -48,7 +48,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         disMaxQueryBuilder.add(queryBuilder);
         int innerQueries = randomIntBetween(0, 2);
         for (int i = 0; i < innerQueries; i++) {
-            disMaxQueryBuilder.add(randomBoolean() ? queryBuilder : new MatchAllQueryBuilder());
+            disMaxQueryBuilder.add(randomBoolean() ? queryBuilder : createInnerQuery());
         }
         return disMaxQueryBuilder;
     }

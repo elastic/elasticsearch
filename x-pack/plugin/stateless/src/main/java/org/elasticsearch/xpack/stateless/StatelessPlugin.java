@@ -517,45 +517,31 @@ public class StatelessPlugin extends Plugin
             // threads around to reduce churn and re-use the existing buffers more
             final int uploadPrewarmMaxThreads = Math.min(processors * 4, 10);
 
-            return new StatelessThreadPools.ThreadPoolConfig(
-                Math.min(processors * 4, 10), // shardReadMaxThreads
-                2, // translogCoreThreads
-                Math.min(processors * 2, 8), // translogMaxThreads
-                2, // shardWriteCoreThreads
-                Math.min(processors * 4, 10), // shardWriteMaxThreads
-                2, // clusterStateReadWriteCoreThreads
-                4, // clusterStateReadWriteMaxThreads
-                1, // getVirtualBatchedCompoundCommitChunkCoreThreads
-                Math.min(processors, 4), // getVirtualBatchedCompoundCommitChunkMaxThreads
-                0, // fillVirtualBatchedCompoundCommitCacheCoreThreads
-                1, // fillVirtualBatchedCompoundCommitCacheMaxThreads
-                Math.min(processors * 2, 32), // prewarmMaxThreads
-                uploadPrewarmMaxThreads / 2, // uploadPrewarmCoreThreads
-                uploadPrewarmMaxThreads, // uploadPrewarmMaxThreads
-                0, // blobCopyCoreThreads
-                4 // blobCopyMaxThreads
-            );
+            return StatelessThreadPools.ThreadPoolConfig.builder()
+                .shardReadMaxThreads(Math.min(processors * 4, 10))
+                .translogThreads(2, Math.min(processors * 2, 8))
+                .shardWriteThreads(2, Math.min(processors * 4, 10))
+                .clusterStateReadWriteThreads(2, 4)
+                .getVirtualBatchedCompoundCommitChunkThreads(1, Math.min(processors, 4))
+                .fillVirtualBatchedCompoundCommitCacheThreads(0, 1)
+                .prewarmMaxThreads(Math.min(processors * 2, 32))
+                .uploadPrewarmThreads(uploadPrewarmMaxThreads / 2, uploadPrewarmMaxThreads)
+                .blobCopyThreads(0, 4)
+                .build();
         } else {
             // fill vbcc cache threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some
             // idle threads around to reduce churn and re-use the existing buffers more
-            return new StatelessThreadPools.ThreadPoolConfig(
-                Math.min(processors * 4, 28), // shardReadMaxThreads
-                0, // translogCoreThreads
-                1, // translogMaxThreads
-                0, // shardWriteCoreThreads
-                1, // shardWriteMaxThreads
-                0, // clusterStateReadWriteCoreThreads
-                1, // clusterStateReadWriteMaxThreads
-                0, // getVirtualBatchedCompoundCommitChunkCoreThreads
-                1, // getVirtualBatchedCompoundCommitChunkMaxThreads
-                Math.max(processors / 2, 2), // fillVirtualBatchedCompoundCommitCacheCoreThreads
-                Math.max(processors, 2), // fillVirtualBatchedCompoundCommitCacheMaxThreads
-                Math.min(processors * 4, 32), // prewarmMaxThreads
-                0, // uploadPrewarmCoreThreads
-                1, // uploadPrewarmMaxThreads
-                0, // blobCopyCoreThreads
-                1 // blobCopyMaxThreads
-            );
+            return StatelessThreadPools.ThreadPoolConfig.builder()
+                .shardReadMaxThreads(Math.min(processors * 4, 28))
+                .translogThreads(0, 1)
+                .shardWriteThreads(0, 1)
+                .clusterStateReadWriteThreads(0, 1)
+                .getVirtualBatchedCompoundCommitChunkThreads(0, 1)
+                .fillVirtualBatchedCompoundCommitCacheThreads(Math.max(processors / 2, 2), Math.max(processors, 2))
+                .prewarmMaxThreads(Math.min(processors * 4, 32))
+                .uploadPrewarmThreads(0, 1)
+                .blobCopyThreads(0, 1)
+                .build();
         }
     }
 

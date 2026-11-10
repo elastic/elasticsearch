@@ -2508,11 +2508,14 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         var gt = as(commonFilter.condition(), GreaterThan.class);
         assertEquals("m2", as(gt.left(), ReferenceAttribute.class).name());
         var ij = as(commonFilter.child(), InlineJoin.class);
-        // The right side computes the duplicated MAX once and projects m2 as an alias of m.
+        // The right side computes the duplicated MAX once and projects m2 as an alias of m. Below that sits the projection that
+        // drops the counts the copied filter added.
         var rightProject = as(ij.right(), Project.class);
         var m2 = as(rightProject.projections().get(1), Alias.class);
         assertEquals("m2", m2.name());
-        var rightFilter = as(rightProject.child(), Filter.class);
+        var countsProject = as(rightProject.child(), Project.class);
+        assertThat(Expressions.names(countsProject.projections()), contains("m", "languages"));
+        var rightFilter = as(countsProject.child(), Filter.class);
         var disjunctions = Predicates.splitOr(rightFilter.condition());
         assertThat(disjunctions.size(), is(2));
         var copied = as(disjunctions.get(0), GreaterThan.class);

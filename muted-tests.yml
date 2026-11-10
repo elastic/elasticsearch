@@ -423,11 +423,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
   issue: https://github.com/elastic/elasticsearch/issues/164423
-- class: org.elasticsearch.cluster.SimpleClusterStateIT
-  tasks:
-  - :server:internalClusterTest
-  method: testMetadataVersion
-  issue: https://github.com/elastic/elasticsearch/issues/164246
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -561,16 +556,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
   method: test {yaml=esql/40_tsdb/PromQL time range params as range selector duration}
   issue: https://github.com/elastic/elasticsearch/issues/165214
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecTdigestIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
-  method: test {csv-spec:tdigest.count with bucket only in TS}
-  issue: https://github.com/elastic/elasticsearch/issues/165290
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecTdigestIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
-  method: test {csv-spec:tdigest.count with bucket and instance in TS}
-  issue: https://github.com/elastic/elasticsearch/issues/165292
 - class: org.elasticsearch.xpack.esql.action.ComputeExecutorIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -581,3 +566,23 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: test {csv-spec:unmapped-type-conflicts.typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop}
   issue: https://github.com/elastic/elasticsearch/issues/165306
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:in_subquery_with_ts_source.mainTsInSubqueryTsInInlineStatsWhereWithAggAfter}
+  issue: https://github.com/elastic/elasticsearch/issues/165315
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:in_subquery_with_ts_source.mainTsInSubqueryTsMainByPodSubqueryByCluster}
+  issue: https://github.com/elastic/elasticsearch/issues/165331
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:in_subquery_with_ts_source.mainTsInSubqueryTsInEquals}
+  issue: https://github.com/elastic/elasticsearch/issues/165333
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecExemplarsSmokeInSubqueryWithTsSourceIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:in_subquery_with_ts_source.inSubqueryInInlineStatsWhereWithRate}
+  issue: https://github.com/elastic/elasticsearch/issues/165337

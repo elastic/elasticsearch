@@ -807,27 +807,21 @@ public class RestoreServiceTests extends ESTestCase {
      * forcing a manual retry.
      */
     public void testRestoreContinuesAfterTemporaryAbsenceOfDataNodes() {
-        final Snapshot snapshot = new Snapshot("repository", new SnapshotId("snapshot", UUIDs.randomBase64UUID(random())));
-        final IndexId indexId = new IndexId("test", UUIDs.randomBase64UUID(random()));
-        final String restoreUUID = UUIDs.randomBase64UUID(random());
-        final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
-            restoreUUID,
-            snapshot,
-            IndexVersion.current(),
-            indexId
-        );
-
-        // Snapshotted indices carry their in-sync allocation IDs into the restored IndexMetadata.
-        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
+        var snapshot = new Snapshot("repository", new SnapshotId("snapshot", UUIDs.randomBase64UUID(random())));
+        var indexId = new IndexId("test", UUIDs.randomBase64UUID(random()));
+        var restoreUUID = UUIDs.randomBase64UUID(random());
+        var recoverySource = new SnapshotRecoverySource(restoreUUID, snapshot, IndexVersion.current(), indexId);
+        var indexMetadata = IndexMetadata.builder("test")
+            // Snapshotted indices carry their in-sync allocation IDs into the restored IndexMetadata.
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID(random())))
             .build();
-        final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
+        var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
-        final DiscoveryNode masterNode = DiscoveryNodeUtils.builder("master").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+        var masterNode = DiscoveryNodeUtils.builder("master").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
             .metadata(Metadata.builder().put(indexMetadata, false))
             .routingTable(
@@ -849,8 +843,8 @@ public class RestoreServiceTests extends ESTestCase {
             )
             .build();
 
-        final long shardSize = randomNonNegativeLong();
-        final AllocationService allocationService = ESAllocationTestCase.createAllocationService(
+        var shardSize = randomNonNegativeLong();
+        var allocationService = ESAllocationTestCase.createAllocationService(
             Settings.EMPTY,
             new TestGatewayAllocator(),
             EmptyClusterInfoService.INSTANCE,
@@ -861,11 +855,11 @@ public class RestoreServiceTests extends ESTestCase {
 
         // Allocation with zero data nodes: the restore primary correctly stays unassigned.
         clusterState = allocationService.reroute(clusterState, "reroute with no data nodes", ActionListener.noop());
-        ShardRouting primary = clusterState.routingTable().index("test").shard(0).primaryShard();
+        var primary = clusterState.routingTable().index("test").shard(0).primaryShard();
         assertFalse("restore primary must wait while there are no data nodes", primary.assignedToNode());
 
         // Data node returns: the restore must place the primary rather than staying stuck unassigned.
-        final DiscoveryNode dataNode = DiscoveryNodeUtils.builder("data").roles(Set.of(DiscoveryNodeRole.DATA_ROLE)).build();
+        var dataNode = DiscoveryNodeUtils.builder("data").roles(Set.of(DiscoveryNodeRole.DATA_ROLE)).build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(dataNode))
             .build();

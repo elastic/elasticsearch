@@ -1022,6 +1022,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             for (QueryBuilder hiddenQuery : hidden) {
                 expected += chargeQuery(hiddenQuery, context, true);
             }
+
+            assertTrue(breaker.queryBytes > 0);
             assertEquals(builder.toString(), expected, breaker.queryBytes);
         } finally {
             context.releaseQueryConstructionMemory();

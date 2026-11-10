@@ -855,9 +855,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             }
             for (PendingRelocation relocation : relocationsToStart) {
                 schedulingListeners().onPeerRecoveryDequeuedAndStartedOnSource();
-                final ActionListener<StartRelocationResponse> wrappedListener = ActionListener.runAfter(
-                    relocation.listener(),
-                    () -> onRelocationComplete(relocation)
+                // Mark the shard before dispatching the relocation so that merges are skipped/aborted for its whole duration.
+                final ActionListener<StartRelocationResponse> wrappedListener = ActionListener.releaseAfter(
+                    ActionListener.runAfter(relocation.listener(), () -> onRelocationComplete(relocation)),
+                    relocation.shard().markActivelyRelocatingPrimary()
                 );
                 // The generic executor has an unbounded queue and the threadpool shuts down after this service is
                 // stopped (and drains the queue), so the `execute` call cannot throw `EsRejectedExecutionException`.

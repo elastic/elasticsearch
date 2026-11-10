@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,6 +43,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /// Unit tests for the [ThrottledPrimaryRelocations] recovery throttle inside [StatelessPrimaryRelocationSourceService].
@@ -234,6 +237,103 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertThat(throttle.activeRelocationCount(), equalTo(0));
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
         assertTrue(shard2.recoveryStats().noCurrentRecoveries());
+    }
+
+    public void testShardMarkedAsRelocationSourceOnlyWhileRelocationRuns() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var capturedListener = new AtomicReference<ActionListener<StartRelocationResponse>>();
+        final var clusterService = mockClusterService();
+        final var throttle = new ThrottledPrimaryRelocations(
+            clusterService,
+            taskQueue::scheduleNow,
+            (parentClient, request, shard, listener) -> capturedListener.set(listener),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+        );
+        throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
+        throttle.start();
+        applyOutgoingThrottleSettings(clusterService, 1, Double.MAX_VALUE);
+
+        final var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
+        final var shardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
+        final var shard1 = mockShard(shardId1);
+        final var shard2 = mockShard(shardId2);
+
+        throttle.enqueueRelocation(
+            null,
+            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId1),
+            shard1,
+            ActionListener.noop()
+        );
+        throttle.enqueueRelocation(
+            null,
+            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId2),
+            shard2,
+            ActionListener.noop()
+        );
+
+        // shard1 is running, shard2 is queued
+        assertTrue(shard1.isActivelyRelocatingPrimary());
+        assertFalse(shard2.isActivelyRelocatingPrimary());
+
+        taskQueue.runAllRunnableTasks();
+        assertNotNull(capturedListener.get());
+        assertTrue(shard1.isActivelyRelocatingPrimary());
+
+        // Completing shard1 (successfully or not) clears its marker and dequeues shard2
+        final var firstListener = capturedListener.getAndSet(null);
+        if (randomBoolean()) {
+            firstListener.onResponse(EMPTY_START_RELOCATION_RESPONSE);
+        } else {
+            firstListener.onFailure(new RuntimeException("simulated relocation failure"));
+        }
+        assertFalse(shard1.isActivelyRelocatingPrimary());
+        assertTrue(shard2.isActivelyRelocatingPrimary());
+
+        taskQueue.runAllRunnableTasks();
+        assertNotNull(capturedListener.get());
+        capturedListener.get().onResponse(EMPTY_START_RELOCATION_RESPONSE);
+        assertFalse(shard1.isActivelyRelocatingPrimary());
+        assertFalse(shard2.isActivelyRelocatingPrimary());
+    }
+
+    public void testDiscardedQueuedRelocationNeverMarksShardAsRelocationSource() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = mockClusterService();
+        final var throttle = new ThrottledPrimaryRelocations(
+            clusterService,
+            taskQueue::scheduleNow,
+            (parentClient, request, shard, listener) -> {},
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+        );
+        throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
+        throttle.start();
+        applyOutgoingThrottleSettings(clusterService, 1, Double.MAX_VALUE);
+
+        final var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
+        final var shardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
+        final var shard1 = mockShard(shardId1);
+        final var shard2 = mockShard(shardId2);
+
+        throttle.enqueueRelocation(
+            null,
+            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId1),
+            shard1,
+            ActionListener.noop()
+        );
+        final var shard2Failure = new AtomicReference<Exception>();
+        throttle.enqueueRelocation(
+            null,
+            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId2),
+            shard2,
+            ActionListener.wrap(r -> fail("unexpected response"), shard2Failure::set)
+        );
+        assertThat(throttle.queuedRelocationCount(), equalTo(1));
+
+        throttle.beforeIndexShardClosed(shardId2, shard2, Settings.EMPTY);
+        assertThat(shard2Failure.get(), instanceOf(AlreadyClosedException.class));
+        assertThat(throttle.queuedRelocationCount(), equalTo(0));
+        verify(shard2, never()).markActivelyRelocatingPrimary();
+        assertFalse(shard2.isActivelyRelocatingPrimary());
     }
 
     public void testQueuedRelocationStartsOnFailure() {
@@ -890,11 +990,19 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         return new StatelessPrimaryRelocationAction.Request(randomLong(), shardId, targetNode, randomIdentifier(), 0);
     }
 
-    /// Creates a mock [IndexShard] with a real [RecoveryStats] to leverage counter assertions.
+    /// Creates a mock [IndexShard] with a real [RecoveryStats] to leverage counter assertions. The relocation-as-source marking is
+    /// backed by a real counter too, mirroring [IndexShard#markActivelyRelocatingPrimary()], since a mocked method would return
+    /// a `null` releasable and the tests assert on [IndexShard#isActivelyRelocatingPrimary()].
     private static IndexShard mockShard(ShardId shardId) {
         final var shard = mock(IndexShard.class);
         when(shard.recoveryStats()).thenReturn(new RecoveryStats());
         when(shard.shardId()).thenReturn(shardId);
+        final var activePrimaryRelocations = new AtomicInteger();
+        when(shard.markActivelyRelocatingPrimary()).thenAnswer(invocation -> {
+            activePrimaryRelocations.incrementAndGet();
+            return Releasables.releaseOnce(activePrimaryRelocations::decrementAndGet);
+        });
+        when(shard.isActivelyRelocatingPrimary()).thenAnswer(invocation -> activePrimaryRelocations.get() > 0);
         return shard;
     }
 

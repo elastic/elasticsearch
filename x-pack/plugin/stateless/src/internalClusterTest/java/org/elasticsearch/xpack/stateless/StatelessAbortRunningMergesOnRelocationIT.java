@@ -19,6 +19,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.MergeEventListener;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,6 +42,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -98,6 +101,80 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
         scenario.uploadGate().release();
         setNodeRepositoryStrategy(scenario.sourceNode(), StatelessMockRepositoryStrategy.DEFAULT);
         ensureGreen(scenario.indexName());
+    }
+
+    public void testQueuedRelocationDoesNotAbortMerges() {
+        final var sourceNode = startMasterAndIndexNode(
+            nodeSettings().put("thread_pool." + ThreadPool.Names.MERGE + ".max", MAX_CONCURRENT_RUNNING_MERGES)
+                // A single outgoing relocation slot, the second relocation will be queued behind the first one.
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                .build()
+        );
+
+        // Block the only outgoing slot at the pre-flush upload.
+        final var slotHoldingIndex = randomIdentifier();
+        createIndex(
+            slotHoldingIndex,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build()
+        );
+
+        final var mergingIndex = randomIdentifier();
+        final var segmentsPerTier = 2;
+        createIndex(
+            mergingIndex,
+            indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), segmentsPerTier)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
+        ensureGreen(slotHoldingIndex, mergingIndex);
+
+        final var numRunningMerges = randomIntBetween(1, MAX_CONCURRENT_RUNNING_MERGES);
+        // Every parked merge is expected to complete successfully.
+        final var recorder = new MergeEventRecorder(numRunningMerges, numRunningMerges, 0, numRunningMerges);
+        final var executor = internalCluster().getInstance(IndicesService.class, sourceNode).getThreadPoolMergeExecutorService();
+        assertThat(executor, notNullValue());
+        executor.registerMergeEventListener(recorder.listener());
+
+        final var sourcePlugin = internalCluster().getInstance(PluginsService.class, sourceNode)
+            .filterPlugins(BlockingMergePolicyPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        sourcePlugin.blockRunningMerges(mergingIndex);
+
+        for (int i = 0; i < numRunningMerges * (segmentsPerTier + 1); i++) {
+            indexDocs(mergingIndex, randomIntBetween(20, 50));
+            flush(mergingIndex);
+        }
+        recorder.awaitQueued();
+        recorder.awaitStarted();
+
+        // So the relocation pre-flush of the slot holding index produces a commit upload we can block.
+        indexDocs(slotHoldingIndex, randomIntBetween(20, 50));
+
+        final var uploadGate = blockPreFlushUpload(sourceNode);
+        final var targetNode = startIndexNode();
+        ensureStableCluster(2);
+
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(slotHoldingIndex, 0, sourceNode, targetNode));
+        uploadGate.awaitBlocked();
+
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(mergingIndex, 0, sourceNode, targetNode));
+        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSource() == 1 && stats.currentAsSourceQueued() == 1));
+
+        final var mergingShard = findIndexShard(resolveIndex(mergingIndex), 0, sourceNode);
+        assertTrue(mergingShard.routingEntry().relocating());
+        assertFalse(mergingShard.isActivelyRelocatingPrimary());
+        assertTrue(findIndexShard(resolveIndex(slotHoldingIndex), 0, sourceNode).isActivelyRelocatingPrimary());
+
+        // Resume the parked merges, the relocation of their shard is only queued, so they must not be aborted.
+        sourcePlugin.releaseBlockedMerges();
+        recorder.awaitSucceeded();
+        assertThat(recorder.abortedCount(), equalTo(0));
+
+        uploadGate.release();
+        setNodeRepositoryStrategy(sourceNode, StatelessMockRepositoryStrategy.DEFAULT);
+        ensureGreen(slotHoldingIndex, mergingIndex);
     }
 
     /**

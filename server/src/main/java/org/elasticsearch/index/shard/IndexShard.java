@@ -281,6 +281,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
+    /// Number of relocations of this primary that are actively executing on this node, see [#isActivelyRelocatingPrimary()].
+    ///
+    /// This is intentionally a counter rather than a flag. If the master cancels a relocation and retries it (e.g. to a
+    /// new target), the retry can start before the source has finished unwinding the previous attempt, so both are briefly
+    /// in progress. Nothing currently prevents this overlap, but the two attempts never hand off concurrently (because
+    /// only one attempt holds all operation permits).
+    /// If more relocation states are needed later on (e.g. a `PENDING` state for relocations queued on the source), this
+    /// can be replaced by a richer structure.
+    private final AtomicInteger activePrimaryRelocations = new AtomicInteger();
+
     private volatile RecoveryState recoveryState;
     private volatile boolean recoveryCancellationRequested = false;
 
@@ -4039,6 +4049,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         );
         ActionListener.run(actionListener, action);
+    }
+
+    /// Marks a relocation of this primary as executing on this node (i.e this primary is moving to a new node and has
+    /// started executing the work to relocate), until the returned [Releasable] is closed. The caller must close it once
+    /// that relocation completes, whether it succeeded or failed.
+    public Releasable markActivelyRelocatingPrimary() {
+        assert shardRouting.primary() : "markActivelyRelocatingPrimary was called on a non-primary shard " + shardRouting;
+        activePrimaryRelocations.incrementAndGet();
+        return Releasables.releaseOnce(() -> {
+            final int remaining = activePrimaryRelocations.decrementAndGet();
+            assert remaining >= 0 : shardId + " released more primary relocations than were marked";
+        });
+    }
+
+    /// Returns whether a relocation of this primary is actively executing on this node, see also [#isRelocatedPrimary()]
+    /// for once the relocation handoff has completed.
+    ///
+    /// This differs from `routingEntry().relocating()`: the routing table marks a shard as relocating as soon as the master
+    /// decides to move it, but the data node may queue the relocation for some time before it actually starts doing any work.
+    /// This method only returns `true` when the relocation is actually executing
+    ///
+    /// Currently only tracked by stateless primary relocations (see `StatelessPrimarySourceService`)
+    /// TODO: also mark stateful primary relocations in [org.elasticsearch.indices.recovery.PeerRecoverySourceService].
+    public boolean isActivelyRelocatingPrimary() {
+        return activePrimaryRelocations.get() > 0;
     }
 
     /**

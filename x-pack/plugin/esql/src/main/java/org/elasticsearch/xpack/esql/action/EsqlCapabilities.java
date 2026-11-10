@@ -3770,6 +3770,15 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_COMPOUND_OUTPUT_LIMIT_BY_DEDUP,
 
         /**
+         * Support for {@code COMPLETION}, {@code DENSE_VECTOR}, {@code RERANK}, {@code FUSE}, {@code HIGHLIGHT} and {@code MMR} under
+         * {@code unmapped_fields="LOAD_ALL"}. They do not interact with the {@code _unmapped_fields} column: the ones that add or read
+         * columns of their own pass it through, and {@code FUSE}, which groups its input like {@code STATS}, does not return it. Only
+         * meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/162706
+         * and its siblings.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_COMPLETION_RERANK_FUSE_HIGHLIGHT_MMR(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
          * {@code []}, {@code {}} and any nesting of those, e.g. {@code [null]} or {@code {"baz":[null],"inga":{}}} - is dropped where
          * the data node extracts unmapped fields. So a field written that way by every document no longer expands into a column that
@@ -4203,6 +4212,12 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Support for the PromQL {@code sort_by_label} and {@code sort_by_label_desc} functions, which order an instant
+         * vector by label values in natural order.
+         */
+        PROMQL_SORT_BY_LABEL(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,

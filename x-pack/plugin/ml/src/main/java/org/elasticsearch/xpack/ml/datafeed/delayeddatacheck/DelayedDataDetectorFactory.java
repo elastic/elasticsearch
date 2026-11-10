@@ -7,9 +7,12 @@
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -17,7 +20,10 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
+import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
  * Builds the appropriate {@link DelayedDataDetector} implementation, with the appropriate settings, given the parameters.
@@ -63,14 +69,19 @@ public class DelayedDataDetectorFactory {
                         Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD)
                     );
                 }
+                long groupingInterval = datafeedConfig.getGroupingInterval().millis();
+                // DatafeedJobValidator rejects grouping_interval != bucket_span for ES|QL datafeeds.
+                assert groupingInterval == bucketSpan : "grouping_interval must equal bucket_span";
                 return new EsqlDelayedDataDetector(
                     bucketSpan,
                     window,
                     job.getId(),
                     job.getDataDescription().getTimeField(),
-                    datafeedConfig.getGroupingInterval().millis(),
                     summaryCountField,
-                    dataExtractorFactory,
+                    Objects.requireNonNull(
+                        dataExtractorFactory,
+                        "dataExtractorFactory is required for an ES|QL datafeed delayed-data check"
+                    ).withoutTimingStats(),
                     client
                 );
             }
@@ -115,6 +126,21 @@ public class DelayedDataDetectorFactory {
             );
         }
         return currentWindow.millis();
+    }
+
+    static List<Bucket> getFinalizedBuckets(Client client, String jobId, long bucketSpan, long start, long end) {
+        GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
+        request.setStart(Long.toString(start));
+        request.setEnd(Long.toString(end));
+        request.setSort("timestamp");
+        request.setDescending(false);
+        request.setExcludeInterim(true);
+        // The window is validated to span at most MAX_NUMBER_SPANABLE_BUCKETS buckets, which fits in a single page.
+        request.setPageParams(new PageParams(0, (int) ((end - start) / bucketSpan)));
+
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            return client.execute(GetBucketsAction.INSTANCE, request).actionGet().getBuckets().results();
+        }
     }
 
     public static class BucketWithMissingData {

@@ -39,6 +39,11 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     }
 
     @Override
+    public DataExtractorFactory withoutTimingStats() {
+        return new ChunkedDataExtractorFactory(datafeedConfig, job, xContentRegistry, dataExtractorFactory.withoutTimingStats());
+    }
+
+    @Override
     public DataExtractor newExtractor(long start, long end) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
         // End rounds down so the still-open bucket at the window edge is never extracted (real-time relies on this).

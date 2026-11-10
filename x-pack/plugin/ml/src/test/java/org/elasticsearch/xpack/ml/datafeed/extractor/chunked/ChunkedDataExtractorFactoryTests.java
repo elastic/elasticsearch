@@ -27,8 +27,12 @@ import java.util.Collections;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
@@ -73,6 +77,18 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(timeAligner.alignToCeil(301L), equalTo(400L));
         assertThat(timeAligner.alignToCeil(399L), equalTo(400L));
         assertThat(timeAligner.alignToCeil(400L), equalTo(400L));
+    }
+
+    public void testWithoutTimingStatsShouldWrapDelegateWithoutTimingStats() {
+        DataExtractorFactory untrackedDelegate = mock(DataExtractorFactory.class);
+        when(dataExtractorFactory.withoutTimingStats()).thenReturn(untrackedDelegate);
+        ChunkedDataExtractorFactory factory = createFactory(1000L);
+
+        DataExtractorFactory result = factory.withoutTimingStats();
+
+        verify(dataExtractorFactory).withoutTimingStats();
+        assertThat(result, instanceOf(ChunkedDataExtractorFactory.class));
+        assertThat(((ChunkedDataExtractorFactory) result).getDelegate(), sameInstance(untrackedDelegate));
     }
 
     public void testIdentityTimeAligner() {

@@ -7,14 +7,11 @@
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
@@ -38,27 +35,20 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-
-/**
- * Delayed data detector for datafeeds that use an ES|QL query.
- * <p>
- * The datafeed's ES|QL query must emit the job's {@code summary_count_field_name} as a numeric column. The detector re-runs the query
- * over the check window through the datafeed's {@link DataExtractorFactory} and compares the sum of that column per bucket with the
- * event count of the corresponding finalized bucket. The check is only meaningful when the grouping interval equals the bucket span,
- * which datafeed validation enforces for ES|QL datafeeds.
- */
+/** Delayed-data detector that re-runs the datafeed ES|QL query over the check window. */
 public class EsqlDelayedDataDetector implements DelayedDataDetector {
 
     private static final Pattern DECIMAL = Pattern.compile("[+-]?(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?");
 
     private static final Logger logger = LogManager.getLogger(EsqlDelayedDataDetector.class);
 
+    /** Autodetect ignores null, unparseable, negative, and zero-rounded summary counts. */
+    static final long IGNORED_SUMMARY_COUNT = 0L;
+
     private final long bucketSpan;
     private final long window;
     private final String jobId;
     private final String timeField;
-    private final long groupingInterval;
     private final String summaryCountFieldName;
     private final DataExtractorFactory dataExtractorFactory;
     private final Client client;
@@ -71,49 +61,39 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
         long window,
         String jobId,
         String timeField,
-        long groupingInterval,
         String summaryCountFieldName,
         DataExtractorFactory dataExtractorFactory,
         Client client
     ) {
+        assert bucketSpan > 0 : "bucketSpan must be positive";
         this.bucketSpan = bucketSpan;
         this.window = window;
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
-        this.groupingInterval = groupingInterval;
         this.summaryCountFieldName = Objects.requireNonNull(summaryCountFieldName);
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.client = Objects.requireNonNull(client);
     }
 
-    /**
-     * Compares the current result of the datafeed's ES|QL query over {@code [latestFinalizedBucket - window, latestFinalizedBucket)}
-     * with the event counts of the job's finalized buckets.
-     * <p>
-     * This blocks on the buckets request and the ES|QL query, so like the DSL detector it must only run on the datafeed's own
-     * thread pool.
-     *
-     * @param latestFinalizedBucketMs The latest finalized bucket timestamp in milliseconds, the end of the checked window
-     * @return the buckets with more documents now than when they were finalized; empty if the re-query was truncated
-     */
+    /** Returns finalized buckets whose current ES|QL counts exceed their event counts, or empty when the re-query is not trustworthy. */
     @Override
     public List<BucketWithMissingData> detectMissingData(long latestFinalizedBucketMs) {
-        // The ES|QL extractor floors its source range to the grouping interval, so the re-query uses the same boundaries.
-        final long end = Intervals.alignToFloor(latestFinalizedBucketMs, groupingInterval);
-        final long start = Intervals.alignToFloor(latestFinalizedBucketMs - window, groupingInterval);
+        // The ES|QL extractor floors its source range to the bucket span, so the re-query uses the same boundaries.
+        final long end = Intervals.alignToFloor(latestFinalizedBucketMs, bucketSpan);
+        final long start = Intervals.alignToFloor(latestFinalizedBucketMs - window, bucketSpan);
 
         if (end <= start || cancelled) {
             return Collections.emptyList();
         }
 
-        List<Bucket> finalizedBuckets = getFinalizedBuckets(start, end);
+        List<Bucket> finalizedBuckets = DelayedDataDetectorFactory.getFinalizedBuckets(client, jobId, bucketSpan, start, end);
         Optional<Map<Long, Long>> currentCounts = cancelled ? Optional.empty() : getCurrentBucketEventCounts(start, end);
         if (currentCounts.isEmpty()) {
             return Collections.emptyList();
         }
         List<BucketWithMissingData> result = new ArrayList<>();
         for (Bucket bucket : finalizedBuckets) {
-            // Only data added since the bucket was finalized counts as missing: data that was deleted since then is not.
+            // Only data added since the bucket was finalized counts as missing. Data that was deleted since then is not.
             long missing = currentCounts.get().getOrDefault(bucket.getEpoch() * 1000, 0L) - bucket.getEventCount();
             if (missing > 0) {
                 result.add(BucketWithMissingData.fromMissingAndBucket(missing, bucket));
@@ -137,29 +117,7 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
         }
     }
 
-    private List<Bucket> getFinalizedBuckets(long start, long end) {
-        GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
-        request.setStart(Long.toString(start));
-        request.setEnd(Long.toString(end));
-        request.setSort("timestamp");
-        request.setDescending(false);
-        request.setExcludeInterim(true);
-        // The window is validated to span at most MAX_NUMBER_SPANABLE_BUCKETS buckets, which fits in a single page.
-        request.setPageParams(new PageParams(0, (int) ((end - start) / bucketSpan)));
-
-        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            return client.execute(GetBucketsAction.INSTANCE, request).actionGet().getBuckets().results();
-        }
-    }
-
-    /**
-     * @return the sum of {@code summaryCountFieldName} per bucket start, or empty if the re-query was truncated and its counts
-     *         cannot be trusted
-     */
     private Optional<Map<Long, Long>> getCurrentBucketEventCounts(long start, long end) {
-        Map<Long, Long> bucketCounts = new HashMap<>();
-        long ignoredRows = 0;
-        Optional<SearchInterval> incompleteSearchInterval;
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         activeExtractor = dataExtractor;
         if (cancelled) {
@@ -167,63 +125,77 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
             dataExtractor.cancel();
         }
         try {
-            while (cancelled == false && dataExtractor.hasNext()) {
-                Optional<InputStream> data = dataExtractor.next().data();
-                if (data.isPresent()) {
-                    try (InputStream in = data.get()) {
-                        ignoredRows += accumulateBucketCounts(bucketCounts, in, start, end);
-                    }
-                }
-            }
+            Map<Long, Long> bucketCounts = new HashMap<>();
+            long ignoredRows = readRequeryBatchesIntoCounts(dataExtractor, bucketCounts, start, end);
             if (cancelled || dataExtractor.isCancelled()) {
                 // A cancelled extractor stops early, so its counts are partial.
                 return Optional.empty();
             }
-            incompleteSearchInterval = dataExtractor.getIncompleteSearchInterval();
-        } catch (IOException | RuntimeException e) {
-            if (cancelled) {
-                // Cancelling an extractor mid-query may surface as an exception; a stopped datafeed does not report it.
+            Optional<SearchInterval> incompleteSearchInterval = dataExtractor.getIncompleteSearchInterval();
+            if (incompleteSearchInterval.isPresent()) {
+                // Counts from a truncated result would report false missing data or mask real missing data.
+                SearchInterval interval = incompleteSearchInterval.get();
+                logger.debug(
+                    "[{}] Delayed data check re-query for window [{}, {}) was truncated at [{}, {}). "
+                        + "Skipping missing data reporting for this check.",
+                    jobId,
+                    start,
+                    end,
+                    interval.startMs(),
+                    interval.endMs()
+                );
                 return Optional.empty();
             }
-            if (e instanceof RuntimeException runtimeException) {
-                throw runtimeException;
+            if (ignoredRows > 0) {
+                logger.debug(
+                    "[{}] Delayed data check ignored [{}] row(s) with an ignored (null, unparseable, negative or zero) [{}]",
+                    jobId,
+                    ignoredRows,
+                    summaryCountFieldName
+                );
             }
-            throw new UncheckedIOException("[" + jobId + "] Delayed data check failed while re-running the ES|QL query", (IOException) e);
+            return Optional.of(bucketCounts);
+        } catch (UncheckedIOException e) {
+            if (cancelled) {
+                // Cancelling an extractor mid-query may surface as an exception. A stopped datafeed does not report it.
+                logger.debug("[{}] Delayed data check re-query cancelled", jobId, e);
+                return Optional.empty();
+            }
+            throw e;
+        } catch (IllegalStateException e) {
+            if (cancelled) {
+                logger.debug("[{}] Delayed data check re-query cancelled", jobId, e);
+                return Optional.empty();
+            }
+            throw e;
         } finally {
             activeExtractor = null;
             dataExtractor.destroy();
         }
-        if (incompleteSearchInterval.isPresent()) {
-            // Counts from a truncated result would report false missing data or mask real missing data. This repeats on every check
-            // for as long as the window is too large for the row limit, so it stays at debug.
-            SearchInterval interval = incompleteSearchInterval.get();
-            logger.debug(
-                "[{}] Delayed data check re-query for window [{}, {}) was truncated at [{}, {}]; skipping missing data reporting "
-                    + "for this check",
-                jobId,
-                start,
-                end,
-                interval.startMs(),
-                interval.endMs()
-            );
-            return Optional.empty();
-        }
-        if (ignoredRows > 0) {
-            logger.debug(
-                "[{}] Delayed data check ignored [{}] row(s) with an ignored (null, unparseable, negative or zero) [{}]",
-                jobId,
-                ignoredRows,
-                summaryCountFieldName
-            );
-        }
-        return Optional.of(bucketCounts);
     }
 
-    /**
-     * Adds the per-bucket counts of one NDJSON batch to {@code bucketCounts}.
-     *
-     * @return the number of rows ignored because autodetect ignores their summary count
-     */
+    private long readRequeryBatchesIntoCounts(
+        DataExtractor dataExtractor,
+        Map<Long, Long> bucketCounts,
+        long sourceWindowStart,
+        long sourceWindowEnd
+    ) {
+        long ignoredRows = 0;
+        try {
+            while (cancelled == false && dataExtractor.hasNext()) {
+                Optional<InputStream> data = dataExtractor.next().data();
+                if (data.isPresent()) {
+                    try (InputStream in = data.get()) {
+                        ignoredRows += accumulateBucketCounts(bucketCounts, in, sourceWindowStart, sourceWindowEnd);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("[" + jobId + "] Delayed data check failed while re-running the ES|QL query", e);
+        }
+        return ignoredRows;
+    }
+
     private long accumulateBucketCounts(Map<Long, Long> bucketCounts, InputStream in, long sourceWindowStart, long sourceWindowEnd)
         throws IOException {
         long ignoredRows = 0;
@@ -243,41 +215,34 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
                     sourceWindowEnd
                 );
                 long count = parseSummaryCount(row.get(summaryCountFieldName));
-                if (count == 0) {
+                if (count == IGNORED_SUMMARY_COUNT) {
                     ignoredRows++;
                     continue;
                 }
-                bucketCounts.merge(Intervals.alignToFloor(emittedTime, groupingInterval), count, Long::sum);
+                bucketCounts.merge(Intervals.alignToFloor(emittedTime, bucketSpan), count, Long::sum);
             }
         }
         return ignoredRows;
     }
 
-    /**
-     * Mirrors autodetect's {@code CDataGatherer::extractCountFromField}: the value is read as a double and rounded half up.
-     *
-     * @return the count, or 0 if autodetect ignores the record (null, unparseable, negative or rounds to zero)
-     */
+    /** Mirrors autodetect {@code CDataGatherer::extractCountFromField}: double parsed, half-up rounded, negatives ignored. */
     static long parseSummaryCount(Object value) {
         double parsed;
         if (value == null) {
-            return 0;
+            return IGNORED_SUMMARY_COUNT;
         } else if (value instanceof Number number) {
             parsed = number.doubleValue();
         } else {
-            // Autodetect uses strtod and consumes the whole trimmed string. Check the grammar first so Java-only forms ("3d") fail;
-            // strtod's hex and inf/nan forms are intentionally unsupported (a string column of hex counts is not a supported shape).
+            // Autodetect uses strtod and consumes the whole trimmed string. Check the grammar first so Java-only forms ("3d") fail.
+            // strtod hex and inf/nan forms are intentionally unsupported.
             String text = value.toString().trim();
             if (DECIMAL.matcher(text).matches() == false) {
-                return 0;
+                return IGNORED_SUMMARY_COUNT;
             }
-            try {
-                parsed = Double.parseDouble(text);
-            } catch (NumberFormatException e) {
-                return 0;
-            }
+            // DECIMAL matches only strings Double.parseDouble accepts. Overflow becomes infinite and is handled below.
+            parsed = Double.parseDouble(text);
         }
-        return Double.isNaN(parsed) || Double.isInfinite(parsed) || parsed < 0.0 ? 0 : (long) (parsed + 0.5);
+        return Double.isNaN(parsed) || Double.isInfinite(parsed) || parsed < 0.0 ? IGNORED_SUMMARY_COUNT : (long) (parsed + 0.5);
     }
 
     private static Map<String, Object> parseRow(String json) throws IOException {

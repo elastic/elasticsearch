@@ -21,8 +21,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
@@ -119,18 +117,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     }
 
     private List<Bucket> checkBucketEvents(long start, long end) {
-        GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
-        request.setStart(Long.toString(start));
-        request.setEnd(Long.toString(end));
-        request.setSort("timestamp");
-        request.setDescending(false);
-        request.setExcludeInterim(true);
-        request.setPageParams(new PageParams(0, (int) ((end - start) / bucketSpan)));
-
-        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            GetBucketsAction.Response response = client.execute(GetBucketsAction.INSTANCE, request).actionGet();
-            return response.getBuckets().results();
-        }
+        return DelayedDataDetectorFactory.getFinalizedBuckets(client, jobId, bucketSpan, start, end);
     }
 
     private Map<Long, Long> checkCurrentBucketEventCount(long start, long end) {

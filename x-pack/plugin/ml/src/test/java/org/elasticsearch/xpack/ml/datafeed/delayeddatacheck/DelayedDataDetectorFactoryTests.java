@@ -30,6 +30,8 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DelayedDataDetectorFactoryTests extends ESTestCase {
 
@@ -51,7 +53,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
                 datafeedConfig,
                 mock(Client.class),
                 xContentRegistry(),
-                mock(DataExtractorFactory.class)
+                mockDataExtractorFactory()
             ),
             instanceOf(NullDelayedDataDetector.class)
         );
@@ -65,7 +67,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
                 datafeedConfig,
                 mock(Client.class),
                 xContentRegistry(),
-                mock(DataExtractorFactory.class)
+                mockDataExtractorFactory()
             ),
             instanceOf(DatafeedDelayedDataDetector.class)
         );
@@ -78,7 +80,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
                 tooSmallDatafeedConfig,
                 mock(Client.class),
                 xContentRegistry(),
-                mock(DataExtractorFactory.class)
+                mockDataExtractorFactory()
             )
         );
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, "1s", "2s"), e.getMessage());
@@ -91,7 +93,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
                 tooBigDatafeedConfig,
                 mock(Client.class),
                 xContentRegistry(),
-                mock(DataExtractorFactory.class)
+                mockDataExtractorFactory()
             )
         );
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "12h", "2s"), e.getMessage());
@@ -185,17 +187,42 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
         DatafeedConfig datafeedConfig = createEsqlDatafeed(
             DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10))
         );
+        DataExtractorFactory dataExtractorFactory = mock(DataExtractorFactory.class);
+        DataExtractorFactory withoutTimingStats = mock(DataExtractorFactory.class);
+        when(dataExtractorFactory.withoutTimingStats()).thenReturn(withoutTimingStats);
 
         DelayedDataDetector detector = DelayedDataDetectorFactory.buildDetector(
             job,
             datafeedConfig,
             mock(Client.class),
             xContentRegistry(),
-            mock(DataExtractorFactory.class)
+            dataExtractorFactory
         );
 
         assertThat(detector, instanceOf(EsqlDelayedDataDetector.class));
         assertThat(detector.getWindow(), equalTo(TimeValue.timeValueMinutes(10).millis()));
+        verify(dataExtractorFactory).withoutTimingStats();
+    }
+
+    public void testBuilderGivenEsqlDatafeedWithMismatchedGroupingIntervalShouldFailAssertion() {
+        Job job = createJob(TimeValue.timeValueSeconds(2), "event_count");
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("id", "jobId");
+        builder.setEsqlQuery("FROM index1");
+        builder.setSourceTimeField("source_time");
+        builder.setGroupingInterval(TimeValue.timeValueSeconds(4));
+        builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)));
+        DatafeedConfig datafeedConfig = builder.build();
+
+        expectThrows(
+            AssertionError.class,
+            () -> DelayedDataDetectorFactory.buildDetector(
+                job,
+                datafeedConfig,
+                mock(Client.class),
+                xContentRegistry(),
+                mockDataExtractorFactory()
+            )
+        );
     }
 
     public void testBuilderGivenEsqlDatafeedAndDefaultDelayedDataCheckShouldReturnEsqlDetector() {
@@ -207,7 +234,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
             datafeedConfig,
             mock(Client.class),
             xContentRegistry(),
-            mock(DataExtractorFactory.class)
+            mockDataExtractorFactory()
         );
 
         assertThat(detector, instanceOf(EsqlDelayedDataDetector.class));
@@ -222,7 +249,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
             datafeedConfig,
             mock(Client.class),
             xContentRegistry(),
-            mock(DataExtractorFactory.class)
+            mockDataExtractorFactory()
         );
 
         assertThat(detector, instanceOf(NullDelayedDataDetector.class));
@@ -241,11 +268,17 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
                 datafeedConfig,
                 mock(Client.class),
                 xContentRegistry(),
-                mock(DataExtractorFactory.class)
+                mockDataExtractorFactory()
             )
         );
 
         assertEquals(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD), e.getMessage());
+    }
+
+    private static DataExtractorFactory mockDataExtractorFactory() {
+        DataExtractorFactory factory = mock(DataExtractorFactory.class);
+        when(factory.withoutTimingStats()).thenReturn(factory);
+        return factory;
     }
 
     private DatafeedConfig createEsqlDatafeed(DelayedDataCheckConfig delayedDataCheckConfig) {

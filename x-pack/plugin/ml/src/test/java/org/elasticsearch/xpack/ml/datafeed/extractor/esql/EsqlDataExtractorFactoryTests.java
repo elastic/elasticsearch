@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class EsqlDataExtractorFactoryTests extends ESTestCase {
@@ -103,6 +104,17 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
 
         assertThat(extractor.getContext().projectRouting(), equalTo("_alias:_origin"));
+    }
+
+    public void testWithoutTimingStatsShouldReturnFactoryWithSeparateReporter() {
+        Job job = buildJob("job-1", TIME_FIELD, null);
+        DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, null);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
+
+        EsqlDataExtractorFactory withoutTimingStats = (EsqlDataExtractorFactory) factory.withoutTimingStats();
+
+        assertThat(withoutTimingStats, not(sameInstance(factory)));
+        assertThat(withoutTimingStats.timingStatsReporter(), not(sameInstance(timingStatsReporter)));
     }
 
     public void testCreateShouldInvokeListenerWithEsqlFactory() {

@@ -165,7 +165,9 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         DatafeedContext context,
         ActionListener<DatafeedJob> listener
     ) {
-        datafeedJobBuilder.buildWithExtractorFactory(task, context, mock(DataExtractorFactory.class), listener);
+        DataExtractorFactory dataExtractorFactory = mock(DataExtractorFactory.class);
+        when(dataExtractorFactory.withoutTimingStats()).thenReturn(dataExtractorFactory);
+        datafeedJobBuilder.buildWithExtractorFactory(task, context, dataExtractorFactory, listener);
     }
 
     public void testBuild_GivenScrollDatafeedAndOldJobWithLatestRecordTimestampAfterLatestBucket() throws Exception {

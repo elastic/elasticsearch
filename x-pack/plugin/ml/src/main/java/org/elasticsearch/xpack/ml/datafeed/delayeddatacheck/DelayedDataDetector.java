@@ -13,6 +13,6 @@ public interface DelayedDataDetector {
 
     long getWindow();
 
-    /** Aborts a check running on another thread; that check reports no missing data. */
+    /** Aborts a check running on another thread. That check reports no missing data. */
     default void cancel() {}
 }

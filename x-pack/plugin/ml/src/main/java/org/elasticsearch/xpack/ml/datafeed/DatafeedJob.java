@@ -232,7 +232,7 @@ class DatafeedJob {
             sendPersistRequest();
         }
 
-        if (isRunning() && isIsolated == false) {
+        if (isRunningAndNotIsolated()) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED));
             LOGGER.info("[{}] Lookback has finished", jobId);
             if (isLookbackOnly) {
@@ -280,13 +280,13 @@ class DatafeedJob {
     }
 
     private void checkForMissingDataIfNecessary() {
-        if (isRunning() && isIsolated == false && checkForMissingDataTriggered()) {
+        if (isRunningAndNotIsolated() && checkForMissingDataTriggered()) {
 
             // Keep track of the last bucket time for which we did a missing data check
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
             List<BucketWithMissingData> missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
-            // stop() or isolate() may have landed while the check was running; a stopped datafeed must not write annotations.
-            if (missingDataBuckets.isEmpty() == false && isRunning() && isIsolated == false) {
+            // stop() or isolate() may have landed while the check was running. A stopped datafeed must not write annotations.
+            if (missingDataBuckets.isEmpty() == false && isRunningAndNotIsolated()) {
                 long totalRecordsMissing = missingDataBuckets.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum();
                 Bucket lastBucket = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket();
                 // Get the end of the last bucket and make it milliseconds
@@ -405,6 +405,10 @@ class DatafeedJob {
 
     public boolean isRunning() {
         return running.get();
+    }
+
+    private boolean isRunningAndNotIsolated() {
+        return isRunning() && isIsolated == false;
     }
 
     private void run(long start, long end, FlushJobAction.Request flushRequest) {
@@ -540,7 +544,7 @@ class DatafeedJob {
                 }
             }
 
-            if (isRunning() && isIsolated == false && dataExtractor.isCancelled() == false) {
+            if (isRunningAndNotIsolated() && dataExtractor.isCancelled() == false) {
                 lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
             }
             LOGGER.debug(
@@ -563,7 +567,7 @@ class DatafeedJob {
             // If the datafeed was stopped, then it is possible that by the time
             // we call flush the job is closed. Thus, we don't flush unless the
             // datafeed is still running.
-            if (isRunning() && isIsolated == false) {
+            if (isRunningAndNotIsolated()) {
                 Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
                 if (lastFinalizedBucketEnd != null) {
                     this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();

@@ -1212,10 +1212,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 uuid = UUIDs.randomBase64UUID();
             }
 
-            // Complete the routing table before deciding whether the previous RoutingNodes can be reused.
-            // initializeProjects rebuilds the project map when metadata contains a project that has no routing entry yet, and that
-            // rebuild can change the iteration order of the existing projects. RoutingNodes walks the table in that order, and
-            // RoutingNodes.equals treats unassigned-shard order as significant, so the reuse check must see the table that is stored.
+            // Build the routing table before the reuse check below: initializeProjects may rebuild the project map (reordering
+            // projects) when adding a project, so the cached RoutingNodes must be compared against the final table.
             if (metadata == null) {
                 if (routingTable == null) {
                     routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
@@ -1228,7 +1226,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             }
 
             final RoutingNodes routingNodes;
-            if (previous != null && routingTable.hasSameIndexRouting(previous.routingTable) && nodes == previous.nodes) {
+            if (previous != null && this.routingTable.hasSameIndexRouting(previous.routingTable) && this.nodes == previous.nodes) {
                 // routing table contents and nodes haven't changed so we can try to reuse the previous state's routing nodes which are
                 // expensive to compute
                 routingNodes = previous.routingNodes;

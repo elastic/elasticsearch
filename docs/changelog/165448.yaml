@@ -1,0 +1,5 @@
+area: Columnar
+issues: []
+pr: 165448
+summary: Ask binary index sort fields if they're multi-valued
+type: bug

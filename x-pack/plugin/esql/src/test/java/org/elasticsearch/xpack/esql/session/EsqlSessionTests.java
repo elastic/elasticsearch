@@ -33,10 +33,10 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
-import org.elasticsearch.xpack.esql.datasources.ExternalRead;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
@@ -420,13 +420,13 @@ public class EsqlSessionTests extends ESTestCase {
 
     public void testExtractExternalReadsThrowsOnNonLiteralTablePath() {
         // After parameter substitution at parse time, every UnresolvedExternalRelation tablePath is
-        // expected to be a non-null Literal. extractExternalReads fails closed with
+        // expected to be a non-null Literal. extractExternalSourceSpecs fails closed with
         // IllegalStateException rather than silently dropping the relation from the resulting list.
         Source source = Source.EMPTY;
         Expression nonLiteral = new UnresolvedAttribute(source, "?param");
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(source, nonLiteral, new HashMap<>());
 
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> EsqlSession.extractExternalReads(relation));
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> EsqlSession.extractExternalSourceSpecs(relation));
         assertThat(ex.getMessage(), containsString("UnresolvedExternalRelation tablePath is not a non-null Literal"));
     }
 
@@ -438,7 +438,7 @@ public class EsqlSessionTests extends ESTestCase {
         config.put("region", "us-east-1");
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(source, tablePath, config);
 
-        assertThat(EsqlSession.extractExternalReads(relation), equalTo(List.of(new ExternalRead("s3://bucket/table", config))));
+        assertThat(EsqlSession.extractExternalSourceSpecs(relation), equalTo(List.of(new ExternalSourceSpec("s3://bucket/table", config))));
     }
 
     /**
@@ -452,21 +452,21 @@ public class EsqlSessionTests extends ESTestCase {
         Map<String, Object> asCsv = configWith("format", "csv");
         Map<String, Object> asTsv = configWith("format", "tsv");
 
-        List<ExternalRead> reads = EsqlSession.extractExternalReads(twoRelationsOnOnePath(path, asCsv, asTsv));
+        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, asCsv, asTsv));
 
         assertThat("two reads of one resource must both survive", reads, hasSize(2));
-        assertThat(reads, equalTo(List.of(new ExternalRead(path, asCsv), new ExternalRead(path, asTsv))));
+        assertThat(reads, equalTo(List.of(new ExternalSourceSpec(path, asCsv), new ExternalSourceSpec(path, asTsv))));
     }
 
     /** One resource read the same way twice is one read, so the two relations share a listing and a schema. */
     public void testOneResourceReadOneWayTwiceCollapsesToOneRead() {
         String path = "s3://bucket/sales";
 
-        List<ExternalRead> reads = EsqlSession.extractExternalReads(
+        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(
             twoRelationsOnOnePath(path, configWith("format", "csv"), configWith("format", "csv"))
         );
 
-        assertThat("equal configurations are one read", reads, equalTo(List.of(new ExternalRead(path, configWith("format", "csv")))));
+        assertThat("equal configurations are one read", reads, equalTo(List.of(new ExternalSourceSpec(path, configWith("format", "csv")))));
     }
 
     /**
@@ -482,12 +482,12 @@ public class EsqlSessionTests extends ESTestCase {
         second.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "b", "datasource", "src", "type", "s3"));
         assertThat("the two configs must be unequal as maps, or this test proves nothing", first, not(equalTo(second)));
 
-        List<ExternalRead> reads = EsqlSession.extractExternalReads(twoRelationsOnOnePath(path, first, second));
+        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, first, second));
 
         assertThat(
             "two named datasets are two reads",
             reads,
-            equalTo(List.of(new ExternalRead(path, first), new ExternalRead(path, second)))
+            equalTo(List.of(new ExternalSourceSpec(path, first), new ExternalSourceSpec(path, second)))
         );
     }
 
@@ -504,9 +504,9 @@ public class EsqlSessionTests extends ESTestCase {
             configWith("format", "ndjson")
         );
 
-        List<ExternalRead> reads = EsqlSession.extractExternalReads(new UnionAll(EMPTY, List.of(left, right), List.of()));
+        List<ExternalSourceSpec> reads = EsqlSession.extractExternalSourceSpecs(new UnionAll(EMPTY, List.of(left, right), List.of()));
 
-        assertThat(reads.stream().map(ExternalRead::path).toList(), equalTo(List.of("s3://bucket/left", "s3://bucket/right")));
+        assertThat(reads.stream().map(ExternalSourceSpec::path).toList(), equalTo(List.of("s3://bucket/left", "s3://bucket/right")));
     }
 
     private static Map<String, Object> configWith(String key, Object value) {
@@ -1170,7 +1170,7 @@ public class EsqlSessionTests extends ESTestCase {
             )
         );
 
-        ExternalRead read = captured.reads().get(0);
+        ExternalSourceSpec read = captured.reads().get(0);
         assertNotNull("bounds alone must produce listing hints", captured.filterHints());
         List<PartitionFilterHintExtractor.PartitionFilterHint> hints = captured.filterHints().get(read);
         assertNotNull("the read must carry the projected hints", hints);
@@ -1198,7 +1198,8 @@ public class EsqlSessionTests extends ESTestCase {
      * collide, and this throws rather than drop one.
      */
     private static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> captureFilterHints(LogicalPlan plan, String path) {
-        Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> byRead = captureExternalResolve(plan, path).filterHints();
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> byRead = captureExternalResolve(plan, path)
+            .filterHints();
         if (byRead == null) {
             return null;
         }
@@ -1212,11 +1213,11 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     private record CapturedExternalResolve(
-        List<ExternalRead> reads,
+        List<ExternalSourceSpec> reads,
         Set<String> pathsRequiringStats,
         Set<String> pathsReadingNoRows,
-        Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        Map<ExternalRead, FolderRangePredicate> folderRanges
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        Map<ExternalSourceSpec, FolderRangePredicate> folderRanges
     ) {}
 
     private static CapturedExternalResolve captureExternalResolve(LogicalPlan plan, String path) {
@@ -1228,11 +1229,12 @@ public class EsqlSessionTests extends ESTestCase {
         String path,
         @Nullable QueryDslTimestampBoundsExtractor.TimestampBounds listingBounds
     ) {
-        AtomicReference<List<ExternalRead>> capturedReads = new AtomicReference<>();
+        AtomicReference<List<ExternalSourceSpec>> capturedReads = new AtomicReference<>();
         AtomicReference<Set<String>> capturedStats = new AtomicReference<>();
         AtomicReference<Set<String>> capturedNoRows = new AtomicReference<>();
-        AtomicReference<Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>>> capturedHints = new AtomicReference<>();
-        AtomicReference<Map<ExternalRead, FolderRangePredicate>> capturedFolderRanges = new AtomicReference<>();
+        AtomicReference<Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>>> capturedHints =
+            new AtomicReference<>();
+        AtomicReference<Map<ExternalSourceSpec, FolderRangePredicate>> capturedFolderRanges = new AtomicReference<>();
         AtomicBoolean resolveCalled = new AtomicBoolean();
         // The arity the session calls. Overriding a narrower overload would capture nothing and silently run the
         // real resolver instead, which is how this fake first went blind; every other overload is final now, so
@@ -1240,12 +1242,12 @@ public class EsqlSessionTests extends ESTestCase {
         ExternalSourceResolver capturingResolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, null) {
             @Override
             public void resolve(
-                List<ExternalRead> reads,
-                Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+                List<ExternalSourceSpec> reads,
+                Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
                 Map<String, DatasetMapping> declaredMappings,
                 Set<String> pathsRequiringStats,
                 Set<String> pathsReadingNoRows,
-                Map<ExternalRead, FolderRangePredicate> folderRanges,
+                Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
                 ActionListener<ExternalSourceResolution> listener
             ) {
                 resolveCalled.set(true);
@@ -1290,7 +1292,7 @@ public class EsqlSessionTests extends ESTestCase {
         // relation, so one read of `path` is what the session owes the resolver.
         assertThat(
             "the session must forward the plan's own reads",
-            capturedReads.get().stream().map(ExternalRead::path).toList(),
+            capturedReads.get().stream().map(ExternalSourceSpec::path).toList(),
             equalTo(List.of(path))
         );
         return new CapturedExternalResolve(

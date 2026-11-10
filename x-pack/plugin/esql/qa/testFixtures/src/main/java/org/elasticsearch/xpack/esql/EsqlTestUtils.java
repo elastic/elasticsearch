@@ -110,7 +110,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
-import org.elasticsearch.xpack.esql.datasources.ExternalRead;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
@@ -681,7 +681,7 @@ public final class EsqlTestUtils {
      * An {@link ExternalSourceResolution} whose keys are exactly the ones the analyzer will compute for the relations
      * {@link #rewriteDatasetsUnsecured} produces from {@code projectMetadata}.
      * <p>
-     * A resolution is keyed by {@link ExternalRead} — the resource <i>and</i> the configuration it is read under — so a
+     * A resolution is keyed by {@link ExternalSourceSpec} — the resource <i>and</i> the configuration it is read under — so a
      * test that spells the key out by hand installs it under a configuration the rewriter never builds, the analyzer
      * finds nothing, and the relation stays unresolved: the test then fails for a reason that has nothing to do with
      * what it asserts. This builds each key through {@link DatasetRewriter#datasetConfig}, the one builder the rewriter
@@ -697,7 +697,7 @@ public final class EsqlTestUtils {
         Map<String, ExternalSourceResolution.ResolvedSource> byResource
     ) {
         DataSourceMetadata dataSources = DataSourceMetadata.get(projectMetadata);
-        Map<ExternalRead, ExternalSourceResolution.ResolvedSource> resolved = new HashMap<>();
+        Map<ExternalSourceSpec, ExternalSourceResolution.ResolvedSource> resolved = new HashMap<>();
         Set<String> matched = new HashSet<>();
         for (Dataset dataset : DatasetMetadata.get(projectMetadata).datasets().values()) {
             ExternalSourceResolution.ResolvedSource source = byResource.get(dataset.resource());
@@ -710,7 +710,7 @@ public final class EsqlTestUtils {
                     "dataset [" + dataset.name() + "] references unknown data source [" + dataset.dataSource().getName() + "]"
                 );
             }
-            resolved.put(new ExternalRead(dataset.resource(), DatasetRewriter.datasetConfig(parent, dataset)), source);
+            resolved.put(new ExternalSourceSpec(dataset.resource(), DatasetRewriter.datasetConfig(parent, dataset)), source);
             matched.add(dataset.resource());
         }
         if (matched.containsAll(byResource.keySet()) == false) {

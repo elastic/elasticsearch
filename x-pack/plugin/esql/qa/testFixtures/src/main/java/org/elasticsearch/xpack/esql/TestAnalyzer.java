@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
-import org.elasticsearch.xpack.esql.datasources.ExternalRead;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -562,7 +562,7 @@ public class TestAnalyzer {
      */
     public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
         return externalSourceResolution(
-            new ExternalSourceResolution(Map.of(new ExternalRead(path, Map.of()), source(path, schema, fileSet)))
+            new ExternalSourceResolution(Map.of(new ExternalSourceSpec(path, Map.of()), source(path, schema, fileSet)))
         );
     }
 

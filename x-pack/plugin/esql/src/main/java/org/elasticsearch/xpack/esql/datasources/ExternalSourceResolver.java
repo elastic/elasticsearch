@@ -717,7 +717,7 @@ public class ExternalSourceResolver {
         return false;
     }
 
-    public final void resolve(List<ExternalRead> reads, ActionListener<ExternalSourceResolution> listener) {
+    public final void resolve(List<ExternalSourceSpec> reads, ActionListener<ExternalSourceResolution> listener) {
         resolve(reads, null, null, null, null, listener);
     }
 
@@ -790,14 +790,16 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (paths == null) {
-            resolve((List<ExternalRead>) null, null, declaredMappings, pathsRequiringStats, pathsReadingNoRows, null, listener);
+            resolve((List<ExternalSourceSpec>) null, null, declaredMappings, pathsRequiringStats, pathsReadingNoRows, null, listener);
             return;
         }
-        List<ExternalRead> reads = new ArrayList<>(paths.size());
-        Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> readHints = filterHints == null ? null : new HashMap<>();
-        Map<ExternalRead, FolderRangePredicate> readRanges = folderRanges == null ? null : new HashMap<>();
+        List<ExternalSourceSpec> reads = new ArrayList<>(paths.size());
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> readHints = filterHints == null
+            ? null
+            : new HashMap<>();
+        Map<ExternalSourceSpec, FolderRangePredicate> readRanges = folderRanges == null ? null : new HashMap<>();
         for (String path : paths) {
-            ExternalRead read = new ExternalRead(path, pathConfigs.getOrDefault(path, Map.of()));
+            ExternalSourceSpec read = new ExternalSourceSpec(path, pathConfigs.getOrDefault(path, Map.of()));
             reads.add(read);
             if (readHints != null && filterHints.get(path) != null) {
                 readHints.put(read, filterHints.get(path));
@@ -811,8 +813,8 @@ public class ExternalSourceResolver {
 
     /** As below, with no schema discovery information: no path is told its rows are all discarded. */
     public final void resolve(
-        List<ExternalRead> reads,
-        @Nullable Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        List<ExternalSourceSpec> reads,
+        @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
         ActionListener<ExternalSourceResolution> listener
@@ -839,8 +841,8 @@ public class ExternalSourceResolver {
      *        {@link SchemaDiscoveryPathExtractor#pathsReadingNoRows}.
      */
     public final void resolve(
-        List<ExternalRead> reads,
-        @Nullable Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        List<ExternalSourceSpec> reads,
+        @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
         @Nullable Set<String> pathsReadingNoRows,
@@ -850,9 +852,9 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * As {@link #resolve(List, Map, Map, Set, Set, ActionListener)} plus per-path folder-range
+     * As {@link #resolve(List, Map, Map, Set, Set, ActionListener)} plus per-spec folder-range
      * predicates built from the TEMPORAL extract before {@code projectListingHints} drops
-     * {@code @timestamp}. Absent path means grain INs only.
+     * {@code @timestamp}. A spec absent from the map gets grain INs only.
      * <p>
      * An object rewritten after its listing was cached fails its conditional read with the object-changed condition. When
      * that happens here, during resolution, nothing has run yet and the query's task is still live, so resolution drops
@@ -868,12 +870,12 @@ public class ExternalSourceResolver {
      * the real resolver instead.
      */
     public void resolve(
-        List<ExternalRead> reads,
-        @Nullable Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        List<ExternalSourceSpec> reads,
+        @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
         @Nullable Set<String> pathsReadingNoRows,
-        @Nullable Map<ExternalRead, FolderRangePredicate> folderRanges,
+        @Nullable Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
         ActionListener<ExternalSourceResolution> listener
     ) {
         objectChangeRetryAhead = true;
@@ -898,12 +900,12 @@ public class ExternalSourceResolver {
     }
 
     private void resolveOnce(
-        List<ExternalRead> reads,
-        @Nullable Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        List<ExternalSourceSpec> reads,
+        @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
         @Nullable Set<String> pathsReadingNoRows,
-        @Nullable Map<ExternalRead, FolderRangePredicate> folderRanges,
+        @Nullable Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (reads == null || reads.isEmpty()) {
@@ -946,7 +948,7 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> resolveListener = restorableContext == null
             ? listener
             : new ContextPreservingActionListener<>(restorableContext, listener);
-        Map<ExternalRead, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(reads.size());
+        Map<ExternalSourceSpec, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(reads.size());
         // The dispatched resolution can complete and carry planning on to finish() before this thread's measurement
         // settles, so commit the planning CPU spent preparing it first.
         planningCpu.checkpoint();
@@ -970,21 +972,21 @@ public class ExternalSourceResolver {
      * sequentially so the accumulation map needs no synchronization and the first failure short-circuits the rest.
      */
     private void resolveNextPath(
-        List<ExternalRead> reads,
+        List<ExternalSourceSpec> reads,
         int index,
-        @Nullable Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        @Nullable Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
         @Nullable Set<String> pathsReadingNoRows,
-        @Nullable Map<ExternalRead, FolderRangePredicate> folderRanges,
-        Map<ExternalRead, ExternalSourceResolution.ResolvedSource> resolved,
+        @Nullable Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
+        Map<ExternalSourceSpec, ExternalSourceResolution.ResolvedSource> resolved,
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (index == reads.size()) {
             listener.onResponse(new ExternalSourceResolution(resolved, bufferedWarnings()));
             return;
         }
-        ExternalRead read = reads.get(index);
+        ExternalSourceSpec read = reads.get(index);
         String path = read.path();
         Map<String, Object> config = read.config();
         List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(read) : null;

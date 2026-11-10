@@ -6847,8 +6847,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
         String glob = "s3://bucket/data/*.parquet";
-        ExternalRead asFirstFileWins = new ExternalRead(glob, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
-        ExternalRead asUnionByName = new ExternalRead(glob, configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+        ExternalSourceSpec asFirstFileWins = new ExternalSourceSpec(glob, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        ExternalSourceSpec asUnionByName = new ExternalSourceSpec(glob, configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);

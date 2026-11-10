@@ -5132,7 +5132,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * null-fills it, and {@code COUNT(a)} counts only the CSV read's two rows.
      * <p>
      * Keyed by the resource alone, both relations bind to one resolution and this answer does not come back. With
-     * {@code ExternalRead} equality narrowed to the path, the query fails on the data node with "external dataset
+     * {@code ExternalSourceSpec} equality narrowed to the path, the query fails on the data node with "external dataset
      * [two_formats_tsv] definition changed while the query was planned": the relation reaches execution carrying the
      * other dataset's resolution, and {@code DatasetConfigResolver} rebinds its config from cluster state and refuses
      * the mismatch.

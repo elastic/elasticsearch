@@ -86,9 +86,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
-import org.elasticsearch.xpack.esql.datasources.ExternalRead;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListing;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
@@ -2322,7 +2322,7 @@ public class EsqlSession {
             return;
         }
 
-        List<ExternalRead> reads = extractExternalReads(plan);
+        List<ExternalSourceSpec> reads = extractExternalSourceSpecs(plan);
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
@@ -2334,9 +2334,9 @@ public class EsqlSession {
         // The hints themselves stay per resource. PartitionFilterHintExtractor intersects them across every
         // occurrence of a path, which is conservative - it keeps only what every occurrence excludes - so one value
         // is correct for every read of that path.
-        Map<ExternalRead, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints = new HashMap<>();
-        Map<ExternalRead, FolderRangePredicate> folderRanges = new HashMap<>();
-        for (ExternalRead read : reads) {
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints = new HashMap<>();
+        Map<ExternalSourceSpec, FolderRangePredicate> folderRanges = new HashMap<>();
+        for (ExternalSourceSpec read : reads) {
             List<PartitionFilterHintExtractor.PartitionFilterHint> hints = hintsByPath.get(read.path());
             Map<String, Map<String, Object>> oneConfig = Map.of(read.path(), read.config());
             // QueryDslTimestampBoundsExtractor parses both ends with roundUp=false, so
@@ -2398,7 +2398,7 @@ public class EsqlSession {
      * <p>Resolution is per-read, so one resource read two ways resolves twice. This map is not: it is still keyed
      * by path, and the resolver looks a declared mapping up by path. So two datasets over one resource with
      * <em>different</em> declared mappings — or one mapped and one unmapped — still cannot be told apart here, and
-     * are refused rather than silently given whichever mapping was found first. Keying this by {@link ExternalRead}
+     * are refused rather than silently given whichever mapping was found first. Keying this by {@link ExternalSourceSpec}
      * too would let them through, and is tracked separately.
      */
     // package-private for testing
@@ -2439,9 +2439,9 @@ public class EsqlSession {
      * plan.
      */
     // package-private for testing
-    static List<ExternalRead> extractExternalReads(LogicalPlan plan) {
-        Set<ExternalRead> reads = new LinkedHashSet<>();
-        plan.forEachUp(UnresolvedExternalRelation.class, p -> reads.add(ExternalRead.of(p)));
+    static List<ExternalSourceSpec> extractExternalSourceSpecs(LogicalPlan plan) {
+        Set<ExternalSourceSpec> reads = new LinkedHashSet<>();
+        plan.forEachUp(UnresolvedExternalRelation.class, p -> reads.add(ExternalSourceSpec.of(p)));
         return List.copyOf(reads);
     }
 

@@ -22,10 +22,10 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.ExternalRead;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -761,9 +761,9 @@ public class AnalyzerExternalTests extends ESTestCase {
         List<Attribute> tsvSchema = List.of(referenceAttribute("from_tsv", KEYWORD));
         ExternalSourceResolution resolution = new ExternalSourceResolution(
             Map.of(
-                new ExternalRead(S3_PATH, asCsv),
+                new ExternalSourceSpec(S3_PATH, asCsv),
                 resolvedSourceWith(csvSchema),
-                new ExternalRead(S3_PATH, asTsv),
+                new ExternalSourceSpec(S3_PATH, asTsv),
                 resolvedSourceWith(tsvSchema)
             )
         );

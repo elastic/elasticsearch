@@ -56,8 +56,10 @@ import java.util.Set;
  * <h2>Per-path conservatism for mixed branches</h2>
  * The result is a {@link Set}: if the same path appears under an ungrouped aggregate in one branch
  * (e.g. a {@code FORK} arm) and under {@code LIMIT} in another, the union marks it as requiring eager
- * stats. The single resolution of that path stays eager, which is correct because one resolution
- * feeds both branches.
+ * stats. Resolution is keyed by {@link ExternalSourceSpec}, so one resource read two ways has two
+ * resolutions while this set is still keyed by path alone — both of them stay eager. That is safe in the
+ * only direction that matters, never under-eager, but it is no longer exact: a spec whose branch reads no
+ * stats pays footer reads it cannot use. Keying this by the spec would make it exact.
  */
 public final class ExternalStatsRequirementExtractor {
 
@@ -67,9 +69,9 @@ public final class ExternalStatsRequirementExtractor {
      * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} that has an
      * <b>ungrouped</b> {@link Aggregate} ancestor with no {@link Filter}, {@link Limit}, or
      * {@link Sample} on the walk from that aggregate down to the relation. The path-key derivation
-     * is identical to {@code PreAnalyzer} and {@code EsqlSession#extractExternalReads}
-     * ({@code BytesRefs.toString(literal.value())}), so the keys match the resolver's
-     * {@code externalSourcePaths} by construction.
+     * is identical to {@code PreAnalyzer} and {@code EsqlSession#extractExternalSourceSpecs}
+     * ({@code BytesRefs.toString(literal.value())}), so every key here is the {@code path} of a spec the
+     * session derives.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
      * @return the set of literal path strings whose resolution must eagerly aggregate global stats
@@ -127,11 +129,11 @@ public final class ExternalStatsRequirementExtractor {
 
     /**
      * Path-key derivation kept in lockstep with {@code PreAnalyzer#externalSourcePaths} and
-     * {@code EsqlSession#extractExternalReads}: a non-null {@link Literal} {@code tablePath}
+     * {@code EsqlSession#extractExternalSourceSpecs}: a non-null {@link Literal} {@code tablePath}
      * rendered via {@code BytesRefs.toString}. Returns {@code null} for a non-literal {@code tablePath}
      * so detection never throws; that path is then absent from the set and, since the resolver
      * receives a non-null set, would <em>defer</em> rather than aggregate eagerly. In practice this
-     * branch is unreachable: {@code EsqlSession#extractExternalReads} runs first on the same plan
+     * branch is unreachable: {@code EsqlSession#extractExternalSourceSpecs} runs first on the same plan
      * and throws on a non-literal {@code tablePath}, so resolution never reaches a path this method
      * could fail to key.
      */

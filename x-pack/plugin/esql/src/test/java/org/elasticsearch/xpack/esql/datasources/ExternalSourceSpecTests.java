@@ -19,10 +19,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * {@link ExternalRead} is the key a resolution is stored and looked up under, so what counts as the same read is
+ * {@link ExternalSourceSpec} is the key a resolution is stored and looked up under, so what counts as the same read is
  * decided here, by equality, and nothing else in the pipeline gets a say.
  */
-public class ExternalReadTests extends ESTestCase {
+public class ExternalSourceSpecTests extends ESTestCase {
 
     private static final String PATH = "s3://bucket/sales";
 
@@ -43,8 +43,8 @@ public class ExternalReadTests extends ESTestCase {
         right.put("schema_resolution", "union_by_name");
         right.put("format", "csv");
 
-        ExternalRead a = new ExternalRead(PATH, left);
-        ExternalRead b = new ExternalRead(PATH, right);
+        ExternalSourceSpec a = new ExternalSourceSpec(PATH, left);
+        ExternalSourceSpec b = new ExternalSourceSpec(PATH, right);
 
         assertThat(a, equalTo(b));
         assertThat(a.hashCode(), equalTo(b.hashCode()));
@@ -53,8 +53,8 @@ public class ExternalReadTests extends ESTestCase {
     /** The defect itself: one resource, two formats, two reads. */
     public void testDifferingFormatIsTwoReads() {
         assertThat(
-            new ExternalRead(PATH, config(Map.of("format", "csv"))),
-            not(equalTo(new ExternalRead(PATH, config(Map.of("format", "tsv")))))
+            new ExternalSourceSpec(PATH, config(Map.of("format", "csv"))),
+            not(equalTo(new ExternalSourceSpec(PATH, config(Map.of("format", "tsv")))))
         );
     }
 
@@ -69,7 +69,7 @@ public class ExternalReadTests extends ESTestCase {
         Map<String, Object> asB = config(Map.of("format", "csv"));
         asB.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "b", "datasource", "src", "type", "s3"));
 
-        assertThat(new ExternalRead(PATH, asA), not(equalTo(new ExternalRead(PATH, asB))));
+        assertThat(new ExternalSourceSpec(PATH, asA), not(equalTo(new ExternalSourceSpec(PATH, asB))));
     }
 
     /**
@@ -89,7 +89,7 @@ public class ExternalReadTests extends ESTestCase {
         // payload tells these apart.
         withSecretB.put("secret_key", new EncryptedData("key-1", new byte[] { 9, 9, 9 }));
 
-        assertThat(new ExternalRead(PATH, withSecretA), not(equalTo(new ExternalRead(PATH, withSecretB))));
+        assertThat(new ExternalSourceSpec(PATH, withSecretA), not(equalTo(new ExternalSourceSpec(PATH, withSecretB))));
     }
 
     /** The same secret under the same key id is one read, so an identical pair still shares its resolution. */
@@ -99,13 +99,13 @@ public class ExternalReadTests extends ESTestCase {
         Map<String, Object> two = config(Map.of("access_key", "same"));
         two.put("secret_key", new EncryptedData("key-1", new byte[] { 1, 2, 3 }));
 
-        assertThat(new ExternalRead(PATH, one), equalTo(new ExternalRead(PATH, two)));
+        assertThat(new ExternalSourceSpec(PATH, one), equalTo(new ExternalSourceSpec(PATH, two)));
     }
 
     /** And the resource still separates reads on its own, with nothing in the configuration to tell them apart. */
     public void testDifferingPathIsTwoReads() {
         Map<String, Object> config = config(Map.of("format", "csv"));
-        assertThat(new ExternalRead("s3://bucket/left", config), not(equalTo(new ExternalRead("s3://bucket/right", config))));
+        assertThat(new ExternalSourceSpec("s3://bucket/left", config), not(equalTo(new ExternalSourceSpec("s3://bucket/right", config))));
     }
 
     /**
@@ -117,16 +117,16 @@ public class ExternalReadTests extends ESTestCase {
         withNull.put("format", "csv");
         withNull.put("region", null);
 
-        ExternalRead read = new ExternalRead(PATH, withNull);
+        ExternalSourceSpec read = new ExternalSourceSpec(PATH, withNull);
 
         assertThat(read.config(), equalTo(withNull));
-        assertThat(read, equalTo(new ExternalRead(PATH, withNull)));
+        assertThat(read, equalTo(new ExternalSourceSpec(PATH, withNull)));
     }
 
     /** The copy is defensive: mutating the caller's map afterwards cannot move a key already in a resolution. */
     public void testConfigIsCopiedNotAliased() {
         Map<String, Object> config = config(Map.of("format", "csv"));
-        ExternalRead read = new ExternalRead(PATH, config);
+        ExternalSourceSpec read = new ExternalSourceSpec(PATH, config);
 
         config.put("format", "tsv");
 
@@ -135,7 +135,7 @@ public class ExternalReadTests extends ESTestCase {
 
     /** A null configuration is the empty one rather than an NPE at the first lookup. */
     public void testNullConfigIsEmpty() {
-        assertThat(new ExternalRead(PATH, null).config(), equalTo(Map.of()));
+        assertThat(new ExternalSourceSpec(PATH, null).config(), equalTo(Map.of()));
     }
 
     /**
@@ -147,7 +147,7 @@ public class ExternalReadTests extends ESTestCase {
         Map<String, Object> config = config(Map.of("format", "csv"));
         config.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, Map.of("access_key", "id", "secret_key", secret));
 
-        String printed = new ExternalRead(PATH, config).toString();
+        String printed = new ExternalSourceSpec(PATH, config).toString();
 
         assertThat(printed, not(containsString(secret)));
         assertThat(printed, containsString(PATH));

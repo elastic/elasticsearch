@@ -33,9 +33,9 @@ import java.util.Objects;
  * @param config the configuration the relation reads it under, including the data source's credentials, which decide
  *               which objects are visible and so are part of the read rather than incidental to it
  */
-public record ExternalRead(String path, Map<String, Object> config) {
+public record ExternalSourceSpec(String path, Map<String, Object> config) {
 
-    public ExternalRead {
+    public ExternalSourceSpec {
         Objects.requireNonNull(path, "path");
         // Copied rather than aliased, and not with Map.copyOf: a dataset setting may be null, which Map.copyOf
         // refuses, and DefinitionVersion.encodeSettings shows a null value is a shape the config really carries.
@@ -48,10 +48,10 @@ public record ExternalRead(String path, Map<String, Object> config) {
      *
      * @throws IllegalStateException if the relation's path is not a non-null literal, which post-parsing it always is
      */
-    public static ExternalRead of(UnresolvedExternalRelation relation) {
+    public static ExternalSourceSpec of(UnresolvedExternalRelation relation) {
         Expression tablePath = relation.tablePath();
         if (tablePath instanceof Literal literal && literal.value() != null) {
-            return new ExternalRead(BytesRefs.toString(literal.value()), relation.config());
+            return new ExternalSourceSpec(BytesRefs.toString(literal.value()), relation.config());
         }
         throw new IllegalStateException(
             "UnresolvedExternalRelation tablePath is not a non-null Literal: ["

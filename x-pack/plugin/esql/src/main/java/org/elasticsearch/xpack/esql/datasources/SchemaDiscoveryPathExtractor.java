@@ -29,8 +29,9 @@ import java.util.Set;
  * plan is emptied. The parsed plan is available there, which is what makes the shape knowable in time.
  * <p>This says only that no rows will be read; how much of the glob a schema needs is the dataset's business,
  * and the resolver decides it.
- * <p>Unlike {@link ExternalStatsRequirementExtractor}, which unions, this subtracts: one resolution feeds every
- * branch, so a path read for its rows in <em>any</em> branch must resolve as a reading query.
+ * <p>Unlike {@link ExternalStatsRequirementExtractor}, which unions, this subtracts: a path read for its rows in
+ * <em>any</em> branch must resolve as a reading query. Resolution is keyed by {@link ExternalSourceSpec} and this
+ * set by path, so subtracting is what keeps that safe — a path with two specs is excluded if either reads rows.
  * <p>{@code LIMIT 0 BY k} is a {@code LimitBy} and an unfolded zero is not a {@link Literal}; both are missed,
  * and both only leave work switched on.
  */
@@ -41,7 +42,7 @@ public final class SchemaDiscoveryPathExtractor {
     /**
      * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} whose occurrences all
      * sit below a {@link Limit} of literal zero. Path keys are derived as {@code PreAnalyzer} and
-     * {@code EsqlSession#extractExternalReads} derive them, so they line up with the resolver's paths.
+     * {@code EsqlSession#extractExternalSourceSpecs} derive them, so each is the {@code path} of a derived spec.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
      * @return the set of literal path strings whose resolution needs no rows read
@@ -97,7 +98,7 @@ public final class SchemaDiscoveryPathExtractor {
 
     /**
      * Path-key derivation kept in lockstep with {@code PreAnalyzer#externalSourcePaths} and
-     * {@code EsqlSession#extractExternalReads}. Returns {@code null} for a non-literal
+     * {@code EsqlSession#extractExternalSourceSpecs}. Returns {@code null} for a non-literal
      * {@code tablePath} so detection never throws; that path is then absent from the set and
      * resolves as a reading query.
      */

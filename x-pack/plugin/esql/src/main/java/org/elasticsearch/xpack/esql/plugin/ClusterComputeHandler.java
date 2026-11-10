@@ -405,6 +405,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     parentTask,
                     new ComputeContext(
                         localSessionId,
+                        computeService.queryId(parentTask),
                         "remote_reduce",
                         clusterAlias,
                         flags,
@@ -416,6 +417,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                             ? () -> exchangeSink.createExchangeSink(() -> {})
                             : () -> new LeavingDocumentsSink(exchangeSink.createExchangeSink(() -> {}), leftTheCluster),
                         false,
+                        null,
                         // the cut of this cluster keeps documents that left its data nodes, and the querying cluster fetches them
                         fetchContexts == null ? FetchOperatorProvider.UNSUPPORTED : FetchOperatorProvider.DETACHED_DOCUMENTS
                     ),

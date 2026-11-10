@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -46,6 +47,7 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
     private static DataNodeRequest request(ExchangeSinkExec plan, @Nullable TimeValue fetchContextsKeepAlive) {
         return new DataNodeRequest(
             "session",
+            TaskId.EMPTY_TASK_ID,
             EsqlTestUtils.TEST_CFG,
             "",
             List.of(),

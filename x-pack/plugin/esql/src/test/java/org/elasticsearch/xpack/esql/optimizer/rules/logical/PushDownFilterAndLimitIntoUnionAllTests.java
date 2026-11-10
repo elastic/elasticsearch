@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -65,6 +66,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -445,8 +447,9 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
     /*
      * With the subquery wrappers stripped, each branch fuses to a single Filter/Eval stack over its source: the pushed
-     * conversions, null-fills and the z > 0 conjunct merge with the per-branch ISNOTNULL filters instead of stacking
-     * around a Subquery node. The first (bare FROM test) branch is pruned: it cannot satisfy x IS NOT NULL.
+     * conversions, the null-fills the optimizer aligns the branches with and the z > 0 conjunct merge with the per-branch
+     * ISNOTNULL filters instead of stacking around a Subquery node. The first (bare FROM test) branch is pruned: it cannot
+     * satisfy x IS NOT NULL.
      *
      * Project[[_meta_field{r}#102, ..., salary{r}#112, z{r}#115, language_name{r}#116,
      *               $$x$converted_to$long{r$}#125 AS x#38, $$y$converted_to$long{r$}#126 AS y#41]]
@@ -455,24 +458,24 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *     |_Project[[_meta_field{f}#62, ..., x{r}#5, $$x$converted_to$long{r$}#119, y{r}#128, $$y$converted_to$long{r$}#120, z{r}#11,
      *     |          language_name{r}#86]]
      *     | \_Filter[ISNOTNULL($$y$converted_to$long{r$}#120) AND z{r}#11 > 0[INTEGER]]
-     *     |   \_Eval[[1[INTEGER] AS x#5, emp_no{f}#56 + 1[INTEGER] AS z#11, null[KEYWORD] AS language_name#86,
-     *     |           1[LONG] AS $$x$converted_to$long#119, TOLONG(emp_no{f}#56) AS $$y$converted_to$long#120, null[KEYWORD] AS y#128]]
+     *     |   \_Eval[[1[INTEGER] AS x#5, emp_no{f}#56 + 1[INTEGER] AS z#11, 1[LONG] AS $$x$converted_to$long#119,
+     *     |           TOLONG(emp_no{f}#56) AS $$y$converted_to$long#120, null[KEYWORD] AS y#128, null[KEYWORD] AS language_name#86]]
      *     |     \_Filter[salary{f}#61 < 100000[INTEGER]]
      *     |       \_EsRelation[test][_meta_field{f}#62, emp_no{f}#56, first_name{f}#57, ..]
      *     |_Project[[_meta_field{r}#87, ..., x{r}#22, $$x$converted_to$long{r$}#121, y{r}#129, $$y$converted_to$long{r$}#122, z{r}#17,
      *     |          language_name{r}#98]]
      *     | \_Filter[ISNOTNULL($$y$converted_to$long{r$}#122)]
-     *     |   \_Eval[[1[INTEGER] AS x#22, null[...] AS <null-fills>..., 1[LONG] AS $$x$converted_to$long#121,
-     *     |           TOLONG(y{r}#20) AS $$y$converted_to$long#122, null[KEYWORD] AS y#129]]
+     *     |   \_Eval[[1[INTEGER] AS x#22, TOLONG(y{r}#20) AS $$y$converted_to$long#122, 1[LONG] AS $$x$converted_to$long#121,
+     *     |           null[KEYWORD] AS y#129, null[...] AS <null-fills>..., null[KEYWORD] AS language_name#98]]
      *     |     \_Filter[z{r}#17 > 0[INTEGER]]
      *     |       \_Aggregate[[language_code{f}#67],[COUNT(*[KEYWORD],true[BOOLEAN]) AS y#20, language_code{f}#67 AS z#17]]
      *     |         \_EsRelation[languages][language_code{f}#67, language_name{f}#68]
      *     \_Project[[_meta_field{f}#75, $$emp_no$temp_name$131{r}#133 AS emp_no#99, ..., emp_no{f}#69 AS x#29,
      *                $$x$converted_to$long{r$}#123, y{r}#130, $$y$converted_to$long{r$}#124, languages{f}#72 AS z#35, language_name{f}#81]]
      *       \_Filter[ISNOTNULL($$x$converted_to$long{r$}#123) AND ISNOTNULL($$y$converted_to$long{r$}#124)]
-     *         \_Eval[[null[INTEGER] AS $$emp_no$temp_name$131#133, null[INTEGER] AS $$languages$temp_name$135#136,
-     *                 null[INTEGER] AS $$salary$temp_name$132#134, TOLONG(emp_no{f}#69) AS $$x$converted_to$long#123,
-     *                 TOLONG(salary{f}#74) AS $$y$converted_to$long#124, null[KEYWORD] AS y#130]]
+     *         \_Eval[[TOLONG(emp_no{f}#69) AS $$x$converted_to$long#123, TOLONG(salary{f}#74) AS $$y$converted_to$long#124,
+     *                 null[KEYWORD] AS y#130, null[INTEGER] AS $$emp_no$temp_name$131#133, null[INTEGER] AS $$languages$temp_name$135#136,
+     *                 null[INTEGER] AS $$salary$temp_name$132#134]]
      *           \_Join[LEFT,[languages{f}#72],[language_code{f}#80],null,ANY]
      *             |_Filter[languages{f}#72 > 0[INTEGER]]
      *             | \_EsRelation[test][_meta_field{f}#75, emp_no{f}#69, first_name{f}#70, ..]
@@ -517,16 +520,14 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(0, right.value());
         Eval eval = as(filter.child(), Eval.class);
         List<Alias> aliases = eval.fields();
-        assertEquals(6, aliases.size());
-        Alias aliasX = aliases.get(0);
-        assertEquals("x", aliasX.name());
+        // The branch's own columns, the conversions pushed into it and the null fill of a sibling's column, in no particular order.
+        assertThat(
+            Expressions.names(aliases),
+            containsInAnyOrder("x", "z", "language_name", "$$x$converted_to$long", "$$y$converted_to$long", "y")
+        );
+        Alias aliasX = aliases.stream().filter(a -> a.name().equals("x")).findFirst().orElseThrow();
         Literal xLiteral = as(aliasX.child(), Literal.class);
         assertEquals(1, xLiteral.value());
-        assertEquals("z", aliases.get(1).name());
-        assertEquals("language_name", aliases.get(2).name());
-        assertEquals("$$x$converted_to$long", aliases.get(3).name());
-        assertEquals("$$y$converted_to$long", aliases.get(4).name());
-        assertEquals("y", aliases.get(5).name());
         Filter childFilter = as(eval.child(), Filter.class);
         LessThan lessThan = as(childFilter.condition(), LessThan.class);
         FieldAttribute salaryField = as(lessThan.left(), FieldAttribute.class);

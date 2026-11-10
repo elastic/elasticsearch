@@ -46,6 +46,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
@@ -695,7 +696,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             inventoryCounters,
             inventoryMetrics,
             new OpenFetchContexts(services.telemetryProvider().getMeterRegistry()),
-            new PluginComponentBinding<>(QueryMetricsListener.class, collector)
+            new PluginComponentBinding<>(QueryMetricsListener.class, collector),
+            // Without federation no external split is ever dispatched, so there is nothing to hold a joining node back from.
+            new ExternalWorkerReadiness(
+                services.clusterService(),
+                services.client(),
+                services.threadPool(),
+                Federation.isAvailable(settings)
+            )
         );
     }
 
@@ -748,6 +756,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
                 EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
+                EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX,
                 EsqlFlags.ESQL_FETCH_PHASE,
                 FetchService.MAX_CONCURRENT_SHARD_TASKS,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
@@ -872,6 +881,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichQuerySourceOperator.Status.ENTRY);
+        entries.add(LookupQueryOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
@@ -934,6 +944,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsExecutors.TaskTrackingConfig.builder()
                     .trackOngoingTasks()
                     .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .attributeTaskLoad()
                     .build()
             ),
             // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept

@@ -381,6 +381,7 @@ public class PlanFetchTests extends ESTestCase {
             1000,
             500,
             EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
+            EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
             EsqlFlags.FetchPhaseMode.UNAVAILABLE
         );
         assertDeclined(

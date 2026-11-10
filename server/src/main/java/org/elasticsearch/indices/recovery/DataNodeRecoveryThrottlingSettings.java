@@ -44,7 +44,7 @@ import java.util.function.IntConsumer;
 /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING] defines the max number of target recoveries
 /// that can run concurrently on the data node, as `min(fixed, ceil(heapGb * perHeapGb))`.
 /// This bound is applied by [ThrottlingRecoveryService], which then queues the recoveries that exceed it in
-/// [org.elasticsearch.cluster.routing.ShardRouting.RecoveryPriority] order.
+/// [org.elasticsearch.cluster.routing.RecoveryPriority] order.
 ///
 /// The heap-based limit does not apply to stateless search nodes, whose incoming recoveries are only bounded by
 /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]. This mirrors the master behavior, where
@@ -54,7 +54,7 @@ import java.util.function.IntConsumer;
 /// this max limit that non-critical recoveries may use. These are recoveries whose delay does not cause additional
 /// unavailability: relocations, recoveries of unassigned shards added for performance reasons, and snapshot restores
 /// (which may take a long time, and whose index is expected to be unavailable until they complete). See
-/// [org.elasticsearch.cluster.routing.ShardRouting.RecoveryPriority#isCritical()].
+/// [org.elasticsearch.cluster.routing.RecoveryPriority#isCritical()].
 ///
 /// ## Source (outgoing) side
 ///

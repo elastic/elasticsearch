@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMessages;
 
 import java.util.Arrays;
@@ -1050,10 +1049,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }, e -> {}), null);
 
         assertThat(response.closed, is(true));
-    }
-
-    public void testEsqlQueryActionNameShouldMatchEsqlQueryAction() {
-        assertThat(EsqlDatafeedQueryValidator.ESQL_QUERY_ACTION_NAME, equalTo(EsqlQueryAction.NAME));
     }
 
     public void testRemoteIndexShouldFailRemoteClusterSourceRejection() {

@@ -41,9 +41,6 @@ import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.E
  */
 public class EsqlDatafeedQueryValidator {
 
-    /** Must match {@code org.elasticsearch.xpack.esql.action.EsqlQueryAction#NAME}. */
-    public static final String ESQL_QUERY_ACTION_NAME = "indices:data/read/esql";
-
     private static final Logger logger = LogManager.getLogger(EsqlDatafeedQueryValidator.class);
 
     private final EsqlQueryRunner queryRunner;
@@ -189,15 +186,6 @@ public class EsqlDatafeedQueryValidator {
         });
 
         executeEsqlQueryAsync(client, probeQuery, headers, projectRouting, params, responseListener);
-    }
-
-    /** Leading {@code FROM}/{@code TS} source index expressions, or empty when the query has no leading source command. */
-    public static List<String> leadingSourceIndexExpressions(@Nullable String esqlQuery) {
-        if (esqlQuery == null) {
-            return List.of();
-        }
-        String sourceCommand = extractLeadingSourceCommand(esqlQuery);
-        return sourceCommand == null ? List.of() : sourceIndexExpressions(sourceCommand);
     }
 
     /** Leading FROM/TS segment for source probes; {@code null} if the query does not start with FROM or TS. */

@@ -63,7 +63,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
-import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
@@ -74,7 +73,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Change;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -694,7 +692,7 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testPutEsqlDatafeedWithSecurityEnabledShouldCheckLeadingFromPrivileges() {
+    public void testPutEsqlDatafeedWithSecurityEnabledShouldShortCircuitIndexPrivilegeCheck() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String callerAuthentication = "caller-auth";
         threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, callerAuthentication);
@@ -726,84 +724,10 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(response.get(), notNullValue());
         assertThat(storedHeaders.get(), notNullValue());
         assertThat(storedHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY), equalTo(callerAuthentication));
-        verify(harness.client()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
+        // Index privileges are not checked at PUT for ES|QL datafeeds, so the persisted datafeed headers
+        // (used by every runtime query) must carry the caller's identity.
+        verify(harness.client(), never()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
         verify(harness.client(), never()).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testPutEsqlDatafeedWhenCallerLacksSourceReadPrivilegeShouldFailBeforePersist() {
-        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
-        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
-        doAnswer(invocation -> {
-            ActionListener<HasPrivilegesResponse> listener = invocation.getArgument(2);
-            listener.onResponse(
-                new HasPrivilegesResponse(
-                    "user",
-                    false,
-                    Collections.emptyMap(),
-                    List.of(
-                        ResourcePrivileges.builder("logs").addPrivilege(EsqlDatafeedQueryValidator.ESQL_QUERY_ACTION_NAME, false).build()
-                    ),
-                    Collections.emptyMap()
-                )
-            );
-            return null;
-        }).when(harness.client()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
-
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
-            .build();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        harness.manager()
-            .putDatafeed(
-                new PutDatafeedAction.Request(datafeed),
-                mockClusterStateWithNoTasks(),
-                mockSecurityContextWithUser("df-user"),
-                harness.threadPool(),
-                ActionListener.wrap(r -> fail("expected failure"), failure::set)
-            );
-
-        assertThat(failure.get(), instanceOf(ElasticsearchSecurityException.class));
-        verify(harness.datafeedConfigProvider(), never()).putDatafeedConfig(any(), any(), any());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testUpdateEsqlDatafeedWhenScopeChangeProbeFailsShouldNotRetainSnapshot() {
-        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-        UpdateFixture fixture = new UpdateFixture();
-        DatafeedConfig storedConfig = esqlDatafeedBuilder("df-esql", "job-esql").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
-            .setCloudInternalCredential(randomPersistedCloudCredential("existing-key-id"))
-            .build();
-        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
-        stubUpdateMigrationPath(
-            fixture.datafeedConfigProvider,
-            fixture.jobConfigProvider,
-            fixture.credentialManager,
-            fixture.apiKeyService,
-            fixture.client,
-            fixture.threadPool,
-            storedConfig,
-            capturedUpdate
-        );
-        mockGetJobWithSnapshot(fixture.jobConfigProvider, "job-esql", "rollback-snap-1");
-        ElasticsearchStatusException probeFailure = new ElasticsearchStatusException("probe failed", RestStatus.BAD_REQUEST);
-        doAnswer(invocation -> {
-            invocation.<ActionListener<Boolean>>getArgument(2).onFailure(probeFailure);
-            return null;
-        }).when(fixture.jobConfigProvider).validateDatafeedJobAndEsqlQuery(any(), any(), any());
-
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        fixture.manager.updateDatafeed(
-            new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df-esql").setProjectRouting("_alias:prod-*").build()),
-            mockClusterStateForUpdate(),
-            null,
-            fixture.threadPool,
-            ActionListener.wrap(r -> fail("expected failure"), failure::set)
-        );
-
-        assertThat(failure.get(), sameInstance(probeFailure));
-        verify(fixture.client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
     }
 
     private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {

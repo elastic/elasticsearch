@@ -337,7 +337,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         }
         // Inject _tsid (and adjust the index mode) only into the time-series source of this aggregate, again
         // without descending into nested sub-plans on the right-hand side of a join - see addTsidToTimeSeriesSource.
-        LogicalPlan newChild = addTsidToTimeSeriesSource(aggregate.child(), tsid.get(), requiredTimeSeriesSource.get());
+        LogicalPlan newChild = addTsidToTimeSeriesSource(aggregate.child(), tsid.get(), true);
         Bucket userBucket = timeBucketSpecRef.get();
         if (userBucket == null) {
             userBucket = (Bucket) Alias.unwrap(timeBucket);

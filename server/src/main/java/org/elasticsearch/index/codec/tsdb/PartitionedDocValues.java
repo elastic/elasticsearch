@@ -12,6 +12,8 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 import java.io.IOException;
@@ -43,6 +45,16 @@ public interface PartitionedDocValues {
      * The number of bits used in prefix partitions
      */
     int prefixPartitionBits();
+
+    /**
+     * Whether every segment of an index with these settings can be partitioned by tsid prefix, without reading the segments:
+     * the index is recent enough to always write the partitions, and its {@code _tsid} uses the time-series doc-values format.
+     */
+    static boolean canPartitionByTsidPrefix(IndexSettings indexSettings) {
+        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION)
+            && indexSettings.useTimeSeriesDocValuesFormat()
+            && indexSettings.isES87TSDBCodecEnabled();
+    }
 
     /**
      * Check if the given index searcher can be partitioned by tsid prefix.

@@ -70,6 +70,7 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
 
         final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         final IndexShard shard = indexService.getShard(0);
+        assertTrue(PartitionedDocValues.canPartitionByTsidPrefix(indexService.getIndexSettings()));
         try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertTrue(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
             PartitionedDocValues.PrefixPartitions partition = null;

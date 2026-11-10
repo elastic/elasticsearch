@@ -92,7 +92,8 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
         .ternary(Knn::new)
-        .capabilities("runtime_anywhere", "runtime_similarity_function", "single_dimension_query_vector")
+        // k_option_without_limit: an explicit k option satisfies the k requirement without a LIMIT after KNN.
+        .capabilities("runtime_anywhere", "runtime_similarity_function", "single_dimension_query_vector", "k_option_without_limit")
         .name("knn");
 
     private final Integer implicitK;
@@ -509,7 +510,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        assert implicitK() != null : "Knn function must have a k value set before translation";
+        assert hasK() : "Knn function must have a k value set before translation";
         var fieldAttribute = fieldAsFieldAttribute(field());
 
         Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
@@ -570,12 +571,23 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        // Check that a k has been set
-        if (implicitK() == null) {
+        // Check that a k has been set. Runtime searches are evaluated per row and don't use k.
+        if (false == isRuntimeSearch() && false == hasK()) {
             failures.add(
-                Failure.fail(this, "Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find")
+                Failure.fail(
+                    this,
+                    "[KNN] function must specify a k option or be used with a LIMIT clause after it "
+                        + "to set the number of nearest neighbors to find"
+                )
             );
         }
+    }
+
+    /**
+     * Whether k is known, either from the explicit {@code k} option or from a LIMIT pushed down as {@link #implicitK()}.
+     */
+    private boolean hasK() {
+        return implicitK() != null || queryOptions().get(K_FIELD.getPreferredName()) != null;
     }
 
     @Override

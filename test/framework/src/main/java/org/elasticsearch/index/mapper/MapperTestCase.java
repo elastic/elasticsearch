@@ -2756,8 +2756,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * An index-time script can emit many values, and nothing limits it to one, so a scripted field is not statically single-valued
-     * even with {@code multi_value=false}. Call it from a mapper test whose mapper accepts {@code script}, with the id of a script it compiles.
+     * An index-time script can emit multiple values, even if the {@code multi_value} param is false, so a scripted field is not
+     * statically single-valued. Call it from a mapper test whose mapper accepts {@code script}, with the id of a script it compiles.
      */
     protected final void assertScriptedFieldIsNotStaticallySingleValued(String script) throws IOException {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();

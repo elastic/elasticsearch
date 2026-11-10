@@ -318,9 +318,8 @@ class FieldCapabilitiesFetcher {
     }
 
     /**
-     * The key under which indices share one response. The mapping hash alone omits two things that change the response:
-     * {@code index.analysis}, which decides whether an analyzer name is withheld as index-local, and the
-     * {@code index.mapping.doc_values.multi_value} default, which decides whether a field is single-valued.
+     * Indices with the same key share one response. Besides the mapping, the key includes the settings that change the response
+     * without changing the mapping: {@code index.analysis} and {@code index.mapping.doc_values.multi_value}.
      */
     static String mappingDedupHash(MappingMetadata mapping, IndexMode indexMode, SearchExecutionContext context) {
         return mapping.getSha256() + indexMode + analyzerNamesDigest(configuredAnalyzerNames(context))

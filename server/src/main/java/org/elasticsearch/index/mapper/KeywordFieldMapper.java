@@ -727,7 +727,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.emptyStringAsNull = EMPTY_KEYWORD_STRING_AS_NULL_SETTING.get(builder.indexSettings.getSettings());
             this.diskFormat = builder.diskFormat();
             this.preservesArrayOrder = builder.preservesArrayOrder();
-            // An index-time script can emit many values, and nothing limits it to one.
+            // An index-time script can emit multiple values, even if the multi_value param is false.
             this.staticallySingleValued = builder.script.get() == null && builder.docValuesParameters().multiValue() == false;
         }
 

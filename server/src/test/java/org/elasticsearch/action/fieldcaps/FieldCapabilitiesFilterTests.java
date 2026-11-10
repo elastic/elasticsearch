@@ -556,7 +556,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
     /**
      * Two columnar indices can have the same mapping and still differ in whether a field is single-valued, when only the
-     * {@code index.mapping.doc_values.multi_value} default differs. They must not share a response.
+     * {@code index.mapping.doc_values.multi_value} default differs.
      */
     public void testMultiValueDefaultIsPartOfMappingDedupHash() throws IOException {
         String mapping = """

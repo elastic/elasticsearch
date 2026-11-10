@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FirstDocIdGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
@@ -22,6 +24,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
@@ -30,7 +33,9 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.hamcrest.Matchers;
 
@@ -124,7 +129,7 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
         List<Page> pages = detachedPages(origins, expectedFirstDocs);
 
         Map<Integer, DetachedDoc> actualFirstDocs = new HashMap<>();
-        for (Page out : runSingle(pages, Integer.MAX_VALUE)) {
+        for (Page out : runSingle(driverContext(), pages, Integer.MAX_VALUE)) {
             IntBlock groups = out.getBlock(0);
             DocVector docVector = ((DocBlock) out.getBlock(1)).asVector();
             for (int p = 0; p < out.getPositionCount(); p++) {
@@ -142,7 +147,7 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
     public void testAnOutputPageCarriesOnlyTheOriginsOfItsRows() {
         List<Page> pages = detachedPages(origins(between(2, 5)), new HashMap<>());
 
-        for (Page out : runSingle(pages, between(1, 10))) {
+        for (Page out : runSingle(driverContext(), pages, between(1, 10))) {
             DocVector docVector = ((DocBlock) out.getBlock(1)).asVector();
             Set<DocOrigin> referenced = new HashSet<>();
             for (int p = 0; p < out.getPositionCount(); p++) {
@@ -154,7 +159,24 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
     }
 
     /**
-     * A vector holds either documents of this node or documents that left their node, so one aggregation can't take both.
+     * A breaker that trips while the aggregation numbers the origins of its documents, or while it builds an output page,
+     * leaves nothing on any breaker. {@link ComputeTestCase} checks the breakers after the test.
+     */
+    public void testDocumentsThatLeftTheirNodeReleaseEverythingWhenTheBreakerTrips() {
+        List<Page> pages = detachedPages(origins(between(1, 5)), new HashMap<>());
+        BlockFactory cranky = crankyBlockFactory();
+
+        try {
+            List<Page> out = runSingle(new DriverContext(cranky.bigArrays(), cranky, null), pages, between(1, 10));
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(out.iterator(), p -> p::releaseBlocks)));
+        } catch (CircuitBreakingException e) {
+            assertThat(e.getMessage(), Matchers.equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    /**
+     * A vector holds either documents of this node or documents that left their node, so one aggregation can't take both,
+     * whichever kind comes first.
      */
     public void testDocumentsOfThisNodeAndDocumentsThatLeftTheirNodeDontMix() {
         Map<Integer, RefCounted> shardRefs = Map.of(0, AbstractRefCounted.of(() -> {}));
@@ -170,11 +192,14 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
             builder.appendShard(0).appendSegment(0).appendDoc(0);
             detached = new Page(builder.build(DocVector.config().origins(DocOrigins.of(origins(1)))));
         }
+        boolean attachedFirst = randomBoolean();
+        Page first = attachedFirst ? attached : detached;
+        Page second = attachedFirst ? detached : attached;
         try (var aggregator = new FirstDocIdGroupingAggregatorFunction(List.of(0), driverContext())) {
-            aggregator.prepareProcessRawInputPage(new SeenGroupIds.Empty(), attached).close();
+            aggregator.prepareProcessRawInputPage(new SeenGroupIds.Empty(), first).close();
             IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                () -> aggregator.prepareProcessRawInputPage(new SeenGroupIds.Empty(), detached)
+                () -> aggregator.prepareProcessRawInputPage(new SeenGroupIds.Empty(), second)
             );
             assertThat(
                 e.getMessage(),
@@ -219,29 +244,27 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
 
     /**
      * Groups {@code pages} by their second column in a single pass, as the coordinator aggregates the rows of a {@code FORK}.
+     * Releases the pages when the aggregation fails to build.
      */
-    private List<Page> runSingle(List<Page> pages, int maxPageSize) {
-        DriverContext driverContext = driverContext();
+    private List<Page> runSingle(DriverContext driverContext, List<Page> pages, int maxPageSize) {
         var aggregatorFactory = new FirstDocIdGroupingAggregatorFunction.FunctionSupplier().groupingAggregatorFactory(
             AggregatorMode.SINGLE,
             List.of(0)
         );
-        HashAggregationOperator hashAggregationOperator = new HashAggregationOperator.Builder().mode(AggregatorMode.SINGLE)
-            .aggregators(List.of(aggregatorFactory))
-            .groups(List.of(new BlockHash.GroupSpec(1, ElementType.INT)))
-            .aggregationBatchSize(randomIntBetween(1, 1024))
-            .maxPageSize(maxPageSize)
-            .build()
-            .get(driverContext);
-        List<Page> outputPages = new ArrayList<>();
-        Driver driver = TestDriverFactory.create(
-            driverContext,
-            new CannedSourceOperator(pages.iterator()),
-            List.of(hashAggregationOperator),
-            new PageConsumerOperator(outputPages::add)
-        );
-        new TestDriverRunner().run(driver);
-        return outputPages;
+        Operator aggregation;
+        try {
+            aggregation = new HashAggregationOperator.Builder().mode(AggregatorMode.SINGLE)
+                .aggregators(List.of(aggregatorFactory))
+                .groups(List.of(new BlockHash.GroupSpec(1, ElementType.INT)))
+                .aggregationBatchSize(randomIntBetween(1, 1024))
+                .maxPageSize(maxPageSize)
+                .build()
+                .get(driverContext);
+        } catch (RuntimeException e) {
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks)));
+            throw e;
+        }
+        return new TestDriverRunner().builder(driverContext).input(pages).run(aggregation);
     }
 
     private static List<DocOrigin> origins(int count) {
